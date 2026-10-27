@@ -5,11 +5,12 @@
 // Scenarios: `fake` — the fake core (test/fixtures/fake-core.mjs): the hardening of §9, Use another port, locked
 // mode, notifications, tray, the 700 ms input guard; `real` — the real core: the UI end to end through the proxy,
 // the event stream through app://, the 700 ms guard on a real approval, quit.
-import { app, BrowserWindow, Notification } from 'electron';
+import { app, BrowserWindow, Notification, session } from 'electron';
 import { request as httpRequest } from 'node:http';
 import { connect } from 'node:net';
-import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join } from 'node:path';
+import { tmpdir } from 'node:os';
 import type { SmokeHost } from './app.ts';
 import { callCore } from './core-client.ts';
 import { readDesktopConfig } from './desktop-config.ts';
@@ -66,6 +67,12 @@ export function run(host: SmokeHost, scenario: string): void {
       else if (scenario === 'protect') await protectScenario(host);
       else if (scenario === 'unprotected') await unprotectedScenario(host);
       else if (scenario === 'unlock') await unlockScenario(host);
+      else if (scenario === 'reset') {
+        await resetScenario(host);
+        clearTimeout(watchdog);
+        return; // The reset owns shutdown; its will-quit hook emits the result after cleanup.
+      }
+      else if (scenario === 'reset-after') await resetAfterScenario(host);
       else record('known scenario', false, scenario);
     } catch (e) {
       record('scenario ran to the end', false, (e as Error).stack ?? String(e));
@@ -245,7 +252,7 @@ async function hardening(host: SmokeHost): Promise<void> {
       && page['Buffer'] === 'undefined' && page['ipc'] === 'undefined', page);
   expect('window.gwDesktop is the contract and nothing else', JSON.stringify(page['keys']) === JSON.stringify([
     'applyGeneral', 'checkForUpdates', 'findFreePort', 'onCoreState', 'onDeepLink', 'onEvent', 'onUpdateState',
-    'openClientConfig', 'openExternal', 'openFile', 'openMcpb', 'platform', 'quit', 'restartCore', 'revealInFolder',
+    'openClientConfig', 'openExternal', 'openFile', 'openMcpb', 'platform', 'quit', 'resetApplication', 'restartCore', 'revealInFolder',
     'saveFile', 'setNativeTheme', 'unlock', 'usePort']), page['keys']);
   expect('a script injected into the DOM is refused (Trusted Types)', /TypeError/.test(String(page['inject'])), page['inject']);
   expect('HTML injected into the DOM is refused (Trusted Types)', page['html'] === 'TypeError', page['html']);
@@ -658,6 +665,96 @@ async function unlockScenario(host: SmokeHost): Promise<void> {
   await waitForText(host, 'the explanation after reload', /Unlock GateRook/);
   expect('reload keeps the unlock gate without starting the core', host.unlockState()?.unlocking === false
     && host.supervisor.pid() === null && !existsSync(join(host.layout.home, 'master.keyset.osk')));
+}
+
+/** Drive the real reset controls and IPC in a disposable fake-core home; no native authentication is involved. */
+async function resetScenario(host: SmokeHost): Promise<void> {
+  const home = host.layout.home;
+  if (!host.layout.dev || process.env['GW_DESKTOP_PROTECTION'] !== 'off' || host.layout.core.kind !== 'custom'
+      || basename(home) !== 'reset' || !basename(dirname(home)).startsWith('gw-smoke-')
+      || realpathSync(dirname(dirname(home))) !== realpathSync(tmpdir())) {
+    throw new Error('The reset smoke requires a disposable development home, fake core, and protection off.');
+  }
+  const core = await ready(host);
+  const corePid = host.supervisor.pid();
+  await until('the renderer to receive readiness', () => host.readyDelivered() === core.instanceNonce);
+  host.openRoute('settings/general');
+  await until('the Reset GateRook setting', () => inPage<boolean>(host, 'return !!document.querySelector("#st-reset-t");'));
+  await inPage(host, `
+    localStorage.setItem('gw-reset-smoke', 'must be removed');
+    localStorage.setItem('gw-onboarding-later', '["clients"]');
+    await new Promise((resolve, reject) => {
+      const request = indexedDB.open('gw-reset-smoke', 1);
+      request.onupgradeneeded = () => request.result.createObjectStore('state');
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const db = request.result;
+        const transaction = db.transaction('state', 'readwrite');
+        transaction.objectStore('state').put('must be removed', 'sentinel');
+        transaction.oncomplete = () => { db.close(); resolve(); };
+        transaction.onerror = () => { db.close(); reject(transaction.error); };
+      };
+    });
+    return true;`);
+  session.defaultSession.flushStorageData();
+  const seeded = await inPage<{ value: string | null; database: boolean }>(host, `
+    return { value: localStorage.getItem('gw-reset-smoke'), database: (await indexedDB.databases()).some((db) => db.name === 'gw-reset-smoke') };`);
+  expect('reset: persistent browser data exists before reset', seeded.value === 'must be removed' && seeded.database, seeded);
+
+  const refused = await inPage<boolean>(host, `
+    try { await window.gwDesktop.resetApplication('reset'); return false; }
+    catch (error) { return /Type RESET/.test(error.message); }`);
+  expect('reset: main rejects incorrect confirmation without stopping the core', refused && host.supervisor.pid() === corePid
+    && !existsSync(join(host.layout.home, '.reset-pending')));
+
+  await inPage(host, `
+    [...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Reset GateRook').click();
+    return true;`);
+  await until('the reset confirmation', () => inPage<boolean>(host, 'return document.querySelector("#st-reset-dlg")?.open === true;'));
+  const initial = await inPage<{ focus: string; disabled: boolean }>(host, `
+    const dialog = document.querySelector('#st-reset-dlg');
+    const confirm = [...dialog.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Delete all local data');
+    return { focus: document.activeElement?.textContent.trim() ?? '', disabled: confirm.getAttribute('aria-disabled') === 'true' };`);
+  expect('reset: Cancel has focus and deletion requires exact confirmation', initial.focus === 'Cancel' && initial.disabled, initial);
+  await inPage(host, `
+    [...document.querySelectorAll('#st-reset-dlg button')].find((button) => button.textContent.trim() === 'Cancel').click();
+    return true;`);
+  const cancelled = await inPage<boolean>(host, 'return document.querySelector("#st-reset-dlg")?.open === false;');
+  expect('reset: Cancel preserves the data and running core', cancelled && host.supervisor.pid() === corePid
+    && existsSync(join(host.layout.home, 'gateway.db')) && !existsSync(join(host.layout.home, '.reset-pending')));
+
+  await inPage(host, `
+    [...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Reset GateRook').click();
+    const input = document.querySelector('#st-reset-confirmation');
+    input.value = 'RESET'; input.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;`);
+  await until('confirmed reset to become enabled', () => inPage<boolean>(host, `
+    const confirm = [...document.querySelectorAll('#st-reset-dlg button')].find((button) => button.textContent.trim() === 'Delete all local data');
+    return confirm?.getAttribute('aria-disabled') !== 'true';`));
+  app.once('will-quit', () => {
+    expect('reset: cleanup stops the core and removes the pending marker before exit', host.supervisor.endpoint() === null
+      && !existsSync(join(host.layout.home, '.reset-pending')));
+    const failed = results.filter((result) => !result.ok).length;
+    process.stdout.write(`[smoke-result] ${JSON.stringify({ ok: failed === 0, passed: results.length - failed,
+      failed, corePid, resetRequested: true })}\n`);
+  });
+  await inPage(host, `
+    [...document.querySelectorAll('#st-reset-dlg button')].find((button) => button.textContent.trim() === 'Delete all local data').click();
+    return true;`);
+}
+
+async function resetAfterScenario(host: SmokeHost): Promise<void> {
+  const core = await ready(host);
+  await until('the default startup page', () => inPage<boolean>(host,
+    'return location.pathname === "/overview" && !!document.querySelector(".gw-shell") && !document.querySelector("gw-status-screen");'));
+  const storage = await inPage<{ value: string | null; later: string | null; database: boolean }>(host, `
+    return { value: localStorage.getItem('gw-reset-smoke'), later: localStorage.getItem('gw-onboarding-later'),
+      database: (await indexedDB.databases()).some((db) => db.name === 'gw-reset-smoke') };`);
+  expect('reset: local preferences and IndexedDB are absent in the next app process', storage.value === null
+    && storage.later === null && !storage.database, storage);
+  expect('reset: the fresh-run core reaches the default startup page', core.firstRun && core.locked === null);
+  expect('reset: the prior keyset and database were not restored on startup', !existsSync(join(host.layout.home, 'gateway.db'))
+    && !existsSync(join(host.layout.home, 'master.keyset')) && !existsSync(join(host.layout.home, 'master.keyset.osk')));
 }
 
 /**

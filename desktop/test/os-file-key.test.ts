@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, it } from 'node:test';
@@ -30,6 +30,7 @@ function setup(platform: NodeJS.Platform = 'darwin', available = true) {
     switch (request.operation) {
       case 'check': return { ok: true, available, touchId: available && platform === 'darwin' };
       case 'verify': return { ok: true };
+      case 'delete': saved.delete(request.account!); return { ok: true };
       case 'store': case 'create': saved.set(request.account!, request.key!); return { ok: true };
       case 'get': {
         const value = saved.get(request.account!);
@@ -186,5 +187,84 @@ describe('native startup file keys', () => {
     assert.equal((await s.manager.load()).protection, 'gnome_libsecret');
     assert.deepEqual(s.calls, []);
     assert.deepEqual(s.safeCalls, ['available', 'encrypt']);
+  });
+});
+
+describe('native file key reset', () => {
+  it('deletes only the referenced account without loading, authenticating, or creating a key', async () => {
+    const s = setup();
+    const reference = JSON.stringify({ format: 'gaterook-native-key-v1', account: 'this-home' });
+    writeFileSync(oskPath(s.home), reference);
+    s.saved.set('this-home', key.toString('base64'));
+    s.saved.set('another-home', key.toString('base64'));
+    await s.manager.reset();
+    assert.deepEqual(s.calls, [{ operation: 'delete', account: 'this-home' }]);
+    assert.equal(s.saved.has('this-home'), false);
+    assert.equal(s.saved.has('another-home'), true);
+    assert.deepEqual(s.safeCalls, []);
+    assert.equal(readFileSync(oskPath(s.home), 'utf8'), reference, 'the caller removes local files after key cleanup');
+    await s.manager.reset();
+    assert.deepEqual(s.calls, [
+      { operation: 'delete', account: 'this-home' }, { operation: 'delete', account: 'this-home' },
+    ], 'a missing native item is already reset');
+  });
+
+  it('does not open the shared legacy provider or create a key when no native reference exists', async () => {
+    const s = setup();
+    await s.manager.reset();
+    const legacy = 'safe:' + key.toString('base64');
+    writeFileSync(oskPath(s.home), legacy);
+    await s.manager.reset();
+    assert.deepEqual(s.calls, []);
+    assert.deepEqual(s.safeCalls, []);
+    assert.equal(readFileSync(oskPath(s.home), 'utf8'), legacy);
+  });
+
+  for (const platform of ['win32', 'linux'] as const) {
+    it(`does not access OS key storage during reset on ${platform}`, async () => {
+      const s = setup(platform);
+      writeFileSync(oskPath(s.home), 'safe:' + key.toString('base64'));
+      await s.manager.reset();
+      assert.deepEqual(s.calls, []);
+      assert.deepEqual(s.safeCalls, []);
+    });
+  }
+
+  for (const reference of ['{', '{"format":"gaterook-native-key-v1"}',
+    '{"format":"gaterook-native-key-v1","account":""}',
+    '{"format":"gaterook-native-key-v1","account":"invalid/account"}']) {
+    it(`rejects a damaged native reference without deleting any account: ${reference}`, async () => {
+      const s = setup();
+      writeFileSync(oskPath(s.home), reference);
+      await assert.rejects(s.manager.reset(), FileKeyAccessError);
+      assert.deepEqual(s.calls, []);
+      assert.deepEqual(s.safeCalls, []);
+      assert.equal(readFileSync(oskPath(s.home), 'utf8'), reference);
+    });
+  }
+
+  for (const failure of ['cancelled', 'denied', 'unavailable', 'failed']) {
+    it(`preserves the native reference and reports ${failure} when deletion fails`, async () => {
+      const s = setup();
+      const reference = JSON.stringify({ format: 'gaterook-native-key-v1', account: 'this-home' });
+      writeFileSync(oskPath(s.home), reference);
+      s.saved.set('this-home', key.toString('base64'));
+      s.fail('delete', failure);
+      await assert.rejects(s.manager.reset(), NativeUnlockError);
+      assert.equal(readFileSync(oskPath(s.home), 'utf8'), reference);
+      assert.equal(s.saved.has('this-home'), true);
+      assert.deepEqual(s.calls, [{ operation: 'delete', account: 'this-home' }]);
+      assert.deepEqual(s.safeCalls, []);
+    });
+  }
+
+  it('refuses a linked reference instead of deleting another home\'s key', { skip: process.platform === 'win32' }, async () => {
+    const s = setup();
+    const other = setup();
+    writeFileSync(oskPath(other.home), JSON.stringify({ format: 'gaterook-native-key-v1', account: 'another-home' }));
+    symlinkSync(oskPath(other.home), oskPath(s.home));
+    await assert.rejects(s.manager.reset(), FileKeyAccessError);
+    assert.deepEqual(s.calls, []);
+    assert.deepEqual(s.safeCalls, []);
   });
 });

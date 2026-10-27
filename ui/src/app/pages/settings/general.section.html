@@ -101,7 +101,56 @@
       </div>
     </div>
   </section>
+  <section class="gw-form__section" aria-labelledby="st-reset-t">
+    <header class="gw-form__section-header">
+      <h3 class="gw-form__legend" id="st-reset-t">Reset GateRook</h3>
+      <p class="gw-form__description">Permanently delete local application data and start again with default settings.</p>
+    </header>
+    <div class="gw-form__rows">
+      <div class="gw-settings-layout__inline">
+        <button class="gw-btn gw-btn--danger-ghost" type="button" aria-haspopup="dialog" [attr.aria-disabled]="!desktop.available || resetBusy() ? 'true' : null" [attr.aria-describedby]="!desktop.available ? 'st-reset-why' : 'st-reset-hint'" (click)="openReset($event)"><svg lucideIcon="trash-2" class="gw-icon"></svg> Reset GateRook</button>
+        <p class="gw-text-caption gw-fg-muted" id="st-reset-hint">Deletes connections, saved credentials, settings, the local database, backups, history and installed plugins. This cannot be undone.</p>
+        @if (!desktop.available) {
+          <p class="gw-text-caption gw-fg-muted" id="st-reset-why">Reset is available only in the desktop app.</p>
+        }
+      </div>
+    </div>
+  </section>
 </div>
+
+<dialog class="gw-dialog gw-dialog--md gw-dialog--danger" id="st-reset-dlg" gwDialog gwDialogStatic #resetDialog="gwDialog" aria-labelledby="st-reset-dlg-t" aria-describedby="st-reset-dlg-d" (cancel)="guardResetCancel($event)">
+  <header class="gw-dialog__header">
+    <span class="gw-icon-tile"><svg lucideIcon="trash-2" class="gw-icon"></svg></span>
+    <h2 class="gw-dialog__title" id="st-reset-dlg-t">Reset GateRook?</h2>
+    <p class="gw-dialog__description" id="st-reset-dlg-d">Permanently delete all local application data. This cannot be undone.</p>
+    <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" [attr.aria-disabled]="resetBusy() ? 'true' : null" [attr.aria-describedby]="resetBusy() ? 'st-reset-status' : null" (click)="cancelReset()"><svg lucideIcon="x" class="gw-icon"></svg></button>
+  </header>
+  <div class="gw-dialog__body">
+    <div class="gw-stack">
+      <p>All connections, saved credentials, settings, the local database, backups, activity history and installed plugins will be removed.</p>
+      <p>GateRook closes after the reset. The next launch starts fresh. You will need to reconnect your AI apps.</p>
+      <p>Your external databases and services are not changed.</p>
+      <div class="gw-field">
+        <label class="gw-field__label" for="st-reset-confirmation">Type RESET to confirm</label>
+        <input class="gw-input gw-input--mono" id="st-reset-confirmation" type="text" autocomplete="off" spellcheck="false" #resetInput [value]="resetConfirmation()" [readOnly]="resetBusy()" aria-describedby="st-reset-confirmation-hint" (input)="resetConfirmation.set(resetInput.value)">
+        <p class="gw-field__hint" id="st-reset-confirmation-hint">Enter RESET exactly, then select Delete all local data.</p>
+      </div>
+      @if (resetError(); as err) {
+        <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+          <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content"><p class="gw-alert__title">Reset did not finish</p><p class="gw-alert__body">{{ err }}</p></div>
+        </div>
+      }
+      @if (resetBusy()) {
+        <p class="gw-text-small gw-fg-muted" id="st-reset-status" role="status">Resetting local data. GateRook will close when finished.</p>
+      }
+    </div>
+  </div>
+  <footer class="gw-dialog__footer">
+    <button class="gw-btn" type="button" autofocus [attr.aria-disabled]="resetBusy() ? 'true' : null" [attr.aria-describedby]="resetBusy() ? 'st-reset-status' : null" (click)="cancelReset()">Cancel</button>
+    <button class="gw-btn gw-btn--danger" type="button" [attr.aria-disabled]="!desktop.available || resetBusy() || resetConfirmation() !== 'RESET' ? 'true' : null" [attr.aria-busy]="resetBusy() ? 'true' : null" [attr.aria-describedby]="resetBusy() ? 'st-reset-status' : 'st-reset-confirmation-hint'" (click)="resetApplication()">@if (resetBusy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> }Delete all local data</button>
+  </footer>
+</dialog>
 
 <!-- Change port: risky but reversible, so gw-dialog--warning with a primary confirm; static, the field has focus. -->
 <dialog class="gw-dialog gw-dialog--md gw-dialog--warning" id="st-port-dlg" gwDialog gwDialogStatic #portDialog="gwDialog" aria-labelledby="st-port-dlg-t" aria-describedby="st-port-dlg-d">

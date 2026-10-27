@@ -101,6 +101,7 @@ export const IPC = {
   applyGeneral: 'gw:apply-general',
   unlock: 'gw:unlock',
   restartCore: 'gw:restart-core',
+  resetApplication: 'gw:reset-application',
   usePort: 'gw:use-port',
   findFreePort: 'gw:find-free-port',
   checkForUpdates: 'gw:check-for-updates',

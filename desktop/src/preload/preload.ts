@@ -84,6 +84,9 @@ const gwDesktop = {
   restartCore(): Promise<void> {
     return ipcRenderer.invoke(IPC.restartCore);
   },
+  resetApplication(confirmation: string): Promise<void> {
+    return ipcRenderer.invoke(IPC.resetApplication, String(confirmation));
+  },
   unlock(): Promise<void> {
     return ipcRenderer.invoke(IPC.unlock);
   },
