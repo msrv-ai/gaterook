@@ -40,8 +40,8 @@ import tools.jackson.databind.node.ObjectNode;
  * (§9 "the agent never sees a secret").
  *
  * <p>On the JVM this runs {@code app.jar}; with {@code -Dgateway.core.binary=<path>} it is the native touch of the
- * connector: {@code java.net.http}, google-auth's key signing and impersonation, the AWS SDK's JSON protocol with
- * the URL-connection client, and the cursor's sealed handles in the native image.
+ * connector: {@code java.net.http}, Apache HttpClient for OpenSearch REST, google-auth's key signing and
+ * impersonation, the AWS SDK's JSON protocol with the URL-connection client, and the cursor's sealed handles.
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class LogsCoreProcessIT {
@@ -235,6 +235,82 @@ class LogsCoreProcessIT {
 
   @Test
   @Order(5)
+  void fullOpenSearchApisAreDiscoveredAndSettingsWaitForExactApproval() throws Exception {
+    String base = "http://127.0.0.1:" + fake.getPort();
+    JsonNode tested = save("search-api", """
+        {"backend":"opensearch","url":"%s","apiAccess":"full","auth":{"mode":"none"}}
+        """.formatted(base), "{}");
+    assertThat(tested.path("serverVersion").asString()).isEqualTo("OpenSearch 3.9.0");
+    json(admin("POST", "/api/endpoints/logs/connections/search-api", "{}"), 200);
+    JsonNode settings = json(admin("GET", "/api/endpoints/logs/settings", null), 200);
+    json(admin("PUT", "/api/endpoints/logs/settings", "{\"approvalWait\":{\"firstWaitSeconds\":0},\"version\":"
+        + settings.path("version").asLong() + "}"), 200);
+
+    JsonNode queryTool = null;
+    JsonNode requestTool = null;
+    long deadline = System.nanoTime() + Duration.ofSeconds(15).toNanos();
+    while ((queryTool == null || requestTool == null) && System.nanoTime() < deadline) {
+      for (JsonNode tool : mcp("{\"jsonrpc\":\"2.0\",\"id\":20,\"method\":\"tools/list\",\"params\":{}}")
+          .at("/result/tools")) {
+        if (tool.path("name").asString().equals("opensearch_query")) {
+          queryTool = tool;
+        }
+        if (tool.path("name").asString().equals("opensearch_request")) {
+          requestTool = tool;
+        }
+      }
+      if (queryTool == null || requestTool == null) {
+        Thread.sleep(200);
+      }
+    }
+    assertThat(queryTool).as("full API query published").isNotNull();
+    assertThat(requestTool).as("full API request published").isNotNull();
+    for (JsonNode tool : List.of(queryTool, requestTool)) {
+      assertThat(tool.at("/inputSchema/properties/connection/enum")).containsExactly(
+          JsonNodeFactory.instance.textNode("search-api"));
+    }
+
+    JsonNode indices = call(21, "opensearch_indices", "{\"connection\":\"search-api\"}");
+    assertThat(indices.at("/result/structuredContent/body/indices/0/name").asString()).isEqualTo("products");
+    JsonNode queried = call(22, "opensearch_query", """
+        {"connection":"search-api","method":"POST","path":"/products/_search",
+         "body":{"size":0,"query":{"match_all":{}},"aggs":{"categories":{"terms":{"field":"category.keyword"}}}}}
+        """);
+    assertThat(queried.at("/result/isError").asBoolean(true)).as(queried.toString()).isFalse();
+    assertThat(queried.at("/result/structuredContent/body/aggregations/categories/buckets/0/key").asString())
+        .isEqualTo("books");
+    RecordedRequest search = REQUESTS.stream().filter(r -> r.getUrl().encodedPath().equals("/products/_search"))
+        .findFirst().orElseThrow();
+    assertThat(search.getMethod()).isEqualTo("POST");
+    assertThat(CoreProcess.JSON.readTree(search.getBody().utf8()).at("/aggs/categories/terms/field").asString())
+        .isEqualTo("category.keyword");
+
+    JsonNode requested = call(23, "opensearch_request", """
+        {"connection":"search-api","method":"PUT","path":"/products/_settings",
+         "query":{"preserve_existing":false},"body":{"index":{"number_of_replicas":1}}}
+        """);
+    JsonNode handle = requested.at("/result/structuredContent");
+    assertThat(handle.path("status").asString()).as(requested.toString()).isEqualTo("pending");
+    assertThat(REQUESTS).noneMatch(r -> r.getUrl().encodedPath().equals("/products/_settings"));
+    String id = handle.path("handle").asString();
+    JsonNode approval = json(admin("GET", "/api/approvals/" + id, null), 200);
+    String exact = approval.at("/action/text").asString();
+    assertThat(exact).startsWith("PUT " + base + "/products/_settings?preserve_existing=false\n");
+    json(admin("POST", "/api/approvals/" + id + "/decision", "{\"decision\":\"approve\",\"digest\":\""
+        + approval.path("digest").asString() + "\",\"via\":\"app\"}"), 200);
+    JsonNode status = call(24, "approval_status", "{\"handle\":\"" + id + "\",\"wait_seconds\":20}");
+    assertThat(status.at("/result/structuredContent/status").asString()).as(status.toString()).isEqualTo("completed");
+    assertThat(status.at("/result/structuredContent/result/body/acknowledged").asBoolean()).isTrue();
+    assertThat(REQUESTS.stream().filter(r -> r.getUrl().encodedPath().equals("/products/_settings")).toList())
+        .singleElement().satisfies(r -> {
+          assertThat(r.getMethod()).isEqualTo("PUT");
+          assertThat(r.getUrl().encodedQuery()).isEqualTo("preserve_existing=false");
+          assertThat(r.getBody().utf8()).isEqualTo(exact.substring(exact.indexOf("\n\n") + 2));
+        });
+  }
+
+  @Test
+  @Order(6)
   void noCredentialReachesAnAnswerOrTheLog() throws Exception {
     List<String> seen = new ArrayList<>(core.stdoutSoFar());
     seen.add(core.coreLog());
@@ -260,12 +336,21 @@ class LogsCoreProcessIT {
       case "/loki/api/v1/labels" -> json(200, "{\"status\":\"success\",\"data\":[\"app\",\"pod\"]}");
       case "/loki/api/v1/push" -> text(403, "write access denied\n");
       case "/loki/api/v1/query_range" -> lokiRange(r);
+      case "/_resolve/index/*" -> json(200,
+          "{\"indices\":[{\"name\":\"products\",\"aliases\":[]}],\"aliases\":[],\"data_streams\":[]}");
+      case "/products/_search" -> json(200, """
+          {"hits":{"hits":[]},"aggregations":{"categories":{"buckets":[{"key":"books","doc_count":2}]}}}
+          """);
+      case "/products/_settings" -> json(200, "{\"acknowledged\":true}");
       case "/token" -> json(200, "{\"access_token\":\"ya29.key-token\",\"expires_in\":3600,\"token_type\":\"Bearer\"}");
       case "/v2/entries:list" -> json(200, """
           {"entries":[{"insertId":"g1","logName":"projects/acme-dev/logs/stdout","timestamp":"%s","severity":"ERROR",
            "resource":{"type":"k8s_container","labels":{"pod_name":"api-1"}},
            "textPayload":"upstream said: Authorization: Bearer %s"}]}""".formatted(T, GCP_TOKEN));
       default -> {
+        if (path.equals("/") && r.getMethod().equals("GET")) {
+          yield json(200, "{\"version\":{\"distribution\":\"opensearch\",\"number\":\"3.9.0\"}}");
+        }
         if (path.endsWith(":generateAccessToken")) {
           yield json(200, "{\"accessToken\":\"" + GCP_TOKEN + "\",\"expireTime\":\"" + Instant.now().plusSeconds(900)
               + "\"}");

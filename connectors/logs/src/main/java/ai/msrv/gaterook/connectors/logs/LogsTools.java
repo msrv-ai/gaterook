@@ -4,16 +4,18 @@ import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.EndpointView;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Annotations;
+import ai.msrv.gaterook.connector.api.ToolDefinition.Egress;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Nature;
 import ai.msrv.gaterook.connector.api.ToolDefinition.ResultShape;
+import ai.msrv.gaterook.connector.api.ToolDefinition.Risk;
 import ai.msrv.gaterook.connectors.support.SchemaResources;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
 /**
- * The two read tools of Logs (report 07 §3, kit endpoint-detail); both share one outputSchema.
+ * Scoped log tools and the OpenSearch REST tools. Each family has its own output schema.
  * {@code logs_tail} isn't idempotent (its cursor moves) and is off by default everywhere, as in the kit.
  */
 final class LogsTools {
@@ -47,6 +49,46 @@ final class LogsTools {
             .nature(Nature.READ)
             .defaultMode(Mode.OFF, Mode.OFF)
             .resultShape(ResultShape.LOGS)
+            .build(),
+        ToolDefinition.builder("opensearch_indices")
+            .title("List OpenSearch indices")
+            .description("Resolve OpenSearch indices, aliases and data streams. Log-only connections restrict "
+                + "selection to their configured index patterns; full API connections use the server user's "
+                + "permissions. The response body contains the OpenSearch resolve-index response.")
+            .inputSchema(schemas.load("opensearch_indices.input"))
+            .outputSchema(schemas.load("opensearch.output"))
+            .annotations(Annotations.read())
+            .nature(Nature.READ)
+            .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY)
+            .resultShape(ResultShape.JSON)
+            .build(),
+        ToolDefinition.builder("opensearch_query")
+            .title("Query OpenSearch")
+            .description("Read OpenSearch through recognized REST read APIs, including JSON Query DSL, "
+                + "aggregations, multi-search, documents, mappings, settings and cluster diagnostics. Requires "
+                + "full API access. Indices and scopeQuery from log configuration do not restrict this tool; "
+                + "the server user's permissions apply. Use opensearch_request for SQL, PPL, plugin APIs, "
+                + "writes or routes that cannot be verified as reads.")
+            .inputSchema(schemas.load("opensearch_query.input"))
+            .outputSchema(schemas.load("opensearch.output"))
+            .annotations(new Annotations(true, false, true, true))
+            .nature(Nature.READ)
+            .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY)
+            .resultShape(ResultShape.JSON)
+            .risk(new Risk(true, true, Egress.CHANNEL))
+            .build(),
+        ToolDefinition.builder("opensearch_request")
+            .title("OpenSearch request (needs approval)")
+            .description("Execute any OpenSearch REST API request after approval of its exact method, path, "
+                + "query parameters and body. Supports JSON and NDJSON, document writes, bulk operations, "
+                + "index _settings, _cluster/settings, snapshots, SQL/PPL and installed plugin APIs. Requires "
+                + "full API access and the server user's permissions. Every call needs approval, including GET.")
+            .inputSchema(schemas.load("opensearch_request.input"))
+            .annotations(new Annotations(false, true, false, true))
+            .nature(Nature.MUTATION)
+            .defaultMode(Mode.APPROVAL, Mode.APPROVAL)
+            .resultShape(ResultShape.JSON)
+            .risk(new Risk(true, true, Egress.CHANNEL))
             .build());
   }
 
@@ -71,6 +113,10 @@ final class LogsTools {
     String suffix = " Query languages: " + String.join("; ", languages) + ".";
     List<ToolDefinition> out = new ArrayList<>();
     for (ToolDefinition t : tools) {
+      if (t.name().startsWith("opensearch_")) {
+        out.add(t);
+        continue;
+      }
       out.add(ToolDefinition.builder(t.name())
           .title(t.title())
           .description(t.description() + suffix)

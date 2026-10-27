@@ -72,8 +72,9 @@ public class ToolPairs {
    * Every tool each member offers on one endpoint, by connection id, in the members' order. A connector is asked once
    * per type with one {@link EndpointView} of every usable connection of that type on the endpoint, their limits and
    * the contributions of all their templates (report 06 §3.1: {@code ssh_run}'s {@code runbook} enum and its if/then
-   * per connection span every SSH connection of the endpoint), and each tool it returns is paired with each of those
-   * connections, so that same-named pairs carry one definition and publish as one tool. A connection that isn't usable
+   * per connection span every SSH connection of the endpoint), and each tool it returns is paired with the connections
+   * for which {@link Connector#supportsTool(String, ConnectionConfig)} is true. Same-named pairs carry one definition
+   * and publish as one tool. A connection that isn't usable
    * is asked alone: what an edited row says never shapes the tools of the others. An MCP server's tools are its own
    * (one connector per connection, tool keys name the connection), so each MCP server connection is asked alone too.
    */
@@ -141,6 +142,9 @@ public class ToolPairs {
       ConnectionConfig cfg = m.config();
       List<Offered> offered = new ArrayList<>();
       for (ToolDefinition t : tools) {
+        if (connector.isPresent() && !connector.get().supportsTool(t.name(), cfg)) {
+          continue;
+        }
         offered.add(new Offered(key(manifest, cfg, t.name()), t, manifest.kind(), declaredBy(manifest, cfg),
             provenance, null, null));
       }

@@ -52,6 +52,28 @@ class SettingsTest {
          "auth":{"username":"gw_reader"}}"""));
     assertThat(s.labelFields()).contains("service.name");
     assertThat(s.auth().mode()).isEqualTo(Settings.AuthMode.BASIC);
+    assertThat(s.fullApi()).as("Existing connections remain scoped").isFalse();
+  }
+
+  @Test
+  void fullOpenSearchApiAccessIsExplicitAndCanOmitLogIndices() {
+    Settings.OpenSearch full = (Settings.OpenSearch) Settings.parse(Configs.of("search", Env.DEV, """
+        {"backend":"opensearch","url":"https://search:9200","apiAccess":"full","auth":{"mode":"none"}}"""));
+    assertThat(full.fullApi()).isTrue();
+    assertThat(full.indices()).containsExactly("*");
+    Settings.OpenSearch scopedLogs = (Settings.OpenSearch) Settings.parse(Configs.of("search", Env.DEV, """
+        {"backend":"opensearch","url":"https://search:9200","apiAccess":"full","indices":["logs-*"],
+         "scopeQuery":"service.name:api","auth":{"mode":"none"}}"""));
+    assertThat(scopedLogs.indices()).containsExactly("logs-*");
+    assertThat(scopedLogs.scopeQuery()).isEqualTo("service.name:api");
+    for (String mode : new String[] {"logs", "unknown"}) {
+      assertThatThrownBy(() -> Settings.parse(Configs.of("search", Env.DEV, """
+          {"backend":"opensearch","url":"https://search:9200","apiAccess":"%s","auth":{"mode":"none"}}"""
+          .formatted(mode)))).isInstanceOf(Settings.InvalidSettingsException.class);
+    }
+    assertThatThrownBy(() -> Settings.parse(Configs.of("search", Env.DEV, """
+        {"backend":"opensearch","url":"https://search:9200","apiAccess":"full","indices":[],
+         "auth":{"mode":"none"}}"""))).isInstanceOf(Settings.InvalidSettingsException.class);
   }
 
   @Test

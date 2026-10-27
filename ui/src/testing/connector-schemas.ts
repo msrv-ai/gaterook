@@ -1050,7 +1050,11 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "description": "Search logs with service account impersonation.",
         "presetConfig": {
           "backend": "gcp-logging"
-        }
+        },
+        "tools": [
+          "logs_search",
+          "logs_tail"
+        ]
       },
       {
         "id": "cloudwatch",
@@ -1059,7 +1063,11 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "description": "Logs Insights queries with AssumeRole.",
         "presetConfig": {
           "backend": "cloudwatch"
-        }
+        },
+        "tools": [
+          "logs_search",
+          "logs_tail"
+        ]
       },
       {
         "id": "loki",
@@ -1068,16 +1076,27 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "description": "LogQL search and label browsing.",
         "presetConfig": {
           "backend": "loki"
-        }
+        },
+        "tools": [
+          "logs_search",
+          "logs_tail"
+        ]
       },
       {
         "id": "opensearch",
         "name": "OpenSearch",
         "icon": "scroll-text",
-        "description": "Lucene query search over log indices.",
+        "description": "Scoped log search or full OpenSearch queries and approved administration.",
         "presetConfig": {
           "backend": "opensearch"
-        }
+        },
+        "tools": [
+          "logs_search",
+          "logs_tail",
+          "opensearch_indices",
+          "opensearch_query",
+          "opensearch_request"
+        ]
       }
     ],
     "oneOf": [
@@ -1328,33 +1347,29 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "title": "OpenSearch",
         "required": [
           "backend",
-          "url",
-          "indices"
+          "url"
         ],
         "properties": {
           "backend": {
             "const": "opensearch"
           },
+          "apiAccess": {
+            "enum": [
+              "logs",
+              "full"
+            ],
+            "default": "logs",
+            "title": "OpenSearch API access",
+            "x-enumTitles": [
+              "Scoped log search",
+              "Full OpenSearch REST API"
+            ],
+            "description": "Full API access enables arbitrary queries and approved server changes using this connection user's OpenSearch permissions. Log index patterns and scopeQuery restrict only logs_search and logs_tail; they do not restrict the REST tools. Existing connections default to scoped log search."
+          },
           "url": {
             "type": "string",
             "format": "uri",
             "pattern": "^https?://[^/?#]+$"
-          },
-          "indices": {
-            "type": "array",
-            "minItems": 1,
-            "maxItems": 20,
-            "uniqueItems": true,
-            "items": {
-              "type": "string",
-              "pattern": "^[a-z0-9][a-z0-9._*-]{0,254}$"
-            },
-            "examples": [
-              [
-                "logs-app-*"
-              ]
-            ],
-            "description": "Index patterns agents may read. No commas, colons (cross-cluster) or leading - and _."
           },
           "timestampField": {
             "type": "string",
@@ -1384,7 +1399,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           "scopeQuery": {
             "type": "string",
             "maxLength": 2000,
-            "title": "Always add this query (Lucene)"
+            "title": "Always add this query (Lucene)",
+            "description": "Lucene filter always added to logs_search and logs_tail. Does not constrain full OpenSearch REST API tools."
           },
           "auth": {
             "type": "object",
@@ -1433,9 +1449,63 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "title": "CA certificate (PEM)",
             "description": "Only for a private CA."
           }
-        }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "apiAccess": {
+                  "const": "full"
+                }
+              },
+              "required": [
+                "apiAccess"
+              ]
+            },
+            "then": {
+              "properties": {
+                "indices": {
+                  "$ref": "#/$defs/openSearchLogIndices"
+                }
+              }
+            },
+            "else": {
+              "required": [
+                "indices"
+              ],
+              "properties": {
+                "indices": {
+                  "$ref": "#/$defs/openSearchLogIndices",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9._*-]{0,254}$"
+                  }
+                }
+              }
+            }
+          }
+        ]
       }
-    ]
+    ],
+    "$defs": {
+      "openSearchLogIndices": {
+        "type": "array",
+        "minItems": 1,
+        "maxItems": 20,
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "pattern": "^(\\*|[a-z0-9][a-z0-9._*-]{0,254})$"
+        },
+        "examples": [
+          [
+            "logs-app-*"
+          ]
+        ],
+        "description": "Index patterns for logs_search, logs_tail and log-only index discovery. Required in scoped log mode. Full API mode defaults to * when omitted; REST tools use the server user's permissions instead.",
+        "title": "Log index patterns"
+      }
+    }
   },
   "kubernetes": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -4834,8 +4904,10 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       "/region",
       "/logGroups",
       "/searchApi",
-      "/url",
+      "/apiAccess",
       "/indices",
+      "/indices",
+      "/url",
       "/timestampField",
       "/messageField",
       "/severityField",
@@ -5076,14 +5148,17 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "confirm": null
       },
       {
-        "pointer": "/url",
-        "kind": "text",
-        "title": "url",
-        "required": true,
+        "pointer": "/apiAccess",
+        "kind": "select",
+        "title": "OpenSearch API access",
+        "required": false,
         "secret": null,
-        "mono": true,
+        "mono": false,
         "unit": null,
-        "options": [],
+        "options": [
+          "logs",
+          "full"
+        ],
         "when": [
           "backend in [\"opensearch\"]"
         ],
@@ -5096,7 +5171,45 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/indices",
         "kind": "tags",
-        "title": "indices",
+        "title": "Log index patterns",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "backend in [\"opensearch\"]",
+          "apiAccess in [\"full\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/indices",
+        "kind": "tags",
+        "title": "Log index patterns",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "backend in [\"opensearch\"]",
+          "not apiAccess in [\"full\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/url",
+        "kind": "text",
+        "title": "url",
         "required": true,
         "secret": null,
         "mono": true,

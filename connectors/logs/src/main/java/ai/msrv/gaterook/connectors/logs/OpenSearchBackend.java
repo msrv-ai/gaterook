@@ -4,6 +4,7 @@ import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.TestResult;
+import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connectors.cloudauth.AwsSessionPolicy;
 import ai.msrv.gaterook.connectors.cloudauth.CloudCredentials;
 import java.net.URI;
@@ -44,6 +45,10 @@ final class OpenSearchBackend implements Backend {
   static final String SESSION_POLICY = AwsSessionPolicy.builder()
       .allow(List.of("es:ESHttpGet", "es:ESHttpHead", "es:ESHttpPost", "aoss:APIAccessAll"), List.of())
       .toJson();
+  /** Only the explicitly enabled REST path can assume a session with administrative HTTP verbs. */
+  static final String API_SESSION_POLICY = AwsSessionPolicy.builder()
+      .allow(List.of("es:ESHttpGet", "es:ESHttpHead", "es:ESHttpPost", "es:ESHttpPut", "es:ESHttpPatch",
+          "es:ESHttpDelete", "aoss:APIAccessAll"), List.of()).toJson();
   /** {@code index.max_result_window}'s default. */
   static final int MAX_SIZE = 10_000;
   private static final String FILTER_PATH = "hits.hits._index,hits.hits._id,hits.hits._source,hits.hits.sort,"
@@ -203,6 +208,9 @@ final class OpenSearchBackend implements Backend {
 
   @Override
   public TestResult test() {
+    if (s.fullApi()) {
+      return testApi();
+    }
     Probe probe = new Probe(call.ctx());
     List<TestResult.Hint> hints = new ArrayList<>();
     String version;
@@ -273,6 +281,34 @@ final class OpenSearchBackend implements Backend {
     return result;
   }
 
+  /** A general OpenSearch connection does not need log fields, matching indices or a nonempty cluster. */
+  private TestResult testApi() {
+    Probe probe = new Probe(call.ctx());
+    long started = System.nanoTime();
+    try {
+      JsonNode root = probe.step("version", () -> json(send("GET", "/", null, "cluster info"), "cluster info"),
+          r -> "OpenSearch " + r.at("/version/number").asString("unknown"));
+      String version = "OpenSearch " + root.at("/version/number").asString("unknown");
+      probe.optional("indices", () -> json(send("GET", "/_resolve/index/*?expand_wildcards=open", null,
+          "index discovery"), "index discovery"), r -> r.path("indices").size() + " indices");
+      TestResult result = TestResult.success((System.nanoTime() - started) / 1_000_000, version,
+          s.auth().username() == null ? s.auth().mode().name().toLowerCase(Locale.ROOT) : s.auth().username(),
+          new TestResult.Permissions(TestResult.Level.UNKNOWN, "Server permissions apply to each API request",
+              "Unknown; writes are not tested", List.of(), null))
+          .withChecks(probe.checks())
+          .withMetadata(JsonNodeFactory.instance.objectNode().put("serverVersion", version).put("apiAccess", "full"))
+          .withHint(new TestResult.Hint(TestResult.Severity.INFO, "opensearch.full-api", "/apiAccess",
+              "Full REST access uses the server user's permissions. Log index patterns and scopeQuery apply only "
+                  + "to logs_search and logs_tail. Administrative requests require approval."));
+      for (TestResult.Hint hint : Probe.transport(s.base(), s.auth(), call.cfg().env())) {
+        result = result.withHint(hint);
+      }
+      return result;
+    } catch (ConnectorException e) {
+      return probe.failure(e);
+    }
+  }
+
   @Override
   public HealthResult health() {
     long started = System.nanoTime();
@@ -289,6 +325,9 @@ final class OpenSearchBackend implements Backend {
 
   @Override
   public ObjectNode describe(String object) throws ConnectorException {
+    if (s.fullApi()) {
+      return describeApi();
+    }
     ObjectNode out = JsonNodeFactory.instance.objectNode();
     ArrayNode indices = out.putArray("indices");
     s.indices().forEach(indices::add);
@@ -321,33 +360,111 @@ final class OpenSearchBackend implements Backend {
     return out;
   }
 
+  private ObjectNode describeApi() {
+    ObjectNode out = JsonNodeFactory.instance.objectNode().put("apiAccess", "full")
+        .put("scope", "Server credentials and permissions control all REST targets, including body-level indices. "
+            + "Configured indices and scopeQuery restrict only logs_search and logs_tail.")
+        .put("discovery", "Use opensearch_indices to resolve index names, aliases and data streams. Use "
+            + "opensearch_query with GET /<index>/_mapping or /<index>/_settings to inspect them.")
+        .put("query", "opensearch_query accepts known REST read paths and JSON Query DSL, aggregations, mget and "
+            + "NDJSON msearch. Responses retain their original structure inside body.")
+        .put("administration", "Use opensearch_request for any REST API, including SQL/PPL, plugins, document "
+            + "writes, bulk, index settings, cluster settings, snapshots and security. Every request needs approval.")
+        .put("pagination", "Use the API's own search_after, PIT, scroll, SQL cursor, composite after_key or task ID. "
+            + "Create/close server contexts and cancel tasks through opensearch_request. Narrow responses with "
+            + "size, _source and filter_path; a truncated body is incomplete.")
+        .put("settings", "PUT /<index>/_settings changes dynamic index settings; PUT /_cluster/settings changes "
+            + "persistent/transient cluster settings. Static node settings require server configuration and restart.");
+    ArrayNode examples = out.putArray("apiExamples");
+    examples.addObject().put("tool", OpenSearchRequest.QUERY).put("method", "POST").put("path", "/products/_search")
+        .set("body", JSON.readTree("{\"size\":10,\"query\":{\"match_all\":{}},\"aggs\":{\"categories\":{\"terms\":{\"field\":\"category.keyword\"}}}}"));
+    examples.addObject().put("tool", OpenSearchRequest.REQUEST).put("method", "PUT").put("path", "/products/_settings")
+        .set("body", JSON.readTree("{\"index\":{\"number_of_replicas\":1}}"));
+    examples.addObject().put("tool", OpenSearchRequest.REQUEST).put("method", "PUT").put("path", "/_cluster/settings")
+        .set("body", JSON.readTree("{\"persistent\":{\"indices.recovery.max_bytes_per_sec\":\"40mb\"}}"));
+    examples.addObject().put("tool", OpenSearchRequest.REQUEST).put("method", "POST").put("path", "/_plugins/_sql")
+        .set("body", JSON.readTree("{\"query\":\"SELECT * FROM products LIMIT 10\"}"));
+    return out;
+  }
+
   // ── HTTP ────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ToolResult execute(OpenSearchRequest request) throws ConnectorException {
+    request.checkSize(call.ctx().limits());
+    OpenSearchHttp.BoundedResponse response = OpenSearchHttp.send(request(request.method(), request.path(),
+        request.body(), request.contentType(), s.fullApi() ? API_SESSION_POLICY : SESSION_POLICY).build(),
+        request.body(), call.ctx(), call.ctx().limits().maxResponseBytes(), client().sslContext());
+    ObjectNode out = JsonNodeFactory.instance.objectNode().put("status", response.status())
+        .put("contentType", response.contentType()).put("truncated", response.truncated());
+    if (!response.truncated() && !response.body().isBlank()) {
+      try {
+        out.set("body", JSON.readTree(response.body()));
+      } catch (JacksonException e) {
+        out.put("body", response.body());
+      }
+    } else {
+      out.put("body", response.body());
+    }
+    // Reserve the same budget for text-only MCP clients, including the envelope and JSON escaping in both copies.
+    long envelopeBudget = call.ctx().limits().maxResponseBytes() / 2;
+    if (JSON.writeValueAsBytes(out).length > envelopeBudget) {
+      out.put("truncated", true);
+      int low = 0;
+      int high = response.body().length();
+      while (low < high) {
+        int middle = (low + high + 1) >>> 1;
+        out.put("body", prefix(response.body(), middle));
+        if (JSON.writeValueAsBytes(out).length <= envelopeBudget) {
+          low = middle;
+        } else {
+          high = middle - 1;
+        }
+      }
+      out.put("body", prefix(response.body(), low));
+    }
+    // HTTP errors and per-item bulk failures remain inspectable data; the gateway applies its usual masking.
+    ToolResult result = ToolResult.json(out, out.toString());
+    return out.path("truncated").asBoolean() ? result.truncated("size_limit") : result;
+  }
+
+  private static String prefix(String value, int length) {
+    int end = length > 0 && Character.isHighSurrogate(value.charAt(length - 1)) ? length - 1 : length;
+    return value.substring(0, end);
+  }
 
   private Http.Response send(String method, String pathAndQuery, String body, String what)
       throws ConnectorException {
+    return Http.send(client(), request(method, pathAndQuery, body, "application/json", SESSION_POLICY), call.ctx(),
+        "OpenSearch " + what);
+  }
+
+  private HttpRequest.Builder request(String method, String pathAndQuery, String body, String contentType,
+      String sessionPolicy) throws ConnectorException {
     URI uri = URI.create(s.base() + pathAndQuery);
     HttpRequest.Builder b = HttpRequest.newBuilder(uri).header("Accept", "application/json");
     if (body != null) {
-      b.header("Content-Type", "application/json");
+      b.header("Content-Type", contentType);
     }
     b.method(method, body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofString(body));
     if (s.auth().mode() == Settings.AuthMode.AWS_SIGV4) {
-      sign(b, method, uri, body);
+      sign(b, method, uri, body, contentType, sessionPolicy);
     } else {
       String auth = Http.authorization(s.auth(), call.secrets());
       if (auth != null) {
+        call.ctx().taint(auth);
         b.header("Authorization", auth);
       }
     }
-    return Http.send(client(), b, call.ctx(), "OpenSearch " + what);
+    return b;
   }
 
   /** SigV4 for Amazon OpenSearch Service: the signer's headers onto the request {@code java.net.http} sends. */
-  private void sign(HttpRequest.Builder b, String method, URI uri, String body) throws ConnectorException {
+  private void sign(HttpRequest.Builder b, String method, URI uri, String body, String contentType,
+      String sessionPolicy) throws ConnectorException {
     AwsCredentials credentials;
     try {
       credentials = CloudCredentials.tainting(call.cloud().aws(new CloudCredentials.Owner(call.cfg().id(),
-          call.cfg().version(), call.cfg().name()), s.awsCredentials(), SESSION_POLICY, call.secrets()),
+          call.cfg().version(), call.cfg().name()), s.awsCredentials(), sessionPolicy, call.secrets()),
           call.ctx()::taint).resolveCredentials();
     } catch (SdkException e) {
       throw ConnectorException.unavailable("AWS credentials for the domain couldn't be loaded: " + e.getMessage(), e);
@@ -355,7 +472,7 @@ final class OpenSearchBackend implements Backend {
     SdkHttpRequest.Builder request = SdkHttpRequest.builder().method(SdkHttpMethod.fromValue(method)).uri(uri)
         .putHeader("Accept", "application/json");
     if (body != null) {
-      request.putHeader("Content-Type", "application/json");
+      request.putHeader("Content-Type", contentType);
     }
     SdkHttpRequest unsigned = request.build();
     SignedRequest signed = AwsV4HttpSigner.create().sign(r -> r.identity(credentials).request(unsigned)

@@ -1,0 +1,29 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "index": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "description": "Index expression to resolve. In log-only mode, choose exactly one configured index pattern or omit to use all configured patterns. In full API mode, omit to resolve all indices visible to the server user."
+    },
+    "expandWildcards": {
+      "enum": [
+        "open",
+        "closed",
+        "hidden",
+        "none",
+        "all"
+      ],
+      "default": "open",
+      "description": "Which wildcard targets OpenSearch resolves."
+    }
+  }
+}

@@ -13,6 +13,8 @@ public interface Connector extends AutoCloseable {
   ConnectorManifest manifest();
   /** Tools as published on one endpoint: enum of `connection`, effective limits in descriptions. */
   default List<ToolDefinition> tools(EndpointView endpoint) { return manifest().tools(); }
+  /** No I/O: filters tool/connection pairs for built-in backends; classification still enforces applicability. */
+  default boolean supportsTool(String tool, ConnectionConfig cfg) { return true; }
   /** No I/O, no secrets, a few ms; runs before the policy. MUTATION always becomes an approval request. */
   Classification classify(ToolCall call, ConnectionConfig cfg, PolicyView policy);
   /** Exact action, byte for byte what will run; no I/O; hashed into the approval digest. */

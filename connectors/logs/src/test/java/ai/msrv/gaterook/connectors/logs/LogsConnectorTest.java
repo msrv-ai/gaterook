@@ -58,9 +58,34 @@ class LogsConnectorTest {
   void publishesTheToolsOfTheKit() {
     List<ToolDefinition> tools = connector.manifest().tools();
 
-    assertThat(tools).extracting(ToolDefinition::name).containsExactly("logs_search", "logs_tail");
+    assertThat(tools).extracting(ToolDefinition::name).containsExactly("logs_search", "logs_tail",
+        "opensearch_indices", "opensearch_query", "opensearch_request");
     assertTool(tools.get(0), "logs_search", Mode.READ_ONLY, Mode.READ_ONLY, true);
     assertTool(tools.get(1), "logs_tail", Mode.OFF, Mode.OFF, false);
+    assertTool(tools.get(2), "opensearch_indices", Mode.READ_ONLY, Mode.READ_ONLY, true);
+    assertTool(tools.get(3), "opensearch_query", Mode.READ_ONLY, Mode.READ_ONLY, true);
+    ToolDefinition request = tools.get(4);
+    assertThat(request.nature()).isEqualTo(Nature.MUTATION);
+    assertThat(request.defaultMode()).isEqualTo(Mode.APPROVAL);
+    assertThat(request.prodDefaultMode()).isEqualTo(Mode.APPROVAL);
+    assertThat(request.readOnlyModeAllowed()).isFalse();
+    assertThat(request.outputSchema()).as("Approval handles are not REST responses").isNull();
+  }
+
+  @Test
+  void openSearchToolsAreOfferedOnlyToCompatibleConnections() {
+    ConnectionConfig logs = Configs.openSearch("http://127.0.0.1:9200");
+    ConnectionConfig full = Configs.of("search", Env.DEV, """
+        {"backend":"opensearch","url":"http://127.0.0.1:9200","apiAccess":"full","auth":{"mode":"none"}}""");
+    ConnectionConfig loki = Configs.loki("http://127.0.0.1:3100");
+    for (String tool : List.of("opensearch_indices", "opensearch_query", "opensearch_request")) {
+      assertThat(connector.supportsTool(tool, loki)).as(tool + " on Loki").isFalse();
+      assertThat(connector.supportsTool(tool, full)).as(tool + " on full OpenSearch").isTrue();
+      assertThat(connector.supportsTool(tool, logs)).as(tool + " on scoped OpenSearch")
+          .isEqualTo(tool.equals("opensearch_indices"));
+    }
+    assertThat(connector.supportsTool("logs_search", loki)).isTrue();
+    assertThat(connector.supportsTool("logs_search", full)).isTrue();
   }
 
   private static void assertTool(ToolDefinition t, String name, Mode dev, Mode prod, boolean idempotent) {
