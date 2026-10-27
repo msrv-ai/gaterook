@@ -92,6 +92,7 @@ let desktop: {
   saveFile: (purpose: string) => Promise<string | null>;
   revealInFolder: (kind: string) => Promise<void>;
   applyGeneral: (v: object) => Promise<void>;
+  resetApplication: (confirmation: string) => Promise<void>;
   checkForUpdates: () => Promise<void>;
   onUpdateState: (h: unknown) => () => void;
   setNativeTheme: (theme: string) => void;
@@ -119,6 +120,7 @@ function configure(): void {
     saveFile: () => Promise.resolve(null),
     revealInFolder: (kind) => (calls.push(`reveal ${kind}`), Promise.resolve()),
     applyGeneral: (v) => (calls.push(`apply ${JSON.stringify(v)}`), Promise.resolve()),
+    resetApplication: (confirmation) => (calls.push(`reset ${confirmation}`), Promise.resolve()),
     checkForUpdates: () => Promise.resolve(),
     onUpdateState: () => () => undefined,
     setNativeTheme: () => undefined,
@@ -424,6 +426,115 @@ describe('Settings page: General', () => {
     const confirm = control($('#st-port-dlg')!, 'Change port and restart core');
     expect(confirm.getAttribute('aria-disabled')).toBe('true');
     expect(reason(confirm)).toBe('Only the desktop app can restart the core on another port. Change it from there.');
+  });
+
+  it('Reset names the data and consequences, focuses Cancel and returns to its opener without changing anything', async () => {
+    desktop.available = true;
+    const el = await render();
+    const opener = control($('#settings-general', el)!, 'Reset GateRook');
+    await click(opener);
+    const dlg = $<HTMLDialogElement>('#st-reset-dlg')!;
+    expect(dlg.open).toBe(true);
+    expect(document.activeElement).toBe(control(dlg, 'Cancel'));
+    expect(text(dlg)).toContain('All connections, saved credentials, settings, the local database, backups, activity history and installed plugins will be removed.');
+    expect(text(dlg)).toContain('The next launch starts fresh. You will need to reconnect your AI apps.');
+    expect(text(dlg)).toContain('Your external databases and services are not changed.');
+    await type($<HTMLInputElement>('#st-reset-confirmation')!, 'RESET');
+    await click(control(dlg, 'Cancel'));
+    expect(dlg.open).toBe(false);
+    expect(document.activeElement).toBe(opener);
+    expect(calls.some((c) => c.startsWith('reset '))).toBe(false);
+    await click(opener);
+    expect($<HTMLInputElement>('#st-reset-confirmation')!.value).toBe('');
+  });
+
+  it('Reset is unavailable outside the desktop app and explains why', async () => {
+    const el = await render();
+    const opener = control($('#settings-general', el)!, 'Reset GateRook');
+    expect(opener.getAttribute('aria-disabled')).toBe('true');
+    expect(reason(opener)).toBe('Reset is available only in the desktop app.');
+    await click(opener);
+    expect($<HTMLDialogElement>('#st-reset-dlg')!.open).toBe(false);
+    expect(calls.some((c) => c.startsWith('reset '))).toBe(false);
+  });
+
+  it('Reset requires the exact confirmation and a deliberate button activation; Enter in the field cannot submit', async () => {
+    desktop.available = true;
+    const el = await render();
+    await click(control($('#settings-general', el)!, 'Reset GateRook'));
+    const dlg = $<HTMLDialogElement>('#st-reset-dlg')!;
+    const input = $<HTMLInputElement>('#st-reset-confirmation')!;
+    const confirm = control(dlg, 'Delete all local data') as HTMLButtonElement;
+    for (const value of ['', 'reset', ' RESET', 'RESET ']) {
+      await type(input, value);
+      expect(confirm.getAttribute('aria-disabled')).toBe('true');
+      await click(confirm);
+    }
+    expect(calls.some((c) => c.startsWith('reset '))).toBe(false);
+    await type(input, 'RESET');
+    expect(confirm.getAttribute('aria-disabled')).toBeNull();
+    expect(confirm.type).toBe('button');
+    expect(input.form).toBeNull();
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await settle();
+    expect(calls.some((c) => c.startsWith('reset '))).toBe(false);
+    await click(confirm);
+    expect(calls.filter((c) => c.startsWith('reset '))).toEqual(['reset RESET']);
+    expect(confirm.getAttribute('aria-busy')).toBe('true');
+  });
+
+  it('Reset blocks duplicate requests and dismissal while running, including after success until the app closes', async () => {
+    desktop.available = true;
+    let finish!: () => void;
+    desktop.resetApplication = (confirmation) => {
+      calls.push(`reset ${confirmation}`);
+      return new Promise<void>((resolve) => (finish = resolve));
+    };
+    const el = await render();
+    await click(control($('#settings-general', el)!, 'Reset GateRook'));
+    const dlg = $<HTMLDialogElement>('#st-reset-dlg')!;
+    await type($<HTMLInputElement>('#st-reset-confirmation')!, 'RESET');
+    const confirm = control(dlg, 'Delete all local data');
+    await click(confirm);
+    expect($<HTMLInputElement>('#st-reset-confirmation')!.readOnly).toBe(true);
+    expect(text($('#st-reset-status'))).toContain('GateRook will close when finished.');
+    await click(confirm);
+    await click(control(dlg, 'Cancel'));
+    await click($<HTMLButtonElement>('button[aria-label="Close"]', dlg)!);
+    const escape = new Event('cancel', { cancelable: true });
+    dlg.dispatchEvent(escape);
+    expect(escape.defaultPrevented).toBe(true);
+    expect(dlg.open).toBe(true);
+    expect(calls.filter((c) => c.startsWith('reset '))).toEqual(['reset RESET']);
+    finish();
+    await settle();
+    await click(confirm);
+    expect(confirm.getAttribute('aria-disabled')).toBe('true');
+    expect(calls.filter((c) => c.startsWith('reset '))).toEqual(['reset RESET']);
+  });
+
+  it('Reset shows the desktop failure in the dialog and permits retry or cancellation', async () => {
+    desktop.available = true;
+    desktop.resetApplication = () => Promise.reject(new Error("Error invoking remote method 'gw:resetApplication': Error: Could not stop the core. Try again."));
+    const el = await render();
+    const opener = control($('#settings-general', el)!, 'Reset GateRook');
+    await click(opener);
+    const dlg = $<HTMLDialogElement>('#st-reset-dlg')!;
+    await type($<HTMLInputElement>('#st-reset-confirmation')!, 'RESET');
+    const confirm = control(dlg, 'Delete all local data');
+    await click(confirm);
+    expect(dlg.open).toBe(true);
+    expect(text($('[role="alert"]', dlg))).toBe('Reset did not finishCould not stop the core. Try again.');
+    expect(confirm.getAttribute('aria-busy')).toBeNull();
+    expect(confirm.getAttribute('aria-disabled')).toBeNull();
+    await click(control(dlg, 'Cancel'));
+    await click(opener);
+    expect($('[role="alert"]', dlg)).toBeNull();
+    expect($<HTMLInputElement>('#st-reset-confirmation')!.value).toBe('');
+    desktop.resetApplication = (confirmation) => (calls.push(`reset ${confirmation}`), Promise.resolve());
+    await type($<HTMLInputElement>('#st-reset-confirmation')!, 'RESET');
+    await click(confirm);
+    expect(calls).toContain('reset RESET');
   });
 });
 

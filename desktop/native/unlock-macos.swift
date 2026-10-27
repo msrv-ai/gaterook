@@ -152,6 +152,13 @@ private func run(_ input: [String: Any]) throws -> [String: Any] {
     case "verify":
         try authenticate()
         return ["ok": true]
+    case "delete":
+        // The per-home reference supplies one account in our fixed service. Never read its key
+        // or delete Electron's shared Safe Storage entry when resetting this vault.
+        let name = try account(input)
+        let status = SecItemDelete(query(name) as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else { throw keychainError(status) }
+        return ["ok": true]
     case "get":
         let name = try account(input)
         var key: Data

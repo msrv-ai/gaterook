@@ -2,7 +2,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { FileKeyAccessError } from './file-key.ts';
 
-export type NativeRequest = { operation: 'check' | 'verify' | 'get' | 'store' | 'create'; account?: string; key?: string; windowHandle?: string };
+export type NativeRequest = { operation: 'check' | 'verify' | 'get' | 'store' | 'create' | 'delete'; account?: string; key?: string; windowHandle?: string };
 export interface NativeReply { ok: true; available?: boolean; touchId?: boolean; key?: string }
 export type NativeCall = (request: NativeRequest) => Promise<NativeReply>;
 

@@ -88,6 +88,10 @@ The launcher builds the renderer automatically only when its output is missing. 
 
 Electron now uses the GateRook application identity for OS key protection. An explicitly selected development home protected under the earlier application identity may require restoring its master-key backup. Use a separate home for a fresh instance; keep an existing home and its key backup intact.
 
+To start over, open **Settings → General → Reset GateRook**, type `RESET`, and select **Delete all local data**. The desktop stops the core and token broker, disables login startup, removes its local database, credentials, connections, backups, history, plugins and settings, clears the renderer's stored preferences, then closes. Open GateRook again with default settings and reconnect AI apps. External databases, services and AI app configuration files are not deleted. This action cannot be undone; local backups are included in the reset.
+
+An interrupted reset is retried before the core starts on the next launch. The reset targets GateRook-owned paths in the selected home and its Electron session; unrelated files in a development home are retained. On macOS it deletes only that home's native unlock Keychain item. Shared OS safe-storage entries are retained because other homes may use them.
+
 ## Browser development
 
 ```bash

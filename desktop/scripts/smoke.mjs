@@ -10,9 +10,10 @@
 //   real      the real core (app/target/app.jar, demo world): the UI end to end through the signing proxy, the event
 //             stream through app://, the 700 ms guard on a real approval, quit stops the core
 //   unlock    OS protection enabled: explanation and button precede key-store access; reload and quit while waiting
+//   reset     confirm Reset GateRook in Settings, erase disposable app data, and verify clean browser storage on relaunch
 //
 //   npm run smoke -w desktop                     all scenarios
-//   npm run smoke -w desktop -- --only fake      one of them (switches, fake, real, unlock; protect only on request)
+//   npm run smoke -w desktop -- --only fake      one of them (switches, fake, real, unlock, reset; protect only on request)
 //   npm run smoke -w desktop -- --keep           keep the temporary homes (their logs) for a look
 //   npm run smoke -w desktop -- --only real --core-binary <gaterook-core>
 //                                                `real` against a native core (its libsqlitejdbc next to it or in
@@ -280,7 +281,65 @@ async function unlock() {
   check('unlock: no core or protected key was created', summary?.corePid === null && !existsSync(join(h, 'master.keyset.osk')));
 }
 
-const scenarios = { switches, fake, real, unlock };
+async function reset() {
+  log('scenario reset (only a disposable home; no OS key-store access)');
+  const port = await freePort();
+  let publicPort = await freePort();
+  while (publicPort === port) publicPort = await freePort();
+  const h = home('reset', { port, publicPort });
+  writeFileSync(join(h, 'fake-core.json'), '{}');
+  const owned = ['gateway.db', 'gateway.db-wal', 'gateway.db-shm', 'master.keyset', 'master.keyset.osk',
+    'backups/old.db', 'plugins/example/plugin.jar', 'clients/config-backup.json', 'logs/old.jsonl'];
+  for (const relative of owned) {
+    const file = join(h, relative);
+    mkdirSync(dirname(file), { recursive: true });
+    // These are inert test bytes; the .osk is deliberately not a native Keychain item reference.
+    writeFileSync(file, 'reset-smoke-disposable-data');
+  }
+  writeFileSync(join(h, 'unrelated-notes.txt'), 'Keep this unrelated file.');
+  const env = { GW_HOME: h, GW_CORE_COMMAND: JSON.stringify([process.execPath, fakeCore]), GW_UI_DIST: ui,
+    GW_DESKTOP_PROTECTION: 'off' };
+  const result = await runApp({ ...env, GW_SMOKE: 'reset' }, [], 90_000);
+  const summary = resultOf(result.stdout);
+  check('reset: the Settings confirmation completed and closed the app', result.code === 0 && summary?.ok === true
+    && summary?.resetRequested === true,
+    { code: result.code, summary, stderr: result.code === 0 ? undefined : result.stderr.slice(-2000) });
+  if (summary?.corePid) check('reset: the core stopped before deletion finished', await gone(summary.corePid, 10_000), summary.corePid);
+  for (const relative of [...owned, 'desktop.json', '.reset-pending', 'run/broker.json']) {
+    check(`reset: removed ${relative}`, !existsSync(join(h, relative)));
+  }
+  check('reset: unrelated files remain', readFileSync(join(h, 'unrelated-notes.txt'), 'utf8') === 'Keep this unrelated file.');
+  if (result.code !== 0 || summary?.ok !== true) return;
+
+  // The fake reports the first-run state a real core would derive from its absent database. This second process
+  // verifies the actual persisted Chromium profile was cleared, rather than inspecting only the closing page.
+  writeFileSync(join(h, 'fake-core.json'), JSON.stringify({ firstRun: true }));
+  const nextPort = await freePort();
+  let nextPublicPort = await freePort();
+  while (nextPublicPort === nextPort) nextPublicPort = await freePort();
+  writeFileSync(join(h, 'desktop.json'), JSON.stringify({ port: nextPort, publicPort: nextPublicPort }));
+  const next = await runApp({ ...env, GW_SMOKE: 'reset-after' }, [], 60_000);
+  const after = resultOf(next.stdout);
+  check('reset: a new app process has clean storage and accepts first-run startup', next.code === 0 && after?.ok === true,
+    { code: next.code, summary: after, stderr: next.code === 0 ? undefined : next.stderr.slice(-2000) });
+  if (after?.corePid) check('reset: the relaunched core also stops on quit', await gone(after.corePid, 10_000), after.corePid);
+
+  const runsBeforeResume = readFileSync(join(h, 'fake-core-runs.jsonl'), 'utf8');
+  writeFileSync(join(h, 'gateway.db'), 'interrupted-reset-data');
+  mkdirSync(join(h, 'backups'), { recursive: true });
+  writeFileSync(join(h, 'backups', 'interrupted.db'), 'interrupted-reset-backup');
+  writeFileSync(join(h, '.reset-pending'), JSON.stringify({ version: 1, corePid: null }));
+  // No smoke runner here: ordinary startup must finish a previously confirmed reset before creating a core.
+  const resumed = await runApp({ ...env, GW_SMOKE: '' }, [], 60_000);
+  check('reset: regular startup finishes an interrupted reset and exits', resumed.code === 0
+    && !existsSync(join(h, '.reset-pending')) && !existsSync(join(h, 'gateway.db'))
+    && !existsSync(join(h, 'backups', 'interrupted.db')),
+    { code: resumed.code, stderr: resumed.code === 0 ? undefined : resumed.stderr.slice(-2000) });
+  check('reset: interrupted reset never starts another core', readFileSync(join(h, 'fake-core-runs.jsonl'), 'utf8') === runsBeforeResume);
+  check('reset: interrupted reset also preserves unrelated files', readFileSync(join(h, 'unrelated-notes.txt'), 'utf8') === 'Keep this unrelated file.');
+}
+
+const scenarios = { switches, fake, real, unlock, reset };
 for (const [name, fn] of Object.entries(scenarios)) {
   if (only && only !== name) continue;
   await fn();

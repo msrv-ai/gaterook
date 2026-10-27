@@ -1,13 +1,14 @@
 // GateRook's main process after the switch check (main.ts): the window and its app:// scheme, the core it starts
 // and supervises, the signing proxy, the event stream that drives notifications, badge and tray, the token broker,
 // the IPC of `window.gwDesktop`, updates, deep links (ARCHITECTURE.md §7.1–§7.4, A20).
-import { app, ipcMain, Menu, nativeTheme, protocol, safeStorage, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron';
+import { app, dialog, ipcMain, Menu, nativeTheme, protocol, safeStorage, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { Broker } from '@gaterook/broker';
 import { IPC, type DesktopCoreState, type GeneralSettings } from '../shared/contract.ts';
 import { routeAppUrl, serveUi } from './app-protocol.ts';
+import { finishApplicationReset, hasPendingReset, requestApplicationReset, type ResetPaths } from './application-reset.ts';
 import { startTokenBroker } from './broker.ts';
 import { callCore } from './core-client.ts';
 import { coreArgv, coreEnv } from './core-command.ts';
@@ -88,7 +89,10 @@ export function main(): Desktop | null {
   process.on('unhandledRejection', (e) => log(`unhandled rejection: ${e instanceof Error ? e.stack ?? e.message : String(e)}`));
   const first = deepLinkInArgv(process.argv);
   if (first) desktop.deepLink(first);
-  app.whenReady().then(() => desktop.start()).catch((e: Error) => {
+  app.whenReady().then(async () => {
+    if (hasPendingReset(layout.home)) await desktop.finishReset();
+    else await desktop.start();
+  }).catch((e: Error) => {
     log(`could not start: ${e.stack ?? e.message}`);
     app.exit(1);
   });
@@ -122,6 +126,7 @@ export class Desktop {
   private readonly consents = new Set<string>();
   private quitting = false;
   private stopped = false;
+  private resetting = false;
   /** A development smoke run (smoke.ts): no focus stealing, no notifications on screen. */
   private readonly smoke: boolean;
   private readonly smokeConsole: string[] = [];
@@ -288,6 +293,7 @@ export class Desktop {
   }
 
   private onCoreState(state: DesktopCoreState): void {
+    if (this.resetting) return;
     this.send(IPC.coreStatePush, state);
     // A hidden login launch may finish loading before the broker starts and the unlock gate is published.
     if (state.kind === 'unlock-required' && !state.unlocking && !this.smoke && this.windowReady) this.showWindow();
@@ -297,6 +303,7 @@ export class Desktop {
   }
 
   private onCoreReady(core: ReadyCore): void {
+    if (this.resetting) return;
     this.events.start(core);
     this.notifications?.coreRestarted();
     void this.afterReady(core);
@@ -315,6 +322,7 @@ export class Desktop {
 
   /** Main's copy of "Check for updates automatically", for the hours the core doesn't answer. */
   private rememberAutoUpdate(value: boolean): void {
+    if (this.resetting || this.quitting) return;
     if (this.config.autoUpdate === value) return;
     this.config = { ...this.config, autoUpdate: value };
     try {
@@ -332,6 +340,7 @@ export class Desktop {
   }
 
   private onCoreEvent(e: CoreEvent): void {
+    if (this.resetting) return;
     if (this.relayEvents) this.send(IPC.eventPush, { type: e.type, data: e.data, id: e.id });
     const data = (typeof e.data === 'object' && e.data !== null ? e.data : {}) as Record<string, unknown>;
     switch (e.type) {
@@ -440,6 +449,7 @@ export class Desktop {
   }
 
   private storeLoginSettings(s: { openAtLogin: boolean; startHidden: boolean }): void {
+    if (this.resetting || this.quitting) return;
     if (this.config.openAtLogin !== s.openAtLogin || this.config.startHidden !== s.startHidden) {
       this.config = { ...this.config, ...s };
       writeDesktopConfig(this.layout.home, this.config);
@@ -547,7 +557,7 @@ export class Desktop {
       if (route.kind === 'api') {
         const core = this.supervisor.endpoint();
         // Only once the page got `ready` from this core: before that, the status screen owns the window.
-        const open = core && this.readyDeliveredFor === core.instanceNonce ? core : null;
+        const open = !this.resetting && core && this.readyDeliveredFor === core.instanceNonce ? core : null;
         const answer = await proxyToCore(request, route.target, open);
         // Restore or Create of the master key unlocks the core without a restart: main asks it again.
         if (open?.locked && mayUnlock(request.method, route.target, answer.status)) void this.recheckLock(open);
@@ -591,6 +601,7 @@ export class Desktop {
           this.log(`IPC ${channel} refused: not the app's window`);
           throw new Error('Not allowed');
         }
+        if (this.resetting || this.quitting) throw new Error('GateRook is closing.');
         return fn(...args);
       });
     };
@@ -600,6 +611,7 @@ export class Desktop {
           this.log(`IPC ${channel} refused: not the app's window`);
           return;
         }
+        if (this.resetting || this.quitting) return;
         fn(...args);
       });
     };
@@ -640,6 +652,11 @@ export class Desktop {
     handle(IPC.restartCore, async () => {
       void this.supervisor.restart();
     });
+    handle(IPC.resetApplication, (confirmation) => {
+      if (this.quitting) throw new Error('GateRook is closing.');
+      requestApplicationReset(this.resetPaths(), confirmation, this.supervisor.pid());
+      return this.finishReset();
+    });
     handle(IPC.unlock, () => {
       if (this.quitting) return;
       return this.fileKeyUnlock.unlock();
@@ -655,6 +672,7 @@ export class Desktop {
         const ours = !!running && (running.port === port || running.publicPort === port);
         if (!ours && !(await canBind(port))) throw new Error(`Port ${port} is in use. Choose another one.`);
       }
+      if (this.resetting || this.quitting) throw new Error('GateRook is closing.');
       this.config = { ...this.config, port: asked.port, publicPort: asked.publicPort };
       writeDesktopConfig(this.layout.home, this.config);
       this.log(`Use another port: ${asked.port} (public ${asked.publicPort})`);
@@ -676,8 +694,64 @@ export class Desktop {
 
   // ── Quit ────────────────────────────────────────────────────────────────────────────────────────────────────
 
+  private resetPaths(): ResetPaths {
+    return { home: this.layout.home, userData: app.getPath('userData'),
+      protectedPaths: [homedir(), app.getAppPath(), process.resourcesPath, this.layout.uiRoot,
+        ...(this.layout.resources ? [this.layout.resources] : [])] };
+  }
+
+  /** Also runs before normal startup when the last confirmed reset was interrupted. */
+  async finishReset(): Promise<void> {
+    if (this.resetting) return;
+    this.resetting = true;
+    this.readyDeliveredFor = null;
+    this.relayEvents = false;
+    try {
+      await finishApplicationReset(this.resetPaths(), {
+        stop: async () => {
+          this.updates?.stop();
+          this.events.stop();
+          this.fileKeyUnlock.close();
+          await this.supervisor.stop();
+          await this.broker?.close();
+          this.broker = null;
+        },
+        disableLogin: () => applyLoginItem({ openAtLogin: false, startHidden: false }, this.layout.dev, this.log),
+        removeKey: () => this.osFileKey.reset(),
+        clearProfile: async () => {
+          // No renderer may write preferences back after storage was cleared. Keep Chromium's profile files
+          // open and let its APIs clear them, including on Windows where unlinking an active profile fails.
+          this.window?.win.destroy();
+          this.window = null;
+          await session.defaultSession.closeAllConnections();
+          await session.defaultSession.clearData();
+          await session.defaultSession.clearStorageData();
+          await session.defaultSession.clearAuthCache();
+          await session.defaultSession.clearCache();
+          session.defaultSession.flushStorageData();
+        },
+      });
+      this.stopped = true;
+    } catch (error) {
+      // The marker remains; never start a core against a partially reset home. A native dialog remains usable
+      // even when the renderer has already been destroyed or the reset was resumed before creating a window.
+      this.log(`application reset could not finish: ${(error as Error).message}`);
+      dialog.showErrorBox('GateRook reset could not finish',
+        'GateRook will close. The reset will be retried the next time you open the app.\n\n'
+        + ((error as Error).message || 'Some local data could not be removed.'));
+    } finally {
+      this.nativeUnlock.close();
+      this.tray?.destroy();
+      this.tray = null;
+      this.quitting = true;
+      this.resetting = false;
+      app.quit();
+    }
+  }
+
   /** Quit stops the core first (stdin EOF), then lets Electron go. */
   beforeQuit(event: { preventDefault(): void }): void {
+    if (this.resetting) { event.preventDefault(); return; }
     this.quitting = true;
     if (this.stopped) return;
     event.preventDefault();

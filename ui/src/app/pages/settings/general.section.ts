@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, DestroyRef, Injector, computed, inj
 import { FormField, form, validate } from '@angular/forms/signals';
 import { RouterLink } from '@angular/router';
 import { isApiError } from '../../core/api/api-error';
-import { DesktopBridge, UpdateState } from '../../core/desktop/desktop-bridge';
+import { DesktopBridge, UpdateState, desktopErrorText } from '../../core/desktop/desktop-bridge';
 import { ApprovalsStore } from '../../core/stores/approvals.store';
 import { TimeService } from '../../core/time/time.service';
 import { Announcer } from '../../kit/announcer';
@@ -61,6 +61,7 @@ export class GwGeneralSettings {
   private readonly injector = inject(Injector);
 
   private readonly portDialog = viewChild.required<GwDialog>('portDialog');
+  private readonly resetDialog = viewChild.required<GwDialog>('resetDialog');
 
   private readonly values = computed(() => this.data.section('general')?.values);
   protected readonly openAtLogin = computed(() => boolOf(this.values(), 'openAtLogin', true));
@@ -119,6 +120,10 @@ export class GwGeneralSettings {
   protected readonly pendingCount = this.approvals.pendingCount;
   protected readonly plural = plural;
 
+  protected readonly resetConfirmation = signal('');
+  protected readonly resetBusy = signal(false);
+  protected readonly resetError = signal<string | null>(null);
+
   constructor() {
     const off = this.desktop.onUpdateState((s) => this.onUpdate(s));
     inject(DestroyRef).onDestroy(off);
@@ -176,6 +181,34 @@ export class GwGeneralSettings {
 
   protected openLogs(): void {
     if (this.desktop.available) void this.desktop.revealInFolder('logs');
+  }
+
+  protected openReset(e: Event): void {
+    if (!this.desktop.available || this.resetBusy()) return;
+    this.resetConfirmation.set('');
+    this.resetError.set(null);
+    this.resetDialog().open(e.currentTarget as HTMLElement);
+  }
+
+  protected cancelReset(): void {
+    if (!this.resetBusy()) this.resetDialog().close();
+  }
+
+  protected guardResetCancel(e: Event): void {
+    if (this.resetBusy()) e.preventDefault();
+  }
+
+  protected async resetApplication(): Promise<void> {
+    if (!this.desktop.available || this.resetBusy() || this.resetConfirmation() !== 'RESET') return;
+    this.resetBusy.set(true);
+    this.resetError.set(null);
+    try {
+      await this.desktop.resetApplication(this.resetConfirmation());
+      // The desktop closes after success; keep the confirmation locked until the window goes away.
+    } catch (err) {
+      this.resetError.set(desktopErrorText(err, 'GateRook could not finish resetting. Try again.'));
+      this.resetBusy.set(false);
+    }
   }
 
   // ── Change port ───────────────────────────────────────────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 // Preserve the existing file key when moving from Electron safeStorage to the macOS unlock helper.
 // Windows keeps DPAPI and adds Windows Hello verification. Linux retains its existing Secret Service backend.
 import { randomBytes, randomUUID } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync } from 'node:fs';
 import { writeFileAtomic } from './atomic-file.ts';
 import { FILE_KEY_BYTES, FileKeyAccessError, keysetPath, oskPath, planFileKey,
   type FileKeyPlan, type SafeStorageLike } from './file-key.ts';
@@ -58,6 +58,17 @@ export class OsFileKey {
       return { authentication: this.touchId ? 'touch-id' : 'system' };
     }
     return { authentication: 'system' };
+  }
+
+  /** Remove only this home's native key. The reset caller removes local files after this succeeds. */
+  async reset(): Promise<void> {
+    if (this.o.platform !== 'darwin') return;
+    const path = oskPath(this.o.home);
+    if (existsSync(path) && !lstatSync(path).isFile()) {
+      throw new FileKeyAccessError('The encryption key reference must be a regular file.');
+    }
+    const stored = reference(this.o.home);
+    if (stored) await this.o.native({ operation: 'delete', account: stored.account });
   }
 
   async load(): Promise<FileKeyPlan> {

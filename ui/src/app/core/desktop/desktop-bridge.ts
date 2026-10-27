@@ -101,6 +101,8 @@ export interface GwDesktop {
   /** Requests OS access to the encryption key after the person chooses Unlock GateRook. */
   unlock(): Promise<void>;
   restartCore(): Promise<void>;
+  /** Deletes local application data and closes GateRook after an exact RESET confirmation. */
+  resetApplication(confirmation: string): Promise<void>;
   /**
    * Writes `desktop.json` and restarts the core on `port` — a number moves the local API, `{ publicPort }` the tunnel's
    * public listener (or both at once); rejects with a reason main can't use it (taken, reserved).
@@ -196,6 +198,12 @@ export class DesktopBridge {
 
   async restartCore(): Promise<void> {
     await this.desktop?.restartCore();
+  }
+
+  async resetApplication(confirmation: string): Promise<void> {
+    if (!this.desktop) throw new Error('Reset is available only in the desktop app.');
+    if (confirmation !== 'RESET') throw new Error('Type RESET exactly to confirm.');
+    await this.desktop.resetApplication(confirmation);
   }
 
   async unlock(): Promise<void> {
