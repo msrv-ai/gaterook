@@ -6,6 +6,8 @@ import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.Connector;
 import ai.msrv.gaterook.connector.api.PreparedAction;
 import ai.msrv.gaterook.connector.api.ToolCall;
+import ai.msrv.gaterook.connector.api.ToolDefinition;
+import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.core.approvals.ApprovalAnswers;
 import ai.msrv.gaterook.core.approvals.ApprovalService;
@@ -173,7 +175,12 @@ public class ToolCallHandler {
         return ResultWriter.callToolResult(env, ToolResult.error(text), callId, r.span().traceId(), null);
       }
       case ALLOW -> {
-        received(auditCall, AuditWriter.Received.of(AuditWriter.Verdict.ALLOWED, kind, null));
+        if (pair.mode() == Mode.BYPASS && (kind == Classification.Kind.MUTATION
+            || pair.tool().nature() != ToolDefinition.Nature.READ)) {
+          return approval(r, pair, call, decision, kind, auditCall, args, argumentsDigest,
+              published.outputSchema());
+        }
+        received(auditCall, AuditWriter.Received.of(AuditWriter.Verdict.ALLOWED, kind, decision.ruleId()));
         return run(r, auditCall, new ConnectorInvoker.Request(callId, cfg, call, decision.limits(),
             policies.maskPolicy(cfg.env()), r.span().traceId(), r.span().traceparent()), null);
       }
@@ -185,8 +192,14 @@ public class ToolCallHandler {
 
   /** Runs an allowed call and writes its {@code completed} row before the result leaves. */
   ObjectNode run(McpRequest r, AuditWriter.Call auditCall, ConnectorInvoker.Request request, ObjectNode extraMeta) {
+    return run(r, auditCall, request, extraMeta, null);
+  }
+
+  private ObjectNode run(McpRequest r, AuditWriter.Call auditCall, ConnectorInvoker.Request request,
+      ObjectNode extraMeta, PreparedAction bypass) {
     long started = System.nanoTime();
-    ConnectorInvoker.Outcome outcome = invoker.execute(request);
+    ConnectorInvoker.Outcome outcome = bypass == null ? invoker.execute(request)
+        : invoker.executeBypass(request, bypass);
     long durationMs = (System.nanoTime() - started) / 1_000_000;
     completed(auditCall, outcome, durationMs, outcome.ok() ? AuditWriter.Verdict.ALLOWED : AuditWriter.Verdict.ERROR,
         null);
@@ -197,7 +210,7 @@ public class ToolCallHandler {
   }
 
   /**
-   * A call that needs a person: prepare, then the request and its first answer.
+   * Prepare an exact action, then create an approval request or execute a policy-allowed Bypass call.
    *
    * @param outputSchema what the published tool promises its results look like, or {@code null}
    */
@@ -231,6 +244,10 @@ public class ToolCallHandler {
       // "Unchanged" is no output of the tool: a tool with an outputSchema can only say it as an error.
       return ResultWriter.callToolResult(env, outputSchema == null ? unchanged : ApprovalAnswers.asError(unchanged),
           call.callId(), r.span().traceId(), null);
+    }
+    if (pair.mode() == Mode.BYPASS && decision.outcome() == Decision.Outcome.ALLOW) {
+      received(auditCall, AuditWriter.Received.of(AuditWriter.Verdict.ALLOWED, kind, decision.ruleId()));
+      return run(r, auditCall, request, null, action);
     }
     ActionPreview preview = action.preview();
     String note = args.path("note").isString() ? args.get("note").asString() : null;

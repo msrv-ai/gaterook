@@ -38,8 +38,8 @@ import tools.jackson.databind.JsonNode;
  * before handing it out.
  *
  * <p>Never transactional and holds no database connection while the resource works (§5, the waits are up to 30 s).
- * {@link #executeApproved} is the only path to a context with {@code approved() == true}; only the approval executor
- * calls it.
+ * {@link #executeApproved} runs a stored approval; {@link #executeBypass} runs a freshly prepared action after the
+ * policy engine allowed an explicit Bypass pair. Both retain connector validation and scoped secrets.
  */
 @Component
 public class ConnectorInvoker {
@@ -66,6 +66,9 @@ public class ConnectorInvoker {
 
   /** What an approval hands its execution: the request id, {@code prepare}'s state, the approved payload. */
   public record Approval(String approvalId, JsonNode preparedState, JsonNode payload) {}
+
+  /** Internal authorization: a null approval id identifies explicit Bypass, never a human approval. */
+  private record Authorization(String approvalId, JsonNode preparedState, JsonNode payload) {}
 
   /**
    * What happened, masked and cut.
@@ -118,7 +121,18 @@ public class ConnectorInvoker {
    * person saw. Only {@code approvals.ApprovalExecutor} calls this.
    */
   public Outcome executeApproved(Request r, Approval approval) {
-    return run(r, Objects.requireNonNull(approval, "approval"), Kind.EXECUTE, null);
+    Objects.requireNonNull(approval, "approval");
+    return run(r, new Authorization(Objects.requireNonNull(approval.approvalId(), "approvalId"),
+        approval.preparedState(), approval.payload()), Kind.EXECUTE, null);
+  }
+
+  /** A policy-allowed Bypass call: execute the exact prepared action without creating an approval request. */
+  public Outcome executeBypass(Request r, PreparedAction prepared) {
+    if (prepared.outcome() != PreparedAction.Outcome.APPROVAL || prepared.preview() == null) {
+      throw new IllegalArgumentException("Bypass requires an executable prepared action");
+    }
+    return run(r, new Authorization(null, prepared.preparedState(), prepared.preview().payload()),
+        Kind.EXECUTE, null);
   }
 
   /** {@code describe_connection}'s contribution of the connector (≤ 2 s); empty when it has none. */
@@ -159,7 +173,7 @@ public class ConnectorInvoker {
 
   private enum Kind { EXECUTE, DESCRIBE, READ_RESOURCE }
 
-  private Outcome run(Request r, Approval approval, Kind kind, String argument) {
+  private Outcome run(Request r, Authorization approval, Kind kind, String argument) {
     Optional<Connector> found = registry.connectorFor(r.cfg());
     if (found.isEmpty()) {
       return failure(ConnectorException.Kind.RESOURCE_UNAVAILABLE, r.cfg().name() + " isn't available right now.",
@@ -169,7 +183,7 @@ public class ConnectorInvoker {
     Taint taint = new Taint();
     Duration timeout = switch (kind) {
       case DESCRIBE -> min(DESCRIBE_TIMEOUT, r.limits().toolTimeout());
-      case EXECUTE -> callTimeout(connector, r, approval != null);
+      case EXECUTE -> callTimeout(connector, r, approval != null && approval.approvalId() != null);
       case READ_RESOURCE -> r.limits().toolTimeout();
     };
     CallContext call = context(r, taint, timeout);

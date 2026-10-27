@@ -22,7 +22,7 @@ import { TextPart, literalParts } from '../shared/literals';
 /** What a card needs to know about an endpoint: its name, class, access and tools (`GET /api/endpoints`). */
 export type ClientEndpoint = Pick<EndpointSummary, 'slug' | 'env' | 'access' | 'tools' | 'connections' | 'url'>;
 
-const sum = (t: ClientEndpoint['tools']): number => t.read + t.approval + t.off;
+const sum = (t: ClientEndpoint['tools']): number => t.read + t.approval + t.off + (t.bypass ?? 0);
 
 /** "dev · 8 connections, 22 tools", "stage-readonly · 3 connections, read only", "incident-prod · 3 prod connections". */
 export function endpointOption(e: ClientEndpoint): string {
@@ -38,6 +38,7 @@ export function toolsCell(e: ClientEndpoint): { readonly total: string; readonly
   const parts = [
     e.tools.read ? `${e.tools.read} read only` : null,
     e.tools.approval ? `${e.tools.approval} approval` : null,
+    e.tools.bypass ? `${e.tools.bypass} bypass` : null,
     e.tools.off ? `${e.tools.off} off` : null,
   ].filter((p): p is string => p !== null);
   return { total: formatCount(sum(e.tools)), modes: parts.join(', ') };

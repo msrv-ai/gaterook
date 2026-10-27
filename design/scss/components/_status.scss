@@ -60,7 +60,7 @@
 //   <span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span>
 //
 //   --off (neutral) | --read (info) | --approval (warning)      20px, radius xs
-//   There is no "write" mode anywhere: mutations always need an approval.
+//   --bypass (danger): calls run without approval, within policy limits.
 // A11y  The icon is decorative, the words carry the mode; the transparent
 //       border keeps the shape in Windows forced-colors mode.
 //
@@ -196,4 +196,5 @@
   &--off { @include gw-tone(neutral); }
   &--read { @include gw-tone(info); }
   &--approval { @include gw-tone(warning); }
+  &--bypass { @include gw-tone(danger); }
 }

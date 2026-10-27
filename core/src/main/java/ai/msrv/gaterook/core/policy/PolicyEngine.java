@@ -19,12 +19,14 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The decision for one classified call (ARCHITECTURE.md §5 step 7, §9 "Every mutation requires
- * approval"). The truth table is an invariant with no switch anywhere:
+ * The decision for one classified call. Bypass skips approval only, after classification and the endpoint's
+ * integrity, environment and read-only checks. The truth table is:
  * <ol>
  *   <li>a DENY of the classification → DENY;</li>
  *   <li>mode Off → "Unknown tool";</li>
- *   <li>a MUTATION → APPROVAL, whatever the mode (on a read-only endpoint: DENY, it never asks a person);</li>
+ *   <li>a read-only endpoint denies mutations and Bypass;</li>
+ *   <li>mode Bypass → ALLOW;</li>
+ *   <li>a MUTATION → APPROVAL;</li>
  *   <li>mode Approval → APPROVAL, for a READ too;</li>
  *   <li>READ on a Read only pair → ALLOW.</li>
  * </ol>
@@ -116,11 +118,15 @@ public class PolicyEngine {
     }
     boolean mutation = classification.kind() == Classification.Kind.MUTATION
         || pair.tool().nature() == ToolDefinition.Nature.MUTATION;
+    if (pair.endpointReadOnly() && (mutation || pair.mode() == Mode.BYPASS)) {
+      return deny(pair.endpointEnv().id() + ".endpoint.read-only", pair.endpointSlug() + " is read only: it "
+          + "doesn't allow Bypass or anything that changes data.", view, perToken, perTool);
+    }
+    if (pair.mode() == Mode.BYPASS) {
+      return new Decision(Outcome.ALLOW, "core.bypass", "Bypass is enabled for this tool on " + pair.endpointSlug(),
+          null, view, view.limits(), perToken, perTool);
+    }
     if (mutation) {
-      if (pair.endpointReadOnly()) {
-        return deny(pair.endpointEnv().id() + ".endpoint.read-only", pair.endpointSlug() + " is read only: it "
-            + "doesn't run anything that changes data.", view, perToken, perTool);
-      }
       String reason = classification.reason() == null ? "Changes data" : classification.reason();
       return new Decision(Outcome.APPROVAL, view.rule("write-approval"), reason, null, view, view.limits(), perToken,
           perTool);

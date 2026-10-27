@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { ApiClient } from './api-client';
 import { Env, Iso, JsonObject, JsonValue, WithReason } from './types';
 
-/** An invariant lock of a policy ("Mutations always require approval"): no switch, 422 if changed. */
+/** A policy rule lock: approval rules are bypassed only by an explicit endpoint tool mode, not a policy switch. */
 export interface PolicyLock {
   readonly section: string;
   readonly key: string;

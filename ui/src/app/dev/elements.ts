@@ -40,7 +40,7 @@ export const KIT_ELEMENTS: readonly KitElement[] = [
     name: 'tool-policy-list',
     title: 'Tool policy list',
     description:
-      'What agents may call on one endpoint, and how: every tool grouped by its connection, with its MCP annotations, the mode picker Off · Read only · Approval and per-tool limits over the environment policy. There is no mode that lets an agent change data without you. Used on endpoint detail (Tools & policies), Policies and Playground.',
+      'What agents may call on one endpoint, and how: every tool grouped by its connection, with its MCP annotations, the mode picker Off · Read only · Approval · Bypass and per-tool limits over the environment policy. Bypass runs calls without approval while preserving policy limits. Used on endpoint detail (Tools & policies), Policies and Playground.',
   },
   {
     name: 'risk-callout',

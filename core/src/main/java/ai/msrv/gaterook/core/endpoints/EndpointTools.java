@@ -28,7 +28,7 @@ import tools.jackson.databind.JsonNode;
 
 /**
  * Tool modes of an endpoint (kit {@code tool-policy-list}, ARCHITECTURE.md §6 endpoint-detail Tools): Off · Read only ·
- * Approval per tool × connection; there is no mode that lets a write through. Read only isn't offered to a tool that
+ * Approval · Bypass per tool × connection. Bypass skips approval but keeps policy limits. Read only isn't offered to a tool that
  * changes data, and a plugin or MCP server tool gets it only after the person confirmed it for that tool's definition
  * and version. "Set all to…" skips what it can't set and says why. Every change is a Setup change.
  */

@@ -257,7 +257,7 @@ export function valuesSummary(policies: PoliciesByEnv, schemas: PolicySchemas, e
 
 // ── Changes in words ────────────────────────────────────────────────────────────────────────────────────────────
 
-/** One change in a sentence: "approval timeout 10 to 15 min", "DDL allowed with approval", "masked fields to `a`". */
+/** One change in a sentence: "approval timeout 10 to 15 min", "DDL allowed with approval unless Bypass", "masked fields to `a`". */
 export function changePhrase(info: KeyInfo, from: JsonValue | undefined, to: JsonValue | undefined): string {
   const noun = info.spec.noun;
   switch (info.kind) {

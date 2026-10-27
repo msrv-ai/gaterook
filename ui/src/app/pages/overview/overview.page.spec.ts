@@ -258,7 +258,7 @@ describe('Overview page', () => {
       const { el } = await render();
       expect(el.querySelector('#ov-wait')).toBeNull();
       expect(text(el.querySelector('#ov-wait-none'))).toBe(
-        'Nothing waits for your approval. When an AI app asks to change data, the request appears here and as a desktop notification.',
+        'Nothing waits for your approval. Calls that need your approval appear here and as a desktop notification. Tools in Bypass run without asking.',
       );
     });
 

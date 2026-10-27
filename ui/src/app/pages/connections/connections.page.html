@@ -28,7 +28,7 @@
     <li gwHowItWorksStep icon="plug-zap" heading="Add and test">Pick a type, point it at a host and test it. The test shows what the account is allowed to do.</li>
     <!-- Decision 10 (ARCHITECTURE §8.6.5): short-lived credentials are renewed, not issued for every call. -->
     <li gwHowItWorksStep icon="lock-keyhole" heading="Credentials stay here">Encrypted with your master key, read from Vault, GCP or AWS at call time, or issued short-lived and renewed automatically. Write-only.</li>
-    <li gwHowItWorksStep icon="waypoints" heading="Add it to an endpoint">Its tools appear there as Off, Read only or Approval. Anything that writes waits for a person.</li>
+    <li gwHowItWorksStep icon="waypoints" heading="Add it to an endpoint">Its tools appear there as Off, Read only, Approval or Bypass. Writes wait for approval by default.</li>
     <li gwHowItWorksStep icon="activity" heading="Agents call it by name"><code class="gw-code">sql_query(connection='dev-db', …)</code>. Every call is logged in Activity.</li>
     <p class="gw-how-it-works__more" gwHowItWorksMore><a class="gw-link gw-text-small" routerLink="/secrets">Learn how credentials are protected</a></p>
   </section>

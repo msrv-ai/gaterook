@@ -60,7 +60,7 @@ const base = (p: Partial<ApprovalDetail> & Pick<ApprovalDetail, 'id' | 'tool' | 
 });
 
 const UPDATE_48213 = "UPDATE orders SET status = 'cancelled' WHERE id = 48213;";
-const SQL_RULE = { id: 'dev.sql.dml-approval', text: 'DML requires approval. Statements that change rows always wait for a human.' };
+const SQL_RULE = { id: 'dev.sql.dml-approval', text: 'DML requires approval. This statement changes rows and needs your approval.' };
 const K8S_RULE = { id: 'dev.k8s.restart-approval', text: 'restarting a workload requires approval.' };
 const HTTP_RULE = { id: 'stage.http.write-approval', text: 'POST, PUT, PATCH and DELETE require approval.' };
 const SQL_IMPACT = [
@@ -318,7 +318,7 @@ export const DEMO_APPROVALS: Record<
     error: 'The runbook failed with exit code 1',
     action: action('runbook', 'sh', '# runbook compose-restart · service = worker · expands to:\ndocker compose restart worker'),
     target: 'dev-vm · 10.20.0.14 · runbook compose-restart · as deploy',
-    rule: { id: 'dev.ssh.runbook-approval', text: 'read-only runbooks run at once, a runbook that changes the host always waits for a human.' },
+    rule: { id: 'dev.ssh.runbook-approval', text: 'This runbook changes the host and needs your approval.' },
     impact: [
       { label: 'Runbook', text: 'compose-restart · service worker' },
       { label: 'Host', text: 'dev-vm · 10.20.0.14' },

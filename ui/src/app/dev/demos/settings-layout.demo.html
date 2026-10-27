@@ -221,7 +221,7 @@
       </div>
     </section>
 
-    <section gwSettingsSection name="approval-rules" heading="Approval rules" description="Where decisions can be made and what a decision needs. Every mutation waits for a person; nothing here can skip that." [level]="3">
+    <section gwSettingsSection name="approval-rules" heading="Approval rules" description="Where decisions can be made and what a decision needs. Mutations wait for approval unless their endpoint tool explicitly uses Bypass." [level]="3">
       <div class="gw-form gw-form--sticky-actions">
         <form class="gw-form__section" id="st-rules" method="dialog" aria-labelledby="st-decisions-t" (submit)="saveRules($event)">
           <header class="gw-form__section-header">

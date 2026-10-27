@@ -444,7 +444,7 @@ describe('Policies page', () => {
     expect(dialog.className).toContain('gw-dialog--danger');
     expect(text(dialog.querySelector('.gw-dialog__title'))).toBe('Allow any shell command on prod-vm?');
     expect(text(dialog.querySelector('.gw-dialog__description'))).toBe(
-      'Agents could ask to run anything on prod-vm, not only its two runbooks. Every command still waits for your approval with a comment, but a long command is easy to approve by mistake.',
+      'Agents could ask to run anything on prod-vm, not only its two runbooks. Commands need your approval unless ssh_exec uses Bypass. Policy denials and limits still apply.',
     );
     expect(text(document.activeElement)).toBe('Keep it off');
     expect(box.checked).toBe(false);

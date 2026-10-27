@@ -333,11 +333,11 @@ Environment marker beside a connection name in every risky context. It differs f
 
 ### `gw-mode`
 
-Display-only tool mode, icon plus words: Off (circle-off, neutral), Read only (eye, info), Approval (user-check, warning). To choose a mode, use gw-segmented. There is no write mode.
+Display-only tool mode, icon plus words: Off (circle-off, neutral), Read only (eye, info), Approval (user-check, warning), Bypass (shield-off, danger). Bypass runs calls without approval, within policy limits. To choose a mode, use gw-segmented.
 
 [SCSS](scss/components/_status.scss)
 
-**Variants:** gw-mode--off; gw-mode--read; gw-mode--approval.
+**Variants:** gw-mode--off; gw-mode--read; gw-mode--approval; gw-mode--bypass.
 
 **Parts:** direct child .gw-icon (12px, sized by the component).
 
@@ -596,11 +596,11 @@ A checkbox with role=switch drawn as a 32×18 track with a 14px thumb, for setti
 
 ### `gw-segmented`
 
-Radio group drawn as joined segments, 32px (28px with --sm). The main case is the tool mode Off / Read only / Approval. The checked option is painted in its tone: tone subtle fill, tone fg text and edge, semibold, with its own icon.
+Radio group drawn as joined segments, 32px (28px with --sm). The main case is the tool mode Off / Read only / Approval / Bypass. The checked option is painted in its tone: tone subtle fill, tone fg text and edge, semibold, with its own icon.
 
 [SCSS](scss/components/_segmented.scss)
 
-**Variants:** --sm (28px); --block (full width, equal segments); data-tone on __option: off (neutral) | read (info) | approval (warning) | brand success warning danger info neutral dev stage prod; none = brand.
+**Variants:** --sm (28px); --block (full width, equal segments); data-tone on __option: off (neutral) | read (info) | approval (warning) | bypass (danger) | brand success warning danger info neutral dev stage prod; none = brand.
 
 **Parts:** __option; __input; __label.
 
@@ -1218,7 +1218,7 @@ Previews of how the same approval request appears outside the window. (1) The na
 
 ### `tool-policy-list`
 
-What agents may call on one endpoint and how. Every tool is grouped by its connection: connector icon tile, name, gw-env, connector type, tool and mode counts, and a 'Set all to…' menu. Each tool row shows MCP annotation badges and the Off · Read only · Approval picker. Read only is disabled with a visible reason for destructive tools, there is a note where a tool has a read-only subset, and the picker is locked when the endpoint is read only. A 'Limits' disclosure row holds per-tool overrides, which can only be stricter than the environment policy and show what is inherited. A toolbar above has search, a mode filter and a live summary of counts per mode. A picker variant for Playground shows gw-mode and row links instead of the picker.
+What agents may call on one endpoint and how. Every tool is grouped by its connection: connector icon tile, name, gw-env, connector type, tool and mode counts, and a 'Set all to…' menu. Each tool row shows MCP annotation badges and the Off · Read only · Approval · Bypass picker. Read only is disabled with a visible reason for destructive tools, there is a note where a tool has a read-only subset, and the picker is locked when the endpoint is read only. A 'Limits' disclosure row holds per-tool overrides, which can only be stricter than the environment policy and show what is inherited. A toolbar above has search, a mode filter and a live summary of counts per mode. A picker variant for Playground shows gw-mode and row links instead of the picker.
 
 [SCSS](elements/_tool-policy-list.scss) · [Interactive demo](elements/tool-policy-list.html)
 
@@ -1249,7 +1249,7 @@ What agents may call on one endpoint and how. Every tool is grouped by its conne
 **States and behavior:**
 
 - default: endpoint dev, 14 tools in 5 connection groups, summary '14 tools · 6 read only · 3 approval · 5 off'
-- destructive tool: Read only <input disabled> + __mode-note 'Mutates data: approval or off' (lock icon, aria-describedby on the fieldset and the option)
+- destructive tool: Read only <input disabled> + __mode-note 'Mutates data: approval, bypass or off' (lock icon, aria-describedby on the fieldset and the option)
 - read-only subset: ssh_run keeps Read only, __mode-note 'Read only runs runbooks marked read only' (info icon)
 - locked by the endpoint: incident-prod (prod-replica + prod-logs, prod), sql_execute <fieldset disabled> + note naming the read-only endpoint
 - limits collapsed / expanded (data-gw-toggle, aria-expanded ↔ tr[hidden], chevron pair)
@@ -1257,7 +1257,7 @@ What agents may call on one endpoint and how. Every tool is grouped by its conne
 - filtered by mode: Mode: Approval (listbox aria-selected), '3 of 14 tools match', groups '1 of 4 tools shown', groups without a match omitted
 - no match: summary '0 of 14 tools match' + gw-empty--compact in a flush card with Clear search
 - picker (Playground): gw-table--interactive, __row-link names, gw-mode, env markers, selected tool tr[aria-selected] + aria-current
-- tool of an external MCP server or plugin: 'Declared by <server>, not verified' (gw-text-caption gw-fg-muted) after the annotation badges; starts as Approval when added to an endpoint; Read only only for a tool the server declared read only and only after an explicit per-tool confirmation (jira_search_requests: option aria-disabled + 'Read only needs your confirmation for this tool', 'Confirm read only' → gw-dialog--sm --warning 'Let jira_search_requests run without approval?'); a tool not declared read only is approval or off (Read only natively disabled, 'Not declared read only: approval or off'): all 26 tools of github-mcp, which declares no annotations; 'Set all to… Read only' skips them and says so
+- tool of an external MCP server or plugin: 'Declared by <server>, not verified' (gw-text-caption gw-fg-muted) after the annotation badges; starts as Approval when added to an endpoint; Read only only for a tool the server declared read only and only after an explicit per-tool confirmation (jira_search_requests: option aria-disabled + 'Read only needs your confirmation for this tool', 'Confirm read only' → gw-dialog--sm --warning 'Let jira_search_requests run without approval?'); a tool not declared read only is approval, bypass or off (Read only natively disabled, 'Not declared read only: approval, bypass or off'): all 26 tools of github-mcp, which declares no annotations; 'Set all to… Read only' skips them and says so
 
 **Reference screens:**
 

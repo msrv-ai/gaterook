@@ -22,7 +22,7 @@ public interface Connector extends AutoCloseable {
     return manifest().tools();
   }
 
-  /** No I/O, no secrets, a few ms; runs before the policy. MUTATION always becomes an approval request. */
+  /** No I/O, no secrets, a few ms; runs before the policy. MUTATION requires approval unless the pair explicitly uses Bypass. */
   Classification classify(ToolCall call, ConnectionConfig cfg, PolicyView policy);
 
   /** Exact action, byte for byte what will run; no I/O; hashed into the approval digest. */

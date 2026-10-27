@@ -21,7 +21,7 @@ const tool = (name: string, mode: ToolMode, annotations: ToolAnnotations, extra:
   mode,
   storedMode: mode,
   readOnlyAllowed: !annotations.destructiveHint,
-  reason: annotations.destructiveHint ? `${name} changes data, so Read only isn't available: it always waits for approval` : null,
+  reason: annotations.destructiveHint ? `${name} changes data, so Read only isn't available: choose Approval, Bypass or Off` : null,
   readOnlyConfirmed: false,
   definitionHash: `sha256-${name}`,
   overrides: null,

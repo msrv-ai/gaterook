@@ -1,6 +1,6 @@
 <section class="sc-section" id="segmented" data-title="Segmented control" data-group="Forms">
   <h2>Segmented control <code class="gw-code">gw-segmented</code></h2>
-  <p>A real radio group drawn as joined segments: Tab lands on the checked option, arrow keys move and select, the value submits with the form, no script. The main case is the tool mode <strong>Off · Read only · Approval</strong>; there is no "allow writes" mode anywhere. The checked option takes its tone from <code class="gw-code">data-tone</code> (off neutral, read info, approval warning, or any tone name such as dev, stage, prod) with an edge in the tone colour, semibold text and its own icon, so the choice never rests on a tint alone. Without <code class="gw-code">data-tone</code> it is brand, for plain view switches. For a mutating tool <strong>Read only</strong> is disabled and the reason is visible next to the control and linked with <code class="gw-code">aria-describedby</code>. Not for switching views of a panel (that is <code class="gw-code">gw-tabs--contained</code>) or for more than four options (use <code class="gw-code">gw-select</code>).</p>
+  <p>A real radio group drawn as joined segments: Tab lands on the checked option, arrow keys move and select, the value submits with the form, no script. The main case is the tool mode <strong>Off · Read only · Approval · Bypass</strong>; Bypass runs calls without approval, including changes to data. The checked option takes its tone from <code class="gw-code">data-tone</code> (off neutral, read info, approval warning, or any tone name such as dev, stage, prod) with an edge in the tone colour, semibold text and its own icon, so the choice never rests on a tint alone. Without <code class="gw-code">data-tone</code> it is brand, for plain view switches. For a mutating tool <strong>Read only</strong> is disabled and the reason is visible next to the control and linked with <code class="gw-code">aria-describedby</code>. Not for switching views of a panel (that is <code class="gw-code">gw-tabs--contained</code>) or for more than four options (use <code class="gw-code">gw-select</code>).</p>
 
   <h3>Tool mode</h3>
   <div class="sc-demo sc-demo--col" data-sc-code>
@@ -21,6 +21,7 @@
             <input class="gw-segmented__input" type="radio" name="sc-c-mode-query" value="approval">
             <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span>
           </label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="sc-c-mode-query" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
         </fieldset>
       </div>
     </div>
@@ -41,8 +42,9 @@
             <input class="gw-segmented__input" type="radio" name="sc-c-mode-exec" value="approval" checked>
             <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span>
           </label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="sc-c-mode-exec" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
         </fieldset>
-        <p class="gw-field__hint" id="sc-c-mode-exec-why">Read only is unavailable: <code class="gw-code">sql_execute</code> changes data, so it runs only after an approval.</p>
+        <p class="gw-field__hint" id="sc-c-mode-exec-why">Read only is unavailable: <code class="gw-code">sql_execute</code> changes data, so choose Approval, Bypass or Off.</p>
       </div>
     </div>
     <div class="gw-field gw-field--inline">
@@ -62,6 +64,7 @@
             <input class="gw-segmented__input" type="radio" name="sc-c-mode-prod" value="approval">
             <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span>
           </label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="sc-c-mode-prod" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
         </fieldset>
         <p class="gw-field__hint" id="sc-c-mode-prod-why">Locked by the prod policy of endpoint <code class="gw-code">incident-prod</code>: <code class="gw-code">prod-replica</code> is read only.</p>
       </div>
@@ -84,6 +87,7 @@
         <input class="gw-segmented__input" type="radio" name="sc-c-mode-logs" value="approval">
         <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span>
       </label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="sc-c-mode-logs" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
     </fieldset>
     <div class="gw-segmented gw-segmented--sm" role="radiogroup" aria-label="Environment">
       <label class="gw-segmented__option" data-tone="dev">
@@ -136,6 +140,7 @@
           <input class="gw-segmented__input" type="radio" name="sc-c-mode-default" value="approval">
           <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span>
         </label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="sc-c-mode-default" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
       </div>
       <p class="gw-field__hint">Tools a connector adds later start in this mode. Off is the safest default.</p>
     </fieldset>

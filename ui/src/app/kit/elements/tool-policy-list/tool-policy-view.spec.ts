@@ -12,14 +12,24 @@ describe('tool-policy-list view (design/elements/tool-policy-list.html)', () => 
     expect(toolCount(1)).toBe('1 tool');
   });
 
+  it('counts and filters bypass tools without classifying them as read only', () => {
+    const bypass = { ...tool('sql_execute'), mode: 'BYPASS' as const };
+    expect(modeCounts([bypass])).toEqual([{ mode: 'BYPASS', count: 1, text: '1 bypass' }]);
+    expect(matches(bypass, null, '', 'BYPASS')).toBe(true);
+    expect(matches(bypass, null, '', 'READ_ONLY')).toBe(false);
+    expect(modeNote(bypass, { slug: 'dev', readOnly: false })).toMatchObject({
+      icon: 'shield-off', readOnlyDisabled: true, text: 'Bypass runs without approval, including changes to data. Policy limits still apply.',
+    });
+  });
+
   it('filters by name, description and mode', () => {
     expect(matches(tool('sql_query'), 'Run one SELECT', 'select', 'ALL')).toBe(true);
     expect(matches(tool('sql_query'), null, 'sql', 'APPROVAL')).toBe(false);
     expect(matches(tool('sql_execute'), null, '', 'APPROVAL')).toBe(true);
   });
 
-  it('a tool that changes data can never run without a person', () => {
-    expect(modeNote(tool('sql_execute'), { slug: 'dev', readOnly: false })).toMatchObject({ text: 'Mutates data: approval or off', readOnlyDisabled: true });
+  it('a tool that changes data cannot use Read only', () => {
+    expect(modeNote(tool('sql_execute'), { slug: 'dev', readOnly: false })).toMatchObject({ text: 'Mutates data: approval, bypass or off', readOnlyDisabled: true });
     expect(modeNote(tool('sql_execute'), { slug: 'incident-prod', readOnly: true })).toMatchObject({
       text: 'Locked: endpoint incident-prod is read only, so tools that change data stay off',
       locked: true,
@@ -30,8 +40,8 @@ describe('tool-policy-list view (design/elements/tool-policy-list.html)', () => 
 
   it('external tools: read only only after a confirmation, never for declared writers', () => {
     expect(modeNote(external('list_issues'), { slug: 'dev', readOnly: false })).toMatchObject({ needsConfirmation: true });
-    expect(modeNote(external('merge_pull_request'), { slug: 'dev', readOnly: false })?.text).toBe('Declared destructive: approval or off');
-    expect(modeNote(external('create_issue'), { slug: 'dev', readOnly: false })?.text).toBe('Not declared read only: approval or off');
+    expect(modeNote(external('merge_pull_request'), { slug: 'dev', readOnly: false })?.text).toBe('Declared destructive: approval, bypass or off');
+    expect(modeNote(external('create_issue'), { slug: 'dev', readOnly: false })?.text).toBe('Not declared read only: approval, bypass or off');
   });
 
   it('says what "Set all to…" does to each group', () => {
@@ -40,6 +50,7 @@ describe('tool-policy-list view (design/elements/tool-policy-list.html)', () => 
       off: "Agents can't call any dev-db tool",
       read: 'sql_execute stays as it is: it changes data',
       approval: 'Every call waits for your decision',
+      bypass: 'Calls run without approval, including changes to data; policy limits still apply',
     });
     expect(bulkHints('prod-replica', pg, { readOnly: true }).read).toBe('sql_execute stays off: the endpoint is read only');
   });

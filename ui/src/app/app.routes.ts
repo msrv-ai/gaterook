@@ -139,9 +139,8 @@ export const routes: Routes = [
       },
       {
         path: 'onboarding',
-        title: 'Welcome',
-        data: data('Welcome', 'welcome'),
-        loadComponent: () => import('./pages/onboarding/onboarding.page').then((m) => m.OnboardingPage),
+        pathMatch: 'full',
+        redirectTo: 'overview',
       },
       ...DEV_ROUTES,
     ],

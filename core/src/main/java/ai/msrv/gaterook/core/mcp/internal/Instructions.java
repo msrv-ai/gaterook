@@ -33,8 +33,12 @@ public final class Instructions {
    */
   public static String defaults(EndpointSnapshot s, ToolCatalog.Catalog catalog) {
     Set<String> approval = new LinkedHashSet<>();
+    Set<String> bypass = new LinkedHashSet<>();
     boolean allChange = true;
     for (EndpointSnapshot.Pair p : s.onPairs()) {
+      if (p.mode() == Mode.BYPASS && catalog.tool(p.tool().name()).isPresent()) {
+        bypass.add(p.tool().name() + " on " + p.connectionName());
+      }
       if (p.mode() == Mode.APPROVAL && catalog.tool(p.tool().name()).isPresent()) {
         approval.add(p.tool().name());
         allChange &= p.tool().mutating();
@@ -50,6 +54,10 @@ public final class Instructions {
     // §9: the agent learns what the mask means, so it doesn't try to work around it.
     out.append("- ‹masked› marks a secret the gateway removed. Don't try to recover it.\n\n");
     out.append("Changing anything\n");
+    if (!bypass.isEmpty()) {
+      wrap(out, "- Bypass is enabled for " + join(new ArrayList<>(bypass))
+          + ": calls run without approval, including changes. Policy limits still apply.", 72);
+    }
     if (s.readOnly()) {
       out.append("- This endpoint is read only: nothing that changes data runs here.\n");
     }

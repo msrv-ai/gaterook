@@ -73,7 +73,7 @@ class TunnelController {
 
   record Connection(String name, String env) {}
 
-  record Tools(int read, int approval, int off) {}
+  record Tools(int read, int approval, int off, int bypass) {}
 
   /** Settings › Tunnel as a section: {@code values} and the {@code version} to send back. */
   record Section(String name, ObjectNode values, long version, Instant updatedAt) {}
@@ -104,7 +104,7 @@ class TunnelController {
     PublishPreview p = tunnel.preview(slug(request == null ? null : request.endpoint()));
     return new Preview(p.endpoint(), p.env(), p.provider().id(), p.publicPaths(), p.local(),
         p.connections().stream().map(c -> new Connection(c.name(), c.env())).toList(),
-        new Tools(p.tools().read(), p.tools().approval(), p.tools().off()), p.risk(), p.refusal(), p.anthropicOnly(),
+        new Tools(p.tools().read(), p.tools().approval(), p.tools().off(), p.tools().bypass()), p.risk(), p.refusal(), p.anthropicOnly(),
         p.warnings());
   }
 

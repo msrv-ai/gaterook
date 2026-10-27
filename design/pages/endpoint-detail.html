@@ -367,7 +367,7 @@
           <section class="gw-section" aria-labelledby="ep-tools-title">
             <header class="gw-section__header">
               <h2 class="gw-section__title" id="ep-tools-title">What agents can call on dev</h2>
-              <p class="gw-section__description">A mode for each tool on each connection. Tools that change data run only after your approval; there is no mode that lets them write on their own.</p>
+              <p class="gw-section__description">A mode for each tool on each connection. Tools that change data wait for approval by default. Bypass runs calls without approval; policy denials and limits still apply.</p>
             </header>
             <div class="gw-tool-policy-list" id="ept-list">
               <div class="gw-toolbar">
@@ -384,6 +384,7 @@
                       <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1" data-ept-mode="off"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off</span></button>
                       <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1" data-ept-mode="read"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only</span></button>
                       <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1" data-ept-mode="approval"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval</span></button>
+                      <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1" data-ept-mode="bypass"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="shield-off"></i><span class="gw-menu__label">Bypass</span></button>
                     </div>
                   </div>
                 </div>
@@ -410,6 +411,7 @@
                       <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="off"><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off<span class="gw-menu__hint">Agents can't call any dev-db tool</span></span></button>
                       <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="read"><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only<span class="gw-menu__hint">sql_execute stays as it is: it changes data</span></span></button>
                       <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="approval"><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval<span class="gw-menu__hint">Every call waits for your decision</span></span></button>
+                      <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="bypass"><i class="gw-icon gw-menu__icon" data-lucide="shield-off"></i><span class="gw-menu__label">Bypass<span class="gw-menu__hint">Calls run without approval; policy limits still apply</span></span></button>
                     </div>
                   </div>
                 </div>
@@ -435,6 +437,7 @@
                                 <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="ept-mode-sql_list_schemas" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
                                 <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="ept-mode-sql_list_schemas" value="read" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
                                 <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="ept-mode-sql_list_schemas" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="ept-mode-sql_list_schemas" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
                               </fieldset>
                             </div>
                           </td>
@@ -495,6 +498,7 @@
                                 <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="ept-mode-sql_describe_table" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
                                 <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="ept-mode-sql_describe_table" value="read" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
                                 <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="ept-mode-sql_describe_table" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="ept-mode-sql_describe_table" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
                               </fieldset>
                             </div>
                           </td>
@@ -555,6 +559,7 @@
                                 <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="ept-mode-sql_query" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
                                 <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="ept-mode-sql_query" value="read" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
                                 <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="ept-mode-sql_query" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="ept-mode-sql_query" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
                               </fieldset>
                             </div>
                           </td>
@@ -615,8 +620,9 @@
                                 <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="ept-mode-sql_execute" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
                                 <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="ept-mode-sql_execute" value="read" disabled aria-describedby="ept-why-sql_execute"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
                                 <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="ept-mode-sql_execute" value="approval" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="ept-mode-sql_execute" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
                               </fieldset>
-                              <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="ept-why-sql_execute"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Mutates data: approval or off</p>
+                              <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="ept-why-sql_execute"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Mutates data: approval, bypass or off</p>
                             </div>
                           </td>
                           <td class="gw-table__cell--actions">
@@ -682,6 +688,7 @@
                       <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="off"><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off<span class="gw-menu__hint">Agents can't call any orders-mongo tool</span></span></button>
                       <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="read"><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only<span class="gw-menu__hint">Every orders-mongo tool reads only</span></span></button>
                       <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="approval"><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval<span class="gw-menu__hint">Every call waits for your decision</span></span></button>
+                      <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="bypass"><i class="gw-icon gw-menu__icon" data-lucide="shield-off"></i><span class="gw-menu__label">Bypass<span class="gw-menu__hint">Calls run without approval; policy limits still apply</span></span></button>
                     </div>
                   </div>
                 </div>
@@ -707,6 +714,7 @@
                                 <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="ept-mode-mongo_find" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
                                 <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="ept-mode-mongo_find" value="read" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
                                 <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="ept-mode-mongo_find" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="ept-mode-mongo_find" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
                               </fieldset>
                             </div>
                           </td>
@@ -767,6 +775,7 @@
                                 <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="ept-mode-mongo_aggregate" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
                                 <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="ept-mode-mongo_aggregate" value="read" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
                                 <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="ept-mode-mongo_aggregate" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="ept-mode-mongo_aggregate" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
                               </fieldset>
                             </div>
                           </td>
@@ -833,6 +842,7 @@
                       <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="off"><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off<span class="gw-menu__hint">Agents can't call any cache-redis tool</span></span></button>
                       <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="read"><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only<span class="gw-menu__hint">Every cache-redis tool reads only</span></span></button>
                       <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="approval"><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval<span class="gw-menu__hint">Every call waits for your decision</span></span></button>
+                      <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="bypass"><i class="gw-icon gw-menu__icon" data-lucide="shield-off"></i><span class="gw-menu__label">Bypass<span class="gw-menu__hint">Calls run without approval; policy limits still apply</span></span></button>
                     </div>
                   </div>
                 </div>
@@ -858,6 +868,7 @@
                                 <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="ept-mode-redis_get" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
                                 <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="ept-mode-redis_get" value="read" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
                                 <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="ept-mode-redis_get" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="ept-mode-redis_get" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
                               </fieldset>
                             </div>
                           </td>
@@ -918,6 +929,7 @@
                                 <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="ept-mode-redis_scan" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
                                 <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="ept-mode-redis_scan" value="read" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
                                 <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="ept-mode-redis_scan" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="ept-mode-redis_scan" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
                               </fieldset>
                             </div>
                           </td>
@@ -984,6 +996,7 @@
                       <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="off"><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off<span class="gw-menu__hint">Agents can't call any dev-vm tool</span></span></button>
                       <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="read"><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only<span class="gw-menu__hint">ssh_exec stays as it is: it changes data</span></span></button>
                       <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="approval"><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval<span class="gw-menu__hint">Every call waits for your decision</span></span></button>
+                      <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="bypass"><i class="gw-icon gw-menu__icon" data-lucide="shield-off"></i><span class="gw-menu__label">Bypass<span class="gw-menu__hint">Calls run without approval; policy limits still apply</span></span></button>
                     </div>
                   </div>
                 </div>
@@ -1008,8 +1021,9 @@
                                 <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="ept-mode-ssh_run" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
                                 <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="ept-mode-ssh_run" value="read" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
                                 <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="ept-mode-ssh_run" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="ept-mode-ssh_run" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
                               </fieldset>
-                              <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="ept-why-ssh_run"><i class="gw-icon gw-icon--xs" data-lucide="info"></i>Read-only runbooks run at once; the others always need approval</p>
+                              <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="ept-why-ssh_run"><i class="gw-icon gw-icon--xs" data-lucide="info"></i>Read-only runbooks run at once; the others need approval unless Bypass</p>
                             </div>
                           </td>
                           <td class="gw-table__cell--actions">
@@ -1061,8 +1075,9 @@
                                 <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="ept-mode-ssh_exec" value="off" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
                                 <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="ept-mode-ssh_exec" value="read" disabled aria-describedby="ept-why-ssh_exec"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
                                 <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="ept-mode-ssh_exec" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="ept-mode-ssh_exec" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
                               </fieldset>
-                              <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="ept-why-ssh_exec"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Mutates data: approval or off</p>
+                              <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="ept-why-ssh_exec"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Mutates data: approval, bypass or off</p>
                             </div>
                           </td>
                           <td class="gw-table__cell--actions">
@@ -1120,6 +1135,7 @@
                       <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="off"><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off<span class="gw-menu__hint">Agents can't call any app-logs tool</span></span></button>
                       <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="read"><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only<span class="gw-menu__hint">Every app-logs tool reads only</span></span></button>
                       <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="approval"><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval<span class="gw-menu__hint">Every call waits for your decision</span></span></button>
+                      <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="bypass"><i class="gw-icon gw-menu__icon" data-lucide="shield-off"></i><span class="gw-menu__label">Bypass<span class="gw-menu__hint">Calls run without approval; policy limits still apply</span></span></button>
                     </div>
                   </div>
                 </div>
@@ -1145,6 +1161,7 @@
                                 <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="ept-mode-logs_search" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
                                 <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="ept-mode-logs_search" value="read" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
                                 <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="ept-mode-logs_search" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="ept-mode-logs_search" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
                               </fieldset>
                             </div>
                           </td>
@@ -1205,6 +1222,7 @@
                                 <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="ept-mode-logs_tail" value="off" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
                                 <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="ept-mode-logs_tail" value="read"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
                                 <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="ept-mode-logs_tail" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="ept-mode-logs_tail" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
                               </fieldset>
                             </div>
                           </td>
@@ -1271,6 +1289,7 @@
                       <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="off"><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off<span class="gw-menu__hint">Agents can't call any dev-cluster tool</span></span></button>
                       <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="read"><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only<span class="gw-menu__hint">k8s_rollout_restart and k8s_apply stay as they are: they change data</span></span></button>
                       <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="approval"><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval<span class="gw-menu__hint">Every call waits for your decision</span></span></button>
+                      <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="bypass"><i class="gw-icon gw-menu__icon" data-lucide="shield-off"></i><span class="gw-menu__label">Bypass<span class="gw-menu__hint">Calls run without approval; policy limits still apply</span></span></button>
                     </div>
                   </div>
                 </div>
@@ -1296,6 +1315,7 @@
                                 <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="ept-mode-k8s_get" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
                                 <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="ept-mode-k8s_get" value="read" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
                                 <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="ept-mode-k8s_get" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="ept-mode-k8s_get" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
                               </fieldset>
                             </div>
                           </td>
@@ -1348,6 +1368,7 @@
                                 <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="ept-mode-k8s_logs" value="off" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
                                 <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="ept-mode-k8s_logs" value="read"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
                                 <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="ept-mode-k8s_logs" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="ept-mode-k8s_logs" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
                               </fieldset>
                             </div>
                           </td>
@@ -1400,8 +1421,9 @@
                                 <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="ept-mode-k8s_rollout_restart" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
                                 <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="ept-mode-k8s_rollout_restart" value="read" disabled aria-describedby="ept-why-k8s_rollout_restart"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
                                 <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="ept-mode-k8s_rollout_restart" value="approval" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="ept-mode-k8s_rollout_restart" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
                               </fieldset>
-                              <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="ept-why-k8s_rollout_restart"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Mutates data: approval or off</p>
+                              <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="ept-why-k8s_rollout_restart"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Mutates data: approval, bypass or off</p>
                             </div>
                           </td>
                           <td class="gw-table__cell--actions">
@@ -1453,8 +1475,9 @@
                                 <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="ept-mode-k8s_apply" value="off" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
                                 <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="ept-mode-k8s_apply" value="read" disabled aria-describedby="ept-why-k8s_apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
                                 <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="ept-mode-k8s_apply" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="ept-mode-k8s_apply" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
                               </fieldset>
-                              <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="ept-why-k8s_apply"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Mutates data: approval or off</p>
+                              <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="ept-why-k8s_apply"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Mutates data: approval, bypass or off</p>
                             </div>
                           </td>
                           <td class="gw-table__cell--actions">
@@ -1512,6 +1535,7 @@
                       <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="off"><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off<span class="gw-menu__hint">Agents can't call any aws-stage tool</span></span></button>
                       <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="read"><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only<span class="gw-menu__hint">Every aws-stage tool reads only</span></span></button>
                       <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="approval"><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval<span class="gw-menu__hint">Every call waits for your decision</span></span></button>
+                      <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="bypass"><i class="gw-icon gw-menu__icon" data-lucide="shield-off"></i><span class="gw-menu__label">Bypass<span class="gw-menu__hint">Calls run without approval; policy limits still apply</span></span></button>
                     </div>
                   </div>
                 </div>
@@ -1537,6 +1561,7 @@
                                 <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="ept-mode-aws_describe" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
                                 <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="ept-mode-aws_describe" value="read" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
                                 <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="ept-mode-aws_describe" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="ept-mode-aws_describe" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
                               </fieldset>
                             </div>
                           </td>
@@ -1589,6 +1614,7 @@
                                 <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="ept-mode-aws_metrics" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
                                 <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="ept-mode-aws_metrics" value="read" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
                                 <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="ept-mode-aws_metrics" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="ept-mode-aws_metrics" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
                               </fieldset>
                             </div>
                           </td>
@@ -1647,6 +1673,7 @@
                       <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="off"><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off<span class="gw-menu__hint">Agents can't call any billing-api tool</span></span></button>
                       <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="read"><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only<span class="gw-menu__hint">http_request stays as it is: it changes data</span></span></button>
                       <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="approval"><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval<span class="gw-menu__hint">Every call waits for your decision</span></span></button>
+                      <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ept-set="bypass"><i class="gw-icon gw-menu__icon" data-lucide="shield-off"></i><span class="gw-menu__label">Bypass<span class="gw-menu__hint">Calls run without approval; policy limits still apply</span></span></button>
                     </div>
                   </div>
                 </div>
@@ -1672,6 +1699,7 @@
                                 <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="ept-mode-http_get" value="off" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
                                 <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="ept-mode-http_get" value="read"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
                                 <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="ept-mode-http_get" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="ept-mode-http_get" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
                               </fieldset>
                             </div>
                           </td>
@@ -1724,8 +1752,9 @@
                                 <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="ept-mode-http_request" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
                                 <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="ept-mode-http_request" value="read" disabled aria-describedby="ept-why-http_request"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
                                 <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="ept-mode-http_request" value="approval" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="ept-mode-http_request" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
                               </fieldset>
-                              <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="ept-why-http_request"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Mutates data: approval or off</p>
+                              <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="ept-why-http_request"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Mutates data: approval, bypass or off</p>
                             </div>
                           </td>
                           <td class="gw-table__cell--actions">
@@ -1798,6 +1827,7 @@
                                 <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="ept-mode-list_connections" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
                                 <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="ept-mode-list_connections" value="read" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
                                 <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="ept-mode-list_connections" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="ept-mode-list_connections" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
                               </fieldset>
                             </div>
                           </td>
@@ -1820,6 +1850,7 @@
                                 <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="ept-mode-describe_connection" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
                                 <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="ept-mode-describe_connection" value="read" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
                                 <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="ept-mode-describe_connection" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="ept-mode-describe_connection" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
                               </fieldset>
                             </div>
                           </td>
@@ -2618,7 +2649,7 @@ Changing anything
               </fieldset>
               <!-- External MCP servers and plugins: their annotations are declared, not verified (DESIGN §8 Tool modes).
                    Added tools start in Approval; Read only takes a confirmation per tool, and only for a tool the server
-                   declares read only. github-mcp declares no annotations, so its 26 tools stay approval or off
+                   declares read only. github-mcp declares no annotations, so its 26 tools stay approval, bypass or off
                    (elements/tool-policy-list.html). -->
               <fieldset class="gw-field">
                 <legend class="gw-field__label">MCP servers not on dev yet</legend>
@@ -2626,7 +2657,7 @@ Changing anything
                   <input class="gw-checkbox__input" type="checkbox" id="ep-add-github-mcp" aria-describedby="ep-add-github-mcp-hint" data-ep-add="github-mcp" data-ep-add-modes="26 approval">
                   <span class="gw-checkbox__control" aria-hidden="true"></span>
                   <label class="gw-checkbox__label" for="ep-add-github-mcp"><span class="gw-mono">github-mcp</span> <span class="gw-mono gw-fg-muted">v0.6.2</span></label>
-                  <p class="gw-checkbox__hint" id="ep-add-github-mcp-hint"><span class="gw-badge gw-badge--outline gw-badge--sm gw-badge--warning"><i class="gw-icon gw-badge__icon" data-lucide="shield-question-mark"></i>Declared by github-mcp, not verified</span> 26 tools such as <code class="gw-code">github_list_issues</code>. None is declared read only, so they start in Approval and stay approval or off.</p>
+                  <p class="gw-checkbox__hint" id="ep-add-github-mcp-hint"><span class="gw-badge gw-badge--outline gw-badge--sm gw-badge--warning"><i class="gw-icon gw-badge__icon" data-lucide="shield-question-mark"></i>Declared by github-mcp, not verified</span> 26 tools such as <code class="gw-code">github_list_issues</code>. None is declared read only, so they start in Approval and stay approval, bypass or off.</p>
                 </div>
               </fieldset>
               <div class="gw-alert gw-alert--warning gw-alert--compact">
@@ -3273,11 +3304,12 @@ Changing anything
     var rows = Array.prototype.slice.call(list.querySelectorAll("tr.gw-tool-policy-list__row"));
     var groups = Array.prototype.slice.call(list.querySelectorAll("[data-ept-group]"));
     var mode = "all";
-    var MODES = [["read", "eye", "read only"], ["approval", "user-check", "approval"], ["off", "circle-off", "off"]];
+    var MODES = [["read", "eye", "read only"], ["approval", "user-check", "approval"], ["bypass", "shield-off", "bypass"], ["off", "circle-off", "off"]];
     function chips() {
       var html = '<span class="gw-text-small gw-fg-secondary">' + rows.length + ' tools<span class="gw-sr-only">:</span></span>';
       MODES.forEach(function (m) {
         var n = rows.filter(function (r) { return r.getAttribute("data-mode") === m[0]; }).length;
+        if (m[0] === "bypass" && !n) return;
         html += ' <span class="gw-mode gw-mode--' + m[0] + '"><i class="gw-icon" data-lucide="' + m[1] + '"></i>' + n + " " + m[2] + "</span>";
       });
       return html;

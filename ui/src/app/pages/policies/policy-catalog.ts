@@ -70,7 +70,7 @@ export interface FieldSpec {
   readonly describe?: (ctx: FieldCtx) => Hint;
   /** Said after where the value comes from on the other environments ("A DROP TABLE on prod is denied …"). */
   readonly note?: (ctx: FieldCtx) => Hint;
-  /** Booleans in sentences: denyDdl true → "refused", false → "allowed with approval". */
+  /** Booleans in sentences: denyDdl true → "refused", false → "allowed with approval unless Bypass". */
   readonly words?: { readonly on: string; readonly off: string };
   /** Options of a select, or of a group of checkboxes, in the kit's words. */
   readonly options?: Readonly<Record<string, string>>;
@@ -248,12 +248,12 @@ export const FIELDS: Readonly<Record<string, FieldSpec>> = {
   'sql.denyDdl': {
     label: 'Refuse DDL: CREATE, ALTER, DROP, TRUNCATE',
     noun: 'DDL',
-    words: { on: 'refused', off: 'allowed with approval' },
+    words: { on: 'refused', off: 'allowed with approval unless Bypass' },
     describe: (x) =>
       x.value === true
         ? [t(`On ${x.env}: a DROP TABLE is denied before anyone is asked.`)]
-        : [t(`Off on ${x.env}: DDL waits for approval like any other mutation. When on, it is denied before anyone is asked.`)],
-    note: (x) => (x.value === true ? [t(`A DROP TABLE on ${x.env} is denied before anyone is asked.`)] : [t('DDL waits for approval like any other mutation.')]),
+        : [t(`Off on ${x.env}: DDL waits for approval unless its tool uses Bypass. When on, it is denied before anyone is asked.`)],
+    note: (x) => (x.value === true ? [t(`A DROP TABLE on ${x.env} is denied before anyone is asked.`)] : [t('DDL waits for approval unless its tool uses Bypass.')]),
   },
   'sql.deniedFunctions': {
     label: 'More denied functions',
@@ -274,8 +274,8 @@ export const FIELDS: Readonly<Record<string, FieldSpec>> = {
     words: { on: 'allowed', off: 'not allowed' },
     describe: (x) =>
       x.env === 'prod'
-        ? [t('Set on prod only, never inherited; off by default on prod. Allowing it asks you to confirm, and every command still waits for approval.')]
-        : [t('A separate permission, off by default and never inherited. Even when allowed, every command waits for approval.')],
+        ? [t('Set on prod only, never inherited; off by default on prod. Allowing it asks you to confirm. Commands need approval unless ssh_exec uses Bypass.')]
+        : [t('A separate permission, off by default and never inherited. Commands need approval unless ssh_exec uses Bypass.')],
   },
   'ssh.commandTimeoutSeconds': { label: 'Command timeout', noun: 'command timeout', describe: () => [t('The session is closed after this.')] },
   'ssh.maxOutputKb': { label: 'Max output', noun: 'max output', describe: () => [t('Longer output is cut from the start.')] },
@@ -290,7 +290,7 @@ export const FIELDS: Readonly<Record<string, FieldSpec>> = {
   'k8s.verbs': {
     label: 'Allowed verbs',
     noun: 'allowed verbs',
-    describe: () => [c('rollout restart'), t(' and '), c('apply'), t(' change the cluster and always need approval. '), c('delete'), t(', '), c('scale'), t(' and '), c('exec'), t(' are denied.')],
+    describe: () => [c('rollout restart'), t(' and '), c('apply'), t(' change the cluster and need approval unless their tool uses Bypass. '), c('delete'), t(', '), c('scale'), t(' and '), c('exec'), t(' are denied.')],
     tags: {
       list: (env) => `Allowed verbs on ${env}`,
       remove: (v, env) => `Remove verb ${v} on ${env}`,
@@ -335,7 +335,7 @@ export const FIELDS: Readonly<Record<string, FieldSpec>> = {
     label: 'Deny privileged pods in',
     labelCode: 'k8s_apply',
     noun: 'privileged pods',
-    words: { on: 'denied', off: 'allowed with approval' },
+    words: { on: 'denied', off: 'allowed with approval unless Bypass' },
     describe: () => [t('Privileged containers, host network and host paths in a manifest are denied before anyone is asked.')],
   },
   'k8s.applyMaxObjects': { label: 'Objects per apply', noun: 'objects per apply', describe: () => [t('A larger manifest is denied.')] },

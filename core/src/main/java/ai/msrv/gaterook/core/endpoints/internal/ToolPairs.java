@@ -200,7 +200,7 @@ public class ToolPairs {
    */
   public static Mode initial(Offered t, Env endpointEnv, boolean readOnlyEndpoint) {
     Mode mode = endpointEnv == Env.PROD ? t.definition().prodDefaultMode() : t.definition().defaultMode();
-    if (t.kind() != ConnectorManifest.Kind.BUILT_IN) {
+    if (t.kind() != ConnectorManifest.Kind.BUILT_IN || mode == Mode.BYPASS) {
       mode = Mode.APPROVAL;
     }
     return readOnlyEndpoint ? clampReadOnly(t.definition(), mode) : mode;
@@ -208,7 +208,7 @@ public class ToolPairs {
 
   /** What a read-only endpoint allows of {@code mode}: never Approval, never a tool that only changes data. */
   public static Mode clampReadOnly(ToolDefinition t, Mode mode) {
-    if (t.nature() == ToolDefinition.Nature.MUTATION || mode == Mode.APPROVAL) {
+    if (t.nature() == ToolDefinition.Nature.MUTATION || mode == Mode.APPROVAL || mode == Mode.BYPASS) {
       return Mode.OFF;
     }
     if (mode == Mode.READ_ONLY && !t.readOnlyModeAllowed()) {
@@ -229,7 +229,7 @@ public class ToolPairs {
       return Optional.of(slug + " is read only: " + d.name() + " can only be Off there");
     }
     if (mode == Mode.READ_ONLY && !d.readOnlyModeAllowed()) {
-      return Optional.of(d.name() + " changes data, so Read only isn't available: it always waits for approval");
+      return Optional.of(d.name() + " changes data, so Read only isn't available: choose Approval, Bypass or Off");
     }
     if (mode == Mode.READ_ONLY && t.needsReadOnlyConfirmation() && !roConfirmed) {
       return Optional.of("Confirm that " + d.name() + " only reads before you set it to Read only: its annotations "
@@ -243,6 +243,7 @@ public class ToolPairs {
       case OFF -> "Off";
       case READ_ONLY -> "Read only";
       case APPROVAL -> "Approval";
+      case BYPASS -> "Bypass";
     };
   }
 }

@@ -84,16 +84,16 @@ interface GroupView {
   readonly external: boolean;
   /** The core's own tools (no connection): no limits and no "Set all to…" (kit endpoint-detail "Built-in tools"). */
   readonly builtIn: boolean;
-  readonly hints: { readonly off: string; readonly read: string; readonly approval: string };
+  readonly hints: { readonly off: string; readonly read: string; readonly approval: string; readonly bypass: string };
   readonly total: number;
 }
 
 /**
  * `<div gwToolPolicyList [groups]="…" slug="dev" (modeChange)="…">` (elements/tool-policy-list.html): what agents may
  * call on one endpoint, and how. Every tool grouped by the connection it runs on, with its MCP annotations, the mode
- * picker Off · Read only · Approval and, in a disclosure row, per-tool limits over the environment policy of the
- * connection (an override can only be stricter). There is no mode that lets an agent change data without you: a
- * tool that changes data offers Approval or Off, with the reason under the picker, and its Read only stays NATIVELY
+ * picker Off · Read only · Approval · Bypass and, in a disclosure row, per-tool limits over the environment policy of the
+ * connection (an override can only be stricter). Bypass runs calls without approval. A
+ * tool that changes data offers Approval, Bypass or Off, and its Read only stays NATIVELY
  * disabled (DESIGN.md §8: safety must not depend on a script). Tools of external MCP servers and plugins say who
  * declared their annotations; Read only for one of them needs a confirmation for that tool.
  *
@@ -288,13 +288,14 @@ export class GwToolPolicyList {
 
   protected onMode(g: GroupView, r: RowView, value: string): void {
     const mode = (Object.keys(MODE_VALUE) as ToolMode[]).find((m) => MODE_VALUE[m] === value);
-    if (!mode || mode === r.tool.mode) return;
+    if (!mode || mode === r.tool.mode || r.note?.locked || (mode === 'BYPASS' && this.readOnly())) return;
     this.localModes.update((m) => ({ ...m, [r.key]: mode }));
     this.modeChange.emit({ toolKey: r.tool.toolKey, connection: g.connection, mode, version: r.tool.version });
   }
 
   protected onBulk(g: GroupView, pick: MenuPick): void {
     const mode = pick.value as ToolMode;
+    if (mode === 'BYPASS' && this.readOnly()) return;
     this.bulk.emit({ connection: g.connection, mode });
   }
 

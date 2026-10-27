@@ -106,7 +106,7 @@ The source of truth is [connector-api](../connector-api/src/main/java/ai/msrv/ga
 - **Classification is fast and deterministic.** It receives configuration and policy, not secret values, and must not perform network I/O. Failures deny the call.
 - **Preparation is bounded and side-effect-free.** It can reject a request, report no change, or produce a canonical action and approved payload. SQL preparation uses a read-only transaction; Kubernetes preparation uses server dry-run; HTTP/SSH preparation does not send the requested mutation.
 - **Execution receives a scoped context.** Credentials are limited to the selected connection and call. The context carries cancellation, deadline, approved state, egress controls, and taint tracking.
-- **Only the approval executor can obtain approved execution.** A client-controlled field cannot set that state. Connectors reject mutations without it as defense in depth.
+- **Only the core can authorize mutation execution.** A human approval or an explicitly configured Bypass tool mode authorizes an exact prepared payload. A client-controlled field cannot set that state. Connectors reject mutations without it as defense in depth; Bypass carries no approval ID.
 - **Results are data.** Every output is bounded and masked by the core before it reaches a client, audit view, or notification. A connector cannot opt out.
 - **Resources obey the same boundary.** Resource reads, preparation, and tool execution use the central invoker rather than an alternate unguarded route.
 
@@ -144,9 +144,9 @@ Use short transactions around state changes. Do not hold a database transaction 
 6. **Classify and decide.** Classification yields READ, MUTATION, or DENY. Policy combines this with the tool mode and stricter environment/connection limits. Exceptions fail closed.
 7. **Persist audit before execution.** If the gateway cannot record receipt, it does not execute. Approval creation and its pending audit record are atomic.
 8. **Run an allowed read through the invoker.** Apply scoped secret resolution, bulkhead, circuit breaker, rate limiter, deadline, cancellation, and output limits. Mask the result and complete audit before returning it.
-9. **Prepare a mutation for review.** Store the canonical request, exact action, preparation state, and digest. Human-visible previews may include masked impact/diff data that is not sent back to the agent.
+9. **Prepare the exact mutation.** An approval stores the canonical request, exact action, preparation state, and digest for review. Bypass uses the prepared action immediately, retaining preparation refusals and no-change results. Human-visible previews may include masked impact/diff data that is not sent back to the agent.
 10. **Decide and revalidate.** An approval atomically transitions from pending to running while unexpired and records the decision. Recheck integrity, policy, connection/template/tool versions, and canonical digest. Changes invalidate approval rather than modifying its meaning.
-11. **Execute the stored payload once.** The gateway runs it itself. A failure or timeout is not retried as an unreviewed mutation; uncertain external outcomes are reported explicitly. Retain the masked result for subsequent status retrieval.
+11. **Execute the authorized payload once.** The gateway runs the stored approved payload or freshly prepared Bypass payload itself. A failure or timeout is not retried automatically; uncertain external outcomes are reported explicitly. Approved calls retain their masked results for subsequent status retrieval.
 12. **Correlate the trace.** Link MCP activity, the approval, and execution with trace IDs; propagate a valid parent trace when supplied. Telemetry export remains opt-in.
 
 ### 5.1 Policy truth table
@@ -155,11 +155,12 @@ Use short transactions around state changes. Do not hold a database transaction 
 | --- | --- |
 | DENY | Deny |
 | OFF | Not exposed / not callable |
-| MUTATION in any callable mode | Approval required |
+| BYPASS on a standard endpoint | Execute without approval under effective limits |
+| MUTATION with READ_ONLY or APPROVAL | Approval required |
 | READ with APPROVAL | Approval required |
 | READ with READ_ONLY | Execute under effective limits |
 
-A read-only endpoint does not allow mutating pairs. External tool descriptions and `readOnlyHint` are declarations, not proof: enabling read-only requires a human attestation tied to the current definition. New or changed definitions reset trust. Production connections and endpoints cannot be mixed across the production boundary; live grants and publication state constrain environment changes.
+A read-only endpoint does not allow mutating pairs or Bypass. Bypass is an explicit per-tool setting, never a default. Classification denials, integrity checks, production isolation, rate limits, secret masking and result limits still apply. A Bypass mutation is prepared and may still be rejected or report no change; otherwise the exact prepared payload executes synchronously without an approval request. The audit records its Bypass mode and no human approval ID. External tool descriptions and `readOnlyHint` are declarations, not proof: enabling read-only requires a human attestation tied to the current definition. New or changed definitions reset trust. Production connections and endpoints cannot be mixed across the production boundary; live grants and publication state constrain environment changes.
 
 ### 5.2 Approval delivery
 
@@ -202,6 +203,8 @@ On macOS, the helper uses the login Keychain and LocalAuthentication with device
 On Windows, the helper checks Hello availability and uses `IUserConsentVerifierInterop` with the application window before main decrypts the DPAPI-protected key. Explicitly unavailable Hello keeps the existing OS account protection; helper failures abort startup. Linux continues to validate its secure safeStorage backend. The helper accepts bounded JSON on private stdin/stdout, has no secret arguments or error output, and is terminated on quit. Main retains a separate file-key buffer for core restarts, gives each bootstrap a disposable copy, and clears the session copy on quit.
 
 Touch ID and Hello are application verification gates here, not Secure Enclave/TPM-bound encryption policies. The storage boundary remains the OS account and Keychain/DPAPI protection; this does not defend against arbitrary code running as the same account. The macOS file-based Keychain supports locally signed development builds without provisioning profiles. Stable helper builds preserve its Keychain identity; release signing and native authentication need platform validation.
+
+Before reporting ready, an installation without endpoints creates a signed `default` endpoint with standard access and read-only core discovery tools. It starts without connections, tokens, client grants, or public access; connections added to it retain their connector's normal initial tool modes. The Overview welcome guide can therefore start with adding a connection. Initialization also covers older installations with no endpoints, leaves existing endpoint setups and the demo seed unchanged, and stores a marker atomically with the new endpoint so deliberate deletion is respected on later starts. A locked installation defers initialization until its master key is recovered.
 
 The renderer is sandboxed with context isolation and no Node integration. A narrow preload surface validates IPC sender frames. The custom `app://gw/` handler rejects traversal, proxies only allowed API paths, and applies CSP/Trusted Types. External URLs use an allowlist; new windows, arbitrary navigation, and permissions are denied. Production bundles reject dangerous Chromium debugging/proxy/sandbox switches and apply Electron fuses.
 
@@ -293,7 +296,7 @@ The application follows the kit's first-run, setup, and in-use Overview composit
 | Invariant | Enforcement and verification |
 | --- | --- |
 | Agents do not receive configured secrets | Scoped resolution, taint registration, masking, write-only DTOs, canary-leak tests, and test-log scanning |
-| Every mutation requires approval | Policy truth table, connector defense in depth, approved-context access rules, and end-to-end mutation tests |
+| Mutations require approval unless Bypass is explicitly enabled | Policy truth table, read-only endpoint restrictions, prepared payloads, core-authorized context access rules, audit and end-to-end execution tests |
 | Reviewed action equals executed action | Canonical persistence, digests/MACs, version rechecks, compare-and-set transition, and action/execution hashes |
 | Approval cannot be forged through MCP | No approval form field; bound continuation state; navigation-only links; principal-scoped handles |
 | Audit is required for execution | Atomic state/audit transitions, append-only rows, integrity verification, and failures tested before execution |

@@ -30,7 +30,7 @@ export function endpointOption(e: EndpointSummary): string {
   if (e.access === 'read-only') text = `${e.slug} · ${n} ${word}, read only`;
   else if (e.env === 'prod') text = `${e.slug} · ${n} prod ${word}`;
   else {
-    const tools = e.tools.read + e.tools.approval + e.tools.off;
+    const tools = e.tools.read + e.tools.approval + e.tools.off + (e.tools.bypass ?? 0);
     text = `${e.slug} · ${n} ${word}, ${formatCount(tools)} ${tools === 1 ? 'tool' : 'tools'}`;
   }
   return e.status === 'disabled' ? `${text}, disabled` : text;
@@ -146,7 +146,7 @@ export function runState(chosen: Chosen, tool: PlaygroundTool | null): RunState 
   return chosen.mode === 'APPROVAL' ? 'approval' : 'run';
 }
 
-const MODE_WORDS: Record<ToolMode, string> = { OFF: 'off', READ_ONLY: 'read only', APPROVAL: 'approval' };
+const MODE_WORDS: Record<ToolMode, string> = { OFF: 'off', READ_ONLY: 'read only', APPROVAL: 'approval', BYPASS: 'bypass' };
 
 /** "sql_execute chosen. Mode on dev: approval. This call needs approval." (kit `choose()`). */
 export function chosenAnnouncement(tool: string, mode: ToolMode, slug: string): string {

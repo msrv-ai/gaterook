@@ -136,7 +136,7 @@ describe('Policies page words', () => {
     expect(unsavedNote(schemas, 'stage', many)).toBe('Unsaved changes · 4 values on stage');
     expect(savedToast(kitPolicies(), schemas, 'stage', many).body).toBe('4 values changed on stage. They apply from the next call.');
 
-    expect(changePhrase(info('sql', 'denyDdl'), true, false)).toBe('DDL allowed with approval');
+    expect(changePhrase(info('sql', 'denyDdl'), true, false)).toBe('DDL allowed with approval unless Bypass');
     expect(changePhrase(info('ssh', 'allowExec'), false, true)).toBe('ssh_exec allowed');
     expect(changePhrase(info('sql', 'statementTimeoutMs'), 5000, 3000)).toBe('statement timeout 5 to 3 s');
   });

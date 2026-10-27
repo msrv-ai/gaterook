@@ -7,7 +7,7 @@ This specification connects the application architecture to the design kit: info
 | Principle | Interface contract |
 | --- | --- |
 | Agents never see secrets | Stored secrets are write-only; use Replace/Rotate, masking, and one-time token display |
-| Every mutation requires approval | Offer Off, Read only, and Approval; reserve green approval actions for the human decision |
+| Mutations require approval by default | Offer Off, Read only, Approval, and explicit Bypass; reserve green approval actions for the human decision |
 | Approve the exact action | Show literal code or diff without ligatures; agent commentary is separate and unverified |
 | Production has stricter boundaries | Show `gw-env` in all risky contexts and explain stricter defaults |
 | Setup is understandable | Secrets & resources → Connections → Policies → Endpoints → AI apps; calls travel back through the chain |
@@ -207,7 +207,7 @@ First run, using the shell's no-sidebar variant: the titlebar stays (drag region
 - Connections and secrets: the master-key file stays outside the database and its backups; use envelope encryption.
 - Master-key theft or loss: mode 0400, a separate backup, and no recovery without the key.
 - One-click client connection: review the diff and create a backup before writing; Claude Desktop and Codex obtain tokens on the fly.
-- Policies and approvals: Off, Read only, and Approval; mutations always require approval.
+- Policies and approvals: Off, Read only, Approval, and Bypass; mutations require approval by default.
 - Audit: append-only.
 - Desktop non-functional requirements.
 
@@ -233,7 +233,7 @@ The approval queue (most urgent first) next to the full request for the selected
 
 [Reference screen](pages/policies.html)
 
-Guardrails per environment in tabs (Development, Staging, Production; Production selected and showing stricter defaults). Each tab is one gw-form with SQL, SSH, Kubernetes, HTTP egress, Logs, Limits and Approvals sections, plus 'More … settings' disclosures for schema keys outside the layout. Inheritance follows the core: stage inherits each value it doesn't set from dev (empty field with the dev value as placeholder); prod inherits nothing and has its own, stricter defaults, whose hints compare with dev ('Prod default · dev: 5 s'); the Values line counts them ('4 set on dev · base for stage', '3 stage defaults · 6 set on stage · 32 inherited from dev', '24 prod defaults · 2 set on prod'). Read-only SQL transactions and blocked private networks are locks ('Always on', 'Blocked unless allowed below'), not switches; every mutation rule is <env>.<section>.write-approval. A connector section without a connection of its kind on the environment is an empty card with read-only rules (HTTP egress on dev). Reset clears every value the environment stores, non-inherited ones included, lists them in its dialog and shows only when there is something to clear. The non-switchable invariant 'every mutation needs a human approval' sits above the tabs. Anchors: #dev / #stage / #prod select the tab, #<env>-<section> (#prod-approvals, #dev-sql) also scrolls to the section. Prod values: row limit 100 (dev 1,000), statement timeout 3 s (dev 5 s; one value per environment), no DDL, Kubernetes verbs get, list, describe, logs (dev adds rollout restart and apply; no watch), approval timeout 10 min, a comment required to approve (default on); Slack and Telegram never offer Approve on prod. One approver everywhere on the desktop; named approvers only in server mode.
+Guardrails per environment in tabs (Development, Staging, Production; Production selected and showing stricter defaults). Each tab is one gw-form with SQL, SSH, Kubernetes, HTTP egress, Logs, Limits and Approvals sections, plus 'More … settings' disclosures for schema keys outside the layout. Inheritance follows the core: stage inherits each value it doesn't set from dev (empty field with the dev value as placeholder); prod inherits nothing and has its own, stricter defaults, whose hints compare with dev ('Prod default · dev: 5 s'); the Values line counts them ('4 set on dev · base for stage', '3 stage defaults · 6 set on stage · 32 inherited from dev', '24 prod defaults · 2 set on prod'). Read-only SQL transactions and blocked private networks are locks ('Always on', 'Blocked unless allowed below'), not switches; every mutation rule is <env>.<section>.write-approval. A connector section without a connection of its kind on the environment is an empty card with read-only rules (HTTP egress on dev). Reset clears every value the environment stores, non-inherited ones included, lists them in its dialog and shows only when there is something to clear. An explanation that mutations need approval by default and explicit Bypass skips approval sits above the tabs. Anchors: #dev / #stage / #prod select the tab, #<env>-<section> (#prod-approvals, #dev-sql) also scrolls to the section. Prod values: row limit 100 (dev 1,000), statement timeout 3 s (dev 5 s; one value per environment), no DDL, Kubernetes verbs get, list, describe, logs (dev adds rollout restart and apply; no watch), approval timeout 10 min, a comment required to approve (default on); Slack and Telegram never offer Approve on prod. One approver everywhere on the desktop; named approvers only in server mode.
 
 **Compositions:** `risk-callout --compact (stage HTTP egress: endpoints dev and stage-readonly can send data to billing.stage.acme.dev through the allowlist)`.
 
@@ -242,7 +242,7 @@ Guardrails per environment in tabs (Development, Staging, Production; Production
 **Requirement coverage:**
 
 - Policies and approvals: SQL classification, read-only transactions, statement timeout, row limits, schema/table allowlists; SSH runbooks with typed parameters and separately authorized arbitrary shell; Kubernetes verb/resource/namespace allowlists with approval for mutations; per-token/tool rate limits, response limits, deadlines, approval timeout, approvers, and channels.
-- Security: approval for every mutation is an invariant, not a setting.
+- Security: mutations need approval by default; explicit Bypass skips approval while policy denials and limits remain enforced.
 - HTTP SSRF: allowlists, blocked metadata address 169.254.169.254, explicit private-network permission, and post-DNS validation.
 - Dangerous combinations within one endpoint use risk-callout.
 - SSH command-injection protection uses runbooks.
@@ -282,7 +282,7 @@ Three modes of one screen plus a first-run demo state, picked from the URL (the 
 - Connections and secrets: connector JSON Schema forms, testing before saving, write-only secrets, references, short-lived credentials, and stricter production defaults.
 - Connector selection includes built-ins, signed plugins, OpenAPI templates, and external MCP servers.
 - MCP tools: sql_query reads and sql_execute requires approval; show readOnly/destructive/idempotent hints.
-- Modes are Off, Read only, and Approval; there is no write-without-approval mode.
+- Modes are Off, Read only, Approval, and Bypass; Bypass skips approval within policy limits.
 - Excessive account permissions: explain test results and provide SQL for a read-only user.
 - Warn when adding dev data to an endpoint published for claude.ai.
 
@@ -357,7 +357,7 @@ Everything about endpoint dev in one place. Header: breadcrumb Endpoints › dev
 
 - Administrator scenario: assemble dev with read access, approved changes, logs, SSH runbooks, and approved Kubernetes restarts; revoke access in one action.
 - Endpoint tokens support multiple names, TTL, applicable IP allowlists, instant revocation, one-time display, and hash-only storage. OAuth uses PKCE S256, Protected Resource Metadata, endpoint audience, and CIMD. Include Playground.
-- Policies: Off/Read only/Approval, no unreviewed writes, per-token/tool rate limits, response limits, and timeouts.
+- Policies: Off/Read only/Approval/Bypass, approval by default, per-token/tool rate limits, response limits, and timeouts.
 - MCP hints include readOnly/destructive/idempotent/openWorld; server instructions explain approvals and approval_status; support protocol revisions 2025-11-25 and 2026-07-28.
 - One-click connection: show the exact configuration diff, back up before writing, and revoke on Disconnect.
 - Security: dangerous combinations, prompt injection, short token TTL, revocation, and a .mcpb bridge without a token in configuration.
@@ -396,7 +396,7 @@ Call a tool the way an agent does and see exactly what it gets back. Layout is g
 
 - Playground: invoke a tool manually and show exactly what the agent receives.
 - MCP hints and payloads: readOnlyHint/destructiveHint/idempotentHint, outputSchema and structuredContent; 2026-07-28 is sessionless with Mcp-Method/Mcp-Name and trace context in _meta.
-- Modes Off/Read only/Approval; mutations execute only after approval; respect row limits.
+- Modes Off/Read only/Approval/Bypass; mutations require approval unless Bypass is explicitly selected; respect row limits.
 - Mask secrets and PII in results.
 - Audit every call with Activity links, trace ID, and decision.
 - BLUEPRINT section 3: endpoint Playground.
@@ -445,7 +445,7 @@ Analysis of agent calls over the selected range. It reuses log-explorer rows 1 a
 
 [Reference screen](pages/settings.html)
 
-Every app-wide setting, split into five groups with a sticky settings nav (a 'Jump to section' select below 1280px). Workspace: General covers start at login, start minimized, automatic update checks with a busy 'Check now', the core port 7465 shown read-only with a 'Change port' warning dialog (example 7475; endpoint URLs change; clients whose config holds the URL — Codex here — are connected again; Claude Desktop's bridge asks the app for the address; no claude.ai row), and the runtime rows 'Core: Native core' and 'Plugin runtime: Bundled JRE 25, started only for Java plugins'. Appearance has theme and contrast radios wired through name=gw-theme/gw-contrast. Security: Authorization has a how-it-works strip, MCP access (default token lifetime 7 days; the token IP allowlist is a server-mode topic; an alert that inspector-debug expires in 3 days), OAuth 2.1 for claude.ai (issuer 'None yet' while the quick tunnel is off, tunnel-off warning, CIMD recommended / DCR deprecated, the Anthropic IP allowlist shown read-only with a link to Tunnel › Callers, PKCE and audience facts) and Sign-in to the UI disabled with a server-mode reason. Users & roles is a server-mode preview: a table of the 4 people, a roles list and a disabled Invite button. Approvals: Notifications: desktop on (Review and Deny), Slack connected (workspace acme, direct messages to linked approvers recommended, channel #deploy-approvals selected, last delivery 14:02:30, danger Disconnect), Telegram not set up (Connect Telegram bot dialog; once connected, its status with the chat and 'Change bot or chat'), a 'Connect Slack' dialog built the same way after Disconnect (bot token xoxb-, app-level token xapp-, Socket Mode, 'Check tokens and connect'), Slack and Telegram never offering Approve for prod, Send test notification, and a 'Preview messages' dialog with approval-notification tabs. Approval rules states the mutation invariant, where decisions can be made, 'Require a comment on prod' (on by default) and the per-environment table linking to policies.html#<env>-approvals. Network: Tunnel has a how-it-works strip, an Off status with a Turn on warning dialog and a demo on-state with a new quick-tunnel address, the three gates (gate 1: Anthropic IP ranges reach /mcp/stage-readonly; the sign-in page opens in your own browser), Cloudflare / ngrok choice cards (a quick tunnel gets a new address each time it starts; a named tunnel keeps a stable hostname), what is and is never published, and Callers (#settings-tunnel-callers): the ONE Anthropic IP allowlist switch (on). Turning the tunnel on again always goes through the warning confirm; Undo never re-publishes. Local API has the fixed 127.0.0.1, Host / Origin / token checks always on, and allowed origins with add, validate, remove and an empty state. Data: Audit & retention has an append-only notice, retention of 1 / 2 / 3 / 5 years (default 1 year, never less), export cards for SIEM / S3 / BigQuery with the BigQuery error inside its card (the core's error text under Show error details), and Export now. Backup has daily database backups, the last backup, Back up now, and a master key reminder linking to secrets.html#master-key. Demo: the Authorization Save bar shows unsaved changes; other Save bars appear on edit. Anchors are #settings-<section> (general, appearance, authorization, users, notifications, approval-rules, tunnel, tunnel-callers, local-api, audit, backup). There are no consent previews: the sign-in request opens by itself when it arrives.
+Every app-wide setting, split into five groups with a sticky settings nav (a 'Jump to section' select below 1280px). Workspace: General covers start at login, start minimized, automatic update checks with a busy 'Check now', the core port 7465 shown read-only with a 'Change port' warning dialog (example 7475; endpoint URLs change; clients whose config holds the URL — Codex here — are connected again; Claude Desktop's bridge asks the app for the address; no claude.ai row), and the runtime rows 'Core: Native core' and 'Plugin runtime: Bundled JRE 25, started only for Java plugins'. Appearance has theme and contrast radios wired through name=gw-theme/gw-contrast. Security: Authorization has a how-it-works strip, MCP access (default token lifetime 7 days; the token IP allowlist is a server-mode topic; an alert that inspector-debug expires in 3 days), OAuth 2.1 for claude.ai (issuer 'None yet' while the quick tunnel is off, tunnel-off warning, CIMD recommended / DCR deprecated, the Anthropic IP allowlist shown read-only with a link to Tunnel › Callers, PKCE and audience facts) and Sign-in to the UI disabled with a server-mode reason. Users & roles is a server-mode preview: a table of the 4 people, a roles list and a disabled Invite button. Approvals: Notifications: desktop on (Review and Deny), Slack connected (workspace acme, direct messages to linked approvers recommended, channel #deploy-approvals selected, last delivery 14:02:30, danger Disconnect), Telegram not set up (Connect Telegram bot dialog; once connected, its status with the chat and 'Change bot or chat'), a 'Connect Slack' dialog built the same way after Disconnect (bot token xoxb-, app-level token xapp-, Socket Mode, 'Check tokens and connect'), Slack and Telegram never offering Approve for prod, Send test notification, and a 'Preview messages' dialog with approval-notification tabs. Approval rules explains approval by default and the explicit Bypass exception, where decisions can be made, 'Require a comment on prod' (on by default) and the per-environment table linking to policies.html#<env>-approvals. Network: Tunnel has a how-it-works strip, an Off status with a Turn on warning dialog and a demo on-state with a new quick-tunnel address, the three gates (gate 1: Anthropic IP ranges reach /mcp/stage-readonly; the sign-in page opens in your own browser), Cloudflare / ngrok choice cards (a quick tunnel gets a new address each time it starts; a named tunnel keeps a stable hostname), what is and is never published, and Callers (#settings-tunnel-callers): the ONE Anthropic IP allowlist switch (on). Turning the tunnel on again always goes through the warning confirm; Undo never re-publishes. Local API has the fixed 127.0.0.1, Host / Origin / token checks always on, and allowed origins with add, validate, remove and an empty state. Data: Audit & retention has an append-only notice, retention of 1 / 2 / 3 / 5 years (default 1 year, never less), export cards for SIEM / S3 / BigQuery with the BigQuery error inside its card (the core's error text under Show error details), and Export now. Backup has daily database backups, the last backup, Back up now, and a master key reminder linking to secrets.html#master-key. Demo: the Authorization Save bar shows unsaved changes; other Save bars appear on edit. Anchors are #settings-<section> (general, appearance, authorization, users, notifications, approval-rules, tunnel, tunnel-callers, local-api, audit, backup). There are no consent previews: the sign-in request opens by itself when it arrives.
 
 **Compositions:** `settings-layout`, `how-it-works (--vertical, x2: authorization, tunnel)`, `approval-notification (desktop mac/win, Slack, Telegram in the preview dialog)`.
 
@@ -455,7 +455,7 @@ Every app-wide setting, split into five groups with a sticky settings nav (a 'Ju
 
 - Deployment: desktop core binds to 127.0.0.1 and is a native image; the bundled JRE is only for the Java plugin host. claude.ai tunnel publishes MCP/OAuth, leaving UI local.
 - Endpoint tokens: TTL, applicable IP allowlists, and revocation. OAuth uses Protected Resource Metadata, PKCE S256, endpoint audience, and CIMD; dynamic registration is deprecated.
-- Notifications via desktop, Slack, and Telegram; decisions with comments; timeout denies; mutations always require approval.
+- Notifications via desktop, Slack, and Telegram; decisions with comments; timeout denies; mutations require approval unless an endpoint tool explicitly uses Bypass.
 - Append-only audit with SIEM, S3, and BigQuery export.
 - Server-mode previews: Owner/Admin/Developer/Approver/Viewer, OIDC providers, admin 2FA. Desktop has one local user.
 - Security: validate Origin and Host against DNS rebinding, require loopback tokens, maintain Anthropic caller allowlists, and keep master-key backups separate.
@@ -535,7 +535,7 @@ Use English sentence case. Buttons name verbs and objects; destructive confirmat
 | Connector | Resource type and its tools: built-in, template, plugin, or MCP server |
 | Endpoint | `/mcp/<slug>` URL with selected connections, tool modes, and authentication |
 | Tool | Agent-callable function such as `sql_query` or `ssh_run` |
-| Mode | Off, Read only, or Approval for one endpoint/tool pair |
+| Mode | Off, Read only, Approval, or Bypass for one endpoint/tool pair |
 | AI app | MCP client invoking the gateway |
 | Token | Client access credential shown once when issued manually |
 | Approval request | Proposed mutation with its exact action |
@@ -566,7 +566,7 @@ Desktop has one user and one approver: **You**. Named users appear only in serve
 | `stage-readonly` | `stage-db`, `aws-stage`, `billing-api`; read-only access | claude.ai through tunnel | 19 |
 | `incident-prod` | `prod-replica`, `prod-logs`, `prod-vm`; 10 tools: 7 read only, 3 off | Claude Desktop bridge | 111 |
 
-The local URL is `http://127.0.0.1:7465/mcp/<slug>`. `ssh_run` can be Read only for read-only runbooks, while a mutating runbook such as `restart-api` always requires approval.
+The local URL is `http://127.0.0.1:7465/mcp/<slug>`. `ssh_run` can be Read only for read-only runbooks, while a mutating runbook such as `restart-api` requires approval unless its endpoint tool explicitly uses Bypass.
 
 | Connection in `dev` | Read only | Approval | Off |
 | --- | --- | --- | --- |
@@ -628,7 +628,7 @@ Rotate is supported for `dev-db/password`. Other saved values retain a disabled 
 
 ### Policies
 
-Every SQL read runs in a READ ONLY transaction ending with ROLLBACK. Every mutation requires approval under `<env>.<section>.write-approval`. These are invariants, not switches.
+Every SQL read runs in a READ ONLY transaction ending with ROLLBACK. Mutations require approval under `<env>.<section>.write-approval` unless the endpoint tool explicitly uses Bypass. Policy denials and limits still apply.
 
 | Setting | dev | stage | prod |
 | --- | --- | --- | --- |

@@ -109,21 +109,21 @@ export interface LockRow {
 }
 
 export function approvalRow(x: SectionCtx): LockRow | null {
-  const rule = (): HintPart[] => [t('always · rule '), chip(approvalRule(x.env, x.section))];
+  const rule = (): HintPart[] => [t('unless Bypass · rule '), chip(approvalRule(x.env, x.section))];
   const has = x.connections.length > 0;
   switch (x.section) {
     case 'sql':
-      return { key: value(x, 'denyDdl') === true ? 'INSERT, UPDATE, DELETE' : 'INSERT, UPDATE, DELETE, DDL', caption: has ? rule() : [t('always')] };
+      return { key: value(x, 'denyDdl') === true ? 'INSERT, UPDATE, DELETE' : 'INSERT, UPDATE, DELETE, DDL', caption: has ? rule() : [t('unless Bypass')] };
     case 'ssh':
-      return { key: 'Runbooks that change state', caption: has ? rule() : [t('always')] };
+      return { key: 'Runbooks that change state', caption: has ? rule() : [t('unless Bypass')] };
     case 'k8s': {
       const verbs = value(x, 'verbs');
       const mutating = (Array.isArray(verbs) ? verbs.map(String) : []).filter((v) => MUTATING_VERBS.includes(v));
-      if (!mutating.length) return { key: 'Mutating verbs', caption: [t('always, if you allow one')] };
-      return { key: mutating.map(verbLabel).join(', '), caption: has ? rule() : [t('always')] };
+      if (!mutating.length) return { key: 'Mutating verbs', caption: [t('unless Bypass, if you allow one')] };
+      return { key: mutating.map(verbLabel).join(', '), caption: has ? rule() : [t('unless Bypass')] };
     }
     case 'cloud':
-      return { key: 'Changes to cloud resources', caption: has ? rule() : [t('always, if a tool can make one')] };
+      return { key: 'Changes to cloud resources', caption: has ? rule() : [t('unless Bypass, if a tool can make one')] };
     case 'http':
       return { key: 'POST, PUT, PATCH or DELETE', caption: rule() };
     case 'logs':
@@ -132,7 +132,7 @@ export function approvalRow(x: SectionCtx): LockRow | null {
     case 'approvals':
       return null;
     default:
-      return { key: 'Changes', caption: has ? rule() : [t('always, if a tool can make one')] };
+      return { key: 'Changes', caption: has ? rule() : [t('unless Bypass, if a tool can make one')] };
   }
 }
 

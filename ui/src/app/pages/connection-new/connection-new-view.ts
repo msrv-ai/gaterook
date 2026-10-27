@@ -60,11 +60,12 @@ export function stepperSteps(
   current: StepNumber | 5,
   facts: { readonly typeName: string | null; readonly name: string; readonly env: Env; readonly test: TestSummary | null; readonly endpoints: readonly string[] },
   firstRun = false,
+  firstEndpoint: string | null = null,
 ): StepView[] {
   return STEP_NAMES.map((stepName, i) => {
     const n = (i + 1) as StepNumber;
-    // First run: step 4 creates the first endpoint instead of picking among existing ones (kit ?state=first-run).
-    const name = n === 4 && firstRun ? 'Create endpoint' : stepName;
+    // First run reuses the starter endpoint, or creates one when none exists.
+    const name = n === 4 && firstRun && !firstEndpoint ? 'Create endpoint' : stepName;
     const failed = n === 3 && !!facts.test && !facts.test.passed && current >= 3;
     const state: StepState = failed ? 'error' : n < current ? 'complete' : n === current ? 'current' : 'upcoming';
     let description: StepView['description'] = null;
@@ -72,7 +73,7 @@ export function stepperSteps(
       if (n === 1) description = facts.typeName ? { text: facts.typeName } : null;
       else if (n === 2) description = { name: facts.name || 'this connection', env: facts.env };
       else if (n === 3) description = facts.test ? { text: facts.test.text } : { text: 'Not tested' };
-      else if (firstRun) description = { text: `Endpoint ${facts.env}` };
+      else if (firstRun) description = { text: `Endpoint ${firstEndpoint ?? facts.env}` };
       else description = { text: facts.endpoints.length ? `Endpoint ${facts.endpoints.join(', ')}` : 'No endpoint yet' };
     }
     return { n, name, state, current: n === current, description };
@@ -232,7 +233,7 @@ export function endpointChoices(
     const description =
       refusal ??
       e.description ??
-      (readOnly ? 'Read only: tools that change data stay off.' : 'Reads run, writes wait for approval.');
+      (readOnly ? 'Read only: tools that change data stay off.' : 'Reads run, writes wait for approval by default.');
     const clients = e.clients.map(clientName);
     const meta = e.published ? [...clients.filter((c) => c !== 'claude.ai'), 'claude.ai', `tunnel ${tunnelState ?? 'off'}`] : clients;
     const warning =
@@ -261,13 +262,14 @@ export function endpointChoices(
  */
 export function initialEndpoints(choices: readonly EndpointChoice[], env: Env): string[] {
   const prod = env === 'prod';
-  return choices.filter((c) => !c.refusal && !c.readOnly && !c.published && (c.env === 'prod') === prod).map((c) => c.slug);
+  const eligible = choices.filter((c) => !c.refusal && !c.readOnly && !c.published && (c.env === 'prod') === prod);
+  return eligible.some((c) => c.slug === 'default') ? ['default'] : eligible.map((c) => c.slug);
 }
 
-/** A manifest mode (`read-only`, `approval`, `off`; any case) as the API's `ToolMode`. */
+/** A manifest mode (`read-only`, `approval`, `bypass`, `off`; any case) as the API's `ToolMode`. */
 export function toolMode(mode: string | null | undefined): ToolMode {
   const m = (mode ?? '').toLowerCase().replace('_', '-');
-  return m === 'read-only' ? 'READ_ONLY' : m === 'approval' ? 'APPROVAL' : 'OFF';
+  return m === 'read-only' ? 'READ_ONLY' : m === 'approval' ? 'APPROVAL' : m === 'bypass' ? 'BYPASS' : 'OFF';
 }
 
 function mutating(t: ConnectorTool): boolean {
@@ -311,7 +313,7 @@ export function toolPreview(
   const builtIn = kind === 'built-in';
   const rows = tools.map((t): PreviewRow => {
     let mode = toolMode(choice.env === 'prod' ? t.prodDefaultMode : t.defaultMode);
-    if (!builtIn) mode = 'APPROVAL';
+    if (!builtIn || mode === 'BYPASS') mode = 'APPROVAL';
     if (choice.readOnly) {
       // ToolPairs.clampReadOnly: never Approval, never a tool that only changes data, Read only only where allowed.
       if ((t.nature ?? '').toLowerCase() === 'mutation' || mode === 'APPROVAL') mode = 'OFF';
@@ -321,7 +323,7 @@ export function toolPreview(
     const note = locked
       ? { icon: 'lock', text: `${choice.slug} is read only` }
       : !readOnlyAllowed(t)
-        ? { icon: 'lock', text: 'Mutates data: approval or off' }
+        ? { icon: 'lock', text: 'Mutates data: starts in Approval or Off' }
         : null;
     return { name: t.name, description: t.description, annotations: t.annotations, mode, note };
   });
@@ -330,6 +332,7 @@ export function toolPreview(
   const parts = [
     count('READ_ONLY') ? `${count('READ_ONLY')} read only` : null,
     count('APPROVAL') ? `${count('APPROVAL')} approval` : null,
+    count('BYPASS') ? `${count('BYPASS')} bypass` : null,
     count('OFF') ? `${count('OFF')} off${lockedOff === count('OFF') ? ', locked by the read-only endpoint' : ''}` : null,
   ].filter(Boolean);
   const n = rows.length;
@@ -344,20 +347,28 @@ export function toolPreview(
 // ─── First run: the first endpoint ───
 
 /**
- * Whether Add connection runs as the first run (kit connection-new `?state=first-run`): nothing is set up yet — no
- * connection and no endpoint — so the wizard speaks to a beginner and step 4 creates the first endpoint.
+ * The default endpoint created for a fresh installation, while it is still empty and ready to accept a connection.
  */
-export function isFirstRun(connections: number, endpoints: number): boolean {
-  return connections === 0 && endpoints === 0;
+export function starterEndpoint(endpoints: readonly EndpointSummary[]): EndpointSummary | null {
+  if (endpoints.length !== 1) return null;
+  const e = endpoints[0];
+  return e.slug === 'default' && e.connections.total === 0 && e.access === 'standard' && e.status === 'running'
+    && !e.published && !e.blockedReason ? e : null;
+}
+
+/** The beginner wizard applies before any connection, with no endpoint or only the unused default endpoint. */
+export function isFirstRun(connections: number, endpoints: number | readonly EndpointSummary[]): boolean {
+  if (connections !== 0) return false;
+  return typeof endpoints === 'number' ? endpoints === 0 : endpoints.length === 0 || starterEndpoint(endpoints) !== null;
 }
 
 /**
- * The tools of the first endpoint, which Save creates and names after the connection's environment: the type's
+ * The tools of the first endpoint, which Save reuses or creates: the type's
  * default modes for that env, and on prod nothing that waits for approval — "prod is read only by default" (kit) —
  * so a tool that changes data starts Off there.
  */
-export function firstRunPreview(tools: readonly ConnectorTool[], kind: ConnectorKind, dynamicTools: boolean, env: Env): ToolPreview {
-  const choice: EndpointChoice = { slug: env, description: '', meta: null, refusal: null, readOnly: false, published: false, env, warning: null };
+export function firstRunPreview(tools: readonly ConnectorTool[], kind: ConnectorKind, dynamicTools: boolean, env: Env, slug: string = env): ToolPreview {
+  const choice: EndpointChoice = { slug, description: '', meta: null, refusal: null, readOnly: false, published: false, env, warning: null };
   const base = toolPreview(tools, kind, dynamicTools, choice);
   if (env !== 'prod') return base;
   const rows = base.rows.map((r): PreviewRow =>
@@ -367,6 +378,7 @@ export function firstRunPreview(tools: readonly ConnectorTool[], kind: Connector
   const parts = [
     count('READ_ONLY') ? `${count('READ_ONLY')} read only` : null,
     count('APPROVAL') ? `${count('APPROVAL')} approval` : null,
+    count('BYPASS') ? `${count('BYPASS')} bypass` : null,
     count('OFF') ? `${count('OFF')} off` : null,
   ].filter(Boolean);
   const n = rows.length;
@@ -379,6 +391,8 @@ export interface ToolsLine {
   readonly reads: readonly string[];
   /** The tools that wait for approval. */
   readonly approval: readonly string[];
+  /** The tools that run without approval under an explicit Bypass setting. */
+  readonly bypass: readonly string[];
   /** The tools that are off. */
   readonly off: readonly string[];
 }
@@ -387,13 +401,14 @@ export function toolsLine(rows: readonly Pick<PreviewRow, 'name' | 'mode'>[]): T
   return {
     reads: rows.filter((r) => r.mode === 'READ_ONLY').map((r) => r.name),
     approval: rows.filter((r) => r.mode === 'APPROVAL').map((r) => r.name),
+    bypass: rows.filter((r) => r.mode === 'BYPASS').map((r) => r.name),
     off: rows.filter((r) => r.mode === 'OFF').map((r) => r.name),
   };
 }
 
 /** The toast of a first-run Save (kit: "Endpoint dev created with its tools. Next: connect your AI app."). */
-export function firstRunToast(name: string, endpoint: string): { readonly title: string; readonly body: string } {
-  return { title: `Connection ${name} saved`, body: `Endpoint ${endpoint} created with its tools. Next: connect your AI app.` };
+export function firstRunToast(name: string, endpoint: string, created = true): { readonly title: string; readonly body: string } {
+  return { title: `Connection ${name} saved`, body: `${created ? `Endpoint ${endpoint} created with its tools.` : `Added to endpoint ${endpoint} with its tools.`} Next: connect your AI app.` };
 }
 
 /** The note of a tool that would wait for approval and starts Off on a first prod endpoint. */
@@ -413,14 +428,18 @@ export interface Sentence {
 export function firstRunModes(preview: ToolPreview): Sentence {
   const rows = preview.rows;
   const approval = rows.filter((r) => r.mode === 'APPROVAL').map((r) => r.name);
+  const bypass = rows.filter((r) => r.mode === 'BYPASS').map((r) => r.name);
   const prodOff = rows.filter((r) => r.note?.text === PROD_OFF_NOTE).map((r) => r.name);
   const parts: string[] = [];
   if (preview.fromServer) parts.push('Its tools come from the server once it runs, and each one waits for your approval.');
   if (rows.some((r) => r.mode === 'READ_ONLY')) parts.push('Reads run at once.');
-  if (approval.length) parts.push(`Anything that changes data, like ${approval[0]}, waits for your approval.`);
+  if (approval.length) parts.push(bypass.length
+    ? `${list(approval)} ${approval.length === 1 ? 'waits' : 'wait'} for your approval.`
+    : `Anything that changes data, like ${approval[0]}, waits for your approval.`);
+  if (bypass.length) parts.push(`${list(bypass)} ${bypass.length === 1 ? 'runs' : 'run'} without approval (Bypass).`);
   if (prodOff.length) parts.push(`${list(prodOff)} ${prodOff.length === 1 ? 'is' : 'are'} off: prod is read only by default.`);
   parts.push('You can change the modes later.');
-  return { text: parts.join(' '), literals: [...approval.slice(0, 1), ...prodOff] };
+  return { text: parts.join(' '), literals: [...(bypass.length ? approval : approval.slice(0, 1)), ...bypass, ...prodOff] };
 }
 
 /**
@@ -433,11 +452,12 @@ export function toolsSentence(line: ToolsLine, env: Env): Sentence {
   const parts = [
     line.reads.length ? `${list(line.reads)} ${verb(line.reads, 'runs', 'run')} at once (read only)` : null,
     line.approval.length ? `${list(line.approval)} ${verb(line.approval, 'waits', 'wait')} for your approval` : null,
+    line.bypass.length ? `${list(line.bypass)} ${verb(line.bypass, 'runs', 'run')} without approval (Bypass)` : null,
     line.off.length ? `${list(line.off)} ${verb(line.off, 'is', 'are')} off${env === 'prod' ? ': prod is read only by default' : ''}` : null,
   ].filter((p): p is string => !!p);
   return {
     text: parts.length ? parts.join('; ') : 'They come from the server once it runs',
-    literals: [...line.reads, ...line.approval, ...line.off],
+    literals: [...line.reads, ...line.approval, ...line.bypass, ...line.off],
   };
 }
 

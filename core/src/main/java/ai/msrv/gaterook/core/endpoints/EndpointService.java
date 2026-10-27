@@ -109,7 +109,11 @@ public class EndpointService {
   }
 
   /** Tools of an endpoint by mode, as its list row counts them (core tools included). */
-  public record ToolCounts(int read, int approval, int off) {}
+  public record ToolCounts(int read, int approval, int off, int bypass) {
+    public ToolCounts(int read, int approval, int off) {
+      this(read, approval, off, 0);
+    }
+  }
 
   /** One row of Endpoints. */
   public record Summary(String id, String slug, String description, String url, Env env, String access,
@@ -291,7 +295,7 @@ public class EndpointService {
     boolean readOnly = startFrom == StartFrom.READ_ONLY_DEV;
     Env env = startFrom == StartFrom.INCIDENT_RESPONSE ? Env.PROD : Env.DEV;
     Mode core = startFrom == StartFrom.EMPTY ? Mode.OFF : Mode.READ_ONLY;
-    int[] counts = new int[3];
+    int[] counts = new int[Mode.values().length];
     for (int i = 0; i < ai.msrv.gaterook.core.endpoints.CoreTools.WITH_MODE.size(); i++) {
       counts[core.ordinal()]++;
     }
@@ -307,7 +311,7 @@ public class EndpointService {
     }
     return new StartPreview(KebabCaseEnumConverter.idOf(startFrom), env, readOnly ? "read-only" : "standard",
         start.stream().map(ConnectionConfigs.Stored::name).toList(), new ToolCounts(counts[Mode.READ_ONLY.ordinal()],
-            counts[Mode.APPROVAL.ordinal()], counts[Mode.OFF.ordinal()]));
+            counts[Mode.APPROVAL.ordinal()], counts[Mode.OFF.ordinal()], counts[Mode.BYPASS.ordinal()]));
   }
 
   /**
@@ -898,11 +902,13 @@ public class EndpointService {
     int read = 0;
     int approval = 0;
     int off = 0;
+    int bypass = 0;
     for (EndpointSnapshot.Pair p : s.pairs()) {
       switch (p.mode()) {
         case READ_ONLY -> read++;
         case APPROVAL -> approval++;
         case OFF -> off++;
+        case BYPASS -> bypass++;
       }
     }
     for (EndpointSnapshot.CorePair c : s.coreTools()) {
@@ -910,6 +916,7 @@ public class EndpointService {
         case READ_ONLY -> read++;
         case APPROVAL -> approval++;
         case OFF -> off++;
+        case BYPASS -> bypass++;
       }
     }
     Map<Env, Integer> byEnv = new EnumMap<>(Env.class);
@@ -939,7 +946,7 @@ public class EndpointService {
     }
     return new Summary(s.id(), s.slug(), s.description(), url(s.slug()), s.env(),
         s.readOnly() ? "read-only" : "standard", s.enabled() ? "running" : "disabled",
-        new ToolCounts(read, approval, off), s.connections().size(), Map.copyOf(byEnv), Map.copyOf(health), active,
+        new ToolCounts(read, approval, off, bypass), s.connections().size(), Map.copyOf(byEnv), Map.copyOf(health), active,
         expiring, s.published(), risks.analyze(s), s.blockedReason(), s.version());
   }
 

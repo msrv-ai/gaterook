@@ -38,13 +38,15 @@ export function andList(items: readonly string[]): string {
 
 /**
  * The line under the title (kit: "Local development on 8 connections. Agents read freely; anything that changes data
- * waits for your approval."): the endpoint's own description, how many connections, and what its access means.
+ * waits for your approval."): the endpoint's description, connection count, access and explicit Bypass modes.
  */
 export function headerDescription(e: EndpointSummary, connections: number): string {
   const what = e.description?.trim().replace(/[.\s]+$/, '') || 'An endpoint';
   const on = connections ? ` on ${plural(connections, 'connection')}` : ' with no connections yet';
   if (e.status === 'disabled') return `${what}${on}. Disabled: every call gets an error until you enable it; tokens and settings are kept.`;
   if (e.access === 'read-only') return `${what}${on}. Read only: agents read, and no tool that changes data is offered.`;
+  const bypass = e.tools.bypass ?? 0;
+  if (bypass) return `${what}${on}. ${plural(bypass, 'tool')} in Bypass ${bypass === 1 ? 'runs' : 'run'} without approval, including changes to data. Policy denials and limits still apply.`;
   return `${what}${on}. Agents read freely; anything that changes data waits for your approval.`;
 }
 
@@ -184,7 +186,7 @@ export interface TabCounts {
 
 export function tabCounts(e: EndpointSummary, connections: number, tokens: readonly TokenRow[] | null, cards: readonly ClientCard[], slug: string): TabCounts {
   return {
-    tools: e.tools.read + e.tools.approval + e.tools.off,
+    tools: e.tools.read + e.tools.approval + e.tools.off + (e.tools.bypass ?? 0),
     connections,
     tokens: tokens ? activeTokens(tokens) : e.tokens.active,
     clients: cards.filter((c) => c.links.some((l) => l.endpoint === slug && l.status === 'connected')).length,
@@ -204,12 +206,13 @@ export function envCounts(connections: readonly WiredConnection[]): { readonly e
 }
 
 /** "4" and "· 3 read only, 1 approval" (Tools on dev). */
-export function toolsCell(t: { readonly read: number; readonly approval: number; readonly off: number }): { readonly total: number; readonly modes: string } {
+export function toolsCell(t: { readonly read: number; readonly approval: number; readonly off: number; readonly bypass?: number }): { readonly total: number; readonly modes: string } {
   const parts: string[] = [];
   if (t.read) parts.push(`${t.read} read only`);
   if (t.approval) parts.push(`${t.approval} approval`);
+  if (t.bypass) parts.push(`${t.bypass} bypass`);
   if (t.off) parts.push(`${t.off} off`);
-  return { total: t.read + t.approval + t.off, modes: parts.join(', ') };
+  return { total: t.read + t.approval + t.off + (t.bypass ?? 0), modes: parts.join(', ') };
 }
 
 /** One row of the Connections table: the endpoint's wiring with what the connections list knows (host, latency). */
@@ -336,10 +339,11 @@ export function sentence(text: string): string {
   return !t || /[.!?…]$/.test(t) ? t : `${t}.`;
 }
 
-function countModes(modes: readonly string[]): { read: number; approval: number; off: number } {
+function countModes(modes: readonly string[]): { read: number; approval: number; off: number; bypass: number } {
   return {
     read: modes.filter((m) => m === 'READ_ONLY').length,
     approval: modes.filter((m) => m === 'APPROVAL').length,
+    bypass: modes.filter((m) => m === 'BYPASS').length,
     off: modes.filter((m) => m === 'OFF').length,
   };
 }

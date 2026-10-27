@@ -76,7 +76,7 @@ export interface OAuthConsent {
   readonly redirectHost: string;
   readonly endpoint: string;
   readonly env: string;
-  readonly tools: { readonly read: number; readonly approval: number; readonly off: number };
+  readonly tools: { readonly read: number; readonly approval: number; readonly off: number; readonly bypass?: number };
   readonly ip: string | null;
   readonly expiresAt: Iso;
 }

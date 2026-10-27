@@ -10,8 +10,8 @@ export type Iso = string;
 /** An environment (connector-api `Env`). */
 export type Env = 'dev' | 'stage' | 'prod';
 
-/** A tool mode on an endpoint, as the API writes it; the UI shows Off · Read only · Approval. */
-export type ToolMode = 'OFF' | 'READ_ONLY' | 'APPROVAL';
+/** A tool mode on an endpoint, as the API writes it; the UI shows Off · Read only · Approval · Bypass. */
+export type ToolMode = 'OFF' | 'READ_ONLY' | 'APPROVAL' | 'BYPASS';
 
 /** MCP tool annotations (always explicit on built-in tools). */
 export interface ToolAnnotations {

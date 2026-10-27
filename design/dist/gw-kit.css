@@ -3088,6 +3088,13 @@ table {
   --gw-tone-solid: var(--gw-color-warning-solid);
   --gw-tone-on-solid: var(--gw-color-warning-on-solid);
 }
+.gw-mode--bypass {
+  --gw-tone-fg: var(--gw-color-danger-fg);
+  --gw-tone-subtle: var(--gw-color-danger-subtle);
+  --gw-tone-border: var(--gw-color-danger-border);
+  --gw-tone-solid: var(--gw-color-danger-solid);
+  --gw-tone-on-solid: var(--gw-color-danger-on-solid);
+}
 
 .gw-tag {
   display: inline-flex;
@@ -4441,6 +4448,13 @@ legend.gw-field__label {
   --gw-tone-border: var(--gw-color-warning-border);
   --gw-tone-solid: var(--gw-color-warning-solid);
   --gw-tone-on-solid: var(--gw-color-warning-on-solid);
+}
+.gw-segmented__option[data-tone=bypass] {
+  --gw-tone-fg: var(--gw-color-danger-fg);
+  --gw-tone-subtle: var(--gw-color-danger-subtle);
+  --gw-tone-border: var(--gw-color-danger-border);
+  --gw-tone-solid: var(--gw-color-danger-solid);
+  --gw-tone-on-solid: var(--gw-color-danger-on-solid);
 }
 .gw-segmented__option[data-tone=brand] {
   --gw-tone-fg: var(--gw-color-brand-fg);

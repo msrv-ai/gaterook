@@ -7,8 +7,8 @@
 <!--
   Three modes of one screen (pages/connection-new.html): the wizard (Choose type → Configure → Test → Add to endpoint),
   the same wizard from Configure for ?duplicate=, and the edit view of one connection (/connections/<name>).
-  First run (kit ?state=first-run, decided from the core: no connection, no endpoint yet): the wizard speaks to a
-  beginner, step 4 creates the first endpoint, and after Save the "<name> is ready" card replaces the steps.
+  First run: no connection, with no endpoint or the empty default. The wizard speaks to a beginner, step 4 reuses
+  the default or creates the first endpoint, and after Save the "<name> is ready" card replaces the steps.
 -->
 <header class="gw-page-header">
   <nav class="gw-breadcrumb gw-page-header__breadcrumb" aria-label="Breadcrumb">
@@ -47,7 +47,7 @@
             @if (done) {
               <p class="gw-page-header__description"><span class="gw-mono">{{ done.name }}</span> is saved and on your first endpoint. Next, connect the AI app you use.</p>
             } @else {
-              <p class="gw-page-header__description">Choose its type, say where it is and how to sign in, and test it. GateRook then creates your first endpoint, the address your AI apps connect to. Nothing is saved until the last step.</p>
+              <p class="gw-page-header__description">Choose its type, say where it is and how to sign in, and test it. @if (reusesFirstEndpoint()) {GateRook then adds it to endpoint <span class="gw-mono">{{ firstEndpointSlug() }}</span>, the address your AI apps connect to.} @else {GateRook then creates your first endpoint, the address your AI apps connect to.} Nothing is saved until the last step.</p>
             }
           } @else {
             <h1 class="gw-page-header__title" id="page-title">Add connection</h1>
@@ -349,7 +349,7 @@
 
       <div class="gw-form__actions">
         <button class="gw-btn gw-btn--ghost" type="button" (click)="go(2)"><svg lucideIcon="arrow-left" class="gw-icon"></svg> Back</button>
-        <button class="gw-btn gw-btn--primary" type="button" (click)="go(4)">Continue<span class="gw-sr-only"> to @if (first) {create the endpoint} @else {add to an endpoint}</span> <svg lucideIcon="arrow-right" class="gw-icon"></svg></button>
+        <button class="gw-btn gw-btn--primary" type="button" (click)="go(4)">Continue<span class="gw-sr-only"> to @if (first && !reusesFirstEndpoint()) {create the endpoint} @else {add to an endpoint}</span> <svg lucideIcon="arrow-right" class="gw-icon"></svg></button>
       </div>
     </form>
   </section>
@@ -367,17 +367,17 @@
     </header>
     <form class="gw-form gw-form--sticky-actions" method="dialog" novalidate aria-labelledby="step-4-title" id="add-save" (submit)="save($event)">
       @if (first) {
-        <!-- First run: no endpoint exists, so the one Save creates is shown, not offered as a choice. -->
+        <!-- First run: show the starter endpoint that Save will use. -->
         <section class="gw-form__section" aria-labelledby="ep-new-t">
           <header class="gw-form__section-header">
             <h3 class="gw-form__legend" id="ep-new-t">Your first endpoint</h3>
-            <p class="gw-form__description">GateRook creates it when you save, with <span class="gw-mono">{{ connName }}</span> on it. You can add more endpoints later, under Endpoints.</p>
+            <p class="gw-form__description">@if (reusesFirstEndpoint()) {Endpoint <span class="gw-mono">{{ firstEndpointSlug() }}</span> is already set up. Saving adds <span class="gw-mono">{{ connName }}</span> to it.} @else {GateRook creates it when you save, with <span class="gw-mono">{{ connName }}</span> on it.} You can add more endpoints later, under Endpoints.</p>
           </header>
           <div class="gw-form__rows">
             <div class="gw-card gw-card--muted">
               <div class="gw-card__body">
                 <dl class="gw-kv gw-kv--dense">
-                  <div class="gw-kv__row"><dt class="gw-kv__key">Name</dt><dd class="gw-kv__value gw-mono">{{ cur.env }}</dd></div>
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Name</dt><dd class="gw-kv__value gw-mono">{{ firstEndpointSlug() }}</dd></div>
                   <div class="gw-kv__row"><dt class="gw-kv__key">Address</dt><dd class="gw-kv__value"><span class="gw-mono">{{ firstUrl() }}</span>, the one your AI apps connect to</dd></div>
                   <div class="gw-kv__row"><dt class="gw-kv__key">AI apps</dt><dd class="gw-kv__value">None yet. You connect one next.</dd></div>
                 </dl>
@@ -436,7 +436,7 @@
                 <div class="gw-grid gw-grid--auto" aria-busy="true">
                   <span class="gw-skeleton gw-skeleton--block" aria-hidden="true"></span>
                   <span class="gw-skeleton gw-skeleton--block" aria-hidden="true"></span>
-                  <p class="gw-sr-only" role="status">Loading endpoints</p>
+                  <p class="gw-text-small gw-fg-muted" id="endpoints-loading" role="status">Loading endpoints before saving the connection.</p>
                 </div>
               }
             }
@@ -451,14 +451,14 @@
             <h3 class="gw-form__legend" id="pv-title">What your AI apps can do</h3>
             <p class="gw-form__description">@for (part of literalParts(fm.text, fm.literals); track $index) {@if (part.code) {<span class="gw-mono">{{ part.text }}</span>} @else {{{ part.text }}}}</p>
           } @else {
-          <h3 class="gw-form__legend" id="pv-title">Tools agents get</h3>
-          <p class="gw-form__description">Default modes from the {{ typeName() }} connector.@if (mutatingTools().length) { Nothing writes without a person: @for (tool of mutatingTools(); track tool; let i = $index, last = $last) {@if (i && last) { and } @else if (i) {, }<span class="gw-mono">{{ tool }}</span>} {{ mutatingTools().length === 1 ? 'is' : 'are' }} Approval or Off, never more.}</p>
+            <h3 class="gw-form__legend" id="pv-title">Tools agents get</h3>
+            <p class="gw-form__description">Default modes from the {{ typeName() }} connector.@if (mutatingTools().length) { @for (tool of mutatingTools(); track tool; let i = $index, last = $last) {@if (i && last) { and } @else if (i) {, }<span class="gw-mono">{{ tool }}</span>} {{ mutatingTools().length === 1 ? 'starts' : 'start' }} in Approval or Off. You can explicitly choose Bypass in the endpoint's tool settings to run without approval.}</p>
           }
         </header>
         <div class="gw-form__rows" id="pv-rows">
           @if (first) {
-            <!-- The endpoint Save creates, named after the environment (prod: nothing waits for approval). -->
-            <ng-container [ngTemplateOutlet]="toolCard" [ngTemplateOutletContext]="{ slug: cur.env, preview: firstPreview() }" />
+            <!-- The starter endpoint's initial modes (prod: nothing waits for approval). -->
+            <ng-container [ngTemplateOutlet]="toolCard" [ngTemplateOutletContext]="{ slug: firstEndpointSlug(), preview: firstPreview() }" />
           }
           @for (p of first ? [] : previews(); track p.choice.slug) {
             @let slug = p.choice.slug;
@@ -494,7 +494,7 @@
           <p class="gw-form__note"><svg [lucideIcon]="n.icon" class="gw-icon"></svg>{{ n.text }}</p>
         }
         <button class="gw-btn gw-btn--ghost" type="button" (click)="go(3)"><svg lucideIcon="arrow-left" class="gw-icon"></svg> Back</button>
-        <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="saving() ? 'true' : null" [attr.aria-disabled]="saving() ? 'true' : null">@if (saving()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Save connection</button>
+        <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="saving() ? 'true' : null" [attr.aria-disabled]="saving() || endpointsState() === 'loading' || endpointsState() === 'idle' ? 'true' : null" [attr.aria-describedby]="endpointsState() === 'loading' || endpointsState() === 'idle' ? 'endpoints-loading' : null">@if (saving()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Save connection</button>
       </div>
     </form>
   </section>
@@ -572,7 +572,7 @@
       </header>
       <div class="gw-card__body">
         <dl class="gw-kv gw-kv--dense">
-          <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><span class="gw-mono">{{ done.endpoint }}</span> · <span class="gw-mono">{{ done.url }}</span> · created <time [attr.datetime]="time.iso(done.createdAt)" [title]="time.absolute(done.createdAt)">{{ time.relative(done.createdAt) }}</time></dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><span class="gw-mono">{{ done.endpoint }}</span> · <span class="gw-mono">{{ done.url }}</span> · {{ done.endpointCreated ? 'created' : 'connection added' }} <time [attr.datetime]="time.iso(done.createdAt)" [title]="time.absolute(done.createdAt)">{{ time.relative(done.createdAt) }}</time></dd></div>
           @if (readyTools(); as rt) {
             <div class="gw-kv__row"><dt class="gw-kv__key">Tools</dt><dd class="gw-kv__value">@for (part of literalParts(rt.text, rt.literals); track $index) {@if (part.code) {<span class="gw-mono">{{ part.text }}</span>} @else {{{ part.text }}}}</dd></div>
           }

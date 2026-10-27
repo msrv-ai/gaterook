@@ -74,6 +74,7 @@ import {
   secretWord,
   secretsSentence,
   sparkPoints,
+  starterEndpoint,
   stepperSteps,
   testSummary,
   testTarget,
@@ -179,7 +180,7 @@ export class ConnectionNewPage {
   });
   readonly step = signal<StepNumber>(1);
   protected readonly stepCount = STEP_NAMES.length;
-  protected readonly modeValue: Record<ToolMode, string> = { OFF: 'off', READ_ONLY: 'read', APPROVAL: 'approval' };
+  protected readonly modeValue: Record<ToolMode, string> = { OFF: 'off', READ_ONLY: 'read', APPROVAL: 'approval', BYPASS: 'bypass' };
   protected readonly errorText = errorText;
   protected readonly literalParts = literalParts;
   protected readonly activityQuery = activityQuery;
@@ -270,7 +271,7 @@ export class ConnectionNewPage {
       .filter((c) => !c.refusal && chosen.includes(c.slug))
       .map((c) => ({ choice: c, preview: toolPreview(tools, kind, dynamic, c) }));
   });
-  /** "sql_execute is Approval or Off, never more": the type's tools that change data. */
+  /** The type's tools that change data; their initial modes are shown before saving. */
   protected readonly mutatingTools = computed(() =>
     (this.typeDetail()?.tools ?? []).filter((t) => (t.nature ?? '').toLowerCase() !== 'read').map((t) => t.name),
   );
@@ -302,17 +303,28 @@ export class ConnectionNewPage {
         endpoints: this.chosen().filter((s) => this.choices().some((c) => c.slug === s && !c.refusal)),
       },
       this.firstRun(),
+      this.ready() ? (this.ready()!.endpointCreated ? null : this.ready()!.endpoint)
+        : this.reusesFirstEndpoint() ? this.firstEndpointSlug() : null,
     ),
   );
 
   // ─── First run (kit connection-new ?state=first-run) ───
 
   /**
-   * Nothing is set up yet — no connection, no endpoint: the wizard speaks to a beginner, the secret source waits
-   * behind its disclosure and step 4 creates the first endpoint, named after the connection's environment. Decided
+   * No connection exists yet, with no endpoint or only the empty default: the wizard speaks to a beginner and
+   * reuses the default when possible. The secret source waits behind its disclosure. Decided
    * from the core when the wizard opens (false until it answers, and for duplicates and the edit view).
    */
   readonly firstRun = signal(false);
+  private readonly firstEndpoint = signal<EndpointSummary | null>(null);
+  protected readonly firstEndpointSlug = computed(() => {
+    const endpoint = this.firstEndpoint();
+    const env = this.current().env;
+    // A live client or token must not cross the production boundary with an empty endpoint.
+    return endpoint && !(env === 'prod' && endpoint.env !== 'prod' && (endpoint.tokens.active > 0 || endpoint.clients.length > 0))
+      ? endpoint.slug : env;
+  });
+  protected readonly reusesFirstEndpoint = computed(() => this.firstEndpoint()?.slug === this.firstEndpointSlug());
   /** The master key has a backup (its date is known): the ready card doesn't ask for one. */
   protected readonly keyBackedUp = signal(false);
   /** After a first-run Save: what exists now, for the "<name> is ready" card that replaces the wizard. */
@@ -322,6 +334,7 @@ export class ConnectionNewPage {
     readonly endpoint: string;
     readonly url: string;
     readonly createdAt: string;
+    readonly endpointCreated: boolean;
     readonly tools: ReturnType<typeof toolsLine>;
     readonly local: boolean;
     readonly tested: boolean;
@@ -331,7 +344,7 @@ export class ConnectionNewPage {
   protected readonly firstPreview = computed(() => {
     const card = this.card();
     const kind = card?.kind ?? this.typeDetail()?.type.kind ?? 'built-in';
-    return firstRunPreview(this.typeDetail()?.tools ?? [], kind, card ? card.tools === null : false, this.current().env);
+    return firstRunPreview(this.typeDetail()?.tools ?? [], kind, card ? card.tools === null : false, this.current().env, this.firstEndpointSlug());
   });
   /** "sql_execute" in "Anything that changes data, like sql_execute, waits for your approval." */
   protected readonly firstMutating = computed(() => this.mutatingTools()[0] ?? null);
@@ -345,8 +358,9 @@ export class ConnectionNewPage {
   protected readonly secretTitle = computed(() => this.spec()?.secretFields[0]?.title ?? null);
   /** "Reads run at once. Anything that changes data, like sql_execute, waits for your approval. …" */
   protected readonly firstModes = computed(() => firstRunModes(this.firstPreview()));
-  /** The address of the endpoint Save creates: `http://127.0.0.1:7465/mcp/dev`. */
-  protected readonly firstUrl = computed(() => `http://${this.core.address()}/mcp/${this.current().env}`);
+  /** The address of the starter endpoint, or of the environment-specific endpoint Save will create. */
+  protected readonly firstUrl = computed(() => this.reusesFirstEndpoint()
+    ? this.firstEndpoint()!.url : `http://${this.core.address()}/mcp/${this.firstEndpointSlug()}`);
   /** Step 3's description in a first run: what that user may do "in the database", "on the server". */
   protected readonly firstTestText = computed(() => firstRunTestText(signInTarget(this.spec()?.type ?? '')));
   /** The ready card's Tools row, from the endpoint's tools as the core answered them. */
@@ -451,6 +465,7 @@ export class ConnectionNewPage {
     this.copied = null;
     this.ready.set(null);
     this.firstRun.set(false);
+    this.firstEndpoint.set(null);
     if (mode === 'add') void this.checkFirstRun(gen);
     if (mode === 'edit') {
       await this.startEdit(this.name()!, gen);
@@ -490,7 +505,7 @@ export class ConnectionNewPage {
   }
 
   /**
-   * First run or not (kit connection-new `?state=first-run`): nothing is set up yet, no connection and no endpoint.
+   * First run or not: no connections, with no endpoints or only the empty starter endpoint.
    * Without an answer it is the usual wizard; Save works the same, step 4 lists the endpoints once they load.
    */
   private async checkFirstRun(gen: number): Promise<void> {
@@ -499,9 +514,11 @@ export class ConnectionNewPage {
       if (gen !== this.gen) return;
       this.endpoints.set(endpoints);
       this.endpointsState.set('ready');
-      const first = isFirstRun(rows.total, endpoints.length);
+      if (!this.chosenTouched) this.chosen.set(initialEndpoints(this.choices(), this.current().env));
+      const first = isFirstRun(rows.total, endpoints);
       this.firstRun.set(first);
       if (!first) return;
+      this.firstEndpoint.set(starterEndpoint(endpoints));
       this.title.setTitle(`Add your first connection · ${PRODUCT}`);
       // The ready card asks for a backup of the key only while there is none.
       this.masterKey.status().then(
@@ -838,7 +855,7 @@ export class ConnectionNewPage {
     event?.preventDefault();
     const form = this.form();
     const spec = this.spec();
-    if (this.saving() || !form || !spec) return;
+    if (this.saving() || this.endpointsState() === 'loading' || this.endpointsState() === 'idle' || !form || !spec) return;
     if (!form.databaseSelectionValid()) {
       this.go(2);
       return;
@@ -895,14 +912,16 @@ export class ConnectionNewPage {
   }
 
   /**
-   * First run, once the connection exists: the first endpoint, named after its environment, with the connection on it
-   * (`POST /api/endpoints` from Empty, then `POST …/connections/{name}`); on prod nothing waits for approval — "prod
+   * First run, once the connection exists: reuse the empty default endpoint or create the first endpoint named after
+   * its environment. On prod nothing waits for approval — "prod
    * is read only by default" (kit), so the tools the core starts in Approval are set Off. Then the "<name> is ready"
    * card replaces the wizard. A step that fails says so and leads to the connection's own page.
    */
   private async finishFirstRun(v: ConnectionFormValue): Promise<void> {
-    const slug = v.env;
-    let url = `http://${this.core.address()}/mcp/${slug}`;
+    let slug = this.firstEndpointSlug();
+    let reuse = this.reusesFirstEndpoint();
+    let url = this.firstUrl();
+    let endpointCreated = false;
     const stop = (e: unknown) => {
       this.saving.set(false);
       this.toasts.show({
@@ -913,11 +932,30 @@ export class ConnectionNewPage {
       });
       void this.router.navigate(['/connections', v.name], { replaceUrl: true });
     };
-    try {
-      url = (await this.endpointsApi.create({ slug, startFrom: 'empty' })).url;
-    } catch (e) {
-      // An endpoint by that name appeared meanwhile: the connection goes on it like on any other.
-      if (!isApiError(e) || e.kind !== 'conflict') return stop(e);
+    if (reuse) {
+      try {
+        const preview = await this.endpointsApi.previewConnection(slug, v.name);
+        if (preview.refusal) {
+          if (v.env !== 'prod' || this.firstEndpoint()?.env === 'prod') {
+            return stop(new ApiError('unprocessable', 422, { detail: preview.refusal }));
+          }
+          // The core may know about a live grant or environment change since the wizard opened.
+          slug = 'prod';
+          reuse = false;
+          url = `http://${this.core.address()}/mcp/${slug}`;
+        }
+      } catch (e) {
+        return stop(e);
+      }
+    }
+    if (!reuse) {
+      try {
+        url = (await this.endpointsApi.create({ slug, startFrom: 'empty' })).url;
+        endpointCreated = true;
+      } catch (e) {
+        // An endpoint by that name appeared meanwhile: the core checks attachment again below.
+        if (!isApiError(e) || e.kind !== 'conflict') return stop(e);
+      }
     }
     try {
       await this.endpointsApi.addConnection(slug, v.name);
@@ -947,6 +985,7 @@ export class ConnectionNewPage {
       endpoint: slug,
       url,
       createdAt: new Date(this.time.now()).toISOString(),
+      endpointCreated,
       tools: toolsLine(groups ? mine(groups) : this.firstPreview().rows),
       local: this.secretLocal(),
       tested: this.summary()?.passed === true,
@@ -959,16 +998,16 @@ export class ConnectionNewPage {
       this.toasts.show({
         tone: 'warning',
         title: `Connection ${v.name} saved`,
-        body: `Endpoint ${slug} created, but ${list(notOff)} still ${one ? 'waits' : 'wait'} for approval there. Turn ${one ? 'it' : 'them'} off on the endpoint.`,
+        body: `Added to endpoint ${slug}, but ${list(notOff)} still ${one ? 'waits' : 'wait'} for approval there. Turn ${one ? 'it' : 'them'} off on the endpoint.`,
       });
     } else if (v.env === 'prod' && !groups) {
       this.toasts.show({
         tone: 'warning',
         title: `Connection ${v.name} saved`,
-        body: `Endpoint ${slug} created. Its tools couldn't be read back: check that nothing waits for approval there.`,
+        body: `Added to endpoint ${slug}. Its tools couldn't be read back: check that nothing waits for approval there.`,
       });
     } else {
-      this.toasts.show({ tone: 'success', ...firstRunToast(v.name, slug) });
+      this.toasts.show({ tone: 'success', ...firstRunToast(v.name, slug, endpointCreated) });
     }
   }
 

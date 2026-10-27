@@ -101,6 +101,8 @@ export class ClientsPage {
   private readonly doc = inject(DOCUMENT);
   private readonly route = inject(ActivatedRoute);
   private readonly injector = inject(Injector);
+  private readonly fragment = toSignal(this.route.fragment, { initialValue: this.route.snapshot.fragment });
+  protected readonly clientAnchor = (id: ClientId) => `${anchorBase(id)}-t`;
 
   /** Placeholders only when the first answer is slow. */
   protected readonly slow = signal(false);
@@ -113,8 +115,13 @@ export class ClientsPage {
   protected readonly tunnelBusy = signal(false);
 
   protected readonly cards = this.data.cards;
+  protected readonly selectedCard = computed(() => this.cards().find((c) => this.clientAnchor(c.client) === this.fragment()) ?? null);
   protected readonly counts = computed(() => headerCounts(this.cards()));
-  protected readonly layout = computed(() => clientsLayout(this.cards(), tableLayout));
+  protected readonly layout = computed(() => {
+    const cards = this.cards();
+    const selected = this.selectedCard();
+    return clientsLayout(selected ? [selected, ...cards.filter((c) => c !== selected)] : cards, tableLayout);
+  });
   protected readonly none = computed(() => this.cards().length > 0 && noClients(this.cards()));
   protected readonly endpoints = this.data.endpointList;
   protected readonly hand = computed(() => handTokens(this.data.tokens(), this.cards()));
@@ -174,9 +181,8 @@ export class ClientsPage {
     });
     // The core came back (it was away, or another instance answers): everything may be stale.
     // Arriving with an app's anchor (Overview's tiles and guide: `#cl-cu-t`): its review, row or card, once loaded.
-    const fragment = toSignal(this.route.fragment, { initialValue: this.route.snapshot.fragment });
     effect(() => {
-      const f = fragment();
+      const f = this.fragment();
       if (!f || !this.data.loaded() || !this.stageKnown()) return;
       untracked(() => this.arrive(f));
     });
@@ -229,7 +235,10 @@ export class ClientsPage {
     if (!card) return;
     const base = anchorBase(client);
     const st = this.stage();
-    if (st === 'setup' && !card.links.length && card.status !== 'not-installed') {
+    if (this.none()) {
+      // With no detected apps, a selected missing app keeps its installation card above the empty state.
+      this.focus(null, client);
+    } else if (st === 'setup' && !card.links.length && card.status !== 'not-installed') {
       this.review.set(client);
       this.focus(`${base}-s-t`);
     } else if (st !== 'in-use' && !card.links.length) {

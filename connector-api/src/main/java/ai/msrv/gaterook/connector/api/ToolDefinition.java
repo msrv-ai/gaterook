@@ -18,8 +18,8 @@ public record ToolDefinition(String name, String title, String description, Json
   /** {@code MIXED}: classify() decides per call (ssh_run, http_request). */
   public enum Nature { READ, MUTATION, MIXED }
 
-  /** There is no "allow writes" mode anywhere. */
-  public enum Mode { OFF, READ_ONLY, APPROVAL }
+  /** BYPASS explicitly permits execution without approval; policy denials and limits still apply. */
+  public enum Mode { OFF, READ_ONLY, APPROVAL, BYPASS }
 
   public enum ResultShape { TABLE, JSON, TEXT, LOGS }
 

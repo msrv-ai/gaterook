@@ -74,6 +74,12 @@ class ModularityTests {
             ai.msrv.gaterook.core.invocation.ConnectorInvoker.Approval.class)
         .check(classes);
     com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses().that()
+        .doNotHaveFullyQualifiedName("ai.msrv.gaterook.core.mcp.internal.ToolCallHandler")
+        .should().callMethod(ai.msrv.gaterook.core.invocation.ConnectorInvoker.class, "executeBypass",
+            ai.msrv.gaterook.core.invocation.ConnectorInvoker.Request.class,
+            ai.msrv.gaterook.connector.api.PreparedAction.class)
+        .check(classes);
+    com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses().that()
         .doNotHaveFullyQualifiedName(ai.msrv.gaterook.core.invocation.ConnectorInvoker.class.getName())
         .should().callConstructorWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
             com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner(

@@ -170,13 +170,15 @@ export function usesTools(rows: readonly { readonly name: string; readonly mode:
   const of = (mode: string) => rows.filter((r) => r.mode === mode).map((r) => r.name);
   const reads = of('READ_ONLY');
   const approval = of('APPROVAL');
+  const bypass = of('BYPASS');
   const off = of('OFF');
   const parts = [
     reads.length ? `${andList(reads)} ${reads.length === 1 ? 'runs' : 'run'} at once (read only).` : null,
     approval.length ? `${andList(approval)} ${approval.length === 1 ? 'waits' : 'wait'} for your approval.` : null,
+    bypass.length ? `${andList(bypass)} ${bypass.length === 1 ? 'runs' : 'run'} without approval (Bypass); policy limits still apply.` : null,
     off.length ? `${andList(off)} ${off.length === 1 ? 'is' : 'are'} off.` : null,
   ].filter((p): p is string => !!p);
-  return { text: parts.join(' ') || 'No tools on yet.', literals: [...reads, ...approval, ...off] };
+  return { text: parts.join(' ') || 'No tools on yet.', literals: [...reads, ...approval, ...bypass, ...off] };
 }
 
 // ── Connect, Disconnect ─────────────────────────────────────────────────────────────────────────────────────────

@@ -13,11 +13,9 @@ import java.util.Optional;
 import tools.jackson.databind.JsonNode;
 
 /**
- * The context of an approved call (ARCHITECTURE.md §3 {@code ExecContext.approved()}, §9 "Every mutation requires
- * approval"): the only {@link ExecContext} that answers {@code approved() == true}, with the approval's id, the
- * prepared state and the approved payload the connector must run instead of the arguments. Built only by
- * {@code ConnectorInvoker.executeApproved}, which only the approval executor calls (an architecture test holds that).
- * Everything else is the ordinary call context.
+ * The context of a core-authorized action, from a human approval or an explicit Bypass tool mode. The connector
+ * executes the exact prepared payload instead of the arguments. Bypass carries no approval id and is recorded as
+ * Bypass in the call's policy audit. Only ConnectorInvoker constructs this context.
  */
 public final class ApprovedContext implements ExecContext {
 
@@ -28,7 +26,7 @@ public final class ApprovedContext implements ExecContext {
 
   public ApprovedContext(CallContext call, String approvalId, JsonNode preparedState, JsonNode approvedPayload) {
     this.call = Objects.requireNonNull(call, "call");
-    this.approvalId = Objects.requireNonNull(approvalId, "approvalId");
+    this.approvalId = approvalId;
     this.preparedState = preparedState;
     this.approvedPayload = approvedPayload;
   }
@@ -40,7 +38,7 @@ public final class ApprovedContext implements ExecContext {
 
   @Override
   public Optional<String> approvalId() {
-    return Optional.of(approvalId);
+    return Optional.ofNullable(approvalId);
   }
 
   @Override

@@ -248,6 +248,7 @@ public class CoreToolsHandler {
     return switch (m) {
       case READ_ONLY -> "read-only";
       case APPROVAL -> "approval";
+      case BYPASS -> "bypass";
       case OFF -> "off";
     };
   }

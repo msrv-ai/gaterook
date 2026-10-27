@@ -54,7 +54,7 @@ public class PlaygroundService {
   /**
    * One tool of the endpoint, Off ones too (they block Run with their reason).
    *
-   * @param mode          the strictest mode a call of the tool meets: {@code APPROVAL}, {@code READ_ONLY} or
+   * @param mode          the strictest mode a call of the tool meets: {@code APPROVAL}, {@code READ_ONLY}, {@code BYPASS} or
    *                      {@code OFF} ({@code approval_status}, which has none: {@code ALWAYS})
    * @param connections   the connections whose pair is on; the {@code connection} argument picks one
    * @param needsApproval a call waits for a person ("This call needs approval" before it runs)
@@ -203,14 +203,17 @@ public class PlaygroundService {
     EndpointSnapshot.Pair first = pairs.get(0);
     boolean approval = pairs.stream().anyMatch(p -> p.mode() == Mode.APPROVAL);
     boolean on = pairs.stream().anyMatch(EndpointSnapshot.Pair::on);
-    String mode = approval ? Mode.APPROVAL.name() : on ? Mode.READ_ONLY.name() : Mode.OFF.name();
+    boolean read = pairs.stream().anyMatch(p -> p.mode() == Mode.READ_ONLY);
+    String mode = approval ? Mode.APPROVAL.name() : read ? Mode.READ_ONLY.name()
+        : on ? Mode.BYPASS.name() : Mode.OFF.name();
     List<String> connections = pairs.stream().filter(EndpointSnapshot.Pair::on)
         .map(EndpointSnapshot.Pair::connectionName).sorted().distinct().toList();
     Optional<String> blocked = blockedReason(s);
     String reason = blocked.orElse(!on ? name + " is Off on " + s.slug() + ". Turn it on in the endpoint's Tools to "
         + "call it." : published.isEmpty() ? name + " isn't published on " + s.slug() + ": another tool has its name."
         : null);
-    boolean needsApproval = approval || first.tool().mutating();
+    boolean needsApproval = approval || pairs.stream().anyMatch(p -> p.on() && p.mode() != Mode.BYPASS
+        && p.tool().mutating());
     JsonNode schema = published.<JsonNode>map(ToolCatalog.PublishedTool::inputSchema)
         .orElse(first.tool().inputSchema());
     return new Tool(name, first.tool().title(), first.tool().description(), mode, reason == null, reason,

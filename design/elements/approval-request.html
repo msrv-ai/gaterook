@@ -92,7 +92,7 @@
         <div class="gw-approval-request__facts">
           <section class="gw-approval-request__section" aria-labelledby="ar-sql-why">
             <h4 class="gw-text-h3" id="ar-sql-why">Why approval is needed</h4>
-            <p class="gw-text-body-read"><code class="gw-code">sql_execute</code> on <code class="gw-code">dev-db</code>: DML requires approval. Statements that change rows always wait for a human.</p>
+            <p class="gw-text-body-read"><code class="gw-code">sql_execute</code> on <code class="gw-code">dev-db</code>: DML requires approval. This statement changes rows and needs your approval.</p>
             <p class="gw-approval-request__rule gw-text-caption gw-fg-muted">Rule <code class="gw-code">dev.sql.write-approval</code> <a class="gw-link" href="../pages/policies.html">Open in Policies<span class="gw-sr-only">: rule dev.sql.write-approval</span></a></p>
           </section>
           <section class="gw-approval-request__section" aria-labelledby="ar-sql-impact">
@@ -523,7 +523,7 @@
         <div class="gw-approval-request__facts">
           <section class="gw-approval-request__section" aria-labelledby="ar-hidden-why">
             <h4 class="gw-text-h3" id="ar-hidden-why">Why approval is needed</h4>
-            <p class="gw-text-body-read"><code class="gw-code">sql_execute</code> on <code class="gw-code">dev-db</code>: DML requires approval. Statements that change rows always wait for a human.</p>
+            <p class="gw-text-body-read"><code class="gw-code">sql_execute</code> on <code class="gw-code">dev-db</code>: DML requires approval. This statement changes rows and needs your approval.</p>
             <p class="gw-approval-request__rule gw-text-caption gw-fg-muted">Rule <code class="gw-code">dev.sql.write-approval</code> <a class="gw-link" href="../pages/policies.html">Open in Policies<span class="gw-sr-only">: rule dev.sql.write-approval</span></a></p>
           </section>
           <section class="gw-approval-request__section" aria-labelledby="ar-hidden-impact">
@@ -1256,7 +1256,7 @@
         <div class="gw-approval-request__facts">
           <section class="gw-approval-request__section" aria-labelledby="ar-failed-why">
             <h4 class="gw-text-h3" id="ar-failed-why">Why approval is needed</h4>
-            <p class="gw-text-body-read"><code class="gw-code">ssh_run</code> on <code class="gw-code">dev-vm</code>: read-only runbooks run at once, a runbook that changes the host always waits for a human.</p>
+            <p class="gw-text-body-read"><code class="gw-code">ssh_run</code> on <code class="gw-code">dev-vm</code>: this runbook changes the host and needs your approval.</p>
             <p class="gw-approval-request__rule gw-text-caption gw-fg-muted">Rule <code class="gw-code">dev.ssh.write-approval</code> <a class="gw-link" href="../pages/policies.html">Open in Policies<span class="gw-sr-only">: rule dev.ssh.write-approval</span></a></p>
           </section>
           <section class="gw-approval-request__section" aria-labelledby="ar-failed-impact">

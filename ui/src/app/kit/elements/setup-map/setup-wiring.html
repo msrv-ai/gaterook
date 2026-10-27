@@ -63,7 +63,7 @@
           }
           <div class="gw-kv__row">
             <dt class="gw-kv__key">Tools</dt>
-            <dd class="gw-kv__value"><span class="gw-setup-map__chips"><span class="gw-mode gw-mode--read"><svg lucideIcon="eye" class="gw-icon"></svg>{{ w.tools.read }} read only</span><span class="gw-mode gw-mode--approval"><svg lucideIcon="user-check" class="gw-icon"></svg>{{ w.tools.approval }} approval</span><span class="gw-mode gw-mode--off"><svg lucideIcon="circle-off" class="gw-icon"></svg>{{ w.tools.off }} off</span></span></dd>
+            <dd class="gw-kv__value"><span class="gw-setup-map__chips"><span class="gw-mode gw-mode--read"><svg lucideIcon="eye" class="gw-icon"></svg>{{ w.tools.read }} read only</span><span class="gw-mode gw-mode--approval"><svg lucideIcon="user-check" class="gw-icon"></svg>{{ w.tools.approval }} approval</span>@if (w.tools.bypass) {<span class="gw-mode gw-mode--bypass"><svg lucideIcon="shield-off" class="gw-icon"></svg>{{ w.tools.bypass }} bypass</span>}<span class="gw-mode gw-mode--off"><svg lucideIcon="circle-off" class="gw-icon"></svg>{{ w.tools.off }} off</span></span></dd>
           </div>
           <div class="gw-kv__row">
             <dt class="gw-kv__key">Policy</dt>

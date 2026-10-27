@@ -141,8 +141,8 @@
       <div class="gw-alert gw-alert--info">
         <i class="gw-icon gw-alert__icon" data-lucide="user-check"></i>
         <div class="gw-alert__content">
-          <p class="gw-alert__title">Every mutation needs a human approval</p>
-          <p class="gw-alert__body">This can't be turned off on any environment. Database writes, restarts, runbooks that change state and HTTP requests other than GET always wait for a person. Policies only add limits on top; each tool's mode (Off, Read only or Approval) is set per endpoint.</p>
+          <p class="gw-alert__title">Mutations need approval by default</p>
+          <p class="gw-alert__body">Database writes, restarts, runbooks that change state and HTTP requests other than GET wait for a person by default. Set a tool to Bypass on its endpoint to run it without approval. Policy denials and limits still apply in every mode.</p>
           <div class="gw-alert__actions"><a class="gw-btn gw-btn--link gw-btn--sm" href="endpoints.html">Set tool modes in Endpoints</a></div>
         </div>
       </div>
@@ -181,7 +181,7 @@
                 </header>
                 <div class="gw-form__rows">
                   <dl class="gw-kv gw-kv--dense">
-                    <div class="gw-kv__row"><dt class="gw-kv__key">INSERT, UPDATE, DELETE, DDL</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always · rule <code class="gw-code">dev.sql.write-approval</code></span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">INSERT, UPDATE, DELETE, DDL</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">unless Bypass · rule <code class="gw-code">dev.sql.write-approval</code></span></dd></div>
                     <!-- A lock, not a checkbox: reads always run READ ONLY and end with ROLLBACK, on every environment. -->
                     <div class="gw-kv__row"><dt class="gw-kv__key">Run queries in a read-only transaction</dt><dd class="gw-kv__value"><span class="gw-badge"><i class="gw-icon gw-badge__icon" data-lucide="lock"></i>Always on</span> <span class="gw-text-caption gw-fg-muted"><span class="gw-mono">sql_query</span> opens READ ONLY transactions, so the database refuses a SELECT that calls a function that writes</span></dd></div>
                   </dl>
@@ -221,7 +221,7 @@
                     <input class="gw-checkbox__input" type="checkbox" id="pd-sql-ddl" aria-describedby="pd-sql-ddl-hint">
                     <span class="gw-checkbox__control" aria-hidden="true"></span>
                     <label class="gw-checkbox__label" for="pd-sql-ddl">Refuse DDL: CREATE, ALTER, DROP, TRUNCATE</label>
-                    <p class="gw-checkbox__hint" id="pd-sql-ddl-hint">Off on dev: DDL waits for approval like any other mutation. When on, it is denied before anyone is asked.</p>
+                    <p class="gw-checkbox__hint" id="pd-sql-ddl-hint">Off on dev: DDL waits for approval unless its tool uses Bypass. When on, it is denied before anyone is asked.</p>
                   </div>
                   <!-- Settings the core has beyond this layout (its policy schema), out of the way until asked for. -->
                   <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="dev-sql-more">More SQL settings <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i></button></div>
@@ -257,15 +257,15 @@
                 </header>
                 <div class="gw-form__rows">
                   <dl class="gw-kv gw-kv--dense">
-                    <div class="gw-kv__row"><dt class="gw-kv__key">Runbooks that change state</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always · rule <code class="gw-code">dev.ssh.write-approval</code></span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Runbooks that change state</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">unless Bypass · rule <code class="gw-code">dev.ssh.write-approval</code></span></dd></div>
                   </dl>
                   <div class="gw-checkbox">
                     <input class="gw-checkbox__input" type="checkbox" id="pd-ssh-exec" aria-describedby="pd-ssh-exec-hint">
                     <span class="gw-checkbox__control" aria-hidden="true"></span>
                     <label class="gw-checkbox__label" for="pd-ssh-exec">Allow arbitrary commands with <span class="gw-mono">ssh_exec</span></label>
-                    <p class="gw-checkbox__hint" id="pd-ssh-exec-hint">A separate permission, off by default and never inherited. Even when allowed, every command waits for approval.</p>
+                    <p class="gw-checkbox__hint" id="pd-ssh-exec-hint">A separate permission, off by default and never inherited. Commands need approval unless ssh_exec uses Bypass.</p>
                   </div>
-                  <!-- A runbook marked Read only runs at once in a Read only tool mode; every other runbook waits for approval. -->
+                  <!-- A runbook marked Read only runs at once in a Read only tool mode; every other runbook waits for approval unless the tool uses Bypass. -->
                   <ul class="gw-stack gw-stack--sm" aria-label="Runbooks on dev">
                     <li class="gw-card gw-card--muted">
                       <div class="gw-card__header">
@@ -383,7 +383,7 @@
                 </header>
                 <div class="gw-form__rows">
                   <dl class="gw-kv gw-kv--dense">
-                    <div class="gw-kv__row"><dt class="gw-kv__key">rollout restart, apply</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always · rule <code class="gw-code">dev.k8s.write-approval</code></span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">rollout restart, apply</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">unless Bypass · rule <code class="gw-code">dev.k8s.write-approval</code></span></dd></div>
                   </dl>
                   <div class="gw-field">
                     <label class="gw-field__label" for="pd-k8s-verbs">Allowed verbs</label>
@@ -401,7 +401,7 @@
                         <button class="gw-input-group__addon" type="button" aria-label="Add verb on dev"><i class="gw-icon" data-lucide="plus"></i></button>
                       </div>
                     </div>
-                    <p class="gw-field__hint" id="pd-k8s-verbs-hint"><span class="gw-mono">rollout restart</span> and <span class="gw-mono">apply</span> change the cluster and always need approval. <span class="gw-mono">delete</span>, <span class="gw-mono">scale</span> and <span class="gw-mono">exec</span> are denied.</p>
+                    <p class="gw-field__hint" id="pd-k8s-verbs-hint"><span class="gw-mono">rollout restart</span> and <span class="gw-mono">apply</span> change the cluster and need approval unless their tool uses Bypass. <span class="gw-mono">delete</span>, <span class="gw-mono">scale</span> and <span class="gw-mono">exec</span> are denied.</p>
                   </div>
                   <div class="gw-field">
                     <label class="gw-field__label" for="pd-k8s-res">Allowed resources</label>
@@ -479,7 +479,7 @@
                     </div>
                   </div>
                   <dl class="gw-kv">
-                    <div class="gw-kv__row"><dt class="gw-kv__key">Changes to cloud resources</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always, if a tool can make one</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Changes to cloud resources</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">unless Bypass, if a tool can make one</span></dd></div>
                     <div class="gw-kv__row"><dt class="gw-kv__key">Services, regions, resources</dt><dd class="gw-kv__value">None yet <span class="gw-fg-muted">· per environment</span></dd></div>
                   </dl>
                 </div>
@@ -501,7 +501,7 @@
                     </div>
                   </div>
                   <dl class="gw-kv">
-                    <div class="gw-kv__row"><dt class="gw-kv__key">POST, PUT, PATCH or DELETE</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always · rule <code class="gw-code">dev.http.write-approval</code></span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">POST, PUT, PATCH or DELETE</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">unless Bypass · rule <code class="gw-code">dev.http.write-approval</code></span></dd></div>
                     <div class="gw-kv__row"><dt class="gw-kv__key">Allowed base URLs</dt><dd class="gw-kv__value">None <span class="gw-fg-muted">· per environment</span></dd></div>
                     <div class="gw-kv__row"><dt class="gw-kv__key">Cloud metadata</dt><dd class="gw-kv__value">Always blocked: <span class="gw-mono">169.254.169.254</span>, <span class="gw-mono">fd00:ec2::254</span></dd></div>
                     <div class="gw-kv__row"><dt class="gw-kv__key">Private networks</dt><dd class="gw-kv__value">Blocked <span class="gw-fg-muted">· unless allowed below, per environment</span></dd></div>
@@ -763,7 +763,7 @@
                 </header>
                 <div class="gw-form__rows">
                   <dl class="gw-kv gw-kv--dense">
-                    <div class="gw-kv__row"><dt class="gw-kv__key">INSERT, UPDATE, DELETE</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always · rule <code class="gw-code">stage.sql.write-approval</code></span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">INSERT, UPDATE, DELETE</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">unless Bypass · rule <code class="gw-code">stage.sql.write-approval</code></span></dd></div>
                     <div class="gw-kv__row"><dt class="gw-kv__key">Run queries in a read-only transaction</dt><dd class="gw-kv__value"><span class="gw-badge"><i class="gw-icon gw-badge__icon" data-lucide="lock"></i>Always on</span> <span class="gw-text-caption gw-fg-muted"><span class="gw-mono">sql_query</span> opens READ ONLY transactions, so the database refuses a SELECT that calls a function that writes</span></dd></div>
                   </dl>
                   <div class="gw-form__row">
@@ -848,7 +848,7 @@
                     </div>
                   </div>
                   <dl class="gw-kv">
-                    <div class="gw-kv__row"><dt class="gw-kv__key">Runbooks that change state</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Runbooks that change state</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">unless Bypass</span></dd></div>
                     <div class="gw-kv__row"><dt class="gw-kv__key">Arbitrary commands</dt><dd class="gw-kv__value">Not allowed <span class="gw-fg-muted">· per environment, never inherited</span></dd></div>
                     <div class="gw-kv__row"><dt class="gw-kv__key">Command timeout</dt><dd class="gw-kv__value gw-tabular">30 s <span class="gw-fg-muted">· inherited from dev</span></dd></div>
                     <div class="gw-kv__row"><dt class="gw-kv__key">Max output</dt><dd class="gw-kv__value gw-tabular">256 KB <span class="gw-fg-muted">· inherited from dev</span></dd></div>
@@ -872,7 +872,7 @@
                     </div>
                   </div>
                   <dl class="gw-kv">
-                    <div class="gw-kv__row"><dt class="gw-kv__key">rollout restart, apply</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">rollout restart, apply</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">unless Bypass</span></dd></div>
                     <div class="gw-kv__row"><dt class="gw-kv__key">Allowed verbs</dt><dd class="gw-kv__value"><span class="gw-mono">get, list, describe, logs, rollout restart, apply</span> <span class="gw-fg-muted">· inherited from dev</span></dd></div>
                     <div class="gw-kv__row"><dt class="gw-kv__key">Allowed resources</dt><dd class="gw-kv__value"><span class="gw-mono">deployments, pods, services, configmaps, events, jobs</span> <span class="gw-fg-muted">· inherited from dev</span></dd></div>
                     <div class="gw-kv__row"><dt class="gw-kv__key">Namespaces</dt><dd class="gw-kv__value">None yet <span class="gw-fg-muted">· per environment</span></dd></div>
@@ -888,7 +888,7 @@
                 </header>
                 <div class="gw-form__rows">
                   <dl class="gw-kv gw-kv--dense">
-                    <div class="gw-kv__row"><dt class="gw-kv__key">Changes to cloud resources</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always · rule <code class="gw-code">stage.cloud.write-approval</code></span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Changes to cloud resources</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">unless Bypass · rule <code class="gw-code">stage.cloud.write-approval</code></span></dd></div>
                   </dl>
                   <div class="gw-field">
                     <label class="gw-field__label" for="ps-cloud-services">Allowed services</label>
@@ -969,7 +969,7 @@
                 </header>
                 <div class="gw-form__rows">
                   <dl class="gw-kv gw-kv--dense">
-                    <div class="gw-kv__row"><dt class="gw-kv__key">POST, PUT, PATCH or DELETE</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always · rule <code class="gw-code">stage.http.write-approval</code></span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">POST, PUT, PATCH or DELETE</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">unless Bypass · rule <code class="gw-code">stage.http.write-approval</code></span></dd></div>
                   </dl>
                   <div class="gw-field">
                     <label class="gw-field__label" for="ps-http-urls">Allowed base URLs</label>
@@ -1285,7 +1285,7 @@
                 </header>
                 <div class="gw-form__rows">
                   <dl class="gw-kv gw-kv--dense">
-                    <div class="gw-kv__row"><dt class="gw-kv__key">INSERT, UPDATE, DELETE</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always · rule <code class="gw-code">prod.sql.write-approval</code></span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">INSERT, UPDATE, DELETE</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">unless Bypass · rule <code class="gw-code">prod.sql.write-approval</code></span></dd></div>
                     <div class="gw-kv__row"><dt class="gw-kv__key">Run queries in a read-only transaction</dt><dd class="gw-kv__value"><span class="gw-badge"><i class="gw-icon gw-badge__icon" data-lucide="lock"></i>Always on</span> <span class="gw-text-caption gw-fg-muted"><span class="gw-mono">sql_query</span> opens READ ONLY transactions, so the database refuses a SELECT that calls a function that writes</span></dd></div>
                   </dl>
                   <div class="gw-form__row">
@@ -1361,13 +1361,13 @@
                 </header>
                 <div class="gw-form__rows">
                   <dl class="gw-kv gw-kv--dense">
-                    <div class="gw-kv__row"><dt class="gw-kv__key">Runbooks that change state</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always · rule <code class="gw-code">prod.ssh.write-approval</code></span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Runbooks that change state</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">unless Bypass · rule <code class="gw-code">prod.ssh.write-approval</code></span></dd></div>
                   </dl>
                   <div class="gw-checkbox">
                     <input class="gw-checkbox__input" type="checkbox" id="pp-ssh-exec" aria-describedby="pp-ssh-exec-hint">
                     <span class="gw-checkbox__control" aria-hidden="true"></span>
                     <label class="gw-checkbox__label" for="pp-ssh-exec">Allow arbitrary commands with <span class="gw-mono">ssh_exec</span></label>
-                    <p class="gw-checkbox__hint" id="pp-ssh-exec-hint">Set on prod only, never inherited; off by default on prod. Allowing it asks you to confirm, and every command still waits for approval.</p>
+                    <p class="gw-checkbox__hint" id="pp-ssh-exec-hint">Set on prod only, never inherited; off by default on prod. Allowing it asks you to confirm. Commands need approval unless ssh_exec uses Bypass.</p>
                   </div>
                   <ul class="gw-stack gw-stack--sm" aria-label="Runbooks on prod">
                     <!-- A runbook marked Read only runs at once in a Read only tool mode; restart-api, not marked, waits for approval with a comment. -->
@@ -1479,7 +1479,7 @@
                     </div>
                   </div>
                   <dl class="gw-kv">
-                    <div class="gw-kv__row"><dt class="gw-kv__key">Mutating verbs</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always, if you allow one</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Mutating verbs</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">unless Bypass, if you allow one</span></dd></div>
                     <div class="gw-kv__row"><dt class="gw-kv__key">Allowed verbs</dt><dd class="gw-kv__value"><span class="gw-mono">get, list, describe, logs</span> <span class="gw-fg-muted">· prod default, dev also allows rollout restart and apply</span></dd></div>
                     <div class="gw-kv__row"><dt class="gw-kv__key">Allowed resources</dt><dd class="gw-kv__value"><span class="gw-mono">deployments, pods, events</span> <span class="gw-fg-muted">· prod default, dev also allows services, configmaps and jobs</span></dd></div>
                     <div class="gw-kv__row"><dt class="gw-kv__key">Namespaces</dt><dd class="gw-kv__value">None yet <span class="gw-fg-muted">· per environment</span></dd></div>
@@ -1503,7 +1503,7 @@
                     </div>
                   </div>
                   <dl class="gw-kv">
-                    <div class="gw-kv__row"><dt class="gw-kv__key">Changes to cloud resources</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always, if a tool can make one</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Changes to cloud resources</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">unless Bypass, if a tool can make one</span></dd></div>
                     <div class="gw-kv__row"><dt class="gw-kv__key">Services, regions, resources</dt><dd class="gw-kv__value">None yet <span class="gw-fg-muted">· per environment</span></dd></div>
                   </dl>
                 </div>
@@ -1525,7 +1525,7 @@
                     </div>
                   </div>
                   <dl class="gw-kv">
-                    <div class="gw-kv__row"><dt class="gw-kv__key">POST, PUT, PATCH or DELETE</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always · rule <code class="gw-code">prod.http.write-approval</code></span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">POST, PUT, PATCH or DELETE</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">unless Bypass · rule <code class="gw-code">prod.http.write-approval</code></span></dd></div>
                     <div class="gw-kv__row"><dt class="gw-kv__key">Allowed base URLs</dt><dd class="gw-kv__value">None <span class="gw-fg-muted">· per environment</span></dd></div>
                     <div class="gw-kv__row"><dt class="gw-kv__key">Cloud metadata</dt><dd class="gw-kv__value">Always blocked: <span class="gw-mono">169.254.169.254</span>, <span class="gw-mono">fd00:ec2::254</span></dd></div>
                     <div class="gw-kv__row"><dt class="gw-kv__key">Private networks</dt><dd class="gw-kv__value">Blocked <span class="gw-fg-muted">· unless allowed below, per environment</span></dd></div>
@@ -1798,7 +1798,7 @@
         <header class="gw-dialog__header">
           <span class="gw-icon-tile"><i class="gw-icon" data-lucide="terminal"></i></span>
           <h2 class="gw-dialog__title" id="pol-dlg-prod-exec-title">Allow any shell command on prod-vm?</h2>
-          <p class="gw-dialog__description" id="pol-dlg-prod-exec-desc">Agents could ask to run anything on <span class="gw-mono">prod-vm</span>, not only its two runbooks. Every command still waits for your approval with a comment, but a long command is easy to approve by mistake.</p>
+          <p class="gw-dialog__description" id="pol-dlg-prod-exec-desc">Agents could ask to run anything on <span class="gw-mono">prod-vm</span>, not only its two runbooks. Commands need your approval unless ssh_exec uses Bypass. Policy denials and limits still apply.</p>
           <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
         </header>
         <footer class="gw-dialog__footer">

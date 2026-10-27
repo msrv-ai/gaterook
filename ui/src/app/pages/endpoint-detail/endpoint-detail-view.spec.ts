@@ -70,6 +70,18 @@ describe('endpoint detail view', () => {
       );
     });
 
+    it('names active Bypass tools without claiming all writes wait for approval', () => {
+      const endpoint = summary({ tools: { read: 3, approval: 1, off: 0, bypass: 1 } });
+      expect(headerDescription(endpoint, 2)).toBe(
+        'Local development on 2 connections. 1 tool in Bypass runs without approval, including changes to data. Policy denials and limits still apply.',
+      );
+      expect(headerDescription({ ...endpoint, tools: { ...endpoint.tools, bypass: 2 } }, 2)).toContain('2 tools in Bypass run without approval');
+      expect(headerDescription({ ...endpoint, status: 'disabled' }, 2)).toContain('Disabled: every call gets an error');
+      expect(headerDescription({ ...endpoint, status: 'disabled' }, 2)).not.toContain('runs without approval');
+      expect(headerDescription({ ...endpoint, access: 'read-only' }, 2)).toContain('Read only: agents read');
+      expect(headerDescription({ ...endpoint, access: 'read-only' }, 2)).not.toContain('runs without approval');
+    });
+
     it('shows Running or Disabled, the served revisions oldest first, and the sign-in badge', () => {
       expect(statusLook(summary())).toEqual({ tone: 'success', icon: 'circle-check', text: 'Running' });
       expect(statusLook(summary({ status: 'disabled' })).text).toBe('Disabled');

@@ -120,7 +120,7 @@ export function tool(name: string, mode: ToolMode, over: Partial<ToolRow> = {}):
     mode,
     storedMode: mode,
     readOnlyAllowed: readOnly,
-    reason: readOnly ? null : 'Mutates data: approval or off',
+    reason: readOnly ? null : 'Mutates data: approval, bypass or off',
     readOnlyConfirmed: false,
     definitionHash: `hash-${name}`,
     overrides: null,

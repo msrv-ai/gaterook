@@ -12,7 +12,11 @@ import tools.jackson.databind.JsonNode;
 public final class EndpointDtos {
 
   /** {@code read}: Read only pairs; tools are counted per tool × connection, core tools included. */
-  public record ToolCounts(int read, int approval, int off) {}
+  public record ToolCounts(int read, int approval, int off, int bypass) {
+    public ToolCounts(int read, int approval, int off) {
+      this(read, approval, off, 0);
+    }
+  }
 
   public record ConnectionCounts(int total, Map<String, Integer> byEnv) {}
 
@@ -53,7 +57,7 @@ public final class EndpointDtos {
       byEnv.put(e.id(), s.connectionsByEnv().getOrDefault(e, 0));
     }
     return new Summary(s.slug(), s.description(), s.url(), s.env().id(), s.access(), s.status(),
-        new ToolCounts(s.tools().read(), s.tools().approval(), s.tools().off()),
+        new ToolCounts(s.tools().read(), s.tools().approval(), s.tools().off(), s.tools().bypass()),
         new ConnectionCounts(s.connections(), byEnv), s.health(), approvalsWaiting, clients,
         new TokenCounts(s.tokensActive(), s.tokensExpiringSoon()), s.published(), risk(s.risk()), s.blockedReason(),
         s.version());
