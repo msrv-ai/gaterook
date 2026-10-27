@@ -1,45 +1,51 @@
-# Правила работы с GateRook
+# Working on GateRook
 
-Этот файл самодостаточен: его выполнение не требует доступа к родительской папке или связанным закрытым репозиториям. Пользовательское задание определяет текущий объём работы; более конкретные `AGENTS.md` внутри каталогов уточняют правила соответствующих частей.
+This file is self-contained: following it does not require access to the parent workspace or related private repositories. The user's task determines the current scope; more specific `AGENTS.md` files in subdirectories refine the rules for those areas.
 
-## Текущее состояние
+## Repository language
 
-Репозиторий содержит только подготовительную документацию и настройки текстовых файлов. Приложение, дизайн-кит, зависимости, сборка и CI ещё не перенесены. Не представляйте предполагаемую структуру как существующую реализацию и не добавляйте фиктивные команды, пакеты или успешные статусы проверок.
+All AI-authored repository content must be **English only**. This includes documentation, README and AGENTS files, code comments, docstrings, TODOs, descriptions, explanatory text in configuration files and scripts, changelogs, release notes, commit messages, and pull request or issue titles, descriptions, and comments.
 
-Перенос приложения и дизайн-кита выполняется по отдельному заданию. До такого задания улучшайте подготовку, но не копируйте исходники и не создавайте пустые каталоги, имитирующие готовое приложение.
+This requirement applies even when the user communicates in another language. Do not introduce mixed-language prose or parallel Russian documentation. Translate imported documentation and comments into English during future migration while preserving technical meaning, identifiers, paths, and behavior. Chat replies may follow the user's language; repository artifacts must remain English.
 
-## Перед изменениями
+## Current state
 
-1. Прочитайте `README.md`, `docs/repository-layout.md` и относящиеся к задаче части `docs/migration.md`.
-2. Проверьте текущую ветку, `git status` и `origin`. Ожидаемый репозиторий: `https://github.com/msrv-ai/gaterook`.
-3. Сохраните существующие пользовательские изменения. Не очищайте рабочую папку и не переписывайте историю ради подготовки задачи.
-4. После появления исходников прочитайте локальные инструкции затронутых каталогов и реальные манифесты перед выбором команд.
+The repository contains only preparatory documentation and text-file settings. The application, design kit, dependencies, build system, and CI have not been migrated. Do not present the proposed structure as an existing implementation or add fictitious commands, packages, or successful check results.
 
-## Границы ответственности
+Application and design-kit migration is a separate task. Until it is requested, improve the preparation without copying sources or creating empty directories that imply a working application.
 
-- Здесь находятся всё приложение, канонический дизайн-кит, тесты, фикстуры, lock-файлы, build-скрипты, упаковка, подпись и проверка установщиков.
-- Репозиторий `msrv-ai/gaterook-platform` отвечает за публичный сайт, Ansible, оркестрацию запуска сборок приложения и публикацию готовых загрузок.
-- Сборка приложения должна быть воспроизводима из одного клона `gaterook`. Не вводите зависимость от `../gaterook-platform`, родительских скриптов или абсолютных путей конкретной машины.
-- Платформа вызывает определённый приложением процесс сборки по явно выбранной ревизии. Не создавайте вторую реализацию сборки и упаковки в платформе.
-- Изменения общего контракта описывайте явно: ревизия приложения, версия, ОС, архитектура, имена артефактов, контрольные суммы и необходимые метаданные обновления. Не считайте соседнюю ветку автоматически совместимой.
-- Коммиты и проверки двух репозиториев независимы. Для связанной задачи перечисляйте изменения и результаты отдельно для каждого.
+## Before making changes
 
-## Дизайн и перенос
+1. Read `README.md`, `docs/repository-layout.md`, and the relevant sections of `docs/migration.md`.
+2. Check the current branch, `git status`, and `origin`. The expected repository is `https://github.com/msrv-ai/gaterook`.
+3. Preserve existing user changes. Do not clean the working directory or rewrite history to prepare for a task.
+4. Once sources are present, read the local instructions for affected directories and the actual manifests before choosing commands.
 
-Канонический дизайн-кит принадлежит приложению. После переноса до любых UI-изменений читайте его `AGENTS.md`, документацию, инвентарь и правила генерации. Используйте существующие токены и компоненты; не создавайте параллельный комплект стилей для сайта.
+## Ownership boundaries
 
-В исходной реализации сайт и часть его генераторов находятся внутри дизайн-кита. При будущей миграции разделяйте публичный контент/экспорт сайта и общие компоненты по назначению. Способ доставки версии кита платформе нужно описать и проверить; не заменяйте его незадокументированными копиями или зависимостью от локальной соседней папки.
+- This repository owns the entire application, canonical design kit, tests, fixtures, lockfiles, build scripts, packaging, signing, and installer verification.
+- `msrv-ai/gaterook-platform` owns the public website, Ansible, application-build orchestration, and publication of completed downloads.
+- The application build must be reproducible from a standalone `gaterook` clone. Do not introduce dependencies on `../gaterook-platform`, parent-workspace scripts, or machine-specific absolute paths.
+- The platform invokes the application's defined build process at an explicitly selected revision. Do not create a second implementation of building and packaging in the platform.
+- Describe shared-contract changes explicitly: application revision, version, OS, architecture, artifact names, checksums, and required updater metadata. Do not assume a neighboring branch is automatically compatible.
+- Commits and checks are independent in the two repositories. For coordinated tasks, report changes and results separately for each repository.
 
-Не правьте генерируемые файлы вручную. Сохраняйте генераторы, lock-файлы, уведомления и лицензии ресурсов. Бренд пишется **GateRook**, технический слаг — `gaterook`. Идентификаторы приложения, протоколы, пути пользовательских данных и URL обновлений меняйте только с анализом совместимости.
+## Design and migration
 
-## Публичность и данные
+The application owns the canonical design kit. After migration, read its `AGENTS.md`, documentation, inventory, and generation rules before changing any UI. Use existing tokens and components; do not create a parallel set of website styles.
 
-Это публичный репозиторий. Не добавляйте секреты, ключи подписи, реальные конфигурации пользователей, приватные адреса инфраструктуры, абсолютные локальные пути или идентификаторы закрытого источника переноса. Примеры должны использовать вымышленные значения и явно обозначенные переменные.
+The source implementation contains the website and some of its generators inside the design kit. During migration, separate public content and website export from shared components according to their purpose. Document and verify how a version of the kit is delivered to the platform; do not replace this process with undocumented copies or a dependency on a local sibling directory.
 
-Держите секреты подписи в предусмотренном для них хранилище CI; не копируйте их в документацию или соседние репозитории. Не публикуйте неподписанный установщик как проверенный официальный релиз. Детали серверного развёртывания относятся к платформе.
+Do not edit generated files manually. Preserve generators, lockfiles, notices, and asset licenses. Write the brand as **GateRook** and the technical slug as `gaterook`. Analyze compatibility before changing application identifiers, protocols, user-data paths, or update URLs.
 
-## Проверка и отчёт
+## Public visibility and data
 
-Сейчас проверяйте ссылки, корректность описанной структуры и `git diff --check`. Сборка приложения невозможна до переноса манифестов и исходников; сообщайте это прямо.
+This is a public repository. Do not add secrets, signing keys, real user configurations, private infrastructure addresses, absolute local paths, or identifiers of the private migration source. Examples must use fictional values and clearly identified variables.
 
-После переноса выбирайте проверки по изменённым частям и действующим манифестам. Различайте наличие workflow, успешный запуск сборки, проверку подписи и фактическую публикацию. В отчёте указывайте изменённые файлы, выполненные проверки и оставшиеся ограничения. Обновляйте эти инструкции вместе с реальной структурой и командами.
+Keep signing secrets in the designated CI secret store; do not copy them into documentation or neighboring repositories. Do not publish an unsigned installer as a verified official release. Server-deployment details belong to the platform.
+
+## Verification and reporting
+
+For now, check links, the accuracy of the documented structure, and `git diff --check`. Building the application is impossible until manifests and sources have been migrated; state that clearly.
+
+After migration, choose checks based on the changed areas and actual manifests. Distinguish an existing workflow from a successful build, signature verification, and actual publication. Report changed files, checks performed, and remaining limitations. Update these instructions alongside the actual structure and commands.

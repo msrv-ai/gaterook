@@ -1,31 +1,33 @@
 # GateRook
 
-Репозиторий десктопного приложения GateRook и всего, что необходимо для его сборки, проверки и упаковки.
+The repository for the GateRook desktop application and everything required to build, verify, and package it.
 
-**Состояние: подготовлена структура документации. Исходники приложения и дизайн-кит ещё не перенесены.** Команд сборки и работающих CI-процессов в этом репозитории пока нет. Перенос выполняется отдельной задачей.
+**Status: documentation scaffolding is ready. Application sources and the design kit have not been migrated yet.** This repository does not yet contain build commands or working CI workflows. Migration is a separate task.
 
-## Ответственность репозитория
+All repository documentation, comments, descriptions, and other AI-authored content must be **English only**. See [AGENTS.md](AGENTS.md) for the full rule.
 
-Здесь должны находиться код приложения, канонический дизайн-кит, тесты и фикстуры, зафиксированные зависимости, скрипты сборки, упаковка установщиков и процессы подписи приложения. Сборка должна работать из самостоятельного клона этого репозитория и не зависеть от соседней рабочей папки.
+## Repository responsibilities
 
-Публичный сайт, инфраструктура Ansible, запуск сборок приложения со стороны платформы и доставка готовых установщиков пользователям относятся к [gaterook-platform](https://github.com/msrv-ai/gaterook-platform). Доступ к связанному репозиторию может требовать отдельных прав. Он не нужен для чтения инструкций или будущей сборки приложения.
+This repository will contain the application code, canonical design kit, tests and fixtures, pinned dependencies, build scripts, installer packaging, and application-signing workflows. It must support building from a standalone clone without depending on a neighboring working directory.
 
-## Документация
+The public website, Ansible infrastructure, platform-initiated application builds, and distribution of completed installers belong to [gaterook-platform](https://github.com/msrv-ai/gaterook-platform). Access to that repository may require separate permissions. It is not required to read these instructions or build the application once migration is complete.
 
-| Документ | Назначение |
+## Documentation
+
+| Document | Purpose |
 | --- | --- |
-| [AGENTS.md](AGENTS.md) | Самодостаточные правила для ИИ и разработчиков |
-| [docs/repository-layout.md](docs/repository-layout.md) | Границы репозиториев и предполагаемая структура после переноса |
-| [docs/migration.md](docs/migration.md) | Контекст существующей реализации и план будущего переноса |
+| [AGENTS.md](AGENTS.md) | Self-contained instructions for AI agents and developers |
+| [docs/repository-layout.md](docs/repository-layout.md) | Repository boundaries and the proposed structure after migration |
+| [docs/migration.md](docs/migration.md) | Existing implementation context and the future migration plan |
 
-## Будущая реализация
+## Planned implementation
 
-В переносимой реализации используются Electron, Angular, Java/Spring Boot и нативное ядро GraalVM. Дизайн-кит содержит токены, компоненты, ресурсы и правила интерфейса. Эти сведения описывают контекст переноса, а не содержимое текущего репозитория.
+The implementation to be migrated uses Electron, Angular, Java/Spring Boot, and a GraalVM native core. Its design kit contains tokens, components, assets, and interface rules. These details describe migration context, not the current contents of this repository.
 
-Целевые установщики включают DMG для macOS и EXE для Windows. Существующая конфигурация также содержит Linux-пакеты и несколько архитектур; окончательную поддерживаемую матрицу нужно подтвердить при переносе и проверке сборок.
+Target installers include DMG for macOS and EXE for Windows. The existing configuration also includes Linux packages and several architectures; the final supported matrix must be confirmed during migration and build verification.
 
-## Работа сейчас
+## Working with the repository now
 
-Клонируйте `https://github.com/msrv-ai/gaterook.git` и начните с `AGENTS.md`. Пока здесь можно проверять документацию, границы ответственности и отсутствие случайных артефактов. Инструкции запуска и точные версии инструментов будут добавлены вместе с реальными манифестами и проверенными командами.
+Clone `https://github.com/msrv-ai/gaterook.git` and start with `AGENTS.md`. At this stage, review documentation, ownership boundaries, and the absence of unintended artifacts. Run instructions and exact tool versions will be added alongside actual manifests and verified commands.
 
-Лицензия приложения должна быть зафиксирована отдельным решением при переносе; публичная доступность репозитория сама по себе её не определяет. Уведомления и лицензии сторонних ресурсов необходимо сохранить.
+The application's license must be established separately during migration; public repository visibility does not determine it. Preserve notices and licenses for third-party assets.

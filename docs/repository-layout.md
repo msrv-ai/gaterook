@@ -1,6 +1,6 @@
-# Структура и ответственность
+# Structure and ownership
 
-## Что есть сейчас
+## Current contents
 
 ```text
 gaterook/
@@ -13,43 +13,43 @@ gaterook/
     └── migration.md
 ```
 
-Это независимый Git-репозиторий приложения. Его можно открыть отдельно или разместить рядом с `gaterook-platform` в общей локальной папке. Общая папка не должна становиться обязательной частью сборки.
+This is the application's independent Git repository. It can be opened on its own or placed next to `gaterook-platform` in a shared local directory. That shared directory must not become a required part of the build.
 
-## Распределение обязанностей
+## Responsibilities
 
-| Область | Владелец |
+| Area | Owner |
 | --- | --- |
-| Исходники приложения, UI, ядро, коннекторы и мосты | `gaterook` |
-| Канонический дизайн-кит, общие токены, компоненты и брендовые ресурсы | `gaterook` |
-| Зависимости, тесты, native-сборка, упаковка и подпись приложения | `gaterook` |
-| Публичный сайт, контент и сборка сайта | `gaterook-platform` |
-| Ansible и серверное развёртывание сайта | `gaterook-platform` |
-| Запуск сборки приложения с выбранной ревизией, публикация установщиков и ссылки скачивания | `gaterook-platform` |
+| Application sources, UI, core, connectors, and bridges | `gaterook` |
+| Canonical design kit, shared tokens, components, and brand assets | `gaterook` |
+| Dependencies, tests, native build, packaging, and application signing | `gaterook` |
+| Public website, content, and website build | `gaterook-platform` |
+| Ansible and server deployment of the website | `gaterook-platform` |
+| Triggering application builds at a selected revision, publishing installers, and download links | `gaterook-platform` |
 
-## Структура после переноса
+## Structure after migration
 
-Ниже приведён ориентир на основе существующей реализации. **Эти каталоги ещё не перенесены.** Уточняйте перечень по реальному содержимому в задаче миграции; не создавайте заглушки только ради дерева.
+The following outline is based on the existing implementation. **These directories have not been migrated yet.** Refine the list against the actual sources during migration; do not create placeholders merely to match this outline.
 
-| Путь | Ожидаемое содержимое |
+| Path | Expected contents |
 | --- | --- |
-| `pom.xml` и Maven-модули | Java-ядро, приложение, API, коннекторы, плагины, plugin host и CLI-мост |
-| `ui/` | Angular-интерфейс приложения |
-| `desktop/` | Electron main/preload, конфигурация и ресурсы упаковки |
-| `bridge/`, `bridge-cli/` | Мосты подключения клиентов |
-| `design/` | Канонический дизайн-кит, исходники, инвентарь, генераторы и инструкции |
-| `scripts/` | Сборка, staging, проверки и обслуживание приложения |
-| `test-services/` | Локальные сервисы и фикстуры для интеграционных тестов |
-| `catalog/` | Приложенческие описания расширений и связанные ресурсы |
-| `.github/workflows/` | Проверки и сборка установщиков, включая подпись |
-| `docs/` | Архитектура, принятые решения и инструкции разработки |
-| Корневые npm-манифесты и lock-файлы | Версии и связи рабочих пакетов приложения |
+| `pom.xml` and Maven modules | Java core, application, API, connectors, plugins, plugin host, and CLI bridge |
+| `ui/` | Angular application interface |
+| `desktop/` | Electron main/preload, packaging configuration, and assets |
+| `bridge/`, `bridge-cli/` | Client connection bridges |
+| `design/` | Canonical design kit, sources, inventory, generators, and instructions |
+| `scripts/` | Application build, staging, checks, and maintenance |
+| `test-services/` | Local services and fixtures for integration tests |
+| `catalog/` | Application extension descriptions and related assets |
+| `.github/workflows/` | Checks and installer builds, including signing |
+| `docs/` | Architecture, decisions, and development instructions |
+| Root npm manifests and lockfiles | Versions and relationships of application workspace packages |
 
-Наличие build-скрипта в `gaterook` не означает, что он автоматически публикует сайт. Владение сборкой и подписью приложения сохраняется здесь; платформа отвечает за вызов этого процесса и доставку результатов.
+A build script in `gaterook` does not imply automatic website publication. Application building and signing remain owned here; the platform invokes that process and distributes the results.
 
-## Контракт между репозиториями
+## Contract between repositories
 
-Приложение предоставляет определённый процесс сборки и его артефакты. Платформа связывает результат с точной ревизией и версией приложения, проверяет целевую ОС/архитектуру и контрольные суммы, затем использует готовые файлы для публикации.
+The application provides a defined build process and its artifacts. The platform associates the result with an exact application revision and version, verifies the target OS/architecture and checksums, and then publishes the completed files.
 
-Для каждого релиза необходимо определить набор установщиков и сопутствующих файлов: например, DMG и EXE, а также архивы, blockmap и манифесты, если они нужны выбранному механизму обновления. Формат метаданных и конкретные команды будут закреплены при переносе действующей сборки. Сейчас исполняемого контракта и готового release manifest в репозитории нет.
+Each release must define its set of installers and accompanying files: for example, DMG and EXE files, plus archives, blockmaps, and manifests required by the chosen update mechanism. The metadata format and exact commands will be established when the existing build is migrated. This repository currently has no executable contract or implemented release manifest.
 
-Сайт должен получать явно выбранную версию общих ресурсов дизайн-кита. Сам способ поставки пока не выбран. Он должен позволять воспроизвести сборку сайта и сохранять один источник редактируемых токенов и компонентов.
+The website must receive an explicitly selected version of shared design-kit assets. The delivery method has not been chosen yet. It must allow reproducible website builds while retaining one source of editable tokens and components.
