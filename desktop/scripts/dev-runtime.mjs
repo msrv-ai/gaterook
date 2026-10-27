@@ -4,9 +4,12 @@ import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { constants, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const PRODUCT = 'GateRook';
-const FORMAT = 1;
+const FORMAT = 2;
+const ICON_FILE = 'GateRook.icns';
+const DEFAULT_ICON = fileURLToPath(new URL('../../design/assets/gaterook/gaterook-icon-macos.icns', import.meta.url));
 
 function run(command, args) {
   const result = spawnSync(command, args, { encoding: 'utf8' });
@@ -24,7 +27,7 @@ function plist(file) {
  * Return a launchable Electron executable. macOS gets a cached, locally signed copy under the supplied ignored
  * cache directory; Windows and Linux use the original runtime. No installed dependency is modified.
  */
-export function prepareDevRuntime(electron, cacheDir, { platform = process.platform } = {}) {
+export function prepareDevRuntime(electron, cacheDir, { platform = process.platform, iconPath = DEFAULT_ICON } = {}) {
   if (platform !== 'darwin') return electron;
   const sourceExecutable = realpathSync(electron);
   const sourceBundle = dirname(dirname(dirname(sourceExecutable)));
@@ -36,9 +39,10 @@ export function prepareDevRuntime(electron, cacheDir, { platform = process.platf
   if (info.CFBundleExecutable !== 'Electron') {
     throw new Error('The development runtime must keep CFBundleExecutable set to Electron.');
   }
-  // The dependency version and executable invalidate the cache when npm installs another Electron runtime.
+  const icon = readFileSync(iconPath);
+  // Refresh the cached bundle after either an Electron update or a change to the canonical macOS icon.
   const fingerprint = createHash('sha256').update(JSON.stringify({ format: FORMAT, sourceExecutable, product: PRODUCT }))
-    .update(readFileSync(sourceInfo)).update(readFileSync(sourceExecutable)).digest('hex');
+    .update(readFileSync(sourceInfo)).update(readFileSync(sourceExecutable)).update(icon).digest('hex');
   const destination = join(cacheDir, fingerprint.slice(0, 24));
   const bundle = join(destination, `${PRODUCT}.app`);
   const executable = join(bundle, 'Contents', 'MacOS', 'Electron');
@@ -65,7 +69,9 @@ export function prepareDevRuntime(electron, cacheDir, { platform = process.platf
     const temporaryInfo = join(temporaryBundle, 'Contents', 'Info.plist');
     run('/usr/bin/plutil', ['-replace', 'CFBundleName', '-string', PRODUCT, temporaryInfo]);
     run('/usr/bin/plutil', ['-replace', 'CFBundleDisplayName', '-string', PRODUCT, temporaryInfo]);
-    // Only the outer bundle metadata changed. Re-sign it ad hoc for local use; keep nested Electron binaries,
+    run('/usr/bin/plutil', ['-replace', 'CFBundleIconFile', '-string', ICON_FILE, temporaryInfo]);
+    writeFileSync(join(temporaryBundle, 'Contents', 'Resources', ICON_FILE), icon);
+    // Only the outer bundle metadata and icon changed. Re-sign it ad hoc for local use; keep nested Electron binaries,
     // entitlements and helper names intact. This does not create a distributable signed release.
     run('/usr/bin/codesign', ['--force', '--sign', '-', '--preserve-metadata=identifier,entitlements,flags,runtime', temporaryBundle]);
     writeFileSync(join(temporary, 'runtime.json'), JSON.stringify({ fingerprint, sourceExecutable, product: PRODUCT }) + '\n');

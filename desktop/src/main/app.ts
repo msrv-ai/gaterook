@@ -150,8 +150,8 @@ export class Desktop {
   }
 
   async start(): Promise<void> {
-    // Development runs use Electron's bundle icon unless the Dock receives the kit's app mark explicitly.
-    if (process.platform === 'darwin') app.dock?.setIcon(markImage(512, 'brand'));
+    // Use the macOS export's transparent margins so the Dock matches the visual size of neighboring apps.
+    if (process.platform === 'darwin') app.dock?.setIcon(markImage(512, 'macos'));
     ensureHome(this.layout.home);
     const { config, problem } = readDesktopConfig(this.layout.home);
     if (problem) this.log(problem);

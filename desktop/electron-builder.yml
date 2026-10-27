@@ -48,7 +48,7 @@ electronFuses:                        # §7.1 "fuses"
 
 mac:
   category: public.app-category.developer-tools
-  icon: stage/icons/icon.png
+  icon: stage/icons/icon-macos.icns
   target: [dmg, zip]                  # zip: what electron-updater installs from
   hardenedRuntime: true
   gatekeeperAssess: false

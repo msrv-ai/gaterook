@@ -314,13 +314,30 @@ async function inputGuard(host: SmokeHost, route: string): Promise<void> {
 // ── Scenarios ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
 async function fakeScenario(host: SmokeHost): Promise<void> {
-  const icon = markImage(512, 'brand');
+  const icon = markImage(512, 'macos');
   const trayIcon = markImage(16, 'mono');
   expect('the kit app icon loads at both Dock resolutions', !icon.isEmpty()
     && icon.getScaleFactors().includes(1) && icon.getScaleFactors().includes(2)
     && icon.getSize().width === 512 && icon.toPNG({ scaleFactor: 2 }).readUInt32BE(16) === 1024);
   expect('the menu bar uses the kit monochrome template', !trayIcon.isEmpty()
     && trayIcon.getSize().width === 16 && trayIcon.isTemplateImage());
+  // A full-bleed tile looks oversized in the Dock even when the bitmap has the correct 512/1024 dimensions.
+  const bitmap = icon.toBitmap({ scaleFactor: 1 });
+  let left = 512; let top = 512; let right = -1; let bottom = -1;
+  for (let y = 0; y < 512; y++) {
+    for (let x = 0; x < 512; x++) {
+      if ((bitmap[(y * 512 + x) * 4 + 3] ?? 0) >= 250) {
+        left = Math.min(left, x); right = Math.max(right, x);
+        top = Math.min(top, y); bottom = Math.max(bottom, y);
+      }
+    }
+  }
+  const width = right - left + 1;
+  const height = bottom - top + 1;
+  expect('the macOS Dock tile has clear space and is centered on its canvas',
+    width >= 390 && width <= 430 && height >= 390 && height <= 430
+    && Math.abs(left + right - 511) <= 2 && Math.abs(top + bottom - 511) <= 2,
+    { left, top, right, bottom });
   const home = host.layout.home;
   const busyPort = host.config().port;
   const publicPort = host.config().publicPort;

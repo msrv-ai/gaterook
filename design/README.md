@@ -61,17 +61,27 @@ The mark combines a rook and an open gateway. [assets/gaterook/preview.svg](asse
 | `gaterook-mark-mono.svg` / `.png` | Single-color mark; SVG inherits `currentColor` |
 | `gaterook-mark-white.svg` / `.png` | White mark for dark or colored surfaces |
 | `gaterook-icon.svg` / `.png` | App icon; primary PNG is 1024 × 1024 |
+| `gaterook-icon-macos.svg` / `.png` / `.icns` | macOS Dock and bundle icon, with transparent platform clear space |
 | `gaterook-icon-{16,20,24,32,48,64,128,256,512}.png` | Raster icon sizes |
 
 Keep at least eight units of clear space on the 64 × 64 base canvas and preserve proportions. Minimum icon width is 16 px; minimum horizontal-logo width is 144 px. For an image on a dark surface, use the white asset rather than relying on inherited SVG color.
 
 `assets/logo-mark.svg` is the canonical mark used throughout the kit. `assets/logo-mark-mono.svg` has the same silhouette. `assets/logo.svg` is the outlined 288 × 80 logo, with a 1728 × 480 PNG counterpart; `assets/logo-mark.png` is 1024 × 1024. `gw-logo` combines the mark with live **GateRook** text so the wordmark follows the active theme.
 
+The macOS raster export centers the unchanged artwork in an 824 × 824 body on a 1024 × 1024 transparent canvas. Its 100 px outer margins match the measured scale of Apple's bundled Activity Monitor raster icon. This export is for Electron's PNG Dock API and classic ICNS bundles; the [current Apple icon guidance](https://developer.apple.com/design/human-interface-guidelines/app-icons) describes system-composed layered icons, which use a different pipeline. The ICNS contains all [Apple iconset sizes at 1× and 2×](https://developer.apple.com/library/archive/documentation/Xcode/Reference/xcode_ref-Asset_Catalog_Format/IconSetType.html). Use the generic and monochrome assets for in-app branding and menu-bar templates.
+
 Run export from the repository root. Temporary export dependencies belong in ignored `ai/`:
 
 ```bash
 npm install --prefix ai/logo-export --no-save --package-lock=false fontkit@2.0.4 wawoff2@2.0.1 sharp@0.35.5
 NODE_PATH="$PWD/ai/logo-export/node_modules" node design/scripts/export-logo.mjs
+```
+
+After changing the canonical icon, regenerate the macOS exports on macOS with Apple's built-in `iconutil`:
+
+```bash
+npm install --prefix ai/mac-icon-export --no-save --package-lock=false sharp@0.35.5
+NODE_PATH="$PWD/ai/mac-icon-export/node_modules" node design/scripts/export-macos-icon.mjs
 ```
 
 Preserve font and vendor notices in `assets/fonts/`, `vendor/lucide/`, and [assets/integrations/SOURCES.md](assets/integrations/SOURCES.md).

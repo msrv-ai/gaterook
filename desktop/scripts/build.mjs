@@ -38,7 +38,7 @@ await build({ ...common, entryPoints: ['src/preload/preload.ts'], outfile: join(
 
 // Runtime and installer icons consume the design kit's exports without redrawing the artwork.
 mkdirSync(join(dist, 'icons'), { recursive: true });
-for (const name of ['gaterook-icon.png', 'gaterook-mark-mono.png']) {
+for (const name of ['gaterook-icon.png', 'gaterook-mark-mono.png', 'gaterook-icon-macos.png']) {
   copyFileSync(join(root, '..', 'design', 'assets', 'gaterook', name), join(dist, 'icons', name));
 }
 

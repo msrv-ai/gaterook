@@ -30,28 +30,37 @@ describe('the macOS development runtime', () => {
       const info = join(contents, 'Info.plist');
       const metadata = {
         CFBundleExecutable: 'Electron', CFBundleName: 'Electron', CFBundleDisplayName: 'Electron',
+        CFBundleIconFile: 'electron.icns',
         CFBundleIdentifier: 'dev.gaterook.runtime-test', CFBundlePackageType: 'APPL', CFBundleVersion: '1.0',
       };
       writeFileSync(info, JSON.stringify(metadata));
       assert.equal(spawnSync('/usr/bin/plutil', ['-convert', 'xml1', info]).status, 0);
       writeFileSync(join(contents, 'Resources', 'asset.txt'), 'original asset');
+      writeFileSync(join(contents, 'Resources', 'electron.icns'), 'original runtime icon');
       symlinkSync('asset.txt', join(contents, 'Resources', 'asset-link'));
       const originalExecutable = readFileSync(executable);
       const originalInfo = readFileSync(info);
+      const iconPath = join(directory, 'canonical.icns');
+      const originalIcon = Buffer.from('icns-fixture-version-one');
+      writeFileSync(iconPath, originalIcon);
       const cache = join(directory, 'cache');
-      const result = prepareDevRuntime(executable, cache);
+      const result = prepareDevRuntime(executable, cache, { iconPath });
       assert.equal(result.endsWith('/GateRook.app/Contents/MacOS/Electron'), true);
       assert.notEqual(result, executable);
       const copiedContents = dirname(dirname(result));
       const copiedInfo = JSON.parse(spawnSync('/usr/bin/plutil', ['-convert', 'json', '-o', '-',
         join(copiedContents, 'Info.plist')], { encoding: 'utf8' }).stdout);
-      assert.deepEqual(copiedInfo, { ...metadata, CFBundleName: 'GateRook', CFBundleDisplayName: 'GateRook' });
+      assert.deepEqual(copiedInfo, { ...metadata, CFBundleName: 'GateRook', CFBundleDisplayName: 'GateRook',
+        CFBundleIconFile: 'GateRook.icns' });
       assert.deepEqual(readFileSync(info), originalInfo);
       assert.deepEqual(readFileSync(executable), originalExecutable);
+      assert.equal(readFileSync(join(contents, 'Resources', 'electron.icns'), 'utf8'), 'original runtime icon');
+      assert.deepEqual(readFileSync(iconPath), originalIcon);
+      assert.deepEqual(readFileSync(join(copiedContents, 'Resources', 'GateRook.icns')), originalIcon);
       assert.equal(readFileSync(join(copiedContents, 'Resources', 'asset-link'), 'utf8'), 'original asset');
       assert.equal(spawnSync('/usr/bin/codesign', ['--verify', join(copiedContents, '..')]).status, 0);
       const mtime = statSync(result).mtimeMs;
-      assert.equal(prepareDevRuntime(executable, cache), result);
+      assert.equal(prepareDevRuntime(executable, cache, { iconPath }), result);
       assert.equal(statSync(result).mtimeMs, mtime);
       assert.equal(readdirSync(cache).length, 1);
 
@@ -59,9 +68,20 @@ describe('the macOS development runtime', () => {
       metadata.CFBundleVersion = '2.0';
       writeFileSync(info, JSON.stringify(metadata));
       assert.equal(spawnSync('/usr/bin/plutil', ['-convert', 'xml1', info]).status, 0);
-      const updated = prepareDevRuntime(executable, cache);
+      const updated = prepareDevRuntime(executable, cache, { iconPath });
       assert.notEqual(updated, result);
       assert.equal(existsSync(result), true);
       assert.equal(readdirSync(cache).length, 2);
+
+      // Changing artwork refreshes the icon without overwriting a running bundle or the source runtime.
+      const revisedIcon = Buffer.from('icns-fixture-version-two');
+      writeFileSync(iconPath, revisedIcon);
+      const revised = prepareDevRuntime(executable, cache, { iconPath });
+      assert.notEqual(revised, updated);
+      assert.deepEqual(readFileSync(join(dirname(dirname(revised)), 'Resources', 'GateRook.icns')), revisedIcon);
+      assert.deepEqual(readFileSync(join(copiedContents, 'Resources', 'GateRook.icns')), originalIcon);
+      assert.equal(readFileSync(join(contents, 'Resources', 'electron.icns'), 'utf8'), 'original runtime icon');
+      assert.equal(existsSync(updated), true);
+      assert.equal(readdirSync(cache).length, 3);
     });
 });

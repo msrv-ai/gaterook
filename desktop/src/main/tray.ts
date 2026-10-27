@@ -19,13 +19,19 @@ export interface TrayOptions {
 }
 
 /** Canonical kit PNGs, copied into the app by the desktop build for development and packaged runs. */
-const marks = new Map<'brand' | 'mono', NativeImage>();
+type MarkVariant = 'brand' | 'mono' | 'macos';
+const markFiles: Record<MarkVariant, string> = {
+  brand: 'gaterook-icon.png',
+  mono: 'gaterook-mark-mono.png',
+  macos: 'gaterook-icon-macos.png',
+};
+const marks = new Map<MarkVariant, NativeImage>();
 
 /** The mark as a native image with 1× and 2× representations; the macOS menu bar gets the template version. */
-export function markImage(size: number, variant: 'brand' | 'mono'): NativeImage {
+export function markImage(size: number, variant: MarkVariant): NativeImage {
   let source = marks.get(variant);
   if (!source) {
-    const name = variant === 'brand' ? 'gaterook-icon.png' : 'gaterook-mark-mono.png';
+    const name = markFiles[variant];
     source = nativeImage.createFromPath(join(app.getAppPath(), 'dist', 'icons', name));
     if (source.isEmpty()) throw new Error(`The design kit icon ${name} is missing or invalid. Rebuild the desktop app.`);
     marks.set(variant, source);

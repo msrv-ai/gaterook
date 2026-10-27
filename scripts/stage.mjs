@@ -161,9 +161,14 @@ export async function stage(o, sources = {}) {
     report.push(`cloudflared/${o.platform}`);
   }
 
-  // The icon electron-builder turns into .icns / .ico / the Linux icons.
+  // Windows/Linux keep the compact kit mark. macOS uses its padded export at every native icon size.
   copyFile(join(root, 'design', 'assets', 'gaterook', 'gaterook-icon.png'), join(o.out, 'icons', 'icon.png'));
   report.push('icons/icon.png (1024 px)');
+  for (const extension of ['png', 'icns']) {
+    copyFile(join(root, 'design', 'assets', 'gaterook', `gaterook-icon-macos.${extension}`),
+      join(o.out, 'icons', `icon-macos.${extension}`));
+    report.push(`icons/icon-macos.${extension}`);
+  }
   return report;
 }
 
