@@ -168,7 +168,7 @@ class ClickHouseConnectorTest {
     assertThat(param(req, "max_execution_time")).isEqualTo("20");
     assertThat(param(req, "max_result_rows")).isEqualTo("3");
     assertThat(param(req, "result_overflow_mode")).isEqualTo("break");
-    assertThat(param(req, "query_id")).isEqualTo("mcp-gateway-tc_test");
+    assertThat(param(req, "query_id")).isEqualTo("gaterook-tc_test");
     assertThat(req.getHeaders().get("X-ClickHouse-User")).isEqualTo("gw_reader");
     assertThat(req.getHeaders().get("X-ClickHouse-Key")).isEqualTo(TestCalls.PASSWORD);
 

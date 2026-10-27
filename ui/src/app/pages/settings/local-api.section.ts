@@ -63,7 +63,7 @@ const NO_ANSWER = 'The core didn’t answer. Try again.';
       <form class="gw-form__section" id="st-origins" method="dialog" novalidate aria-labelledby="st-origins-t" (submit)="save($event)" (reset)="discard($event)">
         <header class="gw-form__section-header">
           <h3 class="gw-form__legend" id="st-origins-t">Allowed origins</h3>
-          <p class="gw-form__description">Browser-based clients that may call the local API. Desktop clients and command-line tools send no Origin and don't need an entry.</p>
+          <p class="gw-form__description">Browser-based apps that may call the local API. Desktop apps and command-line tools send no Origin and don't need an entry.</p>
         </header>
         <div class="gw-form__rows">
           @if (origins().length) {
@@ -79,7 +79,7 @@ const NO_ANSWER = 'The core didn’t answer. Try again.';
             <div class="gw-empty gw-empty--compact" id="st-origins-empty">
               <span class="gw-empty__icon"><svg lucideIcon="globe-lock" class="gw-icon"></svg></span>
               <p class="gw-empty__title">No browser origins allowed</p>
-              <p class="gw-empty__text">Only desktop clients and command-line tools can call the core. That is the safest setting.</p>
+              <p class="gw-empty__text">Only desktop apps and command-line tools can call the core. That is the safest setting.</p>
             </div>
           }
           <div class="gw-field">

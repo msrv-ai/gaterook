@@ -93,7 +93,7 @@ final class FakeSlack implements AutoCloseable {
     ObjectNode out = JsonNodeFactory.instance.objectNode().put("ok", true);
     switch (method) {
       case "auth.test" -> {
-        out.put("url", "https://acme.slack.com/").put("team", "acme").put("user", "mcp-gateway")
+        out.put("url", "https://acme.slack.com/").put("team", "acme").put("user", "gaterook")
             .put("team_id", TEAM).put("user_id", "U0BOT000001").put("bot_id", "B0BOT000001");
         return new Reply(out, "chat:write,im:write,users:read,users:read.email,channels:read,groups:read");
       }

@@ -175,7 +175,7 @@ final class GatewayHttpTransport implements McpClientTransport {
         throw gone;
       }
       if (status >= 300 && status < 400) {
-        throw new McpTransportException(server + " answered with a redirect (HTTP " + status + "), which MCP Gateway "
+        throw new McpTransportException(server + " answered with a redirect (HTTP " + status + "), which GateRook "
             + "doesn't follow: check the URL.");
       }
       if (status == 401 || status == 403) {

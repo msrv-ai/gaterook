@@ -215,7 +215,7 @@ final class OpenSearchBackend implements Backend {
           r -> r.at("/version/distribution").asString("elasticsearch") + " " + r.at("/version/number").asString("?"));
       if (!"opensearch".equals(root.at("/version/distribution").asString(""))) {
         hints.add(new TestResult.Hint(TestResult.Severity.WARNING, "logs.not-opensearch", "/url",
-            "This looks like Elasticsearch, which MCP Gateway doesn't support. Searches may still work."));
+            "This looks like Elasticsearch, which GateRook doesn't support. Searches may still work."));
       }
       version = root.at("/version/number").asString("unknown");
       probe.step("indices", () -> {

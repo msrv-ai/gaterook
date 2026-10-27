@@ -12,7 +12,7 @@ import java.time.Instant;
 import java.util.regex.Pattern;
 
 /**
- * {@code ~/.mcp-gateway/logs/bridge.log} (0600, one copy kept at 1 MiB): Codex throws a helper's stderr away, so the
+ * {@code ~/.gaterook/logs/bridge.log} (0600, one copy kept at 1 MiB): Codex throws a helper's stderr away, so the
  * reason a helper failed is written here, and the client card shows it ("Codex helper failed at 14:29: grant
  * revoked"). Lines carry a grant's prefix only and never a token: anything shaped like one is cut out first.
  */

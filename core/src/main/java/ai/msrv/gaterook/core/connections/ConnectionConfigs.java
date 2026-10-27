@@ -97,7 +97,8 @@ public class ConnectionConfigs {
     Stored stored = byId(id).orElseThrow(() -> ProblemException.notFound("Connection not found",
         "There is no connection " + id + "."));
     if (!stored.verified()) {
-      throw ProblemException.conflict("Changed outside GateRook", stored.name() + " was changed outside GateRook. Review it before you use it.");
+      throw ProblemException.conflict("Changed outside GateRook", stored.name() + " was changed outside "
+          + "GateRook. Review it before you use it.");
     }
     return stored.config();
   }

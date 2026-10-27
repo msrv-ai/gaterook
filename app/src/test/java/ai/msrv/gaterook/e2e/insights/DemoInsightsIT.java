@@ -205,7 +205,7 @@ class DemoInsightsIT {
     List<AuditExports.Destination> destinations = core.getBean(AuditExports.class).list();
     assertThat(destinations).extracting(d -> d.kind() + " " + d.target() + " " + d.schedule() + " " + d.state())
         .containsExactlyInAnyOrder("siem siem.acme.internal:6514 stream ok",
-            "s3 s3://acme-audit/mcp-gateway/ daily@02:00 ok", "bigquery acme-prod.audit.mcp_calls hourly failing");
+            "s3 s3://acme-audit/gaterook/ daily@02:00 ok", "bigquery acme-prod.audit.mcp_calls hourly failing");
     assertThat(destinations).allSatisfy(d -> {
       assertThat(d.demo()).isTrue();
       assertThat(d.verified()).isTrue();

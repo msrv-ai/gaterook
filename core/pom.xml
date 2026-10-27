@@ -15,7 +15,7 @@
   </parent>
 
   <artifactId>core</artifactId>
-  <name>MCP Gateway · Core</name>
+  <name>GateRook · Core</name>
 
   <dependencies>
     <!-- ── Our modules ── -->

@@ -170,12 +170,12 @@ describe('Welcome page', () => {
       ['current', 'step', '1 Protect master key Back it up off this computer'],
       ['upcoming', null, '2 Add a connection A database, server, log store or API'],
       ['upcoming', null, '3 Create an endpoint One MCP URL with the tools you choose'],
-      ['upcoming', null, '4 Connect a client Claude Desktop, Codex, Cursor and more'],
+      ['upcoming', null, '4 Connect your AI app Claude Desktop, Codex, Cursor and more'],
     ]);
     expect(visiblePanel(el)).toEqual(['ob-panel-1']);
 
     // Step 1: the key the core created, where it is and who can read it.
-    expect(text(el.querySelector('#ob-key-path'))).toBe('/Users/you/.mcp-gateway/master.keyset');
+    expect(text(el.querySelector('#ob-key-path'))).toBe('/Users/you/.gaterook/master.keyset');
     expect(Array.from(el.querySelectorAll('#ob-panel-1 .gw-kv__row')).map(text)).toEqual([
       'Permissions 0400 · only your user can read it',
       'Format Google Tink keyset, sealed with a key from the macOS Keychain',
@@ -260,7 +260,7 @@ describe('Welcome page', () => {
       ['upcoming', '1 Protect master key Skipped · no backup yet'],
       ['current', '2 Add a connection A database, server, log store or API'],
       ['upcoming', '3 Create an endpoint One MCP URL with the tools you choose'],
-      ['upcoming', '4 Connect a client Claude Desktop, Codex, Cursor and more'],
+      ['upcoming', '4 Connect your AI app Claude Desktop, Codex, Cursor and more'],
     ]);
     expect(document.activeElement?.id).toBe('ob-panel-2-title');
     expect(announced).toEqual(['Master key backup skipped. Step 2 of 4: Add a connection.']);

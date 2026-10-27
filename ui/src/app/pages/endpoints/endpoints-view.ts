@@ -356,7 +356,7 @@ export function createdToast(slug: string, startFrom: StartFrom): ToastText {
 }
 
 export function duplicatedToast(slug: string, source: string): ToastText {
-  return { tone: 'success', title: `Endpoint ${slug} created`, body: `A copy of ${source} without tokens or client links.` };
+  return { tone: 'success', title: `Endpoint ${slug} created`, body: `A copy of ${source} without tokens or AI app links.` };
 }
 
 /**

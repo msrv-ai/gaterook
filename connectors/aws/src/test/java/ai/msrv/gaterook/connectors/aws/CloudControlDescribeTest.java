@@ -85,7 +85,7 @@ class CloudControlDescribeTest {
     RecordedRequest assume = aws.to("AssumeRole").getFirst();
     String form = URLDecoder.decode(assume.getBody().utf8(), StandardCharsets.UTF_8);
     assertThat(form).contains("RoleArn=" + Configs.ROLE, "ExternalId=gw-ext-3f9a1c2b7d4e", "DurationSeconds=900",
-        "RoleSessionName=mcp-gateway-aws-stage", "\"Effect\":\"Deny\"", "secretsmanager:GetSecretValue");
+        "RoleSessionName=gaterook-aws-stage", "\"Effect\":\"Deny\"", "secretsmanager:GetSecretValue");
     assertThat(assume.getHeaders().get("Authorization")).contains("Credential=" + Configs.ACCESS_KEY_ID + "/");
     // The base key is the resolver's (the core taints what it hands out); the session is the connector's to taint.
     assertThat(ctx.taints).contains(FakeAws.SESSION_SECRET, FakeAws.SESSION_TOKEN);

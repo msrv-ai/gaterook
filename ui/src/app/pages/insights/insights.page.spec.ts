@@ -195,7 +195,7 @@ describe('Insights page', () => {
     expect(tools.querySelectorAll('.gw-card__description code.gw-code')).toHaveLength(2);
     expect(target(tools.querySelector('.gw-card__footer a')).query).toEqual({ q: 'tool:sql_query tool:logs_search', range: '24h' });
 
-    const clients = card(el, 'By client');
+    const clients = card(el, 'By AI app');
     // Each name follows the client's mark, hidden from screen readers as in the kit.
     expect(Array.from(clients.querySelectorAll('.gw-chart .gw-chart__label')).map(text)).toEqual(['Cx Codex', 'CD Claude Desktop', 'ai claude.ai']);
     expect(Array.from(clients.querySelectorAll('.gw-chart .gw-client-mark')).map((m) => [m.className, m.getAttribute('aria-hidden')])).toEqual([
@@ -204,7 +204,7 @@ describe('Insights page', () => {
       ['gw-client-mark gw-client-mark--claudeai gw-client-mark--sm', 'true'],
     ]);
     expect(text(clients.querySelector('.gw-empty__title'))).toBe('No calls from Cursor or Antigravity');
-    expect(target(byText(clients, 'a', 'Connect a client')).path).toBe('/clients');
+    expect(target(byText(clients, 'a', 'Connect your AI app')).path).toBe('/clients');
     expect(Array.from(clients.querySelectorAll('.gw-card__footer a')).map((a) => target(a).query['q'])).toEqual(['client:codex', 'client:claude-desktop', 'client:claude-ai']);
 
     const approvals = card(el, 'Approvals');

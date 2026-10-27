@@ -16,7 +16,7 @@
   </parent>
 
   <artifactId>connectors-gcp</artifactId>
-  <name>MCP Gateway · Connectors · GCP</name>
+  <name>GateRook · Connectors · GCP</name>
 
   <dependencies>
     <dependency>

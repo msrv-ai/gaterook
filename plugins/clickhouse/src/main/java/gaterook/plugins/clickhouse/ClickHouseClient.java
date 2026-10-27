@@ -174,7 +174,7 @@ final class ClickHouseClient {
     q.append("&max_result_rows=").append(maxRows + 1L);
     q.append("&result_overflow_mode=break");
     if (ctx.callId() != null && ctx.callId().matches("[A-Za-z0-9_-]{1,64}")) {
-      q.append("&query_id=").append(enc("mcp-gateway-" + ctx.callId()));
+      q.append("&query_id=").append(enc("gaterook-" + ctx.callId()));
     }
     for (Map.Entry<String, String> p : params.entrySet()) {
       q.append("&param_").append(enc(p.getKey())).append('=').append(enc(p.getValue()));

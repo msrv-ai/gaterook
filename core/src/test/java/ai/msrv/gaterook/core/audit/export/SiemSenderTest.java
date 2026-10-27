@@ -53,7 +53,7 @@ class SiemSenderTest {
       assertThat(messages).extracting(FakeSyslog.Message::connection).containsOnly(1);
       assertThat(messages).allSatisfy(m -> {
         assertThat(m.facility()).as("log audit").isEqualTo(13);
-        assertThat(m.appName()).isEqualTo("mcp-gateway");
+        assertThat(m.appName()).isEqualTo("gaterook");
         assertThat(m.structuredData()).isEqualTo("-");
       });
       assertThat(messages).extracting(FakeSyslog.Message::severity).containsExactly(6, 4, 3, 6);
@@ -147,10 +147,10 @@ class SiemSenderTest {
   @Test
   void theCoresOwnPortsAndMetadataAreNeverAddressed() throws Exception {
     try (FakeSyslog siem = new FakeSyslog(false)) {
-      SiemSender core = new SiemSender(new ExportSettings.Siem("127.0.0.1", siem.port(), 13, "mcp-gateway",
+      SiemSender core = new SiemSender(new ExportSettings.Siem("127.0.0.1", siem.port(), 13, "gaterook",
           Pem.certificates(siem.caPem()), List.of()), null, "host", Set.of(siem.port()), Duration.ofSeconds(5));
       assertThatThrownBy(() -> core.send(batch())).isInstanceOf(ExportException.class);
-      SiemSender metadata = new SiemSender(new ExportSettings.Siem("169.254.169.254", 6514, 13, "mcp-gateway",
+      SiemSender metadata = new SiemSender(new ExportSettings.Siem("169.254.169.254", 6514, 13, "gaterook",
           List.of(), List.of()), null, "host", Set.of(), Duration.ofSeconds(2));
       assertThatThrownBy(() -> metadata.send(batch())).isInstanceOf(ExportException.class)
           .hasMessageContaining("169.254.169.254");
@@ -161,7 +161,7 @@ class SiemSenderTest {
   // ── Helpers ─────────────────────────────────────────────────────────────────────────────────────────────────
 
   static SiemSender sender(FakeSyslog siem, String caPem, String clientCertPem, String clientKeyPem) {
-    return new SiemSender(new ExportSettings.Siem("127.0.0.1", siem.port(), 13, "mcp-gateway",
+    return new SiemSender(new ExportSettings.Siem("127.0.0.1", siem.port(), 13, "gaterook",
         caPem == null ? List.of() : Pem.certificates(caPem), clientCertPem == null ? List.of()
             : Pem.certificates(clientCertPem)), clientKeyPem == null ? null : Pem.privateKey(clientKeyPem),
         "ravi-mbp", Set.of(), Duration.ofSeconds(5));
@@ -169,7 +169,7 @@ class SiemSenderTest {
 
   /** A sender to {@code siem} by the name {@code host} (it resolves to the receiver's 127.0.0.1). */
   private static SiemSender byName(FakeSyslog siem, String host) {
-    return new SiemSender(new ExportSettings.Siem(host, siem.port(), 13, "mcp-gateway", Pem.certificates(
+    return new SiemSender(new ExportSettings.Siem(host, siem.port(), 13, "gaterook", Pem.certificates(
         siem.caPem()), List.of()), null, "ravi-mbp", Set.of(), Duration.ofSeconds(5));
   }
 

@@ -22,7 +22,7 @@ final class K8sErrors {
     String message = OutputSanitizer.sanitize(K8sText.cut(e.getMessage(), 1000));
     return switch (e.code) {
       case 401 -> ConnectorException.resourceError("The API server rejected the credentials of the connection (401 "
-          + "Unauthorized): the token expired or was revoked. Replace it in MCP Gateway and test the connection.",
+          + "Unauthorized): the token expired or was revoked. Replace it in GateRook and test the connection.",
           null);
       case 403 -> ConnectorException.resourceError("Forbidden by the cluster's RBAC: " + message, null);
       case 404 -> ConnectorException.resourceError(what == null ? "Not found: " + message : what + " not found.",

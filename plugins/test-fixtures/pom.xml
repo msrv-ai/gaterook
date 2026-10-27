@@ -9,7 +9,7 @@
   hang            — a call that ignores interrupts (and $/cancel)
   stdout-polluter — println in a static initializer, raw lines on the protocol's file descriptor
   secret-thief    — asks for a field outside its connection, replays its call's token after the call, and tries to
-                    read MCP Gateway's master key, database and the core's environment
+                    read GateRook's master key, database and the core's environment
 
   Never installed anywhere but in tests. Built by step K4.
 -->
@@ -25,7 +25,7 @@
   </parent>
 
   <artifactId>plugins-test-fixtures</artifactId>
-  <name>MCP Gateway · Plugins · Test fixtures</name>
+  <name>GateRook · Plugins · Test fixtures</name>
 
   <properties>
     <maven.deploy.skip>true</maven.deploy.skip>

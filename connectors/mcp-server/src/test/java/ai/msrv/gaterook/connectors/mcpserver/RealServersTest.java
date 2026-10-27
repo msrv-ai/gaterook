@@ -81,7 +81,7 @@ class RealServersTest {
         System.getProperty("os.name"), false, Clock.systemUTC(), Duration.ofSeconds(1),
         McpServerConnector.typeManifest());
     runtime.attach(host);
-    clients = new EgressClients(new EgressClients.Settings("mcp-gateway/test", Set.of(), HostResolver.SYSTEM));
+    clients = new EgressClients(new EgressClients.Settings("GateRook/test", Set.of(), HostResolver.SYSTEM));
   }
 
   @AfterAll

@@ -17,7 +17,7 @@
   </parent>
 
   <artifactId>connectors-aws</artifactId>
-  <name>MCP Gateway · Connectors · AWS</name>
+  <name>GateRook · Connectors · AWS</name>
 
   <dependencies>
     <dependency>

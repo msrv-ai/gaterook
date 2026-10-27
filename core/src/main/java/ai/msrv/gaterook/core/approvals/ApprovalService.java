@@ -382,7 +382,8 @@ public class ApprovalService {
     // never offer it (notifications.Eligibility); this holds even if one did.
     if (decision == Decision.APPROVE && ("slack".equals(via) || "telegram".equals(via))
         && current.getEnv() == ai.msrv.gaterook.connector.api.Env.PROD) {
-      throw ProblemException.unprocessable("Approve in the window", "A production request is approved in GateRook only, never from Slack or Telegram.", "/via");
+      throw ProblemException.unprocessable("Approve in the window", "A production request is approved in "
+          + "GateRook only, never from Slack or Telegram.", "/via");
     }
     if (!clock.instant().isBefore(current.getExpiresAt())) {
       throw ProblemException.conflict("Expired", "The request expired: nothing ran. The agent has to ask again.");

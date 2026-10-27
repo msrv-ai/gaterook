@@ -1,6 +1,7 @@
 package ai.msrv.gaterook.core.tunnel.internal;
 
 import ai.msrv.gaterook.core.platform.BuildFlags;
+import ai.msrv.gaterook.core.platform.CoreBuild;
 import ai.msrv.gaterook.core.platform.GatewayPaths;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -262,7 +263,7 @@ public final class TunnelBinaries {
 
   private byte[] download(Pin pin) throws TunnelException {
     CompletableFuture<HttpResponse<byte[]>> answer = http.sendAsync(HttpRequest.newBuilder(URI.create(pin.url()))
-        .timeout(Duration.ofMinutes(3)).header("User-Agent", "mcp-gateway").GET().build(),
+        .timeout(Duration.ofMinutes(3)).header("User-Agent", "GateRook/" + CoreBuild.VERSION).GET().build(),
         info -> info.statusCode() == 200
             ? HttpResponse.BodySubscribers.limiting(HttpResponse.BodySubscribers.ofByteArray(), MAX_DOWNLOAD)
             : HttpResponse.BodySubscribers.replacing(null));

@@ -17,7 +17,7 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * Claude Desktop's extension for one endpoint (report 03 §7.4, ARCHITECTURE.md §7.2): {@code mcp-gateway-<slug>.mcpb},
+ * Claude Desktop's extension for one endpoint (report 03 §7.4, ARCHITECTURE.md §7.2): {@code gaterook-<slug>.mcpb},
  * a ZIP with {@code manifest.json} (MCPB manifest 0.3, {@code server.type: node}) and {@code server/gw-bridge.mjs}, the
  * zero-dependency bridge that Claude's own Node runs. The manifest names the endpoint and the grant, never a token:
  * the bridge asks the broker for a 15-minute one. One extension per endpoint; a prod endpoint says so in its name.
@@ -37,7 +37,7 @@ public final class McpbBuilder {
 
   /**
    * @param version     the gateway's version, a semver the manifest requires
-   * @param brokerInfo  {@code ~/.mcp-gateway/run/broker.json}, where the bridge finds the broker
+   * @param brokerInfo  {@code ~/.gaterook/run/broker.json}, where the bridge finds the broker
    * @param platform    {@code darwin}, {@code win32} or {@code linux}
    */
   public record Spec(String slug, Env env, String grantId, String version, List<Tool> tools, Path brokerInfo,
@@ -45,9 +45,9 @@ public final class McpbBuilder {
 
   private McpbBuilder() {}
 
-  /** {@code mcp-gateway-<slug>.mcpb}. */
+  /** {@code gaterook-<slug>.mcpb}. */
   public static String fileName(String slug) {
-    return "mcp-gateway-" + slug + ".mcpb";
+    return "gaterook-" + slug + ".mcpb";
   }
 
   /** {@code GateRook · dev}, {@code GateRook · incident-prod (prod)}. */
@@ -59,7 +59,7 @@ public final class McpbBuilder {
   public static ObjectNode manifest(Spec s) {
     ObjectNode m = JSON.createObjectNode();
     m.put("manifest_version", MANIFEST_VERSION);
-    m.put("name", "mcp-gateway-" + s.slug());
+    m.put("name", "gaterook-" + s.slug());
     m.put("display_name", displayName(s.slug(), s.env()));
     m.put("version", semver(s.version()));
     m.put("description", "The tools of the GateRook endpoint " + s.slug() + (s.env() == Env.PROD ? " (prod)" : "")

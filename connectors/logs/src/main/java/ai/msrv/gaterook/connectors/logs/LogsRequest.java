@@ -224,13 +224,13 @@ record LogsRequest(Tool tool, String query, String source, Instant from, Instant
               case LOOKUP -> new Refusal(reach.get().rule, "The lookup command reads a lookup table of the account, "
                   + "which this connection doesn't give agents.", "Search the connection's log groups without lookup.");
               case UNMASK -> new Refusal(reach.get().rule, "unmask shows what the log group's data protection policy "
-                  + "masks; MCP Gateway reads log events masked.", null);
+                  + "masks; GateRook reads log events masked.", null);
             };
           }
           String effective = CloudWatchBackend.insightsQuery(query);
           if (effective.length() > MAX_INSIGHTS_QUERY) {
             throw new Refusal("query_too_long", "Logs Insights queries are at most " + MAX_INSIGHTS_QUERY
-                + " characters, with what MCP Gateway adds (" + effective.length() + ").", null);
+                + " characters, with what GateRook adds (" + effective.length() + ").", null);
           }
         }
       }
@@ -250,7 +250,7 @@ record LogsRequest(Tool tool, String query, String source, Instant from, Instant
         // time range). Refused wherever it stands, quoted or not: whether a quote opens a string is the backend's
         // grammar, and the check doesn't guess it.
         if (query.contains("--")) {
-          throw new Refusal("gcp_comment", "Cloud Logging reads -- as a comment to the end of the line; MCP Gateway "
+          throw new Refusal("gcp_comment", "Cloud Logging reads -- as a comment to the end of the line; GateRook "
               + "doesn't send comments in queries.", "Leave the comment out, or search for the words around --.");
         }
       }

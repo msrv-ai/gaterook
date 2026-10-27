@@ -95,10 +95,10 @@ final class Namespaces {
       return ns + " isn't in the collections this connection may read (" + String.join(", ", allowlist) + ").";
     }
     if (SYSTEM_DATABASES.contains(database)) {
-      return database + " is a system database: MCP Gateway doesn't read admin, local or config unless the "
+      return database + " is a system database: GateRook doesn't read admin, local or config unless the "
           + "connection's allowlist names them.";
     }
-    return ns + " is a system collection: MCP Gateway doesn't read system.* unless the connection's allowlist "
+    return ns + " is a system collection: GateRook doesn't read system.* unless the connection's allowlist "
         + "names it.";
   }
 }

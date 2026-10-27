@@ -105,6 +105,11 @@ export class SchemaForm {
   readonly stricterBadges: boolean;
   /** The object secret buttons name ("Replace password for dev-db"): the connection's name as it is typed. */
   readonly subject = signal('');
+  /**
+   * The first connection of a first run (kit connection-new `?state=first-run`): the fields speak to a beginner
+   * ("Encrypted on this computer when you save."). Set by the page's form; the form isn't rebuilt for it.
+   */
+  readonly beginner = signal(false);
   private readonly envState = signal('dev');
   /**
    * The environment the form is for: reference placeholders (`vault://kv/dev/…`), the `x-env-default`s a new value

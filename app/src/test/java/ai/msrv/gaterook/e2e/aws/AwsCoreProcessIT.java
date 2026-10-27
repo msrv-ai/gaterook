@@ -60,7 +60,7 @@ class AwsCoreProcessIT {
   private static final String SESSION_SECRET = "cnry-aws-session-secret-" + Long.toHexString(System.nanoTime());
   private static final String SESSION_TOKEN = "cnry-aws-session-token-" + Long.toHexString(System.nanoTime());
   private static final String USER_DATA_SECRET = "cnry-userdata-" + Long.toHexString(System.nanoTime());
-  private static final String SESSION_ARN = "arn:aws:sts::" + ACCOUNT + ":assumed-role/gw-readonly/mcp-gateway-aws-dev";
+  private static final String SESSION_ARN = "arn:aws:sts::" + ACCOUNT + ":assumed-role/gw-readonly/gaterook-aws-dev";
   private static final HttpClient HTTP = HttpClient.newBuilder().proxy(HttpClient.Builder.NO_PROXY)
       .connectTimeout(Duration.ofSeconds(5)).build();
 
@@ -110,7 +110,7 @@ class AwsCoreProcessIT {
         + config + ",\"secrets\":" + secrets + "}"), 200);
     assertThat(tested.path("ok").asBoolean()).as(tested.toString()).isTrue();
     assertThat(tested.path("identity").asString()).startsWith("arn:aws:sts::" + ACCOUNT
-        + ":assumed-role/gw-readonly/mcp-gateway-");
+        + ":assumed-role/gw-readonly/gaterook-");
     assertThat(tested.path("serverVersion").asString()).isEqualTo("Cloud Control API · CloudWatch · STS eu-central-1");
     assertThat(tested.path("permissions").path("level").asString()).isEqualToIgnoringCase("read");
     json(admin("POST", "/api/connections", "{\"name\":\"aws-dev\",\"type\":\"aws\",\"env\":\"dev\",\"config\":"

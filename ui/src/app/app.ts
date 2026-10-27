@@ -65,7 +65,7 @@ const NAV: readonly NavGroup[] = [
     label: 'Access',
     links: [
       { label: 'Endpoints', route: '/endpoints', icon: 'waypoints' },
-      { label: 'Clients', route: '/clients', icon: 'app-window' },
+      { label: 'AI apps', route: '/clients', icon: 'app-window' },
       { label: 'Policies', route: '/policies', icon: 'shield' },
       { label: 'Playground', route: '/playground', icon: 'flask-conical' },
     ],
@@ -95,7 +95,7 @@ const WARNING_ICONS: Record<string, string> = {
  * banners, the page and the command palette. While the core isn't running the status screen is the whole window
  * (core-starting); Welcome uses the no-sidebar variant; the dev gallery has no frame at all.
  *
- * The app also routes what comes from outside, strictly by allowlist (`shell/deep-links.ts`): `mcp-gateway://` deep
+ * The app also routes what comes from outside, strictly by allowlist (`shell/deep-links.ts`): `gaterook://` deep
  * links from Electron (Review in an OS notification, Copy link in Activity) and the core's `ui.open` ("Open in app"
  * in Slack or Telegram) only navigate, and re-arm the decision buttons' 700 ms activation delay. `#fragment`s select
  * tabs on every navigation, the same-route ones included (GwFragmentTabs, kit.js `hashchange`).
@@ -227,7 +227,13 @@ export class App {
 
     const destroy = inject(DestroyRef);
     destroy.onDestroy(this.desktop.onDeepLink((link) => this.openFromOutside(deepLinkUrl(link))));
-    destroy.onDestroy(this.events.on('ui.open', (data) => this.openFromOutside(uiOpenUrl(data))));
+    // "Open in app" from a chat: in the desktop app main brings the window forward on the path and hands it over as a
+    // deep link (the queue as its first waiting request); a browser has no main, so the window opens it itself.
+    destroy.onDestroy(
+      this.events.on('ui.open', (data) => {
+        if (!this.desktop.available) this.openFromOutside(uiOpenUrl(data));
+      }),
+    );
   }
 
   private reload(): void {

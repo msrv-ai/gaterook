@@ -213,8 +213,8 @@ describe('master key', () => {
   });
 
   it('places the file, its folder and the backup', () => {
-    expect(keyFolder('/Users/you/.mcp-gateway/master.keyset')).toBe('/Users/you/.mcp-gateway/');
-    expect(keyFileName('C:\\Users\\you\\.mcp-gateway\\master.keyset')).toBe('master.keyset');
+    expect(keyFolder('/Users/you/.gaterook/master.keyset')).toBe('/Users/you/.gaterook/');
+    expect(keyFileName('C:\\Users\\you\\.gaterook\\master.keyset')).toBe('master.keyset');
     expect(backupFileName(NOW)).toBe('master-keyset-2026-10-22.json');
     expect(backupLead(8)).toBe("Without a copy, the 8 secrets stored here can't be recovered if this computer is lost.");
     expect(backupLead(0)).toMatch(/later/);
@@ -294,7 +294,7 @@ describe('external stores', () => {
     expect(storeStatus({ ...vault, verified: false })).toEqual({ tone: 'warning', label: 'Changed outside GateRook' });
     expect(storeDescription(vault)).toBe('Or OpenBao, its open-source fork');
     expect(storeDescription(gcp)).toBe('Project acme-stage');
-    expect(text(storeSignIn(vault))).toBe('AppRole mcp-gateway gets a token, renewed every hour. Secret ID: vault/approle-secret-id');
+    expect(text(storeSignIn(vault))).toBe('AppRole gaterook gets a token, renewed every hour. Secret ID: vault/approle-secret-id');
     expect(text(storeSignIn(gcp))).toBe('Impersonates gw-secrets@acme-stage.iam.gserviceaccount.com from your gcloud credentials. No key file.');
     const aws: SecretStore = {
       ...vault,

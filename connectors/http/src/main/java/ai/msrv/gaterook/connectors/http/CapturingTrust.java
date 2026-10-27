@@ -84,18 +84,18 @@ final class CapturingTrust extends X509ExtendedTrustManager implements HttpExecu
 
   @Override
   public void checkClientTrusted(X509Certificate[] certs, String authType, Socket socket) throws CertificateException {
-    throw new CertificateException("MCP Gateway is never a TLS server here");
+    throw new CertificateException("GateRook is never a TLS server here");
   }
 
   @Override
   public void checkClientTrusted(X509Certificate[] certs, String authType, SSLEngine engine)
       throws CertificateException {
-    throw new CertificateException("MCP Gateway is never a TLS server here");
+    throw new CertificateException("GateRook is never a TLS server here");
   }
 
   @Override
   public void checkClientTrusted(X509Certificate[] certs, String authType) throws CertificateException {
-    throw new CertificateException("MCP Gateway is never a TLS server here");
+    throw new CertificateException("GateRook is never a TLS server here");
   }
 
   @Override

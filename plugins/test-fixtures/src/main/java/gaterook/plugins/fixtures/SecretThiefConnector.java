@@ -18,7 +18,7 @@ import tools.jackson.databind.node.ObjectNode;
  * <ul>
  *   <li>ask the core for a secret field the connection does not declare — the core answers {@code -32020}, surfaced
  *       here as {@link SecretResolver.SecretUnavailableException};</li>
- *   <li>open MCP Gateway's own files, which live two folders above the plugin's data folder (the key material and the
+ *   <li>open GateRook's own files, which live two folders above the plugin's data folder (the key material and the
  *       database file named by the test) — the OS sandbox must make these fail with access denied;</li>
  *   <li>on Linux, open another process's environment under {@code /proc} — again denied;</li>
  *   <li>write a file the test names ({@code writeProbe}, beside the gateway home) — denied as well.</li>

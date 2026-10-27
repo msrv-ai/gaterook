@@ -323,7 +323,7 @@ class OAuthNegativeIT {
     try {
       TunnelWorld.Answer off = local.mcp("dev", localAccess, "tools/list");
       assertThat(off.status()).isEqualTo(401);
-      assertThat(off.header("www-authenticate")).isEqualTo("Bearer realm=\"mcp-gateway\"");
+      assertThat(off.header("www-authenticate")).isEqualTo("Bearer realm=\"gaterook\"");
     } finally {
       oauth("dev", true);
     }
@@ -437,7 +437,7 @@ class OAuthNegativeIT {
     assertThat(local.get(null, "/.well-known/oauth-protected-resource/mcp/incident-prod", Map.of()).status())
         .isEqualTo(404);
     assertThat(local.mcp("incident-prod", null, "initialize").header("www-authenticate"))
-        .isEqualTo("Bearer realm=\"mcp-gateway\"");
+        .isEqualTo("Bearer realm=\"gaterook\"");
 
     // Cursor's and Antigravity's own callbacks, and loopback ones; nothing else.
     String cursor = register("cursor://anysphere.cursor-mcp/oauth/callback", "Cursor");

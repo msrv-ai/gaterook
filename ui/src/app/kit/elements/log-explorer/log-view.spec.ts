@@ -48,7 +48,7 @@ describe('log-explorer view (design/elements/log-explorer.html)', () => {
 
   it('builds facets: fixed order for decisions and environments, by count otherwise', () => {
     const groups = facetGroups(DEMO_FACETS, '', DEMO_CONNECTION_ENVS);
-    expect(groups.map((g) => g.label)).toEqual(['Decision', 'Tool', 'Client', 'Endpoint', 'Connection', 'Environment']);
+    expect(groups.map((g) => g.label)).toEqual(['Decision', 'Tool', 'AI app', 'Endpoint', 'Connection', 'Environment']);
     const decision = groups[0];
     expect(decision.shown.map((o) => o.label)).toEqual(['Allowed', 'Approved', 'Waiting for approval', 'Denied by policy', 'Rejected', 'Expired', 'Error']);
     expect(decision.shown[0].iconTone).toBe('gw-fg-success');

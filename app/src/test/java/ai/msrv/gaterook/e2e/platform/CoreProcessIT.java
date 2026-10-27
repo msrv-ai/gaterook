@@ -179,7 +179,7 @@ class CoreProcessIT {
       JsonNode init = mcp.post("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{"
           + "\"protocolVersion\":\"2025-11-25\",\"capabilities\":{},\"clientInfo\":{\"name\":\"smoke\","
           + "\"version\":\"1\"}}}", "2025-11-25", null, null);
-      assertThat(init.at("/result/serverInfo/name").asString()).as(init.toString()).isEqualTo("mcp-gateway");
+      assertThat(init.at("/result/serverInfo/name").asString()).as(init.toString()).isEqualTo("gaterook");
       assertThat(init.at("/result/instructions").asString()).contains("endpoint \"dev\"");
       String meta = "\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\"2026-07-28\","
           + "\"io.modelcontextprotocol/clientCapabilities\":{}}";

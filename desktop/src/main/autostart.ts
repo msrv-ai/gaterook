@@ -1,4 +1,4 @@
-// The Linux autostart entry (~/.config/autostart/mcp-gateway.desktop, login.ts): text only, so it can be tested.
+// The Linux autostart entry (~/.config/autostart/gaterook.desktop, login.ts): text only, so it can be tested.
 
 /**
  * One quoted argument of a .desktop `Exec` line (Desktop Entry spec, "The Exec key"): inside double quotes `"`, `` ` ``,

@@ -1,11 +1,11 @@
 <header class="gw-section__header">
   <h2 class="gw-section__title" id="st-auth-t">Authorization</h2>
-  <p class="gw-section__description">How clients prove who they are before they call an endpoint, and who can sign in to this app.</p>
+  <p class="gw-section__description">How AI apps prove who they are before they call an endpoint, and who can sign in to this app.</p>
 </header>
 <hr class="gw-divider">
 
-<section gwHowItWorks vertical heading="How authorization works" summary="Every client is tied to one endpoint and can be cut off at once." stepsLabel="How a client is authorized" persist="settings-authorization">
-  <li gwHowItWorksStep icon="log-in" heading="Client gets a token or signs in with OAuth">Claude Desktop and Codex get a 15-minute token on the fly; Cursor, Antigravity and MCP Inspector send a named token; claude.ai signs in with OAuth 2.1 through the tunnel.</li>
+<section gwHowItWorks vertical heading="How authorization works" summary="Every AI app is tied to one endpoint and can be cut off at once." stepsLabel="How an AI app is authorized" persist="settings-authorization">
+  <li gwHowItWorksStep icon="log-in" heading="AI app gets a token or signs in with OAuth">Claude Desktop and Codex get a 15-minute token on the fly; Cursor, Antigravity and MCP Inspector send a named token; claude.ai signs in with OAuth 2.1 through the tunnel.</li>
   <li gwHowItWorksStep icon="waypoints" heading="Token is bound to one endpoint">@if (tokensEndpoint(); as ep) {A token for <code class="gw-code">{{ ep }}</code> can't call another endpoint.} @else {A token for one endpoint can't call another.} Only its hash is stored.</li>
   <li gwHowItWorksStep icon="shield" heading="Policy decides: allow, approval or deny">Each call is checked against the tool's mode and the environment's limits.</li>
   <li gwHowItWorksStep icon="ban" heading="Revoke any time">The next call with a revoked token is refused. Nothing to restart.</li>
@@ -140,7 +140,7 @@
         <div class="gw-table-wrap" id="st-grants-wrap" role="region" aria-labelledby="st-grants-cap" tabindex="0">
           <table class="gw-table gw-table--dense">
             <caption class="gw-sr-only" id="st-grants-cap">OAuth sign-ins you allowed</caption>
-            <thead><tr><th scope="col">Client</th><th scope="col">Endpoint</th><th scope="col">Allowed</th><th scope="col">Last call</th><th scope="col">Expires</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th></tr></thead>
+            <thead><tr><th scope="col">AI app</th><th scope="col">Endpoint</th><th scope="col">Allowed</th><th scope="col">Last call</th><th scope="col">Expires</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th></tr></thead>
             <tbody>
               @for (g of grants(); track g.id) {
                 <tr>

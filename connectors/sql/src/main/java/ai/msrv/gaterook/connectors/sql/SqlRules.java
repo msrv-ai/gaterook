@@ -177,7 +177,7 @@ final class SqlRules {
               + "would outlive the call in a shared session.";
           case SqlClassifier.TEMPORARY_OBJECT -> "A temporary table, view or sequence isn't allowed: it would outlive "
               + "the call in a shared session and hide the table of that name from later calls.";
-          default -> s.type() + " isn't allowed: MCP Gateway runs every call in its own transaction and session.";
+          default -> s.type() + " isn't allowed: GateRook runs every call in its own transaction and session.";
         };
         return Classification.deny(p.rule("forbidden"), reason, forbiddenHint(s));
       }
@@ -186,7 +186,7 @@ final class SqlRules {
         p.allowedFunctions());
     if (!v.denied().isEmpty()) {
       return Classification.deny(p.rule("function-denied"), String.join(", ", v.denied()) + " isn't allowed through "
-          + "MCP Gateway: it acts outside the transaction.", null);
+          + "GateRook: it acts outside the transaction.", null);
     }
     return null;
   }
@@ -255,7 +255,7 @@ final class SqlRules {
     String type = a.statements().stream().filter(s -> s.kind() == Kind.DDL).map(StatementFacts::type).findFirst()
         .orElse("DDL");
     return Classification.deny(p.rule("block_ddl"), "DDL is not allowed on " + p.env() + " (" + type + ").",
-        "Ask a person to make schema changes outside MCP Gateway.");
+        "Ask a person to make schema changes outside GateRook.");
   }
 
   private static String changeReason(Analysis a) {

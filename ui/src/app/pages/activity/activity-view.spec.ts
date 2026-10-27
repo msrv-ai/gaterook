@@ -116,7 +116,7 @@ describe('Activity view (design/pages/activity.html)', () => {
   it('says who called: a client, the Playground, or nobody known', () => {
     expect(clientView('codex')).toEqual({ id: 'codex', name: 'Codex', letter: null });
     expect(clientView('playground')).toEqual({ id: 'playground', name: 'Playground', letter: 'P' });
-    expect(clientView(null)).toEqual({ id: 'unknown', name: 'Unknown client', letter: '?' });
+    expect(clientView(null)).toEqual({ id: 'unknown', name: 'Unknown AI app', letter: '?' });
   });
 
   it('writes the Duration cell as the kit does', () => {
@@ -275,7 +275,7 @@ describe('Activity view (design/pages/activity.html)', () => {
     const grant = revokeWords(tokens[0], 'dev', null);
     expect(grant.title).toBe('Revoke codex-laptop?');
     expect(revokeDescription(grant)).toBe(
-      "Codex's current token stops working at once and its headers helper gets no new one, so Codex loses access to endpoint dev on its next call. Connect Codex again under Clients to restore it. Its past calls stay in this log.",
+      "Codex's current token stops working at once and its headers helper gets no new one, so Codex loses access to endpoint dev on its next call. Connect Codex again under AI apps to restore it. Its past calls stay in this log.",
     );
     expect(grant.endpoint).toBe('dev');
     expect(grant.accessRest).toBe(' · 15-minute tokens issued on the fly, none stored');

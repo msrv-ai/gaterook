@@ -1,538 +1,130 @@
-import { ActivityEvent, Histogram } from '../../core/api/activity.api';
-import { ApprovalItem } from '../../core/api/approvals.api';
-import { HealthRow, OverviewStats, SetupNode } from '../../core/api/overview.api';
-import { clockTime, duration, elapsed, everyInterval, formatCount } from '../../core/time/time-format';
-import { clientName } from '../../kit/elements/shared/client-mark';
+import { ClientCard, ClientId } from '../../core/api/clients.api';
+import { ConnectionRow, ConnectionUsedBy, StoredSecret } from '../../core/api/connections.api';
+import { HealthRow, Overview, OverviewStats } from '../../core/api/overview.api';
+import { TunnelState } from '../../core/api/tunnel.api';
+import { Env } from '../../core/api/types';
+import { duration, formatCount } from '../../core/time/time-format';
+import { connectorIcon, connectorName } from '../../kit/elements/shared/connector-icons';
 import { healthLook } from '../../kit/elements/shared/dictionaries';
-import { TextPart, isLiteralWord, literalParts } from '../../kit/elements/shared/literals';
+import { TileState, TilePart } from '../../kit/elements/status-tile/status-tile';
 
 /**
- * What Overview shows, computed from the admin API (ARCHITECTURE.md §6 overview, approvals, activity): pure functions
- * of the answers and "now", so the tests check them against the kit's wording (design/pages/overview.html) without a
- * clock or a core. The page binds them; nothing here invents a number the core didn't give.
+ * What Overview shows (design/pages/overview.html, BLUEPRINT §5 overview, COMPONENTS.md › status-tile), computed from
+ * the admin API: pure functions of the answers, so the tests check them against the kit's wording without a clock or
+ * a core. The page binds them; nothing here invents a number the core didn't give.
  */
 
-const HOUR = 3_600_000;
-const DAY = 24 * HOUR;
+// ── The three states ─────────────────────────────────────────────────────────────────────────────────────────────
 
-/** The gateway's own budget per call (ARCHITECTURE.md M1.5: p95 of the overhead ≤ 50 ms; BLUEPRINT §9 "target ≤ 50 ms"). */
-export const OVERHEAD_TARGET_MS = 50;
+/**
+ * - `first-run`: no connection yet — the three-step guide, step 1 current;
+ * - `setup`: a connection, no AI app connected yet — step 1 done, step 2 current;
+ * - `in-use`: an AI app is connected (a link of the AI apps page, or a named token) — the home screen.
+ */
+export type OverviewState = 'first-run' | 'setup' | 'in-use';
 
-/** How many decided calls Recent activity lists (kit: "The last 8 calls with a decision"). */
-export const RECENT_CALLS = 8;
-
-// ── KPI tiles ────────────────────────────────────────────────────────────────────────────────────────────────────
-
-/** `gw-stat__delta`: direction (icon and modifier), what it means (`data-sentiment`, none when flat) and the words. */
-export interface StatDelta {
-  readonly dir: 'up' | 'down' | 'flat';
-  readonly sentiment: 'good' | 'bad' | 'neutral' | null;
-  readonly icon: 'trending-up' | 'trending-down' | 'minus';
-  readonly text: string;
-}
-
-/** A `gw-sparkline` in the tile's `__chart` slot: the polyline, its tone and the trend in words (`aria-label`). */
-export interface StatChart {
-  readonly points: string;
-  readonly tone: 'brand' | 'warning' | 'danger';
-  readonly label: string;
-}
-
-/** A run of `gw-stat__meta`: text, or a link into another page ("View denials"). */
-export interface MetaPart {
-  readonly text: string;
-  readonly route?: string;
-  readonly query?: { readonly [key: string]: string };
-}
-
-/** One `gw-stat` of the "Last 24 hours" row. */
-export interface StatTile {
-  readonly id: 'calls' | 'waiting' | 'denied' | 'overhead';
-  readonly label: string;
-  readonly value: string;
-  readonly unit: string | null;
-  readonly chart: StatChart | null;
-  readonly delta: StatDelta | null;
-  readonly meta: readonly MetaPart[];
+/** How many connections the core has (its setup map counts them; external MCP servers aren't connections here). */
+export function connectionCount(o: Overview): number {
+  return o.setupMap.nodes.find((n) => n.id === 'connections')?.count ?? o.health.length;
 }
 
 /**
- * The approval requests of the last 24 hours as the page loaded them: the history (newest first, decided or expired),
- * the requests waiting now, and the core's counts of the day by status.
+ * The state from the core's own facts: its connections, and its getting-started step "client" — done once an AI app
+ * is connected through the AI apps page or a named token was issued (`clients.ClientService.progress`).
  */
-export interface ApprovalsDay {
-  readonly history: readonly ApprovalItem[];
-  readonly pending: readonly ApprovalItem[];
-  readonly counts: { readonly [status: string]: number };
+export function overviewState(o: Overview): OverviewState {
+  if (connectionCount(o) === 0) return 'first-run';
+  return o.gettingStarted.steps.find((s) => s.id === 'client')?.state === 'done' ? 'in-use' : 'setup';
 }
 
-/** Everything the tiles are made of; the optional parts degrade a tile to what is known. */
-export interface StatsInput {
-  readonly stats: OverviewStats;
-  /** `GET /api/activity/histogram` of the last 24 hours, one bar per hour (decisions per hour). */
-  readonly histogram: Histogram | null;
-  readonly approvals: ApprovalsDay | null;
-  /** Now on the core's clock (epoch ms). */
-  readonly now: number;
+// ── Your connections ─────────────────────────────────────────────────────────────────────────────────────────────
+
+/** One connection as a tile: its name and environment, type icon, one meta line, its state in words. */
+export interface ConnectionTile {
+  readonly name: string;
+  readonly env: Env;
+  readonly icon: string;
+  readonly meta: readonly TilePart[];
+  readonly state: TileState;
+  /** Unreachable: the tile's one action is Test again. */
+  readonly retest: boolean;
 }
 
-/** "+5", "−4 ms", "+1,284": a change with its sign, a typographic minus and the kit's thousands. */
-export function signed(n: number, unit = ''): string {
-  const text = `${n < 0 ? '−' : '+'}${formatCount(Math.abs(n))}`;
-  return unit ? `${text} ${unit}` : text;
+const TONE_RANK: Record<string, number> = { danger: 0, warning: 1, success: 2, info: 3, neutral: 4, brand: 5 };
+const ENV_RANK: Record<string, number> = { dev: 0, stage: 1, prod: 2 };
+
+/** The tile's state: "Healthy", "Slow · 1.8 s", "Unreachable", "Not checked yet" (kit tiles name the latency only when slow). */
+export function tileHealth(row: Pick<HealthRow, 'state' | 'latencyMs'>): TileState {
+  const look = healthLook(row.state, null);
+  if (look.tone === 'warning' && row.latencyMs != null) return { tone: 'warning', label: `Slow · ${duration(row.latencyMs)}` };
+  return { tone: look.tone === 'info' ? 'info' : look.tone, label: look.text };
 }
 
-/**
- * A change against `vs` ("yesterday", "an hour ago"): flat says "No change vs …" without a sentiment (kit
- * `__delta--flat`); otherwise the direction's icon and what the change means — more denials is bad, a lower p95 good.
- */
-function change(n: number, text: string, vs: string, up: StatDelta['sentiment'], down: StatDelta['sentiment']): StatDelta {
-  if (n === 0) return { dir: 'flat', sentiment: null, icon: 'minus', text: `No change vs ${vs}` };
-  return n > 0
-    ? { dir: 'up', sentiment: up, icon: 'trending-up', text: `${text} vs ${vs}` }
-    : { dir: 'down', sentiment: down, icon: 'trending-down', text: `${text} vs ${vs}` };
-}
-
-/**
- * Calls against the day before (kit "+12% vs yesterday"): a share when the day before had calls, the number of calls
- * when it had none (a share of nothing would be infinite), and the number again when the share rounds to 0 %.
- */
-export function callsDelta(calls: number, delta: number): StatDelta {
-  const before = calls - delta;
-  const pct = before > 0 ? Math.round((delta / before) * 100) : 0;
-  const text = pct !== 0 ? `${pct > 0 ? '+' : '−'}${formatCount(Math.abs(pct))}%` : signed(delta);
-  return change(delta, text, 'yesterday', 'neutral', 'neutral');
-}
-
-/**
- * The points of a `gw-sparkline` (viewBox 0 0 230 40, as the kit's tiles): first value at the left edge, last at the
- * right, the highest at y 4 and zero on the baseline (y 38).
- */
-export function sparkPoints(values: readonly number[]): string {
-  const max = Math.max(0, ...values);
-  const step = values.length > 1 ? 230 / (values.length - 1) : 0;
-  const round = (n: number) => String(Math.round(n * 10) / 10);
-  return values.map((v, i) => `${round(i * step)},${round(38 - (max ? v / max : 0) * 34)}`).join(' ');
-}
-
-/**
- * As {@link sparkPoints} for a series with gaps (an hour without completed calls has no p95): the hours that have a
- * value keep their place on the x axis, the highest at y 4; empty without any value.
- */
-export function sparseSparkPoints(values: readonly (number | null)[]): string {
-  const known = values.filter((v): v is number => v !== null);
-  const max = Math.max(0, ...known);
-  const step = values.length > 1 ? 230 / (values.length - 1) : 0;
-  const round = (n: number) => String(Math.round(n * 10) / 10);
-  return values
-    .map((v, i) => (v === null ? null : `${round(i * step)},${round(38 - (max ? v / max : 0) * 34)}`))
-    .filter((p): p is string => p !== null)
-    .join(' ');
-}
-
-/** The start of the clock hour `back` hours before the current one ("11:00" in the labels). */
-function hourStart(now: number, back: number): number {
-  return Math.floor(now / HOUR) * HOUR - back * HOUR;
-}
-
-/** The peak of hourly values and when it was ("peak of 166 at 11:00"); null without any. */
-function peak(values: readonly number[], startOf: (i: number) => number): { readonly max: number; readonly at: string } | null {
-  let best = -1;
-  values.forEach((v, i) => {
-    if (v > 0 && (best < 0 || v > values[best])) best = i;
-  });
-  return best < 0 ? null : { max: values[best], at: clockTime(startOf(best), false) };
-}
-
-/** Decisions of the day summed over the histogram's bars: `{allowed: 1201, approved: 46, …}`. */
-export function decisionTotals(h: Histogram | null): { readonly [decision: string]: number } {
-  const totals: Record<string, number> = {};
-  for (const b of h?.buckets ?? []) for (const [d, n] of Object.entries(b.decisions)) totals[d] = (totals[d] ?? 0) + n;
-  return totals;
-}
-
-/** When a request stopped waiting: its decision, else (expired, cancelled by the core) its auto-deny time. */
-function resolvedAt(a: ApprovalItem): number {
-  const decided = a.decidedAt ? Date.parse(a.decidedAt) : NaN;
-  return Number.isNaN(decided) ? Date.parse(a.expiresAt) : decided;
-}
-
-/** A request's wait as an interval of epoch ms; one still waiting has no end. */
-export interface WaitSpan {
-  readonly from: number;
-  readonly to: number;
-}
-
-export function waitSpans(day: ApprovalsDay): WaitSpan[] {
-  const spans: WaitSpan[] = [];
-  for (const a of day.pending) spans.push({ from: Date.parse(a.requestedAt), to: Number.POSITIVE_INFINITY });
-  for (const a of day.history) {
-    const from = Date.parse(a.requestedAt);
-    spans.push({ from, to: Math.max(from, resolvedAt(a)) });
-  }
-  return spans.filter((s) => !Number.isNaN(s.from) && !Number.isNaN(s.to));
-}
-
-/** How many requests waited at the instant `t`. */
-export function waitingAt(spans: readonly WaitSpan[], t: number): number {
-  return spans.filter((s) => s.from <= t && s.to > t).length;
-}
-
-/**
- * The most requests that waited at the same time in each of the last `hours` clock hours, oldest first, the current
- * (partial) hour last — the kit's "Requests waiting per hour: never more than 3 at a time". A sweep over the waits
- * clipped to each hour: an end and a start at the same instant don't overlap.
- */
-export function waitingPerHour(spans: readonly WaitSpan[], now: number, hours = 24): number[] {
-  const out: number[] = [];
-  for (let i = 0; i < hours; i++) {
-    const start = hourStart(now, hours - 1 - i);
-    const end = Math.min(start + HOUR, now + 1);
-    const edges: [number, number][] = [];
-    for (const s of spans) {
-      if (s.from < end && s.to > start) {
-        edges.push([Math.max(s.from, start), 1], [Math.min(s.to, end), -1]);
-      }
-    }
-    edges.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-    let open = 0;
-    let max = 0;
-    for (const [, step] of edges) {
-      open += step;
-      max = Math.max(max, open);
-    }
-    out.push(max);
-  }
-  return out;
-}
-
-/**
- * The median time a person took to decide, over the requests of the last 24 hours someone decided (approved, then
- * run or failed, or rejected); expired ones and the core's own refusals (a revoked token, a deleted connection) are
- * no one's wait.
- */
-export function medianWaitMs(day: ApprovalsDay, now: number): number | null {
-  const since = now - DAY;
-  const waits = day.history
-    .filter((a) => a.decidedAt && a.decidedVia !== 'core' && ['running', 'completed', 'failed', 'rejected'].includes(a.status))
-    .filter((a) => Date.parse(a.requestedAt) >= since)
-    .map((a) => Date.parse(a.decidedAt!) - Date.parse(a.requestedAt))
-    .filter((ms) => ms >= 0)
-    .sort((a, b) => a - b);
-  if (!waits.length) return null;
-  const mid = Math.floor(waits.length / 2);
-  return waits.length % 2 ? waits[mid] : Math.round((waits[mid - 1] + waits[mid]) / 2);
-}
-
-const plural = (n: number, one: string, many = `${one}s`) => `${formatCount(n)} ${n === 1 ? one : many}`;
-
-/** The four tiles of "Last 24 hours": calls, waiting for approval, denied by policy, the gateway's p95. */
-export function statTiles(input: StatsInput): StatTile[] {
-  const { stats, histogram, approvals, now } = input;
-  const totals = decisionTotals(histogram);
-  const bars = histogram?.buckets.slice(-24) ?? [];
-
-  // Calls: per clock hour from the overview's own spark (the current hour last).
-  const callsPeak = peak(stats.spark, (i) => hourStart(now, stats.spark.length - 1 - i));
-  const calls: StatTile = {
-    id: 'calls',
-    label: 'Calls',
-    value: formatCount(stats.calls24h),
-    unit: null,
-    chart: callsPeak
-      ? { points: sparkPoints(stats.spark), tone: 'brand', label: `Calls per hour: peak of ${formatCount(callsPeak.max)} at ${callsPeak.at}` }
-      : null,
-    delta: callsDelta(stats.calls24h, stats.deltas.calls24h),
-    meta:
-      stats.calls24h === 0
-        ? [{ text: 'No calls in the last 24 hours' }]
-        : histogram
-          ? [{ text: `${formatCount(totals['allowed'] ?? 0)} allowed · ${formatCount(totals['approved'] ?? 0)} approved` }]
-          : [],
-  };
-
-  // Waiting: the queue now; over the day and an hour ago from the requests' own times.
-  let waitingChart: StatChart | null = null;
-  let waitingDelta: StatDelta | null = null;
-  const waitingMeta: MetaPart[] = [];
-  if (approvals) {
-    const spans = waitSpans(approvals);
-    const perHour = waitingPerHour(spans, now);
-    const most = Math.max(0, ...perHour);
-    if (most > 0) {
-      waitingChart = {
-        points: sparkPoints(perHour),
-        tone: 'warning',
-        label: `Requests waiting per hour: never more than ${formatCount(most)} at a time`,
-      };
-    }
-    const d = stats.pending - waitingAt(spans, now - HOUR);
-    waitingDelta = change(d, signed(d), 'an hour ago', 'neutral', 'neutral');
-    const requests = approvals.pending.length + approvals.history.filter((a) => Date.parse(a.requestedAt) >= now - DAY).length;
-    if (requests === 0 && stats.pending === 0) {
-      waitingMeta.push({ text: 'No requests in the last 24 hours' });
-    } else {
-      const median = medianWaitMs(approvals, now);
-      const expired = approvals.counts['expired'] ?? 0;
-      const parts = [median !== null ? `Median wait ${elapsed(median)}` : null, expired ? `${formatCount(expired)} expired` : 'none expired'];
-      waitingMeta.push({ text: parts.filter((p): p is string => !!p).join(' · ') });
-    }
-  }
-  const waiting: StatTile = {
-    id: 'waiting',
-    label: 'Waiting for approval',
-    value: formatCount(stats.pending),
-    unit: null,
-    chart: waitingChart,
-    delta: waitingDelta,
-    meta: waitingMeta,
-  };
-
-  // Denied by policy: the day against the one before; per hour from the histogram.
-  const denials = bars.map((b) => b.decisions['denied'] ?? 0);
-  const deniedPeak = peak(denials, (i) => Date.parse(bars[i].from));
-  const rejected = totals['rejected'] ?? 0;
-  const deniedMeta: MetaPart[] = [];
-  if (histogram) deniedMeta.push({ text: rejected ? `Also ${formatCount(rejected)} rejected on review` : 'None rejected on review' });
-  if (stats.denied24h > 0) {
-    if (deniedMeta.length) deniedMeta.push({ text: ' · ' });
-    deniedMeta.push({ text: 'View denials', route: '/activity', query: { q: 'decision:denied' } });
-  }
-  const denied: StatTile = {
-    id: 'denied',
-    label: 'Denied by policy',
-    value: formatCount(stats.denied24h),
-    unit: null,
-    chart: deniedPeak
-      ? { points: sparkPoints(denials), tone: 'danger', label: `Denials per hour: peak of ${formatCount(deniedPeak.max)} at ${deniedPeak.at}` }
-      : null,
-    delta: change(stats.deltas.denied24h, signed(stats.deltas.denied24h), 'yesterday', 'bad', 'good'),
-    meta: deniedMeta,
-  };
-
-  // The gateway's own time per hour (step API's `gatewayP95Spark`); a core without the series gives the number only.
-  const p95 = stats.gatewayP95Ms;
-  const p95Delta = stats.deltas.gatewayP95Ms;
-  const overhead: StatTile = {
-    id: 'overhead',
-    label: 'Gateway overhead p95',
-    value: p95 === null ? 'None' : formatCount(p95),
-    unit: p95 === null ? null : 'ms',
-    chart: overheadChart(stats.gatewayP95Spark ?? null, now),
-    delta: p95 === null || p95Delta === null ? null : change(p95Delta, signed(p95Delta, 'ms'), 'yesterday', 'bad', 'good'),
-    meta: [
-      {
-        text:
-          p95 === null
-            ? 'No completed calls in the last 24 hours'
-            : `Target ≤ ${OVERHEAD_TARGET_MS} ms · ${p95 <= OVERHEAD_TARGET_MS ? 'within target' : 'over target'}`,
-      },
-    ],
-  };
-
-  return [calls, waiting, denied, overhead];
-}
-
-/**
- * The overhead tile's sparkline (kit: "Gateway overhead p95 per hour: steady, always under the 50 ms target"): the
- * hours with completed calls, and in words whether any hour went over the target and which was the worst.
- */
-export function overheadChart(perHour: readonly (number | null)[] | null, now: number): StatChart | null {
-  if (!perHour || !perHour.some((v) => v !== null)) return null;
-  const worst = peak(perHour.map((v) => v ?? 0), (i) => hourStart(now, perHour.length - 1 - i));
-  const over = perHour.filter((v): v is number => v !== null && v > OVERHEAD_TARGET_MS).length;
-  const label = over
-    ? `Gateway overhead p95 per hour: over the ${OVERHEAD_TARGET_MS} ms target in ${plural(over, 'hour')}, worst ${formatCount(worst!.max)} ms at ${worst!.at}`
-    : `Gateway overhead p95 per hour: always under the ${OVERHEAD_TARGET_MS} ms target`;
-  return { points: sparseSparkPoints(perHour), tone: over ? 'warning' : 'brand', label };
-}
-
-// ── Setup map ────────────────────────────────────────────────────────────────────────────────────────────────────
-
-/** The master key's problem codes (`/api/master-key` `problems[]`) in words, for the setup map's Secrets line. */
-const KEY_PROBLEMS: Record<string, string> = {
-  perms: 'file readable by others',
-  'synced-folder': 'in a synced folder',
-  'backup-needed': 'not backed up',
-  'no-os-protection': 'no OS protection',
-  'key-missing': 'not found',
-  'key-invalid': "can't be read",
-};
-
-/**
- * A node's status line as the core writes it, with the master key's problem codes in words ("Master key:
- * no-os-protection, backup-needed" → "Master key: no OS protection, not backed up") and a count of one in the
- * singular ("1 named tokens"). Anything else is shown as the core said it.
- */
-export function setupStatus(node: SetupNode): string {
-  const key = /^Master key: (.+)$/.exec(node.status);
-  if (key) {
-    const codes = key[1].split(/,\s*/);
-    if (codes.every((c) => c in KEY_PROBLEMS)) return `Master key: ${codes.map((c) => KEY_PROBLEMS[c]).join(', ')}`;
-  }
-  return node.status.replace(/^1 named tokens$/, '1 named token');
-}
-
-// ── Connection health ────────────────────────────────────────────────────────────────────────────────────────────
-
-/** A connection is a problem when its last check failed or was slow (BLUEPRINT §7: danger, warning). */
+/** A problem shows first and is never folded away: unreachable or slow. */
 export function isProblem(row: Pick<HealthRow, 'state'>): boolean {
   const tone = healthLook(row.state).tone;
   return tone === 'danger' || tone === 'warning';
 }
 
-/** "Healthy · 12 ms", "Slow · 1.8 s", "Unreachable", "Not checked yet". */
-export function healthText(row: HealthRow): string {
-  const s = (row.state ?? '').toLowerCase();
-  return healthLook(row.state, s === 'healthy' || s === 'degraded' ? row.latencyMs : null).text;
+export function connectionTile(row: HealthRow): ConnectionTile {
+  const state = tileHealth(row);
+  const type = row.typeLabel || connectorName(row.type);
+  // Where it connects, only when it can't be reached there (kit: "HTTP API · billing.stage.acme.dev", no scheme).
+  const host = row.host ? row.host.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '') : null;
+  const meta: TilePart[] = state.tone === 'danger' && host ? [{ text: `${type} · ` }, { text: host, mono: true }] : [{ text: type }];
+  return { name: row.name, env: row.env, icon: connectorIcon(row.type), meta, state, retest: state.tone === 'danger' };
 }
 
-/** The rows in the kit's order: problems first (unreachable before slow), the rest folded behind a disclosure. */
-export interface HealthGroups {
-  readonly problems: readonly HealthRow[];
-  readonly rest: readonly HealthRow[];
-  /** The disclosure's words: "10 healthy connections", "12 connections not checked yet", "9 healthy · 1 not checked yet". */
-  readonly restLabel: string;
+/** The set of tiles: problems first, one row in view, the rest behind "N more connections, all healthy". */
+export interface ConnectionTiles {
+  readonly shown: readonly ConnectionTile[];
+  readonly more: readonly ConnectionTile[];
+  /** The disclosure's words; null when nothing is folded. */
+  readonly moreLabel: string | null;
+  /** "12 connections: 10 healthy, 1 slow, 1 unreachable. The tag shows each one's environment: dev, stage or prod." */
+  readonly description: string;
 }
 
-export function healthGroups(rows: readonly HealthRow[]): HealthGroups {
-  const rank = (r: HealthRow) => (healthLook(r.state).tone === 'danger' ? 0 : 1);
-  const problems = rows.filter(isProblem).sort((a, b) => rank(a) - rank(b));
-  const rest = rows.filter((r) => !isProblem(r));
-  const count = (tone: string) => rest.filter((r) => healthLook(r.state).tone === tone).length;
-  const kinds = [
-    { n: count('success'), alone: (n: number) => `${plural(n, 'healthy connection')}`, part: 'healthy' },
-    { n: count('neutral'), alone: (n: number) => `${plural(n, 'connection')} not checked yet`, part: 'not checked yet' },
-    { n: count('info'), alone: (n: number) => `${plural(n, 'connection')} being checked`, part: 'being checked' },
-  ].filter((k) => k.n > 0);
-  const restLabel =
-    kinds.length === 1 ? kinds[0].alone(kinds[0].n) : kinds.map((k) => `${formatCount(k.n)} ${k.part}`).join(' · ');
-  return { problems, rest, restLabel };
+/** Tiles in one row of `gw-grid --3`. */
+export const ROW = 3;
+
+const STATE_WORDS: readonly { readonly tone: string; readonly word: string }[] = [
+  { tone: 'success', word: 'healthy' },
+  { tone: 'warning', word: 'slow' },
+  { tone: 'danger', word: 'unreachable' },
+  { tone: 'info', word: 'being checked' },
+  { tone: 'neutral', word: 'not checked yet' },
+];
+
+function stateParts(tiles: readonly ConnectionTile[]): string[] {
+  return STATE_WORDS.map((s) => ({ s, n: tiles.filter((t) => t.state.tone === s.tone).length }))
+    .filter((x) => x.n > 0)
+    .map((x) => `${formatCount(x.n)} ${x.s.word}`);
 }
 
-/**
- * What the section says when no connection is a problem: "No problems" only for connections that were checked; a
- * gateway that hasn't checked them yet (they are checked shortly after it starts, then periodically) says so.
- */
-export function healthCalm(rows: readonly HealthRow[]): {
-  readonly checked: boolean;
-  readonly title: string;
-  readonly text: string;
-} {
-  const healthy = rows.filter((r) => healthLook(r.state).tone === 'success').length;
-  const unchecked = rows.length - healthy;
-  if (!healthy) {
-    return { checked: false, title: 'Not checked yet', text: 'The gateway checks each connection in the background, shortly after it starts.' };
+export function connectionTiles(rows: readonly HealthRow[]): ConnectionTiles {
+  const tiles = rows
+    .map((r, i) => ({ t: connectionTile(r), i }))
+    .sort((a, b) => TONE_RANK[a.t.state.tone] - TONE_RANK[b.t.state.tone] || (ENV_RANK[a.t.env] ?? 3) - (ENV_RANK[b.t.env] ?? 3) || a.i - b.i)
+    .map((x) => x.t);
+  const problems = tiles.filter((t) => t.state.tone === 'danger' || t.state.tone === 'warning').length;
+  const visible = Math.max(ROW, problems);
+  const shown = tiles.slice(0, visible);
+  const more = tiles.slice(visible);
+  let moreLabel: string | null = null;
+  if (more.length) {
+    const parts = stateParts(more);
+    const n = more.length;
+    const noun = n === 1 ? 'more connection' : 'more connections';
+    moreLabel = parts.length === 1 ? `${formatCount(n)} ${noun}, ${n === 1 ? '' : 'all '}${parts[0].replace(/^[\d,]+ /, '')}` : `${formatCount(n)} ${noun}: ${parts.join(', ')}`;
   }
+  const total = tiles.length;
+  const counted = total === 1 ? `1 connection: ${stateParts(tiles)[0]?.replace(/^1 /, '') ?? ''}` : `${formatCount(total)} connections: ${stateParts(tiles).join(', ')}`;
   return {
-    checked: true,
-    title: 'No problems',
-    text: unchecked
-      ? `${plural(healthy, 'connection')} answered ${healthy === 1 ? 'its' : 'their'} last check; ${formatCount(unchecked)} ${unchecked === 1 ? "hasn't" : "haven't"} been checked yet.`
-      : 'Every connection answered its last check.',
-  };
-}
-
-/**
- * "12 connections, checked every minute. Problems first." (kit) with the core's interval (step API); a core that
- * doesn't say it gives "12 connections, last checked 2 min ago. Problems first."
- */
-export function healthDescription(
-  rows: readonly HealthRow[],
-  relative: (at: string) => string,
-  intervalSeconds: number | null = null,
-): string {
-  if (!rows.length) {
-    return intervalSeconds
-      ? `Each connection is checked ${everyInterval(intervalSeconds)}. Problems first.`
-      : 'Each connection is checked in the background. Problems first.';
-  }
-  if (intervalSeconds) return `${plural(rows.length, 'connection')}, checked ${everyInterval(intervalSeconds)}. Problems first.`;
-  const last = rows
-    .map((r) => r.checkedAt)
-    .filter((t): t is string => !!t)
-    .sort()
-    .at(-1);
-  return `${plural(rows.length, 'connection')}${last ? `, last checked ${relative(last)}` : ''}. Problems first.`;
-}
-
-/** The danger alert above the table: what can't be reached, what to do, and what that breaks. */
-export interface HealthAlert {
-  readonly title: readonly TextPart[];
-  readonly body: readonly TextPart[];
-  /** The unreachable connections Test again tries. */
-  readonly names: readonly string[];
-}
-
-/**
- * Prose with its identifiers in mono, as the kit sets the host in "Can't reach billing.stage.acme.dev.": each word
- * that can only be an identifier (a host, an address, a path) is a literal, the punctuation after it stays prose.
- * The parts concatenate to the text.
- */
-export function markLiterals(text: string, names: readonly string[] = []): TextPart[] {
-  const out: TextPart[] = [];
-  const push = (t: string, code: boolean): void => {
-    const prev = out.at(-1);
-    if (prev && !prev.code && !code) out[out.length - 1] = { text: prev.text + t, code };
-    else if (t) out.push({ text: t, code });
-  };
-  for (const part of literalParts(text, names)) {
-    if (part.code) {
-      push(part.text, true);
-      continue;
-    }
-    for (const token of part.text.split(/(\s+)/)) {
-      const m = /^(.*?)([.,;:!?)]*)$/s.exec(token)!;
-      if (m[1] && isLiteralWord(m[1])) {
-        push(m[1], true);
-        push(m[2], false);
-      } else {
-        push(token, false);
-      }
-    }
-  }
-  return out;
-}
-
-/** "Can't reach billing.stage.acme.dev." + "Check the VPN or the host, then test again.": the core's text, split once. */
-function firstSentence(text: string): [string, string] {
-  const m = /^(.+?[.!?])\s+(\S.*)$/s.exec(text.trim());
-  return m ? [m[1], m[2]] : [text.trim(), ''];
-}
-
-/** "app-logs, aws-stage, billing-api and 9 more". */
-function someNames(names: readonly string[], shown = 3): string {
-  if (names.length <= shown) return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : (names[0] ?? '');
-  return `${names.slice(0, shown).join(', ')} and ${names.length - shown} more`;
-}
-
-/**
- * The kit's error-where-it-happens (overview.html "Can't reach billing.stage.acme.dev."): for one unreachable
- * connection the core's message (what happened, then what to do), for several their count and names; and the
- * requests waiting on them, which fail until then.
- */
-export function healthAlert(rows: readonly HealthRow[], waiting: readonly ApprovalItem[]): HealthAlert | null {
-  const down = rows.filter((r) => healthLook(r.state).tone === 'danger');
-  if (!down.length) return null;
-  const names = down.map((r) => r.name);
-  const blocked = waiting.filter((w) => w.connection && names.includes(w.connection));
-  const then =
-    blocked.length === 1
-      ? ` The waiting ${blocked[0].tool} on ${blocked[0].connection} fails until then.`
-      : blocked.length > 1
-        ? ` ${blocked.length} waiting requests fail until then.`
-        : '';
-  const literals = [...names, ...blocked.map((b) => b.tool)];
-  const mark = (text: string): TextPart[] => markLiterals(text, literals);
-  if (down.length === 1) {
-    const message = down[0].message?.trim();
-    const [title, rest] = message ? firstSentence(message) : [`${names[0]} is unreachable.`, 'Check the VPN or the host, then test again.'];
-    return { title: mark(title), body: mark(`${rest}${then}`.trim()), names };
-  }
-  return {
-    title: [{ text: `${plural(down.length, 'connection')} are unreachable.`, code: false }],
-    body: mark(`${someNames(names)}. Check the VPN or the hosts, then test again.${then}`),
-    names,
+    shown,
+    more,
+    moreLabel,
+    description: `${counted}. The tag shows each one's environment: dev, stage or prod.`,
   };
 }
 
@@ -546,42 +138,194 @@ export interface RetestResult {
 }
 
 /** The toast after Test again (kit: "billing-api is still unreachable" + what the host didn't do, in danger). */
-export function retestToast(results: readonly RetestResult[]): {
-  readonly tone: 'success' | 'warning' | 'danger';
-  readonly title: string;
-  readonly body: string;
-} {
-  const failed = results.filter((r) => !r.ok);
-  if (results.length === 1) {
-    const r = results[0];
-    return r.ok
-      ? { tone: 'success', title: `${r.name} is reachable again`, body: r.latencyMs !== null ? `It answered in ${duration(r.latencyMs)}.` : 'It answered.' }
-      : { tone: 'danger', title: `${r.name} is still unreachable`, body: r.message ?? 'Check the VPN or the host, then test again.' };
-  }
-  if (!failed.length) return { tone: 'success', title: `${plural(results.length, 'connection')} are reachable again`, body: 'They answered the test.' };
-  if (failed.length === results.length) {
-    return { tone: 'danger', title: `${plural(results.length, 'connection')} are still unreachable`, body: 'Check the VPN or the hosts, then test again.' };
-  }
-  return {
-    tone: 'warning',
-    title: `${formatCount(results.length - failed.length)} of ${plural(results.length, 'connection')} are reachable again`,
-    body: `Still unreachable: ${someNames(failed.map((f) => f.name))}.`,
-  };
+export function retestToast(r: RetestResult): { readonly tone: 'success' | 'danger'; readonly title: string; readonly body: string } {
+  return r.ok
+    ? { tone: 'success', title: `${r.name} is reachable again`, body: r.latencyMs !== null ? `It answered in ${duration(r.latencyMs)}.` : 'It answered.' }
+    : { tone: 'danger', title: `${r.name} is still unreachable`, body: r.message ?? 'Check the VPN or the host, then test again.' };
 }
 
-// ── Recent activity ──────────────────────────────────────────────────────────────────────────────────────────────
+// ── AI apps ──────────────────────────────────────────────────────────────────────────────────────────────────────
+
+/** The id part of the kit's anchors on AI apps (`clients.html#cl-cu-t`): the card each app's link opens. */
+const ANCHORS: Record<string, string> = {
+  'claude-desktop': 'cd',
+  codex: 'cx',
+  cursor: 'cu',
+  antigravity: 'ag',
+  'claude-ai': 'ai',
+};
+
+/** `cl-cu-t`: the fragment of an app's card on AI apps (its heading). */
+export function appAnchor(client: ClientId | 'claude-ai' | string): string {
+  return `cl-${ANCHORS[client] ?? client}-t`;
+}
+
+/** One AI app as a tile. */
+export interface AppTile {
+  readonly client: string;
+  readonly name: string;
+  readonly meta: string;
+  readonly state: TileState;
+  /** The app has its own card to open (connected, needing a restart, failing, claude.ai): the title links there. */
+  readonly linked: boolean;
+  /**
+   * The tile's one action: Connect (found, not connected) or How to install (not found); null for a connected app.
+   * Both lead to the app's card on AI apps (`/clients#cl-<app>-t`).
+   */
+  readonly action: 'connect' | 'install' | null;
+}
+
+/** An app the guide or the home screen offers to connect, or one to install (a card's state in the tile's words). */
+export function guideAppTile(card: ClientCard): AppTile {
+  const installed = card.status !== 'not-installed';
+  if (!installed) {
+    return { client: card.client, name: card.name, meta: 'Not found on this computer', state: { tone: 'neutral', label: 'Not installed' }, linked: false, action: 'install' };
+  }
+  return { client: card.client, name: card.name, meta: 'Found on this computer', state: { tone: 'info', label: 'Not connected' }, linked: false, action: 'connect' };
+}
 
 /**
- * The last calls with a decision, newest first (kit: pending calls are not repeated here, they are "Waiting for you").
+ * "Can use 11 connections, 3 of them prod": the connections on the endpoints the app's entries reach, each once.
+ * Without the connections list, the endpoints themselves ("Endpoint dev", "Endpoints dev and incident-prod").
  */
-export function decidedCalls(events: readonly ActivityEvent[], limit = RECENT_CALLS): ActivityEvent[] {
-  return events.filter((e) => e.decision !== 'pending').slice(0, limit);
+export function canUse(card: ClientCard, connections: readonly Pick<ConnectionRow, 'name' | 'env' | 'usedBy'>[] | null): string {
+  const endpoints = [...new Set(card.links.map((l) => l.endpoint))];
+  if (!endpoints.length) return '';
+  if (!connections) {
+    return endpoints.length === 1 ? `Endpoint ${endpoints[0]}` : `Endpoints ${andWords(endpoints)}`;
+  }
+  const reached = connections.filter((c) => c.usedBy.some((e) => endpoints.includes(e)));
+  if (!reached.length) return endpoints.length === 1 ? `Endpoint ${endpoints[0]}, no connections yet` : 'No connections yet';
+  const prod = reached.filter((c) => c.env === 'prod').length;
+  const n = reached.length;
+  const can = `Can use ${formatCount(n)} ${n === 1 ? 'connection' : 'connections'}`;
+  if (!prod) return can;
+  return prod === n ? `${can}, ${n === 1 ? 'it is' : 'all'} prod` : `${can}, ${formatCount(prod)} of them prod`;
 }
 
-/** The client column: "Codex", "Claude Desktop", "Playground"; empty when the call didn't say. */
-export function clientLabel(client: string | null): string {
-  if (!client) return '';
-  if (client === 'playground') return 'Playground';
-  if (client === 'other') return 'Other client';
-  return clientName(client);
+function andWords(words: readonly string[]): string {
+  return words.length <= 1 ? (words[0] ?? '') : `${words.slice(0, -1).join(', ')} and ${words.at(-1)}`;
+}
+
+/**
+ * The home screen's AI apps (kit "AI apps", 2 × 2): an app found and not connected first, with Connect; problems
+ * next; connected apps with what they can use; claude.ai, which comes in through the tunnel, last. An app that isn't
+ * installed stays on AI apps: here it would be noise.
+ */
+export function homeAppTiles(
+  cards: readonly ClientCard[],
+  connections: readonly Pick<ConnectionRow, 'name' | 'env' | 'usedBy'>[] | null,
+  claudeAi: AppTile | null,
+): AppTile[] {
+  const rank = (c: ClientCard) => (c.status === 'detected' ? 0 : c.status === 'error' ? 1 : c.status === 'needs-restart' ? 2 : 3);
+  const tiles = cards
+    .filter((c) => c.status !== 'not-installed')
+    .map((c, i) => ({ c, i }))
+    .sort((a, b) => rank(a.c) - rank(b.c) || a.i - b.i)
+    .map(({ c }): AppTile => {
+      switch (c.status) {
+        case 'detected':
+          return guideAppTile(c);
+        case 'needs-restart':
+          return { client: c.client, name: c.name, meta: c.statusText || 'Restart it to load GateRook', state: { tone: 'warning', label: 'Needs restart' }, linked: true, action: null };
+        case 'error':
+          return { client: c.client, name: c.name, meta: c.statusText || c.warnings[0] || 'Open it to see what failed', state: { tone: 'danger', label: 'Error' }, linked: true, action: null };
+        default:
+          return { client: c.client, name: c.name, meta: canUse(c, connections), state: { tone: 'success', label: 'Connected' }, linked: true, action: null };
+      }
+    });
+  return claudeAi ? [...tiles, claudeAi] : tiles;
+}
+
+/**
+ * claude.ai, through the tunnel (kit: "In the browser · used until 12:10", Tunnel off): public now, last public
+ * until when, or never published; null before the tunnel exists in the core (K3).
+ */
+export function claudeAiTile(tunnel: TunnelState | null, clock: (at: string) => string): AppTile | null {
+  if (!tunnel) return null;
+  const tile = (meta: string, state: TileState): AppTile => ({ client: 'claude-ai', name: 'claude.ai', meta, state, linked: true, action: null });
+  if (tunnel.state === 'on' || tunnel.state === 'starting') {
+    const slug = tunnel.endpoint;
+    return tile(tunnel.since ? `In the browser · public since ${clock(tunnel.since)}` : 'In the browser', {
+      tone: 'warning',
+      label: tunnel.state === 'starting' ? 'Tunnel starting' : slug ? `Public · ${slug}` : 'Public',
+    });
+  }
+  const last = tunnel.history
+    .map((h) => h.to)
+    .filter((t): t is string => !!t)
+    .sort()
+    .at(-1);
+  return tile(last ? `In the browser · used until ${clock(last)}` : 'In the browser · never published', { tone: 'neutral', label: 'Tunnel off' });
+}
+
+// ── Activity ─────────────────────────────────────────────────────────────────────────────────────────────────────
+
+/** The one line about Activity: "1,287 calls from your AI apps in the last 24 hours, 17 denied by policy." */
+export function activityLine(stats: Pick<OverviewStats, 'calls24h' | 'denied24h'>): string {
+  const calls = stats.calls24h;
+  if (!calls) return 'No calls from your AI apps in the last 24 hours. When one calls a tool, it shows up in';
+  const denied = stats.denied24h ? `, ${formatCount(stats.denied24h)} denied by policy` : '';
+  return `${formatCount(calls)} ${calls === 1 ? 'call' : 'calls'} from your AI apps in the last 24 hours${denied}. Each one is in`;
+}
+
+// ── The guide ────────────────────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * What to ask the AI app to check that it works, for the connection's type: the kit's question for a database
+ * ("Show me the tables in dev-db"), the same idea for the other types; "my database" before any connection exists.
+ */
+export function checkPrompt(type: string | null, name: string | null): string {
+  if (!type || !name) return 'Show me the tables in my database';
+  switch (type) {
+    case 'postgres':
+    case 'mysql':
+    case 'sql':
+      return `Show me the tables in ${name}`;
+    case 'mongodb':
+      return `Show me the collections in ${name}`;
+    case 'redis':
+      return `Show me a few keys in ${name}`;
+    case 'kubernetes':
+      return `Show me the pods in ${name}`;
+    case 'logs':
+      return `Show me the latest errors in ${name}`;
+    default:
+      return `Show me what you can see in ${name}`;
+  }
+}
+
+/** Where the connection's secret is, for step 1 of setup: encrypted here, or read from a secret manager. */
+export interface SecretLine {
+  /** "password", "token", "private key", "secret": what the connection signs in with. */
+  readonly noun: string;
+  readonly where: 'here' | 'manager';
+}
+
+/** The word for a secret field (`/credentials/password` → "password"). */
+export function secretNoun(field: string): string {
+  const key = (field.split('/').at(-1) ?? '').toLowerCase();
+  if (key.includes('password') || key === 'pass') return 'password';
+  if (key.includes('token')) return 'token';
+  if (key.includes('key')) return key.includes('private') || key === 'key' ? 'private key' : 'key';
+  return 'secret';
+}
+
+/** The connection's first secret: encrypted here (stored, or waiting for a value) or a reference to a manager. */
+export function secretLine(secrets: readonly StoredSecret[]): SecretLine | null {
+  const s = secrets.find((x) => x.state !== 'reference') ?? secrets.find((x) => x.state === 'reference');
+  if (!s) return null;
+  return { noun: secretNoun(s.field), where: s.state === 'reference' ? 'manager' : 'here' };
+}
+
+/**
+ * Step 1 of setup, what the connection does for an AI app: "changes need your approval" when a tool of it waits for
+ * you on an endpoint, "read only" when only reads are on, "not on an endpoint yet" without one.
+ */
+export function modesWords(usedBy: readonly Pick<ConnectionUsedBy, 'mode'>[] | null): string | null {
+  if (!usedBy) return null;
+  if (!usedBy.length) return 'not on an endpoint yet';
+  if (usedBy.some((u) => String(u.mode).toUpperCase() === 'APPROVAL')) return 'changes need your approval';
+  if (usedBy.some((u) => String(u.mode).toUpperCase() === 'READ_ONLY')) return 'read only';
+  return 'its tools are off';
 }

@@ -19,7 +19,7 @@
   </parent>
 
   <artifactId>connectors-kubernetes</artifactId>
-  <name>MCP Gateway · Connectors · Kubernetes</name>
+  <name>GateRook · Connectors · Kubernetes</name>
 
   <dependencies>
     <dependency>

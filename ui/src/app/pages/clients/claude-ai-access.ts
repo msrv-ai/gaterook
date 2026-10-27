@@ -42,6 +42,12 @@ export class GwClaudeAiAccess {
   readonly endpoints = input<readonly ClientEndpoint[]>([]);
   /** Publish or Turn off is on its way. */
   readonly busy = input(false, { transform: booleanAttribute });
+  /**
+   * The page's state (kit clients.html `?state=`): in first run there is no endpoint to publish, so Publish waits with
+   * why; in setup nothing was published yet and Publish is secondary. Either only while the tunnel is off and nobody
+   * signed in: anything else is the card in use.
+   */
+  readonly stage = input<'in-use' | 'setup' | 'first-run'>('in-use');
 
   readonly publish = output<string>();
   readonly stop = output<void>();
@@ -106,6 +112,16 @@ export class GwClaudeAiAccess {
   });
   protected readonly refusal = computed(() => this.preview()?.refusal ?? null);
   protected readonly canPublish = computed(() => !!this.preview() && !this.refusal() && !this.busy() && this.tunnel()?.state !== 'starting');
+
+  /** The quiet card of first run or setup, or `in-use`: the whole card. */
+  protected readonly quiet = computed<'in-use' | 'setup' | 'first-run'>(() => {
+    const stage = this.stage();
+    const t = this.tunnel();
+    if (stage === 'in-use' || !t || t.state !== 'off' || this.signedIn().length) return 'in-use';
+    return stage === 'setup' && !this.slug() ? 'in-use' : stage;
+  });
+  /** The Tunnel row while nothing was ever published (kit: "Never published"). */
+  protected readonly neverText = computed(() => (this.tunnel()?.history.length ? this.tunnelText() : 'Never published'));
 
   protected readonly revoking = signal<OAuthGrant | null>(null);
   protected readonly activity = activityQuery;

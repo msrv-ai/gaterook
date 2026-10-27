@@ -1,69 +1,62 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  ElementRef,
-  Injector,
-  afterNextRender,
-  computed,
-  effect,
-  inject,
-  signal,
-  untracked,
-  viewChild,
-} from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
+import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { GwCodeBlock } from '../../code/code-block';
 import { isApiError } from '../../core/api/api-error';
 import { ApprovalItem } from '../../core/api/approvals.api';
 import { ConnectionsApi } from '../../core/api/connections.api';
 import { CoreStore } from '../../core/stores/core.store';
-import { duration } from '../../core/time/time-format';
+import { TunnelStore } from '../../core/stores/tunnel.store';
 import { TimeService } from '../../core/time/time.service';
-import { GwCodeBlock } from '../../code/code-block';
 import { Announcer } from '../../kit/announcer';
 import { GwToggle } from '../../kit/disclosure';
 import { GwApprovalRequestCompact } from '../../kit/elements/approval-request/approval-request-compact';
-import { GwGettingStarted } from '../../kit/elements/getting-started/getting-started';
-import { GwSetupMap } from '../../kit/elements/setup-map/setup-map';
-import { clientName } from '../../kit/elements/shared/client-mark';
-import { decisionLook, healthLook } from '../../kit/elements/shared/dictionaries';
+import { GwStatusTile } from '../../kit/elements/status-tile/status-tile';
+import { GwGuideStep } from '../../kit/guide-step';
 import { GwIcon } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
 import { OverviewData } from './overview.data';
 import {
+  AppTile,
   RetestResult,
-  clientLabel,
-  decidedCalls,
-  healthAlert,
-  healthCalm,
-  healthDescription,
-  healthGroups,
-  healthText,
+  activityLine,
+  appAnchor,
+  checkPrompt,
+  claudeAiTile,
+  connectionTiles,
+  guideAppTile,
+  homeAppTiles,
+  modesWords,
+  overviewState,
   retestToast,
-  setupStatus,
-  statTiles,
+  secretLine,
+  tileHealth,
 } from './overview-view';
 
 /** The first render waits this long before it shows placeholders (kit: a skeleton only past ~300 ms). */
 export const SKELETON_DELAY_MS = 300;
 
 /**
- * Overview (design/pages/overview.html; ARCHITECTURE.md §8.4 "overview"): the home screen answers three questions in
- * this order —
- * 1. Is setup finished? The getting-started checklist (Dismiss with Undo, no confirmation) and the setup map, every
- *    link of the chain with its state, in the order it is set up.
- * 2. How are things going? Four `gw-stat` tiles for the last 24 hours with their changes and, where the core has an
- *    hourly series, a sparkline.
- * 3. What needs me right now? Waiting for you (compact requests, soonest auto-deny first, a countdown each; a
- *    decision needs the exact action, so Review opens Approvals), Connection health (problems first, the error where
- *    it happens with Test again, the rest folded) and Recent activity (the last decided calls, each opening its event).
+ * Overview (design/pages/overview.html; BLUEPRINT §5 overview): the home screen, with as little on it as possible, in
+ * one of three states the core's own facts decide (`overviewState`):
  *
- * The page's one primary is "Review approvals", only while requests wait. Data is the core's (OverviewData) and
- * follows its events; the page is a loading skeleton, an error with Try again, or the data, with empty states inside.
+ * - **In use** — an AI app is connected. Waiting for your approval at the top, the quick-access zone (compact
+ *   requests, soonest auto-deny first, Review opens the exact action in Approvals; a quiet line when none waits);
+ *   Your connections as status tiles, problems first and one row in view (Test again on an unreachable one), the
+ *   rest behind "N more connections"; AI apps as tiles (an app found and not connected first, with Connect;
+ *   claude.ai last); one line about Activity.
+ * - **First run** — no connection yet: a three-step guide (`gw-stepper --guide`): Add your first connection (the
+ *   page's one primary), Connect your AI app (the apps of this computer; Connect waits, `aria-disabled` with the
+ *   reason), Check that it works.
+ * - **Setup** — a connection, no AI app yet: step 1 done with that connection, step 2 current, its Connect leading to
+ *   the app's review on AI apps (`/clients#cl-<app>-t`), step 3 waiting for the first request.
+ *
+ * Data is the core's (OverviewData) and follows its events; the page is a loading skeleton, an error with Try again,
+ * or one of the states.
  */
 @Component({
   selector: 'gw-overview-page',
-  imports: [NgTemplateOutlet, RouterLink, GwIcon, GwToggle, GwCodeBlock, GwGettingStarted, GwSetupMap, GwApprovalRequestCompact],
+  imports: [NgTemplateOutlet, RouterLink, GwIcon, GwToggle, GwCodeBlock, GwApprovalRequestCompact, GwStatusTile, GwGuideStep],
   providers: [OverviewData],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'gw-page' },
@@ -72,89 +65,94 @@ export const SKELETON_DELAY_MS = 300;
 export class OverviewPage {
   protected readonly data = inject(OverviewData);
   protected readonly time = inject(TimeService);
-  private readonly connections = inject(ConnectionsApi);
+  private readonly connectionsApi = inject(ConnectionsApi);
   private readonly core = inject(CoreStore);
+  private readonly tunnel = inject(TunnelStore);
   private readonly toasts = inject(ToastService);
   private readonly announcer = inject(Announcer);
   private readonly injector = inject(Injector);
   private readonly host: HTMLElement = inject(ElementRef<HTMLElement>).nativeElement;
 
-  private readonly setupTitle = viewChild<ElementRef<HTMLElement>>('setupTitle');
-  private readonly healthTitle = viewChild<ElementRef<HTMLElement>>('healthTitle');
+  private readonly connectionsTitle = viewChild<ElementRef<HTMLElement>>('connectionsTitle');
 
-  /** Two columns only when each gets 480 px (12 × control-lg), as the kit's "What needs you" grid. */
-  protected readonly twoColumnMin = 'calc(var(--gw-size-control-lg) * 12)';
-
-  protected readonly decisionLook = decisionLook;
-  protected readonly healthLook = healthLook;
-  protected readonly healthText = healthText;
-  protected readonly clientLabel = clientLabel;
-  protected readonly duration = duration;
+  protected readonly appAnchor = appAnchor;
 
   /** Placeholders only when the first answer is slow. */
   protected readonly slow = signal(false);
   protected readonly loading = computed(() => !this.data.overview() && !this.data.error());
 
   protected readonly overview = this.data.overview;
-  protected readonly pending = computed(() => this.overview()?.stats.pending ?? 0);
-  protected readonly checklist = computed(() => this.overview()?.gettingStarted ?? null);
-
-  /** "Setup complete": the clients and the endpoint the checklist says were set up. */
-  protected readonly completeClients = computed(() => {
-    const ids = this.checklist()?.steps.find((s) => s.id === 'client')?.detail['clients'];
-    return Array.isArray(ids) ? ids.filter((c): c is string => typeof c === 'string').map(clientName) : [];
-  });
-  protected readonly firstEndpoint = computed(() => {
-    const name = this.checklist()?.steps.find((s) => s.id === 'endpoint')?.detail['name'];
-    return typeof name === 'string' ? name : null;
-  });
-
-  protected readonly setupNodes = computed(() => (this.overview()?.setupMap.nodes ?? []).map((n) => ({ ...n, status: setupStatus(n) })));
-
-  protected readonly tiles = computed(() => {
+  protected readonly state = computed(() => {
     const o = this.overview();
-    if (!o) return [];
-    return statTiles({ stats: o.stats, histogram: this.data.histogram(), approvals: this.data.approvalsDay(), now: this.time.minute() });
+    return o ? overviewState(o) : null;
   });
 
+  // ── In use ──
+
+  protected readonly pending = computed(() => this.overview()?.stats.pending ?? 0);
   protected readonly waiting = computed(() => this.overview()?.waiting ?? []);
+  /** The counter next to the title: every request waiting, also those the list doesn't show. */
+  protected readonly waitingCount = computed(() => Math.max(this.waiting().length, this.pending()));
   protected readonly waitingLabel = computed(() => {
     const shown = this.waiting().length;
-    const all = Math.max(shown, this.pending());
+    const all = this.waitingCount();
     const n = (k: number) => `${k} ${k === 1 ? 'request' : 'requests'}`;
     return shown < all ? `Waiting for approval, ${shown} of ${n(all)}` : `Waiting for approval, ${n(shown)}`;
   });
 
-  protected readonly health = computed(() => this.overview()?.health ?? []);
-  protected readonly groups = computed(() => healthGroups(this.health()));
-  protected readonly healthDescription = computed(() => {
-    // "last checked 2 min ago" moves on with the clock.
-    this.time.minute();
-    return healthDescription(this.health(), (at) => this.time.relative(at), this.overview()?.healthIntervalSeconds ?? null);
+  protected readonly tiles = computed(() => connectionTiles(this.overview()?.health ?? []));
+  protected readonly moreOpen = signal(false);
+  protected readonly moreLabel = computed(() => {
+    const more = this.tiles().more;
+    return more.every((t) => t.state.tone === 'success') ? 'More connections, all healthy' : 'More connections';
   });
-  protected readonly alert = computed(() => healthAlert(this.health(), this.waiting()));
-  protected readonly healthCalm = computed(() => healthCalm(this.health()));
-  protected readonly healthOpen = signal(false);
-  /** The connections Test again is testing now; null while idle. */
-  protected readonly testing = signal<readonly string[] | null>(null);
-  protected readonly testingText = computed(() => {
-    const names = this.testing();
-    if (!names) return '';
-    return names.length === 1
-      ? `Testing ${names[0]} with its stored credentials.`
-      : `Testing ${names.length} connections with their stored credentials.`;
-  });
+  /** The connections Test again is testing now. */
+  protected readonly testing = signal<readonly string[]>([]);
 
-  /** The last decided calls: Activity's answer, else the overview's own list without the pending calls. */
-  protected readonly recent = computed(() => this.data.recent() ?? decidedCalls(this.overview()?.recent ?? []));
-  protected readonly recentDescription = computed(() => {
-    const n = this.recent().length;
-    return n
-      ? `The last ${n === 1 ? 'call' : `${n} calls`} with a decision. Open one to see its arguments, policy, timing and result.`
-      : 'Calls with a decision show up here. Open one to see its arguments, policy, timing and result.';
+  private readonly claudeAi = computed(() => {
+    this.time.minute();
+    return claudeAiTile(this.tunnel.available() ? this.tunnel.state() : null, (at) => this.time.clock(at));
+  });
+  protected readonly homeApps = computed(() => homeAppTiles(this.data.clients()?.clients ?? [], this.data.connections(), this.claudeAi()));
+  protected readonly homeAppsLabel = computed(() => (this.homeApps().some((a) => a.action === 'connect') ? 'AI apps, the one to connect first' : 'AI apps'));
+  protected readonly activity = computed(() => activityLine(this.overview()?.stats ?? { calls24h: 0, denied24h: 0 }));
+
+  // ── First run and setup ──
+
+  /** The four AI apps of this computer, as the guide shows them (the core's order: Claude Desktop, Codex, Cursor, Antigravity). */
+  protected readonly guideApps = computed<AppTile[]>(() => (this.data.clients()?.clients ?? []).map(guideAppTile));
+  protected readonly anyConnect = computed(() => this.guideApps().some((a) => a.action === 'connect'));
+
+  /** Setup: the connection step 1 names (the core's first connection), with its live health. */
+  protected readonly first = computed(() => {
+    const o = this.overview();
+    const step = o?.gettingStarted.steps.find((s) => s.id === 'connection');
+    const name = typeof step?.detail['name'] === 'string' ? step.detail['name'] : null;
+    if (!o || !name) return null;
+    const row = o.health.find((h) => h.name === name) ?? null;
+    const detail = this.data.first()?.name === name ? this.data.first() : null;
+    const typeName = row?.typeLabel || detail?.typeLabel || (typeof step?.detail['typeName'] === 'string' ? step.detail['typeName'] : null);
+    const count = typeof step?.detail['count'] === 'number' ? step.detail['count'] : 1;
+    return {
+      name,
+      type: row?.type ?? detail?.type ?? null,
+      typeName,
+      health: row ? tileHealth(row) : null,
+      modes: modesWords(detail ? detail.usedBy : null),
+      secret: detail ? secretLine(detail.secrets) : null,
+      others: Math.max(0, count - 1),
+    };
+  });
+  /** "Your connection works." only when the connection answered its last check. */
+  protected readonly firstWorks = computed(() => this.first()?.health?.tone === 'success');
+  protected readonly keyBackedUp = computed(() => this.overview()?.gettingStarted.steps.find((s) => s.id === 'master-key')?.state === 'done');
+  protected readonly prompt = computed(() => {
+    const f = this.state() === 'setup' ? this.first() : null;
+    return checkPrompt(f?.type ?? null, f?.name ?? null);
   });
 
   constructor() {
+    this.tunnel.start();
     void this.data.start();
     const timer = setTimeout(() => this.slow.set(true), SKELETON_DELAY_MS);
     effect((onCleanup) => {
@@ -191,60 +189,43 @@ export class OverviewPage {
   }
 
   /**
-   * Dismiss checklist (kit: undoable, so no confirmation): the card goes, focus moves to the next section, and a
-   * toast offers Undo, which brings the card back and puts focus on its Dismiss button again.
+   * Test again on an unreachable connection (kit status-tile, busy): the button keeps its label with a spinner and
+   * aria-busy, the tile's state says "Checking…", then the result comes as a toast; the tile stays until it answers.
    */
-  protected dismissChecklist(): void {
-    const done = this.data.setChecklistDismissed(true);
-    this.focusAfterRender(() => this.setupTitle()?.nativeElement);
-    const toast = this.toasts.show({
-      title: 'Checklist dismissed',
-      body: 'Your setup map still shows what is left.',
-      actions: [{ label: 'Undo', onClick: () => this.restoreChecklist() }],
+  protected async testAgain(name: string): Promise<void> {
+    if (this.testing().includes(name)) return;
+    this.testing.update((t) => [...t, name]);
+    this.announcer.announce(`Testing ${name}`);
+    const result = await this.retest(name);
+    this.data.patchHealth({
+      name,
+      state: result.ok ? 'healthy' : 'unreachable',
+      latencyMs: result.latencyMs,
+      message: result.message,
+      checkedAt: new Date(this.time.now()).toISOString(),
     });
-    done.catch((e: unknown) => {
-      this.toasts.dismiss(toast.id);
-      this.toasts.show({ tone: 'danger', title: "The checklist wasn't dismissed", body: this.errorText(e) });
-    });
-  }
-
-  private restoreChecklist(): void {
-    const done = this.data.setChecklistDismissed(false);
-    this.focusAfterRender(() => this.host.querySelector<HTMLElement>('#getting-started .gw-card__actions button'));
-    done.catch((e: unknown) => {
-      this.toasts.show({ tone: 'danger', title: "The checklist didn't come back", body: this.errorText(e) });
-    });
-  }
-
-  /**
-   * Test again (kit: the in-place loading state — aria-busy, aria-disabled, a spinner, the label kept, the status line
-   * saying what runs — then the result as a toast; the alert stays until the connection answers). Each unreachable
-   * connection is tested with its stored credentials; the core records the health and publishes it.
-   */
-  protected async testAgain(names: readonly string[]): Promise<void> {
-    if (this.testing() || !names.length) return;
-    this.testing.set(names);
-    this.announcer.announce(names.length === 1 ? `Testing ${names[0]}` : `Testing ${names.length} connections`);
-    const results = await Promise.all(names.map((name) => this.retest(name)));
-    await this.data.refresh();
-    this.testing.set(null);
-    const t = retestToast(results);
+    void this.data.refresh();
+    this.testing.update((t) => t.filter((n) => n !== name));
+    const t = retestToast(result);
     this.toasts.show({ tone: t.tone, title: t.title, body: t.body });
-    // When every connection answered the alert and its button are gone: keep the keyboard in the section.
-    this.focusAfterRender(() => this.healthTitle()?.nativeElement, true);
+    // A tile that answered loses its button: keep the keyboard in the section.
+    this.focusAfterRender(() => this.connectionsTitle()?.nativeElement, true);
   }
 
   private async retest(name: string): Promise<RetestResult> {
     try {
-      const o = await this.connections.test(name);
+      const o = await this.connectionsApi.test(name);
       return { name, ok: o.ok, latencyMs: o.ok ? o.latencyMs : null, message: o.error?.message ?? o.needsConfirmation?.text ?? null };
     } catch (e) {
       return { name, ok: false, latencyMs: null, message: isApiError(e) ? e.detail : null };
     }
   }
 
-  /** A request ran out of time here: the core denies it and says so; the lists follow. */
-  protected onExpired(): void {
+  /** A request ran out of time here: it leaves the list at once (the core denies it and says so); the numbers follow. */
+  protected onExpired(w: ApprovalItem): void {
+    this.data.dropWaiting(w.id);
+    const n = this.waiting().length;
+    this.announcer.announce(n ? `${n} ${n === 1 ? 'request' : 'requests'} waiting for your approval` : 'Nothing waits for your approval');
     this.data.schedule(1_000);
   }
 

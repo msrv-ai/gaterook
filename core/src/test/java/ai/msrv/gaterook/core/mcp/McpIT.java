@@ -85,7 +85,7 @@ class McpIT {
     assertThat(dev.send("POST", "x".repeat((1 << 20) + 10), "application/json", Map.of()).status()).isEqualTo(413);
     McpClient.Answer noToken = dev.as(null).post("{}", Map.of());
     assertThat(noToken.status()).isEqualTo(401);
-    assertThat(noToken.header("WWW-Authenticate")).isEqualTo("Bearer realm=\"mcp-gateway\"");
+    assertThat(noToken.header("WWW-Authenticate")).isEqualTo("Bearer realm=\"gaterook\"");
     assertThat(dev.as("gwt_not-a-token").post("{}", Map.of()).status()).isEqualTo(401);
     // A token of another endpoint is no token here.
     assertThat(dev.on("incident-prod", tokenOf(dev)).post("{}", Map.of()).status()).isEqualTo(401);
@@ -195,7 +195,7 @@ class McpIT {
     assertThat(discover.result().path("ttlMs").asLong()).isEqualTo(60_000);
     assertThat(discover.result().path("cacheScope").asString()).isEqualTo("private");
     assertThat(discover.result().path("_meta").path("io.modelcontextprotocol/serverInfo").path("name").asString())
-        .isEqualTo("mcp-gateway");
+        .isEqualTo("gaterook");
     assertThat(discover.result().path("instructions").asString()).isEqualTo(instructions);
   }
 
@@ -1022,7 +1022,8 @@ class McpIT {
     assertThat(FakeConnectors.EXECUTIONS).isEmpty();
     McpClient.Answer status = dev.legacyCall("approval_status", args("handle", a.id()));
     assertThat(status.result().path("isError").asBoolean()).isTrue();
-    assertThat(status.result().at("/content/0/text").asString()).startsWith("The request was changed outside GateRook. Not executed.");
+    assertThat(status.result().at("/content/0/text").asString()).startsWith("The request was changed outside "
+        + "GateRook. Not executed.");
     assertThat(core.jdbc().queryForObject("select decision from tool_call where approval_id = ? and phase = "
         + "'completed'", String.class, a.id())).isEqualTo("rejected");
   }
@@ -1243,7 +1244,7 @@ class McpIT {
         .clientInfo(new io.modelcontextprotocol.spec.McpSchema.Implementation("java-sdk-it", "2.1.0")).build()) {
       var init = client.initialize();
       assertThat(init.protocolVersion()).isEqualTo("2025-11-25");
-      assertThat(init.serverInfo().name()).isEqualTo("mcp-gateway");
+      assertThat(init.serverInfo().name()).isEqualTo("gaterook");
       assertThat(client.getServerInstructions()).contains("approval_status");
       var tools = client.listTools().tools().stream().map(io.modelcontextprotocol.spec.McpSchema.Tool::name).toList();
       assertThat(tools).contains("sql_query", "sql_execute", "approval_status");
@@ -1282,7 +1283,7 @@ class McpIT {
     assertThat(response.statusCode()).isEqualTo(200);
     assertThat(response.headers().firstValue("Content-Security-Policy").orElseThrow())
         .startsWith("default-src 'none'; frame-ancestors 'none'");
-    assertThat(response.body()).contains("mcp-gateway://approvals/" + a.id()).doesNotContain("UPDATE orders");
+    assertThat(response.body()).contains("gaterook://approvals/" + a.id()).doesNotContain("UPDATE orders");
     approvals.decide(a.id(), ApprovalService.Decision.DENY, "app", null, null);
   }
 

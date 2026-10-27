@@ -99,7 +99,7 @@ public final class CloudCredentials implements AutoCloseable {
     }
   }
 
-  /** {@code GetCallerIdentity}: account, ARN ({@code …:assumed-role/gw-readonly/mcp-gateway-aws-stage}), user id. */
+  /** {@code GetCallerIdentity}: account, ARN ({@code …:assumed-role/gw-readonly/gaterook-aws-stage}), user id. */
   public record CallerIdentity(String account, String arn, String userId) {}
 
   private final CloudEndpoints endpoints;
@@ -222,7 +222,7 @@ public final class CloudCredentials implements AutoCloseable {
         case "service_account" -> serviceAccount(json, "The Google sign-in");
         case "impersonated_service_account" -> impersonatedSignIn(JSON.readTree(json), file);
         default -> throw ConnectorException.unavailable("The Google sign-in on this computer is of type \""
-            + type + "\", which MCP Gateway doesn't use (it would run programs or ask the metadata server). Run "
+            + type + "\", which GateRook doesn't use (it would run programs or ask the metadata server). Run "
             + "gcloud auth application-default login.", null);
       };
     } catch (IOException e) {
@@ -267,7 +267,7 @@ public final class CloudCredentials implements AutoCloseable {
     }
     if (target == null) {
       throw ConnectorException.unavailable(what + " impersonates through " + host(url) + " instead of "
-          + "iamcredentials.googleapis.com, so MCP Gateway won't use it. Run gcloud auth application-default login "
+          + "iamcredentials.googleapis.com, so GateRook won't use it. Run gcloud auth application-default login "
           + "again.", null);
     }
     JsonNode source = tree.path("source_credentials");
@@ -277,7 +277,7 @@ public final class CloudCredentials implements AutoCloseable {
         case "authorized_user" -> user(sourceJson, what);
         case "service_account" -> serviceAccount(sourceJson, what);
         default -> throw ConnectorException.unavailable(what + " impersonates with a sign-in of type \""
-            + source.path("type").asString("") + "\", which MCP Gateway doesn't use. Run gcloud auth "
+            + source.path("type").asString("") + "\", which GateRook doesn't use. Run gcloud auth "
             + "application-default login again.", null);
       };
       List<String> delegates = new ArrayList<>();
@@ -312,7 +312,7 @@ public final class CloudCredentials implements AutoCloseable {
     if (uri == null || !GOOGLE_TOKEN_URIS.contains(uri)) {
       // A token_uri elsewhere would get the refresh token or a signed assertion.
       throw ConnectorException.unavailable(what + " sends its token requests to " + host(tokenUri)
-          + " instead of oauth2.googleapis.com, so MCP Gateway won't use it", null);
+          + " instead of oauth2.googleapis.com, so GateRook won't use it", null);
     }
   }
 
@@ -339,7 +339,7 @@ public final class CloudCredentials implements AutoCloseable {
     }
     if (!universe.isBlank() && !universe.equals("googleapis.com")) {
       throw ConnectorException.unavailable(what + " belongs to the universe " + host("https://" + universe)
-          + " instead of googleapis.com, so MCP Gateway won't use it", null);
+          + " instead of googleapis.com, so GateRook won't use it", null);
     }
   }
 
@@ -536,7 +536,7 @@ public final class CloudCredentials implements AutoCloseable {
       Optional<String> source = p.property("credential_source");
       if (source.isPresent()) {
         return new ProfileCheck(warnings, "The profile " + current + " takes its credentials from "
-            + describeSource(source.get()) + " (credential_source), which MCP Gateway never reads. Use a profile "
+            + describeSource(source.get()) + " (credential_source), which GateRook never reads. Use a profile "
             + "with keys, or an access key with a role.");
       }
       if (p.property("web_identity_token_file").isPresent()) {
@@ -556,7 +556,7 @@ public final class CloudCredentials implements AutoCloseable {
       // and the profile), without the ExternalId and the session policy, and in the native image not at all (its STS
       // factory is loaded by reflection).
       return new ProfileCheck(warnings, "The profile " + assumes + " assumes a role itself (role_arn). Choose a "
-          + "profile with keys and put the role into Role ARN of the connection: MCP Gateway then assumes it with "
+          + "profile with keys and put the role into Role ARN of the connection: GateRook then assumes it with "
           + "its ExternalId and read-only session policy.");
     }
     return new ProfileCheck(warnings, null);
@@ -604,9 +604,9 @@ public final class CloudCredentials implements AutoCloseable {
     return URI.create("https://sts." + region + "." + domain);
   }
 
-  /** {@code mcp-gateway-<label>}, cut to STS's 64 characters of {@code [\w+=,.@-]}. */
+  /** {@code gaterook-<label>}, cut to STS's 64 characters of {@code [\w+=,.@-]}. */
   static String sessionName(String label) {
-    String name = ("mcp-gateway-" + label).replaceAll("[^\\w+=,.@-]", "-");
+    String name = ("gaterook-" + label).replaceAll("[^\\w+=,.@-]", "-");
     return name.length() > 64 ? name.substring(0, 64) : name;
   }
 
@@ -708,7 +708,7 @@ public final class CloudCredentials implements AutoCloseable {
       String operation = attributes.getAttribute(SdkExecutionAttribute.OPERATION_NAME);
       if (!STS_OPERATIONS.contains(operation)) {
         throw new SecurityException("Blocked " + attributes.getAttribute(SdkExecutionAttribute.SERVICE_NAME) + "."
-            + operation + ": MCP Gateway only asks STS for credentials");
+            + operation + ": GateRook only asks STS for credentials");
       }
     }
   }

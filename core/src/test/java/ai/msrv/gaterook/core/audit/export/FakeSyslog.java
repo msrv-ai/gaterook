@@ -88,7 +88,7 @@ public final class FakeSyslog implements AutoCloseable {
 
   /** A client certificate of the test CA, for mutual TLS. */
   public HeldCertificate clientCertificate() {
-    return new HeldCertificate.Builder().signedBy(ca).commonName("mcp-gateway").build();
+    return new HeldCertificate.Builder().signedBy(ca).commonName("gaterook").build();
   }
 
   public List<Message> messages() {

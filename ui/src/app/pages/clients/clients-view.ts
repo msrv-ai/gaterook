@@ -11,6 +11,7 @@ import {
   configEditProblem,
 } from '../../core/api/clients.api';
 import { EndpointSummary, TokenRow } from '../../core/api/endpoints.api';
+import { Overview } from '../../core/api/overview.api';
 import { OAuthGrant, PublishPreview, TunnelState } from '../../core/api/tunnel.api';
 import { Env, Iso } from '../../core/api/types';
 import { clockTime, formatCount, shortDate } from '../../core/time/time-format';
@@ -62,7 +63,7 @@ export function clientsLayout(cards: readonly ClientCard[], wide: (c: ClientCard
   return { inline, wide: rest.filter((c) => wide(c)), grid: rest.filter((c) => !wide(c)) };
 }
 
-/** The scan found no MCP client at all: "No MCP clients found" stands in for the cards. */
+/** The scan found no AI app at all: "No AI apps found" stands in for the cards. */
 export function noClients(cards: readonly ClientCard[]): boolean {
   return cards.every((c) => !c.detected && c.links.length === 0);
 }
@@ -71,7 +72,7 @@ export function noClients(cards: readonly ClientCard[]): boolean {
 export function scanSummary(before: readonly ClientCard[] | null, after: readonly ClientCard[]): string {
   const counts = headerCounts(after).map((c) => c.text).join(', ');
   const key = (cards: readonly ClientCard[]) => cards.map((c) => `${c.client}:${c.status}:${c.links.length}`).join('|');
-  if (!after.some((c) => c.detected || c.links.length)) return 'Scan finished. No MCP clients found on this computer.';
+  if (!after.some((c) => c.detected || c.links.length)) return 'Scan finished. No AI apps found on this computer.';
   return before && key(before) === key(after) ? `Scan finished. Nothing changed: ${counts}.` : `Scan finished: ${counts}.`;
 }
 
@@ -80,6 +81,102 @@ export function checkSummary(after: readonly ClientCard[], client: ClientCard['c
   const card = after.find((c) => c.client === client);
   if (!card || card.status === 'not-installed') return `${name} is still not installed.`;
   return `${name} found on this computer: ${card.statusText.toLowerCase()}.`;
+}
+
+// ── First run and setup (kit clients.html ?state=first-run | setup) ─────────────────────────────────────────────
+
+const ANCHOR: Readonly<Record<string, string>> = { 'claude-desktop': 'cd', codex: 'cx', cursor: 'cu', antigravity: 'ag', 'claude-ai': 'ai' };
+
+/** `cl-cd`: the base of an app's ids on this page (`cl-cd-t` its card's heading, `cl-cd-row` its row, `cl-cd-s` its review). */
+export function anchorBase(client: string): string {
+  return `cl-${ANCHOR[client] ?? client}`;
+}
+
+/** The app a fragment names (`#cl-cu-t`, from Overview's tiles and guide), or null. */
+export function anchorClient(fragment: string | null): string | null {
+  const m = /^cl-([a-z0-9-]+)-t$/.exec(fragment ?? '');
+  if (!m) return null;
+  return Object.entries(ANCHOR).find(([, short]) => short === m[1])?.[0] ?? null;
+}
+
+/** The first connection and its endpoint, as Overview's guide names them (getting started, health). */
+export interface FirstConnection {
+  readonly name: string;
+  readonly env: Env | null;
+  readonly type: string | null;
+  /** "PostgreSQL 16". */
+  readonly typeName: string | null;
+  readonly endpoint: string | null;
+}
+
+export function firstConnection(o: Overview): FirstConnection | null {
+  const detail = (id: string) => o.gettingStarted.steps.find((s) => s.id === id)?.detail ?? {};
+  const name = detail('connection')['name'];
+  if (typeof name !== 'string' || !name) return null;
+  const row = o.health.find((h) => h.name === name) ?? null;
+  const typeName = detail('connection')['typeName'];
+  const endpoint = detail('endpoint')['name'];
+  return {
+    name,
+    env: row?.env ?? null,
+    type: row?.type ?? null,
+    typeName: typeof typeName === 'string' ? typeName : (row?.typeLabel ?? null),
+    endpoint: typeof endpoint === 'string' && endpoint ? endpoint : null,
+  };
+}
+
+/**
+ * The header's description outside "in use" (kit): first run names the apps already found and says what comes first;
+ * setup names the connection the app will read.
+ */
+export function stageDescription(stage: 'first-run' | 'setup', cards: readonly ClientCard[], first: FirstConnection | null): { readonly text: string; readonly literals: readonly string[] } {
+  if (stage === 'setup') {
+    const reading = first ? `, and it can start reading ${first.name}` : '';
+    return {
+      text: `Connect the AI app you use${reading}. You see the exact change before anything is written, and Disconnect takes it back.`,
+      literals: first ? [first.name] : [],
+    };
+  }
+  const found = cards.filter((c) => c.detected).map((c) => c.name);
+  const lead = found.length ? `${andList(found)} ${found.length === 1 ? 'is' : 'are'} already on this computer. ` : '';
+  const them = found.length === 1 ? 'it has' : found.length ? 'they have' : 'your AI app has';
+  return {
+    text: `${lead}Add a connection first, so ${them} something to work with. Connect then shows the exact change before anything is written.`,
+    literals: [],
+  };
+}
+
+/** Setup: what goes on top as cards, and what stays a quiet row. */
+export interface SetupLayout {
+  /** The app whose Connect review is open (Overview's Connect, a row's Connect): detected, not connected yet. */
+  readonly review: ClientCard | null;
+  /** Apps with entries (connected in this session, or before): their full cards stay on top. */
+  readonly kept: ClientCard[];
+  /** Everyone else: quiet rows in Overview's order. */
+  readonly rows: ClientCard[];
+}
+
+export function setupLayout(cards: readonly ClientCard[], review: string | null): SetupLayout {
+  const open = cards.find((c) => c.client === review && c.links.length === 0 && c.status !== 'not-installed') ?? null;
+  const kept = cards.filter((c) => c !== open && c.links.length > 0);
+  return { review: open, kept, rows: cards.filter((c) => c !== open && !kept.includes(c)) };
+}
+
+/**
+ * The review's "Tools" (kit: "sql_list_schemas, sql_describe_table and sql_query run at once (read only).
+ * sql_execute waits for your approval."), from the endpoint's tools of the connection.
+ */
+export function usesTools(rows: readonly { readonly name: string; readonly mode: string }[]): { readonly text: string; readonly literals: readonly string[] } {
+  const of = (mode: string) => rows.filter((r) => r.mode === mode).map((r) => r.name);
+  const reads = of('READ_ONLY');
+  const approval = of('APPROVAL');
+  const off = of('OFF');
+  const parts = [
+    reads.length ? `${andList(reads)} ${reads.length === 1 ? 'runs' : 'run'} at once (read only).` : null,
+    approval.length ? `${andList(approval)} ${approval.length === 1 ? 'waits' : 'wait'} for your approval.` : null,
+    off.length ? `${andList(off)} ${off.length === 1 ? 'is' : 'are'} off.` : null,
+  ].filter((p): p is string => !!p);
+  return { text: parts.join(' ') || 'No tools on yet.', literals: [...reads, ...approval, ...off] };
 }
 
 // ── Connect, Disconnect ─────────────────────────────────────────────────────────────────────────────────────────

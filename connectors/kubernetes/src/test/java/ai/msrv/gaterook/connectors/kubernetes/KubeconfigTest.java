@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Kubeconfigs are read by our own mapper: one context, every credential tainted, the ways of signing in MCP Gateway
+ * Kubeconfigs are read by our own mapper: one context, every credential tainted, the ways of signing in GateRook
  * doesn't run refused with a reason (report 08 §4, §6).
  */
 class KubeconfigTest {

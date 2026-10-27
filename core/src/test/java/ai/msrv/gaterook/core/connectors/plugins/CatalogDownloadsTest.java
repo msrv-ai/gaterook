@@ -51,7 +51,7 @@ class CatalogDownloadsTest {
     });
     server.start(InetAddress.getByName("127.0.0.1"), 0);
     // catalog.test names this computer: a catalog host that rebinds to loopback.
-    egress = new EgressClients(new EgressClients.Settings("mcp-gateway/test", Set.of(7465, 7466),
+    egress = new EgressClients(new EgressClients.Settings("GateRook/test", Set.of(7465, 7466),
         host -> List.of(InetAddress.getByName("127.0.0.1"))));
   }
 

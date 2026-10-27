@@ -40,7 +40,7 @@ final class FakeAws implements AutoCloseable {
   static final String SESSION_SECRET = "cnry-session-secret-" + Long.toHexString(System.nanoTime());
   static final String SESSION_TOKEN = "cnry-session-token-" + Long.toHexString(System.nanoTime());
   static final String USER_ARN = "arn:aws:iam::" + ACCOUNT + ":user/gw";
-  static final String SESSION_ARN = "arn:aws:sts::" + ACCOUNT + ":assumed-role/gw-readonly/mcp-gateway-aws-stage";
+  static final String SESSION_ARN = "arn:aws:sts::" + ACCOUNT + ":assumed-role/gw-readonly/gaterook-aws-stage";
   static final CBORMapper CBOR = CBORMapper.builder().build();
   /** Keys whose values (or items) are timestamps: written as CBOR tag 1, as the Smithy protocol says. */
   private static final Set<String> TIMESTAMPS = Set.of("Timestamps", "StateUpdatedTimestamp",
@@ -109,7 +109,7 @@ final class FakeAws implements AutoCloseable {
         + "<Credentials><AccessKeyId>" + SESSION_KEY_ID + "</AccessKeyId><SecretAccessKey>" + SESSION_SECRET
         + "</SecretAccessKey><SessionToken>" + SESSION_TOKEN + "</SessionToken><Expiration>"
         + Instant.now().plus(1, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS) + "</Expiration></Credentials>"
-        + "<AssumedRoleUser><AssumedRoleId>AROATEST:mcp-gateway-aws-stage</AssumedRoleId><Arn>" + SESSION_ARN
+        + "<AssumedRoleUser><AssumedRoleId>AROATEST:gaterook-aws-stage</AssumedRoleId><Arn>" + SESSION_ARN
         + "</Arn></AssumedRoleUser></AssumeRoleResult><ResponseMetadata><RequestId>1</RequestId>"
         + "</ResponseMetadata></AssumeRoleResponse>");
   }

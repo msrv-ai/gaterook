@@ -42,7 +42,7 @@ final class NpmInstaller {
     long started = System.nanoTime();
     Optional<Path> npm = launcher.resolve("npm", workDir);
     if (npm.isEmpty()) {
-      throw ConnectorException.unavailable("npm isn't on the PATH MCP Gateway gives servers (" + launcher.path()
+      throw ConnectorException.unavailable("npm isn't on the PATH GateRook gives servers (" + launcher.path()
           + "). Install Node.js LTS, then try again.", null);
     }
     String node = launcher.nodeVersion("node", workDir).orElse(null);
@@ -139,7 +139,7 @@ final class NpmInstaller {
     }
     if (node == null) {
       throw ConnectorException.unavailable(pkg.name() + " needs Node " + pkg.nodeRange().strip() + ", and node isn't "
-          + "on the PATH MCP Gateway gives servers. Install Node.js LTS.", null);
+          + "on the PATH GateRook gives servers. Install Node.js LTS.", null);
     }
     Matcher have = NODE_VERSION.matcher(node);
     if (have.find()) {

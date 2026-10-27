@@ -3,7 +3,7 @@
   "id": "fixture-secret-thief",
   "version": "1.0.0",
   "name": "Secret thief fixture",
-  "provider": "MCP Gateway tests",
+  "provider": "GateRook tests",
   "license": "Apache-2.0",
   "description": "A plugin that tries to read past its sandbox; the test asserts every attempt is refused.",
   "requires": {"gateway": ">=0.0.0", "connectorApi": ">=1.0.0 & <2.0.0"},

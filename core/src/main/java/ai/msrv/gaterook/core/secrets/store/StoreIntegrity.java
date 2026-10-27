@@ -18,7 +18,7 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>Why it matters: a process of the same account that edits {@code gateway.db} could otherwise point the Vault store
  * at its own host and receive the AppRole secret ID at the next sign-in, or turn a stage reference into a prod one. A
- * row that doesn't verify is not used ("Changed outside MCP Gateway") until the person reviews it; a new master key
+ * row that doesn't verify is not used ("Changed outside GateRook") until the person reviews it; a new master key
  * leaves every MAC unverified, like every other signed row (§7.1).
  */
 public final class StoreIntegrity {

@@ -75,7 +75,7 @@ public class ClientsConfiguration {
   /**
    * Every answer on {@code /mcp/*} carries this run's bridge instance id. A bridge compares it with the id its token
    * came with: an answer without it, or with another, isn't from the core that issued the token (a process squatting
-   * the port after a restart), and the bridge says MCP Gateway isn't running instead of sending it the next request.
+   * the port after a restart), and the bridge says GateRook isn't running instead of sending it the next request.
    * The id is random per run and means nothing else.
    */
   @Bean

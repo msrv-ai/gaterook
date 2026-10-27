@@ -291,7 +291,7 @@ public final class AwsSmStore implements SecretStore {
     }
     if (resources.isEmpty()) {
       resources.add("arn:" + partition(settings.region()) + ":secretsmanager:" + settings.region() + ":" + account
-          + ":secret:mcp-gateway-none");
+          + ":secret:gaterook-none");
     }
     return AwsSessionPolicy.builder().allow(List.of("secretsmanager:GetSecretValue"), List.copyOf(resources))
         .allow(List.of("kms:Decrypt"), List.of()).toJson();

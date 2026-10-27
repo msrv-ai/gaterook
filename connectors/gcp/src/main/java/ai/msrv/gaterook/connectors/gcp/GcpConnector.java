@@ -102,7 +102,7 @@ public final class GcpConnector implements Connector {
       s = Settings.parse(cfg);
     } catch (Settings.InvalidSettingsException e) {
       return Classification.deny(policy.rule("config_invalid"), "The settings of " + cfg.name() + " can't be used: "
-          + e.getMessage(), "Ask the person to fix the connection in MCP Gateway.");
+          + e.getMessage(), "Ask the person to fix the connection in GateRook.");
     }
     GcpPolicy p = GcpPolicy.of(policy, cfg.env());
     try {
@@ -171,7 +171,7 @@ public final class GcpConnector implements Connector {
     }
     GcpPolicy p = decisions.take(call.callId(), cfg.id(), cfg.version());
     if (p == null) {
-      throw ConnectorException.denied("MCP Gateway has no policy decision for this call, so it doesn't run. Call "
+      throw ConnectorException.denied("GateRook has no policy decision for this call, so it doesn't run. Call "
           + call.tool() + " again.");
     }
     Optional<JsonNode> approved = ctx.approved() ? ctx.approvedPayload() : Optional.empty();

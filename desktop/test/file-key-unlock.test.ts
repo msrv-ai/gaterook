@@ -11,7 +11,7 @@ function setup(load: () => Promise<FileKeyPlan>) {
   let denied = 0;
   const gate = new FileKeyUnlock({ load, changed: (state) => states.push(state), log: () => undefined,
     denied: () => { denied++; },
-    keychainService: 'MCP Gateway Dev Safe Storage' });
+    keychainService: 'GateRook Dev Safe Storage' });
   return { gate, states, denied: () => denied };
 }
 
@@ -22,7 +22,7 @@ describe('explicit OS-key-store unlock', () => {
     const pending = gate.prepare();
     assert.equal(calls, 0);
     assert.deepEqual(gate.state(), { kind: 'unlock-required', unlocking: false, error: null,
-      keychainService: 'MCP Gateway Dev Safe Storage' });
+      keychainService: 'GateRook Dev Safe Storage' });
     assert.equal(gate.prepare(), pending);
     await gate.unlock();
     assert.equal((await pending).fileKey?.length, 32);

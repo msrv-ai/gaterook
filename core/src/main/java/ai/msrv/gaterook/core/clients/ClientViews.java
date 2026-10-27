@@ -44,7 +44,7 @@ public final class ClientViews {
   public record Method(String id, String label, boolean prodAllowed, String reason) {}
 
   /**
-   * One entry MCP Gateway wrote (one endpoint of one client).
+   * One entry GateRook wrote (one endpoint of one client).
    *
    * @param status     {@code connected}, {@code needs-restart}, {@code removed-outside}, {@code needs-repair},
    *                   {@code revoked} or {@code error}

@@ -20,7 +20,7 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * What MCP Gateway knows about one client (report 03 §1a): how to find it on this computer, which config file it
+ * What GateRook knows about one client (report 03 §1a): how to find it on this computer, which config file it
  * reads, how it can sign in, and the entry that connects it to an endpoint. Paths are per system; the project configs
  * ({@code .cursor/mcp.json} of a repository, {@code .agents/mcp_config.json}) are never touched.
  */

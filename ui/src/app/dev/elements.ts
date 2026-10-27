@@ -1,4 +1,4 @@
-/** The kit's 16 elements (design/elements/*.html): the gallery's index and each demo's header. */
+/** The kit's 17 elements (design/elements/*.html): the gallery's index and each demo's header. */
 export interface KitElement {
   readonly name: string;
   readonly title: string;
@@ -10,13 +10,13 @@ export const KIT_ELEMENTS: readonly KitElement[] = [
     name: 'setup-map',
     title: 'Setup map',
     description:
-      "What to configure and how it connects, in the order you set it up: secrets and resources, connections, policies, endpoints, clients (the order of Getting started and onboarding). An agent's call travels the same path the other way, and the secret is injected at the connection, never reaching the agent. Each node says its state in words and links to its page. A chain on Overview and in onboarding, wiring on endpoint detail.",
+      "What to configure and how it connects, in the order you set it up: secrets and resources, connections, policies, endpoints, AI apps (the order of Getting started and onboarding). An agent's call travels the same path the other way, and the secret is injected at the connection, never reaching the agent. Each node says its state in words and links to its page. A chain on Overview and in onboarding, wiring on endpoint detail.",
   },
   {
     name: 'how-it-works',
     title: 'How it works',
     description:
-      'Three or four numbered steps that explain a mechanism before the user configures it: what happens to a secret, how a client is authorized, what one-click Connect writes. It opens Secrets, Clients and Connectors and the Authorization, Notifications and Tunnel settings, and folds away once the user knows it.',
+      'Three or four numbered steps that explain a mechanism before the user configures it: what happens to a secret, how an AI app is authorized, what one-click Connect writes. It opens Secrets, AI apps and Connectors and the Authorization, Notifications and Tunnel settings, and folds away once the user knows it.',
   },
   {
     name: 'getting-started',
@@ -58,7 +58,7 @@ export const KIT_ELEMENTS: readonly KitElement[] = [
     name: 'client-card',
     title: 'Client card',
     description:
-      'One MCP client: is it installed, which endpoints it uses, how it connects and authenticates, and the next step. Connect never writes blind: it shows the exact change to the config file and the backup path first. Claude Desktop and Codex get 15-minute tokens on the fly and nothing is written for them; Cursor and Antigravity keep a token in their config. claude.ai comes in through a published tunnel, behind three gates. Used on Clients, on the Clients tab of an endpoint (compact rows) and in onboarding.',
+      'One MCP client: is it installed, which endpoints it uses, how it connects and authenticates, and the next step. Connect never writes blind: it shows the exact change to the config file and the backup path first. Claude Desktop (one bridge extension per endpoint) and Codex (a headers helper) get 15-minute tokens on the fly and no token is written for them; Cursor and Antigravity keep a token in their config, sign in through the browser or go through the bridge, and a prod endpoint offers them only the bridge. claude.ai comes in through a published tunnel, behind three gates. Used on AI apps, on the AI apps tab of an endpoint (compact rows) and in onboarding.',
   },
   {
     name: 'connection-form',
@@ -94,13 +94,19 @@ export const KIT_ELEMENTS: readonly KitElement[] = [
     name: 'status-screen',
     title: 'Status screen',
     description:
-      'What the window shows while the gateway core is not available: starting, failed to start, or stopped. It replaces the whole app (no sidebar, nothing to navigate to), says what is happening and why, and offers the one or two actions that fix it. Used on Core starting and by the desktop app whenever the core exits. Each state below sits in a preview frame; in the app the screen covers the window.',
+      'What the window shows while the gateway core is not available: starting, failed to start (port in use, master key missing, any other reason), or stopped. It replaces the whole app (no sidebar, nothing to navigate to), says what is happening and why, and offers the one or two actions that fix it. Used on Core starting and by the desktop app whenever the core exits. Each state below sits in a preview frame; in the app the screen covers the window.',
   },
   {
     name: 'command-palette',
     title: 'Command palette',
     description:
       'One keyboard entry point to the whole app: go to a page, run an action, or open a connection or an endpoint by name without leaving the keyboard. Opens from every page with ⌘K (Ctrl+K on Windows and Linux) or the Search button in the titlebar.',
+  },
+  {
+    name: 'status-tile',
+    title: 'Status tile',
+    description:
+      'One compact card per thing: what it is, its state in words, and at most one action. Used on Overview for connections and AI apps, in gw-grid --3 sets (--2 for the four AI apps), problems and tiles with an action first.',
   },
 ];
 

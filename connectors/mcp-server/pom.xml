@@ -17,7 +17,7 @@
   </parent>
 
   <artifactId>connectors-mcp-server</artifactId>
-  <name>MCP Gateway · Connectors · External MCP servers</name>
+  <name>GateRook · Connectors · External MCP servers</name>
 
   <dependencies>
     <dependency>

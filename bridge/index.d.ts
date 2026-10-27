@@ -1,4 +1,4 @@
-// Types of @mcp-gateway/broker for Electron's main process (TypeScript). The package itself is plain ESM.
+// Types of @gaterook/broker for Electron's main process (TypeScript). The package itself is plain ESM.
 
 /** What the broker answers a bridge (protocol v1). */
 export type BrokerAnswer =
@@ -24,7 +24,7 @@ export interface ConfirmRequest {
 }
 
 export interface BrokerOptions {
-  /** The gateway home, e.g. ~/.mcp-gateway. */
+  /** The gateway home, e.g. ~/.gaterook. */
   home: string;
   core: CoreClient;
   /** Resolve true to allow, false to deny; without it bridges get "confirmation_required". */

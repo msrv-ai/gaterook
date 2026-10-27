@@ -39,7 +39,7 @@ In each configuration's environment variables, set `JAVA_HOME` to the local JDK 
 
 Select **GateRook: Run** and click **Run** to build and start the desktop application. **GateRook: Demo** uses a separate home and seeds demo data only when that home is empty. Both keep the default OS credential protection: select **Unlock GateRook** in the application window before the operating system can request key-store access. If access is denied or cancelled, GateRook closes without starting the core. Neither configuration resets existing data. Use the Run tool window's **Stop** action to stop the application.
 
-On macOS, the development launcher caches a locally signed `GateRook.app` under the ignored `desktop/.dev/runtime/` directory so the Dock and application menu show the product name. It refreshes the cache when Electron changes and leaves the installed npm dependency untouched. Existing Chromium profiles, key-store identities, and `mcp-gateway://` links retain their compatibility names.
+On macOS, the development launcher caches a locally signed `GateRook.app` under the ignored `desktop/.dev/runtime/` directory so the Dock and application menu show the product name. It refreshes the cache when Electron changes and leaves the installed npm dependency untouched. Deep links use `gaterook://`; the default application data directory is `~/.gaterook`.
 
 Run configurations must point to the actual application `package.json`: `$PROJECT_DIR$` refers to the directory opened in IDEA, which may be a parent directory. Keep machine-specific paths in local `.idea` settings, which are ignored by Git.
 
@@ -52,7 +52,7 @@ Run configurations must point to the actual application `package.json`: `$PROJEC
 | `app/target/app.jar` | Executable JVM core |
 | `bridge-cli/target/gw-bridge.jar` | JVM client helper |
 | `plugin-host/target/plugin-host.jar` | JVM plugin host |
-| `ui/dist/mcp-gateway-ui/browser/` | Renderer assets |
+| `ui/dist/gaterook-ui/browser/` | Renderer assets |
 | `desktop/dist/` | Electron main/preload bundle |
 | `design/dist/gw-kit.css` | Generated design-kit CSS |
 
@@ -74,9 +74,11 @@ npm start -- --demo --home ./desktop/.dev/demo --protection off
 
 The launcher rebuilds Electron, uses the built renderer, and starts the core as its child. Its default home is `desktop/.dev/home`. `--demo` seeds an empty home; `--protection off` avoids OS key-store use for a disposable instance. `--fresh` recursively deletes the chosen development home, so use it only for disposable data. Ctrl+C stops Electron and the core.
 
-With protection enabled, startup waits at **Unlock GateRook** before accessing the OS key store. On macOS the system dialog may name **MCP Gateway Dev Safe Storage**: this is the development build's retained storage identity. The application explains that name before requesting access. The development option `--protection off` skips this screen; use a separate disposable home because it cannot open an existing OS-protected keyset without its key.
+With protection enabled, startup waits at **Unlock GateRook** before accessing the OS key store. On macOS the system dialog may name **GateRook Dev Safe Storage**: this is the development build's keychain entry. The application explains that name before requesting access. The development option `--protection off` skips this screen; use a separate disposable home because it cannot open an existing OS-protected keyset without its key.
 
-The launcher builds the renderer automatically only when its output is missing. Run the build again to pick up later UI or Java changes. Legacy runtime IDs and paths are deliberately preserved during this source migration; see [product decisions](DECISIONS.md).
+The launcher builds the renderer automatically only when its output is missing. Run the build again to pick up later UI or Java changes. The default installed-app home is `~/.gaterook`; it does not import or modify `~/.mcp-gateway`. The development launcher continues to use its selected repository-local home. See [product decisions](DECISIONS.md).
+
+Electron now uses the GateRook application identity for OS key protection. An explicitly selected development home protected under the earlier application identity may require restoring its master-key backup. Use a separate home for a fresh instance; keep an existing home and its key backup intact.
 
 ## Browser development
 
@@ -127,7 +129,7 @@ Use a compatible GraalVM JDK 25 with `native-image` on `PATH` and the platform's
 
 ```bash
 mvn -B -ntp -pl app,bridge-cli -am -Pnative -DskipTests package
-npm start -- --core-binary app/target/mcp-gateway-core
+npm start -- --core-binary app/target/gaterook-core
 ```
 
 Windows outputs use `.exe`. Native runtime libraries must remain next to the executable or in its adjacent `native-libs/` directory. `scripts/aot-check.sh` validates the AOT context without a full native compilation; `scripts/native-smoke.sh` exercises a built native core.

@@ -5,12 +5,12 @@
     <div class="gw-card gw-setup-map__node">
       <header class="gw-card__header">
         <div class="gw-card__heading">
-          <ng-container *ngTemplateOutlet="title; context: { $implicit: 'Clients', icon: 'app-window', tone: 'brand' }" />
+          <ng-container *ngTemplateOutlet="title; context: { $implicit: 'AI apps', icon: 'app-window', tone: 'brand' }" />
           <p class="gw-card__description">{{ connected() }} connected · {{ detected() }} detected</p>
         </div>
       </header>
       <div class="gw-card__body">
-        <ul class="gw-setup-map__list gw-text-small" [attr.aria-label]="'Clients of endpoint ' + w.slug">
+        <ul class="gw-setup-map__list gw-text-small" [attr.aria-label]="'AI apps of endpoint ' + w.slug">
           @for (c of w.clients; track c.client) {
             @let look = clientLook(c);
             <li class="gw-setup-map__item">
@@ -24,9 +24,9 @@
       <footer class="gw-card__footer gw-card__footer--split">
         <span class="gw-text-caption gw-fg-muted">{{ w.clientsNote ?? 'Each signs in with its own token' }}</span>
         @if (inPage()) {
-          <a class="gw-btn gw-btn--link" [routerLink]="[]" [queryParams]="{ tab: 'clients' }" queryParamsHandling="merge">Manage clients<span class="gw-sr-only"> of {{ w.slug }}</span></a>
+          <a class="gw-btn gw-btn--link" [routerLink]="[]" [queryParams]="{ tab: 'clients' }" queryParamsHandling="merge">Manage AI apps<span class="gw-sr-only"> of {{ w.slug }}</span></a>
         } @else {
-          <a class="gw-btn gw-btn--link" routerLink="/clients">Connect a client</a>
+          <a class="gw-btn gw-btn--link" routerLink="/clients">Connect your AI app</a>
         }
       </footer>
     </div>

@@ -18,7 +18,7 @@ import org.slf4j.LoggerFactory;
 /**
  * The host's AOT cache on the person's machine (report 16 §3.3): after the first install the manager runs
  * {@code java -XX:AOTCacheOutput=… Main --train} in the background, which loads a built-in dummy plugin and makes a few
- * hundred calls, then renames the result into {@code ~/.mcp-gateway/cache/}. The cache's key is the host version, the
+ * hundred calls, then renames the result into {@code ~/.gaterook/cache/}. The cache's key is the host version, the
  * JRE's runtime version and the SHA-256 of {@code plugin-host.jar}; a host started with a cache whose key still
  * matches is ready about twice as fast, and a cache that doesn't fit is simply not used.
  */

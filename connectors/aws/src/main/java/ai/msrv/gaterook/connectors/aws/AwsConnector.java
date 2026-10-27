@@ -98,7 +98,7 @@ public final class AwsConnector implements Connector {
       s = Settings.parse(cfg);
     } catch (Settings.InvalidSettingsException e) {
       return Classification.deny(policy.rule("config_invalid"), "The settings of " + cfg.name() + " can't be used: "
-          + e.getMessage(), "Ask the person to fix the connection in MCP Gateway.");
+          + e.getMessage(), "Ask the person to fix the connection in GateRook.");
     }
     AwsPolicy p = AwsPolicy.of(policy, cfg.env());
     try {
@@ -185,7 +185,7 @@ public final class AwsConnector implements Connector {
     }
     AwsPolicy p = decisions.take(call.callId(), cfg.id(), cfg.version());
     if (p == null) {
-      throw ConnectorException.denied("MCP Gateway has no policy decision for this call, so it doesn't run. Call "
+      throw ConnectorException.denied("GateRook has no policy decision for this call, so it doesn't run. Call "
           + call.tool() + " again.");
     }
     Optional<JsonNode> approved = ctx.approved() ? ctx.approvedPayload() : Optional.empty();
@@ -305,7 +305,7 @@ public final class AwsConnector implements Connector {
     }
     if (!s.accountId().equals(account)) {
       throw ConnectorException.denied("The credentials of " + c.cfg().name() + " are for account " + account
-          + ", not " + s.accountId() + ". Ask the person to fix the connection in MCP Gateway.");
+          + ", not " + s.accountId() + ". Ask the person to fix the connection in GateRook.");
     }
   }
 }

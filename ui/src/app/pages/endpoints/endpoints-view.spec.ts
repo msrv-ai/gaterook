@@ -184,7 +184,7 @@ describe('Endpoints view', () => {
   it('writes the toasts of create, duplicate and delete', () => {
     expect(createdToast('payments-dev', 'empty')).toEqual({ tone: 'success', title: 'Endpoint payments-dev created', body: 'Add its connections and pick tool modes next.' });
     expect(createdToast('ro', 'read-only-dev').body).toBe('Check its connections and tool modes next.');
-    expect(duplicatedToast('dev-copy', 'dev')).toEqual({ tone: 'success', title: 'Endpoint dev-copy created', body: 'A copy of dev without tokens or client links.' });
+    expect(duplicatedToast('dev-copy', 'dev')).toEqual({ tone: 'success', title: 'Endpoint dev-copy created', body: 'A copy of dev without tokens or AI app links.' });
     expect(deletedToast('dev', { tokensRevoked: [], rejectedApprovals: 0 }).body).toBe('Its URL stops answering. The audit log keeps every call.');
     expect(deletedToast('dev', { tokensRevoked: ['a', 'b'], rejectedApprovals: 3 }).body).toBe(
       'Its URL stops answering. The audit log keeps every call. 2 tokens revoked, 3 waiting requests denied.',

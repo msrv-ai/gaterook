@@ -155,7 +155,8 @@ public final class JsonEntryEditor {
           || detail.contains("trailing comma") || detail.contains("expected double-quote to start field name"));
       String where = line > 0 ? " (line " + line + ", column " + column + ")" : "";
       if (jsonc) {
-        throw new ConfigEditException(Reason.JSONC, "The file has comments or trailing commas" + where + ". GateRook writes only strict JSON, so it changes nothing; add the entry by hand.", line, column, null);
+        throw new ConfigEditException(Reason.JSONC, "The file has comments or trailing commas" + where + ". "
+            + "GateRook writes only strict JSON, so it changes nothing; add the entry by hand.", line, column, null);
       }
       throw new ConfigEditException(Reason.INVALID, "The file isn't valid JSON" + where + ": " + firstLine(
           tokensMasked(detail)) + ". GateRook changes nothing.", line, column, null);

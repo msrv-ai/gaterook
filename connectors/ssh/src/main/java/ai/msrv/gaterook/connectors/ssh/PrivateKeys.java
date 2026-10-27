@@ -56,7 +56,7 @@ final class PrivateKeys {
           new ByteArrayInputStream(pem), password);
       Iterator<KeyPair> it = pairs == null ? null : pairs.iterator();
       if (it == null || !it.hasNext()) {
-        throw ConnectorException.badInput("The private key isn't one MCP Gateway can read: use OpenSSH or PEM "
+        throw ConnectorException.badInput("The private key isn't one GateRook can read: use OpenSSH or PEM "
             + "(PKCS#1, PKCS#8) with Ed25519, ECDSA or RSA.");
       }
       KeyPair pair = it.next();

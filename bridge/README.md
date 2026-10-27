@@ -1,6 +1,6 @@
 # Token broker and client bridge
 
-`@mcp-gateway/broker` runs in Electron main. `gw-bridge.mjs` is the stdio bridge packaged in Claude Desktop `.mcpb` extensions. Both use dependency-free ESM. The repository toolchain is Node 24; the standalone bridge supports Node 18 or newer. See [architecture](../docs/ARCHITECTURE.md#72-broker-and-clients).
+`@gaterook/broker` runs in Electron main. `gw-bridge.mjs` is the stdio bridge packaged in Claude Desktop `.mcpb` extensions. Both use dependency-free ESM. The repository toolchain is Node 24; the standalone bridge supports Node 18 or newer. See [architecture](../docs/ARCHITECTURE.md#72-broker-and-clients).
 
 ```text
 Client → gw-bridge (headers or stdio) → local socket/pipe → Electron broker
@@ -12,7 +12,7 @@ The core decides whether a `gr_` grant may obtain a token. The broker signs the 
 ## Electron API
 
 ```js
-import { createCoreClient, startBroker } from '@mcp-gateway/broker';
+import { createCoreClient, startBroker } from '@gaterook/broker';
 
 const core = createCoreClient({
   origin: `http://127.0.0.1:${port}`, // Port from the core's ready message.

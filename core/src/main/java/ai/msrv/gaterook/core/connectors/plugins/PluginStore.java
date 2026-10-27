@@ -17,7 +17,7 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * The {@code plugin} table behind a MAC (ARCHITECTURE.md §4): the row carries the installed version, where the JAR came
  * from, its SHA-256 and its stored manifest, signed with {@link RowMac} over the fields that matter for safety. A row
- * that doesn't verify ("Changed outside MCP Gateway") is reported and treated as absent until a person reviews it, so
+ * that doesn't verify ("Changed outside GateRook") is reported and treated as absent until a person reviews it, so
  * a JAR swapped on disk or a state flipped in the file can't make the core load it.
  */
 @Component

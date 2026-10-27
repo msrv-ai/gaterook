@@ -113,7 +113,7 @@ export function runtimeRows(info: CoreInfo | null): KvRow[] {
   ];
 }
 
-/** The data folder (`~/.mcp-gateway/` in the kit): the folder of the gateway's database file. */
+/** The data folder (`~/.gaterook/` in the kit): the folder of the gateway's database file. */
 export function folderOf(path: string | null | undefined): string | null {
   if (!path) return null;
   const i = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
@@ -488,10 +488,10 @@ export function keyBackupLead(protects: number): string {
 
 /**
  * The name the save dialog suggests: Electron main's (`desktop/src/main/file-purposes.ts`,
- * `mcp-gateway-master-key-<UTC date>.json`), so this dialog names the file the system dialog proposes.
+ * `gaterook-master-key-<UTC date>.json`), so this dialog names the file the system dialog proposes.
  */
 export function keyBackupFileName(now: number): string {
-  return `mcp-gateway-master-key-${new Date(now).toISOString().slice(0, 10)}.json`;
+  return `gaterook-master-key-${new Date(now).toISOString().slice(0, 10)}.json`;
 }
 
 export function keyBackedUpToast(result: { readonly path: string; readonly passphrase: boolean; readonly warnings: readonly string[] }): ToastOptions {

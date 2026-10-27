@@ -5,7 +5,7 @@ import { SearchResult } from '../../../core/api/core.api';
 import { ApprovalsStore } from '../../../core/stores/approvals.store';
 import { COPY_FAILED } from '../../clipboard';
 import { provideKitIcons } from '../../icons';
-import { GwCommandPalette } from './command-palette';
+import { GwCommandPalette, matches, paletteOptions } from './command-palette';
 
 /** "Copy URL of endpoint …": the palette is a modal dialog, so the copy must not depend on the (inert) page. */
 
@@ -73,5 +73,29 @@ describe('command palette copy', () => {
     await vi.advanceTimersByTimeAsync(60);
     expect(announced('alert')?.textContent).toBe(COPY_FAILED);
     expect(announced('status')?.textContent ?? '').toBe('');
+  });
+});
+
+describe('command palette words', () => {
+  it('names pages and actions in the kit’s words, whatever the core’s search calls them', () => {
+    const options = paletteOptions(
+      {
+        goTo: [
+          { id: 'clients', label: 'Clients', route: '/clients' },
+          { id: 'overview', label: 'Overview', route: '/overview' },
+        ],
+        actions: [{ id: 'connect-client', label: 'Connect a client', route: '/clients' }],
+        connections: [],
+        endpoints: [],
+      },
+      { pending: 0, address: '127.0.0.1:7465' },
+    );
+    const byId = Object.fromEntries(options.map((o) => [o.id, o]));
+    expect(byId['clients'].label).toBe('AI apps');
+    expect(byId['clients'].hint).toBe('Access');
+    expect(byId['connect-client'].label).toBe('Connect your AI app');
+    // The old word still finds the page and the action (kit data-keywords "clients mcp …").
+    expect(options.filter((o) => matches(o, 'client')).map((o) => o.id)).toEqual(['clients', 'connect-client']);
+    expect(options.filter((o) => matches(o, 'ai app')).map((o) => o.id)).toEqual(['clients', 'connect-client']);
   });
 });

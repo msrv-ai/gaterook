@@ -13,13 +13,15 @@ import {
   DisconnectResult,
   ManualSetup,
 } from '../../core/api/clients.api';
-import { EndpointSummary, EndpointsApi, TokenRow, TokensApi } from '../../core/api/endpoints.api';
+import { EndpointSummary, EndpointsApi, TokenRow, TokensApi, ToolGroup } from '../../core/api/endpoints.api';
+import { Overview, OverviewApi } from '../../core/api/overview.api';
 import { OAuthApi, OAuthGrant, PublishPreview, TunnelApi, TunnelState } from '../../core/api/tunnel.api';
 import { EventStream } from '../../core/events/event-stream';
 import { TunnelStore } from '../../core/stores/tunnel.store';
 import { TimeService } from '../../core/time/time.service';
 import { ClientFailure, ConfigEntry } from '../../kit/elements/client-card/client-view';
-import { connectFailure, entryFromPreview, manualEndpoint, publishedEndpoint } from './clients-view';
+import { OverviewState, overviewState } from '../overview/overview-view';
+import { FirstConnection, connectFailure, entryFromPreview, firstConnection, manualEndpoint, publishedEndpoint } from './clients-view';
 
 /**
  * One part of the page as loaded: its value (null until the first answer), why its first load failed, and whether
@@ -58,7 +60,9 @@ export const CALLS_THROTTLE_MS = 5_000;
  * - claude.ai: the tunnel (`TunnelStore`, the sidebar's and banner's source too), its sign-ins (`/api/oauth/grants`)
  *   and what Publish would make public (`/api/tunnel/publish/preview`) — before step K3 these routes don't exist and
  *   the card says so;
- * - manual setup: the URL and snippets of one endpoint (`/api/clients/manual`) and its tokens set up by hand.
+ * - manual setup: the URL and snippets of one endpoint (`/api/clients/manual`) and its tokens set up by hand;
+ * - the page's state, as on Overview (`/api/overview`): first run, setup, in use; in setup the first connection and
+ *   its tools on its endpoint (`/api/endpoints/{slug}/tools`), which the Connect review names.
  *
  * Each part loads on its own: one that fails or doesn't exist leaves the others working. Reloads are coalesced: one
  * in flight and one more after it.
@@ -70,6 +74,7 @@ export class ClientsData {
   private readonly tokensApi = inject(TokensApi);
   private readonly tunnelApi = inject(TunnelApi);
   private readonly oauthApi = inject(OAuthApi);
+  private readonly overviewApi = inject(OverviewApi);
   private readonly tunnelStore = inject(TunnelStore);
   private readonly events = inject(EventStream);
   private readonly time = inject(TimeService);
@@ -86,6 +91,9 @@ export class ClientsData {
   private readonly scanningSignal = signal<'page' | ClientId | null>(null);
   private readonly staleSignal = signal<unknown>(null);
   private readonly refreshingSignal = signal(false);
+  /** `GET /api/overview`; null before its answer, undefined once it failed or isn't there (the page is then in use). */
+  private readonly overviewSignal = signal<Overview | null | undefined>(null);
+  private readonly firstToolsSignal = signal<ToolGroup[] | null>(null);
 
   readonly clients = this.clientsSignal.asReadonly();
   readonly endpoints = this.endpointsSignal.asReadonly();
@@ -102,12 +110,33 @@ export class ClientsData {
   readonly stale = this.staleSignal.asReadonly();
   readonly refreshing = this.refreshingSignal.asReadonly();
 
+  /**
+   * The page's state from the core's own facts, as on Overview (`overviewState`): `first-run` (no connection yet),
+   * `setup` (a connection, no AI app yet), `in-use`. Null until the overview answered; a core without it, or one that
+   * failed to answer, leaves the page in use. Read with the page, not after each write: a Connect made here keeps the
+   * setup layout (the kit: "a card connected in this session stays").
+   */
+  readonly stage = computed<OverviewState | null>(() => {
+    const o = this.overviewSignal();
+    if (o === null) return null;
+    return o ? overviewState(o) : 'in-use';
+  });
+  /** Setup: the first connection and its endpoint, as Overview's guide names them. */
+  readonly first = computed<FirstConnection | null>(() => {
+    const o = this.overviewSignal();
+    return o ? firstConnection(o) : null;
+  });
+  /** Setup: the endpoint's tools (the first connection's group is what the Connect review says it can use). */
+  readonly firstTools = this.firstToolsSignal.asReadonly();
+
   /** The tunnel (null before step K3: `/api/tunnel` doesn't exist). */
   readonly tunnel = computed<TunnelState | null>(() => (this.tunnelStore.available() ? this.tunnelStore.state() : null));
   readonly cards = computed<ClientCard[]>(() => this.clientsSignal().value?.clients ?? []);
   readonly endpointList = computed<EndpointSummary[]>(() => this.endpointsSignal().value ?? []);
-  /** The endpoint the claude.ai card is about. */
-  readonly published = computed(() => publishedEndpoint(this.tunnel(), this.endpointList()));
+  /** The endpoint the claude.ai card is about; in setup, the first endpoint (kit: "Publish dev", never published). */
+  readonly published = computed(
+    () => publishedEndpoint(this.tunnel(), this.endpointList()) ?? (this.stage() === 'setup' ? (this.first()?.endpoint ?? null) : null),
+  );
   /** The endpoint the manual setup is about. */
   readonly manualSlug = computed(() => manualEndpoint(this.endpointList()));
 
@@ -171,9 +200,25 @@ export class ClientsData {
       this.part(this.endpointsSignal, () => this.endpointsApi.list(), failures).then(() => this.loadManual()),
       this.part(this.grantsSignal, () => this.oauthApi.grants(), failures),
       this.tunnelStore.refresh(),
+      this.loadOverview(),
     ]);
     await this.reloadPublishPreview(false);
     if (!this.stopped) this.staleSignal.set(failures[0] ?? null);
+  }
+
+  /** The page's state, and in setup the tools the Connect review names; a failure leaves the page in use. */
+  private async loadOverview(): Promise<void> {
+    try {
+      const o = await this.overviewApi.get();
+      if (this.stopped) return;
+      this.overviewSignal.set(o);
+    } catch {
+      if (!this.stopped && this.overviewSignal() === null) this.overviewSignal.set(undefined);
+      return;
+    }
+    const slug = this.stage() === 'setup' ? this.first()?.endpoint : null;
+    const tools = slug ? await this.endpointsApi.tools(slug).catch(() => null) : null;
+    if (!this.stopped) this.firstToolsSignal.set(tools);
   }
 
   private async part<T>(target: WritableSignal<Part<T>>, call: () => Promise<T>, failures: unknown[]): Promise<void> {

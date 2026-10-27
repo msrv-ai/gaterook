@@ -38,13 +38,13 @@ class StartupProtocolTest {
 
     protocol.running(StartupStep.LOCAL_API);
     protocol.failed(StartupReason.PORT_IN_USE, "Address already in use: 127.0.0.1:7465",
-        JsonNodeFactory.instance.objectNode().put("log", "/home/u/.mcp-gateway/logs/core.log"));
+        JsonNodeFactory.instance.objectNode().put("log", "/home/u/.gaterook/logs/core.log"));
 
     assertThat(lines()).containsExactly(
         "{\"v\":1,\"step\":\"local-api\",\"state\":\"running\"}",
         "{\"v\":1,\"step\":\"local-api\",\"state\":\"failed\"}",
         "{\"v\":1,\"ready\":false,\"reason\":\"PORT_IN_USE\",\"detail\":\"Address already in use: 127.0.0.1:7465\","
-            + "\"log\":\"/home/u/.mcp-gateway/logs/core.log\"}");
+            + "\"log\":\"/home/u/.gaterook/logs/core.log\"}");
     assertThat(protocol.finished()).isTrue();
   }
 }

@@ -74,7 +74,7 @@ async function download(url, cacheFile, expected) {
   } catch {
     // Not cached yet.
   }
-  const response = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'mcp-gateway-stage' } });
+  const response = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'gaterook-stage' } });
   if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
   const bytes = Buffer.from(await response.arrayBuffer());
   if (sha256(bytes) !== expected) {

@@ -50,7 +50,7 @@ class TestProbeHintsTest {
 
     assertThat(hints).extracting(Hint::code).containsExactly("sql.replica", "sql.old-server");
     assertThat(hints.getFirst().text()).isEqualTo("Read replica: sql_execute will fail here.");
-    assertThat(hints.get(1).text()).isEqualTo("PostgreSQL 11.22 is older than 12, which MCP Gateway supports.");
+    assertThat(hints.get(1).text()).isEqualTo("PostgreSQL 11.22 is older than 12, which GateRook supports.");
   }
 
   @Test

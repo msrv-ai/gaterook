@@ -15,13 +15,13 @@ function fakes() {
   writeFileSync(join(f, 'ui', 'index.html'), '<gw-root></gw-root>');
   writeFileSync(join(f, 'ui', 'assets', 'theme-boot.js'), '');
   mkdirSync(join(f, 'target', 'native-libs'), { recursive: true });
-  writeFileSync(join(f, 'target', 'mcp-gateway-core'), 'native core');
+  writeFileSync(join(f, 'target', 'gaterook-core'), 'native core');
   writeFileSync(join(f, 'target', 'native-libs', 'libsqlitejdbc.dylib'), 'sqlite');
   writeFileSync(join(f, 'target', 'app.jar'), 'jar');
   writeFileSync(join(f, 'gw-bridge.mjs'), '// bridge');
   return {
     f,
-    sources: { uiDist: join(f, 'ui'), nativeCore: join(f, 'target', 'mcp-gateway-core'), jar: join(f, 'target', 'app.jar'),
+    sources: { uiDist: join(f, 'ui'), nativeCore: join(f, 'target', 'gaterook-core'), jar: join(f, 'target', 'app.jar'),
       jre: join(f, 'missing', 'jre'), pluginHost: join(f, 'missing', 'plugin-host.jar'), bridgeMjs: join(f, 'gw-bridge.mjs'), bridgeNative: join(f, 'missing', 'gw-bridge'),
       bridgeJar: join(f, 'missing', 'gw-bridge.jar') },
   };
@@ -45,8 +45,8 @@ describe('stage.mjs', () => {
     const out = join(dir, 'out-native');
     const report = await stage({ out, platform: 'darwin-arm64', core: null, jar: false, jre: null, skipCloudflared: true }, sources);
     assert.ok(existsSync(join(out, 'ui', 'index.html')));
-    assert.equal(readFileSync(join(out, 'core', 'mcp-gateway-core'), 'utf8'), 'native core');
-    if (process.platform !== 'win32') assert.equal(statSync(join(out, 'core', 'mcp-gateway-core')).mode & 0o111, 0o111);
+    assert.equal(readFileSync(join(out, 'core', 'gaterook-core'), 'utf8'), 'native core');
+    if (process.platform !== 'win32') assert.equal(statSync(join(out, 'core', 'gaterook-core')).mode & 0o111, 0o111);
     assert.equal(readFileSync(join(out, 'core', 'libsqlitejdbc.dylib'), 'utf8'), 'sqlite');
     assert.ok(existsSync(join(out, 'bridge', 'gw-bridge.mjs')));
     assert.ok(existsSync(join(out, 'jre', 'README.txt')));
@@ -62,7 +62,7 @@ describe('stage.mjs', () => {
       if (extension === 'png') assert.equal(macIcon.readUInt32BE(16), 1024);
       else assert.equal(macIcon.subarray(0, 4).toString(), 'icns');
     }
-    assert.ok(report.some((l) => l.startsWith('core/mcp-gateway-core')));
+    assert.ok(report.some((l) => l.startsWith('core/gaterook-core')));
   });
 
   it('stages the JVM fallback only when asked', async () => {
@@ -70,7 +70,7 @@ describe('stage.mjs', () => {
     const out = join(dir, 'out-jar');
     await stage({ out, platform: 'linux-x64', core: null, jar: true, jre: null, skipCloudflared: true }, sources);
     assert.equal(readFileSync(join(out, 'core', 'app.jar'), 'utf8'), 'jar');
-    assert.ok(!existsSync(join(out, 'core', 'mcp-gateway-core')));
+    assert.ok(!existsSync(join(out, 'core', 'gaterook-core')));
   });
 
   it('refuses to stage without a UI or a core', async () => {
@@ -94,7 +94,7 @@ describe('stage.mjs', () => {
     const out = join(dir, 'out-again');
     await stage({ out, platform: 'darwin-arm64', core: null, jar: false, jre: null, skipCloudflared: true }, sources);
     await stage({ out, platform: 'darwin-arm64', core: null, jar: false, jre: null, skipCloudflared: true }, sources);
-    assert.ok(existsSync(join(out, '.mcp-gateway-stage')));
+    assert.ok(existsSync(join(out, '.gaterook-stage')));
   });
 
   it('knows the platform keys and libraries', () => {

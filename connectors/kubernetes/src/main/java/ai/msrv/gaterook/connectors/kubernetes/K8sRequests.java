@@ -242,7 +242,7 @@ final class K8sRequests {
       KindInfo kind = kinds.byApiVersion(apiVersion, kindName).orElseThrow(() -> new Refusal(new Problem(
           policy.rule("kind-unknown"), "The cluster doesn't serve " + apiVersion + " " + kindName + ".",
           kinds.discovered() ? "Check apiVersion and kind."
-              : "Test the connection so MCP Gateway knows the cluster's custom resources.")));
+              : "Test the connection so GateRook knows the cluster's custom resources.")));
       if (forbiddenForApply(kind)) {
         throw new Refusal(new Problem(policy.rule("kind-forbidden"), "k8s_apply can't change " + kind.kind()
             + ": it hands out access or reshapes the cluster.", "Use your GitOps pipeline."));
@@ -288,7 +288,7 @@ final class K8sRequests {
     }
     KindInfo kind = kinds.resolve(text).orElseThrow(() -> new Refusal(new Problem(policy.rule("kind-unknown"),
         "No kind " + text + ". Known: " + kinds.known(24) + ".", kinds.discovered() ? null
-            : "Test the connection so MCP Gateway knows the cluster's custom resources.")));
+            : "Test the connection so GateRook knows the cluster's custom resources.")));
     allowed(kind, policy);
     return kind;
   }

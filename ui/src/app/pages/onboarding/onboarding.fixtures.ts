@@ -43,7 +43,7 @@ export function onboarding(done: Partial<Record<GettingStartedStepId, { readonly
 /** `GET /api/master-key` right after the core created the key (0400, protected by the macOS Keychain). */
 export function masterKey(patch: Partial<MasterKeyStatus> = {}): MasterKeyStatus {
   return {
-    path: '/Users/you/.mcp-gateway/master.keyset',
+    path: '/Users/you/.gaterook/master.keyset',
     mode: '0400',
     owner: 'you',
     keys: [{ id: 3855850642, status: 'enabled', primary: true }],

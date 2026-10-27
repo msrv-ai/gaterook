@@ -8,7 +8,7 @@ import java.nio.file.Path;
 import org.springframework.stereotype.Component;
 
 /**
- * Where the plugin subsystem keeps its files under {@code ~/.mcp-gateway} (ARCHITECTURE.md §7.5):
+ * Where the plugin subsystem keeps its files under {@code ~/.gaterook} (ARCHITECTURE.md §7.5):
  * <ul>
  *   <li>{@code plugins/<id>/<version>/plugin.jar} — an installed generation (0600, folders 0700); the previous version
  *       stays 7 days for Roll back;</li>

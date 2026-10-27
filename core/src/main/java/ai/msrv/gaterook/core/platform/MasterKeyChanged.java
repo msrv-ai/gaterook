@@ -12,7 +12,7 @@ package ai.msrv.gaterook.core.platform;
  * states made before stop verifying (they expire anyway), and no stored {@code mac} verifies any more. A new key can't
  * vouch for rows written while it didn't exist — a process of the same OS account may have deleted the key file and
  * edited {@code gateway.db} (§9) — so {@code RowMac} never re-signs rows on these kinds: every MAC-protected row reads
- * "Changed outside MCP Gateway" (fail closed) until the person reviews and confirms it. The audit re-anchors its head
+ * "Changed outside GateRook" (fail closed) until the person reviews and confirms it. The audit re-anchors its head
  * with a Setup change that marks the chain before it as unverified.
  *
  * <p>Declared next to {@link HmacKeys}, whose keys it announces, rather than in {@code secrets}: its listeners

@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, booleanAttribute, computed, effect, inject, input, model, numberAttribute, output, signal, untracked } from '@angular/core';
+import { ChangeDetectionStrategy, Component, TemplateRef, booleanAttribute, computed, effect, inject, input, model, numberAttribute, output, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ClientCard, ClientMethod, ClientMethodId, ConnectPreview, ConnectRequest, toKitDiff } from '../../../core/api/clients.api';
 import { TimeService } from '../../../core/time/time.service';
@@ -75,6 +75,13 @@ export class GwClientConnectFlow {
   readonly page = input(false, { transform: booleanAttribute });
   /** Open config in the page's failure alert needs the desktop app. */
   readonly canOpenConfig = input(true, { transform: booleanAttribute });
+  /**
+   * The setup review (pages/clients.html `?state=setup`) names the one endpoint above the flow ("What Claude Desktop
+   * can use"): with a single endpoint there is no select.
+   */
+  readonly single = input(false, { transform: booleanAttribute });
+  /** What goes right after the page's first line (the setup review's "What Claude Desktop can use"). */
+  readonly lead = input<TemplateRef<unknown> | null>(null);
   /** Open config was pressed in the failure alert. */
   readonly openConfig = output<void>();
 
@@ -92,6 +99,8 @@ export class GwClientConnectFlow {
   protected readonly endpointOption = endpointOption;
   protected readonly langLabel = langLabel;
   protected readonly selected = computed(() => this.endpoints().find((e) => e.slug === this.endpoint()) ?? null);
+  /** The endpoint select, unless the review already named the only endpoint. */
+  protected readonly showSelect = computed(() => !(this.single() && this.endpoints().length === 1));
   protected readonly methods = computed(() => methodsFor(this.card(), this.selected()?.env ?? null));
   /**
    * The sign-in choices: what the endpoint allows. The bridge entry is a client's fallback (the only way for prod), so
@@ -146,11 +155,18 @@ export class GwClientConnectFlow {
     return p && p.endpoint === this.endpoint() && p.method === this.method() ? p : null;
   });
   /** The page: what Connect starts with, in one line. */
-  protected readonly intro = computed(() =>
-    this.choices().length > 1
-      ? `Found on this computer. Pick an endpoint and how ${this.card().name} signs in, then check the change; nothing is written until you connect.`
-      : 'Found on this computer. Pick an endpoint, then check the change; nothing is written until you connect.',
-  );
+  protected readonly intro = computed(() => {
+    const name = this.card().name;
+    if (!this.showSelect()) {
+      // The setup review (kit): the endpoint is named above, so the line says what Connect does.
+      if (this.choices().length > 1) return `Found on this computer. Choose how ${name} signs in and check the change. Nothing is written until you click Connect ${name}.`;
+      if (this.method() === 'mcpb') return `Found on this computer. Connect installs the GateRook extension in ${name}; no config file is written.`;
+      return `Found on this computer. Connect adds one server to ${name}'s config, with a backup first. Nothing is written until you click Connect ${name}.`;
+    }
+    return this.choices().length > 1
+      ? `Found on this computer. Pick an endpoint and how ${name} signs in, then check the change; nothing is written until you connect.`
+      : 'Found on this computer. Pick an endpoint, then check the change; nothing is written until you connect.';
+  });
   /** The page: the core's warnings about the chosen endpoint (prod), under its select; the select points at them. */
   readonly warnings = computed(() => (this.page() ? (this.current()?.warnings ?? []) : []));
   readonly warningsId = computed(() => `${this.idPrefix()}-warn`);

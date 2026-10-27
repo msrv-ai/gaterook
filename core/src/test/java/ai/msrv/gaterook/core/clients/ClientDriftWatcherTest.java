@@ -37,7 +37,7 @@ class ClientDriftWatcherTest {
         .thenReturn(Map.of("cl_1", "codex removed-outside"));
     EventBus events = new EventBus(Clock.systemUTC());
     ClientDriftWatcher watcher = new ClientDriftWatcher(clients, new ClientEnvironment(ClientEnvironment.Os.LINUX,
-        dir, dir.resolve(".mcp-gateway"), null, Map.of(), true, "laptop"), events, "");
+        dir, dir.resolve(".gaterook"), null, Map.of(), true, "laptop"), events, "");
     try (EventBus.Subscription s = events.subscribe(OptionalLong.empty())) {
       Set<Path> watched = new HashSet<>();
       watcher.pass(watched, true);
@@ -64,7 +64,7 @@ class ClientDriftWatcherTest {
         card("codex", "connected"))));
     EventBus events = new EventBus(Clock.systemUTC());
     ClientDriftWatcher watcher = new ClientDriftWatcher(clients, new ClientEnvironment(ClientEnvironment.Os.LINUX,
-        dir, dir.resolve(".mcp-gateway"), null, Map.of(), true, "laptop"), events, "");
+        dir, dir.resolve(".gaterook"), null, Map.of(), true, "laptop"), events, "");
     try (EventBus.Subscription s = events.subscribe(OptionalLong.empty())) {
       Set<Path> watched = new HashSet<>();
       watcher.pass(watched, true);

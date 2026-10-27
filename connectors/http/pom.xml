@@ -17,7 +17,7 @@
   </parent>
 
   <artifactId>connectors-http</artifactId>
-  <name>MCP Gateway · Connectors · HTTP API</name>
+  <name>GateRook · Connectors · HTTP API</name>
 
   <dependencies>
     <dependency>

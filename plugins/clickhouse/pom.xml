@@ -20,7 +20,7 @@
   </parent>
 
   <artifactId>plugins-clickhouse</artifactId>
-  <name>MCP Gateway · Plugins · ClickHouse</name>
+  <name>GateRook · Plugins · ClickHouse</name>
 
   <properties>
     <maven.deploy.skip>true</maven.deploy.skip>

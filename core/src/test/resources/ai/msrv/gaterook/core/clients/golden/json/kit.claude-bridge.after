@@ -5,7 +5,7 @@
       "args": ["-y", "@modelcontextprotocol/server-github"]
     },
     "gateway-dev": {
-      "command": "/home/me/.mcp-gateway/bin/gw-bridge",
+      "command": "/home/me/.gaterook/bin/gw-bridge",
       "args": ["stdio", "--endpoint", "dev", "--grant", "gr_cx7q2lmaabcd", "--client", "claude-desktop"]
     }
   }

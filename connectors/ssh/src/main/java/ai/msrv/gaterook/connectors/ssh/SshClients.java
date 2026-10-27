@@ -40,7 +40,7 @@ final class SshClients implements AutoCloseable {
 
   SshClients(String version) {
     // "SSH-2.0-" is MINA's; the host logs this in auth.log next to the user.
-    this.identification = "MCPGateway_" + version.replaceAll("[^A-Za-z0-9.]", "_");
+    this.identification = "GateRook_" + version.replaceAll("[^A-Za-z0-9.]", "_");
   }
 
   synchronized SshClient client(boolean legacyAlgorithms) {

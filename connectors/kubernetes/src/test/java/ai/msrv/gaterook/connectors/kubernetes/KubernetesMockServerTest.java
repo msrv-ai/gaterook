@@ -104,7 +104,7 @@ class KubernetesMockServerTest {
     FakeApiServer.Request req = api.requests.get(0);
     assertThat(req.header("Accept")).startsWith("application/json;as=Table;v=v1;g=meta.k8s.io");
     assertThat(req.header("Authorization")).isEqualTo("Bearer " + TOKEN);
-    assertThat(req.header("User-Agent")).startsWith("mcp-gateway/");
+    assertThat(req.header("User-Agent")).startsWith("GateRook/");
     assertThat(req.query()).containsEntry("limit", "2").containsEntry("includeObject", "Metadata");
     JsonNode out = page.structuredContent();
     assertThat(out.path("columns").toString()).isEqualTo("[\"Name\",\"Ready\",\"Status\",\"Restarts\",\"Age\"]");
@@ -337,7 +337,7 @@ class KubernetesMockServerTest {
 
     FakeApiServer.Request patch = api.requests("PATCH", "/apis/apps/v1/namespaces/app-dev/deployments/api").get(0);
     assertThat(patch.header("Content-Type")).startsWith("application/merge-patch+json");
-    assertThat(patch.query()).containsEntry("fieldManager", "mcp-gateway-rollout");
+    assertThat(patch.query()).containsEntry("fieldManager", "gaterook-rollout");
     assertThat(json(patch.body()).toString()).isEqualTo("{\"metadata\":{\"uid\":\"u-1\"},\"spec\":{\"template\":"
         + "{\"metadata\":{\"annotations\":{\"kubectl.kubernetes.io/restartedAt\":\"2026-10-25T11:00:00Z\"}}}}}");
     assertThat(r.content().get(0).text()).startsWith("Restarted deployment/api in app-dev on dev-cluster");
@@ -376,7 +376,7 @@ class KubernetesMockServerTest {
 
     FakeApiServer.Request dry = api.requests("PATCH", "/api/v1/namespaces/app-dev/configmaps/cfg").get(0);
     assertThat(dry.header("Content-Type")).startsWith("application/apply-patch+yaml");
-    assertThat(dry.query()).containsEntry("dryRun", "All").containsEntry("fieldManager", "mcp-gateway")
+    assertThat(dry.query()).containsEntry("dryRun", "All").containsEntry("fieldManager", "gaterook")
         .containsEntry("fieldValidation", "Strict").doesNotContainKey("force");
     assertThat(prepared.outcome()).isEqualTo(PreparedAction.Outcome.APPROVAL);
     assertThat(prepared.preview().kind()).isEqualTo(ActionPreview.Kind.DIFF);
@@ -388,7 +388,7 @@ class KubernetesMockServerTest {
 
     List<FakeApiServer.Request> patches = api.requests("PATCH", "/api/v1/namespaces/app-dev/configmaps/cfg");
     FakeApiServer.Request real = patches.get(patches.size() - 1);
-    assertThat(real.query()).doesNotContainKey("dryRun").containsEntry("fieldManager", "mcp-gateway");
+    assertThat(real.query()).doesNotContainKey("dryRun").containsEntry("fieldManager", "gaterook");
     assertThat(json(real.body()).at("/metadata/resourceVersion").asString()).isEqualTo("50");
     assertThat(r.structuredContent().path("status").asString()).isEqualTo("completed");
     assertThat(r.content().get(0).text()).isEqualTo("Applied on dev-cluster: configmap/cfg configured.");

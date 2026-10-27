@@ -222,7 +222,7 @@ export class GwEndpointSettings {
     this.protocolModel,
     (p) => {
       validate(p.revisions, ({ value }) =>
-        value().some((r) => r.on) ? null : { kind: 'none', message: `Keep at least one revision: with none, no client can call ${this.slug()}.` },
+        value().some((r) => r.on) ? null : { kind: 'none', message: `Keep at least one revision: with none, no AI app can call ${this.slug()}.` },
       );
     },
     { injector: this.injector },

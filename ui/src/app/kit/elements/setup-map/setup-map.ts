@@ -16,7 +16,7 @@ const NODES: Record<SetupNodeId, { readonly icon: string; readonly title: string
   connections: { icon: 'database', title: 'Connections', desc: 'Where tools run: databases, hosts, APIs', route: '/connections', what: 'connections' },
   policies: { icon: 'shield', title: 'Policies', desc: 'Decides each call: mode, limits, approval', route: '/policies', what: 'policies' },
   endpoints: { icon: 'waypoints', title: 'Endpoints', desc: 'One MCP URL, with a token or OAuth', route: '/endpoints', what: 'endpoints' },
-  clients: { icon: 'app-window', title: 'Clients', desc: 'Apps your agent works in', route: '/clients', what: 'clients' },
+  clients: { icon: 'app-window', title: 'AI apps', desc: 'Apps your agent works in', route: '/clients', what: 'AI apps' },
 };
 
 const STATE: Record<SetupNode['state'], { readonly tile: string; readonly badge: string; readonly icon: string; readonly text: string }> = {
@@ -167,7 +167,7 @@ export class GwSetupWiring {
     const w = this.wiring();
     if (w.flowText) return w.flowText;
     const names = w.clients.filter((c) => c.status === 'connected').map((c) => clientName(c.client));
-    const who = names.length ? `${names.join(' and ')} call` : 'Clients call';
+    const who = names.length ? `${names.join(' and ')} call` : 'AI apps call';
     const n = w.connections.length;
     return `${who} endpoint ${w.slug} with their tokens; ${w.slug} runs its tools on ${n} ${n === 1 ? 'connection' : 'connections'}, which inject the secrets.`;
   });

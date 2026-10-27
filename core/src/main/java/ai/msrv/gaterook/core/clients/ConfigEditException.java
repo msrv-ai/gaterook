@@ -1,7 +1,7 @@
 package ai.msrv.gaterook.core.clients;
 
 /**
- * A config file MCP Gateway won't edit (report 03 §6 "Fail-closed configuration edits"): nothing is written, and the person
+ * A config file GateRook won't edit (report 03 §6 "Fail-closed configuration edits"): nothing is written, and the person
  * gets the reason, the position when the file doesn't parse, and the entry to add by hand when there is one.
  */
 public final class ConfigEditException extends RuntimeException {

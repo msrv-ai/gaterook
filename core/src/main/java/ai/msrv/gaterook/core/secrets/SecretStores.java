@@ -24,7 +24,7 @@ public class SecretStores {
    * @param state      {@code connected} (its last test passed), {@code failing} or {@code not-checked}
    * @param latencyMs  of the last test since the core started, or {@code null}
    * @param signIn     its own secret fields (AppRole secret ID, token, key) without values
-   * @param verified   {@code false}: the row was changed outside MCP Gateway and the store isn't used
+   * @param verified   {@code false}: the row was changed outside GateRook and the store isn't used
    */
   public record StoreInfo(String id, String kind, String name, JsonNode config, String state, Instant lastCheckedAt,
       Long latencyMs, String lastError, List<Reference> references, List<SignInSecret> signIn, int issues,
@@ -114,7 +114,7 @@ public class SecretStores {
     return admin.test(idOrName);
   }
 
-  /** The person reviewed a store (and its references) changed outside MCP Gateway and keeps it as stored. */
+  /** The person reviewed a store (and its references) changed outside GateRook and keeps it as stored. */
   public StoreInfo confirmIntegrity(String idOrName, String reason) {
     return admin.confirmIntegrity(idOrName, reason);
   }

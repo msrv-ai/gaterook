@@ -150,7 +150,7 @@ class SshConnectorIT {
     assertThat(t.ok()).isFalse();
     assertThat(t.needsConfirmation()).isNull();
     assertThat(t.error().code()).isEqualTo("ssh.host-key-changed");
-    assertThat(t.error().message()).contains("changed. MCP Gateway sent nothing to it");
+    assertThat(t.error().message()).contains("changed. GateRook sent nothing to it");
     assertThat(t.details().path("fingerprint").asString()).isEqualTo(KeyUtils.getFingerPrint(sshd.hostKey.getPublic()));
     assertThatThrownBy(() -> connector.execute(run("uptime", null), cfg, secrets, TestCtx.read()))
         .isInstanceOfSatisfying(ConnectorException.class,

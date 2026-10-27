@@ -7,7 +7,7 @@ import java.util.Map;
 /**
  * {@code gw-bridge headers --endpoint dev --grant gr_…}: Codex's {@code http_headers_helper} (report 03 §1, §3.2).
  * Prints {@code {"Authorization":"Bearer gwb_…"}} with a fresh 15-minute token and nothing else on stdout. Codex runs
- * it again after a 401 or 403, which is how the token rotates. Exit codes: 0 a token, 1 MCP Gateway (or its broker)
+ * it again after a 401 or 403, which is how the token rotates. Exit codes: 0 a token, 1 GateRook (or its broker)
  * isn't running, 2 the access is revoked or isn't for this endpoint and client, 3 wrong arguments. The reason goes to
  * {@code bridge.log} and stderr; Codex discards stderr.
  */

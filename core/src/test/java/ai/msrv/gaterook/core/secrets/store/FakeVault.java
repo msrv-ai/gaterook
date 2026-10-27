@@ -83,14 +83,14 @@ public final class FakeVault implements AutoCloseable {
       }
       int n = logins.incrementAndGet();
       return json(200, "{\"auth\":{\"client_token\":\"" + token(n) + "\",\"accessor\":\"acc" + n + "\",\"policies\":"
-          + "[\"default\",\"mcp-gateway\"],\"lease_duration\":" + tokenTtl + ",\"renewable\":true}}");
+          + "[\"default\",\"gaterook\"],\"lease_duration\":" + tokenTtl + ",\"renewable\":true}}");
     }
     if (token == null || !token.startsWith("hvs.cnry-token-") || revokedTokens.contains(token)) {
       return json(403, "{\"errors\":[\"permission denied\"]}");
     }
     if (path.equals("/v1/auth/token/lookup-self")) {
-      return json(200, "{\"data\":{\"policies\":[\"default\",\"mcp-gateway\"],\"ttl\":" + tokenTtl + ",\"renewable\":"
-          + "true,\"meta\":{\"role_name\":\"mcp-gateway\"}}}");
+      return json(200, "{\"data\":{\"policies\":[\"default\",\"gaterook\"],\"ttl\":" + tokenTtl + ",\"renewable\":"
+          + "true,\"meta\":{\"role_name\":\"gaterook\"}}}");
     }
     if (path.equals("/v1/auth/token/renew-self")) {
       renewSelf.incrementAndGet();

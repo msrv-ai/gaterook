@@ -21,7 +21,7 @@ import tools.jackson.databind.JsonNode;
 
 /**
  * The connector of each {@code mcp-server} connection (ARCHITECTURE.md §2.3, §7.5): the runtime's connector over the
- * reviewed snapshot in {@code mcp_server}. A connection without a verified row (changed outside MCP Gateway, or a
+ * reviewed snapshot in {@code mcp_server}. A connection without a verified row (changed outside GateRook, or a
  * draft) gets nothing here and falls back to the type's bean, which serves no tools.
  *
  * <p>Every change of a snapshot comes with a new connection version ({@code ConnectionService.recordMetadata}), so a

@@ -950,7 +950,8 @@ public class EndpointService {
   private void requireVerified(EndpointEntity e) {
     if (!rows.verify(e)) {
       alerts.report("endpoint", e.getId(), e.getSlug(), "endpoint row");
-      throw ProblemException.conflict("Changed outside GateRook", e.getSlug() + " was changed outside GateRook. Review it first.");
+      throw ProblemException.conflict("Changed outside GateRook", e.getSlug() + " was changed outside "
+          + "GateRook. Review it first.");
     }
   }
 

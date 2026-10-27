@@ -216,7 +216,7 @@ describe('Endpoint detail page', () => {
       'Tools & policies 22 tools',
       'Connections 8 connections',
       'Tokens 2 active tokens',
-      'Clients 2 connected',
+      'AI apps 2 connected',
       'Settings',
     ]);
     expect(el.querySelector('#tools')?.hasAttribute('hidden')).toBe(false);
@@ -241,7 +241,7 @@ describe('Endpoint detail page', () => {
     fixture.componentRef.setInput('tab', 'clients');
     await settle(fixture);
     expect(el.querySelector('#clients')?.hasAttribute('hidden')).toBe(false);
-    expect(text(el.querySelector('#ep-clients-title'))).toBe('Clients using dev');
+    expect(text(el.querySelector('#ep-clients-title'))).toBe('AI apps using dev');
     expect(el.querySelectorAll('#clients li.gw-client-card')).toHaveLength(3);
   });
 
@@ -291,7 +291,7 @@ describe('Endpoint detail page', () => {
     );
     expect(Array.from(dialog.querySelectorAll('.gw-kv__row')).map(kv)).toEqual([
       'URL http://127.0.0.1:7465/mcp/dev',
-      'Clients Claude Desktop, Codex',
+      'AI apps Claude Desktop, Codex',
       'Tokens codex-laptop, inspector-debug (revoked)',
       'Waiting 3 approval requests (denied)',
     ]);
@@ -325,7 +325,7 @@ describe('Endpoint detail page', () => {
     el.querySelector<HTMLFormElement>('#ep-dlg-duplicate form')!.dispatchEvent(new Event('submit', { cancelable: true }));
     await settle(fixture);
     expect(calls).toContain('duplicate dev dev-two');
-    expect(toasts().at(-1)).toMatchObject({ title: 'Endpoint dev-two created', body: 'A copy of dev without tokens or client links.' });
+    expect(toasts().at(-1)).toMatchObject({ title: 'Endpoint dev-two created', body: 'A copy of dev without tokens or AI app links.' });
   });
 
   it("says since when a connection is unreachable when the core tells (kit: \"can't reach … since 13:42\")", async () => {
@@ -597,7 +597,7 @@ describe('Endpoint detail page', () => {
       await settle(fixture);
       el.querySelector('#ep-st-proto-form')!.dispatchEvent(new Event('submit', { cancelable: true }));
       await settle(fixture);
-      expect(text(el.querySelector('#ep-st-proto-err'))).toBe('Keep at least one revision: with none, no client can call dev.');
+      expect(text(el.querySelector('#ep-st-proto-err'))).toBe('Keep at least one revision: with none, no AI app can call dev.');
       expect(calls.some((c) => c.startsWith('settings'))).toBe(false);
     });
   });

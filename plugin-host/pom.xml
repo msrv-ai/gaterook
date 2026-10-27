@@ -18,7 +18,7 @@
   </parent>
 
   <artifactId>plugin-host</artifactId>
-  <name>MCP Gateway · Plugin host</name>
+  <name>GateRook · Plugin host</name>
 
   <properties>
     <start-class>ai.msrv.gaterook.pluginhost.Main</start-class>
@@ -118,7 +118,7 @@
                   <manifestEntries>
                     <Multi-Release>true</Multi-Release>
                     <!-- host/hello reports it; the AOT cache's key starts with it. -->
-                    <Implementation-Title>mcp-gateway-plugin-host</Implementation-Title>
+                    <Implementation-Title>gaterook-plugin-host</Implementation-Title>
                     <Implementation-Version>${project.version}</Implementation-Version>
                   </manifestEntries>
                 </transformer>

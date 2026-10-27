@@ -25,6 +25,19 @@ export function noneFound(): ClientsView {
   return kitClients({ clients: kitClients().clients.map(lost) });
 }
 
+/** First run and setup (kit `?state=first-run | setup`): Claude Desktop, Codex and Cursor found, none connected yet. */
+export function foundClients(): ClientsView {
+  const found = (c: ClientCard): ClientCard => ({ ...c, status: 'detected', statusText: 'Detected, not connected', links: [] });
+  const k = kitClients();
+  return { ...k, clients: k.clients.map((c) => (c.status === 'not-installed' ? c : found(c))) };
+}
+
+/** Setup: one endpoint, dev, with dev-db on it. */
+export function setupEndpoints(): EndpointSummary[] {
+  const dev = kitEndpoints().find((e) => e.slug === 'dev')!;
+  return [{ ...dev, published: false, tools: { read: 2, approval: 1, off: 0 }, connections: { total: 1, byEnv: { dev: 1 } } }];
+}
+
 export function kitEndpoints(): EndpointSummary[] {
   return DEMO_CLIENT_ENDPOINTS.map((e) => ({
     ...e,
@@ -107,7 +120,7 @@ export function previewFor(client: ClientCard['client'], request: ConnectRequest
       return {
         ...base,
         previewId: `pv_${client}_${request.endpoint}_mcpb`,
-        files: [{ path: `/Users/maria/.mcp-gateway/clients/claude-desktop/gateway-${request.endpoint}.mcpb`, display: `gateway-${request.endpoint}.mcpb`, realPath: '', exists: false, kind: 'mcpb', diff: null, backupPath: null, modeChange: null }],
+        files: [{ path: `/Users/maria/.gaterook/clients/claude-desktop/gaterook-${request.endpoint}.mcpb`, display: `gaterook-${request.endpoint}.mcpb`, realPath: '', exists: false, kind: 'mcpb', diff: null, backupPath: null, modeChange: null }],
         notes: [],
       };
     default:
@@ -127,8 +140,8 @@ export function codexDisconnect(): ConnectPreview {
     '# >>> GateRook · gateway-dev · managed entry: Disconnect in GateRook removes it',
     '[mcp_servers.gateway-dev]',
     'url = "http://127.0.0.1:7465/mcp/dev"',
-    // The core's TomlBlockEditor writes the shim of ~/.mcp-gateway/bin as one command string (ARCHITECTURE §7.2, KIT).
-    'http_headers_helper = "~/.mcp-gateway/bin/gw-bridge headers --endpoint dev --grant gr_Cx7q"',
+    // The core's TomlBlockEditor writes the shim of ~/.gaterook/bin as one command string (ARCHITECTURE §7.2, KIT).
+    'http_headers_helper = "~/.gaterook/bin/gw-bridge headers --endpoint dev --grant gr_Cx7q"',
     'default_tools_approval_mode = "writes"',
     'startup_timeout_sec = 20',
     'tool_timeout_sec = 60',
@@ -180,7 +193,7 @@ export function bridgeDisconnect(endpoint: string): ConnectPreview {
     client: 'claude-desktop',
     endpoint,
     method: 'mcpb',
-    files: [{ path: '', display: `gateway-${endpoint}.mcpb`, realPath: '', exists: true, kind: 'mcpb', diff: null, backupPath: null, modeChange: null }],
+    files: [{ path: '', display: `gaterook-${endpoint}.mcpb`, realPath: '', exists: true, kind: 'mcpb', diff: null, backupPath: null, modeChange: null }],
     notes: ['Claude Desktop keeps the extension until you remove it there: Settings › Extensions. Its access is revoked already.'],
   };
 }
@@ -204,11 +217,11 @@ export function connected(client: ClientCard['client'], request: ConnectRequest)
       statusText: 'Connected',
       createdAt: '2026-10-22T14:30:00+02:00',
       usedAt: null,
-      mcpbPath: request.method === 'mcpb' ? `/Users/maria/.mcp-gateway/clients/claude-desktop/gateway-${request.endpoint}.mcpb` : null,
+      mcpbPath: request.method === 'mcpb' ? `/Users/maria/.gaterook/clients/claude-desktop/gaterook-${request.endpoint}.mcpb` : null,
       lastCallAt: null,
       revision: '2025-11-25',
     },
-    mcpbPath: request.method === 'mcpb' ? `/Users/maria/.mcp-gateway/clients/claude-desktop/gateway-${request.endpoint}.mcpb` : null,
+    mcpbPath: request.method === 'mcpb' ? `/Users/maria/.gaterook/clients/claude-desktop/gaterook-${request.endpoint}.mcpb` : null,
     notes: [],
   };
 }

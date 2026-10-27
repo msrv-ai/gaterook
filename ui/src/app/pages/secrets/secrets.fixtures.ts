@@ -95,7 +95,7 @@ export function kitStores(): SecretStore[] {
       id: 'st-vault',
       kind: 'vault',
       name: 'vault',
-      config: { address: 'https://vault.acme.internal', auth: { method: 'approle', roleId: 'mcp-gateway' } },
+      config: { address: 'https://vault.acme.internal', auth: { method: 'approle', roleId: 'gaterook' } },
       state: 'connected',
       lastCheckedAt: '2026-10-22T12:29:00Z',
       latencyMs: 18,
@@ -141,7 +141,7 @@ export function kitShortLived(): ShortLivedCredential[] {
 
 export function kitMasterKey(extra: Partial<MasterKeyStatus> = {}): MasterKeyStatus {
   return {
-    path: '/Users/you/.mcp-gateway/master.keyset',
+    path: '/Users/you/.gaterook/master.keyset',
     mode: '0400',
     owner: 'you',
     keys: [{ id: 2146530891, status: 'enabled', primary: true }],

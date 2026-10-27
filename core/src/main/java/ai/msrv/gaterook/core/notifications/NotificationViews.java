@@ -16,7 +16,7 @@ public final class NotificationViews {
    * {@code GET /api/notifications}.
    *
    * @param decisionsFrom Settings › Approval rules: {@code app} or {@code app-and-linked}
-   * @param host          this computer's name, as messages call it ("MCP Gateway on ravi-mbp")
+   * @param host          this computer's name, as messages call it ("GateRook on ravi-mbp")
    */
   public record Overview(List<Channel> channels, List<Link> links, String decisionsFrom, String host) {}
 
@@ -30,7 +30,7 @@ public final class NotificationViews {
    *                 {@code changed-outside} (Slack, Telegram); the desktop reports {@code ok} or {@code failed} from
    *                 Electron
    * @param version  for {@code PUT}: {@code 0} until the channel was saved once
-   * @param verified the stored settings verify; {@code false}: changed outside MCP Gateway, off until saved again
+   * @param verified the stored settings verify; {@code false}: changed outside GateRook, off until saved again
    * @param tokens   what is stored for the channel's tokens
    */
   public record Channel(String kind, boolean enabled, JsonNode config, String state, String stateDetail,

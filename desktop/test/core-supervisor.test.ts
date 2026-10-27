@@ -225,7 +225,7 @@ describe('log tail', () => {
     const file = join(t.dir, 'core.log');
     writeFileSync(file, Array.from({ length: 20 }, (_, i) => `line ${i}`).join('\n') + '\n\n');
     assert.equal(logTail(file, [], 3), 'line 17\nline 18\nline 19');
-    assert.equal(logTail(join(t.dir, 'missing.log'), ['MCP Gateway core: bad', ''], 3), 'MCP Gateway core: bad');
+    assert.equal(logTail(join(t.dir, 'missing.log'), ['GateRook core: bad', ''], 3), 'GateRook core: bad');
     assert.equal(logTail(null, [], 3), null);
   });
 });

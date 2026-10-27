@@ -37,7 +37,7 @@ import java.util.stream.Stream;
  * Writes a client's config file the way report 03 §7.3 and ARCHITECTURE.md §7.2 ask: the file must still be what the
  * preview read (SHA-256, else {@link StaleFileException} → 409 and a new preview); a backup {@code <file>.bak-YYYY-MM-DD}
  * goes next to it with the original's permissions (0600 when it holds a token) and a copy into
- * {@code ~/.mcp-gateway/backups/<client>/} (folder 0700, files 0600, the newest 20 kept); the new content goes to a
+ * {@code ~/.gaterook/backups/<client>/} (folder 0700, files 0600, the newest 20 kept); the new content goes to a
  * temporary file in the same folder, is synced and moved over the original atomically. A symlink is followed and the
  * real file written. A new file, and a file that now holds a token, is 0600; otherwise the original's permissions stay.
  * Files over 1 MiB and anything that isn't a regular file are refused.
@@ -68,7 +68,7 @@ public final class ConfigFileWriter {
   private final Path backupsRoot;
   private final Clock clock;
 
-  /** @param backupsRoot {@code ~/.mcp-gateway/backups} */
+  /** @param backupsRoot {@code ~/.gaterook/backups} */
   public ConfigFileWriter(Path backupsRoot, Clock clock) {
     this.backupsRoot = Objects.requireNonNull(backupsRoot, "backupsRoot");
     this.clock = Objects.requireNonNull(clock, "clock");

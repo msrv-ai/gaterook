@@ -34,7 +34,7 @@ class ConnectTokenTest {
         }
         """;
     ClientEnvironment env = new ClientEnvironment(ClientEnvironment.Os.LINUX, Path.of("/home/me"),
-        Path.of("/home/me/.mcp-gateway"), null, Map.of(), true, "laptop");
+        Path.of("/home/me/.gaterook"), null, Map.of(), true, "laptop");
     Entry entry = ClientAdapter.of(ClientKind.CURSOR).entry(env, LinkMethod.TOKEN, "gateway-dev", new EntryValues(
         "dev", "http://127.0.0.1:7465/mcp/dev", null, ClientAdapter.TOKEN_PLACEHOLDER, "writes", 60));
     String previewed = JsonEntryEditor.upsert(before, entry.rootKey(), entry.name(), entry.json());

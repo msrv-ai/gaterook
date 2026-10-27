@@ -15,7 +15,7 @@
   </parent>
 
   <artifactId>bridge-cli</artifactId>
-  <name>MCP Gateway · gw-bridge</name>
+  <name>GateRook · gw-bridge</name>
 
   <properties>
     <start-class>ai.msrv.gaterook.bridge.Main</start-class>

@@ -10,7 +10,7 @@
 //     refuse a rollback; generatedAt is now, expiresAt now + --days (at most 90), after which the core refuses it;
 //   - revoked[] lists artifacts the core must refuse and unload (--revoke <sha256>=<reason>, kept across releases).
 // The private key comes from a file (--key-file, PKCS#8 PEM or a raw 32-byte seed in base64) or the environment
-// (MCP_GATEWAY_CATALOG_KEY, same forms). It is never written anywhere and never printed; keep it out of the repo.
+// (GATEROOK_CATALOG_KEY, same forms). It is never written anywhere and never printed; keep it out of the repo.
 //
 // Usage:
 //   node catalog/sign-index.mjs sign --index catalog/index.json --artifacts dist --out dist --key-id catalog-2026-1
@@ -26,7 +26,7 @@ import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSy
 import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const KEY_ENV = 'MCP_GATEWAY_CATALOG_KEY';
+export const KEY_ENV = 'GATEROOK_CATALOG_KEY';
 export const MAX_DAYS = 90;
 const KINDS = new Set(['plugin', 'template', 'mcp-server']);
 const ID = /^[a-z][a-z0-9-]{1,47}$/;

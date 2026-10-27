@@ -169,14 +169,14 @@ final class SqlQueryTemplates implements TemplateKind {
         errors.add("A template runs one statement; this SQL has " + analysis.count() + ".");
       } else if (analysis.kind() == Kind.FORBIDDEN) {
         String type = analysis.statements().getFirst().type();
-        errors.add(Character.toUpperCase(type.charAt(0)) + type.substring(1) + " isn't allowed in a template: MCP "
-            + "Gateway runs every call in its own transaction and session.");
+        errors.add(Character.toUpperCase(type.charAt(0)) + type.substring(1) + " isn't allowed in a template: "
+            + "GateRook runs every call in its own transaction and session.");
       } else {
         FunctionRules.Verdict v = FunctionRules.check(analysis.functions(), dialect.mysql(),
             FunctionRules.fromMetadata(runsOn == null ? null : runsOn.metadata()), List.of(),
             runsOn == null ? List.of() : ConnectionSettings.of(runsOn, dialect.mysql()).allowedFunctions());
         if (!v.denied().isEmpty()) {
-          errors.add(String.join(", ", v.denied()) + " isn't allowed through MCP Gateway: it acts outside the "
+          errors.add(String.join(", ", v.denied()) + " isn't allowed through GateRook: it acts outside the "
               + "transaction.");
         } else if (analysis.kind() == Kind.READ && !v.notBuiltIn().isEmpty()) {
           warnings.add("Calls " + String.join(", ", v.notBuiltIn()) + ", which isn't a built-in function: the tool "

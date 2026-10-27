@@ -85,8 +85,8 @@ class AuditExportApiIT {
     }
     assertThat(created.path("kind").asString()).isEqualTo("s3");
     assertThat(created.path("schedule").asString()).isEqualTo("daily@02:00");
-    assertThat(created.path("target").asString()).isEqualTo("s3://acme-audit/mcp-gateway/");
-    assertThat(created.path("config").path("prefix").asString()).isEqualTo("mcp-gateway/");
+    assertThat(created.path("target").asString()).isEqualTo("s3://acme-audit/gaterook/");
+    assertThat(created.path("config").path("prefix").asString()).isEqualTo("gaterook/");
     assertThat(created.path("state").isNull()).as("never ran").isTrue();
     assertThat(created.path("secrets").get(0).path("field").asString()).isEqualTo("/credentials/secretAccessKey");
     assertThat(created.path("secrets").get(0).path("version").asInt()).isEqualTo(1);
@@ -130,7 +130,7 @@ class AuditExportApiIT {
     JsonNode tested = api.expect(200, HttpMethod.POST, "/api/audit-export/" + s3 + "/test", null);
     assertThat(tested.path("id").asString()).isEqualTo(s3);
     assertThat(tested.path("test").path("ok").asBoolean()).isTrue();
-    assertThat(tested.path("test").path("message").asString()).contains("mcp-gateway-connection-test.json");
+    assertThat(tested.path("test").path("message").asString()).contains("gaterook-connection-test.json");
 
     JsonNode run = api.expect(200, HttpMethod.POST, "/api/audit-export/" + s3 + "/run", null);
     assertThat(run.path("state").asString()).isEqualTo("ok");
@@ -211,7 +211,7 @@ class AuditExportApiIT {
   private static String s3Body(String name, boolean withSecret) {
     return """
         {"kind":"s3","name":"%s","schedule":"daily@02:00","reason":"SOC wants a copy",
-         "config":{"bucket":"acme-audit","prefix":"mcp-gateway","region":"eu-central-1","endpoint":"%s",
+         "config":{"bucket":"acme-audit","prefix":"gaterook","region":"eu-central-1","endpoint":"%s",
            "credentials":{"source":"accessKey","accessKeyId":"AKIAIOSFODNN7EXAMPLE"}}%s}""".formatted(name,
         cloud.url(), withSecret ? ",\"secrets\":{\"/credentials/secretAccessKey\":{\"value\":\"" + SECRET + "\"}}"
             : "");

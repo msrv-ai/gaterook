@@ -208,7 +208,7 @@ final class Fixtures {
   }
 
   static EgressClients clients(Names names, Set<Integer> corePorts) {
-    return new EgressClients(new EgressClients.Settings("mcp-gateway/test", corePorts, names));
+    return new EgressClients(new EgressClients.Settings("GateRook/test", corePorts, names));
   }
 
   static GuardedEgress guard(EgressClients clients, String poolKey, String... allowedPrivate) {

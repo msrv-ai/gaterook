@@ -33,13 +33,13 @@ final class Results {
     return switch (c) {
       case McpSchema.TextContent t -> t.text() == null ? "" : t.text();
       case McpSchema.ImageContent i -> "[image " + i.mimeType() + ", " + size(i.data()) + ", not passed on by "
-          + "MCP Gateway]";
+          + "GateRook]";
       case McpSchema.AudioContent a -> "[audio " + a.mimeType() + ", " + size(a.data()) + ", not passed on by "
-          + "MCP Gateway]";
-      case McpSchema.ResourceLink l -> "Resource link (data, not fetched by MCP Gateway): " + l.uri()
+          + "GateRook]";
+      case McpSchema.ResourceLink l -> "Resource link (data, not fetched by GateRook): " + l.uri()
           + (l.name() == null ? "" : " · " + l.name()) + (l.mimeType() == null ? "" : " · " + l.mimeType());
       case McpSchema.EmbeddedResource e -> embedded(e.resource());
-      default -> "[" + c.type() + " content, not passed on by MCP Gateway]";
+      default -> "[" + c.type() + " content, not passed on by GateRook]";
     };
   }
 
@@ -48,9 +48,9 @@ final class Results {
       return "Resource " + t.uri() + ":\n" + (t.text() == null ? "" : t.text());
     }
     if (r instanceof McpSchema.BlobResourceContents b) {
-      return "[resource " + b.uri() + ", " + b.mimeType() + ", " + size(b.blob()) + ", not passed on by MCP Gateway]";
+      return "[resource " + b.uri() + ", " + b.mimeType() + ", " + size(b.blob()) + ", not passed on by GateRook]";
     }
-    return "[resource, not passed on by MCP Gateway]";
+    return "[resource, not passed on by GateRook]";
   }
 
   /** The decoded size of Base64 data, "12 KB". */

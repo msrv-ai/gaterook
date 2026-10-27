@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  MCP Gateway: the Maven reactor.
+  GateRook: the Maven reactor.
 
   Every library version lives here and only here (ARCHITECTURE.md §1): the Spring Boot BOM rewrites transitive
   versions in `app`, so a pin in a module pom would silently not reach the e2e tests and the native image.
@@ -21,7 +21,7 @@
   <artifactId>mcp-gateway</artifactId>
   <version>0.4.0-SNAPSHOT</version>
   <packaging>pom</packaging>
-  <name>MCP Gateway</name>
+  <name>GateRook</name>
   <description>Desktop gateway through which AI agents use infrastructure via MCP without seeing secrets.</description>
 
   <modules>

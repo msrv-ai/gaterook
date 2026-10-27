@@ -64,6 +64,10 @@ let nextId = 0;
               }
             </dd></div>
             <div class="gw-kv__row"><dt class="gw-kv__key">Needs access to</dt><dd class="gw-kv__value">{{ f.access }}</dd></div>
+            @if (f.unsandboxed) {
+              <!-- ARCHITECTURE §7.5: where the OS has no sandbox for the plugin process, the review says so (report.sandbox null). -->
+              <div class="gw-kv__row"><dt class="gw-kv__key">Runs as</dt><dd class="gw-kv__value">Your user, in a separate plugin process. Not sandboxed on this system: it can read everything your account can, including GateRook's data.</dd></div>
+            }
           </dl>
           @if (!f.signed) {
             <label class="gw-checkbox">

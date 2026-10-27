@@ -226,7 +226,7 @@ describe('Endpoints page', () => {
     expect(kv(dev, 'Connections')).toBe('8 · 6 in dev 2 in stage');
     expect(kv(dev, 'Connection health')).toBe('6 healthy cache-redis slow · 1.8 s billing-api unreachable');
     expect(kv(dev, 'Tools')).toBe('22 · 14 read only 3 approval 5 off');
-    expect(kv(dev, 'Clients')).toBe('CD Claude Desktop Cx Codex');
+    expect(kv(dev, 'AI apps')).toBe('CD Claude Desktop Cx Codex');
     expect(kv(dev, 'Tokens')).toBe('2 active · 1 expired 1 expires in 3 days');
     expect(kv(dev, 'Approvals')).toBe('3 waiting for approval on dev');
     expect(dev.querySelector('.gw-kv__row a[href="/approvals"]')).not.toBeNull();
@@ -246,7 +246,7 @@ describe('Endpoints page', () => {
 
     const stage = card(el, 'stage-readonly');
     expect(text(stage.querySelector('.gw-card__actions .gw-badge'))).toBe('Published for claude.ai');
-    expect(kv(stage, 'Clients')).toBe(`ai claude.ai Tunnel off since ${tenPast12} Tunnel settings`);
+    expect(kv(stage, 'AI apps')).toBe(`ai claude.ai Tunnel off since ${tenPast12} Tunnel settings`);
     expect(kv(stage, 'Tokens')).toBe('1 OAuth sign-in you allowed · Manage the OAuth sign-ins to stage-readonly');
     expect(kv(stage, 'Approvals')).toBe('None waiting');
     expect(text(stage.querySelector('.gw-risk-callout .gw-alert__body'))).toBe(
@@ -438,7 +438,7 @@ describe('Endpoints page', () => {
     await settle(fixture);
     expect(calls).toContain('duplicate dev dev-copy');
     expect(dialog.open).toBe(false);
-    expect(toasts().at(-1)).toMatchObject({ title: 'Endpoint dev-copy created', body: 'A copy of dev without tokens or client links.' });
+    expect(toasts().at(-1)).toMatchObject({ title: 'Endpoint dev-copy created', body: 'A copy of dev without tokens or AI app links.' });
     expect(Array.from(el.querySelectorAll('.gw-card__title a')).map(text)).toEqual([
       'Endpoint dev',
       'Endpoint dev-copy',
@@ -484,7 +484,7 @@ describe('Endpoints page', () => {
     );
     expect(Array.from(dialog.querySelectorAll('.gw-kv__row')).map((r) => `${text(r.querySelector('dt'))}: ${text(r.querySelector('dd'))}`)).toEqual([
       'URL: http://127.0.0.1:7465/mcp/dev',
-      'Clients: Claude Desktop, Codex',
+      'AI apps: Claude Desktop, Codex',
       'Tokens: codex-laptop, inspector-debug (revoked)',
       'Waiting: 3 approval requests (denied)',
     ]);

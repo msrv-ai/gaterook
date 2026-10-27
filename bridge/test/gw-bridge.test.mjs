@@ -80,7 +80,7 @@ describe('gw-bridge.mjs', () => {
         const msg = entry.body;
         if (msg.id === undefined) return { status: 202 };
         const result = msg.method === 'initialize'
-          ? { protocolVersion: '2025-11-25', capabilities: { tools: {} }, serverInfo: { name: 'mcp-gateway' } }
+          ? { protocolVersion: '2025-11-25', capabilities: { tools: {} }, serverInfo: { name: 'gaterook' } }
           : msg.method === 'tools/list' ? { tools: [{ name: 'sql_query' }] } : { echo: msg.method };
         return { status: 200, type: 'application/json', body: JSON.stringify({ jsonrpc: '2.0', id: msg.id, result }) };
       },

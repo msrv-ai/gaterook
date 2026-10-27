@@ -19,7 +19,18 @@ describe('plugin review facts', () => {
       allReadOnly: true,
       connectionForm: 'Host, port, user and password, from its config schema',
       access: 'The host of each connection, port 8443',
+      unsandboxed: true,
     });
+  });
+
+  it('says a plugin runs without a sandbox only when the core reports none (report.sandbox null)', () => {
+    const check = clickhouseCheck();
+    const withSandbox = (sandbox: string | null | undefined) => pluginFacts({ ...check, report: { ...check.report, sandbox } }, null);
+    expect(withSandbox(null).unsandboxed).toBe(true);
+    expect(withSandbox('sandbox-exec').unsandboxed).toBe(false);
+    expect(withSandbox('landlock').unsandboxed).toBe(false);
+    // A core before the K4 review doesn't say: nothing is claimed either way.
+    expect(withSandbox(undefined).unsandboxed).toBe(false);
   });
 
   it('names the file as chosen when the core doesn’t, and doesn’t trust a partial read-only claim', () => {
@@ -122,7 +133,7 @@ describe('MCP server review', () => {
       targetKey: 'Command',
       target: 'npx -y @sentry/mcp-server@0.12.0',
       version: { pinned: true, version: '0.12.0' },
-      workdir: '~/.mcp-gateway/mcp/sentry-mcp',
+      workdir: '~/.gaterook/mcp/sentry-mcp',
       sandbox: null,
       secrets: [{ name: 'SENTRY_AUTH_TOKEN', pointer: '/env/0/secretRef' }],
     });
@@ -132,7 +143,7 @@ describe('MCP server review', () => {
 
   it('reviews a catalog server by the core’s name, pin and resolved command', () => {
     const w = mcpReviewView({
-      review: sentryReview({ name: 'github-mcp', catalogEntry: 'github@0.6.2', argv: ['node', '/Users/me/.mcp-gateway/mcp/github-mcp/dist/index.js'], env: ['GITHUB_PERSONAL_ACCESS_TOKEN'], sandbox: 'landlock' }),
+      review: sentryReview({ name: 'github-mcp', catalogEntry: 'github@0.6.2', argv: ['node', '/Users/me/.gaterook/mcp/github-mcp/dist/index.js'], env: ['GITHUB_PERSONAL_ACCESS_TOKEN'], sandbox: 'landlock' }),
       source: { catalog: 'github@0.6.2' },
       name: 'github',
       transport: 'stdio',
@@ -142,7 +153,7 @@ describe('MCP server review', () => {
     });
     expect(w).toMatchObject({
       name: 'github-mcp',
-      target: 'node /Users/me/.mcp-gateway/mcp/github-mcp/dist/index.js',
+      target: 'node /Users/me/.gaterook/mcp/github-mcp/dist/index.js',
       version: { pinned: true, version: '0.6.2' },
       sandbox: 'landlock',
       // The entry's variable, named by the core's review: its value goes to /env/0/secretRef with the start.

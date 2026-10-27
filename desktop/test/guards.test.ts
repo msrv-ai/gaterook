@@ -73,26 +73,26 @@ describe('the 700 ms activation guard', () => {
 
 describe('deep links', () => {
   it('lead only to a request, an event, a settings section', () => {
-    assert.equal(deepLinkRoute('mcp-gateway://approvals/ap_0123456789ab'), 'approvals/ap_0123456789ab');
-    assert.equal(deepLinkRoute('mcp-gateway:///approvals/ap_0123456789ab/'), 'approvals/ap_0123456789ab');
-    assert.equal(deepLinkRoute('MCP-GATEWAY://activity/events/42'), 'activity/events/42');
-    assert.equal(deepLinkRoute('mcp-gateway://settings/notifications'), 'settings/notifications');
+    assert.equal(deepLinkRoute('gaterook://approvals/ap_0123456789ab'), 'approvals/ap_0123456789ab');
+    assert.equal(deepLinkRoute('gaterook:///approvals/ap_0123456789ab/'), 'approvals/ap_0123456789ab');
+    assert.equal(deepLinkRoute('GATEROOK://activity/events/42'), 'activity/events/42');
+    assert.equal(deepLinkRoute('gaterook://settings/notifications'), 'settings/notifications');
     assert.equal(deepLinkRoute('approvals/ap_0123456789ab'), 'approvals/ap_0123456789ab');
   });
 
   it('never carry an action, a query or anything else', () => {
-    for (const bad of ['mcp-gateway://approvals/ap_0123456789ab/approve', 'mcp-gateway://approvals/ap_0123456789ab?decision=approve',
-      'mcp-gateway://approvals/ap_0123456789ab#x', 'mcp-gateway://approvals/AP_0123456789AB', 'mcp-gateway://approvals',
-      'mcp-gateway://user:pw@approvals/ap_0123456789ab', 'mcp-gateway:approvals/ap_0123456789ab',
-      'mcp-gateway://settings/../internal', 'mcp-gateway://activity/events/1e3', 'javascript:alert(1)',
-      `mcp-gateway://settings/${'a'.repeat(300)}`, 42, null]) {
+    for (const bad of ['gaterook://approvals/ap_0123456789ab/approve', 'gaterook://approvals/ap_0123456789ab?decision=approve',
+      'gaterook://approvals/ap_0123456789ab#x', 'gaterook://approvals/AP_0123456789AB', 'gaterook://approvals',
+      'gaterook://user:pw@approvals/ap_0123456789ab', 'gaterook:approvals/ap_0123456789ab',
+      'gaterook://settings/../internal', 'gaterook://activity/events/1e3', 'javascript:alert(1)',
+      `gaterook://settings/${'a'.repeat(300)}`, 42, null]) {
       assert.equal(deepLinkRoute(bad), null, String(bad));
     }
   });
 
   it('are found among command-line arguments', () => {
-    assert.equal(deepLinkInArgv(['/opt/MCP Gateway/mcp-gateway', '--hidden', 'mcp-gateway://activity/events/7']), 'activity/events/7');
-    assert.equal(deepLinkInArgv(['app', 'mcp-gateway://evil/x']), null);
+    assert.equal(deepLinkInArgv(['/opt/GateRook/gaterook', '--hidden', 'gaterook://activity/events/7']), 'activity/events/7');
+    assert.equal(deepLinkInArgv(['app', 'gaterook://evil/x']), null);
     assert.equal(deepLinkInArgv(['app']), null);
   });
 
@@ -107,7 +107,7 @@ describe('deep links', () => {
     // core notifications.internal.{slack.SlackChannel,telegram.TelegramChannel}: ui.open {path}
     assert.equal(uiOpenRoute({ path: '/approvals/ap_0123456789ab' }), 'approvals/ap_0123456789ab');
     assert.equal(uiOpenRoute({ path: '/approvals' }), 'approvals');
-    for (const bad of [{ path: '/approvals/ap_0123456789ab/decision' }, { path: 'mcp-gateway://approvals/x' },
+    for (const bad of [{ path: '/approvals/ap_0123456789ab/decision' }, { path: 'gaterook://approvals/x' },
       { path: '/settings/../internal' }, { route: '/approvals' }, { path: 7 }, null, 'path']) {
       assert.equal(uiOpenRoute(bad), null, JSON.stringify(bad));
     }

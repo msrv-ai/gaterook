@@ -188,7 +188,7 @@ sealed interface Settings permits Settings.Loki, Settings.Gcp, Settings.CloudWat
       }
     }
     if (c.path("credentials").isMissingNode()) {
-      throw new InvalidSettingsException("Choose how MCP Gateway signs in to Google under Credentials.");
+      throw new InvalidSettingsException("Choose how GateRook signs in to Google under Credentials.");
     }
     int quota = c.path("quotaPerMinute").asInt(30);
     if (quota < 1 || quota > 60) {
@@ -212,7 +212,7 @@ sealed interface Settings permits Settings.Loki, Settings.Gcp, Settings.CloudWat
       }
     }
     if (c.path("credentials").isMissingNode()) {
-      throw new InvalidSettingsException("Choose how MCP Gateway signs in to AWS under Credentials.");
+      throw new InvalidSettingsException("Choose how GateRook signs in to AWS under Credentials.");
     }
     String api = text(c, "searchApi", "insights");
     if (!api.equals("insights") && !api.equals("filter")) {

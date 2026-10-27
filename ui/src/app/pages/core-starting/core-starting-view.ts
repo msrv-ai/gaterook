@@ -12,9 +12,9 @@ import { StatusScreenView, StatusStep } from '../../kit/elements/status-screen/s
  * checks and the toasts after a restore or a new key. Nothing here invents a fact: what nobody reported is left out.
  */
 
-/** Where the desktop app keeps the key and the log (`-Dgateway.home=~/.mcp-gateway`, §7.1) until the core says. */
-export const DEFAULT_KEY_PATH = '~/.mcp-gateway/master.keyset';
-export const DEFAULT_LOG_FILE = '~/.mcp-gateway/logs/core.log';
+/** Where the desktop app keeps the key and the log (`-Dgateway.home=~/.gaterook`, §7.1) until the core says. */
+export const DEFAULT_KEY_PATH = '~/.gaterook/master.keyset';
+export const DEFAULT_LOG_FILE = '~/.gaterook/logs/core.log';
 
 /** The stepper of the kit, in the order the core runs them: the process, the key, the database, the local API. */
 const STEPS = ['runtime', 'master-key', 'db-migrations', 'local-api'] as const;
@@ -326,7 +326,25 @@ export function portError(text: string, current: number, publicPort: number | nu
   return null;
 }
 
-/** Where to look for a free port first: ten up from the taken one, past the tunnel's (ARCHITECTURE §8.6.9: 7475). */
+/**
+ * As {@link portError} for the tunnel's public listener: a whole number from 1024 to 65535, not the one that is taken
+ * now and not the local API's (§7.1: the two listeners never share a port). Main checks again that it is free.
+ */
+export function publicPortError(text: string, current: number, localPort: number): string | null {
+  const t = text.trim();
+  if (!t) return 'Enter a port from 1024 to 65535.';
+  if (!/^\d{1,5}$/.test(t)) return 'Use digits only: a port from 1024 to 65535.';
+  const port = Number(t);
+  if (port < PORT_MIN || port > PORT_MAX) return `${port} is outside 1024 to 65535. Use a port in that range.`;
+  if (port === current) return `${port} is the port that is in use. Choose another one.`;
+  if (port === localPort) return `${port} is the local API’s port. Choose another one.`;
+  return null;
+}
+
+/**
+ * Where to look for a free port first: ten up from the taken one, past the other listener's (ARCHITECTURE §8.6.9:
+ * 7475 for the local API, past the tunnel's 7466; 7476 for the tunnel's, past the local API's).
+ */
 export function firstCandidate(current: number, publicPort: number | null): number {
   let p = current + 10;
   if (p > PORT_MAX) p = PORT_MIN + ((p - PORT_MIN) % (PORT_MAX - PORT_MIN));

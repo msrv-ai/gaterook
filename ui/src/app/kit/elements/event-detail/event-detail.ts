@@ -78,7 +78,8 @@ export class GwEventDetail {
   protected readonly badge = computed(() => decisionBadge(this.e().decision));
   protected readonly who = computed(() => clientLabel(this.e().client));
   protected readonly duration = computed(() => durationText(this.detail()));
-  protected readonly link = computed(() => `mcp-gateway://activity/events/${this.e().id}`);
+  /** Copy link: the app's own scheme (decision 11, BLUEPRINT §9 "Links"), opened through shell/deep-links.ts. */
+  protected readonly link = computed(() => `gaterook://activity/events/${this.e().id}`);
   protected readonly token = computed(() => tokenParts(this.rows().received ?? this.rows().last, this.e().tokenLabel));
   protected readonly protocol = computed(() => (this.rows().received ?? this.rows().last)?.protocolVersion ?? null);
   protected readonly args = computed(() => argumentsJson(this.rows().received));

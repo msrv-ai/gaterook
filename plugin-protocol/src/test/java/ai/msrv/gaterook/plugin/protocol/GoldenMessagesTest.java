@@ -151,11 +151,11 @@ class GoldenMessagesTest {
   @Test
   void load() throws IOException {
     Messages.Load load = new Messages.Load("jira-service-desk@1.3.0", 1,
-        "/home/ann/.mcp-gateway/plugins/jira-service-desk/1.3.0/plugin.jar",
+        "/home/ann/.gaterook/plugins/jira-service-desk/1.3.0/plugin.jar",
         "c4e19a07b3d25f8e61a0c9d7e42b58f13a6d09e7c25b81f4d3a96e0b7c18f52d",
-        "/home/ann/.mcp-gateway/plugin-data/jira-service-desk", new Messages.Sandbox(true,
-            List.of("/home/ann/.mcp-gateway/plugins/jira-service-desk/1.3.0"),
-            List.of("/home/ann/.mcp-gateway/plugin-data/jira-service-desk")));
+        "/home/ann/.gaterook/plugin-data/jira-service-desk", new Messages.Sandbox(true,
+            List.of("/home/ann/.gaterook/plugins/jira-service-desk/1.3.0"),
+            List.of("/home/ann/.gaterook/plugin-data/jira-service-desk")));
     golden("plugin-load.request", request(2L, Gpp.PLUGIN_LOAD, load.write()));
     assertThat(Messages.Load.read(load.write())).isEqualTo(load);
     Messages.Loaded loaded = new Messages.Loaded("jira-service-desk@1.3.0", "jira-service-desk", ApiVersion.CURRENT,

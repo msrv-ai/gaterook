@@ -319,7 +319,7 @@ describe('connectors view: MCP servers', () => {
     const row = connection('github-mcp', 'mcp-server', { usedBy: ['dev'] });
     const config = {
       transport: 'stdio',
-      command: ['node', '/Users/me/.mcp-gateway/mcp/github-mcp/dist/index.js'],
+      command: ['node', '/Users/me/.gaterook/mcp/github-mcp/dist/index.js'],
       env: [{ name: 'GITHUB_PERSONAL_ACCESS_TOKEN', secretRef: 'secret:abc' }],
       inheritEnv: ['HTTPS_PROXY'],
       catalogEntry: 'github@0.6.2',
@@ -331,7 +331,7 @@ describe('connectors view: MCP servers', () => {
     expect(s).toMatchObject({
       name: 'github-mcp',
       transport: 'stdio',
-      command: 'node /Users/me/.mcp-gateway/mcp/github-mcp/dist/index.js',
+      command: 'node /Users/me/.gaterook/mcp/github-mcp/dist/index.js',
       secrets: [{ name: 'GITHUB_PERSONAL_ACCESS_TOKEN', secret: 'github-mcp/token' }],
       inherited: ['HTTPS_PROXY'],
       version: '0.6.2',
@@ -347,7 +347,7 @@ describe('connectors view: MCP servers', () => {
       toolPrefix: 'github_',
     });
     expect(serverActivityQuery(s)).toBe('tool:github_*');
-    expect(serverPaths('github-mcp')).toEqual({ workdir: '~/.mcp-gateway/mcp/github-mcp', log: '~/.mcp-gateway/logs/mcp/github-mcp.log' });
+    expect(serverPaths('github-mcp')).toEqual({ workdir: '~/.gaterook/mcp/github-mcp', log: '~/.gaterook/logs/mcp/github-mcp.log' });
   });
 
   it('tells a typed command and an HTTP server apart from a catalog one', () => {

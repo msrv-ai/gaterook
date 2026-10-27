@@ -37,7 +37,7 @@ public class CallerAuthenticator {
   }
 
   /** The plain challenge when no authenticator names a better one. */
-  public static final String DEFAULT_CHALLENGE = "Bearer realm=\"mcp-gateway\"";
+  public static final String DEFAULT_CHALLENGE = "Bearer realm=\"gaterook\"";
 
   /**
    * The {@code WWW-Authenticate} of a 401 on {@code ingress}: the first authenticator of that ingress that can tell

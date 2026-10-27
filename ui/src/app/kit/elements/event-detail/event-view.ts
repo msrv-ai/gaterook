@@ -243,7 +243,7 @@ const VIA: Record<string, string> = {
 
 /** Who rejected: a person, the agent's client (it declined the request) or the core (its connection or endpoint went). */
 function rejectedBy(via: string | null): string {
-  if (via === 'client') return 'Declined by the client';
+  if (via === 'client') return 'Declined by the AI app';
   if (via === 'core') return 'Rejected by GateRook';
   return 'Rejected by you';
 }

@@ -21,7 +21,7 @@ import org.bson.UuidRepresentation;
  */
 final class ClientSettings {
 
-  static final String APPLICATION = "mcp-gateway";
+  static final String APPLICATION = "gaterook";
   static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
   static final Duration POOL_WAIT = Duration.ofSeconds(2);
 

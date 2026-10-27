@@ -120,7 +120,7 @@ class ExternalStoresIT {
 
     JsonNode test = api.expect(200, HttpMethod.POST, "/api/secret-stores/" + storeId + "/test", null);
     assertThat(test.path("ok").asBoolean()).as(test.toString()).isTrue();
-    assertThat(test.path("identity").path("role").asString()).isEqualTo("mcp-gateway");
+    assertThat(test.path("identity").path("role").asString()).isEqualTo("gaterook");
     assertThat(api.ok("/api/secret-stores/" + storeId).path("state").asString()).isEqualTo("connected");
 
     JsonNode signIn = secretRow("vault/approle-secret-id");

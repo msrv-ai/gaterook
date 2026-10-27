@@ -88,7 +88,7 @@ class PluginManifestTest {
             .anyMatch(p -> p.startsWith("requires.gateway"))
             .anyMatch(p -> p.contains("annotations.openWorldHint must be declared"))
             .anyMatch(p -> p.contains("only a READ tool may declare an outputSchema"))
-            .anyMatch(p -> p.contains("connection is added by MCP Gateway")));
+            .anyMatch(p -> p.contains("connection is added by GateRook")));
   }
 
   /**

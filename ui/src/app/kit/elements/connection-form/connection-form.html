@@ -19,6 +19,9 @@
     @if (error) {
       <p class="gw-field__error" [id]="p + '-name-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>@for (part of nameErrorParts(error); track $index) {@if (part.code) {<span class="gw-mono">{{ part.text }}</span>} @else {<ng-container>{{ part.text }}</ng-container>}}</p>
       <p class="gw-field__hint" [id]="p + '-name-hint'">Agents and Activity see it as <span class="gw-mono">connection:&lt;name&gt;</span>.</p>
+    } @else if (beginner()) {
+      <!-- A first connection (kit connection-new ?state=first-run): what the name is for, in a beginner's words. -->
+      <p class="gw-field__hint" [id]="p + '-name-hint'">Lowercase letters, digits and dashes, like <span class="gw-mono">dev-db</span>. Your AI apps use this name to pick the connection.</p>
     } @else if (pageCopy()) {
       <!-- Add connection's own words (pages/connection-new.html); the edit view says the name stays. -->
       <p class="gw-field__hint" [id]="p + '-name-hint'">A slug: lowercase letters, digits and dashes. Agents call tools with it and Activity filters by <span class="gw-mono">connection:{{ name && nameValid() ? name : placeholderName }}</span>.@if (mode() === 'edit') { It can't be renamed: agents, policies and past calls refer to it.}</p>
@@ -36,8 +39,15 @@
 
 <!-- The secret source: where the core gets the secret at call time. -->
 <ng-template #sources>
+  @if (showSources() && beginner()) {
+    <!-- First run: the secret stays encrypted here; the other sources wait behind a disclosure placed before them. -->
+    <div class="gw-stack gw-stack--sm">
+      <p class="gw-text-small gw-fg-secondary"><svg lucideIcon="lock-keyhole" class="gw-icon gw-icon--sm"></svg> @if (s.source() === 'local') {The {{ secretWord() }} is stored encrypted on this computer. Nobody can view it afterwards, not even you.} @else {The secret stays in your secret manager. GateRook reads it only when a call needs it.}</p>
+      <button class="gw-btn gw-btn--ghost gw-btn--sm gw-connection-form__toggle" type="button" gwToggle [(expanded)]="sourcesOpen" [attr.aria-controls]="p + '-src-field'"><svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-connection-form__when-closed"></svg><svg lucideIcon="chevron-up" class="gw-icon gw-icon--sm gw-connection-form__when-open"></svg>Use a secret manager instead (Vault, GCP, AWS)</button>
+    </div>
+  }
   @if (showSources()) {
-    <fieldset class="gw-field">
+    <fieldset class="gw-field" [id]="p + '-src-field'" [hidden]="beginner() && !sourcesOpen()">
       <legend class="gw-field__label">Secret source</legend>
       <div class="gw-grid gw-grid--auto gw-connection-form__sources">
         @for (src of spec().secretSources; track src.id) {
@@ -96,7 +106,7 @@
         sectionClass="gw-connection-form__credentials"
       />
     } @else {
-      <gw-schema-section [form]="s" [node]="section" [lead]="first && showName() ? nameField : null" [nested]="false" />
+      <gw-schema-section [form]="s" [node]="section" [lead]="first && showName() ? nameField : null" [nested]="false" [description]="first && beginner() ? beginnerConnection : null" />
     }
   }
 }
@@ -175,13 +185,17 @@
   <section class="gw-form__section gw-connection-form__safety" [attr.aria-labelledby]="p + '-env-t'">
     <header class="gw-form__section-header">
       <h3 class="gw-form__legend" [id]="p + '-env-t'">Environment and safety</h3>
-      <p class="gw-form__description">Sets the policy defaults and the marker approvers and agents see next to this connection. Prod is always red and always stricter.</p>
+      @if (beginner()) {
+        <p class="gw-form__description">Pick dev for your own work and test data. Prod turns on stricter rules.</p>
+      } @else {
+        <p class="gw-form__description">Sets the policy defaults and the marker approvers and agents see next to this connection. Prod is always red and always stricter.</p>
+      }
     </header>
     <div class="gw-form__rows">
       <fieldset class="gw-field">
         <legend class="gw-field__label">Environment</legend>
         <div class="gw-form__row">
-          @for (card of envCards; track card.env) {
+          @for (card of envCards(); track card.env) {
             @let base = p + '-env-' + card.env;
             <label class="gw-choice-card gw-choice-card--compact">
               <input
@@ -239,7 +253,7 @@
         sectionClass="gw-connection-form__credentials"
       />
     } @else {
-      <gw-schema-section [form]="s" [node]="section" [nested]="false" />
+      <gw-schema-section [form]="s" [node]="section" [nested]="false" [description]="advancedText(section)" />
     }
   }
 }

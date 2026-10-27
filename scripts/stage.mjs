@@ -2,7 +2,7 @@
 // Stages everything the installers carry besides Electron and the main bundle (ARCHITECTURE.md §7.1 "Packaging",
 // report 14 §7.7) into desktop/stage/, the layout desktop/electron-builder.yml packs:
 //   ui/                          the built Angular UI (into the asar, served as app://gw/)
-//   core/mcp-gateway-core[.exe]  the native core + libsqlitejdbc next to it (-Dorg.sqlite.lib.path=<resources>/core)
+//   core/gaterook-core[.exe]      the native core + libsqlitejdbc next to it (-Dorg.sqlite.lib.path=<resources>/core)
 //   core/app.jar                 instead, with --jar: the JVM fallback (a CI artifact only, never an installer)
 //   jre/                         the jlink JRE of the plugin host (scripts/jlink.sh → target/plugin-host-jre), else a placeholder
 //   plugin-host/plugin-host.jar  the plugin host (step K4), else a placeholder
@@ -64,14 +64,18 @@ function copyFile(from, to, mode) {
   if (mode !== undefined && process.platform !== 'win32') chmodSync(to, mode);
 }
 
+// Prefer the current Angular output while accepting an existing build with the previous project name.
+const uiDistOf = (root) => ['gaterook-ui', 'mcp-gateway-ui'].map((p) => join(root, 'ui', 'dist', p, 'browser'))
+  .find((d) => existsSync(join(d, 'index.html'))) ?? join(root, 'ui', 'dist', 'gaterook-ui', 'browser');
+
 /**
  * Stages into `o.out`. `sources` names where the inputs are (the repository by default; the tests point it at a
  * folder of fakes). Returns what was staged, one line per part.
  */
 export async function stage(o, sources = {}) {
   const src = {
-    uiDist: join(root, 'ui', 'dist', 'mcp-gateway-ui', 'browser'),
-    nativeCore: join(root, 'app', 'target', `mcp-gateway-core${o.platform.startsWith('windows') ? '.exe' : ''}`),
+    uiDist: uiDistOf(root),
+    nativeCore: join(root, 'app', 'target', `gaterook-core${o.platform.startsWith('windows') ? '.exe' : ''}`),
     jar: join(root, 'app', 'target', 'app.jar'),
     jre: join(root, 'target', 'plugin-host-jre'),
     pluginHost: join(root, 'plugin-host', 'target', 'plugin-host.jar'),
@@ -82,10 +86,12 @@ export async function stage(o, sources = {}) {
   };
   const report = [];
   // The folder is cleared first: only one this script made (or the default), never whatever --out happens to name.
-  const marker = join(o.out, '.mcp-gateway-stage');
+  const marker = join(o.out, '.gaterook-stage');
   const isDefault = resolve(o.out) === join(root, 'desktop', 'stage');
-  if (existsSync(o.out) && readdirSync(o.out).length > 0 && !existsSync(marker) && !isDefault) {
-    throw new Error(`refusing to clear ${o.out}: it isn't a stage folder (no .mcp-gateway-stage in it)`);
+  // A stage folder made before decision 11 has .mcp-gateway-stage.
+  const staged = existsSync(marker) || existsSync(join(o.out, '.mcp-gateway-stage'));
+  if (existsSync(o.out) && readdirSync(o.out).length > 0 && !staged && !isDefault) {
+    throw new Error(`refusing to clear ${o.out}: it isn't a stage folder (no .gaterook-stage in it)`);
   }
   rmSync(o.out, { recursive: true, force: true });
   mkdirSync(o.out, { recursive: true });
@@ -109,7 +115,7 @@ export async function stage(o, sources = {}) {
     if (!existsSync(binary)) {
       throw new Error(`no native core at ${binary}: build it (-Pnative, step N1), pass --core <binary>, or --jar for the JVM fallback`);
     }
-    const name = `mcp-gateway-core${o.platform.startsWith('windows') ? '.exe' : ''}`;
+    const name = `gaterook-core${o.platform.startsWith('windows') ? '.exe' : ''}`;
     copyFile(binary, join(coreDir, name), 0o755);
     const lib = sqliteLibName(o.platform);
     const libs = [join(dirname(binary), 'native-libs', lib), join(dirname(binary), lib)].find((p) => existsSync(p));

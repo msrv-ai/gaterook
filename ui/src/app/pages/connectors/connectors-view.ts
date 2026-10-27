@@ -629,7 +629,7 @@ export function serverActivityQuery(s: Pick<McpServerView, 'toolPrefix'>): strin
   return `tool:${s.toolPrefix}*`;
 }
 
-/** The workspace and log of a server's process (§7.5): `~/.mcp-gateway/mcp/<name>`, `logs/mcp/<name>.log`. */
+/** The workspace and log of a server's process (§7.5): `~/.gaterook/mcp/<name>`, `logs/mcp/<name>.log`. */
 export function serverPaths(name: string): { readonly workdir: string; readonly log: string } {
-  return { workdir: `~/.mcp-gateway/mcp/${name}`, log: `~/.mcp-gateway/logs/mcp/${name}.log` };
+  return { workdir: `~/.gaterook/mcp/${name}`, log: `~/.gaterook/logs/mcp/${name}.log` };
 }

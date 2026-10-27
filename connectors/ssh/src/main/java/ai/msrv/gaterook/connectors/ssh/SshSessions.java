@@ -268,7 +268,7 @@ final class SshSessions implements AutoCloseable {
       Throwable failure = check.failure();
       String why = failure == null ? "" : String.valueOf(failure.getMessage()).toLowerCase(Locale.ROOT);
       if (why.contains("negotiat") || why.contains("no common")) {
-        throw ConnectorException.resourceError("MCP Gateway and " + target.address() + " have no algorithms in "
+        throw ConnectorException.resourceError("GateRook and " + target.address() + " have no algorithms in "
             + "common. For an old server, turn on Allow old algorithms (Advanced).", failure);
       }
       throw ConnectorException.unavailable(target.address() + " closed the connection during the key exchange.",

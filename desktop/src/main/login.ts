@@ -44,10 +44,10 @@ export function applyLoginItem(s: LoginSettings, dev: boolean, log: Logger): voi
   });
 }
 
-/** `~/.config/autostart/mcp-gateway.desktop`, pointing at the AppImage when there is one. */
+/** `~/.config/autostart/gaterook.desktop`, pointing at the AppImage when there is one. */
 function linuxAutostart(s: LoginSettings): void {
   const dir = join(process.env['XDG_CONFIG_HOME'] ?? join(homedir(), '.config'), 'autostart');
-  const file = join(dir, 'mcp-gateway.desktop');
+  const file = join(dir, 'gaterook.desktop');
   if (!s.openAtLogin) {
     rmSync(file, { force: true });
     return;

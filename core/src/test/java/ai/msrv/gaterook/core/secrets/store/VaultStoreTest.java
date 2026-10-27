@@ -218,7 +218,7 @@ class VaultStoreTest {
 
     assertThat(result.ok()).isTrue();
     assertThat(result.server().path("version").asString()).isEqualTo("2.2.1");
-    assertThat(result.identity().path("role").asString()).isEqualTo("mcp-gateway");
+    assertThat(result.identity().path("role").asString()).isEqualTo("gaterook");
     assertThat(result.identity().path("ttl").asString()).isEqualTo("1h");
     assertThat(result.permissions()).singleElement().satisfies(p -> {
       assertThat(p.ref()).isEqualTo("vault://kv/stage/db#password");

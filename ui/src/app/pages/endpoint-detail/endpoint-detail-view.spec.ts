@@ -125,7 +125,7 @@ describe('endpoint detail view', () => {
       expect(flowText('dev', endpointClients(clientsView(), 'dev'), wired())).toBe(
         'Claude Desktop and Codex call endpoint dev with short-lived tokens issued on the fly; Cursor is installed but not connected. dev checks each call against its tool modes and the dev and stage rules, then runs the tool on one of 8 connections, which injects the secret.',
       );
-      expect(flowText('new', [], [])).toBe('No client calls endpoint new yet. new checks each call against its tool modes and the dev rules.');
+      expect(flowText('new', [], [])).toBe('No AI app calls endpoint new yet. new checks each call against its tool modes and the dev rules.');
     });
   });
 
@@ -328,7 +328,7 @@ describe('endpoint detail view', () => {
       expect(revokedToast(token('inspector-debug'), 2)).toEqual({
         tone: 'success',
         title: 'Token inspector-debug revoked',
-        body: 'Clients using it lose access on their next call. 2 requests waiting for approval were denied.',
+        body: 'Apps using it lose access on their next call. 2 requests waiting for approval were denied.',
       });
     });
 

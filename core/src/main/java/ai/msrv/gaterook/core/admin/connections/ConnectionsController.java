@@ -335,7 +335,7 @@ class ConnectionsController {
     return TestDtos.confirmed(tester.confirm(request.confirmationId(), Reasons.check(request.reason())));
   }
 
-  /** The person reviewed a connection changed outside MCP Gateway and keeps it as stored. */
+  /** The person reviewed a connection changed outside GateRook and keeps it as stored. */
   @PostMapping("/api/connections/{name}/confirm-integrity")
   Row confirmIntegrity(@PathVariable String name, @RequestBody(required = false) Reason request) {
     ConnectionService.Summary s = connections.confirmIntegrity(name,

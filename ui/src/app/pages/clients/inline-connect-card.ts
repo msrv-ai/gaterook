@@ -1,7 +1,7 @@
-import { ChangeDetectionStrategy, Component, afterNextRender, booleanAttribute, computed, input, output, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, TemplateRef, afterNextRender, booleanAttribute, computed, input, output, viewChild } from '@angular/core';
 import { ClientCard, ConnectPreview, ConnectRequest } from '../../core/api/clients.api';
 import { GwClientConnectFlow } from '../../kit/elements/client-card/client-connect-flow';
-import { ClientEndpoint, ClientFailure } from '../../kit/elements/client-card/client-view';
+import { ClientEndpoint, ClientFailure, viaText } from '../../kit/elements/client-card/client-view';
 import { clientStatusLook } from '../../kit/elements/shared/dictionaries';
 import { GwClientMark } from '../../kit/elements/shared/client-mark';
 import { GwIcon } from '../../kit/icons';
@@ -15,31 +15,37 @@ let nextId = 0;
  * primary. Nothing is written until Connect, and Connect writes only the change on screen: without a preview of the
  * current selection (it is on its way, or the core refused it) Connect asks the core again instead. A refused change
  * is the kit's "Connect failed" in the card, above its footer.
+ *
+ * `review` is the setup state's Connect review (pages/clients.html `?state=setup`, `#cl-cd-s`): opened from Overview's
+ * Connect (`#cl-<app>-t`), its heading takes the focus (`anchor`: `cl-cd-s-t`), the page's "What <app> can use" comes
+ * right after the first line (`uses`), the one endpoint needs no select, and Connect <app> is the footer's only button.
  */
 @Component({
   selector: 'article[gwInlineConnectCard]',
   imports: [GwIcon, GwClientMark, GwClientConnectFlow],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'gw-card gw-client-card', '[attr.aria-labelledby]': 'uid + "-t"' },
+  host: { class: 'gw-card gw-client-card', '[attr.aria-labelledby]': 'headingId()' },
   template: `
     <header class="gw-card__header gw-client-card__header">
       <div class="gw-client-card__identity">
         <span [gwClientMark]="card().client" size="lg"></span>
         <div class="gw-card__heading">
-          <h3 class="gw-card__title" [id]="uid + '-t'">{{ card().name }}</h3>
-          <p class="gw-card__description gw-client-card__via gw-mono">{{ card().configDisplay }}</p>
+          <h3 class="gw-card__title" [id]="headingId()" [attr.tabindex]="anchor() ? -1 : null">{{ card().name }}</h3>
+          <p class="gw-card__description gw-client-card__via" [class.gw-mono]="via().mono">{{ via().text }}</p>
         </div>
       </div>
       <span class="gw-status gw-status--{{ look().tone }} gw-client-card__status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ look().text }}</span></span>
     </header>
     <div class="gw-card__body gw-client-card__body">
-      <div gwClientConnectFlow #flow page [card]="card()" [endpoints]="endpoints()" [preview]="preview()" [loading]="loading()" [failure]="failure()" [idPrefix]="uid" [level]="4" [wrap]="true" [canOpenConfig]="canOpenConfig()" (openConfig)="openConfig.emit()" (requestChange)="onRequest($event)"></div>
+      <div gwClientConnectFlow #flow page [single]="review()" [lead]="uses()" [card]="card()" [endpoints]="endpoints()" [preview]="preview()" [loading]="loading()" [failure]="failure()" [idPrefix]="anchor() ?? uid" [level]="4" [wrap]="true" [canOpenConfig]="canOpenConfig()" (openConfig)="openConfig.emit()" (requestChange)="onRequest($event)"></div>
     </div>
     <footer class="gw-card__footer gw-client-card__footer">
       <div class="gw-client-card__actions">
-        <button class="gw-btn gw-btn--ghost" type="button" [attr.aria-disabled]="canOpenConfig() ? null : 'true'" [attr.aria-describedby]="canOpenConfig() ? null : uid + '-oc-why'" (click)="canOpenConfig() && openConfig.emit()">Open config<span class="gw-sr-only"> of {{ card().name }}</span></button>
-        @if (!canOpenConfig()) {
-          <span class="gw-sr-only" [id]="uid + '-oc-why'">Opens the file in the desktop app</span>
+        @if (!review()) {
+          <button class="gw-btn gw-btn--ghost" type="button" [attr.aria-disabled]="canOpenConfig() ? null : 'true'" [attr.aria-describedby]="canOpenConfig() ? null : uid + '-oc-why'" (click)="canOpenConfig() && openConfig.emit()">Open config<span class="gw-sr-only"> of {{ card().name }}</span></button>
+          @if (!canOpenConfig()) {
+            <span class="gw-sr-only" [id]="uid + '-oc-why'">Opens the file in the desktop app</span>
+          }
         }
         @if (busy()) {
           <p class="gw-sr-only" [id]="uid + '-busy'">{{ connecting() ? 'Writing the change' : 'Preparing the exact change' }}</p>
@@ -58,6 +64,12 @@ export class GwInlineConnectCard {
   /** The write is on its way. */
   readonly connecting = input(false, { transform: booleanAttribute });
   readonly canOpenConfig = input(true, { transform: booleanAttribute });
+  /** The card's id base on the page (`cl-cd-s`): the heading is `cl-cd-s-t` and takes the focus. */
+  readonly anchor = input<string | null>(null);
+  /** The setup review: one endpoint named above (no select), Connect alone in the footer. */
+  readonly review = input(false, { transform: booleanAttribute });
+  /** "What <app> can use", right after the flow's first line. */
+  readonly uses = input<TemplateRef<unknown> | null>(null);
 
   /** The selection changed (or Connect found no preview to write): ask the core for the exact change. */
   readonly previewRequest = output<ConnectRequest>();
@@ -67,6 +79,8 @@ export class GwInlineConnectCard {
   protected readonly uid = `icc-${++nextId}`;
   private readonly flow = viewChild.required<GwClientConnectFlow>('flow');
   protected readonly look = computed(() => clientStatusLook(this.card().status));
+  protected readonly via = computed(() => viaText(this.card()));
+  protected readonly headingId = computed(() => `${this.anchor() ?? this.uid}-t`);
   protected readonly busy = computed(() => this.loading() || this.connecting());
   /** Connect's description: why it waits, and the endpoint's warnings (prod) the flow shows under its select. */
   protected readonly describedBy = computed(() => {
