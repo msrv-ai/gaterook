@@ -27,7 +27,7 @@ import { DesktopNotifications } from './notifications.ts';
 import { canBind, findFreePort } from './ports.ts';
 import { mayUnlock, proxyToCore } from './proxy.ts';
 import { findDangerousSwitches } from './switches.ts';
-import { AppTray, setBadge } from './tray.ts';
+import { AppTray, markImage, setBadge } from './tray.ts';
 import { Updates } from './updater.ts';
 import { autoUpdateWanted } from './updates.ts';
 import { APP_URL, createAppWindow, hardenAllContents, safeUrl, type AppWindow } from './window.ts';
@@ -147,6 +147,8 @@ export class Desktop {
   }
 
   async start(): Promise<void> {
+    // Development runs use Electron's bundle icon unless the Dock receives the kit's app mark explicitly.
+    if (process.platform === 'darwin') app.dock?.setIcon(markImage(512, 'brand'));
     ensureHome(this.layout.home);
     const { config, problem } = readDesktopConfig(this.layout.home);
     if (problem) this.log(problem);

@@ -7,6 +7,7 @@ import { ActivationGate, isDecisionRoute } from './activation-gate.ts';
 import { APP_URL, isAppPage, safeUrl } from './app-protocol.ts';
 import { allowedExternalUrl } from './external.ts';
 import type { Logger } from './log.ts';
+import { markImage } from './tray.ts';
 
 export { APP_URL, safeUrl } from './app-protocol.ts';
 
@@ -48,6 +49,7 @@ export function createAppWindow(o: AppWindowOptions): AppWindow {
     minHeight: 600,
     show: false,
     title: 'MCP Gateway',
+    icon: markImage(32, 'brand'),
     backgroundColor: dark ? CANVAS.dark : CANVAS.light,
     titleBarStyle: 'hidden',
     ...(process.platform === 'darwin'
