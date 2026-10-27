@@ -170,9 +170,9 @@ class CatalogApiIT {
     assertThat(r.path("sha256").asString()).isEqualTo(sha256(JARS.get("gw-clickhouse-0.6.1.jar")));
     assertThat(r.path("size").asLong()).isEqualTo(JARS.get("gw-clickhouse-0.6.1.jar").length);
     assertThat(r.path("tools")).hasSize(6);
-    // "Host, port, database, user and password, from its config schema" (kit dlg-review-clickhouse).
+    // Preview each connection field from the manifest, including the selected database scope.
     assertThat(r.path("configPreview")).extracting(JsonNode::asString)
-        .containsExactly("Host", "Port", "Database", "User", "Password");
+        .containsExactly("Host", "Port", "Database", "Databases", "User", "Password");
     assertThat(r.path("access").path("hosts")).extracting(JsonNode::asString)
         .containsExactly("{connection.host}:8443", "{connection.host}:8123");
     // Where it will run: this system's sandbox, or none — the review then says "Not sandboxed on this system" (§7.5).
