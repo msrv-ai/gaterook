@@ -421,7 +421,7 @@ public class EndpointService {
         return;
       }
       // Withdrawing is always safe; publishing vouches for the row, so it must be as the core wrote it. A row that
-      // doesn't verify is withdrawn without a new signature: it stays "changed outside MCP Gateway".
+      // doesn't verify is withdrawn without a new signature: it stays "changed outside GateRook".
       boolean trusted = rows.verify(e);
       if (published) {
         requireVerified(e);
@@ -794,7 +794,7 @@ public class EndpointService {
       tools.findByEndpointId(e.getId()).forEach(rows::resign);
       alerts.resolve("endpoint", e.getId());
       setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.SETTINGS,
-          "Endpoint " + slug + " changed outside MCP Gateway", "Unverified", reset.isEmpty() ? "Kept as stored"
+          "Endpoint " + slug + " changed outside GateRook", "Unverified", reset.isEmpty() ? "Kept as stored"
               : "Kept as stored, reset: " + String.join(", ", reset), reason, e.getEnv(), slug, null, null));
       publisher.publishEvent(new EndpointChanged(e.getId(), slug));
     });
@@ -950,8 +950,7 @@ public class EndpointService {
   private void requireVerified(EndpointEntity e) {
     if (!rows.verify(e)) {
       alerts.report("endpoint", e.getId(), e.getSlug(), "endpoint row");
-      throw ProblemException.conflict("Changed outside MCP Gateway", e.getSlug() + " was changed outside MCP "
-          + "Gateway. Review it first.");
+      throw ProblemException.conflict("Changed outside GateRook", e.getSlug() + " was changed outside GateRook. Review it first.");
     }
   }
 
@@ -962,7 +961,7 @@ public class EndpointService {
   private EndpointSnapshot requireUnblocked(EndpointEntity e) {
     EndpointSnapshot fresh = snapshots.uncached(e.getId()).orElseThrow(() -> notFound(e.getSlug()));
     if (fresh.blocked()) {
-      throw ProblemException.conflict("Changed outside MCP Gateway", e.getSlug() + ": " + fresh.blockedReason()
+      throw ProblemException.conflict("Changed outside GateRook", e.getSlug() + ": " + fresh.blockedReason()
           + ". Review it first.");
     }
     return fresh;

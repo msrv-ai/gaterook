@@ -411,10 +411,10 @@ describe('Endpoint detail page', () => {
     ]);
   });
 
-  it('keeps an endpoint changed outside MCP Gateway only after asking', async () => {
+  it('keeps an endpoint changed outside GateRook only after asking', async () => {
     setup(() => Promise.resolve(detail({ endpoint: { blockedReason: 'The stored row does not match its signature.' } })));
     const { fixture, el } = await render();
-    expect(text(el.querySelector('.gw-alert--warning .gw-alert__title'))).toBe('dev was changed outside MCP Gateway');
+    expect(text(el.querySelector('.gw-alert--warning .gw-alert__title'))).toBe('dev was changed outside GateRook');
     button(el, 'Keep as stored').click();
     await settle(fixture);
     expect(text(el.querySelector('#ep-keep-title'))).toBe('Keep dev as stored?');
@@ -453,7 +453,7 @@ describe('Endpoint detail page', () => {
       const { fixture, el } = await render({ slug: 'dev', tab: 'settings' });
       const bar = el.querySelector('#ep-st-instructions .gw-form__actions')!;
       expect(bar.hasAttribute('hidden')).toBe(true);
-      expect(text(el.querySelector('#ep-st-instr-hint'))).toContain('Empty, so agents get the 827 characters MCP Gateway writes');
+      expect(text(el.querySelector('#ep-st-instr-hint'))).toContain('Empty, so agents get the 827 characters GateRook writes');
       const area = el.querySelector<HTMLTextAreaElement>('#ep-st-instr')!;
       area.value = 'Read first.';
       area.dispatchEvent(new Event('input'));
@@ -470,7 +470,7 @@ describe('Endpoint detail page', () => {
     });
 
     it("shows the text the gateway writes in the field, as the kit does (step API), and keeps it the gateway's", async () => {
-      const generated = 'You are connected to MCP Gateway, endpoint "dev" (Local development).\nRead tools run at once.';
+      const generated = 'You are connected to GateRook, endpoint "dev" (Local development).\nRead tools run at once.';
       setup(() => Promise.resolve(detail({ settings: { instructions: null, defaultInstructions: generated } })));
       const { fixture, el } = await render({ slug: 'dev', tab: 'settings' });
       const area = el.querySelector<HTMLTextAreaElement>('#ep-st-instr')!;
@@ -479,7 +479,7 @@ describe('Endpoint detail page', () => {
       expect(bar.hasAttribute('hidden')).toBe(true);
       expect(text(el.querySelector('#ep-st-instr-count'))).toBe(`${generated.length} / 4,000`);
       expect(text(el.querySelector('#ep-st-instr-hint'))).toBe(
-        'Plain text. Never put secrets here: every agent on dev reads it. MCP Gateway writes this text from the tools of dev and the approval rules until you change it.',
+        'Plain text. Never put secrets here: every agent on dev reads it. GateRook writes this text from the tools of dev and the approval rules until you change it.',
       );
 
       // An edit is the endpoint's own text; Discard goes back to the gateway's.
@@ -494,7 +494,7 @@ describe('Endpoint detail page', () => {
     });
 
     it("saves the gateway's text back as null: the gateway keeps writing it", async () => {
-      const generated = 'You are connected to MCP Gateway, endpoint "dev".';
+      const generated = 'You are connected to GateRook, endpoint "dev".';
       setup(() => Promise.resolve(detail({ settings: { instructions: 'Custom.', defaultInstructions: generated } })));
       const { fixture, el } = await render({ slug: 'dev', tab: 'settings' });
       const area = el.querySelector<HTMLTextAreaElement>('#ep-st-instr')!;
@@ -507,7 +507,7 @@ describe('Endpoint detail page', () => {
       expect(calls).toContain('settings {"instructions":null,"version":8}');
     });
 
-    it('tells a stale save from an endpoint changed outside MCP Gateway', async () => {
+    it('tells a stale save from an endpoint changed outside GateRook', async () => {
       // Review 2026-10-26: every 409 read "changed meanwhile … save again"; an integrity block isn't fixed by saving.
       setup();
       const { fixture, el } = await render({ slug: 'dev', tab: 'settings' });
@@ -520,8 +520,8 @@ describe('Endpoint detail page', () => {
         await settle(fixture);
         return text(el.querySelector('#ep-st-instructions [role="alert"] .gw-alert__body'));
       };
-      settingsAnswer = () => Promise.reject(new ApiError('conflict', 409, { title: 'Changed outside MCP Gateway', detail: 'dev was changed outside MCP Gateway. Review it first.' }));
-      expect(await save()).toBe('dev was changed outside MCP Gateway. Review it first.');
+      settingsAnswer = () => Promise.reject(new ApiError('conflict', 409, { title: 'Changed outside GateRook', detail: 'dev was changed outside GateRook. Review it first.' }));
+      expect(await save()).toBe('dev was changed outside GateRook. Review it first.');
       settingsAnswer = () => Promise.reject(new ApiError('conflict', 409, { title: 'Changed meanwhile', detail: 'Someone changed this in the meantime. Reload and try again.' }));
       expect(await save()).toBe('These settings changed meanwhile, in another window. Check the values, then save again.');
     });

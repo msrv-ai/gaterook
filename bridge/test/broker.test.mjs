@@ -97,7 +97,7 @@ describe('broker', () => {
     assert.ok(Date.now() - started >= 2500, 'the idle connection lived about 3 s');
   });
 
-  it('says MCP Gateway isn\'t running when the core doesn\'t answer', async () => {
+  it('says GateRook isn\'t running when the core doesn\'t answer', async () => {
     const deadHome = tempHome('broker-dead');
     let dead;
     try {
@@ -105,7 +105,7 @@ describe('broker', () => {
         origin: 'http://127.0.0.1:9', launchSecret: SECRET, timeoutMs: 500 }) });
       const a = JSON.parse(await exchange(dead.path, req({})));
       assert.equal(a.error, 'core_unavailable');
-      assert.match(a.message, /MCP Gateway is not running/);
+      assert.match(a.message, /GateRook is not running/);
     } finally {
       await dead?.close();
       fs.rmSync(deadHome, { recursive: true, force: true });

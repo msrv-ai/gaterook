@@ -322,7 +322,7 @@ public class EndpointConnections {
 
   private Optional<String> refusal(EndpointSnapshot snapshot, ConnectionConfigs.Stored c, ConnectorType type) {
     if (!c.verified()) {
-      return Optional.of(c.name() + " was changed outside MCP Gateway. Review it first.");
+      return Optional.of(c.name() + " was changed outside GateRook. Review it first.");
     }
     if (!type.usable()) {
       return Optional.of(type.manifest().name() + " is switched off");
@@ -400,8 +400,7 @@ public class EndpointConnections {
   private void requireVerified(EndpointEntity e) {
     if (!rows.verify(e)) {
       alerts.report("endpoint", e.getId(), e.getSlug(), "endpoint row");
-      throw ProblemException.conflict("Changed outside MCP Gateway", e.getSlug() + " was changed outside MCP "
-          + "Gateway. Review it first.");
+      throw ProblemException.conflict("Changed outside GateRook", e.getSlug() + " was changed outside GateRook. Review it first.");
     }
   }
 

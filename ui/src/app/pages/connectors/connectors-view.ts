@@ -125,7 +125,7 @@ export interface InstalledView {
   /** Connections of this type, for "3 connections · View activity". */
   readonly connections: number;
   readonly activityQuery: string | null;
-  /** The type is switched off (built-ins: Turn on) or was changed outside MCP Gateway (Review). */
+  /** The type is switched off (built-ins: Turn on) or was changed outside GateRook (Review). */
   readonly state: 'enabled' | 'disabled' | 'changed-outside';
   readonly update: PluginUpdate | null;
   /** The process failed (plugins): the menu offers Restart. */
@@ -164,7 +164,7 @@ function stateOf(t: InstalledConnector): InstalledView['state'] {
 function builtInView(t: InstalledConnector, names: readonly string[]): InstalledView {
   const state = stateOf(t);
   const status: ConnectorCardStatus | null =
-    state === 'changed-outside' ? { tone: 'warning', text: 'Changed outside MCP Gateway' } : state === 'disabled' ? { tone: 'neutral', text: 'Switched off' } : null;
+    state === 'changed-outside' ? { tone: 'warning', text: 'Changed outside GateRook' } : state === 'disabled' ? { tone: 'neutral', text: 'Switched off' } : null;
   return {
     key: `type:${t.id}`,
     kind: 'built-in',
@@ -202,7 +202,7 @@ function pluginView(t: InstalledConnector, names: readonly string[], catalog: Ca
   // and otherwise what its process is doing (the tool count is on the line under the description).
   const status: ConnectorCardStatus | null =
     state === 'changed-outside'
-      ? { tone: 'warning', text: 'Changed outside MCP Gateway' }
+      ? { tone: 'warning', text: 'Changed outside GateRook' }
       : state === 'disabled'
         ? { tone: 'neutral', text: 'Disabled' }
         : failed

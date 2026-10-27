@@ -39,6 +39,8 @@ In each configuration's environment variables, set `JAVA_HOME` to the local JDK 
 
 Select **GateRook: Run** and click **Run** to build and start the desktop application. **GateRook: Demo** uses a separate home and seeds demo data only when that home is empty. It keeps the default OS credential protection, so the operating system may request key-store access. Neither configuration resets existing data. Use the Run tool window's **Stop** action to stop the application.
 
+On macOS, the development launcher caches a locally signed `GateRook.app` under the ignored `desktop/.dev/runtime/` directory so the Dock and application menu show the product name. It refreshes the cache when Electron changes and leaves the installed npm dependency untouched. Existing Chromium profiles, key-store identities, and `mcp-gateway://` links retain their compatibility names.
+
 Run configurations must point to the actual application `package.json`: `$PROJECT_DIR$` refers to the directory opened in IDEA, which may be a parent directory. Keep machine-specific paths in local `.idea` settings, which are ignored by Git.
 
 ## Build outputs

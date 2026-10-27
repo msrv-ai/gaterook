@@ -149,7 +149,7 @@ let nextId = 0;
                   @if (w.sandbox) {
                     Your user, without a shell, in an OS sandbox ({{ w.sandbox }}), from <span class="gw-mono">{{ w.workdir }}</span>
                   } @else {
-                    Your user, without a shell or a sandbox, from <span class="gw-mono">{{ w.workdir }}</span>. Not sandboxed on this system: it can read everything your account can, including MCP Gateway's data.
+                    Your user, without a shell or a sandbox, from <span class="gw-mono">{{ w.workdir }}</span>. Not sandboxed on this system: it can read everything your account can, including GateRook's data.
                   }
                 </dd></div>
               }

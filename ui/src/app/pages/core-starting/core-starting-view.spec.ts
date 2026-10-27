@@ -220,17 +220,17 @@ describe('the card for each state of the core', () => {
 
   it('a second core on the same home stops at the database lock, before any step: no stepper, the facts say it', () => {
     const v = statusView(
-      state({ kind: 'failed', reason: 'DB_LOCKED', detail: 'Another MCP Gateway core is using ~/.mcp-gateway', exitCode: 2, logTail: 'Action: …', steps: [{ step: 'runtime', state: 'running' }] }),
+      state({ kind: 'failed', reason: 'DB_LOCKED', detail: 'Another GateRook core is using ~/.mcp-gateway', exitCode: 2, logTail: 'Action: …', steps: [{ step: 'runtime', state: 'running' }] }),
       facts(),
     );
     expect(v).toEqual({
       kind: 'start-failed',
       icon: 'lock',
       title: 'Another core is using the database',
-      lead: expect.stringContaining('Quit the other MCP Gateway, then restart the core.'),
+      lead: expect.stringContaining('Quit the other GateRook, then restart the core.'),
       steps: [],
       exitCode: 2,
-      reason: 'DB_LOCKED: Another MCP Gateway core is using ~/.mcp-gateway',
+      reason: 'DB_LOCKED: Another GateRook core is using ~/.mcp-gateway',
       logLines: 'Action: …',
     });
   });
@@ -322,7 +322,7 @@ describe('restore, a new key and the log file', () => {
       unlocked: false,
     });
     expect(restoreProblem(problem(422, { title: 'The backup doesn’t fit', detail: 'This backup doesn’t hold the key of the stored secrets (1 key id(s) missing).' })).passphrase).toBe(false);
-    expect(restoreProblem(problem(409, { title: 'The master key works', detail: 'MCP Gateway is not locked' })).unlocked).toBe(true);
+    expect(restoreProblem(problem(409, { title: 'The master key works', detail: 'GateRook is not locked' })).unlocked).toBe(true);
     expect(restoreProblem(new Error('boom')).message).toBe('The core didn’t answer. Try again.');
   });
 

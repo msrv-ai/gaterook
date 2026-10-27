@@ -362,7 +362,7 @@ class SecretsIT {
     assertThat(mcp.statusCode()).isEqualTo(503);
     assertThat(JSON.readTree(mcp.body()).path("error").path("code").asInt()).isEqualTo(-32603);
     assertThat(JSON.readTree(mcp.body()).path("error").path("message").asString())
-        .isEqualTo("MCP Gateway is locked: the master key was not found");
+        .isEqualTo("GateRook is locked: the master key was not found");
     JsonNode card = JSON.readTree(http.signedGet("/api/master-key").body());
     assertThat(card.path("locked").asString()).isEqualTo("MASTER_KEY_MISSING");
     assertThat(card.path("protects").asInt()).isEqualTo(3);

@@ -1093,7 +1093,7 @@ class EndpointsIT {
     assertThat(templates.compiledFor(a)).hasSize(1);
     assertThat(alerts.has("template", id)).isFalse();
     assertThat(core.jdbc().queryForObject("select change_to from setup_change where subject = 'Template orders_tm "
-        + "changed outside MCP Gateway'", String.class)).isEqualTo("Kept as stored: v2, active, runs on tm-a");
+        + "changed outside GateRook'", String.class)).isEqualTo("Kept as stored: v2, active, runs on tm-a");
   }
 
   @Test
@@ -1222,7 +1222,7 @@ class EndpointsIT {
     assertThat(pair(reviewed, "sql_query").overrides()).as("the valid override stays")
         .isEqualTo(TestCore.json("{\"rowLimit\":10}"));
     assertThat(core.jdbc().queryForObject("select change_to from setup_change where subject = 'Endpoint rv-ep "
-        + "changed outside MCP Gateway'", String.class))
+        + "changed outside GateRook'", String.class))
         .isEqualTo("Kept as stored, reset: limits.rowLimit, approvalWait, sql_query overrides");
   }
 
@@ -1238,7 +1238,7 @@ class EndpointsIT {
       assertThatThrownBy(() -> registry.setEnabled("httpfake", false, null)).isInstanceOfSatisfying(
           ProblemException.class, e -> {
             assertThat(e.kind()).isEqualTo(ProblemException.Kind.CONFLICT);
-            assertThat(e.getMessage()).contains("FakeHTTP was changed outside MCP Gateway");
+            assertThat(e.getMessage()).contains("FakeHTTP was changed outside GateRook");
           });
     } finally {
       registry.confirmIntegrity("httpfake", "test edit");

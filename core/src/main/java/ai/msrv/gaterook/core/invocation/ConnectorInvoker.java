@@ -284,7 +284,7 @@ public class ConnectorInvoker {
       log.warn("prepare of {} on {} put a stored secret into the exact action ({}): no request", r.call().tool(),
           r.cfg().name(), r.callId());
       return PreparedAction.reject("The exact action of " + r.call().tool() + " on " + r.cfg().name() + " would "
-          + "contain a stored secret, so MCP Gateway doesn't ask anyone to approve it. Nothing ran.");
+          + "contain a stored secret, so GateRook doesn't ask anyone to approve it. Nothing ran.");
     }
     List<ActionPreview.Field> fields = new ArrayList<>();
     for (ActionPreview.Field f : p.fields()) {

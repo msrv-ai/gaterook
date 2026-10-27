@@ -83,7 +83,7 @@ public class PolicyEngine {
 
   /** What the agent is told when {@code env}'s policy didn't verify. */
   public static String integrityReason(Env env) {
-    return "The " + env.id() + " policy was changed outside MCP Gateway. Ask the user to review it in MCP Gateway.";
+    return "The " + env.id() + " policy was changed outside GateRook. Ask the user to review it in GateRook.";
   }
 
   public Decision decide(PairView pair, ConnectionConfig cfg, Classification classification) {

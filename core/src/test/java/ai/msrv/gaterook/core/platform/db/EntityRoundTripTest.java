@@ -245,7 +245,7 @@ class EntityRoundTripTest {
     // Endpoints, tokens, clients ─────────────────────────────────────────────────────────────────────────────
     EndpointEntity dev = new EndpointEntity("dev", Env.DEV, EndpointAccess.STANDARD, Map.of("protocol",
         Map.of("revisions", List.of("2026-07-28", "2025-11-25"))), now);
-    dev.setInstructions("You are connected to MCP Gateway, endpoint \"dev\".");
+    dev.setInstructions("You are connected to GateRook, endpoint \"dev\".");
     tx(() -> endpoints.save(dev));
     tx(() -> endpointConnections.save(new EndpointConnectionEntity(endpoints.findBySlug("dev").orElseThrow(),
         devDb.getId(), now)));

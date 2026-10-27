@@ -33,7 +33,7 @@ export type Usage = Readonly<Record<Env, { readonly token: Busiest | null; reado
  *   busiest token and tool × connection, refreshed by `audit.call` and as the minute moves on;
  * - the notification channels (`/api/notifications`, step K2: "not set up" lines; left out until it exists).
  *
- * Saving, resetting and keeping a row changed outside MCP Gateway go through here and replace the environment with
+ * Saving, resetting and keeping a row changed outside GateRook go through here and replace the environment with
  * the core's answer at once; the environments that inherit from it follow with a reload.
  */
 @Injectable()
@@ -281,7 +281,7 @@ export class PoliciesData {
     });
   }
 
-  /** The person reviewed a policy changed outside MCP Gateway and keeps it as stored. */
+  /** The person reviewed a policy changed outside GateRook and keeps it as stored. */
   keep(env: Env, confirm: string | null): Promise<EnvPolicy> {
     return this.withBusy(env, async () => {
       const p = await this.api.confirmIntegrity(env, confirm ? { confirm } : {});

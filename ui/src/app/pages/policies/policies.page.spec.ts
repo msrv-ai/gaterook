@@ -499,13 +499,13 @@ describe('Policies page', () => {
     expect(document.activeElement).toBe($(el, '#stage'));
   });
 
-  it('denies calls on a policy changed outside MCP Gateway until it is reviewed and kept', async () => {
+  it('denies calls on a policy changed outside GateRook until it is reviewed and kept', async () => {
     setup();
     core.answer = { ...core.answer, prod: { ...core.answer.prod, verified: false, serving: false, explicit: { ...core.answer.prod.explicit, ssh: { allowExec: true } } } };
     core.keepFails = (confirm) => (confirm ? null : new ApiError('conflict', 409, { title: 'Confirm', detail: 'The stored policy allows ssh_exec on prod.', confirm: 'danger' }));
     const { fixture, el } = await render('prod');
     const alert = $(el, '#prod .gw-alert--warning');
-    expect(text(alert.querySelector('.gw-alert__title'))).toBe('The prod policy was changed outside MCP Gateway');
+    expect(text(alert.querySelector('.gw-alert__title'))).toBe('The prod policy was changed outside GateRook');
     expect(text(alert.querySelector('.gw-alert__body'))).toBe(
       'Calls on prod are denied until you review it. Keep it as stored if you made the change yourself, or reset it to its defaults. The values below are what prod would have without it.',
     );
@@ -531,12 +531,12 @@ describe('Policies page', () => {
     expect(el.querySelector('#prod .gw-alert--warning')).toBeNull();
   });
 
-  it('tells stage when the dev policy it inherits was changed outside MCP Gateway', async () => {
+  it('tells stage when the dev policy it inherits was changed outside GateRook', async () => {
     setup();
     core.answer = { ...core.answer, dev: { ...core.answer.dev, verified: false, serving: false }, stage: { ...core.answer.stage, serving: false } };
     const { el } = await render('stage');
     const alert = $(el, '#stage .gw-alert--warning');
-    expect(text(alert.querySelector('.gw-alert__title'))).toBe('stage inherits the dev policy, which was changed outside MCP Gateway');
+    expect(text(alert.querySelector('.gw-alert__title'))).toBe('stage inherits the dev policy, which was changed outside GateRook');
     expect(alert.querySelector('a')?.getAttribute('href')).toBe('/policies/dev');
     expect(text($(el, '#dev .gw-alert--warning .gw-alert__body'))).toContain('Calls on dev and stage are denied until you review it.');
   });

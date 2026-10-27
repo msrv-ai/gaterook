@@ -95,14 +95,14 @@ public class ChannelRules {
       String externalId, boolean offeredApprove, java.util.function.Predicate<ApprovalNotice> fits) {
     ApprovalView a = approvals.find(approvalId).orElse(null);
     if (a == null) {
-      return new Clicked(false, "This request no longer exists in MCP Gateway.");
+      return new Clicked(false, "This request no longer exists in GateRook.");
     }
     if (!a.pending()) {
       return new Clicked(false, alreadyText(a));
     }
     String via = channel.name().toLowerCase(Locale.ROOT);
     if (!decisionsFromLinked()) {
-      return new Clicked(false, "Decisions are made in MCP Gateway only. Open the request in the app.");
+      return new Clicked(false, "Decisions are made in GateRook only. Open the request in the app.");
     }
     if (approve) {
       ApprovalNotice n = notices.of(a);
@@ -115,14 +115,14 @@ public class ChannelRules {
     try {
       approvals.decide(approvalId, approve ? ApprovalService.Decision.APPROVE : ApprovalService.Decision.DENY, via,
           null, digestPrefix, externalId);
-      return new Clicked(true, approve ? "Approved: MCP Gateway runs it now." : "Denied: nothing ran.");
+      return new Clicked(true, approve ? "Approved: GateRook runs it now." : "Denied: nothing ran.");
     } catch (ai.msrv.gaterook.core.platform.ProblemException e) {
       ApprovalView now = approvals.find(approvalId).orElse(a);
       return new Clicked(false, now.pending() ? e.getMessage() : alreadyText(now));
     }
   }
 
-  /** "Already approved by you in MCP Gateway": what a late click learns. */
+  /** "Already approved by you in GateRook": what a late click learns. */
   public static String alreadyText(ApprovalView a) {
     String via = Outcomes.via(a.decidedVia());
     return switch (a.status()) {

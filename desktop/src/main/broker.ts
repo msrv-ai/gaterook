@@ -43,7 +43,7 @@ export async function startTokenBroker(o: BrokerOptions): Promise<Broker | null>
     o.log(`token broker listening (${broker.infoPath})`);
     return broker;
   } catch (e) {
-    // Another MCP Gateway answers on its broker (a second app with the same home): bridges keep using that one.
+    // Another GateRook answers on its broker (a second app with the same home): bridges keep using that one.
     o.log(`token broker not started: ${(e as Error).message}`);
     return null;
   }
@@ -60,7 +60,7 @@ export async function askProdUse(client: string, endpoint: string, message: stri
     const shownAt = performance.now();
     const { response } = await dialog.showMessageBox({
       type: 'warning',
-      title: 'MCP Gateway',
+      title: 'GateRook',
       message: `${client} wants to use ${endpoint}`,
       detail: `${message ? `${message}\n\n` : ''}${endpoint} works on production. Allow it only if you started ${client} `
         + 'yourself just now. Each change it asks for still waits for your approval.',

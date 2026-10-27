@@ -2,13 +2,13 @@
 <!-- The lockup is decorative here: the h1 already names the product. -->
 <span class="gw-logo gw-logo--xl" aria-hidden="true">
   <img class="gw-logo__mark" src="assets/logo-mark.svg" alt="">
-  <span class="gw-logo__name">MCP Gateway</span>
+  <span class="gw-logo__name">GateRook</span>
 </span>
 
 <header class="gw-page-header">
   <div class="gw-page-header__row">
     <div class="gw-page-header__heading">
-      <h1 class="gw-page-header__title">Welcome to MCP Gateway</h1>
+      <h1 class="gw-page-header__title">Welcome to GateRook</h1>
       <p class="gw-page-header__description">Give your AI agents one MCP URL to your databases, servers, logs and clusters, without handing them a single password.</p>
     </div>
     <!-- Nothing is left to skip once every step is done: the last step's card leads to Overview. -->
@@ -20,7 +20,7 @@
   </div>
 </header>
 
-<ul class="gw-grid gw-grid--auto" aria-label="What MCP Gateway guarantees">
+<ul class="gw-grid gw-grid--auto" aria-label="What GateRook guarantees">
   <li class="gw-card gw-card--muted">
     <div class="gw-card__body">
       <div class="gw-stack gw-stack--sm">
@@ -86,7 +86,7 @@
 
     <div class="gw-stack gw-stack--lg">
       <!-- Progress, not navigation: moving between steps uses the buttons in the step card. -->
-      <ol class="gw-stepper" aria-label="Set up MCP Gateway" id="ob-stepper">
+      <ol class="gw-stepper" aria-label="Set up GateRook" id="ob-stepper">
         @for (s of steps(); track s.id) {
           <li class="gw-stepper__step" [attr.data-state]="s.state" [attr.aria-current]="s.state === 'current' ? 'step' : null">
             <span class="gw-stepper__marker" aria-hidden="true">@if (s.state === 'complete') {<svg lucideIcon="check" class="gw-icon gw-icon--sm"></svg>} @else {{{ s.index + 1 }}}</span>
@@ -111,7 +111,7 @@
             <div class="gw-card__body">
               <div class="gw-stack">
                 <!-- The trust boundary of decision 5 (ARCHITECTURE §8.6.11) closes the explanation. -->
-                <p class="gw-text-body-read">MCP Gateway created this key when it first started. Each secret gets its own data key, sealed with this one, and the file lives apart from the database and its backups: a copied database alone reveals nothing. It protects against other users and copied files, not against programs you run, including AI agents with a terminal.</p>
+                <p class="gw-text-body-read">GateRook created this key when it first started. Each secret gets its own data key, sealed with this one, and the file lives apart from the database and its backups: a copied database alone reveals nothing. It protects against other users and copied files, not against programs you run, including AI agents with a terminal.</p>
                 @if (key(); as k) {
                   <!-- Full card width for the path: inside a kv value column it would truncate at a 960 px window. -->
                   <div class="gw-field">
@@ -159,7 +159,7 @@
                 <p class="gw-text-small gw-fg-secondary" id="ob-backup-hint">A save dialog asks where the copy goes. Pick a place off this computer, such as your password manager or an encrypted drive. Together with the database the copy unlocks your secrets, so guard it like a password.</p>
                 @if (!desktop.available) {
                   <!-- The core writes the copy only where the desktop's save dialog points (a one-time token, never a path). -->
-                  <p class="gw-text-small gw-fg-muted" id="ob-backup-why">Saving a file needs the MCP Gateway desktop app: it opens the save dialog. Back up the key from there.</p>
+                  <p class="gw-text-small gw-fg-muted" id="ob-backup-why">Saving a file needs the GateRook desktop app: it opens the save dialog. Back up the key from there.</p>
                 }
                 @if (isDone(0)) {
                   <div class="gw-alert gw-alert--success">

@@ -2,7 +2,7 @@
 // running there when its window is closed — clients keep working, notifications keep coming. The badge counts the
 // requests waiting.
 import { app, Menu, nativeImage, Tray, type BrowserWindow, type NativeImage } from 'electron';
-import { markPixels, toBgra } from './icons.ts';
+import { join } from 'node:path';
 
 export interface TrayState {
   readonly pending: number;
@@ -18,12 +18,23 @@ export interface TrayOptions {
   readonly quit: () => void;
 }
 
+/** Canonical kit PNGs, copied into the app by the desktop build for development and packaged runs. */
+const marks = new Map<'brand' | 'mono', NativeImage>();
+
 /** The mark as a native image with 1× and 2× representations; the macOS menu bar gets the template version. */
 export function markImage(size: number, variant: 'brand' | 'mono'): NativeImage {
+  let source = marks.get(variant);
+  if (!source) {
+    const name = variant === 'brand' ? 'gaterook-icon.png' : 'gaterook-mark-mono.png';
+    source = nativeImage.createFromPath(join(app.getAppPath(), 'dist', 'icons', name));
+    if (source.isEmpty()) throw new Error(`The design kit icon ${name} is missing or invalid. Rebuild the desktop app.`);
+    marks.set(variant, source);
+  }
   const image = nativeImage.createEmpty();
   for (const scaleFactor of [1, 2]) {
     const px = size * scaleFactor;
-    image.addRepresentation({ scaleFactor, width: px, height: px, buffer: toBgra(markPixels(px, variant)) });
+    const resized = source.resize({ width: px, height: px, quality: 'best' });
+    image.addRepresentation({ scaleFactor, dataURL: resized.toDataURL() });
   }
   if (variant === 'mono') image.setTemplateImage(true);
   return image;
@@ -38,7 +49,7 @@ export class AppTray {
     this.o = o;
     const mac = process.platform === 'darwin';
     this.tray = new Tray(markImage(process.platform === 'linux' ? 22 : 16, mac ? 'mono' : 'brand'));
-    this.tray.setToolTip('MCP Gateway');
+    this.tray.setToolTip('GateRook');
     if (!mac) this.tray.on('click', () => o.open());
     this.render();
   }
@@ -64,19 +75,19 @@ export class AppTray {
   private template(): Electron.MenuItemConstructorOptions[] {
     const s = this.state;
     return [
-      { label: 'Open MCP Gateway', click: () => this.o.open() },
+      { label: 'Open GateRook', click: () => this.o.open() },
       { label: s.pending > 0 ? `Approvals (${s.pending})` : 'Approvals', click: () => this.o.openApprovals() },
       { label: `Tunnel: ${s.tunnel ?? 'off'}`, enabled: false },
       ...(s.core ? [{ label: `Core: ${s.core}`, enabled: false }] : []),
       { type: 'separator' },
-      { label: 'Quit MCP Gateway', click: () => this.o.quit() },
+      { label: 'Quit GateRook', click: () => this.o.quit() },
     ];
   }
 
   private render(): void {
     this.tray.setContextMenu(Menu.buildFromTemplate(this.template()));
     if (process.platform === 'darwin') this.tray.setTitle(this.state.pending > 0 ? String(this.state.pending) : '');
-    this.tray.setToolTip(this.state.pending > 0 ? `MCP Gateway · ${this.state.pending} waiting` : 'MCP Gateway');
+    this.tray.setToolTip(this.state.pending > 0 ? `GateRook · ${this.state.pending} waiting` : 'GateRook');
   }
 }
 

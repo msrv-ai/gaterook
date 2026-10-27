@@ -2,7 +2,7 @@
 <div class="gw-status-screen__column">
   <span class="gw-logo gw-logo--xl">
     <img class="gw-logo__mark" src="assets/logo-mark.svg" alt="">
-    <span class="gw-logo__name">MCP Gateway</span>
+    <span class="gw-logo__name">GateRook</span>
   </span>
 
   <section class="gw-card gw-status-screen__card" [attr.aria-labelledby]="uid + '-title'">
@@ -51,7 +51,7 @@
                   } @else {
                     Another process is listening on <span class="gw-mono">{{ address() }}</span>,
                   }
-                  so the core can't start its local API. Stop that process and reopen MCP Gateway, or start the core on another port: every endpoint URL changes, so clients with the URL in their config, such as Codex and Cursor, need to be connected again.
+                  so the core can't start its local API. Stop that process and reopen GateRook, or start the core on another port: every endpoint URL changes, so clients with the URL in their config, such as Codex and Cursor, need to be connected again.
                 </p>
               }
             </div>

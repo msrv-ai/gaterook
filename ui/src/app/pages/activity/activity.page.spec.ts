@@ -318,7 +318,7 @@ describe('Activity page', () => {
     expect(el.querySelector('#ac-export [data-value="csv"]')!.getAttribute('aria-disabled')).toBe('true');
     expect(el.querySelector('#ac-export')!.getAttribute('aria-describedby')).toBe('ac-export-note');
     expect(text(el.querySelector('#ac-export-note'))).toBe(
-      'Exports the 10 calls that match the filters and range below. Masked values stay masked. Saving a file needs the MCP Gateway desktop app.',
+      'Exports the 10 calls that match the filters and range below. Masked values stay masked. Saving a file needs the GateRook desktop app.',
     );
   });
 
@@ -352,7 +352,7 @@ describe('Activity page', () => {
     const options = Array.from(dialog.querySelectorAll<HTMLOptionElement>('#ac-siem-dest option'));
     expect(options.map((o) => `${text(o)}${o.disabled ? ' [off]' : ''}`)).toEqual([
       'Paused SIEM (paused) [off]',
-      'Changed SIEM (changed outside MCP Gateway) [off]',
+      'Changed SIEM (changed outside GateRook) [off]',
       'Splunk',
     ]);
     // The first one the core takes is chosen; Send goes to it.

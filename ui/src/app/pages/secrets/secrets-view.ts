@@ -258,7 +258,7 @@ export function sourceCell(row: SecretRow): SourceCell {
   const info = storeKind(row.source) ?? storeKind(kindOfRef(row.ref));
   const name = info?.short ?? 'Reference';
   if (row.state === 'not-connected') return { label: `${name} · not connected`, icon: null, tone: 'danger' };
-  if (row.state === 'changed-outside') return { label: `${name} · changed outside MCP Gateway`, icon: null, tone: 'warning' };
+  if (row.state === 'changed-outside') return { label: `${name} · changed outside GateRook`, icon: null, tone: 'warning' };
   if (row.state === 'short-lived') return { label: `${name} · short-lived`, icon: 'timer', tone: null };
   return { label: name, icon: info?.icon ?? 'link', tone: null };
 }
@@ -451,7 +451,7 @@ export function keyAlerts(s: MasterKeyStatus): KeyAlert[] {
       code: 'new-key-created',
       tone: 'warning',
       icon: 'triangle-alert',
-      title: 'MCP Gateway created a new master key',
+      title: 'GateRook created a new master key',
       body: 'No key file was found when the core started and no secret needed one, so it made a new key. Back it up now.',
       action: null,
     });
@@ -664,7 +664,7 @@ export function hostOf(url: string | null): string | null {
 
 /** The store's status in its card header. */
 export function storeStatus(s: SecretStore): { readonly tone: Tone; readonly label: string } {
-  if (s.verified === false) return { tone: 'warning', label: 'Changed outside MCP Gateway' };
+  if (s.verified === false) return { tone: 'warning', label: 'Changed outside GateRook' };
   if (s.state === 'connected') return { tone: 'success', label: s.latencyMs !== null && s.latencyMs !== undefined ? `Connected · ${duration(s.latencyMs)}` : 'Connected' };
   if (s.state === 'failing') return { tone: 'danger', label: 'Failing' };
   return { tone: 'neutral', label: 'Not checked yet' };

@@ -128,12 +128,12 @@ public class ApprovalDelivery {
    */
   private static String message(ApprovalView a, ApprovalAnswers.AgentAction action) {
     String until = LocalTime.ofInstant(a.expiresAt(), ZoneId.systemDefault()).format(CLOCK);
-    StringBuilder m = new StringBuilder("MCP Gateway: approve ").append(a.tool()).append(" on ")
+    StringBuilder m = new StringBuilder("GateRook: approve ").append(a.tool()).append(" on ")
         .append(a.connectionName()).append(" (").append(a.env().id()).append(")? ").append(action.text())
         .append("  Request ").append(a.id()).append(", auto-deny at ").append(until).append('.');
     if ("required".equals(a.commentPolicy())) {
       m.append(" A comment is required to approve on ").append(a.env().id()).append('.');
     }
-    return m.append(" Decide in the MCP Gateway window.").toString();
+    return m.append(" Decide in the GateRook window.").toString();
   }
 }

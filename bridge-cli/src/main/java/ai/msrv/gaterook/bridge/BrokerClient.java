@@ -73,11 +73,11 @@ final class BrokerClient {
       Object parsed = Json.parse(Files.readString(info, StandardCharsets.UTF_8));
       String path = Json.string(parsed, "path");
       if (path == null || path.isBlank()) {
-        throw new Unavailable("MCP Gateway's broker file names no socket");
+        throw new Unavailable("GateRook's broker file names no socket");
       }
       return path;
     } catch (IOException | RuntimeException e) {
-      throw new Unavailable("MCP Gateway is not running (no broker at " + info + ")");
+      throw new Unavailable("GateRook is not running (no broker at " + info + ")");
     }
   }
 
@@ -102,14 +102,14 @@ final class BrokerClient {
       return Json.parse(f.get(wait.toMillis(), TimeUnit.MILLISECONDS));
     } catch (TimeoutException e) {
       f.cancel(true);
-      throw new Unavailable("MCP Gateway's broker didn't answer within " + wait.toSeconds() + " s");
+      throw new Unavailable("GateRook's broker didn't answer within " + wait.toSeconds() + " s");
     } catch (ExecutionException e) {
-      throw new Unavailable("MCP Gateway is not running (" + rootMessage(e) + ")");
+      throw new Unavailable("GateRook is not running (" + rootMessage(e) + ")");
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new Unavailable("interrupted");
     } catch (IllegalArgumentException e) {
-      throw new Unavailable("MCP Gateway's broker answered something that isn't JSON");
+      throw new Unavailable("GateRook's broker answered something that isn't JSON");
     }
   }
 

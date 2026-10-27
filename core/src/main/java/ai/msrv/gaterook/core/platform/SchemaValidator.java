@@ -92,7 +92,7 @@ public final class SchemaValidator {
     }
     if (subschemas(schema, MAX_SUBSCHEMAS + 1) > MAX_SUBSCHEMAS) {
       return List.of(new Violation("/", "the tool's input schema has more than " + MAX_SUBSCHEMAS
-          + " subschemas, so MCP Gateway doesn't check arguments against it"));
+          + " subschemas, so GateRook doesn't check arguments against it"));
     }
     // Compiling is outside the budget: it happens once per schema, and the count above bounds it.
     Schema s = compile(schema);

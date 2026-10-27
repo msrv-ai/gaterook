@@ -128,7 +128,7 @@ export interface HistoryRow {
   /** When it was decided (or ran out): the row's time. */
   readonly at: string;
   readonly badge: Look;
-  /** "By you", "By you, from Slack", "No answer", "By MCP Gateway"… */
+  /** "By you", "By you, from Slack", "No answer", "By GateRook"… */
   readonly by: string;
   /** The row link's hidden rest: " on dev-db from Codex, approved by you: open in Activity". */
   readonly srText: string;
@@ -146,7 +146,7 @@ export function decidedBy(item: Pick<ApprovalItem, 'status' | 'decidedVia' | 'cl
   if (item.status === 'expired' || item.decidedVia === 'timeout') return 'No answer';
   switch (item.decidedVia) {
     case 'core':
-      return 'By MCP Gateway';
+      return 'By GateRook';
     case 'client':
       return `Withdrawn by ${who(item.client)}`;
     case 'slack':
@@ -175,7 +175,7 @@ export function stoppedAfterApproval(d: Pick<ApprovalDetail, 'status' | 'timelin
 
 /** The outcome in words for the row link's screen-reader text ("approved by you from Slack"). */
 function outcome(item: ApprovalItem, stopped: boolean): string {
-  if (stopped) return 'approved by you, then stopped by MCP Gateway before it ran';
+  if (stopped) return 'approved by you, then stopped by GateRook before it ran';
   const by = decidedBy(item);
   const window = windowMinutes(item);
   switch (requestState(item.status)) {
@@ -188,7 +188,7 @@ function outcome(item: ApprovalItem, stopped: boolean): string {
     case 'executed':
       return by === 'By you' ? 'approved by you' : `approved ${lower(by)}`;
     case 'rejected':
-      if (item.decidedVia === 'core') return 'rejected by MCP Gateway';
+      if (item.decidedVia === 'core') return 'rejected by GateRook';
       if (item.decidedVia === 'client') return lower(by);
       return by === 'By you' ? 'rejected by you' : `rejected ${lower(by)}`;
     default:
@@ -227,7 +227,7 @@ export function historyRows(
       env: i.env,
       at: decidedAt(i),
       badge: statusBadge(requestState(i.status)),
-      by: stopped ? 'Approved by you, stopped by MCP Gateway' : decidedBy(i),
+      by: stopped ? 'Approved by you, stopped by GateRook' : decidedBy(i),
       srText: ` on ${target} from ${who(i.client)}, ${outcome(i, stopped)}: open in Activity`,
       link: call ? { route: '/activity', fragment: `event-${call.eventId}` } : { route: '/activity', queryParams: { q } },
     };
@@ -298,7 +298,7 @@ export function resolvedElsewhere(r: Pick<ApprovalItem, 'tool' | 'connection' | 
     case 'expired':
       return `${what} expired, denied automatically`;
     case 'rejected':
-      return via === 'core' ? `${what} was rejected by MCP Gateway` : `${what} was rejected${viaWords(via)}`;
+      return via === 'core' ? `${what} was rejected by GateRook` : `${what} was rejected${viaWords(via)}`;
     case 'running':
     case 'completed':
       return `${what} was approved${viaWords(via)}`;
@@ -387,13 +387,13 @@ export function channelStatuses(n: Notifications): ChannelStatus[] {
   const telegram = channelOf(n, 'telegram');
   const out: ChannelStatus[] = [];
   out.push(desktop && !desktop.enabled ? { tone: 'neutral', label: 'Desktop off', mono: null } : { tone: 'success', label: 'Desktop on', mono: null });
-  if (changedOutside(slack)) out.push({ tone: 'warning', label: 'Slack changed outside MCP Gateway', mono: null });
+  if (changedOutside(slack)) out.push({ tone: 'warning', label: 'Slack changed outside GateRook', mono: null });
   else if (slack?.enabled && failing(slack)) out.push({ tone: 'danger', label: 'Slack failing', mono: null });
   else if (slack?.enabled) {
     const channel = slackChannel(n);
     out.push(channel ? { tone: 'success', label: 'Slack', mono: channel } : { tone: 'success', label: 'Slack direct messages', mono: null });
   } else out.push({ tone: 'neutral', label: configured(slack) ? 'Slack off' : 'Slack not set up', mono: null });
-  if (changedOutside(telegram)) out.push({ tone: 'warning', label: 'Telegram changed outside MCP Gateway', mono: null });
+  if (changedOutside(telegram)) out.push({ tone: 'warning', label: 'Telegram changed outside GateRook', mono: null });
   else if (telegram?.enabled && failing(telegram)) out.push({ tone: 'danger', label: 'Telegram failing', mono: null });
   else if (telegram?.enabled) out.push({ tone: 'success', label: 'Telegram on', mono: null });
   else out.push({ tone: 'neutral', label: configured(telegram) ? 'Telegram off' : 'Telegram not set up', mono: null });
@@ -524,9 +524,9 @@ export function deliveryCard(
         if (i > 0) text(' ');
         write();
       });
-      text(' The request waited here, in MCP Gateway. Check the channels in');
+      text(' The request waited here, in GateRook. Check the channels in');
     } else {
-      text('No notification channel sent this request, so it waited here, in MCP Gateway. Desktop notifications, Slack and Telegram are set up in');
+      text('No notification channel sent this request, so it waited here, in GateRook. Desktop notifications, Slack and Telegram are set up in');
     }
     return { preview, heading: 'Not sent outside the window', letter: null, icon: 'app-window', description: parts, slackChannel: null, settingsLink: true };
   }
@@ -550,7 +550,7 @@ export function afterApprovalToast(
   if (d.status === 'rejected') {
     return {
       title: `${d.tool} on ${target} didn't run`,
-      body: d.error ?? `MCP Gateway checked it again before running it and stopped it. Nothing ran on ${target}.`,
+      body: d.error ?? `GateRook checked it again before running it and stopped it. Nothing ran on ${target}.`,
       tone: 'danger',
       icon: 'ban',
     };

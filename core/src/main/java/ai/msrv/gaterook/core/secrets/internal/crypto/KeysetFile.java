@@ -81,7 +81,7 @@ public final class KeysetFile {
     try {
       if (encrypted) {
         if (fileKey == null) {
-          return new Loaded(State.INVALID, null, true, path + " is protected by the OS, but MCP Gateway didn't get "
+          return new Loaded(State.INVALID, null, true, path + " is protected by the OS, but GateRook didn't get "
               + "the key to open it");
         }
         return new Loaded(State.LOADED, TinkJsonProtoKeysetFormat.parseEncryptedKeyset(json, fileKey, FILE_AD,

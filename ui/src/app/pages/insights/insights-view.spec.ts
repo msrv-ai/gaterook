@@ -390,7 +390,7 @@ describe('Denied by rule', () => {
     expect(plain(deniedView([{ rule: 'dev.k8s.verb-not-allowed', count: 3, example: null }], '24h', '').description)).toBe('Every denial came from dev.k8s.verb-not-allowed.');
     expect(plain(deniedView([], '7d', '').description)).toBe('The policies denied no call in the last 7 days.');
     expect(deniedView([{ rule: 'mode: off', count: 1, example: null }], '24h', '').rows[0].link).toBeNull();
-    expect(ruleMeaning('prod.core.integrity')).toBe('calls under a policy changed outside MCP Gateway');
+    expect(ruleMeaning('prod.core.integrity')).toBe('calls under a policy changed outside GateRook');
     expect(ruleMeaning('dev.k8s.namespace-not-allowed')).toBe('calls outside the allowed namespaces');
     expect(ruleMeaning('dev.http.write-approval')).toBeNull();
   });

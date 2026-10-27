@@ -304,7 +304,7 @@ public final class LeaseManager implements AutoCloseable {
     List<Lease> all = new ArrayList<>(active.values());
     active.clear();
     for (Lease l : all) {
-      retire(l, "MCP Gateway stopped");
+      retire(l, "GateRook stopped");
     }
   }
 

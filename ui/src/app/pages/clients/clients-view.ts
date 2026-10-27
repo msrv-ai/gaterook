@@ -209,7 +209,7 @@ export function connectFailure(error: unknown, card: ClientCard, at: number): Cl
 }
 
 /**
- * The entry MCP Gateway keeps in a client's file, from the core's disconnect preview of the link: the lines the
+ * The entry GateRook keeps in a client's file, from the core's disconnect preview of the link: the lines the
  * reverse edit would remove, exactly as they are (blank lines around it trimmed). Null for the bridge extension or
  * an entry that is gone or changed outside the app.
  */

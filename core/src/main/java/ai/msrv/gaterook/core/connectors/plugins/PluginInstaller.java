@@ -283,7 +283,7 @@ public final class PluginInstaller {
     PluginManifest.Requires requires = manifest.requires();
     Semver gateway = version(CoreBuild.VERSION);
     if (requires.gateway() != null && !Semver.satisfies(gateway.release(), requires.gateway())) {
-      throw ProblemException.unprocessable("Needs another gateway", manifest.name() + " needs MCP Gateway "
+      throw ProblemException.unprocessable("Needs another gateway", manifest.name() + " needs GateRook "
           + requires.gateway() + "; this is " + CoreBuild.VERSION + ".", "/requires");
     }
     if (requires.connectorApi() != null && !Semver.satisfies(version(ApiVersion.CURRENT), requires.connectorApi())) {

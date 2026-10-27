@@ -54,6 +54,7 @@ describe('stage.mjs', () => {
     assert.ok(existsSync(join(out, 'cloudflared', 'darwin-arm64', 'README.txt')));
     const png = readFileSync(join(out, 'icons', 'icon.png'));
     assert.equal(png.readUInt32BE(16), 1024);
+    assert.deepEqual(png, readFileSync(new URL('../../design/assets/gaterook/gaterook-icon.png', import.meta.url)));
     assert.ok(report.some((l) => l.startsWith('core/mcp-gateway-core')));
   });
 

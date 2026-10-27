@@ -1,4 +1,4 @@
-// MCP Gateway's main process after the switch check (main.ts): the window and its app:// scheme, the core it starts
+// GateRook's main process after the switch check (main.ts): the window and its app:// scheme, the core it starts
 // and supervises, the signing proxy, the event stream that drives notifications, badge and tray, the token broker,
 // the IPC of `window.gwDesktop`, updates, deep links (ARCHITECTURE.md §7.1–§7.4, A20).
 import { app, ipcMain, Menu, nativeTheme, protocol, safeStorage, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron';
@@ -43,15 +43,18 @@ export function main(): Desktop | null {
   const layout = resolveLayout({ devBuild: DEV_BUILD, packaged: app.isPackaged, appPath: app.getAppPath(),
     resourcesPath: process.resourcesPath, homedir: homedir(), platform: process.platform, env: process.env });
   const log = createLogger(layout.home, layout.dev);
+  // Keep Electron's storage identity stable: the display brand must not move Chromium profiles or Keychain keys.
+  app.setName(layout.dev ? 'MCP Gateway Dev' : 'MCP Gateway');
   if (layout.dev) {
     // A development build is another app to the OS: its own Keychain entry ("MCP Gateway Dev Safe Storage"), never
     // the installed app's; and a development home gets its own Chromium profile, with it its own single-instance
     // lock: the smoke and a development window run side by side, each with its own core.
-    app.setName('MCP Gateway Dev');
     app.setPath('userData', join(layout.home, 'electron'));
+  } else {
+    app.setPath('userData', join(app.getPath('appData'), 'MCP Gateway'));
   }
   if (!app.requestSingleInstanceLock()) {
-    log('another MCP Gateway is running: it gets the arguments, this one quits');
+    log('another GateRook is running: it gets the arguments, this one quits');
     app.quit();
     return null;
   }
@@ -154,12 +157,13 @@ export class Desktop {
     if (problem) this.log(problem);
     this.config = config;
     if (!existsSync(desktopConfigPath(this.layout.home))) writeDesktopConfig(this.layout.home, config);
-    this.log(`MCP Gateway ${app.getVersion()} starting (${this.layout.dev ? 'development build' : 'release'}), `
+    this.log(`GateRook ${app.getVersion()} starting (${this.layout.dev ? 'development build' : 'release'}), `
       + `home ${this.layout.home}, UI ${this.layout.uiRoot}, core ${this.layout.core.kind}`);
 
     this.hardenSession();
     this.registerProtocol();
     this.registerIpc();
+    app.setAboutPanelOptions({ applicationName: 'GateRook', applicationVersion: app.getVersion() });
     Menu.setApplicationMenu(appMenu(this.layout.dev));
 
     const window = createAppWindow({ preload: this.layout.preload, dev: this.layout.dev, log: this.log,
@@ -587,7 +591,7 @@ export class Desktop {
     handle(IPC.updateState, () => this.updates?.current() ?? null);
     handle(IPC.openExternal, async (url) => {
       const allowed = allowedExternalUrl(url);
-      if (!allowed) throw new Error('MCP Gateway opens only https links to documentation.');
+      if (!allowed) throw new Error('GateRook opens only https links to documentation.');
       await shell.openExternal(allowed);
     });
     handle(IPC.saveFile, (purpose) => chooseFile(files, purpose, true));
@@ -683,9 +687,10 @@ export type SmokeHost = ReturnType<Desktop['smokeHost']>;
 /** A minimal menu: no reload, no developer tools in a release; Edit for the clipboard shortcuts. */
 function appMenu(dev: boolean): Menu {
   const template: Electron.MenuItemConstructorOptions[] = [
-    ...(process.platform === 'darwin' ? [{ label: 'MCP Gateway', submenu: [
-      { role: 'about' as const }, { type: 'separator' as const }, { role: 'hide' as const }, { role: 'hideOthers' as const },
-      { role: 'unhide' as const }, { type: 'separator' as const }, { role: 'quit' as const }] }] : []),
+    ...(process.platform === 'darwin' ? [{ label: 'GateRook', submenu: [
+      { role: 'about' as const, label: 'About GateRook' }, { type: 'separator' as const },
+      { role: 'hide' as const, label: 'Hide GateRook' }, { role: 'hideOthers' as const },
+      { role: 'unhide' as const }, { type: 'separator' as const }, { role: 'quit' as const, label: 'Quit GateRook' }] }] : []),
     { label: 'Edit', submenu: [{ role: 'undo' }, { role: 'redo' }, { type: 'separator' }, { role: 'cut' }, { role: 'copy' },
       { role: 'paste' }, { role: 'selectAll' }] },
     { label: 'Window', submenu: [{ role: 'minimize' }, { role: 'close' }] },

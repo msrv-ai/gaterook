@@ -51,7 +51,7 @@ final class StdinChannel {
       return line.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
     } catch (TimeoutException e) {
       throw new GatewayStartupException(StartupReason.BOOTSTRAP_TIMEOUT,
-          "No bootstrap line on stdin within " + timeout.toSeconds() + " s: the core must be started by MCP Gateway");
+          "No bootstrap line on stdin within " + timeout.toSeconds() + " s: the core must be started by GateRook");
     } catch (ExecutionException e) {
       if (e.getCause() instanceof GatewayStartupException startup) {
         throw startup;

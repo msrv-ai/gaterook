@@ -47,14 +47,14 @@ final class ConsentPages {
   static String waiting(String rid, String code, String clientHost, String redirectHost, String endpoint,
       long secondsLeft) {
     return page("Confirm on your computer", "<main data-rid=\"" + esc(rid) + "\">"
-        + "<h1>Confirm in MCP Gateway on your computer</h1>"
-        + "<p>" + esc(clientHost) + " asks to sign in to endpoint <b>" + esc(endpoint) + "</b>. MCP Gateway shows "
+        + "<h1>Confirm in GateRook on your computer</h1>"
+        + "<p>" + esc(clientHost) + " asks to sign in to endpoint <b>" + esc(endpoint) + "</b>. GateRook shows "
         + "the same code. Allow it there only if you started this sign-in and the codes match.</p>"
         + "<div class=\"code\" aria-label=\"Code\">" + esc(code) + "</div>"
         + "<dl><dt>Client</dt><dd>" + esc(clientHost) + "</dd><dt>Returns to</dt><dd>" + esc(redirectHost)
         + "</dd><dt>Endpoint</dt><dd>" + esc(endpoint) + "</dd></dl>"
         + "<p class=\"status\" id=\"status\" role=\"status\">Waiting for you to allow it… (" + secondsLeft / 60
-        + " min left)</p><p class=\"warn\">If you didn't start this, deny it in MCP Gateway.</p></main>", true);
+        + " min left)</p><p class=\"warn\">If you didn't start this, deny it in GateRook.</p></main>", true);
   }
 
   /** A refusal shown in the browser, without a redirect. */
@@ -66,7 +66,7 @@ final class ConsentPages {
   private static String page(String title, String main, boolean script) {
     return "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
         + "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-        + "<meta name=\"referrer\" content=\"no-referrer\"><title>" + esc(title) + " · MCP Gateway</title>"
+        + "<meta name=\"referrer\" content=\"no-referrer\"><title>" + esc(title) + " · GateRook</title>"
         + "<style>" + STYLE + "</style></head><body>" + main + (script ? "<script>" + SCRIPT + "</script>" : "")
         + "</body></html>";
   }

@@ -469,7 +469,7 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
       }
       sign(row);
       setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.SETTINGS,
-          "Connector type " + m.name() + " changed outside MCP Gateway", "Unverified",
+          "Connector type " + m.name() + " changed outside GateRook", "Unverified",
           row.isEnabled() ? "Kept: on" : "Kept: off", reason, null, null, null, null));
       publisher.publishEvent(new ConnectorTypeChanged(typeId));
       return row.isEnabled();
@@ -498,7 +498,7 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
   private void requireVerified(ConnectorTypeEntity row, ConnectorManifest m) {
     if (!verify(row)) {
       alerts.report("connector-type", m.id(), m.name(), "connector_type row");
-      throw ProblemException.conflict("Changed outside MCP Gateway", m.name() + " was changed outside MCP Gateway. "
+      throw ProblemException.conflict("Changed outside GateRook", m.name() + " was changed outside GateRook. "
           + "Review it first.");
     }
   }

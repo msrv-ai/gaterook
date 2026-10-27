@@ -6,7 +6,7 @@
     <p class="gw-section__description">From 1280px the nav sits on the left and stays in view; the current item follows the section you scroll to. Appearance applies at once. In Authorization, client registration was switched to CIMD and not saved yet, so its Save bar floats at the bottom while that section is on screen (Discard brings back the saved value). Sign-in to the UI is server mode only: a read-only preview of what server mode adds, with the reason. Notifications apply at once (Slack is connected, Telegram is not set up); change a decision rule in Approval rules to see its Save bar appear. The nav marks the section in view with <code class="gw-code">aria-current="location"</code>.</p>
   </header>
   <div gwSettingsLayout [groups]="groups" [(current)]="current">
-    <section gwSettingsSection name="appearance" heading="Appearance" description="How MCP Gateway looks on this device. Changes apply at once." [level]="3">
+    <section gwSettingsSection name="appearance" heading="Appearance" description="How GateRook looks on this device. Changes apply at once." [level]="3">
       <!-- A <form> only to scope the gw-theme / gw-contrast radio groups: nothing to submit. -->
       <form class="gw-form" method="dialog">
         <section class="gw-form__section" aria-labelledby="st-theme-t">
@@ -135,7 +135,7 @@
           <div class="gw-form__rows">
             <div class="gw-alert gw-alert--neutral gw-alert--compact" id="st-signin-why">
               <svg lucideIcon="circle-help" class="gw-icon gw-alert__icon"></svg>
-              <div class="gw-alert__content"><p class="gw-alert__title">Server mode only</p><p class="gw-alert__body">This desktop app has one local user and no sign-in. Run MCP Gateway in server mode to let a team sign in.</p></div>
+              <div class="gw-alert__content"><p class="gw-alert__title">Server mode only</p><p class="gw-alert__body">This desktop app has one local user and no sign-in. Run GateRook in server mode to let a team sign in.</p></div>
             </div>
             <dl class="gw-kv gw-kv--dense" aria-label="Server mode preview: sign-in to the UI" aria-describedby="st-signin-why">
               <div class="gw-kv__row"><dt class="gw-kv__key">OIDC provider</dt><dd class="gw-kv__value">Google Workspace, Okta or Keycloak</dd></div>
@@ -201,7 +201,7 @@
                 <option>#platform-oncall</option>
                 <option>#dev-ops</option>
               </select>
-              <p class="gw-field__hint" id="st-slack-channel-hint">Channels the MCP Gateway app was added to.</p>
+              <p class="gw-field__hint" id="st-slack-channel-hint">Channels the GateRook app was added to.</p>
             </div>
           </div>
         </section>

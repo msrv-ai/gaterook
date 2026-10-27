@@ -77,7 +77,7 @@ const NO_ANSWER = 'The core didn’t answer. Try again.';
  *   each row says "Checking" until its `connection.health` arrives.
  * - The table: name + env + host, type + badges, credentials (never a value), health + last check, the endpoints
  *   that use it, and a row menu (Test connection, Edit, View activity, Duplicate, Delete). An unreachable row has its
- *   error under it with Test again; a row changed outside MCP Gateway says so and can be kept after review.
+ *   error under it with Test again; a row changed outside GateRook says so and can be kept after review.
  * - Delete asks in `gw-dialog--danger`, with what stops working, the requests the core denies and what happens to the
  *   secrets; Cancel has the focus.
  *
@@ -314,7 +314,7 @@ export class ConnectionsPage {
     this.deleteFacts.set(null);
   }
 
-  // ── Keep a row changed outside MCP Gateway ────────────────────────────────────────────────────────────────────
+  // ── Keep a row changed outside GateRook ────────────────────────────────────────────────────────────────────
 
   protected askKeep(row: ConnectionRow, e: Event): void {
     this.keeping.set(row);

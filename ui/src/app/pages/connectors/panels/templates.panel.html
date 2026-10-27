@@ -97,7 +97,7 @@
                   }
                   <div class="gw-text-caption gw-fg-muted"><svg [lucideIcon]="row.kind.icon" class="gw-icon gw-icon--xs"></svg> {{ row.kind.label }} · updated <time [attr.datetime]="time.iso(t.updatedAt)" [attr.title]="time.absolute(t.updatedAt, false)">{{ time.relative(t.updatedAt) }}</time></div>
                   @if (!t.verified) {
-                    <span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Changed outside MCP Gateway</span></span>
+                    <span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Changed outside GateRook</span></span>
                   }
                 </th>
                 <td>

@@ -287,7 +287,7 @@ export function historySteps(r: ApprovalDetail): HistoryStep[] {
           step({
             tone: 'danger',
             icon: 'ban',
-            title: by === 'client' ? `Withdrawn by ${client}` : 'Rejected by MCP Gateway',
+            title: by === 'client' ? `Withdrawn by ${client}` : 'Rejected by GateRook',
             meta: [t(str(d['reason']) ?? 'Not executed')],
             comment: null,
           });

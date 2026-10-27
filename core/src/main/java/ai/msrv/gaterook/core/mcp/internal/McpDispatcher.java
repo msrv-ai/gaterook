@@ -112,7 +112,7 @@ public class McpDispatcher {
       } catch (RuntimeException e) {
         log.error("{} on {} failed", env.method(), snapshot.slug(), e);
         span.error("internal");
-        return error(env, JsonRpc.INTERNAL_ERROR, "Internal error in MCP Gateway. See its log.", null);
+        return error(env, JsonRpc.INTERNAL_ERROR, "Internal error in GateRook. See its log.", null);
       }
     }
   }
@@ -154,7 +154,7 @@ public class McpDispatcher {
   /** While a completed row waits in the audit backlog, nothing new runs (§5 step 11). */
   private void requireAudit() {
     if (!audit.available()) {
-      throw new McpException(JsonRpc.INTERNAL_ERROR, "MCP Gateway is catching up with its audit: nothing runs until "
+      throw new McpException(JsonRpc.INTERNAL_ERROR, "GateRook is catching up with its audit: nothing runs until "
           + "it has recorded what already ran. Try again in a moment.");
     }
   }
@@ -165,7 +165,7 @@ public class McpDispatcher {
     out.set("capabilities", capabilities(true));
     ObjectNode info = out.putObject("serverInfo");
     info.put("name", ResultWriter.SERVER_NAME);
-    info.put("title", "MCP Gateway · " + r.snapshot().slug());
+    info.put("title", "GateRook · " + r.snapshot().slug());
     info.put("version", CoreBuild.VERSION);
     out.put("instructions", Instructions.of(r.snapshot(), r.catalog()));
     return out;

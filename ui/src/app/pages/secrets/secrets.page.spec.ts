@@ -519,11 +519,11 @@ describe('Secrets page: external stores', () => {
     expect(toastTitles()).toContain('HashiCorp Vault disconnected');
   });
 
-  it('a store changed outside MCP Gateway isn’t tested until it is kept', async () => {
+  it('a store changed outside GateRook isn’t tested until it is kept', async () => {
     world.stores = () => Promise.resolve(kitStores().map((s) => (s.name === 'vault' ? { ...s, verified: false } : s)));
     await render();
     const card = $('#store-vault')!;
-    expect(text(card)).toContain('Changed outside MCP Gateway');
+    expect(text(card)).toContain('Changed outside GateRook');
     const test = control(card, 'Test');
     expect(test.getAttribute('aria-disabled')).toBe('true');
     await click(test);
@@ -546,7 +546,7 @@ describe('Secrets page: master key backup and rotation', () => {
     expect(document.activeElement).toBe($('#backup-pass'));
     const save = control(dialog, 'Choose where to save');
     expect(save.getAttribute('aria-disabled')).toBe('true');
-    expect(text(document.getElementById(save.getAttribute('aria-describedby')!))).toContain('needs the MCP Gateway desktop app');
+    expect(text(document.getElementById(save.getAttribute('aria-describedby')!))).toContain('needs the GateRook desktop app');
     await submit('#dlg-backup-key');
     expect(calls.some((c) => c.startsWith('backup'))).toBe(false);
   });

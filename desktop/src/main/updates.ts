@@ -32,7 +32,7 @@ export function updateStateFor(e: UpdaterEvent, lastCheckedAt: string | null): U
 export function friendlyUpdateError(message: string | undefined): string {
   const m = (message ?? '').split('\n')[0]?.trim() ?? '';
   if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ETIMEDOUT|net::ERR_/.test(m)) return 'Couldn’t reach the update server. Check the connection and try again.';
-  if (/code signature|signature/i.test(m)) return 'The update isn’t signed by MCP Gateway, so it wasn’t installed.';
+  if (/code signature|signature/i.test(m)) return 'The update isn’t signed by GateRook, so it wasn’t installed.';
   if (/404/.test(m)) return 'No update information was found for this version.';
   return m ? m.slice(0, 200) : 'The update check failed.';
 }
@@ -49,7 +49,7 @@ export function updatesUnavailable(packaged: boolean, platform: NodeJS.Platform,
   if (platform === 'linux') return 'Automatic updates aren’t available on Linux yet. Install new versions from the releases page.';
   if (updateConfig === null) return 'This build has no update source.';
   if (platform === 'win32' && !namesPublisher(updateConfig)) {
-    return 'This build isn’t signed, so it can’t tell an update from MCP Gateway from anyone else’s. Install new versions from the releases page.';
+    return 'This build isn’t signed, so it can’t tell an update from GateRook from anyone else’s. Install new versions from the releases page.';
   }
   return null;
 }

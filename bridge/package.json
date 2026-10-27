@@ -2,7 +2,7 @@
   "name": "@mcp-gateway/broker",
   "version": "0.4.0",
   "private": true,
-  "description": "The token broker Electron's main process runs, and gw-bridge.mjs, the zero-dependency stdio bridge inside MCP Gateway's Claude Desktop extensions (ARCHITECTURE.md §7.2).",
+  "description": "The token broker Electron's main process runs, and gw-bridge.mjs, the zero-dependency stdio bridge inside GateRook's Claude Desktop extensions (ARCHITECTURE.md §7.2).",
   "type": "module",
   "main": "./index.mjs",
   "types": "./index.d.ts",

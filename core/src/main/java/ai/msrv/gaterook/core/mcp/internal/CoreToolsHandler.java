@@ -215,7 +215,7 @@ public class CoreToolsHandler {
       out.put("detailsError", d.errorMessage());
     }
     String text = cfg.name() + " · " + w.manifest().name() + " · " + cfg.env().id() + ". Max " + l.maxRows()
-        + " rows, " + l.toolTimeout().toSeconds() + " s per call. Credentials are stored in MCP Gateway and never "
+        + " rows, " + l.toolTimeout().toSeconds() + " s per call. Credentials are stored in GateRook and never "
         + "shown.";
     ToolResult masked = mask(ToolResult.json(out, text), policy, d.maskedCount());
     // The core's own constant: every key names a secret field, so a masking pass would hide that it is stored.

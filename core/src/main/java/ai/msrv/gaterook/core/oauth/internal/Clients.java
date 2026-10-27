@@ -229,7 +229,7 @@ public class Clients {
       if (clients.countByIngressAndKind(server.ingress(), OAuthClientKind.DCR) >= MAX_DCR_CLIENTS
           && !makeRoom(server, ip)) {
         out[0] = error(400, "invalid_client_metadata", "Too many clients are registered here. Revoke unused "
-            + "sign-ins in MCP Gateway, then try again.");
+            + "sign-ins in GateRook, then try again.");
         return;
       }
       OAuthClientEntity row = new OAuthClientEntity(OAuthClientKind.DCR, server.ingress(), OAuthTokens.clientId(),

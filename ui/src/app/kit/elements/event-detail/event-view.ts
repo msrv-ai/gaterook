@@ -216,8 +216,8 @@ function ruleMeta(rule: string, endpoint: string, env: Env | null): TextPart[] {
   if (rule.endsWith('.approval-mode')) return [t('The tool is set to Approval on '), c(endpoint)];
   if (rule.endsWith('.endpoint.read-only')) return [c(endpoint), t(" is read only: it doesn't run anything that changes data")];
   if (rule === 'core.prod-isolation') return [t('Prod connections are used only through prod endpoints')];
-  if (rule === 'core.integrity') return [t('The policy was changed outside MCP Gateway: review it in Policies')];
-  if (rule.startsWith('core.')) return [t('A rule of MCP Gateway itself; no policy can change it')];
+  if (rule === 'core.integrity') return [t('The policy was changed outside GateRook: review it in Policies')];
+  if (rule.startsWith('core.')) return [t('A rule of GateRook itself; no policy can change it')];
   const envName = rule.split('.')[0];
   return [t(`Set in Policies for ${envName}${section ? `, ${section} section` : ''}. No approval can override it.`)];
 }
@@ -244,7 +244,7 @@ const VIA: Record<string, string> = {
 /** Who rejected: a person, the agent's client (it declined the request) or the core (its connection or endpoint went). */
 function rejectedBy(via: string | null): string {
   if (via === 'client') return 'Declined by the client';
-  if (via === 'core') return 'Rejected by MCP Gateway';
+  if (via === 'core') return 'Rejected by GateRook';
   return 'Rejected by you';
 }
 

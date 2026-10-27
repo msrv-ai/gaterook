@@ -265,8 +265,7 @@ public final class ExportSettings {
         throw ProblemException.unprocessable("Address not allowed", v.text(), pointer);
       }
     } else if (loopback && corePorts.contains(port)) {
-      throw ProblemException.unprocessable("Address not allowed", "Port " + port + " on this computer is MCP "
-          + "Gateway itself.", pointer);
+      throw ProblemException.unprocessable("Address not allowed", "Port " + port + " on this computer is GateRook itself.", pointer);
     }
   }
 

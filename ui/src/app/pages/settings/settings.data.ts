@@ -405,7 +405,7 @@ export class SettingsData {
   // ── Audit export (K5) ─────────────────────────────────────────────────────────────────────────────────────────
 
   /**
-   * Export now / Retry: one destination, or every one that can run (enabled, not changed outside MCP Gateway, not
+   * Export now / Retry: one destination, or every one that can run (enabled, not changed outside GateRook, not
    * a demo — the core refuses those with 409). Each runs on its own: the ones that didn't start come back with the
    * core's reason, the others ran.
    */

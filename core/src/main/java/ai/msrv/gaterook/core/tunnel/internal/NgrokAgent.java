@@ -55,7 +55,7 @@ public final class NgrokAgent implements TunnelAgent {
     int web = TunnelAgent.freeLoopbackPort();
     Path config = r.runDir().resolve("ngrok.yml");
     try {
-      Files.writeString(config, "# Written by MCP Gateway for its tunnel.\nversion: \"3\"\nagent:\n"
+      Files.writeString(config, "# Written by GateRook for its tunnel.\nversion: \"3\"\nagent:\n"
           + "  web_addr: 127.0.0.1:" + web + "\n  update_check: false\n  console_ui: false\n", StandardCharsets.UTF_8);
     } catch (IOException e) {
       throw new TunnelException("Can't write " + config + ": " + e.getMessage());

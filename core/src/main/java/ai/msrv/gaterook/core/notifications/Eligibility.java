@@ -71,15 +71,15 @@ public final class Eligibility {
     ApprovalNotice.Action a = n.action();
     boolean showAction = !a.secretLike() && f.actionFits();
     String withheld = a.secretLike()
-        ? "The action contains values that look like secrets, so it is shown only in MCP Gateway."
+        ? "The action contains values that look like secrets, so it is shown only in GateRook."
         : !f.actionFits() ? String.format(java.util.Locale.ROOT, "The action is %,d characters long and is shown only "
-            + "in MCP Gateway.", a.length())
+            + "in GateRook.", a.length())
         : null;
     if (!f.pending()) {
       return new Verdict(false, false, showAction, "The request was decided.", withheld);
     }
     if (!f.decisionsFromLinked()) {
-      return new Verdict(false, false, showAction, "Decisions are made in MCP Gateway only.", withheld);
+      return new Verdict(false, false, showAction, "Decisions are made in GateRook only.", withheld);
     }
     String reason = reason(f, n, a);
     return new Verdict(reason == null, true, showAction, reason, withheld);
@@ -105,7 +105,7 @@ public final class Eligibility {
       return "The action is too long for this message: approve in the app.";
     }
     if (a.partial()) {
-      return "Part of the action is shown only in MCP Gateway: approve in the app.";
+      return "Part of the action is shown only in GateRook: approve in the app.";
     }
     if (a.hiddenChars() > 0) {
       return "Contains " + a.hiddenChars() + (a.hiddenChars() == 1 ? " hidden character" : " hidden characters")

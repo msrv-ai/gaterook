@@ -21,11 +21,11 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Check step 3 (report 03 §5): MCP Gateway runs <em>exactly the command written in the client's config</em>, the way
+ * Check step 3 (report 03 §5): GateRook runs <em>exactly the command written in the client's config</em>, the way
  * the client runs it, and asks the endpoint for its tools through it. Codex's helper goes through {@code sh -c}
  * ({@code cmd /Q /D /C} on Windows) with an environment cleared like Codex clears it; a stdio entry is started with its
  * own argv and spoken to over stdin and stdout. "Helper OK · 120 ms · 17 tools", or what failed and its exit code.
- * The caller passes only a command MCP Gateway wrote itself (an entry changed outside the app is never run). The token
+ * The caller passes only a command GateRook wrote itself (an entry changed outside the app is never run). The token
  * the helper prints is used for the two requests to this core's own listener and forgotten; it never leaves this
  * class.
  */
@@ -106,7 +106,7 @@ public final class BridgeSelfTest {
   /** What {@code gw-bridge headers} exit codes mean (ARCHITECTURE.md §7.2). */
   static String helperExit(int exit) {
     return switch (exit) {
-      case 1 -> "MCP Gateway isn't running (or its broker isn't).";
+      case 1 -> "GateRook isn't running (or its broker isn't).";
       case 2 -> "the access was revoked or doesn't exist.";
       case 3 -> "the command line of the helper is wrong.";
       default -> "see ~/.mcp-gateway/logs/bridge.log.";

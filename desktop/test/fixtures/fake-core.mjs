@@ -218,7 +218,7 @@ async function handle(req, res) {
     return undefined;
   }
   if (locked && !['/api/master-key', '/api/master-key/restore', '/api/master-key/create', '/internal/files/grant'].includes(p)) {
-    return json(res, 503, { type: 'about:blank', title: 'MCP Gateway is locked', locked });
+    return json(res, 503, { type: 'about:blank', title: 'GateRook is locked', locked });
   }
   if (p === '/api/master-key') {
     return json(res, 200, { path: join(home, 'master.keyset'), mode: null, owner: null, keys: [], protection: 'off',

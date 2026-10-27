@@ -61,7 +61,7 @@ export async function openMcpb(o: FilesOptions, id: unknown): Promise<void> {
   // A file the core built: not a folder (an app bundle is one), which opening would run.
   const file = (await lstat(real).catch(() => null))?.isFile() === true;
   if (!dir || !real.startsWith(dir + sep) || !real.endsWith('.mcpb') || !file) {
-    throw new Error('The extension isn’t where MCP Gateway builds them');
+    throw new Error('The extension isn’t where GateRook builds them');
   }
   if (process.platform === 'darwin') {
     // Claude Desktop installs the extension it opens; `open -a` names it even when another app claims .mcpb.
@@ -84,7 +84,7 @@ export async function openClientConfig(o: FilesOptions, id: unknown): Promise<vo
   if (typeof path !== 'string' || !isAbsolute(path)) throw new Error('This client has no config file yet');
   const real = await openableConfig(path);
   if (real === 'missing') throw new Error('This client has no config file yet');
-  if (real === 'refused') throw new Error('The config file isn’t a JSON or TOML file, so MCP Gateway won’t open it');
+  if (real === 'refused') throw new Error('The config file isn’t a JSON or TOML file, so GateRook won’t open it');
   const error = await shell.openPath(real);
   if (error) throw new Error(`Couldn’t open the config file: ${error}`);
 }

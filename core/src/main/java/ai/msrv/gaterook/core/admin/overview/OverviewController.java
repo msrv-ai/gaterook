@@ -338,7 +338,7 @@ class OverviewController {
         .map(ConnectionService.Summary::name).toList();
     if (!changed.isEmpty()) {
       return new Node("connections", all.size(), "attention", counted + " · " + some(changed)
-          + " changed outside MCP Gateway");
+          + " changed outside GateRook");
     }
     if (!down.isEmpty()) {
       return new Node("connections", all.size(), "attention", counted + " · " + some(down) + " unreachable");
@@ -364,7 +364,7 @@ class OverviewController {
     }
     if (!changed.isEmpty()) {
       return new Node("policies", Env.values().length, "attention", Env.values().length + " environments · "
-          + some(changed) + " changed outside MCP Gateway");
+          + some(changed) + " changed outside GateRook");
     }
     if (!edited && w.connections().isEmpty()) {
       return new Node("policies", Env.values().length, "todo", "Safe defaults · not reviewed yet");
@@ -385,7 +385,7 @@ class OverviewController {
         .toList();
     if (!blocked.isEmpty()) {
       return new Node("endpoints", all.size(), "attention", counted + " · " + some(blocked)
-          + " changed outside MCP Gateway");
+          + " changed outside GateRook");
     }
     int tokens = w.activeTokens();
     return new Node("endpoints", all.size(), "done", counted + " · " + (tokens == 0 ? "no active tokens"

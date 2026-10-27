@@ -119,7 +119,7 @@ class CoreProcessIT {
   /**
    * M1.4 in this runtime: on start the registry writes every connector type it was built with, the policy service
    * seeds the three environments, both sign their rows with the row MAC; the second start verifies them again
-   * (canonical JSON of what a JSON column gives back), so nothing reads as changed outside MCP Gateway.
+   * (canonical JSON of what a JSON column gives back), so nothing reads as changed outside GateRook.
    */
   @Test
   void theConnectorCatalogAndThePoliciesAreStoredSignedAndVerifyOnTheNextStart() throws Exception {
@@ -137,7 +137,7 @@ class CoreProcessIT {
     }
     try (CoreProcess again = CoreProcess.start(home, CoreProcess.freePort(), List.of()).bootstrap()) {
       assertThat(again.untilReady(READY).getLast().get("ready").asBoolean()).as(again.stderr()).isTrue();
-      assertThat(again.coreLog()).doesNotContain("changed outside MCP Gateway")
+      assertThat(again.coreLog()).doesNotContain("changed outside GateRook")
           .doesNotContain("MissingReflectionRegistration").doesNotContain("MissingResourceRegistration");
     }
   }

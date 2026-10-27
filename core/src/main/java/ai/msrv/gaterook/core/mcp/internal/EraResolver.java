@@ -66,7 +66,7 @@ public final class EraResolver {
       throw new Rejected(replyId, JsonRpc.INVALID_REQUEST, "Not a JSON-RPC 2.0 request", null);
     }
     if (!req.has("method") && (req.has("result") || req.has("error"))) {
-      throw new Rejected(replyId, JsonRpc.INVALID_REQUEST, "MCP Gateway sends no requests, so it takes no responses",
+      throw new Rejected(replyId, JsonRpc.INVALID_REQUEST, "GateRook sends no requests, so it takes no responses",
           null);
     }
     String method = req.path("method").isString() ? req.get("method").asString() : null;

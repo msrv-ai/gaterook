@@ -131,7 +131,7 @@ public final class FakeSqlConnector implements Connector {
     String keyword = firstKeyword(sql);
     if (DDL_KEYWORDS.contains(keyword) && policy != null && policy.flag("denyDdl", false)) {
       return Classification.deny(policy.rule("block_ddl"), "DDL is not allowed on " + policy.env().id(),
-          "Ask a person to make schema changes outside MCP Gateway.");
+          "Ask a person to make schema changes outside GateRook.");
     }
     if (EXECUTE.equals(call.tool())) {
       return Classification.mutation(keyword.isEmpty() ? "Changes data" : keyword + " changes data");

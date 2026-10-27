@@ -31,7 +31,7 @@ import tools.jackson.databind.node.ObjectNode;
  * <p>A link lets a Slack or Telegram account decide from its messages, so it is a security row: signed with
  * {@link RowMac} (V30) over the channel, the account and its chat and the link's dates, version 0 (the row has no
  * version column; revoking re-signs it). A link that doesn't verify counts for nothing: no message goes to it and no
- * click from it is accepted (fail closed), and Settings shows it as changed outside MCP Gateway.
+ * click from it is accepted (fail closed), and Settings shows it as changed outside GateRook.
  *
  * <p>A pairing code is stored only as its hash; the code itself goes once to the person (Telegram's
  * {@code /start <code>}) or into our own Slack message's button. The account a code waits for — who presented it on
@@ -234,7 +234,7 @@ public class LinkStore {
     }
     if (!verified) {
       alerts.report("notify-pairing", p.getCodeHash(), "Notifications · a code to link a " + p.getChannel().id()
-          + " account", "the account waiting for it was changed outside MCP Gateway: the code links no one; make a "
+          + " account", "the account waiting for it was changed outside GateRook: the code links no one; make a "
               + "new one");
     }
     return verified;
@@ -273,7 +273,7 @@ public class LinkStore {
     boolean verified = mac.verify(TABLE, e.getId(), 0, fields(e), e.getMac());
     if (!verified && e.getRevokedAt() == null) {
       alerts.report("notify-link", e.getId(), "Notifications · linked " + e.getChannel().id() + " account",
-          "the link was changed outside MCP Gateway: it receives no requests and can't decide until you link the "
+          "the link was changed outside GateRook: it receives no requests and can't decide until you link the "
               + "account again");
     }
     return new Link(e.getId(), e.getChannel(), e.getTeamId(), e.getUserId(), e.getChatId(), e.getDisplay(),

@@ -110,7 +110,7 @@ export interface SecretStoreSignIn {
 /**
  * An external store (S1 `SecretStores.StoreInfo`): Vault/OpenBao, GCP Secret Manager, AWS Secrets Manager.
  * `state`: `connected` (its last test passed), `failing` or `not-checked`; `issues` — connections it issues
- * short-lived credentials for (dynamic users, SSH certificates); `verified` false — changed outside MCP Gateway.
+ * short-lived credentials for (dynamic users, SSH certificates); `verified` false — changed outside GateRook.
  */
 export interface SecretStore {
   readonly id: string;
@@ -260,7 +260,7 @@ export class SecretsApi {
     return this.api.post(ApiClient.path`/api/secret-stores/${id}/test`);
   }
 
-  /** The person reviewed a store changed outside MCP Gateway and keeps it as stored. */
+  /** The person reviewed a store changed outside GateRook and keeps it as stored. */
   confirmStoreIntegrity(id: string, reason?: string | null): Promise<SecretStore> {
     return this.api.post(ApiClient.path`/api/secret-stores/${id}/confirm-integrity`, { reason: reason ?? null });
   }

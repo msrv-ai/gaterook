@@ -57,7 +57,7 @@ export interface AuditExportDestination {
   readonly lastError: string | null;
   /** Where it writes, as the core names it (`siem.acme.internal:6514`, `s3://acme-audit/mcp-gateway/`). */
   readonly target?: string | null;
-  /** False: its row was changed outside MCP Gateway; it sends nothing until it is saved again (Run → 409). */
+  /** False: its row was changed outside GateRook; it sends nothing until it is saved again (Run → 409). */
   readonly verified?: boolean;
   /** One of the demo world's (`GW_DEMO=1`): shown, never called (Test and Run → 409). */
   readonly demo?: boolean;

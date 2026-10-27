@@ -50,9 +50,9 @@ public final class McpbBuilder {
     return "mcp-gateway-" + slug + ".mcpb";
   }
 
-  /** {@code MCP Gateway · dev}, {@code MCP Gateway · incident-prod (prod)}. */
+  /** {@code GateRook · dev}, {@code GateRook · incident-prod (prod)}. */
   public static String displayName(String slug, Env env) {
-    return "MCP Gateway · " + slug + (env == Env.PROD ? " (prod)" : "");
+    return "GateRook · " + slug + (env == Env.PROD ? " (prod)" : "");
   }
 
   /** The manifest of the extension: what the preview shows and the ZIP holds. */
@@ -62,9 +62,9 @@ public final class McpbBuilder {
     m.put("name", "mcp-gateway-" + s.slug());
     m.put("display_name", displayName(s.slug(), s.env()));
     m.put("version", semver(s.version()));
-    m.put("description", "The tools of the MCP Gateway endpoint " + s.slug() + (s.env() == Env.PROD ? " (prod)" : "")
-        + ". Every change waits for your approval in MCP Gateway; no secret or token is stored in this extension.");
-    m.putObject("author").put("name", "MCP Gateway");
+    m.put("description", "The tools of the GateRook endpoint " + s.slug() + (s.env() == Env.PROD ? " (prod)" : "")
+        + ". Every change waits for your approval in GateRook; no secret or token is stored in this extension.");
+    m.putObject("author").put("name", "GateRook");
     ObjectNode server = m.putObject("server");
     server.put("type", "node");
     server.put("entry_point", "server/gw-bridge.mjs");

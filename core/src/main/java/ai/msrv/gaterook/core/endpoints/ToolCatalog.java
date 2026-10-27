@@ -180,7 +180,7 @@ public class ToolCatalog {
       }
     }
     if (approval && !t.mutating() && pairs.stream().allMatch(p -> p.mode() == Mode.APPROVAL)) {
-      out.append(" Every call waits until a person approves it in MCP Gateway; you get a handle to poll with "
+      out.append(" Every call waits until a person approves it in GateRook; you get a handle to poll with "
           + "approval_status.");
     }
     return out.toString();

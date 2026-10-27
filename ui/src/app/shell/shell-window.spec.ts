@@ -195,7 +195,7 @@ describe('the OAuth consent dialog is the window’s, on any page (§7.3)', () =
     await settle();
     await fixture.whenStable();
     await Promise.resolve();
-    expect(toasts.toasts().map((t) => t.title)).toContain('Your answer didn’t reach MCP Gateway');
+    expect(toasts.toasts().map((t) => t.title)).toContain('Your answer didn’t reach GateRook');
     expect(dialog.hasAttribute('open')).toBe(true);
     expect(text(dialog)).toContain('9ZZ-1AB');
   });
@@ -259,8 +259,8 @@ describe('the in-app toast of a desktop notification (§7.4, kit "In-app toast")
     expect(toasts.toasts()).toEqual([]);
 
     focus.mockReturnValue(true);
-    events.emit('notify.desktop', { kind: 'summary', id: 'approvals-summary', title: '4 approval requests are waiting', body: 'Many requests arrived at once. Review them in MCP Gateway.' });
-    events.emit('notify.desktop', { kind: 'summary', id: 'approvals-summary', title: '5 approval requests are waiting', body: 'Many requests arrived at once. Review them in MCP Gateway.' });
+    events.emit('notify.desktop', { kind: 'summary', id: 'approvals-summary', title: '4 approval requests are waiting', body: 'Many requests arrived at once. Review them in GateRook.' });
+    events.emit('notify.desktop', { kind: 'summary', id: 'approvals-summary', title: '5 approval requests are waiting', body: 'Many requests arrived at once. Review them in GateRook.' });
     await settle();
     expect(toasts.toasts().map((t) => t.title)).toEqual(['5 approval requests are waiting']);
   });

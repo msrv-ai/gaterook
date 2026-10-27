@@ -52,7 +52,7 @@ public final class LockedModeFilter extends OncePerRequestFilter {
       contentType = "application/json";
     } else {
       body.put("type", "https://mcp-gateway.dev/problems/locked");
-      body.put("title", "MCP Gateway is locked");
+      body.put("title", "GateRook is locked");
       body.put("detail", lock.message() + ". Restore the key from your backup or create a new one.");
       body.put("locked", lock.reason().map(Enum::name).orElse(null));
       contentType = "application/problem+json";

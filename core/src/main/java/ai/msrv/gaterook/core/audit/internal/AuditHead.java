@@ -334,7 +334,7 @@ public class AuditHead implements DisposableBean {
     try {
       writeTx.executeWithoutResult(s -> {
         recorder.record(new SetupChangeRecorder.SetupChange(SetupChangeRecorder.What.SETTINGS, "Audit history",
-            "verified", "not verified before this point", "MCP Gateway found that " + detail + ".", null, null, null,
+            "verified", "not verified before this point", "GateRook found that " + detail + ".", null, null, null,
             null));
         Heads now = heads();
         anchor(now, new Heads(now.toolCallId() + 1, null, now.setupChangeId(), null));

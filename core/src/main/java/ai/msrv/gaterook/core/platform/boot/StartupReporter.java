@@ -72,7 +72,7 @@ final class StartupReporter implements ApplicationListener<SpringApplicationEven
     line.put("runtime", CoreBuild.runtime());
     line.put("pid", ProcessHandle.current().pid());
     protocol.ready(line);
-    log.info("MCP Gateway {} ({}) ready on 127.0.0.1:{}", CoreBuild.VERSION, CoreBuild.runtime(), port);
+    log.info("GateRook {} ({}) ready on 127.0.0.1:{}", CoreBuild.VERSION, CoreBuild.runtime(), port);
   }
 
   private void failed(Throwable exception, ConfigurableApplicationContext context) {

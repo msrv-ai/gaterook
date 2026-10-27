@@ -15,7 +15,7 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * Objects whose stored {@code mac} doesn't verify: rows edited in {@code gateway.db} outside the core, or written
  * before the current master key (ARCHITECTURE.md §4, §7.1). The owner of such a row turns the object off (fail closed)
- * and reports it here; the UI shows the banner "Changed outside MCP Gateway" with the object, and the person reviews it
+ * and reports it here; the UI shows the banner "Changed outside GateRook" with the object, and the person reviews it
  * and confirms through the owner, which re-signs the row and records a Setup change.
  *
  * <p>Kept in memory: each owner verifies its rows whenever it loads them, so after a restart the alerts come back on
@@ -41,7 +41,7 @@ public class IntegrityAlerts {
   public void report(String kind, String id, String label, String detail) {
     Alert alert = new Alert(kind, id, label, detail, clock.instant());
     if (alerts.putIfAbsent(key(kind, id), alert) == null) {
-      log.warn("{} {} was changed outside MCP Gateway ({}); it stays off until you review it", kind, label, detail);
+      log.warn("{} {} was changed outside GateRook ({}); it stays off until you review it", kind, label, detail);
       ObjectNode data = JsonNodeFactory.instance.objectNode();
       data.put("kind", kind);
       data.put("id", id);

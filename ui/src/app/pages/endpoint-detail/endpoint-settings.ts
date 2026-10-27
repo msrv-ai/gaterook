@@ -253,7 +253,7 @@ export class GwEndpointSettings {
       return;
     }
     const text = this.instructionsModel().text;
-    // Empty, or the gateway's own text, is "MCP Gateway writes them": the core keeps null, not an empty string agents
+    // Empty, or the gateway's own text, is "GateRook writes them": the core keeps null, not an empty string agents
     // would get or a copy that stops following the tools.
     const own = text.trim() && text !== this.defaultText() ? text : null;
     await this.save({ instructions: own }, 'Server instructions', this.instructionsBusy, this.instructionsError);
@@ -364,12 +364,13 @@ export class GwEndpointSettings {
   }
 
   /**
-   * A 409 is a stale version ("Changed meanwhile": read again, save again) or an endpoint changed outside MCP Gateway,
+   * A 409 is a stale version ("Changed meanwhile": read again, save again) or an endpoint changed outside GateRook,
    * which no save fixes until it is reviewed (Keep as stored): that one says the core's words (review 2026-10-26: both
    * read "changed meanwhile … save again").
    */
   private errorText(e: unknown): string {
-    if (isApiError(e) && e.status === 409 && e.title !== 'Changed outside MCP Gateway') {
+    // Older cores used the former product name in this error title.
+    if (isApiError(e) && e.status === 409 && !['Changed outside GateRook', 'Changed outside MCP Gateway'].includes(e.title)) {
       return 'These settings changed meanwhile, in another window. Check the values, then save again.';
     }
     return isApiError(e) ? e.detail : 'The core didn’t answer. Try again.';

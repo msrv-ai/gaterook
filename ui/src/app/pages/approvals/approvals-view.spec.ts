@@ -153,12 +153,12 @@ describe('the history', () => {
     expect(stoppedAfterApproval(detail)).toBe(true);
     expect(stoppedAfterApproval({ status: 'rejected', timeline: timeline(['decided', { decision: 'rejected', by: 'you' }]) })).toBe(false);
     const [row] = historyRows([stopped], new Map(), new Map([[stopped.id, detail]]));
-    expect(row.by).toBe('Approved by you, stopped by MCP Gateway');
-    expect(row.srText).toContain('approved by you, then stopped by MCP Gateway before it ran');
+    expect(row.by).toBe('Approved by you, stopped by GateRook');
+    expect(row.srText).toContain('approved by you, then stopped by GateRook before it ran');
   });
 
   it('names who decided when it was not you in the window', () => {
-    expect(decidedBy(item({ status: 'rejected', decidedVia: 'core' }))).toBe('By MCP Gateway');
+    expect(decidedBy(item({ status: 'rejected', decidedVia: 'core' }))).toBe('By GateRook');
     expect(decidedBy(item({ status: 'rejected', decidedVia: 'client' }))).toBe('Withdrawn by Codex');
     expect(decidedBy(item({ status: 'rejected', decidedVia: 'desktop-notification' }))).toBe('By you, from the desktop notification');
     expect(decidedBy(item({ status: 'completed', decidedVia: 'telegram' }))).toBe('By you, from Telegram');
@@ -211,7 +211,7 @@ describe('decisions', () => {
     expect(resolvedElsewhere(SQL, 'rejected', 'slack')).toBe('sql_execute on dev-db was rejected in Slack');
     expect(resolvedElsewhere(SQL, 'running', 'telegram')).toBe('sql_execute on dev-db was approved in Telegram');
     expect(resolvedElsewhere(SQL, 'expired', 'timeout')).toBe('sql_execute on dev-db expired, denied automatically');
-    expect(resolvedElsewhere(SQL, 'rejected', 'core')).toBe('sql_execute on dev-db was rejected by MCP Gateway');
+    expect(resolvedElsewhere(SQL, 'rejected', 'core')).toBe('sql_execute on dev-db was rejected by GateRook');
     expect(resolvedElsewhere(SQL, 'rejected', 'desktop-notification')).toBe('sql_execute on dev-db was rejected from the desktop notification');
   });
 });
@@ -257,10 +257,10 @@ describe('delivery channels', () => {
     expect(card.heading).toBe('Not sent outside the window');
     expect(card.settingsLink).toBe(true);
     expect(card.description.map((p) => p.text).join('')).toBe(
-      'No notification channel sent this request, so it waited here, in MCP Gateway. Desktop notifications, Slack and Telegram are set up in',
+      'No notification channel sent this request, so it waited here, in GateRook. Desktop notifications, Slack and Telegram are set up in',
     );
     const failed = deliveryCard({ channels: { desktop: 'off', slack: 'failed', telegram: 'off' }, timeline: [] }, null, () => '');
-    expect(failed.description.map((p) => p.text).join('')).toBe("Slack didn't take it. The request waited here, in MCP Gateway. Check the channels in");
+    expect(failed.description.map((p) => p.text).join('')).toBe("Slack didn't take it. The request waited here, in GateRook. Check the channels in");
   });
 
   it('reads K2’s states: a stopped or changed-outside chat neither posts nor decides', () => {
@@ -271,8 +271,8 @@ describe('delivery channels', () => {
     expect(decidersLine(stopped)).toBe('You decide here');
     const outside = notifications({ slack: { enabled: true, state: 'changed-outside' }, telegram: { enabled: true, state: 'changed-outside' } });
     expect(channelStatuses(outside).slice(1)).toEqual([
-      { tone: 'warning', label: 'Slack changed outside MCP Gateway', mono: null },
-      { tone: 'warning', label: 'Telegram changed outside MCP Gateway', mono: null },
+      { tone: 'warning', label: 'Slack changed outside GateRook', mono: null },
+      { tone: 'warning', label: 'Telegram changed outside GateRook', mono: null },
     ]);
     expect(decidersLine(outside)).toBe('You decide here');
     // Connecting and connected chats work.

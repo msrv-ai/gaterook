@@ -512,13 +512,13 @@ describe('Endpoints page', () => {
     expect(document.activeElement).toBe(el.querySelector('#ep-stage-readonly-link'));
   });
 
-  it('keeps an endpoint changed outside MCP Gateway, resetting what the core asks to', async () => {
+  it('keeps an endpoint changed outside GateRook, resetting what the core asks to', async () => {
     setup(kitEndpoints().map((e) => (e.slug === 'dev' ? { ...e, blockedReason: 'tool sql_execute' } : e)));
     const { fixture, el } = await render();
     const dev = card(el, 'dev');
     expect(text(dev.querySelector('#ep-dev-status'))).toBe('Needs review');
     expect(text(dev.querySelector('.gw-alert--warning:not(.gw-risk-callout) .gw-alert__body'))).toBe(
-      'The tool sql_execute was changed outside MCP Gateway. It serves nothing until you review it.',
+      'The tool sql_execute was changed outside GateRook. It serves nothing until you review it.',
     );
     const duplicate = el.querySelector<HTMLButtonElement>('#ep-dev-menu .gw-menu__item:nth-of-type(1)')!;
     expect(duplicate.getAttribute('aria-disabled')).toBe('true');

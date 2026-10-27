@@ -98,7 +98,7 @@ public class OAuthServer {
     n.putArray("authorization_servers").add(server.issuer());
     n.putArray("scopes_supported").add("mcp");
     n.putArray("bearer_methods_supported").add("header");
-    n.put("resource_name", "MCP Gateway · " + slug);
+    n.put("resource_name", "GateRook · " + slug);
     return Optional.of(n);
   }
 
@@ -163,8 +163,7 @@ public class OAuthServer {
     // (g) for the browser's address first: every attempt counts, valid or not, so a stranger can't make this computer
     // fetch metadata documents (or open dialogs) without limit.
     if (!consents.admitBrowser(browserIp)) {
-      return Answer.page(429, ConsentPages.error("Another sign-in is waiting on this computer", "Answer it in MCP "
-          + "Gateway first, or wait a few minutes and start again."));
+      return Answer.page(429, ConsentPages.error("Another sign-in is waiting on this computer", "Answer it in GateRook first, or wait a few minutes and start again."));
     }
     // (a) the client and (b) its redirect: without both, nothing goes back to a URL the request chose.
     Clients.Client client;
@@ -203,8 +202,7 @@ public class OAuthServer {
         browserIp, clock.instant());
     // (g) for the endpoint: an unknown browser can't flood this computer with dialogs.
     if (!consents.tryOpen(pending)) {
-      return Answer.page(429, ConsentPages.error("Another sign-in is waiting on this computer", "Answer it in MCP "
-          + "Gateway first, or wait a few minutes and start again."));
+      return Answer.page(429, ConsentPages.error("Another sign-in is waiting on this computer", "Answer it in GateRook first, or wait a few minutes and start again."));
     }
     log.info("Sign-in {} of {} for {} waits for the person (code {})", rid, client.host(), slug.get(), code);
     String html = ConsentPages.waiting(rid, code, client.host(), OAuthUris.hostOf(redirect), slug.get(),
@@ -439,7 +437,7 @@ public class OAuthServer {
   }
 
   public void revokeGrant(String id, String reason) {
-    grants.revoke(id, reason == null || reason.isBlank() ? "Revoked in MCP Gateway" : reason);
+    grants.revoke(id, reason == null || reason.isBlank() ? "Revoked in GateRook" : reason);
   }
 
   // ── Authentication of MCP calls ─────────────────────────────────────────────────────────────────────────────

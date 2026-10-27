@@ -127,8 +127,7 @@ public final class TunnelBinaries {
       if (resources == null && !BuildFlags.RELEASE && pin.path() == null) {
         install(pin, file);
       } else {
-        throw new TunnelException("cloudflared is missing from this installation (" + file + "). Reinstall MCP "
-            + "Gateway.");
+        throw new TunnelException("cloudflared is missing from this installation (" + file + "). Reinstall GateRook.");
       }
     }
     verify(pin, file);
@@ -366,7 +365,7 @@ public final class TunnelBinaries {
   private static void verify(Pin pin, Path file) throws TunnelException {
     if (!matches(pin, file)) {
       throw new TunnelException(file.getFileName() + " doesn't match the SHA-256 pinned for " + pin.tool() + " "
-          + pin.version() + ", so it isn't started. Reinstall MCP Gateway"
+          + pin.version() + ", so it isn't started. Reinstall GateRook"
           + ("ngrok".equals(pin.tool()) ? " or choose ngrok again to download it." : "."));
     }
   }

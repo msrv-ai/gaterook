@@ -48,7 +48,7 @@ export function createAppWindow(o: AppWindowOptions): AppWindow {
     minWidth: 960,
     minHeight: 600,
     show: false,
-    title: 'MCP Gateway',
+    title: 'GateRook',
     icon: markImage(32, 'brand'),
     backgroundColor: dark ? CANVAS.dark : CANVAS.light,
     titleBarStyle: 'hidden',

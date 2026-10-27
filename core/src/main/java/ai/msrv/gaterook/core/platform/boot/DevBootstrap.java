@@ -28,7 +28,7 @@ final class DevBootstrap {
     boolean dev = environment.getProperty("gateway.dev", Boolean.class, false);
     if (BuildFlags.RELEASE || !dev) {
       throw new GatewayStartupException(StartupReason.BOOTSTRAP_TIMEOUT, "No bootstrap: the core must be started by "
-          + "MCP Gateway (development builds: -Dgateway.dev=true and " + SECRET_ENV + ")");
+          + "GateRook (development builds: -Dgateway.dev=true and " + SECRET_ENV + ")");
     }
     String secret = environment.getProperty(SECRET_PROPERTY, System.getenv(SECRET_ENV) == null ? ""
         : System.getenv(SECRET_ENV));

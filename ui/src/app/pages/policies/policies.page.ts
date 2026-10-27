@@ -32,7 +32,7 @@ export function envOfFragment(fragment: string | null | undefined): Env | null {
  *   to the section): each a toolbar and a form of the sections SQL, SSH (with its runbooks), Kubernetes, Cloud,
  *   HTTP egress, Logs, Masking, Limits (meters of the last minute) and Approvals; a section of a kind the
  *   environment has no connection of shows the kit's empty card and its rules read only.
- * - Save, Discard, Reset, the prod `ssh_exec` confirmation and "changed outside MCP Gateway" are the panel's.
+ * - Save, Discard, Reset, the prod `ssh_exec` confirmation and "changed outside GateRook" are the panel's.
  *
  * States: nothing for 300 ms, then a skeleton; an error with Try again and Details; "may be out of date" when a reload
  * failed with values on screen.

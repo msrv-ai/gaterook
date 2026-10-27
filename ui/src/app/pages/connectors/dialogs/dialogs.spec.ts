@@ -173,7 +173,7 @@ describe('failure text', () => {
   it('uses the core’s words, a plain line for a missing route and for no answer', () => {
     expect(failureText(new ApiError('conflict', 409, { detail: 'Someone changed it.' }))).toBe('Someone changed it.');
     expect(failureText(new ApiError('not-available', 404, {}), 'Not here yet.')).toBe('Not here yet.');
-    expect(failureText(new ApiError('network', 0, {}))).toBe('The core didn’t answer. Check that MCP Gateway is running, then try again.');
+    expect(failureText(new ApiError('network', 0, {}))).toBe('The core didn’t answer. Check that GateRook is running, then try again.');
     expect(failureText(new Error('boom'))).toBe('boom');
     expect(failureText('x')).toBe('Something went wrong. Try again.');
     expect(failureDetails('GET /api/x', new ApiError('server', 500, { title: 'Server error', detail: 'stack' }))).toBe('GET /api/x → 500\nServer error: stack');

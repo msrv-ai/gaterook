@@ -158,10 +158,10 @@ describe('Welcome page', () => {
     setup();
     const { el } = await render();
 
-    expect(text(el.querySelector('h1'))).toBe('Welcome to MCP Gateway');
+    expect(text(el.querySelector('h1'))).toBe('Welcome to GateRook');
     expect(text(el.querySelector('.gw-page-header__actions'))).toBe('Skip setup');
     expect(el.querySelector('.gw-page-header__actions a')?.getAttribute('href')).toBe('/overview');
-    expect(Array.from(el.querySelectorAll('ul[aria-label="What MCP Gateway guarantees"] .gw-text-h3')).map(text)).toEqual([
+    expect(Array.from(el.querySelectorAll('ul[aria-label="What GateRook guarantees"] .gw-text-h3')).map(text)).toEqual([
       'Your agent never sees secrets',
       'You approve every change',
       'Every call is logged',
@@ -220,7 +220,7 @@ describe('Welcome page', () => {
     onboardingAnswer = () => answer.promise;
     const { fixture, el } = await render();
     expect(el.querySelector('.gw-skeleton')).toBeNull();
-    expect(text(el.querySelector('h1'))).toBe('Welcome to MCP Gateway');
+    expect(text(el.querySelector('h1'))).toBe('Welcome to GateRook');
 
     await sleep(SKELETON_DELAY_MS + 50);
     await settle(fixture);
@@ -376,7 +376,7 @@ describe('Welcome page', () => {
     const backup = el.querySelector<HTMLElement>('#ob-backup')!;
     expect(backup.getAttribute('aria-disabled')).toBe('true');
     expect(backup.getAttribute('aria-describedby')).toBe('ob-backup-why');
-    expect(text(el.querySelector('#ob-backup-why'))).toBe('Saving a file needs the MCP Gateway desktop app: it opens the save dialog. Back up the key from there.');
+    expect(text(el.querySelector('#ob-backup-why'))).toBe('Saving a file needs the GateRook desktop app: it opens the save dialog. Back up the key from there.');
     backup.click();
     await settle(fixture);
     expect(calls).not.toContain('save dialog');
@@ -423,7 +423,7 @@ describe('Welcome page', () => {
     expect(el.querySelector('.gw-page-header__actions')).toBeNull();
     expect(visiblePanel(el)).toEqual(['ob-panel-4']);
     expect(steps(el).map((s) => s[0])).toEqual(['complete', 'complete', 'complete', 'current']);
-    expect(text(el.querySelector('#ob-panel-4 .gw-alert--success .gw-alert__body'))).toBe('Codex uses MCP Gateway.');
+    expect(text(el.querySelector('#ob-panel-4 .gw-alert--success .gw-alert__body'))).toBe('Codex uses GateRook.');
     const open = el.querySelector('#ob-panel-4 .gw-card__footer .gw-btn--primary')!;
     expect(text(open)).toBe('Open overview');
     expect(open.getAttribute('href')).toBe('/overview');

@@ -310,7 +310,7 @@ public class EndpointTools {
 
   private static EndpointSnapshot unblocked(EndpointSnapshot s) {
     if (s.blocked()) {
-      throw ProblemException.conflict("Changed outside MCP Gateway", s.slug() + " was changed outside MCP Gateway. "
+      throw ProblemException.conflict("Changed outside GateRook", s.slug() + " was changed outside GateRook. "
           + "Review it first.");
     }
     return s;

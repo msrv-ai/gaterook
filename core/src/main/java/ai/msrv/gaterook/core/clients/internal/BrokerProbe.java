@@ -34,17 +34,17 @@ public final class BrokerProbe {
 
   public static Result ping(Path brokerInfo, Duration timeout) {
     if (!Files.isRegularFile(brokerInfo)) {
-      return new Result(false, null, "The broker isn't running: open MCP Gateway (the desktop app starts it).");
+      return new Result(false, null, "The broker isn't running: open GateRook (the desktop app starts it).");
     }
     String endpoint;
     try {
       JsonNode info = JSON.readTree(Files.readString(brokerInfo));
       endpoint = info.path("path").asString(null);
     } catch (IOException | RuntimeException e) {
-      return new Result(false, null, brokerInfo + " can't be read: restart MCP Gateway.");
+      return new Result(false, null, brokerInfo + " can't be read: restart GateRook.");
     }
     if (endpoint == null || endpoint.isBlank()) {
-      return new Result(false, null, brokerInfo + " names no socket: restart MCP Gateway.");
+      return new Result(false, null, brokerInfo + " names no socket: restart GateRook.");
     }
     String target = endpoint;
     CompletableFuture<String> call = CompletableFuture.supplyAsync(() -> exchange(target),
@@ -59,7 +59,7 @@ public final class BrokerProbe {
       call.cancel(true);
       return new Result(false, endpoint, "The broker didn't answer within " + timeout.toMillis() + " ms.");
     } catch (ExecutionException e) {
-      return new Result(false, endpoint, "The broker isn't running: open MCP Gateway.");
+      return new Result(false, endpoint, "The broker isn't running: open GateRook.");
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       return new Result(false, endpoint, "Interrupted.");

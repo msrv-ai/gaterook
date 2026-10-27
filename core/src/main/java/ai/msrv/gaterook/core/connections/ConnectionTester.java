@@ -176,8 +176,7 @@ public class ConnectionTester implements DisposableBean {
               + " connection.", "/type");
         }
         if (!stored.verified()) {
-          throw ProblemException.conflict("Changed outside MCP Gateway", existing + " was changed outside MCP "
-              + "Gateway. Review it first.");
+          throw ProblemException.conflict("Changed outside GateRook", existing + " was changed outside GateRook. Review it first.");
         }
         boolean usesStored = stored.secretIds().keySet().stream().anyMatch(f -> !values.containsKey(f)
             && !references.containsKey(f));
@@ -235,8 +234,7 @@ public class ConnectionTester implements DisposableBean {
 
   Outcome testStored(ConnectionConfigs.Stored stored, String field, int version) {
     if (!stored.verified()) {
-      throw ProblemException.conflict("Changed outside MCP Gateway", stored.name() + " was changed outside MCP "
-          + "Gateway. Review it first.");
+      throw ProblemException.conflict("Changed outside GateRook", stored.name() + " was changed outside GateRook. Review it first.");
     }
     ConnectorManifest manifest = usable(stored.config().type());
     Taint taint = new Taint();
@@ -380,8 +378,7 @@ public class ConnectionTester implements DisposableBean {
     ConnectionConfigs.Stored stored = configs.byId(connectionId).orElseThrow(() -> ProblemException.notFound(
         "Connection not found", "The connection was deleted."));
     if (!stored.verified()) {
-      throw ProblemException.conflict("Changed outside MCP Gateway", stored.name() + " was changed outside MCP "
-          + "Gateway. Review it first.");
+      throw ProblemException.conflict("Changed outside GateRook", stored.name() + " was changed outside GateRook. Review it first.");
     }
     ConnectorManifest manifest = usable(stored.config().type());
     ConnectionConfig cfg = stored.config();
@@ -430,7 +427,7 @@ public class ConnectionTester implements DisposableBean {
         "Unknown connector", "There is no connector type " + type + ".", "/type"));
     if (!t.usable()) {
       throw ProblemException.unprocessable("Connector off", t.manifest().name() + " is switched off or was changed "
-          + "outside MCP Gateway.", "/type");
+          + "outside GateRook.", "/type");
     }
     return t.manifest();
   }

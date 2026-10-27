@@ -55,7 +55,7 @@ function linuxAutostart(s: LoginSettings): void {
   const target = process.env['APPIMAGE'] ?? process.execPath;
   if (/[\r\n]/.test(target)) return; // a path with a line break can't be written into a .desktop file
   mkdirSync(dir, { recursive: true });
-  writeFileSync(file, ['[Desktop Entry]', 'Type=Application', 'Name=MCP Gateway',
+  writeFileSync(file, ['[Desktop Entry]', 'Type=Application', 'Name=GateRook',
     `Exec=${desktopExecArg(target)}${s.startHidden ? ` ${HIDDEN_ARG}` : ''}`, 'X-GNOME-Autostart-enabled=true', 'NoDisplay=false', '']
     .join('\n'), { mode: 0o644 });
 }

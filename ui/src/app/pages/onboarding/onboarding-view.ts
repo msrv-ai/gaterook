@@ -163,7 +163,7 @@ export function installed(c: ClientCard): boolean {
 }
 
 /**
- * Names of the clients that use MCP Gateway: K1's connected cards; else the clients getting started counted (the
+ * Names of the clients that use GateRook: K1's connected cards; else the clients getting started counted (the
  * client ids its grants name), which also covers a core whose clients area didn't answer.
  */
 export function connectedClients(f: SetupFacts): string[] {
@@ -179,7 +179,7 @@ export function detectedClients(f: SetupFacts): string[] {
 
 /**
  * The step card's description (kit: "Claude Desktop, Codex and Cursor are installed on this computer."): the clients
- * K1 found; before K1 answers, the clients MCP Gateway can connect.
+ * K1 found; before K1 answers, the clients GateRook can connect.
  */
 export function clientsDescription(f: SetupFacts): string {
   if (!f.clients) return 'Claude Desktop, Codex, Cursor and Antigravity can connect.';
@@ -308,7 +308,7 @@ export function doneLine(f: SetupFacts, id: StepId): MetaPart[] {
     }
     case 'client': {
       const names = connectedClients(f);
-      return [{ text: names.length ? `${joinNames(names)} ${names.length === 1 ? 'uses' : 'use'} MCP Gateway.` : 'A client uses MCP Gateway.' }];
+      return [{ text: names.length ? `${joinNames(names)} ${names.length === 1 ? 'uses' : 'use'} GateRook.` : 'A client uses GateRook.' }];
     }
   }
 }

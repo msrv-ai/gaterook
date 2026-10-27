@@ -87,7 +87,7 @@ class StoreResolutionTest {
   void anUnverifiedOrUnboundReferenceIsNotRead() {
     StoreCall call = StoreCall.within(t -> { }, Duration.ofSeconds(5), clock);
     assertThatThrownBy(() -> resolution.value(pointer("st_1", false), Env.DEV, call))
-        .hasMessage("stage-db/password was changed outside MCP Gateway: review its reference in Secrets.");
+        .hasMessage("stage-db/password was changed outside GateRook: review its reference in Secrets.");
     assertThatThrownBy(() -> resolution.value(pointer(null, true), Env.DEV, call))
         .hasMessage("stage-db/password can't be resolved: HashiCorp Vault isn't connected.");
     verify(store, times(0)).read(any(), any());

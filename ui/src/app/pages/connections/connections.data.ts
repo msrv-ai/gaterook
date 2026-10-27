@@ -14,7 +14,7 @@ import { DeleteImpact, HealthState, deleteImpact, healthState, isMcpServer, next
  */
 export const TEST_ALL_IDLE_MS = 30_000;
 
-/** How a row test ended: the core's result, or its refusal (409 for a row changed outside MCP Gateway, …). */
+/** How a row test ended: the core's result, or its refusal (409 for a row changed outside GateRook, …). */
 export type RowTest = { readonly ok: true; readonly outcome: TestOutcome } | { readonly ok: false; readonly error: unknown };
 
 /** How Test all ended: one health per connection that reported back, out of how many the core tests. */
@@ -43,7 +43,7 @@ interface TestAllRun {
  * The Connections page's data (ARCHITECTURE.md §6 connections, §8.4: `connections`, `test-all`, SSE
  * `connection.health`): the list, with the secrets of each connection from the Secrets area for the Credentials
  * column (`/api/secrets`, `/api/secrets/short-lived`; left out when they don't answer), live health from the core's
- * events, and the actions of the page — test one, test all, delete, keep a row changed outside MCP Gateway.
+ * events, and the actions of the page — test one, test all, delete, keep a row changed outside GateRook.
  *
  * Health arrives as events and patches its row; the list itself is reloaded after an action and when the core comes
  * back, coalesced: one load in flight and one more after it.
@@ -212,7 +212,7 @@ export class ConnectionsData {
    */
   async testAll(): Promise<TestAllEnd> {
     if (this.run) throw new Error('Test all is already running');
-    // Rows changed outside MCP Gateway are skipped by the core: they keep their health.
+    // Rows changed outside GateRook are skipped by the core: they keep their health.
     const names = (this.rowsSignal() ?? []).filter((r) => r.verified).map((r) => r.name);
     let done!: (end: TestAllEnd) => void;
     const ended = new Promise<TestAllEnd>((resolve) => (done = resolve));
@@ -294,7 +294,7 @@ export class ConnectionsData {
     return result;
   }
 
-  /** The person reviewed a row changed outside MCP Gateway and keeps it as stored (a Setup change). */
+  /** The person reviewed a row changed outside GateRook and keeps it as stored (a Setup change). */
   async keep(name: string): Promise<void> {
     const row = await this.api.confirmIntegrity(name);
     this.rowsSignal.update((rows) => (rows ? rows.map((r) => (r.name === name ? row : r)) : rows));

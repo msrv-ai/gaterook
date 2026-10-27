@@ -178,7 +178,7 @@ export class GwStatusScreen {
   /** The kit's meta line: under a failure the log, otherwise the address; the page shows both. */
   protected readonly metaShowsAddress = computed(() => this.fullMeta() || this.dataState() !== 'failed' || this.view().kind === 'unreachable');
   protected readonly metaShowsLog = computed(() => this.fullMeta() || (this.dataState() === 'failed' && this.view().kind !== 'unreachable'));
-  protected readonly versionText = computed(() => (this.version() ? `MCP Gateway ${this.version()}` : 'MCP Gateway'));
+  protected readonly versionText = computed(() => (this.version() ? `GateRook ${this.version()}` : 'GateRook'));
 
   protected readonly steps = computed<readonly StatusStep[]>(() => {
     const v = this.view();

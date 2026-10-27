@@ -202,7 +202,7 @@ class PolicyEngineTest {
     Decision d = engine.decide(pair(Env.PROD, false, Env.PROD, Nature.READ, Mode.READ_ONLY, null, null),
         cfg(Env.PROD, null), Classification.read());
     assertThat(d.outcome()).isEqualTo(Outcome.DENY);
-    assertThat(d.reason()).contains("changed outside MCP Gateway");
+    assertThat(d.reason()).contains("changed outside GateRook");
     policies.tampered.clear();
     policies.tampered.add(Env.STAGE);
     // The endpoint's environment matters as well: stage endpoint, stage policy tampered, dev connection.

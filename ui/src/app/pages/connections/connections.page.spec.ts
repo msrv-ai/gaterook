@@ -501,7 +501,7 @@ describe('Connections page', () => {
     expect(document.activeElement).toBe(el.querySelector('[aria-controls="conn-menu-dev-db"]'));
   });
 
-  it('keeps a row changed outside MCP Gateway only after asking', async () => {
+  it('keeps a row changed outside GateRook only after asking', async () => {
     setup(() => Promise.resolve(list(kitRows().map((r) => (r.name === 'dev-db' ? { ...r, verified: false } : r)))));
     const { fixture, el } = await render();
     const item = el.querySelector('#conn-menu-dev-db [role="menuitem"]')!;
@@ -509,7 +509,7 @@ describe('Connections page', () => {
     expect(text(item.querySelector('.gw-menu__hint'))).toBe('Review the change first');
 
     const alert = rowOf(el, 'dev-db')!.nextElementSibling!;
-    expect(text(alert.querySelector('.gw-alert__title'))).toBe('dev-db: Changed outside MCP Gateway');
+    expect(text(alert.querySelector('.gw-alert__title'))).toBe('dev-db: Changed outside GateRook');
     expect(alert.querySelector('.gw-alert--warning')).not.toBeNull();
     expect(Array.from(alert.querySelectorAll('a')).map((a) => a.getAttribute('href'))).toEqual(['/connections/dev-db']);
 

@@ -85,7 +85,7 @@ class SlackBlocksTest {
     ObjectNode b = SlackBlocks.request(tooLong, verdict(tooLong, true), "ins_test0000001", "1", UTC, null);
     assertThat(b.toString()).doesNotContain("rich_text_preformatted").doesNotContain("xxxxxxxxxx");
     assertThat(b.at("/blocks/2/text/text").asString()).isEqualTo("The action is 3,001 characters long and is shown "
-        + "only in MCP Gateway.\n1 row in orders");
+        + "only in GateRook.\n1 row in orders");
     assertThat(actionIds(b)).containsExactly("gw_deny", "gw_open");
   }
 
@@ -106,7 +106,7 @@ class SlackBlocksTest {
     ObjectNode msg = SlackBlocks.request(n, verdict(n, true), "ins_test0000001", "1", UTC, null);
     assertThat(msg.toString()).doesNotContain("rich_text");
     assertThat(msg.at("/blocks/2/text/text").asString()).startsWith("The action contains values that look like "
-        + "secrets, so it is shown only in MCP Gateway.");
+        + "secrets, so it is shown only in GateRook.");
     assertThat(actionIds(msg)).containsExactly("gw_deny", "gw_open");
   }
 
@@ -159,7 +159,7 @@ class SlackBlocksTest {
   @Test
   void theLinkMessageCarriesTheCodeAndTheNonce() {
     ObjectNode msg = SlackBlocks.linkRequest("ravi-mbp", "4F7-2KQ", "ins_test0000001", "nonce-123");
-    assertThat(msg.path("text").asString()).isEqualTo("Link MCP Gateway on ravi-mbp to this Slack account? Code "
+    assertThat(msg.path("text").asString()).isEqualTo("Link GateRook on ravi-mbp to this Slack account? Code "
         + "4F7-2KQ");
     assertThat(actionIds(msg)).containsExactly("gw_link", "gw_link_deny");
     assertThat(msg.toString()).contains("v1|ins_test0000001|link|nonce-123");

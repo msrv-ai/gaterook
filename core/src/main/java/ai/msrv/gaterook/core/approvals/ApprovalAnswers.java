@@ -87,12 +87,12 @@ public class ApprovalAnswers {
   /** The handle answer: not executed yet, poll {@code approval_status}. */
   public ToolResult pending(ApprovalView a) {
     AgentAction action = agentAction(a);
-    StringBuilder text = new StringBuilder("NOT EXECUTED YET. A person must approve this exact action in MCP Gateway.")
+    StringBuilder text = new StringBuilder("NOT EXECUTED YET. A person must approve this exact action in GateRook.")
         .append("\nHandle: ").append(a.id())
         .append("\nAction (").append(action.kind()).append(" on ").append(a.connectionName()).append(", ")
         .append(a.env().id()).append("):\n").append(action.text());
     if (!action.ownText()) {
-      text.append("\nIn MCP Gateway the person sees the exact action these arguments make.");
+      text.append("\nIn GateRook the person sees the exact action these arguments make.");
     }
     text.append("\nApproval page: ").append(approvalUrl(a.id()))
         .append("\nAuto-deny at ").append(time(a.expiresAt())).append('.');
@@ -111,7 +111,7 @@ public class ApprovalAnswers {
     return switch (a.status()) {
       case "pending" -> {
         ObjectNode s = base(a, "pending");
-        yield ToolResult.json(s, "Still waiting for a decision in MCP Gateway (auto-deny at " + time(a.expiresAt())
+        yield ToolResult.json(s, "Still waiting for a decision in GateRook (auto-deny at " + time(a.expiresAt())
             + "). Call approval_status again with handle " + a.id() + ".");
       }
       case "running" -> ToolResult.json(base(a, "running"), "Approved by you" + via(a) + "; " + a.tool()
@@ -163,8 +163,7 @@ public class ApprovalAnswers {
     String head = "Approved by you" + via(a) + " and executed on " + a.connectionName() + " (" + a.env().id() + ")";
     if (a.result() == null) {
       s.put("resultExpired", true);
-      return ToolResult.json(s, head + ". The result is no longer stored (it is kept 60 minutes); see Activity in MCP "
-          + "Gateway.");
+      return ToolResult.json(s, head + ". The result is no longer stored (it is kept 60 minutes); see Activity in GateRook.");
     }
     if (a.result().structuredContent() != null) {
       s.set("result", a.result().structuredContent());

@@ -71,7 +71,7 @@ class ApiExceptionHandler {
 
   @ExceptionHandler(DiskFullException.class)
   ResponseEntity<ApiProblem> diskFull(DiskFullException e) {
-    return problem(HttpStatus.INSUFFICIENT_STORAGE, "The disk is full", "MCP Gateway couldn't save this change because "
+    return problem(HttpStatus.INSUFFICIENT_STORAGE, "The disk is full", "GateRook couldn't save this change because "
         + "the disk is full. Free up some space, then try again.", null);
   }
 
@@ -83,7 +83,7 @@ class ApiExceptionHandler {
 
   private static String title(MasterKeyException.Problem problem) {
     return switch (problem) {
-      case LOCKED -> "MCP Gateway is locked";
+      case LOCKED -> "GateRook is locked";
       case NOT_LOCKED -> "The master key works";
       case ROTATION_RUNNING -> "Already rotating";
       case BAD_BACKUP -> "Can't read the backup";

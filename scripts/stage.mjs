@@ -8,7 +8,7 @@
 //   plugin-host/plugin-host.jar  the plugin host (step K4), else a placeholder
 //   bridge/                      gw-bridge.mjs (Claude Desktop extensions), the native gw-bridge, gw-bridge.jar
 //   cloudflared/<platform>/      the pinned cloudflared (scripts/stage-cloudflared.mjs, hashes checked)
-//   icons/icon.png               the app icon, drawn from the kit's mark (desktop/src/main/icons.ts)
+//   icons/icon.png               the canonical app icon from design/assets/gaterook/gaterook-icon.png
 //
 //   node scripts/stage.mjs                         this machine's platform, the native core of app/target
 //   node scripts/stage.mjs --core <binary>         another native core (its native-libs/ folder comes along)
@@ -162,9 +162,7 @@ export async function stage(o, sources = {}) {
   }
 
   // The icon electron-builder turns into .icns / .ico / the Linux icons.
-  const icons = await import(pathToFileURL(join(root, 'desktop', 'src', 'main', 'icons.ts')).href);
-  mkdirSync(join(o.out, 'icons'), { recursive: true });
-  writeFileSync(join(o.out, 'icons', 'icon.png'), icons.encodePng(icons.markPixels(1024, 'brand'), 1024, 1024));
+  copyFile(join(root, 'design', 'assets', 'gaterook', 'gaterook-icon.png'), join(o.out, 'icons', 'icon.png'));
   report.push('icons/icon.png (1024 px)');
   return report;
 }

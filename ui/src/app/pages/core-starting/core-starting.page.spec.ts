@@ -251,7 +251,7 @@ describe('starting', () => {
     ]);
     expect(steps[3].getAttribute('aria-current')).toBe('step');
     expect(text(page.querySelector('[role=status]'))).toBe('Starting the gateway core: local api, step 4 of 4.');
-    expect(text(page.querySelector('.gw-status-screen__meta'))).toBe('MCP Gateway 0.4.0 · core on 127.0.0.1:7465 · log ~/.mcp-gateway/logs/core.log');
+    expect(text(page.querySelector('.gw-status-screen__meta'))).toBe('GateRook 0.4.0 · core on 127.0.0.1:7465 · log ~/.mcp-gateway/logs/core.log');
   });
 
   it('names the port Electron starts the core on, not the default', async () => {
@@ -274,7 +274,7 @@ describe('port in use', () => {
     expect(failed.getAttribute('aria-current')).toBe('step');
     expect(text(page.querySelector('.gw-code-block'))).toContain('lsof -nP -iTCP:7465 -sTCP:LISTEN');
     expect(text(page.querySelector('[role=alert]'))).toBe('The core failed to start: port 7465 is already in use.');
-    expect(text(page.querySelector('.gw-status-screen__meta'))).toBe(`MCP Gateway 0.4.0 · core on 127.0.0.1:7465 · log ${LOG}`);
+    expect(text(page.querySelector('.gw-status-screen__meta'))).toBe(`GateRook 0.4.0 · core on 127.0.0.1:7465 · log ${LOG}`);
     button('Quit')!.click();
     expect(desktop.calls).toEqual(['quit']);
   });
@@ -372,7 +372,7 @@ describe('port in use', () => {
     await settle();
     const start = button('Start on this port')!;
     expect(start.getAttribute('aria-disabled')).toBe('true');
-    expect(text(document.getElementById(start.getAttribute('aria-describedby')!))).toContain('needs the MCP Gateway desktop app');
+    expect(text(document.getElementById(start.getAttribute('aria-describedby')!))).toContain('needs the GateRook desktop app');
     start.click();
     await settle();
     expect(desktop.calls.filter((c) => c.startsWith('usePort'))).toEqual([]);
@@ -396,7 +396,7 @@ describe('locked: master key not found', () => {
     expect(text(steps[1])).toBe(`Master key, failed No file at ${KEY}`);
     expect(steps[1].getAttribute('aria-current')).toBe('step');
     expect(text(page.querySelector('.gw-alert--danger .gw-alert__body'))).toBe('The 8 secrets encrypted here become unreadable, and you enter each one again.');
-    expect(text(page.querySelector('.gw-status-screen__meta'))).toBe(`MCP Gateway 0.4.0 · core on 127.0.0.1:7465 · log ${LOG}`);
+    expect(text(page.querySelector('.gw-status-screen__meta'))).toBe(`GateRook 0.4.0 · core on 127.0.0.1:7465 · log ${LOG}`);
   });
 
   it("says whose the secrets are and which references keep working when the core tells (step API)", async () => {
@@ -510,11 +510,11 @@ describe('locked: master key not found', () => {
     expect(dialog.hasAttribute('open')).toBe(true);
 
     // A key that doesn't fit is the dialog's alert, not the field's.
-    world.restore = () => Promise.reject(problem(422, { title: 'The backup doesn’t fit', detail: 'This backup doesn’t open the stored data: it is another MCP Gateway’s key.' }));
+    world.restore = () => Promise.reject(problem(422, { title: 'The backup doesn’t fit', detail: 'This backup doesn’t open the stored data: it is another GateRook’s key.' }));
     dialog.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
     await settle();
     expect($('#core-restore-pass-err')).toBeNull();
-    expect(words(dialog.querySelector('.gw-alert--danger[role=alert]'))).toBe('The key wasn\'t restored This backup doesn’t open the stored data: it is another MCP Gateway’s key.');
+    expect(words(dialog.querySelector('.gw-alert--danger[role=alert]'))).toBe('The key wasn\'t restored This backup doesn’t open the stored data: it is another GateRook’s key.');
   });
 
   it('a cancelled file dialog asks nothing of the core', async () => {
@@ -552,7 +552,7 @@ describe('locked: master key not found', () => {
     await settle();
     const choose = button('Choose the backup file')!;
     expect(choose.getAttribute('aria-disabled')).toBe('true');
-    expect(text(document.getElementById(choose.getAttribute('aria-describedby')!))).toContain('needs the MCP Gateway desktop app');
+    expect(text(document.getElementById(choose.getAttribute('aria-describedby')!))).toContain('needs the GateRook desktop app');
     $('#core-restore-dlg form')!.dispatchEvent(new Event('submit', { cancelable: true }));
     await settle();
     expect(desktop.calls).toEqual([]);
@@ -612,12 +612,12 @@ describe('stopped and failed starts', () => {
   });
 
   it('a restart main can’t do is said in the card', async () => {
-    desktop.restartResult = () => Promise.reject(new Error('The core binary is missing. Reinstall MCP Gateway.'));
+    desktop.restartResult = () => Promise.reject(new Error('The core binary is missing. Reinstall GateRook.'));
     const page = await render();
     await emit(STOPPED);
     button('Restart core')!.click();
     await settle();
-    expect(words(page.querySelector('.gw-card .gw-alert--compact[role=alert]'))).toBe('The core didn’t restart The core binary is missing. Reinstall MCP Gateway.');
+    expect(words(page.querySelector('.gw-card .gw-alert--compact[role=alert]'))).toBe('The core didn’t restart The core binary is missing. Reinstall GateRook.');
   });
 
   it('a second core on the same home: its own card with the facts, no stepper, Open logs and Restart core', async () => {
@@ -625,7 +625,7 @@ describe('stopped and failed starts', () => {
     await emit({
       kind: 'failed',
       reason: 'DB_LOCKED',
-      detail: 'Another MCP Gateway core is using /home/alex/.mcp-gateway (core.lock is locked)',
+      detail: 'Another GateRook core is using /home/alex/.mcp-gateway (core.lock is locked)',
       portOwner: null,
       log: LOG,
       logTail: null,
@@ -635,7 +635,7 @@ describe('stopped and failed starts', () => {
     expect(text(page.querySelector('h1'))).toBe('Another core is using the database');
     expect(page.querySelector('.gw-stepper')).toBeNull();
     expect(words(page.querySelector('.gw-kv'))).toBe(
-      `Exit code 2 Reason DB_LOCKED: Another MCP Gateway core is using /home/alex/.mcp-gateway (core.lock is locked) Log file ${LOG}`,
+      `Exit code 2 Reason DB_LOCKED: Another GateRook core is using /home/alex/.mcp-gateway (core.lock is locked) Log file ${LOG}`,
     );
     expect(text(page.querySelector('[role=alert]'))).toBe('The core failed to start: Another core is using the database.');
     expect(button('Restart core')).not.toBeNull();

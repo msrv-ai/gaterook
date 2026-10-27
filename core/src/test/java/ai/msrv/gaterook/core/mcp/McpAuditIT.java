@@ -269,7 +269,7 @@ class McpAuditIT {
       ApprovalService approvals = b.bean(ApprovalService.class);
       ApprovalView after = approvals.find(handle).orElseThrow();
       assertThat(after.status()).isEqualTo("failed");
-      assertThat(after.error()).isEqualTo("MCP Gateway stopped while it ran, so whether it applied is unknown. "
+      assertThat(after.error()).isEqualTo("GateRook stopped while it ran, so whether it applied is unknown. "
           + "Not retried.");
       McpClient.Answer status = new McpClient(port, "dev", token).legacyCall("approval_status", args("handle", handle));
       SpecSchemas.assertValid("2025-11-25", "CallToolResult", status.result());

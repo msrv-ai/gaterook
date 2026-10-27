@@ -110,11 +110,11 @@ export class GwNotificationPreview {
       case 'completed':
       case 'running': {
         const ms = r.executedAt && r.decidedAt ? Date.parse(r.executedAt) - Date.parse(r.decidedAt) : null;
-        const where = r.decidedVia === 'app' || r.decidedVia === 'desktop-notification' ? 'in MCP Gateway' : `in ${r.decidedVia ?? 'the app'}`;
+        const where = r.decidedVia === 'app' || r.decidedVia === 'desktop-notification' ? 'in GateRook' : `in ${r.decidedVia ?? 'the app'}`;
         return { tone: 'success', icon: 'user-check', label: 'Approved', text: `by you ${where}${ms !== null && ms >= 0 ? ` · executed in ${duration(ms)}` : ''}` };
       }
       case 'rejected':
-        return { tone: 'danger', icon: 'user-x', label: 'Rejected', text: `by you in ${r.decidedVia === 'app' ? 'MCP Gateway' : (r.decidedVia ?? 'MCP Gateway')}` };
+        return { tone: 'danger', icon: 'user-x', label: 'Rejected', text: `by you in ${r.decidedVia === 'app' ? 'GateRook' : (r.decidedVia ?? 'GateRook')}` };
       case 'expired':
         return { tone: 'neutral', icon: 'timer-off', label: 'Expired', text: `Denied automatically at ${this.time.clock(r.expiresAt, true)}` };
       case 'failed':

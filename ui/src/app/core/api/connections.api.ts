@@ -45,7 +45,7 @@ export interface ConnectionRow {
   readonly secretSource: string | null;
   readonly health: ConnectionHealth;
   readonly usedBy: string[];
-  /** False when the row was changed outside MCP Gateway (it stays off until reviewed). */
+  /** False when the row was changed outside GateRook (it stays off until reviewed). */
   readonly verified: boolean;
   readonly version: number;
   /** The Type column in the kit's words: "PostgreSQL 16", "Loki", "MongoDB 7", "SSH" (step API). */

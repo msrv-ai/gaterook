@@ -100,7 +100,7 @@ describe('desktop notifications of requests', () => {
   it('a sign-in on this computer names its code', () => {
     assert.deepEqual(consentNotice({ id: 'oc_1', code: '4F7-2KQ', clientHost: 'claude.ai', endpoint: 'stage-readonly' }), {
       id: 'oc_1', title: 'claude.ai wants to sign in · code 4F7-2KQ',
-      body: 'Check the code, then allow or deny it in MCP Gateway (endpoint stage-readonly).' });
+      body: 'Check the code, then allow or deny it in GateRook (endpoint stage-readonly).' });
     assert.equal(consentNotice({ id: 'oc_1', code: 'nope' }), null);
   });
 });

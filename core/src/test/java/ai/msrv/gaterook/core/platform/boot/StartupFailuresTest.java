@@ -15,10 +15,10 @@ class StartupFailuresTest {
   @Test
   void namedFailuresKeepTheirReason() {
     var failure = StartupFailures.classify(new BeanCreationException("x",
-        new GatewayStartupException(StartupReason.DB_LOCKED, "Another MCP Gateway core is using /h")), 7465);
+        new GatewayStartupException(StartupReason.DB_LOCKED, "Another GateRook core is using /h")), 7465);
 
     assertThat(failure.reason()).isEqualTo(StartupReason.DB_LOCKED);
-    assertThat(failure.detail()).contains("Another MCP Gateway core");
+    assertThat(failure.detail()).contains("Another GateRook core");
   }
 
   @Test

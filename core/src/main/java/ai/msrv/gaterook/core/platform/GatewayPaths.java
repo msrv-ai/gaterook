@@ -66,7 +66,7 @@ public final class GatewayPaths implements AutoCloseable {
       if (lock == null) {
         channel.close();
         throw new GatewayStartupException(StartupReason.DB_LOCKED,
-            "Another MCP Gateway core is using " + root + " (" + lockFile.getFileName() + " is locked)");
+            "Another GateRook core is using " + root + " (" + lockFile.getFileName() + " is locked)");
       }
       channel.truncate(0);
       channel.write(ByteBuffer.wrap((ProcessHandle.current().pid() + "\n").getBytes(StandardCharsets.US_ASCII)));

@@ -176,7 +176,7 @@ public class SlackChannel implements ChatChannel, DisposableBean {
       return;
     }
     if (!row.verified()) {
-      channels.state(NotifyChannel.SLACK, "changed-outside", "The Slack settings were changed outside MCP Gateway. "
+      channels.state(NotifyChannel.SLACK, "changed-outside", "The Slack settings were changed outside GateRook. "
           + "Save them again to turn Slack back on.");
       return;
     }
@@ -275,7 +275,7 @@ public class SlackChannel implements ChatChannel, DisposableBean {
       return;
     }
     String why = cause instanceof SlackApi.SlackException se ? "Slack answered " + se.error()
-        : "MCP Gateway can't reach Slack (" + cause.getClass().getSimpleName() + ")";
+        : "GateRook can't reach Slack (" + cause.getClass().getSimpleName() + ")";
     long seconds = BACKOFF_SECONDS[Math.min(attempt, BACKOFF_SECONDS.length - 1)];
     attempt++;
     long ms = Math.max(200, (long) (seconds * 1_000 * (0.8 + 0.4 * ThreadLocalRandom.current().nextDouble())));
@@ -420,7 +420,7 @@ public class SlackChannel implements ChatChannel, DisposableBean {
           // Slack refused the code block (a language it doesn't know?): the action stays in the app, no Approve.
           Eligibility.Verdict plain = new Eligibility.Verdict(false, verdict.deny(), false,
               "Slack couldn't show this action: approve in the app.",
-              "Slack couldn't show this action, so it is shown only in MCP Gateway.");
+              "Slack couldn't show this action, so it is shown only in GateRook.");
           try {
             String ts = post(target, SlackBlocks.request(n, plain, instance.id(), "1", zone, null), n.id());
             deliveries.sent(d.id(), target + ":" + ts);
@@ -433,7 +433,7 @@ public class SlackChannel implements ChatChannel, DisposableBean {
         error = describe(e);
         deliveries.failed(d.id(), error);
       } catch (IOException e) {
-        error = "MCP Gateway can't reach Slack";
+        error = "GateRook can't reach Slack";
         deliveries.failed(d.id(), error);
       }
     }
@@ -540,7 +540,7 @@ public class SlackChannel implements ChatChannel, DisposableBean {
     } catch (SlackApi.SlackException e) {
       return Delivered.failed("Slack failed: " + describe(e));
     } catch (IOException e) {
-      return Delivered.failed("Slack failed: MCP Gateway can't reach Slack");
+      return Delivered.failed("Slack failed: GateRook can't reach Slack");
     }
   }
 
@@ -581,7 +581,7 @@ public class SlackChannel implements ChatChannel, DisposableBean {
     String ts = p.at("/container/message_ts").asString("");
     String user = p.at("/user/id").asString("");
     if (!instance.id().equals(v[1])) {
-      ephemeral(channel, user, "This request belongs to another MCP Gateway.");
+      ephemeral(channel, user, "This request belongs to another GateRook.");
       return;
     }
     ChannelStore.Row row = channels.read(NotifyChannel.SLACK);
@@ -611,19 +611,19 @@ public class SlackChannel implements ChatChannel, DisposableBean {
     if ("digest".equals(subject)) {
       if (link.isPresent() && SlackBlocks.OPEN.equals(actionId)) {
         open("/approvals");
-        ephemeral(channel, user, "Opened in MCP Gateway on " + instance.host() + ".");
+        ephemeral(channel, user, "Opened in GateRook on " + instance.host() + ".");
       }
       return;
     }
     Optional<DeliveryStore.Delivery> delivery = deliveries.at(NotifyChannel.SLACK, channel + ":" + ts, subject);
     if (link.isEmpty() || delivery.isEmpty()) {
-      ephemeral(channel, user, "Only the linked approver can act on this request. It is decided in MCP Gateway.");
+      ephemeral(channel, user, "Only the linked approver can act on this request. It is decided in GateRook.");
       return;
     }
     switch (actionId) {
       case SlackBlocks.OPEN -> {
         open("/approvals/" + subject);
-        ephemeral(channel, user, "Opened in MCP Gateway on " + instance.host() + ".");
+        ephemeral(channel, user, "Opened in GateRook on " + instance.host() + ".");
       }
       case SlackBlocks.DENY, SlackBlocks.APPROVE -> {
         ChannelRules.Clicked c = rules.decide(Eligibility.Channel.SLACK, subject, SlackBlocks.APPROVE.equals(actionId),
@@ -643,7 +643,7 @@ public class SlackChannel implements ChatChannel, DisposableBean {
     String pairingId = LinkStore.hash(nonce);
     Optional<LinkStore.Pairing> pairing = links.open(pairingId).filter(p -> p.channel() == NotifyChannel.SLACK);
     if (pairing.isEmpty()) {
-      ephemeral(channel, user, "This link request expired or was already answered. Start again in MCP Gateway.");
+      ephemeral(channel, user, "This link request expired or was already answered. Start again in GateRook.");
       return;
     }
     JsonNode c = pairing.get().candidate();
@@ -656,7 +656,7 @@ public class SlackChannel implements ChatChannel, DisposableBean {
     if (accept) {
       Optional<LinkStore.Link> linked = linking.complete(pairingId, NotifyChannel.SLACK, team, user, channel,
           c.path("display").asString(null), null);
-      answerLink(channel, ts, linked.isPresent() ? "Linked to MCP Gateway on " + host + ". Approval requests come "
+      answerLink(channel, ts, linked.isPresent() ? "Linked to GateRook on " + host + ". Approval requests come "
           + "here, and you can decide them with the buttons." : "This link request was already answered.");
     } else {
       linking.decline(pairingId);
@@ -700,7 +700,7 @@ public class SlackChannel implements ChatChannel, DisposableBean {
   public record LinkStarted(LinkStore.Pairing pairing, String code, String display) {}
 
   /**
-   * {@code POST /api/notifications/slack/links {email}}: looks the account up, opens a DM, posts "Link MCP Gateway on
+   * {@code POST /api/notifications/slack/links {email}}: looks the account up, opens a DM, posts "Link GateRook on
    * ravi-mbp to this Slack account? Code 4F7-2KQ". The link exists once that account clicks Link account.
    *
    * @throws SlackApi.SlackException {@code users_not_found} and the like, in Slack's words
@@ -867,7 +867,7 @@ public class SlackChannel implements ChatChannel, DisposableBean {
       return new TestResult(true, ms(t0), null, "workspace " + id + " · bot @" + a.path("user").asString("?"), null,
           List.copyOf(hints), List.copyOf(checks), null, null, null, null, details);
     } catch (IOException e) {
-      return TestResult.failure("network", "MCP Gateway can't reach slack.com. Check the network or the proxy.",
+      return TestResult.failure("network", "GateRook can't reach slack.com. Check the network or the proxy.",
           e.getClass().getSimpleName()).withChecks(checks);
     }
   }
@@ -932,7 +932,7 @@ public class SlackChannel implements ChatChannel, DisposableBean {
       } catch (SlackApi.SlackException e) {
         error = describe(e);
       } catch (IOException e) {
-        error = "MCP Gateway can't reach Slack";
+        error = "GateRook can't reach Slack";
       }
     }
     return any ? Delivered.sent() : Delivered.failed("Slack failed: " + error);

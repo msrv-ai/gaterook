@@ -338,7 +338,7 @@ public class PluginService {
     writeTx.executeWithoutResult(s -> {
       PluginEntity entity = repository.findById(id).orElseThrow();
       if (!store.verify(entity)) {
-        throw ProblemException.conflict("Changed outside MCP Gateway", id + " was changed outside MCP Gateway.");
+        throw ProblemException.conflict("Changed outside GateRook", id + " was changed outside GateRook.");
       }
       if (enabled && entity.getState() == PluginState.REVOKED) {
         throw ProblemException.conflict("Revoked", "The catalog revoked this build of " + id + ": "

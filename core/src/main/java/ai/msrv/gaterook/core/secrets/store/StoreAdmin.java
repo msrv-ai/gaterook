@@ -225,8 +225,7 @@ public final class StoreAdmin implements SecretOwners {
               + row.getVersion());
         }
         if (!binding.integrity().verifyStore(row)) {
-          throw ProblemException.conflict("Changed outside MCP Gateway", row.getName() + " was changed outside MCP "
-              + "Gateway. Review it first.");
+          throw ProblemException.conflict("Changed outside GateRook", row.getName() + " was changed outside GateRook. Review it first.");
         }
         if (!name.equals(row.getName()) && stores.findByName(name).isPresent()) {
           throw ProblemException.conflict("Name in use", "A store named " + name + " already exists.");
@@ -315,7 +314,7 @@ public final class StoreAdmin implements SecretOwners {
     return out;
   }
 
-  /** The person reviewed a store changed outside MCP Gateway: it and its references are signed as they are. */
+  /** The person reviewed a store changed outside GateRook: it and its references are signed as they are. */
   public SecretStores.StoreInfo confirmIntegrity(String idOrName, String reason) {
     String id = writeTx.execute(s -> {
       ExternalStoreEntity row = find(idOrName);
@@ -329,7 +328,7 @@ public final class StoreAdmin implements SecretOwners {
       unverified.forEach(r -> binding.integrity().signReference(r));
       alerts.resolve("secret-store", row.getId());
       setupChanges.getObject().record(new SetupChangeRecorder.SetupChange(SetupChangeRecorder.What.SECRET,
-          "External store " + row.getName() + " changed outside MCP Gateway", "Unverified", "Kept as stored", reason,
+          "External store " + row.getName() + " changed outside GateRook", "Unverified", "Kept as stored", reason,
           null, null, null, null));
       return row.getId();
     });

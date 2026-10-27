@@ -293,7 +293,7 @@ public class ConnectionService {
       // Checked again in the transaction that signs it: an edit made since the read above must not ride along.
       if (!rows.verify(row)) {
         alerts.report("connection", row.getId(), row.getName(), "connection row");
-        throw ProblemException.conflict("Changed outside MCP Gateway", name + " was changed outside MCP Gateway. "
+        throw ProblemException.conflict("Changed outside GateRook", name + " was changed outside GateRook. "
             + "Review it first.");
       }
       Env before = row.getEnv();
@@ -379,8 +379,7 @@ public class ConnectionService {
       ConnectionEntity row = repository.findById(connectionId).orElseThrow(() -> ProblemException.notFound(
           "Connection not found", "The connection was deleted."));
       if (!rows.verify(row)) {
-        throw ProblemException.conflict("Changed outside MCP Gateway", row.getName() + " was changed outside MCP "
-            + "Gateway. Review it first.");
+        throw ProblemException.conflict("Changed outside GateRook", row.getName() + " was changed outside GateRook. Review it first.");
       }
       JsonNode patched = ai.msrv.gaterook.core.platform.JsonMergePatch.apply(rows.storedConfig(row), patch);
       validate(registry.requireManifest(row.getType()), (ObjectNode) patched, java.util.Set.of(), row.getEnv());
@@ -452,7 +451,7 @@ public class ConnectionService {
       rows.sign(row);
       alerts.resolve("connection", row.getId());
       setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.CONNECTION,
-          "Connection " + name + " changed outside MCP Gateway", "Unverified", "Kept as stored", reason,
+          "Connection " + name + " changed outside GateRook", "Unverified", "Kept as stored", reason,
           row.getEnv(), null, name, null));
       publisher.publishEvent(new ConnectionChanged(row.getId(), name, row.getEnv(), row.getVersion()));
     });
@@ -552,7 +551,7 @@ public class ConnectionService {
 
   private static void requireVerified(ConnectionConfigs.Stored s) {
     if (!s.verified()) {
-      throw ProblemException.conflict("Changed outside MCP Gateway", s.name() + " was changed outside MCP Gateway. "
+      throw ProblemException.conflict("Changed outside GateRook", s.name() + " was changed outside GateRook. "
           + "Review it before you edit it.");
     }
   }
@@ -573,7 +572,7 @@ public class ConnectionService {
         "Unknown connector", "There is no connector type " + type + ".", "/type"));
     if (!t.usable()) {
       throw ProblemException.unprocessable("Connector off", t.manifest().name() + " is switched off or was changed "
-          + "outside MCP Gateway.", "/type");
+          + "outside GateRook.", "/type");
     }
     return t.manifest();
   }

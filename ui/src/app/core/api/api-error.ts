@@ -124,7 +124,7 @@ function defaultTitle(kind: ApiErrorKind): string {
     case 'unauthorized':
       return 'The core refused the request';
     case 'locked':
-      return 'MCP Gateway is locked';
+      return 'GateRook is locked';
     case 'not-available':
       return 'Not available yet';
     case 'not-found':
@@ -145,7 +145,7 @@ function defaultDetail(kind: ApiErrorKind): string {
     case 'network':
       return 'The core on 127.0.0.1 did not answer. It may be starting or stopped.';
     case 'unauthorized':
-      return 'The request was not signed by this app. Restart MCP Gateway.';
+      return 'The request was not signed by this app. Restart GateRook.';
     case 'locked':
       return 'The master key is missing or invalid. Restore it from a backup or create a new key.';
     case 'not-available':

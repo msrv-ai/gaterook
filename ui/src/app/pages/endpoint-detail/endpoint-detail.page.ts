@@ -103,7 +103,7 @@ export const SPLIT_FRAGMENT = 'ep-dlg-split';
  *   authorization, protocol).
  *
  * Live: approvals, health, calls and client changes arrive as events (EndpointDetailData). States: nothing for 300 ms,
- * then placeholders; an error with Try again; not found; out of date; changed outside MCP Gateway (Keep as stored).
+ * then placeholders; an error with Try again; not found; out of date; changed outside GateRook (Keep as stored).
  */
 @Component({
   selector: 'gw-endpoint-detail-page',

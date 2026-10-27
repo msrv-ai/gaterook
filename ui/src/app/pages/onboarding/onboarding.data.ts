@@ -215,7 +215,7 @@ export class OnboardingData {
       const clients = await this.clientsApi.list();
       if (!this.stopped) this.clientsSignal.set(clients);
     } catch (e) {
-      // Before K1 the core has no clients area: the step names the clients MCP Gateway can connect instead.
+      // Before K1 the core has no clients area: the step names the clients GateRook can connect instead.
       if (!this.stopped && isNotAvailable(e)) this.clientsSignal.set(null);
     }
   }

@@ -149,7 +149,7 @@ const OK = outcome({
 });
 
 const HOST_KEY = outcome({
-  needsConfirmation: { kind: 'host-key', text: 'MCP Gateway has not seen this server before.', data: { host: 'db.dev.internal', port: 22, keyType: 'ssh-ed25519', fingerprint: 'SHA256:9mX0bZ3J' } },
+  needsConfirmation: { kind: 'host-key', text: 'GateRook has not seen this server before.', data: { host: 'db.dev.internal', port: 22, keyType: 'ssh-ed25519', fingerprint: 'SHA256:9mX0bZ3J' } },
   confirmationId: 'cf-1',
 });
 

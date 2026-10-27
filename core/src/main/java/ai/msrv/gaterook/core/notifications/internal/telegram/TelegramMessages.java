@@ -40,7 +40,7 @@ public final class TelegramMessages {
     if (v.showAction()) {
       t.pre(n.action().text(), n.action().language());
     } else {
-      t.text(v.withheld() == null ? "The action is shown only in MCP Gateway." : v.withheld());
+      t.text(v.withheld() == null ? "The action is shown only in GateRook." : v.withheld());
       if (n.summary() != null) {
         t.text("\n" + n.summary());
       }
@@ -98,7 +98,7 @@ public final class TelegramMessages {
       return t.text("No requests are waiting.");
     }
     t.entity("bold", waiting == 1 ? "1 request is waiting" : waiting + " requests are waiting");
-    return t.text(" for a decision in MCP Gateway. Many arrived at once, so they aren't sent one by one and none can "
+    return t.text(" for a decision in GateRook. Many arrived at once, so they aren't sent one by one and none can "
         + "be approved from Telegram.");
   }
 
@@ -109,7 +109,7 @@ public final class TelegramMessages {
   }
 
   public static TgText test() {
-    return new TgText().entity("bold", "Test · nothing will run").text("\nApproval requests from MCP Gateway arrive "
+    return new TgText().entity("bold", "Test · nothing will run").text("\nApproval requests from GateRook arrive "
         + "like this, with the exact action and the buttons a request may offer.");
   }
 

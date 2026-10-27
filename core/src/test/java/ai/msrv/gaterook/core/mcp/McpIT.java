@@ -174,10 +174,10 @@ class McpIT {
     assertThat(init.header("Mcp-Session-Id")).isNull();
     SpecSchemas.assertValid("2025-11-25", "InitializeResult", init.result());
     assertThat(init.result().path("protocolVersion").asString()).isEqualTo("2025-11-25");
-    assertThat(init.result().path("serverInfo").path("title").asString()).isEqualTo("MCP Gateway · dev");
+    assertThat(init.result().path("serverInfo").path("title").asString()).isEqualTo("GateRook · dev");
     assertThat(init.result().path("capabilities").path("tools").path("listChanged").asBoolean(true)).isFalse();
     String instructions = init.result().path("instructions").asString();
-    assertThat(instructions).startsWith("You are connected to MCP Gateway, endpoint \"dev\" (local development).")
+    assertThat(instructions).startsWith("You are connected to GateRook, endpoint \"dev\" (local development).")
         .contains("- sql_execute changes data.\n  Every call waits until a person approves the exact action.")
         .contains("poll approval_status(handle). Don't repeat the call.")
         .contains("- You never receive passwords, keys or tokens. Don't ask for them.\n"
@@ -403,7 +403,7 @@ class McpIT {
         assertThat(refused.status()).isEqualTo(modern ? 400 : 200);
         assertThat(refused.error().path("code").asInt()).isEqualTo(-32602);
         assertThat(refused.error().path("message").asString()).isEqualTo("Denied by policy core.integrity: The stage "
-            + "policy was changed outside MCP Gateway. Ask the user to review it in MCP Gateway.");
+            + "policy was changed outside GateRook. Ask the user to review it in GateRook.");
         SpecSchemas.assertValid(modern ? "2026-07-28" : "2025-11-25", "JSONRPCErrorResponse", refused.body());
       }
       for (McpClient.Answer refused : List.of(agent.legacyCall("describe_connection", args("connection", "res-db")),
@@ -411,7 +411,7 @@ class McpIT {
         SpecSchemas.assertValid("2025-11-25", "CallToolResult", refused.result());
         assertThat(refused.result().path("isError").asBoolean()).isTrue();
         assertThat(refused.result().at("/content/0/text").asString()).isEqualTo("Denied by policy core.integrity: "
-            + "The stage policy was changed outside MCP Gateway. Ask the user to review it in MCP Gateway.");
+            + "The stage policy was changed outside GateRook. Ask the user to review it in GateRook.");
         assertThat(refused.body().toString()).doesNotContain("res-db · FakePG");
       }
       assertThat(agent.legacyCall("sql_query", args("connection", "res-db", "sql", "SELECT 1")).result()
@@ -514,7 +514,7 @@ class McpIT {
     JsonNode pending = first.result();
     assertThat(pending.path("isError").asBoolean()).isFalse();
     String text = pending.at("/content/0/text").asString();
-    assertThat(text).startsWith("NOT EXECUTED YET. A person must approve this exact action in MCP Gateway.\nHandle: ap_")
+    assertThat(text).startsWith("NOT EXECUTED YET. A person must approve this exact action in GateRook.\nHandle: ap_")
         .contains("\nAction (sql on dev-db, dev):\n" + sql + "\nApproval page: http://127.0.0.1:")
         .contains("Don't repeat sql_execute.");
     JsonNode s = pending.path("structuredContent");
@@ -819,7 +819,7 @@ class McpIT {
       SpecSchemas.assertValid("2025-11-25", "CallToolResult", refused.result());
       assertThat(refused.result().path("isError").asBoolean()).isTrue();
       assertThat(refused.result().at("/content/0/text").asString()).isEqualTo("The exact action of sql_execute on "
-          + "dev-db would contain a stored secret, so MCP Gateway doesn't ask anyone to approve it. Nothing ran.");
+          + "dev-db would contain a stored secret, so GateRook doesn't ask anyone to approve it. Nothing ran.");
       assertThat(core.jdbc().queryForObject("select count(*) from approval where call_canonical like ?",
           Integer.class, "%" + leak.substring(7, 19) + "%")).isZero();
     }
@@ -835,7 +835,7 @@ class McpIT {
     McpClient.Answer pending = agent.legacyCall("sql_execute", args("connection", "dev-db", "sql", diff));
     SpecSchemas.assertValid("2025-11-25", "CallToolResult", pending.result());
     assertThat(pending.result().at("/content/0/text").asString()).contains("\nAction (arguments on dev-db, dev):\n"
-        + "{\"sql\":\"" + diff + "\"}\nIn MCP Gateway the person sees the exact action these arguments make.");
+        + "{\"sql\":\"" + diff + "\"}\nIn GateRook the person sees the exact action these arguments make.");
     assertThat(pending.result().at("/structuredContent/action/kind").asString()).isEqualTo("arguments");
     assertThat(pending.body().toString()).doesNotContain("live-state").doesNotContain("replicas: 3");
     McpClient.Answer elicited = agent.modernCall("sql_execute", args("connection", "dev-db", "sql", diff), true);
@@ -860,7 +860,7 @@ class McpIT {
     String url = elicitation.at("/params/url").asString();
     String handle = url.substring(url.lastIndexOf('/') + 1);
     assertThat(url).isEqualTo(core.bean(LocalListener.class).origin() + "/approvals/" + handle);
-    assertThat(elicitation.at("/params/message").asString()).contains(sql).endsWith("Decide in the MCP Gateway window.");
+    assertThat(elicitation.at("/params/message").asString()).contains(sql).endsWith("Decide in the GateRook window.");
     assertThat(FakeConnectors.EXECUTIONS).isEmpty();
     assertThat(core.jdbc().queryForObject("select approval_delivery from tool_call where approval_id = ? and phase = "
         + "'received'", String.class, handle)).isEqualTo("mrtr");
@@ -1018,12 +1018,11 @@ class McpIT {
     TestCore.await(() -> approvals.find(a.id()).map(ApprovalView::terminal).orElse(true), "refusal");
     ApprovalView after = approvals.find(a.id()).orElseThrow();
     assertThat(after.status()).isEqualTo("rejected");
-    assertThat(after.error()).isEqualTo("The request was changed outside MCP Gateway. Not executed.");
+    assertThat(after.error()).isEqualTo("The request was changed outside GateRook. Not executed.");
     assertThat(FakeConnectors.EXECUTIONS).isEmpty();
     McpClient.Answer status = dev.legacyCall("approval_status", args("handle", a.id()));
     assertThat(status.result().path("isError").asBoolean()).isTrue();
-    assertThat(status.result().at("/content/0/text").asString()).startsWith("The request was changed outside MCP "
-        + "Gateway. Not executed.");
+    assertThat(status.result().at("/content/0/text").asString()).startsWith("The request was changed outside GateRook. Not executed.");
     assertThat(core.jdbc().queryForObject("select decision from tool_call where approval_id = ? and phase = "
         + "'completed'", String.class, a.id())).isEqualTo("rejected");
   }
@@ -1137,7 +1136,7 @@ class McpIT {
       assertThat(ran.error().path("message").asString()).startsWith("The audit couldn't record the result");
       assertThat(FakeConnectors.EXECUTIONS).hasSize(1);
       McpClient.Answer next = agent.legacyCall("sql_query", args("connection", "dev-db", "sql", "SELECT 2"));
-      assertThat(next.error().path("message").asString()).startsWith("MCP Gateway is catching up with its audit");
+      assertThat(next.error().path("message").asString()).startsWith("GateRook is catching up with its audit");
       assertThat(FakeConnectors.EXECUTIONS).hasSize(1);
     } finally {
       core.jdbc().execute("DROP TRIGGER it_audit_down");
@@ -1170,7 +1169,7 @@ class McpIT {
       TestCore.await(() -> !audit.available(), "the audit holding new calls");
       McpClient.Answer next = agent.legacyCall("sql_query", args("connection", "dev-db", "sql", "SELECT 5"));
       assertThat(next.error().path("code").asInt()).isEqualTo(-32603);
-      assertThat(next.error().path("message").asString()).startsWith("MCP Gateway is catching up with its audit");
+      assertThat(next.error().path("message").asString()).startsWith("GateRook is catching up with its audit");
       assertThat(approvals.find(a.id()).orElseThrow().status()).isEqualTo("running");
       assertThat(FakeConnectors.EXECUTIONS).hasSize(1);
     } finally {

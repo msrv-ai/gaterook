@@ -37,7 +37,7 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * External stores on a real core (ARCHITECTURE.md §10 S1): a Vault connected over the admin API, connections whose
  * password is a reference or Vault dynamic credentials, a reference to a store that isn't connected, Test reference,
- * SSH certificates, rows changed outside MCP Gateway, Disconnect — and no value or token in any answer, result or log.
+ * SSH certificates, rows changed outside GateRook, Disconnect — and no value or token in any answer, result or log.
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class ExternalStoresIT {
@@ -302,7 +302,7 @@ class ExternalStoresIT {
         + "'stage-db/password'")).isEqualTo(1);
     try (ScopedSecretResolver r = core.bean(SecretService.class).resolver(cfg("stage-db"), new Taint())) {
       assertThatThrownBy(() -> r.secret("/credentials/password"))
-          .hasMessageContaining("was changed outside MCP Gateway");
+          .hasMessageContaining("was changed outside GateRook");
     }
     assertThat(secretRow("stage-db/password").path("state").asString()).isEqualTo("changed-outside");
 
@@ -315,7 +315,7 @@ class ExternalStoresIT {
     assertThat(core.bean(StoreClients.class).row(storeId).verified()).isFalse();
     JsonNode test = api.expect(200, HttpMethod.POST, "/api/secret-stores/" + storeId + "/test", null);
     assertThat(test.path("ok").asBoolean()).as(test.toString()).isFalse();
-    assertThat(test.path("error").asString()).contains("was changed outside MCP Gateway");
+    assertThat(test.path("error").asString()).contains("was changed outside GateRook");
     assertThat(api.ok("/api/secret-stores/" + storeId).path("verified").asBoolean()).isFalse();
     assertThat(core.bean(ai.msrv.gaterook.core.platform.IntegrityAlerts.class).has("secret-store", storeId)).isTrue();
 

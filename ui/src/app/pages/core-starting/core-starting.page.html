@@ -56,7 +56,7 @@
             </div>
           </dl>
           @if (!desktop.available) {
-            <p class="gw-text-small gw-fg-muted" id="core-port-why">Starting the core on another port needs the MCP Gateway desktop app: it runs the core.</p>
+            <p class="gw-text-small gw-fg-muted" id="core-port-why">Starting the core on another port needs the GateRook desktop app: it runs the core.</p>
           }
         </div>
       </div>
@@ -105,7 +105,7 @@
             <div class="gw-alert__content"><p class="gw-alert__body">A file dialog asks for the copy. The core checks that it opens the secrets stored here before it replaces anything, and starts working without a restart.</p></div>
           </div>
           @if (!desktop.available) {
-            <p class="gw-text-small gw-fg-muted" id="core-restore-why">Choosing the backup file needs the MCP Gateway desktop app: it opens the file dialog. Restore the key from there.</p>
+            <p class="gw-text-small gw-fg-muted" id="core-restore-why">Choosing the backup file needs the GateRook desktop app: it opens the file dialog. Restore the key from there.</p>
           }
           @if (restoreError(); as err) {
             @if (!err.passphrase) {

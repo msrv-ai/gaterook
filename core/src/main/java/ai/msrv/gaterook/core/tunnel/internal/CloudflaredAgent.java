@@ -59,7 +59,7 @@ public final class CloudflaredAgent implements TunnelAgent {
     }
     Path config = r.runDir().resolve("cloudflared.yml");
     try {
-      Files.writeString(config, "# Written by MCP Gateway: keeps ~/.cloudflared/config.yml out of its tunnel.\n"
+      Files.writeString(config, "# Written by GateRook: keeps ~/.cloudflared/config.yml out of its tunnel.\n"
           + "no-autoupdate: true\n", StandardCharsets.UTF_8);
     } catch (IOException e) {
       throw new TunnelException("Can't write " + config + ": " + e.getMessage());

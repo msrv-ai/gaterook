@@ -368,7 +368,7 @@ public class ApprovalService {
     }
     if (decision == Decision.APPROVE && "desktop-notification".equals(via)) {
       throw ProblemException.unprocessable("Approve in the window", "A system notification can only deny. Open the "
-          + "request in MCP Gateway to approve it.", "/decision");
+          + "request in GateRook to approve it.", "/decision");
     }
     String text = comment == null || comment.isBlank() ? null : cut(comment.strip(), 2_000);
     ApprovalEntity current = readTx.execute(s -> approvals.findById(id).orElse(null));
@@ -382,8 +382,7 @@ public class ApprovalService {
     // never offer it (notifications.Eligibility); this holds even if one did.
     if (decision == Decision.APPROVE && ("slack".equals(via) || "telegram".equals(via))
         && current.getEnv() == ai.msrv.gaterook.connector.api.Env.PROD) {
-      throw ProblemException.unprocessable("Approve in the window", "A production request is approved in MCP "
-          + "Gateway only, never from Slack or Telegram.", "/via");
+      throw ProblemException.unprocessable("Approve in the window", "A production request is approved in GateRook only, never from Slack or Telegram.", "/via");
     }
     if (!clock.instant().isBefore(current.getExpiresAt())) {
       throw ProblemException.conflict("Expired", "The request expired: nothing ran. The agent has to ask again.");

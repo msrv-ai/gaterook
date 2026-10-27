@@ -13,6 +13,7 @@ import { join } from 'node:path';
 import type { SmokeHost } from './app.ts';
 import { callCore } from './core-client.ts';
 import { readDesktopConfig } from './desktop-config.ts';
+import { markImage } from './tray.ts';
 
 /** Marks the runner's code: scripts/build.mjs checks a release bundle doesn't contain it. */
 export const SMOKE_MARKER = 'gw-smoke-runner';
@@ -313,6 +314,13 @@ async function inputGuard(host: SmokeHost, route: string): Promise<void> {
 // ── Scenarios ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
 async function fakeScenario(host: SmokeHost): Promise<void> {
+  const icon = markImage(512, 'brand');
+  const trayIcon = markImage(16, 'mono');
+  expect('the kit app icon loads at both Dock resolutions', !icon.isEmpty()
+    && icon.getScaleFactors().includes(1) && icon.getScaleFactors().includes(2)
+    && icon.getSize().width === 512 && icon.toPNG({ scaleFactor: 2 }).readUInt32BE(16) === 1024);
+  expect('the menu bar uses the kit monochrome template', !trayIcon.isEmpty()
+    && trayIcon.getSize().width === 16 && trayIcon.isTemplateImage());
   const home = host.layout.home;
   const busyPort = host.config().port;
   const publicPort = host.config().publicPort;

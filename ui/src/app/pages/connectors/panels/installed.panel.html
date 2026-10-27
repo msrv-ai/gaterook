@@ -93,7 +93,7 @@
                     <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" [attr.aria-label]="'More actions for ' + v.name" aria-haspopup="menu" [gwMenuTrigger]="menu"><svg lucideIcon="ellipsis" class="gw-icon"></svg></button>
                     <div class="gw-menu gw-menu--right" gwMenu #menu="gwMenu" [id]="menuId(v)" role="menu" [attr.aria-label]="'More actions for ' + v.name" hidden>
                       @if (v.state === 'changed-outside') {
-                        <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" (click)="act('keep', v, $event)"><svg lucideIcon="shield-alert" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Review the change<span class="gw-menu__hint">It was changed outside MCP Gateway and serves nothing until you keep it.</span></span></button>
+                        <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" (click)="act('keep', v, $event)"><svg lucideIcon="shield-alert" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Review the change<span class="gw-menu__hint">It was changed outside GateRook and serves nothing until you keep it.</span></span></button>
                       } @else if (v.state === 'disabled') {
                         <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" (click)="act('enable', v, $event)"><svg lucideIcon="power" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Enable plugin<span class="gw-menu__hint">Load it again. Its tools come back with their modes.</span></span></button>
                       } @else {

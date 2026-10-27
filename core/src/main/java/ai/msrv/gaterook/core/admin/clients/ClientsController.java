@@ -49,7 +49,7 @@ class ClientsController {
   record McpbFile(String path) {}
 
   /**
-   * A config file MCP Gateway won't edit: the problem+json of the admin API plus why, where, and the entry to add by
+   * A config file GateRook won't edit: the problem+json of the admin API plus why, where, and the entry to add by
    * hand.
    */
   record EditProblem(String type, String title, String detail, String field, List<Object> errors, String reason,
@@ -151,7 +151,7 @@ class ClientsController {
   @ExceptionHandler(ConfigEditException.class)
   ResponseEntity<EditProblem> refused(ConfigEditException e) {
     return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT).contentType(MediaType.APPLICATION_PROBLEM_JSON)
-        .body(new EditProblem("about:blank", "MCP Gateway won't edit this file", e.getMessage(), null, List.of(),
+        .body(new EditProblem("about:blank", "GateRook won't edit this file", e.getMessage(), null, List.of(),
             e.reason().name().toLowerCase(java.util.Locale.ROOT).replace('_', '-'), e.line(), e.column(),
             e.fragment()));
   }

@@ -131,7 +131,7 @@ const NO_ANSWER = 'The core didn’t answer. Try again.';
               <div class="gw-alert__content"><p class="gw-alert__body">A save dialog asks where the copy goes. Pick a place off this computer, such as your password manager or an encrypted drive, never next to database backups.@if (desktop.platform === 'darwin') { macOS asks for your password before the copy is written.}</p></div>
             </div>
             @if (!desktop.available) {
-              <p class="gw-text-small gw-fg-muted" id="st-backup-key-why">Saving a file needs the MCP Gateway desktop app: it opens the save dialog. Back up the key from there.</p>
+              <p class="gw-text-small gw-fg-muted" id="st-backup-key-why">Saving a file needs the GateRook desktop app: it opens the save dialog. Back up the key from there.</p>
             }
             @if (keyError(); as err) {
               <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">

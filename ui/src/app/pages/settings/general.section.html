@@ -11,9 +11,9 @@
     </header>
     <div class="gw-form__rows">
       <div class="gw-switch">
-        <input class="gw-switch__input" type="checkbox" role="switch" id="st-login" [checked]="openAtLogin()" [attr.aria-busy]="busy() === 'openAtLogin' ? 'true' : null" aria-describedby="st-login-hint" (change)="setGeneral('openAtLogin', $event, 'Start MCP Gateway when you sign in')">
+        <input class="gw-switch__input" type="checkbox" role="switch" id="st-login" [checked]="openAtLogin()" [attr.aria-busy]="busy() === 'openAtLogin' ? 'true' : null" aria-describedby="st-login-hint" (change)="setGeneral('openAtLogin', $event, 'Start GateRook when you sign in')">
         <span class="gw-switch__control" aria-hidden="true"></span>
-        <label class="gw-switch__label" for="st-login">Start MCP Gateway when you sign in</label>
+        <label class="gw-switch__label" for="st-login">Start GateRook when you sign in</label>
         <p class="gw-switch__hint" id="st-login-hint">Claude Desktop and Codex can call your endpoints as soon as you sign in to this computer.</p>
       </div>
       <div class="gw-switch">
@@ -127,7 +127,7 @@
           <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint URLs</dt><dd class="gw-kv__value">@for (p of newUrls(); track $index) {@if (p.mono) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</dd></div>
           <div class="gw-kv__row"><dt class="gw-kv__key">Connect again</dt><dd class="gw-kv__value">@if (againText(); as again) {{{ again }}, from <a class="gw-link" routerLink="/clients">Clients</a>} @else {No client keeps the old URL in its config}</dd></div>
           @if (keepText(); as keep) {
-            <div class="gw-kv__row"><dt class="gw-kv__key">Unchanged</dt><dd class="gw-kv__value">{{ keep }}: {{ clients().keep.length === 1 ? 'its bridge asks' : 'their bridges ask' }} MCP Gateway for the address</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Unchanged</dt><dd class="gw-kv__value">{{ keep }}: {{ clients().keep.length === 1 ? 'its bridge asks' : 'their bridges ask' }} GateRook for the address</dd></div>
           }
           <div class="gw-kv__row"><dt class="gw-kv__key">During the restart</dt><dd class="gw-kv__value">Calls in flight fail and agents retry.@if (pendingCount() > 0) { The {{ plural(pendingCount(), 'pending approval request') }} {{ pendingCount() === 1 ? 'is' : 'are' }} kept.} @else { Approval requests are kept.}</dd></div>
         </dl>

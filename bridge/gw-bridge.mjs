@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// gw-bridge.mjs: the stdio bridge inside MCP Gateway's Claude Desktop extensions (ARCHITECTURE.md §7.2, report 03
+// gw-bridge.mjs: the stdio bridge inside GateRook's Claude Desktop extensions (ARCHITECTURE.md §7.2, report 03
 // §7.4). Claude Desktop runs it with its own Node (>= 18); it has no dependencies and holds no secret.
 //
 //   node gw-bridge.mjs stdio --endpoint dev --grant gr_… [--client claude-desktop]
 //
 // Each line on stdin is a JSON-RPC message; it is POSTed to the endpoint URL the broker names, with a 15-minute token
-// the broker gets for the grant from MCP Gateway. The answer goes to stdout as one line. On 401 the bridge asks for a
+// the broker gets for the grant from GateRook. The answer goes to stdout as one line. On 401 the bridge asks for a
 // new token once and sends again. It never exits on an error, so Claude doesn't mark the server as failed; it answers
 // the request with a JSON-RPC error saying what to do. Logs go to stderr, never a token.
 //
@@ -25,7 +25,7 @@ const MAX_ANSWER = 64 * 1024 * 1024;
 const BROKER_WAIT_MS = 60_000;
 const REQUEST_WAIT_MS = 120_000;
 const INSTANCE_HEADER = 'x-gateway-bridge-instance';
-const NOT_RUNNING = 'MCP Gateway is not running. Open MCP Gateway, then try again.';
+const NOT_RUNNING = 'GateRook is not running. Open GateRook, then try again.';
 
 const log = (...a) => process.stderr.write(`[gw-bridge] ${a.join(' ')}\n`);
 
@@ -76,7 +76,7 @@ export function brokerCall(address, request, waitMs = BROKER_WAIT_MS) {
       clearTimeout(timer);
       err ? reject(err) : resolve(value);
     };
-    const timer = setTimeout(() => finish(Object.assign(new Error('The MCP Gateway broker didn\'t answer.'),
+    const timer = setTimeout(() => finish(Object.assign(new Error('The GateRook broker didn\'t answer.'),
       { code: 'broker_timeout' })), waitMs);
     socket.setEncoding('utf8');
     socket.on('connect', () => socket.write(JSON.stringify(request) + '\n'));
@@ -194,7 +194,7 @@ export function createBridge({ endpoint, grant, client, env = process.env, write
         }));
         res.on('error', reject);
       });
-      req.on('timeout', () => req.destroy(new Error('MCP Gateway didn\'t answer in time.')));
+      req.on('timeout', () => req.destroy(new Error('GateRook didn\'t answer in time.')));
       req.on('error', (e) => reject(Object.assign(new Error(e.code === 'ECONNREFUSED' ? NOT_RUNNING : e.message),
         { code: e.code === 'ECONNREFUSED' ? 'core_unavailable' : e.code })));
       req.end(body);
@@ -209,8 +209,8 @@ export function createBridge({ endpoint, grant, client, env = process.env, write
   function messageFor(e) {
     switch (e.code) {
       case 'grant_revoked':
-        return `Access to ${endpoint} was revoked in MCP Gateway. Remove this extension in Claude: Settings › `
-          + 'Extensions, or connect again from MCP Gateway.';
+        return `Access to ${endpoint} was revoked in GateRook. Remove this extension in Claude: Settings › `
+          + 'Extensions, or connect again from GateRook.';
       default:
         return e.message || NOT_RUNNING;
     }
@@ -279,7 +279,7 @@ export function createBridge({ endpoint, grant, client, env = process.env, write
         write(r.body.trim());
         return;
       }
-      reply(id, -32603, `MCP Gateway answered HTTP ${r.status}.`);
+      reply(id, -32603, `GateRook answered HTTP ${r.status}.`);
     } catch (e) {
       log(`${msg && msg.method ? msg.method : 'message'} failed: ${e.code || ''} ${e.message}`);
       reply(id, -32603, messageFor(e));

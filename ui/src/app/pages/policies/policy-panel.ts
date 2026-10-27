@@ -569,7 +569,7 @@ export class GwPolicyPanel {
     if (value === 'reset') this.focusAfterRender(() => this.host);
   }
 
-  // ── Changed outside MCP Gateway ───────────────────────────────────────────────────────────────────────────────
+  // ── Changed outside GateRook ───────────────────────────────────────────────────────────────────────────────
 
   protected readonly unverifiedParent = computed(() => {
     const p = this.policy();

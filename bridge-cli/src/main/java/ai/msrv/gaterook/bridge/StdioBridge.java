@@ -32,7 +32,7 @@ import java.util.regex.Pattern;
  */
 final class StdioBridge {
 
-  static final String NOT_RUNNING = "MCP Gateway is not running. Open MCP Gateway, then try again.";
+  static final String NOT_RUNNING = "GateRook is not running. Open GateRook, then try again.";
   private static final Duration BROKER_WAIT = Duration.ofSeconds(60);
   private static final Duration REQUEST_WAIT = Duration.ofSeconds(120);
   private static final Pattern ASCII = Pattern.compile("[\\x20-\\x7e]*");
@@ -149,11 +149,11 @@ final class StdioBridge {
         write(r.body().strip());
         return;
       }
-      reply(id, "MCP Gateway answered HTTP " + r.statusCode() + ".");
+      reply(id, "GateRook answered HTTP " + r.statusCode() + ".");
     } catch (Refused e) {
       log.write("stdio", client + " on " + endpoint + " (" + grant + "): " + e.code + ": " + e.getMessage());
-      reply(id, "grant_revoked".equals(e.code) ? "Access to " + endpoint + " was revoked in MCP Gateway. Connect "
-          + "again from MCP Gateway." : e.getMessage());
+      reply(id, "grant_revoked".equals(e.code) ? "Access to " + endpoint + " was revoked in GateRook. Connect "
+          + "again from GateRook." : e.getMessage());
     } catch (BrokerClient.Unavailable e) {
       log.write("stdio", client + " on " + endpoint + ": " + e.getMessage());
       reply(id, NOT_RUNNING);
@@ -162,7 +162,7 @@ final class StdioBridge {
       reply(id, NOT_RUNNING);
     } catch (IOException | RuntimeException e) {
       log.write("stdio", client + " on " + endpoint + ": " + e.getMessage());
-      reply(id, "MCP Gateway didn't answer: " + e.getMessage());
+      reply(id, "GateRook didn't answer: " + e.getMessage());
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
     }

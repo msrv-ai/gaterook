@@ -128,7 +128,7 @@ describe('Welcome: setup map', () => {
           n.id === 'connections'
             ? { ...n, count: 3, status: '3 connections' }
             : n.id === 'endpoints'
-              ? { ...n, count: 1, state: 'attention' as const, status: '1 changed outside MCP Gateway' }
+              ? { ...n, count: 1, state: 'attention' as const, status: '1 changed outside GateRook' }
               : n,
         ),
       },
@@ -138,7 +138,7 @@ describe('Welcome: setup map', () => {
       'Step 1 · master key not backed up',
       'Step 2 · 3 connections',
       'Safe defaults on · review any time',
-      'Step 3 · 1 changed outside MCP Gateway',
+      'Step 3 · 1 changed outside GateRook',
       'Step 4 · 1 connected · 2 detected',
     ]);
   });
@@ -184,7 +184,7 @@ describe('Welcome: step cards', () => {
     };
     expect(text(doneLine(f, 'connection'))).toBe('Connection `dev-db` is set up.');
     expect(text(doneLine(f, 'endpoint'))).toBe('Endpoint `dev` is set up with 22 tools.');
-    expect(text(doneLine(f, 'client'))).toBe('Claude Desktop and Codex use MCP Gateway.');
+    expect(text(doneLine(f, 'client'))).toBe('Claude Desktop and Codex use GateRook.');
     const many = { ...f, onboarding: onboarding({ connection: { name: 'dev-db', count: 3 } }) };
     expect(text(doneLine(many, 'connection'))).toBe('3 connections are set up, including `dev-db`.');
   });

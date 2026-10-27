@@ -62,7 +62,7 @@ describe('Endpoints view', () => {
     expect(headerStatuses(mixed)).toEqual([
       { tone: 'success', text: '1 running' },
       { tone: 'neutral', text: '1 disabled' },
-      { tone: 'warning', text: '1 changed outside MCP Gateway' },
+      { tone: 'warning', text: '1 changed outside GateRook' },
     ]);
     expect(publishedMeta(kitEndpoints(), TUNNEL_OFF)).toEqual({ text: '1 published for claude.ai', tunnel: { text: 'tunnel off', at: at(22, '12:10:00') } });
     // Before K3 the core has no tunnel to describe: the count alone.
@@ -198,7 +198,7 @@ describe('Endpoints view', () => {
       'incident-response': '3 prod connections · stricter prod limits',
     });
     expect(startFromMeta([])['read-only-dev']).toBe('No dev connections yet');
-    // A connection changed outside MCP Gateway is skipped by the core.
+    // A connection changed outside GateRook is skipped by the core.
     expect(startFromMeta([{ ...conn('a', 'dev', 'healthy', 1, []), verified: false }])['read-only-dev']).toBe('No dev connections yet');
     expect(startFromMeta(null)['read-only-dev']).toBe('Dev connections');
     // An external MCP server joins an endpoint only when the person adds it.
@@ -232,7 +232,7 @@ describe('Endpoints view', () => {
     expect(createField('/description')).toBe('description');
     expect(createField('/startFrom')).toBe('startFrom');
     expect(createField(null)).toBeNull();
-    expect(blockedText('tool sql_execute')).toBe('The tool sql_execute was changed outside MCP Gateway. It serves nothing until you review it.');
+    expect(blockedText('tool sql_execute')).toBe('The tool sql_execute was changed outside GateRook. It serves nothing until you review it.');
     expect(andList(['a', 'b', 'c'])).toBe('a, b and c');
   });
 

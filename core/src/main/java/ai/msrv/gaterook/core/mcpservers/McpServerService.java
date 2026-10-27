@@ -79,7 +79,7 @@ public class McpServerService {
 
   /**
    * One reviewed tool: as agents see it ({@code name}), as the server calls it ({@code original}), and what the
-   * server declared about it ({@code annotations}), which MCP Gateway doesn't verify.
+   * server declared about it ({@code annotations}), which GateRook doesn't verify.
    *
    * @param nature {@code read} when the server declares it read-only, else {@code mutation}
    */
@@ -197,7 +197,7 @@ public class McpServerService {
     if (request.catalog() != null && !request.catalog().isBlank()) {
       McpServerCatalog c = catalog.getIfAvailable();
       if (c == null) {
-        throw ProblemException.unprocessable("Catalog not available", "This build of MCP Gateway has no catalog of "
+        throw ProblemException.unprocessable("Catalog not available", "This build of GateRook has no catalog of "
             + "MCP servers yet. Add the server with its command instead.", "/catalog");
       }
       entry = c.entry(request.catalog()).orElseThrow(() -> ProblemException.unprocessable("Not in the catalog",
@@ -258,7 +258,7 @@ public class McpServerService {
         fields.add(field);
       } else if (forCreate) {
         throw ProblemException.unprocessable("Secret missing", "Enter the value of " + b.path("name").asString(
-            "variable " + i) + ". MCP Gateway stores it as a secret of this server.", "/secrets");
+            "variable " + i) + ". GateRook stores it as a secret of this server.", "/secrets");
       }
     }
     if (forCreate) {
@@ -273,7 +273,7 @@ public class McpServerService {
             + "another one.");
       }
       if (registry.reservedPrefixes().contains(prefix)) {
-        throw ProblemException.unprocessable("Reserved prefix", prefix + " is the family of MCP Gateway's built-in "
+        throw ProblemException.unprocessable("Reserved prefix", prefix + " is the family of GateRook's built-in "
             + "tools. Choose another prefix.", "/config/toolPrefix");
       }
       Optional<String> plugin = pluginWithNamespace(registry.types(), prefix);
@@ -464,7 +464,7 @@ public class McpServerService {
     return connections.delete(name, name, reason);
   }
 
-  /** The person reviewed a row changed outside MCP Gateway and keeps it as it is. */
+  /** The person reviewed a row changed outside GateRook and keeps it as it is. */
   public Started confirmIntegrity(String name, String reason) {
     ConnectionConfigs.Stored c = configs.byName(name).filter(x -> TYPE.equals(x.config().type()))
         .orElseThrow(() -> notFound(name));
@@ -476,7 +476,7 @@ public class McpServerService {
       rows.sign(row);
       alerts.resolve("mcp-server", c.id());
       setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.MCP_SERVER,
-          "MCP server " + name + " kept as changed outside MCP Gateway", null, null, reason, c.config().env(), null,
+          "MCP server " + name + " kept as changed outside GateRook", null, null, reason, c.config().env(), null,
           name, null));
     });
     source.forget(c.id());
@@ -572,11 +572,11 @@ public class McpServerService {
     ConnectionConfigs.Stored c = configs.byName(name).filter(x -> TYPE.equals(x.config().type()))
         .orElseThrow(() -> notFound(name));
     if (!c.verified()) {
-      throw ProblemException.conflict("Changed outside MCP Gateway", name + " was changed outside MCP Gateway. "
+      throw ProblemException.conflict("Changed outside GateRook", name + " was changed outside GateRook. "
           + "Review it in Connections first.");
     }
     McpServerRuntime.Snapshot snapshot = source.snapshot(c.config()).orElseThrow(() -> ProblemException.conflict(
-        "Changed outside MCP Gateway", "The reviewed tools of " + name + " were changed outside MCP Gateway. Review "
+        "Changed outside GateRook", "The reviewed tools of " + name + " were changed outside GateRook. Review "
             + "them in Connectors › MCP servers."));
     return new Stored(c.config(), snapshot);
   }
@@ -584,7 +584,7 @@ public class McpServerService {
   private McpServerRuntime requireRuntime() {
     McpServerRuntime r = runtime.getIfAvailable();
     if (r == null) {
-      throw ProblemException.unprocessable("Not available", "This build of MCP Gateway runs no external MCP servers.",
+      throw ProblemException.unprocessable("Not available", "This build of GateRook runs no external MCP servers.",
           null);
     }
     return r;

@@ -6,7 +6,7 @@
     <div class="gw-alert gw-alert--warning" role="status">
       <svg lucideIcon="shield-alert" class="gw-icon gw-alert__icon"></svg>
       <div class="gw-alert__content">
-        <p class="gw-alert__title">The {{ env }} policy was changed outside MCP Gateway</p>
+        <p class="gw-alert__title">The {{ env }} policy was changed outside GateRook</p>
         <p class="gw-alert__body">Calls on {{ env }}@for (c of inheritorNames(); track c) { and {{ c }}} are denied until you review it. Keep it as stored if you made the change yourself, or reset it to {{ p.inherits ? p.inherits : 'its defaults' }}. The values below are what {{ env }} would have without it.</p>
         <div class="gw-alert__actions">
           <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askKeep($event)">Review and keep<span class="gw-sr-only"> the {{ env }} policy</span></button>
@@ -18,7 +18,7 @@
     <div class="gw-alert gw-alert--warning" role="status">
       <svg lucideIcon="shield-alert" class="gw-icon gw-alert__icon"></svg>
       <div class="gw-alert__content">
-        <p class="gw-alert__title">{{ env }} inherits the {{ parent }} policy, which was changed outside MCP Gateway</p>
+        <p class="gw-alert__title">{{ env }} inherits the {{ parent }} policy, which was changed outside GateRook</p>
         <p class="gw-alert__body">Calls on {{ env }} are denied until you review the {{ parent }} policy.</p>
         <div class="gw-alert__actions"><a class="gw-btn gw-btn--link gw-btn--sm" [routerLink]="['/policies', parent]">Review the {{ parent }} policy</a></div>
       </div>
@@ -317,7 +317,7 @@
         <button class="gw-btn" type="reset" [attr.aria-disabled]="busy() ? 'true' : null">Discard</button>
         <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="busy() ? 'true' : null" [attr.aria-disabled]="busy() || !p.verified ? 'true' : null" [attr.aria-describedby]="!p.verified ? pre() + '-save-why' : null">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Save {{ env }} policy</button>
         @if (!p.verified) {
-          <span class="gw-sr-only" [id]="pre() + '-save-why'">Review the change made outside MCP Gateway first</span>
+          <span class="gw-sr-only" [id]="pre() + '-save-why'">Review the change made outside GateRook first</span>
         }
       </div>
     }
@@ -400,12 +400,12 @@
   </dialog>
 }
 
-<!-- Changed outside MCP Gateway: keeping it is reversible (Reset), so a warning dialog; Cancel has the focus. -->
+<!-- Changed outside GateRook: keeping it is reversible (Reset), so a warning dialog; Cancel has the focus. -->
 <dialog class="gw-dialog gw-dialog--md gw-dialog--warning" gwDialog #keepDialog="gwDialog" [id]="'pol-dlg-keep-' + env" [attr.aria-labelledby]="'pol-dlg-keep-' + env + '-title'" [attr.aria-describedby]="'pol-dlg-keep-' + env + '-desc'" (closed)="onKeepClosed($event)">
   <header class="gw-dialog__header">
     <span class="gw-icon-tile"><svg lucideIcon="shield-alert" class="gw-icon"></svg></span>
     <h2 class="gw-dialog__title" [id]="'pol-dlg-keep-' + env + '-title'">Keep the {{ env }} policy as stored?</h2>
-    <p class="gw-dialog__description" [id]="'pol-dlg-keep-' + env + '-desc'">Someone changed it outside MCP Gateway. Keep it only if you made that change; MCP Gateway then decides calls on {{ env }} by it again.</p>
+    <p class="gw-dialog__description" [id]="'pol-dlg-keep-' + env + '-desc'">Someone changed it outside GateRook. Keep it only if you made that change; GateRook then decides calls on {{ env }} by it again.</p>
     <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
   </header>
   <div class="gw-dialog__body gw-stack gw-stack--sm">

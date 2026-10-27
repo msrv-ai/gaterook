@@ -143,8 +143,7 @@ public class TelegramChannel implements ChatChannel, DisposableBean {
       return;
     }
     if (!row.verified()) {
-      channels.state(NotifyChannel.TELEGRAM, "changed-outside", "The Telegram settings were changed outside MCP "
-          + "Gateway. Save them again to turn Telegram back on.");
+      channels.state(NotifyChannel.TELEGRAM, "changed-outside", "The Telegram settings were changed outside GateRook. Save them again to turn Telegram back on.");
       return;
     }
     if (!row.enabled() || row.secretId("botToken") == null) {
@@ -237,7 +236,7 @@ public class TelegramChannel implements ChatChannel, DisposableBean {
           case 409 -> {
             running = false;
             channels.state(NotifyChannel.TELEGRAM, "error", "Another program reads updates for this bot (a webhook "
-                + "or a second MCP Gateway). Test Telegram in Settings › Notifications.");
+                + "or a second GateRook). Test Telegram in Settings › Notifications.");
             return;
           }
           case 429 -> {
@@ -257,7 +256,7 @@ public class TelegramChannel implements ChatChannel, DisposableBean {
         if (!current()) {
           return;
         }
-        channels.state(NotifyChannel.TELEGRAM, "error", "MCP Gateway can't reach Telegram. Trying again.");
+        channels.state(NotifyChannel.TELEGRAM, "error", "GateRook can't reach Telegram. Trying again.");
         if (!sleep(backoff(attempt++))) {
           return;
         }
@@ -310,15 +309,15 @@ public class TelegramChannel implements ChatChannel, DisposableBean {
       Instant last = lastRefusal.get(chat);
       if (last == null || last.isBefore(minuteAgo)) {
         lastRefusal.put(chat, clock.instant());
-        reply(chat, code.isEmpty() ? "To link this chat, open MCP Gateway › Settings › Notifications › Telegram."
-            : "This code is invalid or expired. Make a new one in MCP Gateway.");
+        reply(chat, code.isEmpty() ? "To link this chat, open GateRook › Settings › Notifications › Telegram."
+            : "This code is invalid or expired. Make a new one in GateRook.");
       }
       return;
     }
     ObjectNode candidate = JsonNodeFactory.instance.objectNode().put("userId", Long.toString(from))
         .put("chatId", Long.toString(chat)).put("display", display(m.path("from")));
     if (linking.present(pairing.get().id(), candidate).isPresent()) {
-      reply(chat, "Code accepted. Confirm this account in MCP Gateway on " + instance.host() + " to finish linking.");
+      reply(chat, "Code accepted. Confirm this account in GateRook on " + instance.host() + " to finish linking.");
     }
   }
 
@@ -372,20 +371,20 @@ public class TelegramChannel implements ChatChannel, DisposableBean {
       if ("digest".equals(id)) {
         if ("o".equals(kind)) {
           open("/approvals");
-          answer = "Opened in MCP Gateway on " + instance.host() + ".";
+          answer = "Opened in GateRook on " + instance.host() + ".";
         }
         return;
       }
       Optional<DeliveryStore.Delivery> delivery = deliveries.at(NotifyChannel.TELEGRAM, chat + ":" + messageId, id);
       if (delivery.isEmpty()) {
-        answer = "This message isn't one MCP Gateway sent for this request.";
+        answer = "This message isn't one GateRook sent for this request.";
         alert = true;
         return;
       }
       answer = switch (kind) {
         case "o" -> {
           open("/approvals/" + id);
-          yield "Opened in MCP Gateway on " + instance.host() + ".";
+          yield "Opened in GateRook on " + instance.host() + ".";
         }
         case "d" -> rules.decide(Eligibility.Channel.TELEGRAM, id, false, null, Long.toString(from),
             delivery.get().offeredApprove(), this::fits).text();
@@ -414,7 +413,7 @@ public class TelegramChannel implements ChatChannel, DisposableBean {
     }
     Optional<ApprovalView> a = approvals.find(id);
     if (a.isEmpty() || !a.get().pending()) {
-      return a.map(ChannelRules::alreadyText).orElse("This request no longer exists in MCP Gateway.");
+      return a.map(ChannelRules::alreadyText).orElse("This request no longer exists in GateRook.");
     }
     ApprovalNotice n = notices.of(a.get());
     if (digest == null || !n.digestPrefix().equals(digest)) {
@@ -496,7 +495,7 @@ public class TelegramChannel implements ChatChannel, DisposableBean {
         error = "Telegram answered " + e.code() + ": " + safe(e.description());
         deliveries.failed(d.id(), error);
       } catch (IOException e) {
-        error = "MCP Gateway can't reach Telegram";
+        error = "GateRook can't reach Telegram";
         deliveries.failed(d.id(), error);
       }
     }
@@ -611,7 +610,7 @@ public class TelegramChannel implements ChatChannel, DisposableBean {
     } catch (TelegramApi.TelegramException e) {
       return Delivered.failed("Telegram answered " + e.code() + ": " + safe(e.description()));
     } catch (IOException e) {
-      return Delivered.failed("MCP Gateway can't reach Telegram");
+      return Delivered.failed("GateRook can't reach Telegram");
     }
   }
 
@@ -687,7 +686,7 @@ public class TelegramChannel implements ChatChannel, DisposableBean {
     JsonNode c = p.get().candidate();
     Optional<LinkStore.Link> link = linking.complete(pairingId, NotifyChannel.TELEGRAM, null,
         c.path("userId").asString(), c.path("chatId").asString(), c.path("display").asString(null), reason);
-    link.ifPresent(l -> reply(Long.parseLong(l.chatId()), "Linked to MCP Gateway on " + instance.host()
+    link.ifPresent(l -> reply(Long.parseLong(l.chatId()), "Linked to GateRook on " + instance.host()
         + ". Approval requests come here."));
     return link;
   }
@@ -721,7 +720,7 @@ public class TelegramChannel implements ChatChannel, DisposableBean {
       details.put("botId", me.path("id").asLong()).put("username", username);
       if (me.path("can_read_all_group_messages").asBoolean(false)) {
         hints.add(new TestResult.Hint(TestResult.Severity.WARNING, "privacy-off", null, "Privacy mode is off: in "
-            + "groups the bot reads every message. MCP Gateway only uses private chats."));
+            + "groups the bot reads every message. GateRook only uses private chats."));
       }
       s = System.nanoTime();
       JsonNode hook = api.call("getWebhookInfo", null, tokens.get("botToken"), Duration.ofSeconds(10));
@@ -750,7 +749,7 @@ public class TelegramChannel implements ChatChannel, DisposableBean {
       return TestResult.failure("telegram_" + e.code(), "Telegram answered " + e.code() + ": "
           + safe(e.description()), null).withChecks(checks);
     } catch (IOException e) {
-      return TestResult.failure("network", "MCP Gateway can't reach api.telegram.org. Telegram is blocked in some "
+      return TestResult.failure("network", "GateRook can't reach api.telegram.org. Telegram is blocked in some "
           + "networks: check the network or the proxy.", null).withChecks(checks);
     }
   }
@@ -775,7 +774,7 @@ public class TelegramChannel implements ChatChannel, DisposableBean {
       } catch (TelegramApi.TelegramException e) {
         error = "Telegram answered " + e.code();
       } catch (IOException e) {
-        error = "MCP Gateway can't reach Telegram";
+        error = "GateRook can't reach Telegram";
       }
     }
     return any ? Delivered.sent() : Delivered.failed("Telegram failed: " + error);

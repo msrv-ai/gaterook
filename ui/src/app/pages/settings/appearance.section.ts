@@ -17,7 +17,7 @@ import { GwThemeControl } from '../../kit/theme';
   template: `
     <header class="gw-section__header">
       <h2 class="gw-section__title" id="st-appearance-t">Appearance</h2>
-      <p class="gw-section__description">How MCP Gateway looks on this computer. Changes apply at once; the titlebar has the same controls.</p>
+      <p class="gw-section__description">How GateRook looks on this computer. Changes apply at once; the titlebar has the same controls.</p>
     </header>
     <hr class="gw-divider">
     <!-- A <form> only to scope the gw-theme / gw-contrast radio groups apart from the titlebar popover's: nothing to

@@ -24,7 +24,7 @@ function runbookCount(natures: JsonValue): number {
  * left out until the core has it) and the runbooks of a limited channel (`/api/templates?kind=ssh-runbook`). Only the
  * list is required: every other part is left out when it doesn't answer, nothing is made up.
  *
- * The actions of the page — create, duplicate, disable / enable, delete, keep a row changed outside MCP Gateway,
+ * The actions of the page — create, duplicate, disable / enable, delete, keep a row changed outside GateRook,
  * show a dismissed risk warning again — go through here and patch the list at once with the core's answer.
  *
  * Reloads are coalesced: one in flight and one more after it, at the deepest depth asked for meanwhile. Approval
@@ -244,7 +244,7 @@ export class EndpointsData {
     return result;
   }
 
-  /** The person reviewed an endpoint changed outside MCP Gateway and keeps it (`confirm: reset-invalid` if asked). */
+  /** The person reviewed an endpoint changed outside GateRook and keeps it (`confirm: reset-invalid` if asked). */
   async keep(slug: string, confirm: string | null): Promise<EndpointSummary> {
     const row = await this.api.confirmIntegrity(slug, confirm ? { confirm } : {});
     this.replace(row);

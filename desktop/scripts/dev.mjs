@@ -18,6 +18,7 @@ import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { prepareDevRuntime } from './dev-runtime.mjs';
 
 const desktop = join(dirname(fileURLToPath(import.meta.url)), '..');
 const repo = join(desktop, '..');
@@ -52,7 +53,8 @@ if (binary) {
   if (existsSync(join(dirname(binary), 'native-libs'))) env.GW_CORE_LIBS = join(dirname(binary), 'native-libs');
 }
 console.log(`[dev] home ${home}; core ${binary ?? jar}`);
-const child = spawn(electron, [desktop, ...(process.env.GW_DEV_ALLOW_NO_SANDBOX === '1' ? ['--no-sandbox'] : [])],
+const runtime = prepareDevRuntime(electron, join(desktop, '.dev', 'runtime'));
+const child = spawn(runtime, [desktop, ...(process.env.GW_DEV_ALLOW_NO_SANDBOX === '1' ? ['--no-sandbox'] : [])],
   { env, stdio: 'inherit' });
 const stop = () => child.kill('SIGTERM');
 process.on('SIGINT', stop);

@@ -104,7 +104,7 @@ public final class StoreClients implements AutoCloseable {
    * The client of store {@code id}.
    *
    * @throws StoreException {@code NOT_FOUND} when the store is gone, {@code INVALID} when its row was changed outside
-   *                        MCP Gateway or its settings can't be used
+   *                        GateRook or its settings can't be used
    */
   public SecretStore client(String id) {
     Row row = row(id);
@@ -114,7 +114,7 @@ public final class StoreClients implements AutoCloseable {
   public SecretStore client(Row row) {
     if (!row.verified()) {
       alerts.report("secret-store", row.id(), row.name(), "external store row");
-      throw StoreException.invalid(row.name() + " was changed outside MCP Gateway. Review it in Secrets › External "
+      throw StoreException.invalid(row.name() + " was changed outside GateRook. Review it in Secrets › External "
           + "stores before it is used again.");
     }
     String key = CanonicalJson.sha256Hex(row.config()) + "|" + row.name() + "|" + signInVersions(row.id());

@@ -322,7 +322,7 @@ public final class AwsSmStore implements SecretStore {
     public void beforeExecution(Context.BeforeExecution context, ExecutionAttributes attributes) {
       String operation = attributes.getAttribute(SdkExecutionAttribute.OPERATION_NAME);
       if (!OPERATIONS.contains(operation)) {
-        throw new SecurityException("Blocked secretsmanager." + operation + ": MCP Gateway only reads secrets");
+        throw new SecurityException("Blocked secretsmanager." + operation + ": GateRook only reads secrets");
       }
     }
   }

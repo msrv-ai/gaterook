@@ -1,4 +1,4 @@
-# MCP Gateway installers (ARCHITECTURE.md §7.1 "Packaging", A20; report 14 §7.7). Built from:
+# GateRook installers (ARCHITECTURE.md §7.1 "Packaging", A20; report 14 §7.7). Built from:
 #   dist/          main and preload bundles (scripts/build.mjs --release: no development code, no node_modules)
 #   stage/         everything else, laid out by ../scripts/stage.mjs (UI, native core, JRE, plugin host, bridges,
 #                  cloudflared, icon)
@@ -7,8 +7,8 @@
 # Signing, notarization and Windows Azure signing: .github/workflows/release.yml passes them from the repository's
 # secrets (step R1; UNVERIFIED without the certificates), and signs ad hoc when there are none.
 appId: ai.msrv.gaterook.desktop          # = the Windows AUMID main sets (app.ts APP_ID): notifications belong to it
-productName: MCP Gateway
-copyright: Copyright © 2026 MCP Gateway
+productName: GateRook
+copyright: Copyright © 2026 GateRook
 directories:
   output: release
   buildResources: build
@@ -17,6 +17,7 @@ files:
   - package.json
   - dist/main.cjs
   - dist/preload.cjs
+  - dist/icons/*.png
   - from: stage/ui
     to: ui
   - "!node_modules/**/*"              # main is one bundle: nothing from node_modules ships
@@ -32,7 +33,7 @@ extraResources:
   - from: stage/cloudflared           # <resources>/cloudflared/<os>-<arch>/cloudflared, pinned (A6)
     to: cloudflared
 protocols:
-  - name: MCP Gateway
+  - name: GateRook
     schemes: [mcp-gateway]
 electronLanguages: [en, en-US, en_GB]
 electronFuses:                        # §7.1 "fuses"

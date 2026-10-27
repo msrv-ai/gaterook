@@ -72,7 +72,7 @@ interface StoreCard {
  *   once into password fields (read only when sent), Test and connect. AWS shows the ExternalId to put into the
  *   role's trust policy before connecting.
  * - Disconnect: `gw-dialog--danger` naming what fails next, Cancel has the focus.
- * - A store changed outside MCP Gateway isn't used until the person keeps it (`gw-dialog--warning`).
+ * - A store changed outside GateRook isn't used until the person keeps it (`gw-dialog--warning`).
  */
 @Component({
   selector: 'section[gwExternalStores]',

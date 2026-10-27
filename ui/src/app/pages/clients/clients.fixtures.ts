@@ -124,7 +124,7 @@ export function previewFor(client: ClientCard['client'], request: ConnectRequest
 export function codexDisconnect(): ConnectPreview {
   const removed = [
     '',
-    '# >>> MCP Gateway · gateway-dev · managed entry: Disconnect in MCP Gateway removes it',
+    '# >>> GateRook · gateway-dev · managed entry: Disconnect in GateRook removes it',
     '[mcp_servers.gateway-dev]',
     'url = "http://127.0.0.1:7465/mcp/dev"',
     // The core's TomlBlockEditor writes the shim of ~/.mcp-gateway/bin as one command string (ARCHITECTURE §7.2, KIT).
@@ -132,7 +132,7 @@ export function codexDisconnect(): ConnectPreview {
     'default_tools_approval_mode = "writes"',
     'startup_timeout_sec = 20',
     'tool_timeout_sec = 60',
-    '# <<< MCP Gateway · gateway-dev',
+    '# <<< GateRook · gateway-dev',
   ];
   return {
     previewId: 'pv_codex_out',

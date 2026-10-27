@@ -92,7 +92,7 @@ function draftKey(type: string | null, v: ConnectionFormValue): string {
 
 /** The wording of an error alert: the core's own sentence, else what to do. */
 export function errorText(e: ApiError | null): string {
-  if (!e) return "The core didn't answer. Check that MCP Gateway is running, then try again.";
+  if (!e) return "The core didn't answer. Check that GateRook is running, then try again.";
   return e.kind === 'not-available' ? 'This build of the core has no such page yet.' : `${e.title}. ${e.detail}`;
 }
 

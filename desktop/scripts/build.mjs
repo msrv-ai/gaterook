@@ -9,7 +9,7 @@
 //
 // Type checking is `npm run typecheck` (tsc --noEmit); esbuild only strips types.
 import { build } from 'esbuild';
-import { readFileSync, rmSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -35,6 +35,12 @@ const common = {
 
 await build({ ...common, entryPoints: ['src/main/main.ts'], outfile: join(dist, 'main.cjs') });
 await build({ ...common, entryPoints: ['src/preload/preload.ts'], outfile: join(dist, 'preload.cjs') });
+
+// Runtime and installer icons consume the design kit's exports without redrawing the artwork.
+mkdirSync(join(dist, 'icons'), { recursive: true });
+for (const name of ['gaterook-icon.png', 'gaterook-mark-mono.png']) {
+  copyFileSync(join(root, '..', 'design', 'assets', 'gaterook', name), join(dist, 'icons', name));
+}
 
 // The preload runs sandboxed: only `electron` can be required there.
 const preload = readFileSync(join(dist, 'preload.cjs'), 'utf8');

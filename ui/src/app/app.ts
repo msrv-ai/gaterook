@@ -254,7 +254,7 @@ export class App {
     } catch (err) {
       this.toasts.show({
         tone: 'danger',
-        title: 'Your answer didn’t reach MCP Gateway',
+        title: 'Your answer didn’t reach GateRook',
         body: `${isApiError(err) ? err.detail : 'The core didn’t answer.'} A request still waiting shows again.`,
       });
     }

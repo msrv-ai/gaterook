@@ -10,7 +10,7 @@ import java.util.Locale;
 
 /**
  * The line a message gets once its request is decided (report 13 §3): "Approved by you from Slack · executed in 38
- * ms", "Denied by you in MCP Gateway", "Expired at 14:34:12 · no decision in 5 min". It names no data of the resource:
+ * ms", "Denied by you in GateRook", "Expired at 14:34:12 · no decision in 5 min". It names no data of the resource:
  * a failure says where to look, not what the resource answered.
  */
 public final class Outcomes {
@@ -36,10 +36,10 @@ public final class Outcomes {
       case "completed" -> new Outcome("Approved by you " + via + " · executed"
           + (durationMs == null ? "" : " in " + duration(durationMs)), true);
       case "failed" -> new Outcome(person(a.decidedVia())
-          ? "Approved by you " + via + " · failed: the details are in MCP Gateway"
-          : "Failed: the details are in MCP Gateway", true);
+          ? "Approved by you " + via + " · failed: the details are in GateRook"
+          : "Failed: the details are in GateRook", true);
       case "rejected" -> new Outcome(switch (a.decidedVia() == null ? "" : a.decidedVia()) {
-        case "core" -> "Rejected by MCP Gateway" + (a.error() == null ? "" : ": " + a.error());
+        case "core" -> "Rejected by GateRook" + (a.error() == null ? "" : ": " + a.error());
         case "client" -> "Declined in the client: nothing ran";
         default -> "Denied by you " + via;
       }, true);
@@ -50,13 +50,13 @@ public final class Outcomes {
     };
   }
 
-  /** "from Slack", "in MCP Gateway": where a decision was made, as the history writes it. */
+  /** "from Slack", "in GateRook": where a decision was made, as the history writes it. */
   public static String via(String decidedVia) {
     return switch (decidedVia == null ? "" : decidedVia) {
       case "slack" -> "from Slack";
       case "telegram" -> "from Telegram";
       case "desktop-notification" -> "from the desktop notification";
-      default -> "in MCP Gateway";
+      default -> "in GateRook";
     };
   }
 

@@ -250,7 +250,7 @@ export function credentialsView(
       case 'needs-value':
         return [{ label: `${label} needs a value`, title: `${s.name} can't be read with this master key. Replace it in Secrets.` }];
       case 'changed-outside':
-        return [{ label: `${label} changed outside MCP Gateway`, title: `${s.name} was changed outside MCP Gateway. Review it in Secrets.` }];
+        return [{ label: `${label} changed outside GateRook`, title: `${s.name} was changed outside GateRook. Review it in Secrets.` }];
       default:
         return [];
     }
@@ -309,7 +309,7 @@ export interface RowAlert {
  * What the kit's row alert says (`billing-api`: "Connection refused since 11:42" / "Check the stage VPN or the
  * billing service, then test again."): the first sentence of the connector's message is what happened, since when the
  * checks say so (`health.since`, step API; `clock` writes the time), the rest what to do. A connection changed outside
- * MCP Gateway gets its own alert: it stays off until you review it.
+ * GateRook gets its own alert: it stays off until you review it.
  */
 export function rowAlert(row: ConnectionRow, clock: ((at: string) => string) | null = null): RowAlert | null {
   if (!row.verified) {
@@ -317,7 +317,7 @@ export function rowAlert(row: ConnectionRow, clock: ((at: string) => string) | n
       kind: 'integrity',
       tone: 'warning',
       icon: 'shield-alert',
-      title: 'Changed outside MCP Gateway',
+      title: 'Changed outside GateRook',
       body: "Agents can't use it until you review it. Keep it only if you made this change.",
     };
   }
@@ -464,7 +464,7 @@ export function testToast(name: string, o: TestOutcome): ToastText {
   };
 }
 
-/** A test the core refused (409 for a row changed outside MCP Gateway, a type that is off…): its words. */
+/** A test the core refused (409 for a row changed outside GateRook, a type that is off…): its words. */
 export function testRefusedToast(name: string, detail: string): ToastText {
   return { tone: 'warning', title: `${name} wasn't tested`, body: detail };
 }

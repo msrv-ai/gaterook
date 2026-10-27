@@ -57,7 +57,7 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/connections/connections.page').then((m) => m.ConnectionsPage),
       },
       {
-        // ?duplicate=<name> is the same wizard from Configure: "Duplicate dev-db · MCP Gateway" (kit page title).
+        // ?duplicate=<name> is the same wizard from Configure: "Duplicate dev-db · GateRook" (kit page title).
         path: 'connections/new',
         title: (route: ActivatedRouteSnapshot) => {
           const copy = route.queryParamMap.get('duplicate');

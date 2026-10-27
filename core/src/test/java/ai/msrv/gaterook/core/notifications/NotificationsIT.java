@@ -170,7 +170,7 @@ class NotificationsIT {
     assertThat(link.path("channel").asString()).isEqualTo("slack");
     assertThat(link.path("display").asString()).isEqualTo("Ravi T. (@ravi)");
     TestCore.await(() -> w.slackUpdates(dm.answer().path("ts").asString()).stream()
-        .anyMatch(u -> u.args().toString().contains("Linked to MCP Gateway on")), "the link message answered");
+        .anyMatch(u -> u.args().toString().contains("Linked to GateRook on")), "the link message answered");
     w.awaitEvent("notify.link.updated", e -> "linked".equals(e.path("state").asString()), "notify.link.updated");
     // Every envelope was acknowledged at once.
     TestCore.await(() -> w.slack.acks.stream().anyMatch(a -> a.contains("\"envelope_id\"")), "acks");
@@ -228,7 +228,7 @@ class NotificationsIT {
     assertThat(linked.path("state").asString()).isEqualTo("linked");
     assertThat(linked.path("display").asString()).isEqualTo("@ravi (Ravi T.)");
     TestCore.await(() -> w.telegram.calls("sendMessage").stream().anyMatch(c -> c.args().path("text").asString()
-        .startsWith("Linked to MCP Gateway on")), "the chat told it is linked");
+        .startsWith("Linked to GateRook on")), "the chat told it is linked");
     // The code works once.
     assertThat(w.api.send(HttpMethod.POST, "/api/notifications/telegram/pairing/" + id + "/confirm", null).status())
         .isEqualTo(404);
@@ -304,14 +304,14 @@ class NotificationsIT {
     w.slack.envelope("interactive", FakeSlack.click("gw_approve", value, FakeSlack.RAVI, FakeSlack.TEAM,
         "A0SOMEOTHER", FakeSlack.RAVI_DM, post.answer().path("ts").asString()));
     w.slackClick("gw_approve", "v1|ins_someoneelse1|" + id + "|" + digest, FakeSlack.RAVI, post);
-    w.awaitEphemeral(FakeSlack.RAVI, "This request belongs to another MCP Gateway.");
+    w.awaitEphemeral(FakeSlack.RAVI, "This request belongs to another GateRook.");
     w.slack.envelope("interactive", FakeSlack.click("gw_approve", value, FakeSlack.RAVI, FakeSlack.TEAM,
         FakeSlack.APP_ID, FakeSlack.RAVI_DM, "1792672452.999000"));
     w.awaitEphemeral(FakeSlack.RAVI, "Only the linked approver can act on this request.");
     w.slackClick("gw_approve", "v1|" + instance + "|" + id + "|000000000000", FakeSlack.RAVI, post);
     w.awaitEphemeral(FakeSlack.RAVI, "This isn't the action you saw.");
     w.slackClick("gw_open", value, FakeSlack.RAVI, post);
-    w.awaitEphemeral(FakeSlack.RAVI, "Opened in MCP Gateway on");
+    w.awaitEphemeral(FakeSlack.RAVI, "Opened in GateRook on");
     w.awaitEvent("ui.open", e -> ("/approvals/" + id).equals(e.path("path").asString()), "ui.open");
     Thread.sleep(300);
     assertThat(approvals.find(id).orElseThrow().status()).isEqualTo("pending");
@@ -380,7 +380,7 @@ class NotificationsIT {
       org.assertj.core.api.Assertions.assertThatThrownBy(() -> approvals.decide(id, ApprovalService.Decision.APPROVE,
           via, "looks fine", digest, "U0RAVI0001")).as(via)
           .isInstanceOfSatisfying(ai.msrv.gaterook.core.platform.ProblemException.class,
-              e -> assertThat(e.getMessage()).contains("approved in MCP Gateway only"));
+              e -> assertThat(e.getMessage()).contains("approved in GateRook only"));
     }
     assertThat(approvals.find(id).orElseThrow().status()).isEqualTo("pending");
 
@@ -414,7 +414,7 @@ class NotificationsIT {
     assertThat(stranger.path("text").asString()).isEqualTo("This bot only accepts decisions from its linked account.");
     assertThat(stranger.path("show_alert").asBoolean()).isTrue();
     JsonNode otherMessage = w.telegramClick(FakeTelegram.RAVI, FakeTelegram.RAVI, message + 1_000, approve);
-    assertThat(otherMessage.path("text").asString()).isEqualTo("This message isn't one MCP Gateway sent for this "
+    assertThat(otherMessage.path("text").asString()).isEqualTo("This message isn't one GateRook sent for this "
         + "request.");
     assertThat(otherMessage.path("show_alert").asBoolean()).isTrue();
 
@@ -434,7 +434,7 @@ class NotificationsIT {
     assertThat(w.telegramClick(999_001L, 999_001L, message, confirmData).path("show_alert").asBoolean()).isTrue();
 
     assertThat(w.telegramClick(FakeTelegram.RAVI, FakeTelegram.RAVI, message, confirmData).path("text")
-        .asString()).isEqualTo("Approved: MCP Gateway runs it now.");
+        .asString()).isEqualTo("Approved: GateRook runs it now.");
     TestCore.await(() -> "completed".equals(approvals.find(id).orElseThrow().status()), "executed");
     assertThat(approvals.find(id).orElseThrow().decidedVia()).isEqualTo("telegram");
     assertThat(w.column(id, "decided_external_id")).isEqualTo(Long.toString(FakeTelegram.RAVI));
@@ -493,7 +493,7 @@ class NotificationsIT {
 
     approvals.decide(id, ApprovalService.Decision.DENY, "app", null, null);
     TestCore.await(() -> w.slackUpdates(post.answer().path("ts").asString()).stream().anyMatch(u -> u.args()
-        .toString().contains("Denied by you in MCP Gateway")), "the denial shown");
+        .toString().contains("Denied by you in GateRook")), "the denial shown");
   }
 
   /**
@@ -571,10 +571,10 @@ class NotificationsIT {
 
     // What Electron main saw showing them: Settings shows it, and so does the event.
     assertThat(w.api.send(HttpMethod.POST, "/internal/notifications/desktop", """
-        {"event":"failed","detail":"Notifications are off for MCP Gateway in System Settings"}""").status())
+        {"event":"failed","detail":"Notifications are off for GateRook in System Settings"}""").status())
         .isEqualTo(204);
     assertThat(channel("desktop").path("state").asString()).isEqualTo("failed");
-    assertThat(channel("desktop").path("stateDetail").asString()).isEqualTo("Notifications are off for MCP Gateway "
+    assertThat(channel("desktop").path("stateDetail").asString()).isEqualTo("Notifications are off for GateRook "
         + "in System Settings");
     w.awaitEvent("notify.state", e -> "desktop".equals(e.path("channel").asString())
         && "failed".equals(e.path("state").asString()), "notify.state failed");

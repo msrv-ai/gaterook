@@ -219,7 +219,7 @@ public class SettingsService {
     Map<String, ObjectNode> out = new LinkedHashMap<>();
     out.put("general", parse("""
         {"type":"object","additionalProperties":false,"properties":{
-          "openAtLogin":{"type":"boolean","default":true,"title":"Start MCP Gateway when you sign in"},
+          "openAtLogin":{"type":"boolean","default":true,"title":"Start GateRook when you sign in"},
           "startHidden":{"type":"boolean","default":true,"title":"Start minimized"},
           "autoUpdate":{"type":"boolean","default":true,"title":"Check for updates automatically"},
           "singleKeyShortcuts":{"type":"boolean","default":true,"title":"Single-key shortcuts"}}}"""));

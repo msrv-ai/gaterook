@@ -195,7 +195,7 @@ describe('gw-bridge.mjs', () => {
     try {
       tokenAnswers.push(() => ({ v: 1, ok: false, error: 'grant_revoked', message: 'revoked' }));
       const revoked = await b.call({ jsonrpc: '2.0', id: 7, method: 'tools/list' });
-      assert.match(revoked.error.message, /Access to dev was revoked in MCP Gateway/);
+      assert.match(revoked.error.message, /Access to dev was revoked in GateRook/);
       tokenAnswers.push(() => ({ ...issued(core.port, 'dev', ++issuedCount), url: 'http://evil.example/mcp/dev' }));
       const evil = await b.call({ jsonrpc: '2.0', id: 8, method: 'tools/list' });
       assert.match(evil.error.message, /doesn't accept/);
@@ -215,7 +215,7 @@ describe('gw-bridge.mjs', () => {
       mcpAnswers.push(() => ({ status: 200, type: 'application/json', headers: { 'X-Gateway-Bridge-Instance': 'other' },
         body: '{"jsonrpc":"2.0","id":11,"result":{"stolen":true}}' }));
       const a = await b.call({ jsonrpc: '2.0', id: 11, method: 'tools/list' });
-      assert.match(a.error.message, /MCP Gateway is not running/);
+      assert.match(a.error.message, /GateRook is not running/);
     } finally {
       await b.stop();
     }
@@ -269,12 +269,12 @@ describe('gw-bridge.mjs', () => {
     }
   });
 
-  it('says MCP Gateway isn\'t running when there is no broker', async () => {
+  it('says GateRook isn\'t running when there is no broker', async () => {
     const empty = tempHome('bridge-none');
     const b = startBridge(empty);
     try {
       const a = await b.call({ jsonrpc: '2.0', id: 12, method: 'initialize', params: {} });
-      assert.equal(a.error.message, 'MCP Gateway is not running. Open MCP Gateway, then try again.');
+      assert.equal(a.error.message, 'GateRook is not running. Open GateRook, then try again.');
       b.send({ jsonrpc: '2.0', method: 'notifications/initialized' });
       const again = await b.call({ jsonrpc: '2.0', id: 13, method: 'tools/list' });
       assert.equal(again.id, 13, 'notifications get no answer; the process keeps going');

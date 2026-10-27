@@ -76,7 +76,7 @@ public final class GatewayLauncher {
         bootstrap = BootstrapParser.parse(line);
       } catch (GatewayStartupException e) {
         // Logging isn't configured yet: stderr is what Electron keeps of a core that never started.
-        System.err.println("MCP Gateway core: " + e.getMessage());
+        System.err.println("GateRook core: " + e.getMessage());
         ObjectNode extra = JsonNodeFactory.instance.objectNode();
         extra.put("log", defaultHome().resolve("logs").resolve("core.log").toString());
         protocol.failed(e.reason(), e.getMessage(), extra);
@@ -132,7 +132,7 @@ public final class GatewayLauncher {
       GatewayPaths.ownerOnlyDirectory(defaultHome());
       GatewayPaths.ownerOnlyDirectory(defaultHome().resolve("logs"));
     } catch (IOException | RuntimeException e) {
-      System.err.println("MCP Gateway core: can't prepare " + defaultHome() + ": " + e.getMessage());
+      System.err.println("GateRook core: can't prepare " + defaultHome() + ": " + e.getMessage());
     }
   }
 

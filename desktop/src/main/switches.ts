@@ -1,7 +1,7 @@
 // Chromium and Node switches the app refuses to start with (ARCHITECTURE.md §7.1 "Window and security", §9
 // "Electron hardening"). Each one opens the process to another program of the same account — a debugger port, a
 // proxy that sees every request, logs of the network, no sandbox, a wrapper around the renderer — and none has a
-// legitimate use for a person running MCP Gateway. The check is the first thing main does: before the single-instance
+// legitimate use for a person running GateRook. The check is the first thing main does: before the single-instance
 // lock, before any module with side effects loads, before Chromium starts its DevTools server (it starts after the
 // main script ran, checked by the smoke).
 
@@ -128,7 +128,7 @@ export function sanitizeEnvironment(env: NodeJS.ProcessEnv): string[] {
 /** The sentence main prints before it exits (stderr; no dialog: a launch by someone else would wait on it). */
 export function refusalMessage(names: readonly string[]): string {
   const list = names.map((n) => (/^[A-Z_]+$/.test(n) ? n : `--${n}`)).join(', ');
-  return `MCP Gateway refuses to start with ${list}: ${names.length === 1 ? 'this switch lets' : 'these switches let'} `
+  return `GateRook refuses to start with ${list}: ${names.length === 1 ? 'this switch lets' : 'these switches let'} `
     + 'other programs watch or change what the app does. Start it without them.';
 }
 

@@ -41,9 +41,9 @@ public final class MasterKeyLock {
   public String message() {
     Reason current = reason;
     if (current == null) {
-      return "MCP Gateway is not locked";
+      return "GateRook is not locked";
     }
-    return current == Reason.MASTER_KEY_MISSING ? "MCP Gateway is locked: the master key was not found"
-        : "MCP Gateway is locked: the master key can't open the stored secrets";
+    return current == Reason.MASTER_KEY_MISSING ? "GateRook is locked: the master key was not found"
+        : "GateRook is locked: the master key can't open the stored secrets";
   }
 }

@@ -410,7 +410,7 @@ describe('Approvals page', () => {
     const card = el.querySelector<HTMLElement>(`#ap-delivery-${K8S.id}`)!;
     expect(card.hidden).toBe(false);
     expect(text(card)).toBe(
-      'Not sent outside the window No notification channel sent this request, so it waited here, in MCP Gateway. Desktop notifications, Slack and Telegram are set up in Notification settings.',
+      'Not sent outside the window No notification channel sent this request, so it waited here, in GateRook. Desktop notifications, Slack and Telegram are set up in Notification settings.',
     );
   });
 

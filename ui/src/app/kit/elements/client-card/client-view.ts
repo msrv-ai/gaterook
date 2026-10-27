@@ -140,7 +140,7 @@ export function notInstalledText(card: ClientCard, page = false): string {
 }
 
 /**
- * The entry MCP Gateway keeps in a client's config file, exactly as it is there (the Clients screen's "Entry in
+ * The entry GateRook keeps in a client's config file, exactly as it is there (the Clients screen's "Entry in
  * config.toml"): the page reads it from the core's disconnect preview, which is the part of the file that is ours.
  */
 export interface ConfigEntry {

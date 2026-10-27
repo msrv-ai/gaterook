@@ -146,9 +146,9 @@ describe('client-card view (design/elements/client-card.html)', () => {
 
   it("reads K1's 422 edit problem from the response: the core's sentence and the entry to add by hand", () => {
     const card: ClientCard = DEMO_CLIENTS.cursor;
-    const detail = 'The file has comments or trailing commas (line 4, column 3). MCP Gateway writes only strict JSON, so it changes nothing; add the entry by hand.';
+    const detail = 'The file has comments or trailing commas (line 4, column 3). GateRook writes only strict JSON, so it changes nothing; add the entry by hand.';
     // As ClientsController.EditProblem serialises it.
-    const body = { type: 'about:blank', title: "MCP Gateway won't edit this file", detail, field: null, errors: [], reason: 'jsonc', line: 4, column: 3, fragment: '"gateway-dev": {"url": "…"}' };
+    const body = { type: 'about:blank', title: "GateRook won't edit this file", detail, field: null, errors: [], reason: 'jsonc', line: 4, column: 3, fragment: '"gateway-dev": {"url": "…"}' };
     const err = ApiError.fromHttp(new HttpErrorResponse({ status: 422, error: body }));
     expect(configEditProblem(err)).toEqual({ reason: 'jsonc', detail, line: 4, column: 3, fragment: '"gateway-dev": {"url": "…"}' });
     const jsonc = clientFailure(err, card);

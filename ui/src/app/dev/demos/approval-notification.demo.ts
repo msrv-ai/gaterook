@@ -42,7 +42,7 @@ import { DEMO_REQUESTS } from '../fixtures';
         <p class="gw-section__description">Block Kit layout from kit parts: header, fields, the full statement, context and buttons. A direct message to each linked approver is the recommended default: the exact action can hold customer data, and everyone in a channel would see it. This workspace (<span class="gw-mono">acme</span>) posts to the channel <span class="gw-mono">#deploy-approvals</span>, chosen in Settings › Notifications. The agent's note is never sent.</p>
       </header>
       <section gwNotificationCard heading="Slack" letter="S">
-        <span gwCardDescription>Posted by the MCP Gateway app to <span class="gw-mono">#deploy-approvals</span> in the <span class="gw-mono">acme</span> workspace. The buttons act only for you, the linked approver.</span>
+        <span gwCardDescription>Posted by the GateRook app to <span class="gw-mono">#deploy-approvals</span> in the <span class="gw-mono">acme</span> workspace. The buttons act only for you, the linked approver.</span>
         <figure gwNotificationPreview="slack" slackChannel="#deploy-approvals" ruleNote="estimated rows 1" [request]="req.sql"></figure>
         <div class="gw-alert gw-alert--info gw-alert--compact">
           <svg lucideIcon="info" class="gw-icon gw-alert__icon"></svg>
@@ -60,7 +60,7 @@ import { DEMO_REQUESTS } from '../fixtures';
         <p class="gw-section__description">A bot message with the statement in a code block and an inline keyboard under it. Telegram is not set up in this workspace (Settings › Notifications); this is what each linked approver gets once a bot is added.</p>
       </header>
       <section gwNotificationCard heading="Telegram" letter="T">
-        <span gwCardDescription>Sent by the MCP Gateway bot to each linked approver.</span>
+        <span gwCardDescription>Sent by the GateRook bot to each linked approver.</span>
         <figure gwNotificationPreview="telegram" [request]="req.sql"></figure>
         <div class="gw-alert gw-alert--info gw-alert--compact">
           <svg lucideIcon="info" class="gw-icon gw-alert__icon"></svg>

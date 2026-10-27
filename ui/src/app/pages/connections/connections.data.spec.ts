@@ -174,7 +174,7 @@ describe('ConnectionsData', () => {
     expect(data.checking().size).toBe(0);
     expect(calls).toEqual(['list', 'test dev-db', 'list']);
 
-    testAnswer = () => Promise.reject(new ApiError('conflict', 409, { detail: 'dev-db was changed outside MCP Gateway. Review it first.' }));
+    testAnswer = () => Promise.reject(new ApiError('conflict', 409, { detail: 'dev-db was changed outside GateRook. Review it first.' }));
     const refused = await data.test('dev-db');
     expect(refused.ok).toBe(false);
     expect(data.checking().size).toBe(0);
@@ -236,7 +236,7 @@ describe('ConnectionsData', () => {
     await expect(data.testAll()).rejects.toThrow('already running');
   });
 
-  it('skips rows changed outside MCP Gateway in Test all', async () => {
+  it('skips rows changed outside GateRook in Test all', async () => {
     const data = setup();
     listAnswer = () => Promise.resolve(list(kitRows().map((r) => (r.name === 'dev-db' ? { ...r, verified: false } : r))));
     await data.start();

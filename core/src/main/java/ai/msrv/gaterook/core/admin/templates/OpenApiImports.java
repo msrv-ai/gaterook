@@ -74,8 +74,7 @@ class OpenApiImports {
         ApiRequestException.unprocessable("Connection not found", "There is no connection " + connection + ".",
             "/connection"));
     if (!runsOn.verified()) {
-      throw ApiRequestException.conflict("Changed outside MCP Gateway", runsOn.name() + " was changed outside MCP "
-          + "Gateway. Review it first.");
+      throw ApiRequestException.conflict("Changed outside GateRook", runsOn.name() + " was changed outside GateRook. Review it first.");
     }
     TemplateKind kind = registry.templateKinds().get("openapi");
     if (kind == null || !kind.connectionTypes().contains(runsOn.config().type())) {

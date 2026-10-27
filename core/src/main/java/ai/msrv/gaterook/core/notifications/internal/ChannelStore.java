@@ -159,7 +159,7 @@ public class ChannelStore {
     boolean verified = verified(e);
     if (!verified) {
       alerts.report("notification-channel", e.getChannel().id(), "Notifications · " + e.getChannel().id(),
-          "the channel's settings were changed outside MCP Gateway: it stays off until you save it again");
+          "the channel's settings were changed outside GateRook: it stays off until you save it again");
     }
     ObjectNode config = json.valueToTree(e.getConfig());
     return new Row(e.getChannel(), true, e.isEnabled(), config, e.getState(), e.getStateDetail(),

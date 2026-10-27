@@ -80,7 +80,7 @@ final class FakeTelegram implements AutoCloseable {
   private ObjectNode answer(String method, JsonNode a) throws InterruptedException {
     ObjectNode out = JsonNodeFactory.instance.objectNode().put("ok", true);
     switch (method) {
-      case "getMe" -> out.putObject("result").put("id", botId).put("is_bot", true).put("first_name", "MCP Gateway")
+      case "getMe" -> out.putObject("result").put("id", botId).put("is_bot", true).put("first_name", "GateRook")
           .put("username", username).put("can_join_groups", true).put("can_read_all_group_messages", false);
       case "getWebhookInfo" -> out.putObject("result").put("url", webhook).put("pending_update_count", 0);
       case "deleteWebhook" -> {

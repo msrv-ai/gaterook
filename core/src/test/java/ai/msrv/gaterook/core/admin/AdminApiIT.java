@@ -381,7 +381,7 @@ class AdminApiIT {
     // Settings › Instructions shows the text the gateway writes while the person wrote none: what clients get.
     assertThat(saved.path("instructions").isNull()).isTrue();
     String defaults = saved.path("defaultInstructions").asString();
-    assertThat(defaults).startsWith("You are connected to MCP Gateway, endpoint \"dev\" (local development).")
+    assertThat(defaults).startsWith("You are connected to GateRook, endpoint \"dev\" (local development).")
         .contains("‹masked› marks a secret the gateway removed").contains("sql_execute");
     assertThat(defaults.length()).isEqualTo(check.path("instructionsChars").asInt());
 

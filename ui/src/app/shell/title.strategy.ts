@@ -2,13 +2,13 @@ import { Injectable, inject } from '@angular/core';
 import { Title } from '@angular/platform-browser';
 import { RouterStateSnapshot, TitleStrategy } from '@angular/router';
 
-/** The product name every window title ends with (kit pages: `<title>Overview · MCP Gateway</title>`). */
-export const PRODUCT = 'MCP Gateway';
+/** The product name every window title ends with (kit pages: `<title>Overview · GateRook</title>`). */
+export const PRODUCT = 'GateRook';
 
 /**
- * `<Section> · MCP Gateway` from the deepest route's `title`, `MCP Gateway` alone without one.
+ * `<Section> · GateRook` from the deepest route's `title`, `GateRook` alone without one.
  *
- * A screen that covers the window without being a route (core-starting: `Core starting · MCP Gateway`, as the kit's
+ * A screen that covers the window without being a route (core-starting: `Core starting · GateRook`, as the kit's
  * page) takes the title with {@link cover}; the route's title comes back when it is gone. Provided with
  * `useExisting` so the router and the shell share this one instance.
  */

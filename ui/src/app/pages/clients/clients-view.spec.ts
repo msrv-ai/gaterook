@@ -119,7 +119,7 @@ describe('Clients view: Connect failed', () => {
     const e = problem(422, {
       title: 'Config file not editable',
       status: 422,
-      detail: "The file isn't valid JSON (line 7, column 5): Unexpected character ('}'). MCP Gateway changes nothing.",
+      detail: "The file isn't valid JSON (line 7, column 5): Unexpected character ('}'). GateRook changes nothing.",
       reason: 'invalid',
       line: 7,
       column: 5,
@@ -131,7 +131,7 @@ describe('Clients view: Connect failed', () => {
     expect(words(f.body)).toBe('The file is unchanged. Fix line 7 in Cursor or an editor, then connect again.');
     expect(f.details?.title).toBe(`core answer · ${clockTime(NOW)}`);
     expect(f.details?.text).toBe(
-      "client-config: invalid, nothing written\n  file   ~/.cursor/mcp.json\n  at     line 7, column 5\n  error  The file isn't valid JSON (line 7, column 5): Unexpected character ('}'). MCP Gateway changes nothing.",
+      "client-config: invalid, nothing written\n  file   ~/.cursor/mcp.json\n  at     line 7, column 5\n  error  The file isn't valid JSON (line 7, column 5): Unexpected character ('}'). GateRook changes nothing.",
     );
     expect(f.fix).toBeNull();
   });
@@ -161,9 +161,9 @@ describe('Clients view: Codex’s entry', () => {
     expect(entry.file).toBe('~/.codex/config.toml');
     expect(entry.language).toBe('toml');
     const lines = entry.text.split('\n');
-    expect(lines[0]).toBe('# >>> MCP Gateway · gateway-dev · managed entry: Disconnect in MCP Gateway removes it');
+    expect(lines[0]).toBe('# >>> GateRook · gateway-dev · managed entry: Disconnect in GateRook removes it');
     expect(lines).toContain('default_tools_approval_mode = "writes"');
-    expect(lines.at(-1)).toBe('# <<< MCP Gateway · gateway-dev');
+    expect(lines.at(-1)).toBe('# <<< GateRook · gateway-dev');
     // The bridge extension has no entry in a file.
     expect(entryFromPreview({ ...codexDisconnect(), files: [{ ...codexDisconnect().files[0], kind: 'mcpb', diff: null }] })).toBeNull();
   });

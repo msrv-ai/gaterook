@@ -109,7 +109,7 @@ class NotifyDispatcher implements DisposableBean {
           return;
         } catch (RuntimeException ex) {
           log.warn("Announcing {} in {} failed: {}", approvalId, id, ex.toString());
-          d = ChatChannel.Delivered.failed("MCP Gateway couldn't send it: see core.log");
+          d = ChatChannel.Delivered.failed("GateRook couldn't send it: see core.log");
         }
         approvals.notified(approvalId, ChannelRules.notified(id, d.state(), d.error(), flood));
         if (!flood) {

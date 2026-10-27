@@ -61,14 +61,14 @@ public final class JsonEntryEditor {
     } else {
       JsonNode before = parse(body);
       if (!before.isObject()) {
-        throw new ConfigEditException(Reason.UNEXPECTED_SHAPE, "The file isn't a JSON object, so MCP Gateway can't "
+        throw new ConfigEditException(Reason.UNEXPECTED_SHAPE, "The file isn't a JSON object, so GateRook can't "
             + "add an entry to it.");
       }
       Obj top = locate(body, null);
       Member root = top.members().stream().filter(m -> m.name().equals(rootKey)).reduce((a, b) -> b).orElse(null);
       expected = (ObjectNode) before.deepCopy();
       if (root != null && !before.get(rootKey).isObject()) {
-        throw new ConfigEditException(Reason.UNEXPECTED_SHAPE, "\"" + rootKey + "\" isn't an object, so MCP Gateway "
+        throw new ConfigEditException(Reason.UNEXPECTED_SHAPE, "\"" + rootKey + "\" isn't an object, so GateRook "
             + "can't add an entry to it.");
       }
       ObjectNode servers = root == null ? STRICT.createObjectNode() : (ObjectNode) expected.get(rootKey);
@@ -155,11 +155,10 @@ public final class JsonEntryEditor {
           || detail.contains("trailing comma") || detail.contains("expected double-quote to start field name"));
       String where = line > 0 ? " (line " + line + ", column " + column + ")" : "";
       if (jsonc) {
-        throw new ConfigEditException(Reason.JSONC, "The file has comments or trailing commas" + where + ". MCP "
-            + "Gateway writes only strict JSON, so it changes nothing; add the entry by hand.", line, column, null);
+        throw new ConfigEditException(Reason.JSONC, "The file has comments or trailing commas" + where + ". GateRook writes only strict JSON, so it changes nothing; add the entry by hand.", line, column, null);
       }
       throw new ConfigEditException(Reason.INVALID, "The file isn't valid JSON" + where + ": " + firstLine(
-          tokensMasked(detail)) + ". MCP Gateway changes nothing.", line, column, null);
+          tokensMasked(detail)) + ". GateRook changes nothing.", line, column, null);
     }
   }
 
@@ -270,7 +269,7 @@ public final class JsonEntryEditor {
       throw new ConfigEditException(Reason.CHECK_FAILED, "The edited file wouldn't parse, so nothing was written.");
     }
     if (!after.equals(expected)) {
-      throw new ConfigEditException(Reason.CHECK_FAILED, "The edit would change more than MCP Gateway's entry, so "
+      throw new ConfigEditException(Reason.CHECK_FAILED, "The edit would change more than GateRook's entry, so "
           + "nothing was written.");
     }
   }

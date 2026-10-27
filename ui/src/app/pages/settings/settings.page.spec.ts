@@ -383,7 +383,7 @@ describe('Settings page: General', () => {
     expect(calls).toContain('put general');
     expect(bodies['general']).toEqual({ openAtLogin: false, version: 3 });
     expect(calls).toContain('apply {"openAtLogin":false}');
-    expect(toasts()).toContain('Saved · Start MCP Gateway when you sign in: off.');
+    expect(toasts()).toContain('Saved · Start GateRook when you sign in: off.');
 
     world.update = () => Promise.reject(problem(422, 'startHidden must be a boolean.'));
     const hidden = $<HTMLInputElement>('#st-minimized', el)!;
@@ -401,7 +401,7 @@ describe('Settings page: General', () => {
     expect(dlg.hasAttribute('open')).toBe(true);
     expect(document.activeElement?.id).toBe('st-port-new');
     expect(text(dlg)).toContain('Codex, from Clients');
-    expect(text(dlg)).toContain('Claude Desktop: its bridge asks MCP Gateway for the address');
+    expect(text(dlg)).toContain('Claude Desktop: its bridge asks GateRook for the address');
     expect(text(dlg)).toContain('The 3 pending approval requests are kept.');
 
     const input = $<HTMLInputElement>('#st-port-new')!;

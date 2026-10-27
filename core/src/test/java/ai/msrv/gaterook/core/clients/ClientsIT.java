@@ -421,7 +421,7 @@ class ClientsIT {
     }
     JsonNode m = TestCore.json(manifest);
     assertThat(m.path("name").asString()).isEqualTo("mcp-gateway-incident-prod");
-    assertThat(m.path("display_name").asString()).isEqualTo("MCP Gateway · incident-prod (prod)");
+    assertThat(m.path("display_name").asString()).isEqualTo("GateRook · incident-prod (prod)");
     assertThat(manifest).doesNotContain("gwb_").doesNotContain("gwt_");
     Matcher g = GRANT.matcher(m.path("server").path("mcp_config").path("args").toString());
     assertThat(g.find()).isTrue();
@@ -487,7 +487,7 @@ class ClientsIT {
           "http_headers_helper = \"touch " + marker + "\"")));
       check = api.expect(200, HttpMethod.POST, "/api/clients/links/" + codexLink + "/check", null);
       assertThat(step(check, "bridge").path("state").asString()).isEqualTo("error");
-      assertThat(step(check, "bridge").path("text").asString()).contains("isn't the one MCP Gateway wrote");
+      assertThat(step(check, "bridge").path("text").asString()).contains("isn't the one GateRook wrote");
       assertThat(marker).doesNotExist();
 
       // The same for a stdio entry: Claude Desktop's bridge entry made to start another program.
@@ -502,7 +502,7 @@ class ClientsIT {
           .replace("\"--endpoint\"", "\"touch " + marker + "\""));
       check = api.expect(200, HttpMethod.POST, "/api/clients/links/" + id + "/check", null);
       assertThat(step(check, "bridge").path("state").asString()).as(check.toString()).isEqualTo("error");
-      assertThat(step(check, "bridge").path("text").asString()).contains("isn't the one MCP Gateway wrote");
+      assertThat(step(check, "bridge").path("text").asString()).contains("isn't the one GateRook wrote");
       assertThat(marker).doesNotExist();
       Files.writeString(claude, claudeOurs);
       assertThat(disconnect(id).path("entryRemoved").asBoolean()).isTrue();

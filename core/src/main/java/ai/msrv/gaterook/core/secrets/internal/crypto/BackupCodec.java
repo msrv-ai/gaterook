@@ -28,7 +28,7 @@ public final class BackupCodec {
   public static final String FORMAT = "mcp-gateway/keyset-backup/1";
   public static final int ITERATIONS = 600_000;
   /**
-   * Fewer iterations than this mean a file MCP Gateway didn't write (or a downgrade); more than {@link #MAX_ITERATIONS}
+   * Fewer iterations than this mean a file GateRook didn't write (or a downgrade); more than {@link #MAX_ITERATIONS}
    * would hang the restore dialog for minutes on a crafted file.
    */
   static final int MIN_ITERATIONS = 100_000;
@@ -102,7 +102,7 @@ public final class BackupCodec {
       JsonNode kdf = tree.path("kdf");
       if (!"PBKDF2-HMAC-SHA256".equals(kdf.path("alg").asString("")) || kdf.path("iterations").asInt(0) < minIterations
           || kdf.path("iterations").asInt(0) > MAX_ITERATIONS) {
-        throw new BackupException("This backup uses a key derivation MCP Gateway doesn't accept");
+        throw new BackupException("This backup uses a key derivation GateRook doesn't accept");
       }
       try {
         byte[] salt = Base64.getDecoder().decode(kdf.path("salt").asString(""));

@@ -37,7 +37,7 @@ class BridgeTokenController {
         || !"token".equals(request.path("op").asString(""))) {
       out.put("ok", false);
       out.put("error", ClientGrants.BAD_REQUEST);
-      out.put("message", "The bridge speaks another version of the broker protocol: update MCP Gateway.");
+      out.put("message", "The bridge speaks another version of the broker protocol: update GateRook.");
       return out;
     }
     Long pid = request.path("pid").isIntegralNumber() ? request.path("pid").asLong() : null;

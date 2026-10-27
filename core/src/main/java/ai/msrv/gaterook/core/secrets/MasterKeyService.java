@@ -684,7 +684,7 @@ public class MasterKeyService implements HmacKeys, InitializingBean, DisposableB
         root = openPurposeRoot(restored);
       } catch (GeneralSecurityException e) {
         throw new MasterKeyException(MasterKeyException.Problem.MISSING_KEYS, "This backup doesn't open the stored "
-            + "data: it is another MCP Gateway's key, or the stored data is damaged.");
+            + "data: it is another GateRook's key, or the stored data is damaged.");
       }
       replaceFile(restored, () -> record("master key", "missing", "restored from a backup", reason),
           root.orElse(null));

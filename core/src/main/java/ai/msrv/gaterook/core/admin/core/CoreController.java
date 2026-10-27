@@ -138,16 +138,16 @@ class CoreController {
     MasterKeyStatus key = masterKey.status();
     List<Warning> warnings = new ArrayList<>();
     if (key.warnings().contains("new-key-created")) {
-      warnings.add(new Warning("new-key-created", "MCP Gateway created a new master key: none was found. Rows "
-          + "signed with the old one show as changed outside MCP Gateway until you review them.", null));
+      warnings.add(new Warning("new-key-created", "GateRook created a new master key: none was found. Rows "
+          + "signed with the old one show as changed outside GateRook until you review them.", null));
     }
     for (IntegrityAlerts.Alert a : alerts.current()) {
-      warnings.add(new Warning("integrity", a.label() + " was changed outside MCP Gateway (" + a.detail()
+      warnings.add(new Warning("integrity", a.label() + " was changed outside GateRook (" + a.detail()
           + "). It stays off until you review it.", a.kind() + ":" + a.id()));
     }
     boolean auditOk = audit.available();
     if (!auditOk) {
-      warnings.add(new Warning("audit-catching-up", "MCP Gateway is catching up with its audit; calls wait until "
+      warnings.add(new Warning("audit-catching-up", "GateRook is catching up with its audit; calls wait until "
           + "it has.", null));
     }
     String backupError = lock.locked() ? null : backups.status().lastError();

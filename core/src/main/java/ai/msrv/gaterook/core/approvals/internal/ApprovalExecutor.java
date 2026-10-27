@@ -112,11 +112,11 @@ public class ApprovalExecutor implements DisposableBean {
   static final Duration STOP_WAIT = Duration.ofSeconds(15);
 
   /** The outcome of a call the core lost track of: it may have applied. */
-  static final String STOPPED_WHILE_RUNNING = "MCP Gateway stopped while it ran, so whether it applied is unknown. "
+  static final String STOPPED_WHILE_RUNNING = "GateRook stopped while it ran, so whether it applied is unknown. "
       + "Not retried.";
 
   /** The approval arrived while the core was stopping: nothing ran. */
-  static final String STOPPED_BEFORE_RUNNING = "MCP Gateway was stopping, so it didn't run. Ask again.";
+  static final String STOPPED_BEFORE_RUNNING = "GateRook was stopping, so it didn't run. Ask again.";
 
   ApprovalExecutor(ApprovalRepository approvals, ApprovalEventRepository events, ApprovalRows rows,
       ApprovalWaiters waiters, EndpointSnapshotService snapshots, ConnectorRegistry registry, PolicyEngine engine,
@@ -206,11 +206,11 @@ public class ApprovalExecutor implements DisposableBean {
       try {
         Optional<AuditQueries.Outcome> recorded = auditQueries.outcome(a.getCallId());
         if (recorded.isPresent()) {
-          log.warn("Approved request {} ({} on {}) was running when MCP Gateway stopped; the audit has its outcome: {}",
+          log.warn("Approved request {} ({} on {}) was running when GateRook stopped; the audit has its outcome: {}",
               a.getId(), a.getTool(), a.getConnectionName(), recorded.get().decision());
           closeFromAudit(a, recorded.get());
         } else {
-          log.warn("Approved request {} ({} on {}) was running when MCP Gateway stopped: outcome unknown, not retried",
+          log.warn("Approved request {} ({} on {}) was running when GateRook stopped: outcome unknown, not retried",
               a.getId(), a.getTool(), a.getConnectionName());
           abandon(a.getId(), STOPPED_WHILE_RUNNING, true);
         }
@@ -312,7 +312,7 @@ public class ApprovalExecutor implements DisposableBean {
   }
 
   private Check check(ApprovalEntity a, JsonNode canonical, ToolCall toolCall) {
-    String changed = "The request was changed outside MCP Gateway. Not executed.";
+    String changed = "The request was changed outside GateRook. Not executed.";
     JsonNode stored = json.valueToTree(a.getAction());
     JsonNode prepared = a.getPreparedState() == null ? null : json.readTree(a.getPreparedState());
     if (!rows.verify(a) || !ApprovalRows.digest(canonical, stored, prepared).equals(a.getDigest())
@@ -329,7 +329,7 @@ public class ApprovalExecutor implements DisposableBean {
     }
     EndpointSnapshot s = snapshot.get();
     if (s.blocked()) {
-      return Check.refused(s.slug() + " was changed outside MCP Gateway. Not executed.");
+      return Check.refused(s.slug() + " was changed outside GateRook. Not executed.");
     }
     if (!s.enabled()) {
       return Check.refused("Endpoint " + s.slug() + " is disabled. Not executed.");

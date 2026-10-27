@@ -87,7 +87,7 @@ public class DesktopNotices {
     e.put("kind", "test");
     e.put("id", "notify-test");
     e.put("title", "Test · nothing will run");
-    e.put("subtitle", "MCP Gateway");
+    e.put("subtitle", "GateRook");
     e.put("body", "Approval requests arrive like this, with Review and Deny.");
     e.put("footer", "Deny in a test notification does nothing");
     e.put("urgency", "normal");
@@ -111,7 +111,7 @@ public class DesktopNotices {
     String title = (n.prod() ? "PROD · " : "") + "Approval needed · " + on;
     String subtitle = (n.prod() ? "Runs on production" : n.env().id() + " environment") + from;
     String body = n.action().secretLike() || n.action().text().isEmpty()
-        ? (n.summary() == null ? "The action is shown only in MCP Gateway." : n.summary())
+        ? (n.summary() == null ? "The action is shown only in GateRook." : n.summary())
         : Notices.firstLine(n.action().text(), 120);
     body = fit(title, subtitle, body);
     e.put("kind", "request");
@@ -139,8 +139,8 @@ public class DesktopNotices {
     e.put("kind", "summary");
     e.put("id", SUMMARY_ID);
     e.put("title", pending == 1 ? "1 approval request is waiting" : pending + " approval requests are waiting");
-    e.put("subtitle", "MCP Gateway");
-    e.put("body", "Many requests arrived at once. Review them in MCP Gateway.");
+    e.put("subtitle", "GateRook");
+    e.put("body", "Many requests arrived at once. Review them in GateRook.");
     e.put("footer", "Each one is denied when its time runs out");
     e.put("urgency", prod ? "critical" : "normal");
     e.put("silent", true);

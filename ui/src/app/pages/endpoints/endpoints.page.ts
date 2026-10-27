@@ -110,7 +110,7 @@ const START_FROM: readonly { readonly id: StartFrom; readonly icon: string; read
  *   menu (Duplicate, Disable or Enable, Delete endpoint); the URL to copy; connections by environment; connection
  *   health that names what is slow or unreachable; tools by mode; the clients; tokens (active, expired, one expiring
  *   soon); the approvals waiting; the compact risk callout with Review; View activity, Open in Playground, Configure.
- *   An endpoint changed outside MCP Gateway says so and can be kept after review.
+ *   An endpoint changed outside GateRook says so and can be kept after review.
  * - Create asks for a slug (the URL shows as it is typed), a description and where to start, then opens the new
  *   endpoint's page; Duplicate asks for the copy's slug; Disable acts at once with Undo in a toast; Delete asks in a
  *   `gw-dialog--danger` that names what stops working, Cancel has the focus.
@@ -375,7 +375,7 @@ export class EndpointsPage {
     });
   }
 
-  /** A taken or refused slug is about the field; "changed outside MCP Gateway" is about the source, in the alert. */
+  /** A taken or refused slug is about the field; "changed outside GateRook" is about the source, in the alert. */
   private duplicateProblem(err: unknown) {
     const message = this.errorText(err, NO_ANSWER);
     const dialog = this.duplicateDialog().element;
@@ -460,7 +460,7 @@ export class EndpointsPage {
     this.deleting.set(null);
   }
 
-  // ── Keep an endpoint changed outside MCP Gateway ──────────────────────────────────────────────────────────────
+  // ── Keep an endpoint changed outside GateRook ──────────────────────────────────────────────────────────────
 
   protected askKeep(e: EndpointSummary, ev: Event): void {
     this.keeping.set(e);

@@ -82,11 +82,11 @@ public final class ConfigFileWriter {
         return new Snapshot(file, real, false, null, sha256((byte[]) null), null);
       }
       if (!Files.isRegularFile(real, LinkOption.NOFOLLOW_LINKS)) {
-        throw new ConfigEditException(Reason.UNSUPPORTED_FILE, real + " isn't a regular file, so MCP Gateway "
+        throw new ConfigEditException(Reason.UNSUPPORTED_FILE, real + " isn't a regular file, so GateRook "
             + "doesn't write it.");
       }
       if (Files.size(real) > MAX_BYTES) {
-        throw new ConfigEditException(Reason.UNSUPPORTED_FILE, real + " is larger than 1 MiB, so MCP Gateway "
+        throw new ConfigEditException(Reason.UNSUPPORTED_FILE, real + " is larger than 1 MiB, so GateRook "
             + "doesn't edit it.");
       }
       byte[] bytes = Files.readAllBytes(real);
@@ -95,7 +95,7 @@ public final class ConfigFileWriter {
         content = StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
             .onUnmappableCharacter(CodingErrorAction.REPORT).decode(ByteBuffer.wrap(bytes)).toString();
       } catch (CharacterCodingException e) {
-        throw new ConfigEditException(Reason.INVALID, real + " isn't UTF-8 text, so MCP Gateway doesn't edit it.");
+        throw new ConfigEditException(Reason.INVALID, real + " isn't UTF-8 text, so GateRook doesn't edit it.");
       }
       return new Snapshot(file, real, true, content, sha256(bytes), permissions(real));
     } catch (IOException e) {

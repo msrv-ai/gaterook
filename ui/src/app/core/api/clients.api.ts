@@ -25,7 +25,7 @@ export interface ClientMethod {
   readonly reason: string | null;
 }
 
-/** One entry MCP Gateway wrote: one endpoint of one client. */
+/** One entry GateRook wrote: one endpoint of one client. */
 export interface ClientLink {
   readonly id: string;
   readonly client: ClientId;

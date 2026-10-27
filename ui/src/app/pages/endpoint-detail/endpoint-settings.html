@@ -13,11 +13,11 @@
           @let instrError = instructionsForm.text().touched() ? (instructionsForm.text().errors()[0]?.message ?? null) : null;
           <div class="gw-field">
             <label class="gw-field__label" for="ep-st-instr">Instructions</label>
-            <textarea class="gw-textarea gw-textarea--wrap" id="ep-st-instr" rows="18" spellcheck="false" autocapitalize="off" [formField]="instructionsForm.text" [attr.placeholder]="'Empty: MCP Gateway writes them from the tools of ' + ep + ' and how approvals work.'" [attr.aria-invalid]="instrError ? 'true' : null" [attr.aria-describedby]="(instrError ? 'ep-st-instr-err ' : '') + 'ep-st-instr-hint ep-st-instr-count'"></textarea>
+            <textarea class="gw-textarea gw-textarea--wrap" id="ep-st-instr" rows="18" spellcheck="false" autocapitalize="off" [formField]="instructionsForm.text" [attr.placeholder]="'Empty: GateRook writes them from the tools of ' + ep + ' and how approvals work.'" [attr.aria-invalid]="instrError ? 'true' : null" [attr.aria-describedby]="(instrError ? 'ep-st-instr-err ' : '') + 'ep-st-instr-hint ep-st-instr-count'"></textarea>
             @if (instrError) {
               <p class="gw-field__error" id="ep-st-instr-err"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ instrError }}</p>
             }
-            <p class="gw-field__hint" id="ep-st-instr-hint">Plain text. Never put secrets here: every agent on {{ ep }} reads it.@if (showsDefault()) { MCP Gateway writes this text from the tools of {{ ep }} and the approval rules until you change it.} @else if (defaultChars(); as n) { Empty, so agents get the {{ n.toLocaleString('en-US') }} characters MCP Gateway writes: the tools and the approval rules.}</p>
+            <p class="gw-field__hint" id="ep-st-instr-hint">Plain text. Never put secrets here: every agent on {{ ep }} reads it.@if (showsDefault()) { GateRook writes this text from the tools of {{ ep }} and the approval rules until you change it.} @else if (defaultChars(); as n) { Empty, so agents get the {{ n.toLocaleString('en-US') }} characters GateRook writes: the tools and the approval rules.}</p>
             <p class="gw-field__counter" id="ep-st-instr-count">{{ instructionsCounter() }}</p>
           </div>
           @if (instructionsError(); as err) {

@@ -253,8 +253,8 @@ public class ClientGrants implements DisposableBean {
         || !EndpointService.SLUG.matcher(r.endpoint()).matches() || !Ids.matches("gr_", r.grant())
         || (r.bridge() != null && !BRIDGE_VERSION.matcher(r.bridge()).matches())
         || (r.pid() != null && r.pid() <= 0)) {
-      return TokenAnswer.refused(BAD_REQUEST, "The bridge sent a request MCP Gateway doesn't understand. Update "
-          + "MCP Gateway and connect the client again.");
+      return TokenAnswer.refused(BAD_REQUEST, "The bridge sent a request GateRook doesn't understand. Update "
+          + "GateRook and connect the client again.");
     }
     TokenAnswer answer = writeTx.execute(s -> issueInTransaction(r));
     if (answer.ok()) {
@@ -269,17 +269,16 @@ public class ClientGrants implements DisposableBean {
     Optional<ClientGrantEntity> found = grants.findById(r.grant());
     String who = clientName(r.client());
     if (found.isEmpty()) {
-      return TokenAnswer.refused(GRANT_UNKNOWN, "MCP Gateway doesn't know the access " + prefix(r.grant()) + ". "
+      return TokenAnswer.refused(GRANT_UNKNOWN, "GateRook doesn't know the access " + prefix(r.grant()) + ". "
           + "Connect " + who + " again from the app.");
     }
     ClientGrantEntity g = found.get();
     if (!rows.verify(g)) {
-      return TokenAnswer.refused(GRANT_CHANGED, "The access " + prefix(g.getId()) + " was changed outside MCP "
-          + "Gateway, so it gets no tokens. Disconnect " + who + " and connect it again in the app.");
+      return TokenAnswer.refused(GRANT_CHANGED, "The access " + prefix(g.getId()) + " was changed outside GateRook, so it gets no tokens. Disconnect " + who + " and connect it again in the app.");
     }
     if (g.isRevoked()) {
       return TokenAnswer.refused(GRANT_REVOKED, "Access for " + who + " to " + g.getEndpoint().getSlug()
-          + " was revoked in MCP Gateway. Connect again from the app.");
+          + " was revoked in GateRook. Connect again from the app.");
     }
     EndpointEntity e = g.getEndpoint();
     if (!e.getSlug().equals(r.endpoint()) || !g.getClient().equals(r.client())) {
@@ -287,16 +286,16 @@ public class ClientGrants implements DisposableBean {
           + r.endpoint() + ". Connect " + who + " to " + r.endpoint() + " from the app.");
     }
     if (!e.isEnabled()) {
-      return TokenAnswer.refused(ENDPOINT_OFF, "Endpoint " + e.getSlug() + " is disabled in MCP Gateway.");
+      return TokenAnswer.refused(ENDPOINT_OFF, "Endpoint " + e.getSlug() + " is disabled in GateRook.");
     }
     if (e.getEnv() == Env.PROD && !confirmed.contains(g.getId())) {
       if (denied.contains(g.getId())) {
         return TokenAnswer.refused(CONFIRMATION_DENIED, "You didn't allow " + who + " to use " + e.getSlug()
-            + " in this session of MCP Gateway.");
+            + " in this session of GateRook.");
       }
       askToConfirm(g, e);
       return TokenAnswer.refused(CONFIRMATION_REQUIRED, "Allow " + who + " to use " + e.getSlug() + " (prod) in "
-          + "the MCP Gateway window, then try again.");
+          + "the GateRook window, then try again.");
     }
     Instant now = clock.instant();
     if (!withinRate(g.getId(), now)) {
@@ -370,7 +369,7 @@ public class ClientGrants implements DisposableBean {
         + prefix(grantId) + "."));
     if (!g.active()) {
       throw ProblemException.conflict("Access is not active", "The access " + g.prefix() + " is revoked or was "
-          + "changed outside MCP Gateway.");
+          + "changed outside GateRook.");
     }
     confirmAsked.remove(grantId);
     if (allow) {

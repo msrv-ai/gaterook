@@ -188,7 +188,7 @@ public final class StoreResolution {
 
   private SecretRef usable(Pointer p) {
     if (!p.verified()) {
-      throw StoreException.invalid(p.name() + " was changed outside MCP Gateway: review its reference in Secrets.");
+      throw StoreException.invalid(p.name() + " was changed outside GateRook: review its reference in Secrets.");
     }
     SecretRef ref;
     try {

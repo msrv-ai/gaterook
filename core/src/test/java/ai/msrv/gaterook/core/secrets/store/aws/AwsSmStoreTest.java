@@ -190,7 +190,7 @@ class AwsSmStoreTest {
         .endpointOverride(server.url("/").uri())
         .overrideConfiguration(o -> o.addExecutionInterceptor(new AwsSmStore.OperationGuard())).build()) {
       assertThatThrownBy(() -> sm.listSecrets(b -> { })).isInstanceOf(SecurityException.class)
-          .hasMessage("Blocked secretsmanager.ListSecrets: MCP Gateway only reads secrets");
+          .hasMessage("Blocked secretsmanager.ListSecrets: GateRook only reads secrets");
       assertThatThrownBy(() -> sm.putSecretValue(b -> b.secretId("x").secretString("y")))
           .isInstanceOf(SecurityException.class);
     }

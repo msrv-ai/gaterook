@@ -101,7 +101,7 @@ describe('settings-view: General › Core', () => {
     expect(updateView(null, '0.4.0', false)).toMatchObject({ tone: 'neutral', label: 'Version', version: '0.4.0' });
     expect(updateView({ state: 'up-to-date', version: '0.4.0', lastCheckedAt: null } as never, null, true)).toMatchObject({ tone: 'success', label: 'Up to date · version', version: '0.4.0' });
     expect(updateView({ state: 'checking' } as never, '0.4.0', true)).toMatchObject({ tone: 'checking', busy: true });
-    expect(updateToast({ state: 'up-to-date', version: '0.4.0' } as never, null)).toEqual({ tone: 'success', title: 'You’re on the latest version', body: 'MCP Gateway 0.4.0' });
+    expect(updateToast({ state: 'up-to-date', version: '0.4.0' } as never, null)).toEqual({ tone: 'success', title: 'You’re on the latest version', body: 'GateRook 0.4.0' });
   });
 });
 
@@ -311,7 +311,7 @@ describe('settings-view: Audit & retention', () => {
     expect(exportCard(d({ target: 'siem.acme.internal:6514' })).target).toBe('siem.acme.internal:6514');
     expect(exportCard(d({})).blocked).toBeNull();
     expect(exportCard(d({ demo: true })).blocked).toBe('A destination of the demo world: shown, never called.');
-    expect(exportCard(d({ verified: false, state: 'failing' })).blocked).toBe('Changed outside MCP Gateway: it sends nothing until it is saved again.');
+    expect(exportCard(d({ verified: false, state: 'failing' })).blocked).toBe('Changed outside GateRook: it sends nothing until it is saved again.');
   });
 });
 

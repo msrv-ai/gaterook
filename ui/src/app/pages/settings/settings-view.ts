@@ -207,11 +207,11 @@ export function updateView(state: UpdateState | null, version: string | null, de
   }
 }
 
-/** The toast once "Check now" has an answer (kit: "You're on the latest version · MCP Gateway 0.4.0"). */
+/** The toast once "Check now" has an answer (kit: "You're on the latest version · GateRook 0.4.0"). */
 export function updateToast(state: UpdateState, version: string | null): ToastOptions | null {
   switch (state.state) {
     case 'up-to-date':
-      return { tone: 'success', title: 'You’re on the latest version', body: `MCP Gateway ${state.version ?? version ?? ''}`.trim() };
+      return { tone: 'success', title: 'You’re on the latest version', body: `GateRook ${state.version ?? version ?? ''}`.trim() };
     case 'available':
       return { tone: 'info', title: `Version ${state.version ?? ''} is downloading`.replace('  ', ' '), body: 'It installs when you restart the app, never in the middle of a call.' };
     case 'downloaded':
@@ -396,7 +396,7 @@ export interface ExportCard {
   readonly label: string;
   readonly at: Iso | null;
   readonly failing: boolean;
-  /** Why the core won't run it (Retry, Export now), or null: changed outside MCP Gateway, or a demo destination. */
+  /** Why the core won't run it (Retry, Export now), or null: changed outside GateRook, or a demo destination. */
   readonly blocked: string | null;
   readonly error: string | null;
 }
@@ -404,7 +404,7 @@ export interface ExportCard {
 /** Why the core refuses to run a destination (409), or null when it runs it. */
 export function exportBlocked(d: AuditExportDestination): string | null {
   if (d.demo === true) return 'A destination of the demo world: shown, never called.';
-  if (d.verified === false) return 'Changed outside MCP Gateway: it sends nothing until it is saved again.';
+  if (d.verified === false) return 'Changed outside GateRook: it sends nothing until it is saved again.';
   return null;
 }
 

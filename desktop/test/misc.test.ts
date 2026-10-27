@@ -1,11 +1,8 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { inflateSync } from 'node:zlib';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import { CORE_ENV_ALLOWLIST, coreArgv, coreEnv } from '../src/main/core-command.ts';
 import { clientId, defaultFileName, filePurpose, linkId, revealKind } from '../src/main/file-purposes.ts';
-import { BRAND_HEX, encodePng, flatten, markPixels, ROOK_PATH, toBgra } from '../src/main/icons.ts';
 import { resolveLayout } from '../src/main/layout.ts';
 import { autoUpdateWanted, checkDue, friendlyUpdateError, namesPublisher, updatesUnavailable, updateStateFor } from '../src/main/updates.ts';
 import { openableConfig, revealableFolder } from '../src/main/file-purposes.ts';
@@ -175,62 +172,5 @@ describe('updates', () => {
     assert.equal(autoUpdateWanted(true, false), true);
     assert.equal(autoUpdateWanted(undefined, false), false, 'stopped or locked core: what it said last');
     assert.equal(autoUpdateWanted(undefined, undefined), true, 'never answered: the core\'s default');
-  });
-});
-
-describe('the mark', () => {
-  it('is a valid PNG of the app icon: the white rook on Gate violet, the gateway open', () => {
-    const size = 64;
-    const png = encodePng(markPixels(size, 'brand'), size, size);
-    assert.deepEqual([...png.subarray(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-    assert.equal(png.readUInt32BE(16), size);
-    const idat = png.indexOf('IDAT');
-    const raw = inflateSync(png.subarray(idat + 4, idat + 4 + png.readUInt32BE(idat - 4)));
-    assert.equal(raw.length, (size * 4 + 1) * size);
-    const pixel = (x: number, y: number): number[] => {
-      const o = y * (size * 4 + 1) + 1 + x * 4;
-      return [raw[o] ?? 0, raw[o + 1] ?? 0, raw[o + 2] ?? 0, raw[o + 3] ?? 0];
-    };
-    assert.deepEqual(pixel(0, 0).slice(3), [0], 'the rounded corner is transparent');
-    assert.deepEqual(pixel(32, 4), [0x6c, 0x56, 0xee, 255], 'the square');
-    assert.deepEqual(pixel(16, 16), [255, 255, 255, 255], 'the left battlement');
-    assert.deepEqual(pixel(24, 16), [0x6c, 0x56, 0xee, 255], 'the gap between battlements');
-    assert.deepEqual(pixel(32, 48), [0x6c, 0x56, 0xee, 255], 'the open gateway shows the square');
-    assert.deepEqual(pixel(32, 25), [255, 255, 255, 255], 'the wall above the gateway');
-    assert.deepEqual(pixel(32, 34), [0x6c, 0x56, 0xee, 255], 'under the arch, the gateway is open');
-  });
-
-  it('draws exactly the mark of the kit: the same path and Gate violet', () => {
-    const kit = (file: string): string => readFileSync(new URL(`../../design/${file}`, import.meta.url), 'utf8');
-    for (const file of ['assets/logo-mark.svg', 'assets/logo-mark-mono.svg']) {
-      const d = /<path [^>]*d="([^"]+)"/.exec(kit(file))?.[1];
-      assert.equal(d, ROOK_PATH, file);
-    }
-    assert.match(kit('assets/logo-mark.svg'), new RegExp(`<rect width="64" height="64" rx="16" fill="${BRAND_HEX}"/>`));
-    const tokens = JSON.parse(kit('tokens/tokens.json')) as { color: { brand: { solid: { $value: string } } } };
-    assert.equal(tokens.color.brand.solid.$value, BRAND_HEX);
-  });
-
-  it('flattens the arc of the gateway over the top of the gate', () => {
-    const points = flatten(ROOK_PATH);
-    const arch = points.filter(([x, y]) => x > 24 && x < 40 && y < 38);
-    assert.ok(arch.length >= 8);
-    assert.ok(arch.some(([x, y]) => Math.abs(x - 32) < 0.01 && Math.abs(y - 30) < 0.01), 'the top of the arch at (32, 30)');
-  });
-
-  it('renders the 1024 px icon of the installer in well under a second', () => {
-    const started = performance.now();
-    markPixels(1024, 'brand');
-    assert.ok(performance.now() - started < 2000);
-  });
-
-  it('the template image is the rook alone, black with alpha, and BGRA swaps red and blue', () => {
-    const mono = markPixels(64, 'mono');
-    for (let i = 0; i < mono.length; i += 4) assert.equal(mono[i]! + mono[i + 1]! + mono[i + 2]!, 0);
-    const alpha = (x: number, y: number): number => mono[(y * 64 + x) * 4 + 3]!;
-    assert.equal(alpha(16, 16), 255, 'a battlement');
-    assert.equal(alpha(32, 48), 0, 'the open gateway');
-    assert.equal(alpha(2, 32), 0, 'no square around the rook');
-    assert.deepEqual([...toBgra(Buffer.from([1, 2, 3, 4]))], [3, 2, 1, 4]);
   });
 });

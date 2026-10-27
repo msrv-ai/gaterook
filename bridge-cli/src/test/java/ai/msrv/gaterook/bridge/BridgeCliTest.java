@@ -71,7 +71,7 @@ class BridgeCliTest {
     assertThat(run(env, "", "headers", "--endpoint", "dev").code()).as("no grant").isEqualTo(3);
     assertThat(run(env, "", "headers", "--endpoint").code()).as("no value").isEqualTo(3);
     try (FakeBroker broker = new FakeBroker(home, r -> "{\"v\":1,\"ok\":false,\"error\":\"grant_revoked\","
-        + "\"message\":\"Access for Codex to dev was revoked in MCP Gateway. Connect again from the app.\"}")) {
+        + "\"message\":\"Access for Codex to dev was revoked in GateRook. Connect again from the app.\"}")) {
       Run r = run(env, "", "headers", "--endpoint", "dev", "--grant", GRANT);
       assertThat(r.code()).isEqualTo(2);
       assertThat(r.out()).isEmpty();
@@ -82,7 +82,7 @@ class BridgeCliTest {
       assertThat(run(env, "", "headers", "--endpoint", "prod", "--grant", GRANT).code()).isEqualTo(2);
     }
     try (FakeBroker broker = new FakeBroker(home, r -> "{\"v\":1,\"ok\":false,\"error\":\"core_unavailable\","
-        + "\"message\":\"MCP Gateway is not running.\"}")) {
+        + "\"message\":\"GateRook is not running.\"}")) {
       assertThat(run(env, "", "headers", "--endpoint", "dev", "--grant", GRANT).code()).isEqualTo(1);
     }
     Path log = home.resolve("logs").resolve("bridge.log");

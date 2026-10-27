@@ -31,14 +31,14 @@ class ApprovalPageController {
         <!doctype html>
         <html lang="en">
         <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="referrer" content="no-referrer"><title>Approval request · MCP Gateway</title></head>
+        <meta name="referrer" content="no-referrer"><title>Approval request · GateRook</title></head>
         <body>
         <main>
-        <h1>Decide in MCP Gateway</h1>
+        <h1>Decide in GateRook</h1>
         <p>An agent asked for an action that needs your approval. The exact action and the decision are in the MCP \
         Gateway window, never on this page.</p>
-        <p><a href="%s">Open request %s in MCP Gateway</a></p>
-        <p>If nothing opens, switch to the MCP Gateway window: the request is under Approvals.</p>
+        <p><a href="%s">Open request %s in GateRook</a></p>
+        <p>If nothing opens, switch to the GateRook window: the request is under Approvals.</p>
         </main>
         </body>
         </html>

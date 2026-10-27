@@ -268,7 +268,7 @@ describe('EndpointsData', () => {
     expect(data.rows()!.map((r) => r.slug)).toEqual(['dev', 'dev-copy', 'incident-prod']);
   });
 
-  it('keeps a row changed outside MCP Gateway, with the confirmation the core asked for', async () => {
+  it('keeps a row changed outside GateRook, with the confirmation the core asked for', async () => {
     const data = setup();
     listAnswer = () => Promise.resolve(kitEndpoints().map((e) => (e.slug === 'dev' ? { ...e, blockedReason: 'endpoint row' } : e)));
     await data.start();

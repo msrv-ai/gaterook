@@ -213,9 +213,9 @@ describe('Add connection: endpoints', () => {
     expect(refusalFor(ENDPOINTS[2], dev)).toBe('Accepts prod connections only; dev-db is dev.');
     expect(refusalFor(ENDPOINTS[0], { name: 'prod-db', env: 'prod' })).toBe('Accepts dev and stage connections only; prod-db is prod.');
     expect(refusalFor(ENDPOINTS[1], { name: 'prod-db', env: 'prod' })).toBe('Published through the tunnel, and a prod connection never is; prod-db is prod.');
-    // An empty endpoint takes any connection; one changed outside MCP Gateway says so first.
+    // An empty endpoint takes any connection; one changed outside GateRook says so first.
     expect(refusalFor(endpoint({ env: 'prod', connections: { total: 0, byEnv: {} } }), dev)).toBeNull();
-    expect(refusalFor(endpoint({ blockedReason: 'Changed outside MCP Gateway.' }), dev)).toBe('Changed outside MCP Gateway.');
+    expect(refusalFor(endpoint({ blockedReason: 'Changed outside GateRook.' }), dev)).toBe('Changed outside GateRook.');
   });
 
   it('lists usable endpoints first with their clients, the refused ones after with their reason (kit order)', () => {

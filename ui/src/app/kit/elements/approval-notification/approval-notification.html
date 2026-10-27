@@ -3,9 +3,9 @@
   @case ('desktop') {
     @if (os() === 'mac') {
       <div class="gw-card gw-approval-notification__surface gw-approval-notification__os gw-approval-notification__os--mac" inert>
-        <span class="gw-logo gw-logo--lg gw-logo--mark-only"><img class="gw-logo__mark" src="assets/logo-mark.svg" alt=""><span class="gw-logo__name">MCP Gateway</span></span>
+        <span class="gw-logo gw-logo--lg gw-logo--mark-only"><img class="gw-logo__mark" src="assets/logo-mark.svg" alt=""><span class="gw-logo__name">GateRook</span></span>
         <div class="gw-approval-notification__text">
-          <p class="gw-text-caption gw-fg-muted">MCP Gateway · now</p>
+          <p class="gw-text-caption gw-fg-muted">GateRook · now</p>
           <p class="gw-text-h3">{{ titlePrefix() }}Approval needed · {{ req.tool }} on {{ target() }}</p>
           <p class="gw-text-small gw-truncate">{{ prod() ? 'Runs on production' : req.env + ' environment' }} · from {{ who() }}</p>
           <p class="gw-text-code-sm gw-fg-secondary gw-truncate">{{ line() }}</p>
@@ -17,7 +17,7 @@
       </div>
     } @else {
       <div class="gw-card gw-approval-notification__surface gw-approval-notification__os gw-approval-notification__os--win" inert>
-        <p class="gw-approval-notification__app gw-text-caption gw-fg-muted"><span class="gw-logo gw-logo--sm"><img class="gw-logo__mark" src="assets/logo-mark.svg" alt=""><span class="gw-logo__name">MCP Gateway</span></span> now</p>
+        <p class="gw-approval-notification__app gw-text-caption gw-fg-muted"><span class="gw-logo gw-logo--sm"><img class="gw-logo__mark" src="assets/logo-mark.svg" alt=""><span class="gw-logo__name">GateRook</span></span> now</p>
         <div class="gw-approval-notification__text">
           <p class="gw-text-h3">{{ titlePrefix() }}Approval needed · {{ req.tool }} on {{ target() }}</p>
           <p class="gw-text-code-sm gw-fg-secondary gw-truncate">{{ line() }}</p>
@@ -30,17 +30,17 @@
       </div>
     }
     @if (caption()) {
-      <figcaption class="gw-approval-notification__caption gw-text-caption gw-fg-muted">{{ caption() }}<span class="gw-sr-only">: notification from MCP Gateway, "{{ titlePrefix() }}Approval needed · {{ req.tool }} on {{ target() }}", body "{{ line() }}", buttons Review and Deny.</span></figcaption>
+      <figcaption class="gw-approval-notification__caption gw-text-caption gw-fg-muted">{{ caption() }}<span class="gw-sr-only">: notification from GateRook, "{{ titlePrefix() }}Approval needed · {{ req.tool }} on {{ target() }}", body "{{ line() }}", buttons Review and Deny.</span></figcaption>
     } @else {
-      <figcaption class="gw-sr-only">Notification from MCP Gateway: "{{ titlePrefix() }}Approval needed · {{ req.tool }} on {{ target() }}", body "{{ line() }}", buttons Review and Deny.</figcaption>
+      <figcaption class="gw-sr-only">Notification from GateRook: "{{ titlePrefix() }}Approval needed · {{ req.tool }} on {{ target() }}", body "{{ line() }}", buttons Review and Deny.</figcaption>
     }
   }
 
   @case ('slack') {
     <div class="gw-approval-notification__message" inert>
-      <span class="gw-logo gw-logo--lg gw-logo--mark-only"><img class="gw-logo__mark" src="assets/logo-mark.svg" alt=""><span class="gw-logo__name">MCP Gateway</span></span>
+      <span class="gw-logo gw-logo--lg gw-logo--mark-only"><img class="gw-logo__mark" src="assets/logo-mark.svg" alt=""><span class="gw-logo__name">GateRook</span></span>
       <div>
-        <p class="gw-approval-notification__byline"><span class="gw-text-h3">MCP Gateway</span><span class="gw-badge gw-badge--sm">App</span><span class="gw-text-caption gw-fg-muted">{{ sent() }}{{ decided() ? ' (edited)' : '' }}</span></p>
+        <p class="gw-approval-notification__byline"><span class="gw-text-h3">GateRook</span><span class="gw-badge gw-badge--sm">App</span><span class="gw-text-caption gw-fg-muted">{{ sent() }}{{ decided() ? ' (edited)' : '' }}</span></p>
         <div class="gw-approval-notification__blocks">
           <p class="gw-text-h2">{{ titlePrefix() }}Approval needed: <span class="gw-mono">{{ req.tool }}</span> on <span class="gw-mono">{{ target() }}</span></p>
           @if (decided()) {
@@ -74,13 +74,13 @@
         </div>
       </div>
     </div>
-    <figcaption class="gw-sr-only">Slack message{{ slackChannel() ? ' in ' + slackChannel() : '' }} from the MCP Gateway app at {{ sent() }}: "{{ titlePrefix() }}Approval needed: {{ req.tool }} on {{ target() }}". Statement: {{ text() }}@if (decided()) {. {{ outcome().label }} {{ outcome().text }}. No buttons.} @else {. Buttons {{ approvable() ? 'Approve, Deny and Open in app' : 'Deny and Open in app; no Approve' }}.}</figcaption>
+    <figcaption class="gw-sr-only">Slack message{{ slackChannel() ? ' in ' + slackChannel() : '' }} from the GateRook app at {{ sent() }}: "{{ titlePrefix() }}Approval needed: {{ req.tool }} on {{ target() }}". Statement: {{ text() }}@if (decided()) {. {{ outcome().label }} {{ outcome().text }}. No buttons.} @else {. Buttons {{ approvable() ? 'Approve, Deny and Open in app' : 'Deny and Open in app; no Approve' }}.}</figcaption>
   }
 
   @case ('telegram') {
     <div class="gw-approval-notification__chat" inert>
       <div class="gw-card gw-approval-notification__surface gw-approval-notification__surface--bubble">
-        <p class="gw-text-ui gw-fg-muted">MCP Gateway bot</p>
+        <p class="gw-text-ui gw-fg-muted">GateRook bot</p>
         <p class="gw-text-h3">{{ titlePrefix() }}Approval needed</p>
         @if (prod() && !decided()) {
           <p class="gw-text-small gw-fg-danger">Runs on production</p>
@@ -105,7 +105,7 @@
         </div>
       }
     </div>
-    <figcaption class="gw-sr-only">Telegram message from the MCP Gateway bot at {{ sent() }}: "{{ titlePrefix() }}Approval needed. {{ req.tool }} on {{ target() }}, {{ req.env }}, from {{ who() }}." Statement: {{ text() }}@if (decided()) {. {{ outcome().label }}, {{ outcome().text }}. No buttons.} @else {. Buttons {{ approvable() ? 'Approve, Deny and Open in app' : 'Deny and Open in app; no Approve' }}.}</figcaption>
+    <figcaption class="gw-sr-only">Telegram message from the GateRook bot at {{ sent() }}: "{{ titlePrefix() }}Approval needed. {{ req.tool }} on {{ target() }}, {{ req.env }}, from {{ who() }}." Statement: {{ text() }}@if (decided()) {. {{ outcome().label }}, {{ outcome().text }}. No buttons.} @else {. Buttons {{ approvable() ? 'Approve, Deny and Open in app' : 'Deny and Open in app; no Approve' }}.}</figcaption>
   }
 
   @case ('toast') {

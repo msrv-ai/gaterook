@@ -64,8 +64,8 @@ class ApprovalDeliveryTest {
     assertThat(e.path("method").asString()).isEqualTo("elicitation/create");
     assertThat(e.at("/params/mode").asString()).isEqualTo("url");
     assertThat(e.at("/params/url").asString()).isEqualTo("http://127.0.0.1:7465/approvals/ap_1");
-    assertThat(e.at("/params/message").asString()).startsWith("MCP Gateway: approve sql_execute on dev-db (dev)? "
-        + SQL + "  Request ap_1, auto-deny at ").endsWith("Decide in the MCP Gateway window.");
+    assertThat(e.at("/params/message").asString()).startsWith("GateRook: approve sql_execute on dev-db (dev)? "
+        + SQL + "  Request ap_1, auto-deny at ").endsWith("Decide in the GateRook window.");
     RequestStateCodec.State state = state(ir);
     assertThat(state.round()).isEqualTo(1);
     assertThat(state.t0()).isEqualTo(T0);

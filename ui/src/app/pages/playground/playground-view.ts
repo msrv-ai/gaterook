@@ -134,7 +134,7 @@ export function defaultPair(groups: readonly ToolGroup[]): Chosen | null {
 /**
  * What Run does for the chosen tool:
  * - `off` — Off on the endpoint: agents don't get it, so it can't run here either (kit `#pg-off-alert`);
- * - `blocked` — the endpoint can't serve it (disabled, changed outside MCP Gateway, a name clash): the core's reason;
+ * - `blocked` — the endpoint can't serve it (disabled, changed outside GateRook, a name clash): the core's reason;
  * - `approval` — its mode is Approval: running it sends an approval request (kit `#pg-approval-alert`);
  * - `run` — it runs at once.
  */

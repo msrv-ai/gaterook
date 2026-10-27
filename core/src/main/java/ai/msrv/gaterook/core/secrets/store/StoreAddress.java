@@ -60,7 +60,7 @@ public final class StoreAddress {
         throw StoreException.invalid(v.text());
       }
     } else if (loopback && corePorts.contains(port)) {
-      throw StoreException.invalid("Port " + port + " on this computer is MCP Gateway itself.");
+      throw StoreException.invalid("Port " + port + " on this computer is GateRook itself.");
     }
     if (scheme.equals("http") && !loopback) {
       throw StoreException.invalid("Use https:// for a store on another computer: tokens and secrets would cross "

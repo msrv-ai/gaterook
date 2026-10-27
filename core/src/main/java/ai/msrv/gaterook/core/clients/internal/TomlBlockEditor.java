@@ -30,7 +30,7 @@ public final class TomlBlockEditor {
 
   private TomlBlockEditor() {}
 
-  /** {@code # >>> MCP Gateway · gateway-dev · managed entry: Disconnect in MCP Gateway removes it}. */
+  /** Persisted ownership markers retain their legacy text so existing client entries remain recognizable. */
   public static String startMarker(String name) {
     return "# >>> MCP Gateway · " + name + " · managed entry: Disconnect in MCP Gateway removes it";
   }
@@ -134,7 +134,7 @@ public final class TomlBlockEditor {
       int line = at == null ? 0 : at.getLineNr();
       int column = at == null ? 0 : at.getColumnNr();
       String where = line > 0 ? " (line " + line + ", column " + column + ")" : "";
-      throw new ConfigEditException(Reason.INVALID, "The file isn't valid TOML" + where + ". MCP Gateway changes "
+      throw new ConfigEditException(Reason.INVALID, "The file isn't valid TOML" + where + ". GateRook changes "
           + "nothing.", line, column, null);
     }
   }
@@ -147,7 +147,7 @@ public final class TomlBlockEditor {
       throw new ConfigEditException(Reason.CHECK_FAILED, "The edited file wouldn't parse, so nothing was written.");
     }
     if (!after.equals(expected)) {
-      throw new ConfigEditException(Reason.CHECK_FAILED, "The edit would change more than MCP Gateway's entry, so "
+      throw new ConfigEditException(Reason.CHECK_FAILED, "The edit would change more than GateRook's entry, so "
           + "nothing was written.");
     }
   }

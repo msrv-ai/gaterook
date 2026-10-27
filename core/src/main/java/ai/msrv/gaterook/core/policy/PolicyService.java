@@ -245,7 +245,7 @@ public class PolicyService implements SmartInitializingSingleton {
       if (!load(e).verified()) {
         if (e != env) {
           alerts.report("policy", env.id(), env.id() + " policy", "inherits the " + e.id() + " policy, which was "
-              + "changed outside MCP Gateway");
+              + "changed outside GateRook");
         }
         return false;
       }
@@ -411,7 +411,7 @@ public class PolicyService implements SmartInitializingSingleton {
       checkStored(env, row, confirm);
       sign(row);
       setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.POLICY,
-          env.id() + " policy changed outside MCP Gateway", "Unverified", "Kept as stored", reason, env, null, null,
+          env.id() + " policy changed outside GateRook", "Unverified", "Kept as stored", reason, env, null, null,
           null));
       resolveAlerts(env);
       announce(env);
@@ -682,8 +682,8 @@ public class PolicyService implements SmartInitializingSingleton {
   private void requireVerified(PolicyEntity row) {
     if (!verify(row)) {
       alerts.report("policy", row.getEnv().id(), row.getEnv().id() + " policy", "policy row");
-      throw ProblemException.conflict("Changed outside MCP Gateway",
-          "The " + row.getEnv().id() + " policy was changed outside MCP Gateway. Review it before you edit it.");
+      throw ProblemException.conflict("Changed outside GateRook",
+          "The " + row.getEnv().id() + " policy was changed outside GateRook. Review it before you edit it.");
     }
   }
 

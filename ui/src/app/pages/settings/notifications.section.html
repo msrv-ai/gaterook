@@ -64,7 +64,7 @@
           }
         } @else {
           <button class="gw-btn" type="button" aria-haspopup="dialog" [attr.aria-disabled]="off() ? 'true' : null" [attr.aria-describedby]="'st-slack-connect-hint' + (off() && why ? ' ' + why : '')" (click)="openSlack($event)"><svg lucideIcon="plug" class="gw-icon"></svg> Connect Slack</button>
-          <p class="gw-text-caption gw-fg-muted" id="st-slack-connect-hint">You need the bot token and the app-level token of the MCP Gateway app in your workspace.</p>
+          <p class="gw-text-caption gw-fg-muted" id="st-slack-connect-hint">You need the bot token and the app-level token of the GateRook app in your workspace.</p>
         }
       </div>
       @if (slackUp()) {
@@ -94,7 +94,7 @@
                 <option [value]="c.id" [selected]="c.id === slackChannelId()">{{ c.name.startsWith('#') ? c.name : '#' + c.name }}</option>
               }
             </select>
-            <p class="gw-field__hint" id="st-slack-channel-hint">Everyone in the channel sees the exact action. Channels the MCP Gateway app was added to.</p>
+            <p class="gw-field__hint" id="st-slack-channel-hint">Everyone in the channel sees the exact action. Channels the GateRook app was added to.</p>
           </div>
         }
         <div class="gw-settings-layout__inline">
@@ -179,11 +179,11 @@
           <section gwNotificationCard heading="Slack" letter="S">
             <span gwCardDescription>
               @if (!slackUp()) {
-                Not set up yet. Once you connect the MCP Gateway app, it sends each request like this.
+                Not set up yet. Once you connect the GateRook app, it sends each request like this.
               } @else if (deliverTo() === 'channel' && slackChannel()) {
-                Posted by the MCP Gateway app to <span class="gw-mono">{{ slackChannel() }}</span>@if (workspace(); as ws) { in workspace <span class="gw-mono">{{ ws }}</span>}.
+                Posted by the GateRook app to <span class="gw-mono">{{ slackChannel() }}</span>@if (workspace(); as ws) { in workspace <span class="gw-mono">{{ ws }}</span>}.
               } @else {
-                Sent by the MCP Gateway app to each linked approver@if (workspace(); as ws) { in workspace <span class="gw-mono">{{ ws }}</span>}.
+                Sent by the GateRook app to each linked approver@if (workspace(); as ws) { in workspace <span class="gw-mono">{{ ws }}</span>}.
               }
             </span>
             <figure gwNotificationPreview="slack" [slackChannel]="deliverTo() === 'channel' ? slackChannel() : null" [ruleNote]="ruleNote()" [request]="r"></figure>
@@ -201,7 +201,7 @@
           <section gwNotificationCard heading="Telegram" letter="T">
             <span gwCardDescription>
               @if (telegramUp()) {
-                Sent by @if (bot(); as b) {the bot <span class="gw-mono">{{ b }}</span>} @else {the MCP Gateway bot} to each linked approver.
+                Sent by @if (bot(); as b) {the bot <span class="gw-mono">{{ b }}</span>} @else {the GateRook bot} to each linked approver.
               } @else {
                 Not set up yet. Once you connect a bot, it sends each request to linked approvers like this.
               }
@@ -309,7 +309,7 @@
     <header class="gw-dialog__header">
       <span class="gw-icon-tile"><svg lucideIcon="plug" class="gw-icon"></svg></span>
       <h2 class="gw-dialog__title" id="st-slack-connect-t">Connect Slack</h2>
-      <p class="gw-dialog__description" id="st-slack-connect-d">Add the MCP Gateway app to your workspace, then paste its two tokens. The gateway checks them with Slack before it saves anything.</p>
+      <p class="gw-dialog__description" id="st-slack-connect-d">Add the GateRook app to your workspace, then paste its two tokens. The gateway checks them with Slack before it saves anything.</p>
       <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
     </header>
     <div class="gw-dialog__body">

@@ -545,7 +545,7 @@ describe('Connectors page: Catalog', () => {
     const alert = el.querySelector('#catalog .gw-alert--warning');
     expect(text(alert?.querySelector('.gw-alert__title'))).toBe('The catalog couldn\'t be checked');
     expect(text(alert?.querySelector('.gw-alert__body'))).toBe(
-      'The catalog can\'t be reached: timeout. These are the entries of the last index MCP Gateway verified.',
+      'The catalog can\'t be reached: timeout. These are the entries of the last index GateRook verified.',
     );
     expect(cardOf(el, 'catalog', 'ClickHouse')).not.toBeNull();
   });

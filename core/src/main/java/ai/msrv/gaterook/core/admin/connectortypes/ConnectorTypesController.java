@@ -185,7 +185,7 @@ class ConnectorTypesController {
     ConnectorManifest m = t.manifest();
     if (!t.usable()) {
       throw ProblemException.unprocessable("Connector off", m.name() + " is switched off or was changed outside "
-          + "MCP Gateway.", "/type");
+          + "GateRook.", "/type");
     }
     ObjectNode common = JsonNodeFactory.instance.objectNode();
     common.putObject("name").put("type", "string").put("maxLength", 64)
@@ -214,7 +214,7 @@ class ConnectorTypesController {
     return installed(require(type), connections.all());
   }
 
-  /** The person reviewed a type row changed outside MCP Gateway and keeps it as stored. */
+  /** The person reviewed a type row changed outside GateRook and keeps it as stored. */
   @PostMapping("/api/connector-types/{type}/confirm-integrity")
   Installed confirmIntegrity(@PathVariable String type, @RequestBody(required = false) Reason request) {
     require(type);
@@ -230,7 +230,7 @@ class ConnectorTypesController {
     String kind = kind(m.kind());
     Integer tools = m.dynamicTools() ? null : m.tools().size();
     String toolsFrom = m.dynamicTools() ? "server" : null;
-    String reason = !t.verified() ? m.name() + " was changed outside MCP Gateway. Review it in Connectors first."
+    String reason = !t.verified() ? m.name() + " was changed outside GateRook. Review it in Connectors first."
         : !t.enabled() ? m.name() + " is switched off in Connectors." : null;
     // Whether a plugin is signed is its plugin row's (K4, shown since K6); a built-in needs no signature.
     Boolean signed = signed(m, pluginRows);

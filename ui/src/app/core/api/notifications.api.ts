@@ -19,7 +19,7 @@ export interface NotificationChannel {
   readonly stateDetail: string | null;
   readonly lastDeliveryAt: Iso | null;
   readonly version: number;
-  /** False: changed outside MCP Gateway, off until saved again. */
+  /** False: changed outside GateRook, off until saved again. */
   readonly verified?: boolean;
 }
 

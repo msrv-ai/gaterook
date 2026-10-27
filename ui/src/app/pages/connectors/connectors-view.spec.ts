@@ -202,7 +202,7 @@ describe('connectors view: Installed', () => {
 
     const [outside] = installedViews([{ ...rabbit, verified: false }], [], index, []);
     expect(outside.state).toBe('changed-outside');
-    expect(outside.card.status).toEqual({ tone: 'warning', text: 'Changed outside MCP Gateway' });
+    expect(outside.card.status).toEqual({ tone: 'warning', text: 'Changed outside GateRook' });
   });
 });
 

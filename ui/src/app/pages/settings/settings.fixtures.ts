@@ -46,7 +46,7 @@ export const kitInfo = (over: Partial<CoreInfo> = {}): CoreInfo => ({
   vm: '',
   port: 7465,
   logFile: '/Users/you/.mcp-gateway/logs/core.log',
-  pluginRuntime: { bundledJre: true, home: '/Applications/MCP Gateway.app/jre', version: '25.0.1+8', present: true },
+  pluginRuntime: { bundledJre: true, home: '/Applications/GateRook.app/jre', version: '25.0.1+8', present: true },
   ...over,
 });
 

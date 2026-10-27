@@ -203,7 +203,7 @@ public class NotificationService {
       String channelId = u.channelId() == null ? config.path("channelId").asString(null)
           : u.channelId().isBlank() ? null : u.channelId().strip();
       if ("channel".equals(deliverTo) && (channelId == null || !CHANNEL_ID.matcher(channelId).matches())) {
-        throw ProblemException.unprocessable("Choose a channel", "Pick a channel the MCP Gateway app was added to.",
+        throw ProblemException.unprocessable("Choose a channel", "Pick a channel the GateRook app was added to.",
             "/channelId");
       }
       check(u.botToken(), BOT_TOKEN, "/botToken", "The bot token is the Bot User OAuth Token: it starts with xoxb-.");
@@ -418,7 +418,7 @@ public class NotificationService {
     } catch (SlackApi.SlackException e) {
       throw ProblemException.unprocessable("Slack refused", "Slack answered " + e.error() + ".", null);
     } catch (IOException e) {
-      throw ProblemException.unprocessable("Slack unreachable", "MCP Gateway can't reach slack.com.", null);
+      throw ProblemException.unprocessable("Slack unreachable", "GateRook can't reach slack.com.", null);
     }
   }
 
@@ -446,7 +446,7 @@ public class NotificationService {
         default -> ProblemException.unprocessable("Slack refused", "Slack answered " + e.error() + ".", "/email");
       };
     } catch (IOException e) {
-      throw ProblemException.unprocessable("Slack unreachable", "MCP Gateway can't reach slack.com.", null);
+      throw ProblemException.unprocessable("Slack unreachable", "GateRook can't reach slack.com.", null);
     }
   }
 
@@ -457,7 +457,7 @@ public class NotificationService {
     try {
       p = telegram.startPairing();
     } catch (IllegalStateException e) {
-      throw ProblemException.conflict("Test Telegram first", "MCP Gateway doesn't know the bot's name yet: save "
+      throw ProblemException.conflict("Test Telegram first", "GateRook doesn't know the bot's name yet: save "
           + "Telegram again.");
     }
     return new NotificationViews.Pairing(p.pairing().id(), p.code(), p.link(), p.pairing().expiresAt());

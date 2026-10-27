@@ -177,7 +177,7 @@ export class GwAuditSettings {
   });
   protected readonly cards = computed(() => (this.data.exports().value ?? []).map(exportCard));
   protected readonly enabledCount = computed(() => (this.data.exports().value ?? []).filter((d) => d.enabled).length);
-  /** The destinations Export now runs (on, not changed outside MCP Gateway, not a demo one). */
+  /** The destinations Export now runs (on, not changed outside GateRook, not a demo one). */
   protected readonly runnableCount = computed(() => (this.data.exports().value ?? []).filter(runnableExport).length);
   protected readonly busy = signal<string | null>(null);
 

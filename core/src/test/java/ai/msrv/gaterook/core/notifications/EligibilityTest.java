@@ -78,7 +78,7 @@ class EligibilityTest {
         false)), true, false, true, false, true));
     reasons.add(reason(dev, true, false, true, false, false));
     assertThat(reasons).containsExactly(
-        "Decisions are made in MCP Gateway only.",
+        "Decisions are made in GateRook only.",
         "Many requests are waiting: decide in the app.",
         "A comment is required: approve in the app.",
         "A plugin's action: approve in the app.",
@@ -94,14 +94,14 @@ class EligibilityTest {
         "x".repeat(12_345), 12_345, false, 0, 0, false));
     Eligibility.Verdict v = Eligibility.evaluate(new Eligibility.Facts(Eligibility.Channel.SLACK, big, true, false,
         false, false, true));
-    assertThat(v.withheld()).isEqualTo("The action is 12,345 characters long and is shown only in MCP Gateway.");
+    assertThat(v.withheld()).isEqualTo("The action is 12,345 characters long and is shown only in GateRook.");
     ApprovalNotice secret = NoticeFixtures.with(NoticeFixtures.dev(), new ApprovalNotice.Action("sql", "sql", "", 40,
         true, 0, 0, false));
     Eligibility.Verdict s = Eligibility.evaluate(new Eligibility.Facts(Eligibility.Channel.SLACK, secret, true, false,
         true, false, true));
     assertThat(s.showAction()).isFalse();
     assertThat(s.withheld()).isEqualTo("The action contains values that look like secrets, so it is shown only in "
-        + "MCP Gateway.");
+        + "GateRook.");
   }
 
   private static String reason(ApprovalNotice n, boolean linked, boolean commentNow, boolean fits, boolean flood,

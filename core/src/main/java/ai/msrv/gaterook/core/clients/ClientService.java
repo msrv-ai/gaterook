@@ -288,7 +288,7 @@ public class ClientService {
       Optional<TokenService.TokenRow> token, Instant usedAt) {
     if (l.getGrantId() != null) {
       if (grant.isEmpty() || !grant.get().verified()) {
-        return new String[] {"error", "Its access was changed outside MCP Gateway: disconnect and connect again"};
+        return new String[] {"error", "Its access was changed outside GateRook: disconnect and connect again"};
       }
       if (grant.get().revokedAt() != null) {
         return new String[] {"revoked", "Access revoked: Disconnect removes the entry"};
@@ -833,7 +833,7 @@ public class ClientService {
     if (l.getMethod() == LinkMethod.HELPER || l.getMethod() == LinkMethod.CONFIG_BRIDGE) {
       boolean shim = BridgeShimInstaller.ready(env);
       steps.add(step("shim", "Bridge launcher", shim ? "ok" : "error", shim ? env.display(env.shim())
-          : env.display(env.shim()) + " is missing: restart MCP Gateway", System.nanoTime()));
+          : env.display(env.shim()) + " is missing: restart GateRook", System.nanoTime()));
     }
     // 2. Broker and access.
     t0 = System.nanoTime();
@@ -849,7 +849,7 @@ public class ClientService {
       if (g.isEmpty() || !g.get().active()) {
         steps.add(step("grant", "Access", "error", g.isEmpty() ? "The access is gone: connect again"
             : g.get().revokedAt() != null ? "Access " + g.get().label() + " was revoked" : "Access "
-            + g.get().label() + " was changed outside MCP Gateway", t0));
+            + g.get().label() + " was changed outside GateRook", t0));
       } else {
         awaitsPerson = grants.awaitsConfirmation(g.get());
         String text = "Access " + g.get().label() + " (" + g.get().prefix() + ") is active"
@@ -864,7 +864,7 @@ public class ClientService {
           + " · " + state + (t.expiresAt() != null ? " · expires " + t.expiresAt() : "")).orElse("The token is gone: "
           + "connect again"), t0));
     }
-    // 3. The bridge itself, run exactly as the config says — when the config says what MCP Gateway wrote. A command
+    // 3. The bridge itself, run exactly as the config says — when the config says what GateRook wrote. A command
     // changed outside the app is never run, and the helper's token goes to this core only, not to the entry's url.
     // A prod access whose first token waits for the person isn't run either: its broker would ask "Codex wants to use
     // incident-prod" for what is this Check, and an Allow given to it would hold for the client all session.
@@ -920,12 +920,12 @@ public class ClientService {
     return new Step(id, title, state, text, (System.nanoTime() - startNanos) / 1_000_000);
   }
 
-  /** The {@code http_headers_helper} MCP Gateway writes for this Codex link. */
+  /** The {@code http_headers_helper} GateRook writes for this Codex link. */
   private String ourHelper(ClientLinkEntity l, String slug) {
     return env.helperCommand("headers", "--endpoint", slug, "--grant", l.getGrantId());
   }
 
-  /** {@code command} and {@code args} of the stdio entry MCP Gateway writes for this link. */
+  /** {@code command} and {@code args} of the stdio entry GateRook writes for this link. */
   private List<String> ourBridgeArgv(ClientLinkEntity l, String slug, String url) {
     Entry ours = ClientAdapter.of(l.getClient()).entry(env, LinkMethod.CONFIG_BRIDGE, l.getEntryName(),
         new EntryValues(slug, url, l.getGrantId(), null, "writes", 60));
@@ -933,7 +933,7 @@ public class ClientService {
   }
 
   private static String notOurs(ClientLinkEntity l) {
-    return "The command of " + l.getEntryName() + " isn't the one MCP Gateway wrote, so Check doesn't run it: connect "
+    return "The command of " + l.getEntryName() + " isn't the one GateRook wrote, so Check doesn't run it: connect "
         + "again to repair the entry, or remove it if you changed it on purpose.";
   }
 
@@ -974,7 +974,7 @@ public class ClientService {
     Plan plan = new Plan(Ids.uuid(), PlanKind.RESTORE, client, null, null, null, null, null, null, null, snapshot,
         content, null, null, null, backupId, clock.instant().plus(PREVIEW_TTL));
     keep(plan);
-    List<String> notes = List.of("Entries MCP Gateway wrote after this copy are gone after the restore; their "
+    List<String> notes = List.of("Entries GateRook wrote after this copy are gone after the restore; their "
         + "access stays until you disconnect them.");
     return new Preview(plan.id(), client.id(), null, null, null, false, List.of(change), notes, List.of(), null,
         plan.expiresAt());
@@ -1090,7 +1090,7 @@ public class ClientService {
       Path real = Path.of(l.getConfigPath()).toRealPath();
       Path dir = env.mcpbDirectory().toRealPath();
       if (!real.startsWith(dir) || !real.getFileName().toString().endsWith(".mcpb")) {
-        throw ProblemException.notFound("No extension", "The extension isn't where MCP Gateway builds them.");
+        throw ProblemException.notFound("No extension", "The extension isn't where GateRook builds them.");
       }
       return real;
     } catch (IOException e) {
@@ -1111,7 +1111,7 @@ public class ClientService {
       String name = ClientAdapter.of(l.getClient()).displayName();
       if (l.getMethod() == LinkMethod.MCPB) {
         deleteExtension(l.getConfigPath());
-        out.add(name + " (remove the extension \"MCP Gateway · " + slug + "\" in Claude Desktop)");
+        out.add(name + " (remove the extension \"GateRook · " + slug + "\" in Claude Desktop)");
       } else if (l.getConfigPath() != null) {
         out.add(name + " (its entry " + l.getEntryName() + " in " + env.display(Path.of(l.getConfigPath()))
             + " stops working)");
@@ -1321,7 +1321,7 @@ public class ClientService {
   }
 
   /**
-   * Deletes an extension MCP Gateway built — {@code mcp-gateway-<slug>.mcpb} in {@code clients/claude-desktop/}, not a
+   * Deletes an extension GateRook built — {@code mcp-gateway-<slug>.mcpb} in {@code clients/claude-desktop/}, not a
    * link — and nothing else: {@code client_link} rows carry no MAC, so a path changed in the database must not make
    * Disconnect delete another file of the account.
    */
@@ -1332,7 +1332,7 @@ public class ClientService {
     Path p = Path.of(path).toAbsolutePath().normalize();
     if (!env.mcpbDirectory().toAbsolutePath().normalize().equals(p.getParent())
         || !p.getFileName().toString().matches("mcp-gateway-[a-z0-9-]+\\.mcpb") || Files.isSymbolicLink(p)) {
-      log.warn("Didn't delete {}: it isn't an extension MCP Gateway built", env.display(p));
+      log.warn("Didn't delete {}: it isn't an extension GateRook built", env.display(p));
       return false;
     }
     return deleteQuietly(p);
@@ -1427,7 +1427,7 @@ public class ClientService {
         return k;
       }
     }
-    throw ProblemException.notFound("Unknown client", "MCP Gateway connects claude-desktop, codex, cursor and "
+    throw ProblemException.notFound("Unknown client", "GateRook connects claude-desktop, codex, cursor and "
         + "antigravity.");
   }
 

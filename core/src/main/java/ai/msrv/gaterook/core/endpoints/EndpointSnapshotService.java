@@ -39,7 +39,7 @@ import tools.jackson.databind.JsonNode;
 
 /**
  * Builds and caches {@link EndpointSnapshot}s (ARCHITECTURE.md §5 step 4). Every row the snapshot reads is verified
- * against its MAC; one that doesn't verify blocks the endpoint ("Changed outside MCP Gateway"). Invalidation is
+ * against its MAC; one that doesn't verify blocks the endpoint ("Changed outside GateRook"). Invalidation is
  * synchronous after commit: the change that triggered it is visible to the very next call.
  */
 @Service
@@ -216,7 +216,7 @@ public class EndpointSnapshotService {
         continue;
       }
       ConnectorManifest manifest = type.manifest();
-      String problem = !stored.get().verified() ? stored.get().name() + " was changed outside MCP Gateway"
+      String problem = !stored.get().verified() ? stored.get().name() + " was changed outside GateRook"
           : !type.usable() ? manifest.name() + " is switched off" : null;
       wired.add(new EndpointSnapshot.Wired(stored.get().config(), manifest, problem));
       members.add(new ToolPairs.Member(stored.get().config(), manifest, problem == null));
@@ -264,7 +264,7 @@ public class EndpointSnapshotService {
     return new EndpointSnapshot(e.getId(), e.getSlug(), e.getDescription(), e.getEnv(), readOnly, e.isEnabled(),
         e.getInstructions(), rows.tree(e.getSettings()), e.isPublished(), e.isOauthEnabled(),
         e.getRiskDismissed() == null ? null : rows.tree(e.getRiskDismissed()), e.getVersion(), List.copyOf(wired),
-        List.copyOf(out), List.copyOf(core), blocked == null ? null : "Changed outside MCP Gateway (" + blocked + ")");
+        List.copyOf(out), List.copyOf(core), blocked == null ? null : "Changed outside GateRook (" + blocked + ")");
   }
 
   /**

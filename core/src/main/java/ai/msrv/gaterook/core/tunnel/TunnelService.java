@@ -161,7 +161,7 @@ public class TunnelService implements DisposableBean {
     try {
       TunnelSettings s = settings();
       gate.setAnthropicOnly(s.anthropicOnly());
-      closeOpenSession(clock.instant(), "MCP Gateway stopped");
+      closeOpenSession(clock.instant(), "GateRook stopped");
     } catch (RuntimeException e) {
       // A locked core (no master key) still serves the status screen; the gate stays on, its safe default.
       log.warn("Tunnel settings not loaded at start: {}", e.toString());
@@ -190,7 +190,7 @@ public class TunnelService implements DisposableBean {
       if (n.sessionFrom() != null) {
         try {
           closeSession(n, clock.instant());
-          recordChangeSafely(n.endpoint(), "On", "Off", "MCP Gateway stopped");
+          recordChangeSafely(n.endpoint(), "On", "Off", "GateRook stopped");
         } catch (RuntimeException e) {
           log.debug("Tunnel history not written at shutdown: {}", e.toString());
         }
@@ -691,7 +691,7 @@ public class TunnelService implements DisposableBean {
       stop(e.slug() + " has a prod connection now, and a prod endpoint is never published");
       endpoints.setPublished(e.slug(), false);
     } else if (snapshot.get().blocked()) {
-      stop(e.slug() + " was changed outside MCP Gateway");
+      stop(e.slug() + " was changed outside GateRook");
     }
   }
 
@@ -708,7 +708,7 @@ public class TunnelService implements DisposableBean {
 
   private Optional<String> refusal(String slug, EndpointSnapshot snapshot, TunnelSettings s) {
     if (snapshot.blocked()) {
-      return Optional.of(slug + " was changed outside MCP Gateway. Review it first.");
+      return Optional.of(slug + " was changed outside GateRook. Review it first.");
     }
     if (snapshot.env() == Env.PROD) {
       return Optional.of(slug + " has prod connections, and a prod endpoint is never published through the "

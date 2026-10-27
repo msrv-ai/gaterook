@@ -328,7 +328,7 @@ class AuditExportIT {
       AuditExports.Destination moved = exports.get(id);
       assertThat(moved.verified()).isFalse();
       assertThat(moved.state()).isEqualTo("failing");
-      assertThat(moved.lastError()).contains("Changed outside MCP Gateway");
+      assertThat(moved.lastError()).contains("Changed outside GateRook");
       assertThat(core.bean(IntegrityAlerts.class).has("audit-export", id)).isTrue();
       assertThatThrownBy(() -> exports.run(id)).isInstanceOf(ProblemException.class)
           .hasMessageContaining("changed outside");
@@ -451,7 +451,7 @@ class AuditExportIT {
       AuditExports.Destination changed = exports.get(d.id());
       assertThat(changed.verified()).isFalse();
       assertThat(changed.state()).isEqualTo("failing");
-      assertThat(changed.lastError()).contains("Changed outside MCP Gateway");
+      assertThat(changed.lastError()).contains("Changed outside GateRook");
       assertThatThrownBy(() -> exports.run(d.id())).isInstanceOf(ProblemException.class)
           .hasMessageContaining("changed outside");
       assertThatThrownBy(() -> exports.send(d.id(), null, null, null)).isInstanceOf(ProblemException.class);

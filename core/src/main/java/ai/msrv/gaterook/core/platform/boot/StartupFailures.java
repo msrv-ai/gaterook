@@ -40,7 +40,7 @@ final class StartupFailures {
     }
     if (sqliteBusy(failure)) {
       return new Failure(StartupReason.DB_LOCKED,
-          "The gateway database is locked by another process; close it and start MCP Gateway again", null);
+          "The gateway database is locked by another process; close it and start GateRook again", null);
     }
     if (find(failure, FlywayException.class).isPresent()) {
       return new Failure(StartupReason.DB_MIGRATION_FAILED,

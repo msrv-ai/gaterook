@@ -66,7 +66,7 @@ public class AuditExports {
    *                      {@code null} before its first run
    * @param lastExportedId the last agent call row it has; retention never deletes past it
    * @param pending       a batch is on its way (or waits for its retry)
-   * @param verified      {@code false}: changed outside MCP Gateway, nothing is exported until it is saved again
+   * @param verified      {@code false}: changed outside GateRook, nothing is exported until it is saved again
    * @param demo          a destination of the demo world, never contacted
    */
   public record Destination(String id, String kind, String name, boolean enabled, ObjectNode config, String schedule,
@@ -238,7 +238,7 @@ public class AuditExports {
           to.add("new credentials");
         }
         if (startOver) {
-          from.add("changed outside MCP Gateway");
+          from.add("changed outside GateRook");
           to.add("export starts again from the first row");
         }
         record(before.name(), from.isEmpty() ? null : String.join("; ", from), to.isEmpty() ? "Saved again"
@@ -293,8 +293,7 @@ public class AuditExports {
       throw demo();
     }
     if (!d.verified()) {
-      throw ProblemException.conflict("Changed outside MCP Gateway", "This destination was changed outside MCP "
-          + "Gateway. Check it in Settings and save it again to resume exports.");
+      throw ProblemException.conflict("Changed outside GateRook", "This destination was changed outside GateRook. Check it in Settings and save it again to resume exports.");
     }
     if (!d.enabled()) {
       throw ProblemException.conflict("Paused", "Turn the destination on to export to it.");
@@ -322,7 +321,7 @@ public class AuditExports {
       throw demo();
     }
     if (!d.verified() || !d.enabled()) {
-      throw ProblemException.conflict(d.enabled() ? "Changed outside MCP Gateway" : "Paused", d.enabled()
+      throw ProblemException.conflict(d.enabled() ? "Changed outside GateRook" : "Paused", d.enabled()
           ? "Check the destination in Settings and save it again first." : "Turn the destination on first.");
     }
     ActivityQueryParser.parse(q);
@@ -400,7 +399,7 @@ public class AuditExports {
       // Shown as failing: the person sees that nothing goes out and why.
       state = "failing";
       error = destinations.locked() ? "The master key is locked: nothing is exported until it opens."
-          : "Changed outside MCP Gateway: nothing is exported to this destination until you save it again.";
+          : "Changed outside GateRook: nothing is exported to this destination until you save it again.";
       failingSince = failingSince != null ? failingSince : d.lastAttemptAt();
     }
     return new Destination(d.id(), d.kindId(), d.name(), d.enabled(), config, d.schedule().id(), d.target(), state,
@@ -417,7 +416,7 @@ public class AuditExports {
   }
 
   private static ProblemException demo() {
-    return ProblemException.conflict("Demo destination", "This destination is part of the demo world: MCP Gateway "
+    return ProblemException.conflict("Demo destination", "This destination is part of the demo world: GateRook "
         + "doesn't send the demo's audit anywhere. Add your own destination to export.");
   }
 

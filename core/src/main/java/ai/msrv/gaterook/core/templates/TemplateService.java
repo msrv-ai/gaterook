@@ -63,7 +63,7 @@ public class TemplateService implements ConnectionRemovalParticipant {
   /**
    * One row of Connectors › Templates.
    *
-   * @param verified   whether the template's rows verified: one changed outside MCP Gateway serves nothing until the
+   * @param verified   whether the template's rows verified: one changed outside GateRook serves nothing until the
    *                   person reviews it ({@link #confirmIntegrity})
    * @param parameters the current version's {@code params} as its definition declares them (the list's signature,
    *                   "orders_by_status(status, since)"), or {@code null} for a kind without them (OpenAPI) and for a
@@ -365,7 +365,7 @@ public class TemplateService implements ConnectionRemovalParticipant {
     }
     ConnectionConfig cfg = connections.require(t.getConnectionId());
     TemplateVersionEntity v = verifiedVersion(t).orElseThrow(() -> ProblemException.conflict(
-        "Changed outside MCP Gateway", "Template " + t.getName() + " was changed outside MCP Gateway."));
+        "Changed outside GateRook", "Template " + t.getName() + " was changed outside GateRook."));
     return kind(t.getKind().kindId()).preview(rowMac.tree(v.getDefinition()), arguments, cfg);
   }
 
@@ -446,7 +446,7 @@ public class TemplateService implements ConnectionRemovalParticipant {
         TemplateKind kind = registry.templateKinds().get(t.getKind().kindId());
         if (!runsOn.verified() || kind == null || !kind.connectionTypes().contains(runsOn.config().type())) {
           throw ProblemException.unprocessable("Can't keep it as stored", "Template " + t.getName() + " runs on "
-              + runsOn.name() + ", which " + (!runsOn.verified() ? "was changed outside MCP Gateway too: review it "
+              + runsOn.name() + ", which " + (!runsOn.verified() ? "was changed outside GateRook too: review it "
               + "first." : "doesn't serve " + t.getKind().kindId() + " templates."), "/connection");
         }
         if (t.getStatus() == TemplateStatus.INVALID) {
@@ -462,7 +462,7 @@ public class TemplateService implements ConnectionRemovalParticipant {
       saveSigned(t);
       alerts.resolve("template", t.getId());
       setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.CONNECTION,
-          "Template " + t.getName() + " changed outside MCP Gateway", "Unverified", "Kept as stored: v"
+          "Template " + t.getName() + " changed outside GateRook", "Unverified", "Kept as stored: v"
               + t.getCurrentVersion() + ", " + KebabCaseEnumConverter.idOf(t.getStatus())
               + (runsOnName == null ? "" : ", runs on " + runsOnName), reason, null, null, runsOnName, null));
       publisher.publishEvent(new TemplateChanged(t.getId(), t.getConnectionId()));
@@ -561,8 +561,8 @@ public class TemplateService implements ConnectionRemovalParticipant {
 
   private void requireVerified(TemplateEntity t) {
     if (!verify(t)) {
-      throw ProblemException.conflict("Changed outside MCP Gateway", "Template " + t.getName() + " was changed "
-          + "outside MCP Gateway. Review it first.");
+      throw ProblemException.conflict("Changed outside GateRook", "Template " + t.getName() + " was changed "
+          + "outside GateRook. Review it first.");
     }
   }
 
@@ -622,7 +622,7 @@ public class TemplateService implements ConnectionRemovalParticipant {
     if (!rowMac.verify(TABLE, row.getId(), row.getTemplateVersion(), macFields(t.getId(), row.getTemplateVersion(),
         row.getDefinition(), row.getDigest(), row.getNatures()), row.getMac())) {
       return Optional.of("Version " + row.getTemplateVersion() + " of template " + t.getName() + " was changed "
-          + "outside MCP Gateway. Versions are never signed again: delete the template and create it again.");
+          + "outside GateRook. Versions are never signed again: delete the template and create it again.");
     }
     return Optional.empty();
   }
@@ -691,7 +691,7 @@ public class TemplateService implements ConnectionRemovalParticipant {
   /**
    * The current version's definition as stored (the SQL or the command, its parameters, the read-only confirmation):
    * what the editor opens and {@code PUT …{definition, baseVersion}} starts from. Empty when the template or that
-   * version doesn't verify: a definition changed outside MCP Gateway is never shown as the gateway's own.
+   * version doesn't verify: a definition changed outside GateRook is never shown as the gateway's own.
    */
   public Optional<JsonNode> definition(String id) {
     return readTx.execute(s -> verifiedVersion(require(id)).map(v -> (JsonNode) rowMac.tree(v.getDefinition())
@@ -705,8 +705,7 @@ public class TemplateService implements ConnectionRemovalParticipant {
 
   private void requireRunsOn(TemplateKind kind, ConnectionConfigs.Stored runsOn) {
     if (!runsOn.verified()) {
-      throw ProblemException.conflict("Changed outside MCP Gateway", runsOn.name() + " was changed outside MCP "
-          + "Gateway. Review it first.");
+      throw ProblemException.conflict("Changed outside GateRook", runsOn.name() + " was changed outside GateRook. Review it first.");
     }
     if (!kind.connectionTypes().contains(runsOn.config().type())) {
       throw ProblemException.unprocessable("Wrong connection", kind.kind() + " templates run on "

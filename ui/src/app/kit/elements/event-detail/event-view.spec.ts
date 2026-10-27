@@ -54,7 +54,7 @@ describe('event-detail view (design/elements/event-detail.html)', () => {
     });
     expect(words(approvalPath(via('approved', 'desktop-notification'))[1].meta)).toBe('From the desktop notification · after 47 s');
     expect(approvalPath(via('rejected', 'client'))[1].title).toBe('Declined by the client');
-    expect(approvalPath(via('rejected', 'core'))[1].title).toBe('Rejected by MCP Gateway');
+    expect(approvalPath(via('rejected', 'core'))[1].title).toBe('Rejected by GateRook');
     expect(words(approvalPath(via('rejected', 'core'))[1].meta)).toBe('after 47 s');
     expect(approvalPath(via('rejected', 'app'))[1].title).toBe('Rejected by you');
   });

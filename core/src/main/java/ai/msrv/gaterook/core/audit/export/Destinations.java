@@ -112,7 +112,7 @@ public class Destinations {
     }
     if (!verified && !locked) {
       alerts.report("audit-export", e.getId(), "Audit export · " + e.getName(), "the destination was changed outside "
-          + "MCP Gateway: nothing is exported to it until you save it again");
+          + "GateRook: nothing is exported to it until you save it again");
     }
     ObjectNode config = json.valueToTree(e.getConfig());
     return new Destination(e.getId(), e.getKind(), e.getName(), e.isEnabled(), config, schedule,
@@ -147,7 +147,7 @@ public class Destinations {
 
   /**
    * How far retention may delete agent call rows: the lowest position among the destinations, where one that never
-   * exported, and one whose row doesn't verify (changed outside MCP Gateway, the core locked), counts as 0 — its
+   * exported, and one whose row doesn't verify (changed outside GateRook, the core locked), counts as 0 — its
    * position may have been moved past rows it never received. {@link Long#MAX_VALUE} without destinations. A paused
    * destination holds the bound too: the kit promises records go only "after every export destination has received
    * them". Call in the delete's transaction.

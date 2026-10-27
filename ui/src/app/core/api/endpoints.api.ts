@@ -33,7 +33,7 @@ export interface EndpointSummary {
   readonly tokens: { readonly active: number; readonly expiringSoon: number };
   readonly published: boolean;
   readonly risk: EndpointRisk;
-  /** Why the endpoint is off-limits (changed outside MCP Gateway), when it is. */
+  /** Why the endpoint is off-limits (changed outside GateRook), when it is. */
   readonly blockedReason: string | null;
   readonly version: number;
 }

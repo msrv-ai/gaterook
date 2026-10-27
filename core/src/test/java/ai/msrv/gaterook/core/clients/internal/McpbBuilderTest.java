@@ -39,7 +39,7 @@ class McpbBuilderTest {
     JsonNode m = McpbBuilder.manifest(spec(Env.PROD));
     assertThat(m.path("manifest_version").asString()).isEqualTo("0.3");
     assertThat(m.path("name").asString()).isEqualTo("mcp-gateway-incident-prod");
-    assertThat(m.path("display_name").asString()).isEqualTo("MCP Gateway · incident-prod (prod)");
+    assertThat(m.path("display_name").asString()).isEqualTo("GateRook · incident-prod (prod)");
     assertThat(m.path("version").asString()).isEqualTo("0.4.0-snapshot");
     assertThat(m.path("server").path("type").asString()).isEqualTo("node");
     assertThat(m.path("server").path("entry_point").asString()).isEqualTo("server/gw-bridge.mjs");
@@ -52,7 +52,7 @@ class McpbBuilderTest {
         .isEqualTo("sql_execute");
     assertThat(m.path("compatibility").path("platforms").get(0).asString()).isEqualTo("darwin");
     assertThat(m.toString()).doesNotContain("gwb_").doesNotContain("gwt_");
-    assertThat(McpbBuilder.displayName("dev", Env.DEV)).isEqualTo("MCP Gateway · dev");
+    assertThat(McpbBuilder.displayName("dev", Env.DEV)).isEqualTo("GateRook · dev");
     assertThat(McpbBuilder.semver("0.4.0")).isEqualTo("0.4.0");
     assertThat(McpbBuilder.semver("dev")).isEqualTo("0.0.0");
   }

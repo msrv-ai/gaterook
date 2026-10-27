@@ -201,7 +201,7 @@ export interface EndpointChoice {
 
 /**
  * Why a connection can't join an endpoint, as far as the UI can tell before the connection exists: an endpoint
- * changed outside MCP Gateway, prod and non-prod never mix (ARCHITECTURE.md §5 step 7, `Wiring.mixing`), a prod
+ * changed outside GateRook, prod and non-prod never mix (ARCHITECTURE.md §5 step 7, `Wiring.mixing`), a prod
  * connection never goes on a published endpoint. Live tokens that would cross the prod line are the core's to find
  * when the connection is saved (`POST …/connections/preview` before adding).
  */

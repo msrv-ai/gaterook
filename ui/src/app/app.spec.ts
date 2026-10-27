@@ -26,7 +26,7 @@ describe('App', () => {
     expect(screen.getAttribute('role')).toBe('main');
     expect(screen.id).toBe('main');
     expect(document.getElementById(screen.getAttribute('aria-labelledby')!)?.tagName).toBe('H1');
-    expect(TestBed.inject(Title).getTitle()).toBe('Core starting · MCP Gateway');
+    expect(TestBed.inject(Title).getTitle()).toBe('Core starting · GateRook');
     TestBed.inject(HttpTestingController).match(() => true);
     fixture.destroy();
   });

@@ -78,7 +78,7 @@ public final class SlackBlocks {
       ObjectNode rich = blocks.addObject().put("type", "rich_text").put("block_id", "act." + n.id() + "." + rev);
       rich.putArray("elements").add(pre);
     } else {
-      String withheld = verdict.withheld() == null ? "The action is shown only in MCP Gateway." : verdict.withheld();
+      String withheld = verdict.withheld() == null ? "The action is shown only in GateRook." : verdict.withheld();
       blocks.addObject().put("type", "section").put("block_id", "act." + n.id() + "." + rev)
           .set("text", mrkdwn(escape(withheld) + (n.summary() == null ? "" : "\n" + escape(n.summary()))));
     }
@@ -123,7 +123,7 @@ public final class SlackBlocks {
       blocks.addObject().put("type", "section").set("text", mrkdwn("No requests are waiting."));
       return msg;
     }
-    blocks.addObject().put("type", "section").set("text", mrkdwn("*" + head + "* for a decision in MCP Gateway. "
+    blocks.addObject().put("type", "section").set("text", mrkdwn("*" + head + "* for a decision in GateRook. "
         + "Many arrived at once, so they aren't sent one by one and none can be approved from Slack."));
     blocks.addObject().put("type", "actions").put("block_id", "digest." + rev).putArray("elements")
         .add(button(OPEN, "Open in app", value(instance, "digest", null)));
@@ -136,7 +136,7 @@ public final class SlackBlocks {
     msg.put("text", "Test · nothing will run");
     ArrayNode blocks = msg.putArray("blocks");
     blocks.addObject().put("type", "header").set("text", plain("Test · nothing will run"));
-    blocks.addObject().put("type", "section").set("text", mrkdwn("Approval requests from MCP Gateway arrive like "
+    blocks.addObject().put("type", "section").set("text", mrkdwn("Approval requests from GateRook arrive like "
         + "this, with the exact action and the buttons a request may offer."));
     String value = value(instance, "test", null);
     blocks.addObject().put("type", "actions").put("block_id", "test.1").putArray("elements")
@@ -149,11 +149,11 @@ public final class SlackBlocks {
   /** The DM that links an account: the code the app shows, and Link account / Not me. */
   public static ObjectNode linkRequest(String host, String code, String instance, String nonce) {
     ObjectNode msg = F.objectNode();
-    String text = "Link MCP Gateway on " + host + " to this Slack account? Code " + code;
+    String text = "Link GateRook on " + host + " to this Slack account? Code " + code;
     msg.put("text", text);
     ArrayNode blocks = msg.putArray("blocks");
-    blocks.addObject().put("type", "section").set("text", mrkdwn("Link MCP Gateway on *" + escape(host) + "* to this "
-        + "Slack account? Code *" + escape(code) + "*\nCheck that MCP Gateway shows the same code. Once linked, "
+    blocks.addObject().put("type", "section").set("text", mrkdwn("Link GateRook on *" + escape(host) + "* to this "
+        + "Slack account? Code *" + escape(code) + "*\nCheck that GateRook shows the same code. Once linked, "
         + "approval requests come here and you can decide them with the buttons."));
     String value = value(instance, "link", nonce);
     blocks.addObject().put("type", "actions").put("block_id", "link.1").putArray("elements")

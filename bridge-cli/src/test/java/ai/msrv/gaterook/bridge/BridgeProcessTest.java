@@ -66,7 +66,7 @@ class BridgeProcessTest {
     assertThat(run("", "headers", "--endpoint", "dev", "--grant", GRANT).code()).as("no broker").isEqualTo(1);
     assertThat(run("", "headers", "--endpoint", "dev").code()).as("no grant").isEqualTo(3);
     try (FakeBroker broker = new FakeBroker(home, r -> "{\"v\":1,\"ok\":false,\"error\":\"grant_revoked\","
-        + "\"message\":\"Access for Codex to dev was revoked in MCP Gateway. Connect again from the app.\"}")) {
+        + "\"message\":\"Access for Codex to dev was revoked in GateRook. Connect again from the app.\"}")) {
       BridgeProcess.Result r = run("", "headers", "--endpoint", "dev", "--grant", GRANT);
       assertThat(r.code()).isEqualTo(2);
       assertThat(r.out()).isEmpty();

@@ -189,7 +189,7 @@ export class ConnectorsPage {
             title: `Keep ${view.name} as it is?`,
             description: [
               {
-                text: `${view.name} was changed outside MCP Gateway and serves nothing until you review it. Keep it only if you made the change: its tools come back as stored.`,
+                text: `${view.name} was changed outside GateRook and serves nothing until you review it. Keep it only if you made the change: its tools come back as stored.`,
                 code: false,
               },
             ],
@@ -357,7 +357,7 @@ export class ConnectorsPage {
         tone: 'warning',
         icon: 'shield-alert',
         title: `Keep template ${t.name} as it is?`,
-        description: [{ text: `${t.name} was changed outside MCP Gateway and serves nothing until you review it. Keep it only if you made the change.`, code: false }],
+        description: [{ text: `${t.name} was changed outside GateRook and serves nothing until you review it. Keep it only if you made the change.`, code: false }],
         confirm: `Keep template ${t.name}`,
         run: async () => {
           await this.data.keepTemplate(t.id);

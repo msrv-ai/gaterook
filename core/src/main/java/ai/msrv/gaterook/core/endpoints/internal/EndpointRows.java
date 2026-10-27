@@ -173,7 +173,7 @@ public class EndpointRows {
     }
     if (em.contains(row) && !trusted(em).contains(table + ":" + id)) {
       throw new IllegalStateException(table + " row " + id + " is signed only after it verified: a row changed "
-          + "outside MCP Gateway is never signed again without the person's review");
+          + "outside GateRook is never signed again without the person's review");
     }
   }
 

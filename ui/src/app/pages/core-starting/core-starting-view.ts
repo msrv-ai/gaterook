@@ -109,7 +109,7 @@ const START_FAILURES: Record<string, { readonly icon: string; readonly title: st
   DB_LOCKED: {
     icon: 'lock',
     title: 'Another core is using the database',
-    lead: 'Another MCP Gateway core on this computer holds the database, so this one stopped. Quit the other MCP Gateway, then restart the core.',
+    lead: 'Another GateRook core on this computer holds the database, so this one stopped. Quit the other GateRook, then restart the core.',
   },
   DB_MIGRATION_FAILED: {
     icon: 'database',
@@ -129,7 +129,7 @@ const START_FAILURES: Record<string, { readonly icon: string; readonly title: st
   BOOTSTRAP_INVALID: {
     icon: 'unplug',
     title: 'The core didn’t accept its settings',
-    lead: 'The core stopped: the start-up settings from the app didn’t fit this core. Restart the core; if it happens again, install MCP Gateway again.',
+    lead: 'The core stopped: the start-up settings from the app didn’t fit this core. Restart the core; if it happens again, install GateRook again.',
   },
   READY_TIMEOUT: {
     icon: 'hourglass',

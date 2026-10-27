@@ -68,7 +68,7 @@ describe('Activity view (design/pages/activity.html)', () => {
   it('says why Send to SIEM can’t use a destination (the core answers 409 for these)', () => {
     expect(unsendable({ enabled: true, verified: true, demo: false })).toBeNull();
     expect(unsendable({ enabled: false })).toBe('paused');
-    expect(unsendable({ enabled: true, verified: false })).toBe('changed outside MCP Gateway');
+    expect(unsendable({ enabled: true, verified: false })).toBe('changed outside GateRook');
     expect(unsendable({ enabled: true, demo: true })).toBe('demo, never called');
   });
 
@@ -196,7 +196,7 @@ describe('Activity view (design/pages/activity.html)', () => {
 
   it('describes the export and what it wrote', () => {
     expect(exportNote(1287, true)).toBe('Exports the 1,287 calls that match the filters and range below. Masked values stay masked.');
-    expect(exportNote(null, false)).toBe('Exports the calls that match the filters and range below. Masked values stay masked. Saving a file needs the MCP Gateway desktop app.');
+    expect(exportNote(null, false)).toBe('Exports the calls that match the filters and range below. Masked values stay masked. Saving a file needs the GateRook desktop app.');
     expect(exportedToast({ path: '/home/me/activity.csv', rows: 9, format: 'csv' })).toEqual({ title: '9 calls exported', body: '/home/me/activity.csv. Masked values stay masked.' });
   });
 

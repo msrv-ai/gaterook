@@ -149,6 +149,6 @@ export function consentNotice(data: unknown): { id: string; title: string; body:
   return {
     id,
     title: `${host} wants to sign in · code ${code}`,
-    body: `Check the code, then allow or deny it in MCP Gateway${endpoint ? ` (endpoint ${endpoint})` : ''}.`,
+    body: `Check the code, then allow or deny it in GateRook${endpoint ? ` (endpoint ${endpoint})` : ''}.`,
   };
 }

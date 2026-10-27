@@ -79,7 +79,7 @@ export function headerStatuses(rows: readonly EndpointSummary[]): StatusPart[] {
     if (running) parts.push({ tone: 'success', text: `${running} running` });
     if (disabled) parts.push({ tone: 'neutral', text: `${disabled} disabled` });
   }
-  if (blocked) parts.push({ tone: 'warning', text: `${blocked} changed outside MCP Gateway` });
+  if (blocked) parts.push({ tone: 'warning', text: `${blocked} changed outside GateRook` });
   return parts;
 }
 
@@ -255,7 +255,7 @@ export function revocableNames(e: EndpointSummary, tokens: readonly TokenRow[] |
  * "tool sql_query", "connection wiring").
  */
 export function blockedText(reason: string): string {
-  return `The ${reason} was changed outside MCP Gateway. It serves nothing until you review it.`;
+  return `The ${reason} was changed outside GateRook. It serves nothing until you review it.`;
 }
 
 // ── Disable, delete, create ─────────────────────────────────────────────────────────────────────────────────────

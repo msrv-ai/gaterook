@@ -107,7 +107,7 @@ describe('stored secrets: cells', () => {
     expect(sourceCell(row('billing-api/webhook-secret'))).toEqual({ label: 'AWS SM · not connected', icon: null, tone: 'danger' });
     expect(sourceCell(local('a/b', 'a', null, null, { state: 'needs-value' }))).toMatchObject({ label: 'Encrypted here · needs a value', tone: 'warning' });
     expect(sourceCell(local('a/b', 'a', 3, null, { state: 'testing' }))).toMatchObject({ label: 'Encrypted here · new value failed its test', tone: 'warning' });
-    expect(sourceCell(reference('a/b', 'a', 'vault', 'vault://kv/a', { state: 'changed-outside' }))).toMatchObject({ label: 'Vault · changed outside MCP Gateway', tone: 'warning' });
+    expect(sourceCell(reference('a/b', 'a', 'vault', 'vault://kv/a', { state: 'changed-outside' }))).toMatchObject({ label: 'Vault · changed outside GateRook', tone: 'warning' });
   });
 
   it('Version: v3 here, the store’s version of a reference, Unknown or None', () => {
@@ -291,7 +291,7 @@ describe('external stores', () => {
     expect(storeStatus(vault)).toEqual({ tone: 'success', label: 'Connected · 18 ms' });
     expect(storeStatus({ ...vault, state: 'not-checked', latencyMs: null })).toEqual({ tone: 'neutral', label: 'Not checked yet' });
     expect(storeStatus({ ...vault, state: 'failing' })).toEqual({ tone: 'danger', label: 'Failing' });
-    expect(storeStatus({ ...vault, verified: false })).toEqual({ tone: 'warning', label: 'Changed outside MCP Gateway' });
+    expect(storeStatus({ ...vault, verified: false })).toEqual({ tone: 'warning', label: 'Changed outside GateRook' });
     expect(storeDescription(vault)).toBe('Or OpenBao, its open-source fork');
     expect(storeDescription(gcp)).toBe('Project acme-stage');
     expect(text(storeSignIn(vault))).toBe('AppRole mcp-gateway gets a token, renewed every hour. Secret ID: vault/approle-secret-id');

@@ -75,10 +75,10 @@ public final class BridgeShimInstaller {
     if (env.os() == Os.WINDOWS) {
       // A batch file expands %…% even inside quotes: a literal % is written %%.
       StringBuilder b = new StringBuilder("@echo off\r\n")
-          .append("rem MCP Gateway bridge launcher, rewritten by MCP Gateway at every start\r\n")
+          .append("rem GateRook bridge launcher, rewritten by GateRook at every start\r\n")
           .append("set \"GW_HOME=").append(home.replace("%", "%%")).append("\"\r\n");
       if (!target.present()) {
-        b.append("echo MCP Gateway's bridge isn't installed with this build of MCP Gateway. 1>&2\r\nexit /b 1\r\n");
+        b.append("echo GateRook's bridge isn't installed with this build of GateRook. 1>&2\r\nexit /b 1\r\n");
       } else {
         for (String a : target.argv()) {
           b.append('"').append(a.replace("%", "%%")).append("\" ");
@@ -88,10 +88,10 @@ public final class BridgeShimInstaller {
       return b.toString();
     }
     StringBuilder b = new StringBuilder("#!/bin/sh\n")
-        .append("# MCP Gateway bridge launcher, rewritten by MCP Gateway at every start\n")
+        .append("# GateRook bridge launcher, rewritten by GateRook at every start\n")
         .append("GW_HOME=").append(ClientEnvironment.shQuote(home)).append("; export GW_HOME\n");
     if (!target.present()) {
-      b.append("echo \"MCP Gateway's bridge isn't installed with this build of MCP Gateway.\" >&2\nexit 1\n");
+      b.append("echo \"GateRook's bridge isn't installed with this build of GateRook.\" >&2\nexit 1\n");
     } else {
       b.append("exec");
       for (String a : target.argv()) {

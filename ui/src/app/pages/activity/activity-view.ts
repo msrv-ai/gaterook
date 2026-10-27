@@ -256,12 +256,12 @@ export function insightsRangeParam(range: LogRange): string | null {
 
 /**
  * Why Send to SIEM can't use a destination (the core answers 409 for these, `audit.AuditExports.send`), or null:
- * paused, changed outside MCP Gateway, or one of the demo world's (shown, never called).
+ * paused, changed outside GateRook, or one of the demo world's (shown, never called).
  */
 export function unsendable(d: Pick<AuditExportDestination, 'enabled' | 'verified' | 'demo'>): string | null {
   if (d.demo === true) return 'demo, never called';
   if (!d.enabled) return 'paused';
-  if (d.verified === false) return 'changed outside MCP Gateway';
+  if (d.verified === false) return 'changed outside GateRook';
   return null;
 }
 
@@ -278,7 +278,7 @@ export function widerRange(range: LogRange): LogRange | null {
 export function exportNote(n: number | null, desktop: boolean): string {
   const what = n == null ? 'the calls' : `the ${calls(n)}`;
   const base = `Exports ${what} that match the filters and range below. Masked values stay masked.`;
-  return desktop ? base : `${base} Saving a file needs the MCP Gateway desktop app.`;
+  return desktop ? base : `${base} Saving a file needs the GateRook desktop app.`;
 }
 
 export function exportedToast(r: { readonly path: string; readonly rows: number; readonly format: string }): { readonly title: string; readonly body: string } {

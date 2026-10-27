@@ -1,4 +1,4 @@
-// The token broker of MCP Gateway (ARCHITECTURE.md A7, §7.1, §7.2; report 03 §3.1, §7.4). Electron's main process
+// The token broker of GateRook (ARCHITECTURE.md A7, §7.1, §7.2; report 03 §3.1, §7.4). Electron's main process
 // runs it: on macOS and Linux a Unix socket ~/.mcp-gateway/run/<random>.sock (folder 0700, socket 0600), on Windows a
 // named pipe \\.\pipe\mcp-gateway-<random 128 bit>; the name it chose goes into run/broker.json (0600), where the
 // bridges look it up. A random name means nobody can take the name before the app starts.
@@ -6,7 +6,7 @@
 // Protocol v1: one connection, one request: a JSON line of at most 4 KiB, answered with one JSON line.
 //   → {"v":1,"op":"token","client":"codex","endpoint":"dev","grant":"gr_…","pid":48211,"bridge":"0.4.0"}
 //   ← {"v":1,"ok":true,"token":"gwb_…","expiresAt":"…","url":"http://127.0.0.1:7465/mcp/dev","instance":"…"}
-//   ← {"v":1,"ok":false,"error":"grant_revoked","message":"Access for Codex to dev was revoked in MCP Gateway…"}
+//   ← {"v":1,"ok":false,"error":"grant_revoked","message":"Access for Codex to dev was revoked in GateRook…"}
 //   → {"v":1,"op":"ping"}  ← {"v":1,"ok":true,"broker":"0.4.0"}
 // Tokens come from the core (POST /internal/bridge/tokens, signed with the launch secret); the broker decides nothing
 // except asking the person when the core says a prod grant needs confirmation (the confirm hook).
@@ -20,7 +20,7 @@ export const PROTOCOL_VERSION = 1;
 export const BROKER_VERSION = '0.4.0';
 export const MAX_REQUEST_BYTES = 4096;
 
-const NOT_RUNNING = 'MCP Gateway is not running. Open MCP Gateway, then try again.';
+const NOT_RUNNING = 'GateRook is not running. Open GateRook, then try again.';
 
 /** run/broker.json of a gateway home. */
 export function brokerInfoPath(home) {
@@ -187,7 +187,7 @@ export async function startBroker({
       return refusal('bad_request', 'The request isn\'t JSON.');
     }
     if (!req || typeof req !== 'object' || req.v !== PROTOCOL_VERSION) {
-      return refusal('bad_request', 'MCP Gateway\'s broker speaks protocol v1: update the bridge.');
+      return refusal('bad_request', 'GateRook\'s broker speaks protocol v1: update the bridge.');
     }
     if (req.op === 'ping') return { v: PROTOCOL_VERSION, ok: true, broker: BROKER_VERSION };
     if (req.op !== 'token') return refusal('bad_request', `Unknown operation ${String(req.op).slice(0, 32)}.`);

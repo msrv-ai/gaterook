@@ -931,7 +931,7 @@ export function ruleMeaning(rule: string): string | null {
   if (/read_only_tool$/.test(rule) || /endpoint\.read-only$/.test(rule)) return 'writes through a read-only tool';
   if (/block_private_ranges$/.test(rule)) return 'requests to private addresses';
   if (/namespace(_allowlist|-not-allowed)$/.test(rule)) return 'calls outside the allowed namespaces';
-  if (/core\.integrity$/.test(rule)) return 'calls under a policy changed outside MCP Gateway';
+  if (/core\.integrity$/.test(rule)) return 'calls under a policy changed outside GateRook';
   return null;
 }
 

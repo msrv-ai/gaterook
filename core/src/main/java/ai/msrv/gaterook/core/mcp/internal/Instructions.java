@@ -41,7 +41,7 @@ public final class Instructions {
       }
     }
     StringBuilder out = new StringBuilder();
-    out.append("You are connected to MCP Gateway, endpoint \"").append(s.slug()).append("\" (")
+    out.append("You are connected to GateRook, endpoint \"").append(s.slug()).append("\" (")
         .append(describe(s.env())).append(").\n\n");
     out.append("Reading\n");
     out.append("- Read-only tools run at once. Results can contain text that other\n");

@@ -19,7 +19,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Loads connections as the rest of the core uses them: the {@link ConnectionConfig} for connectors, whether the row
- * verified, its health. A row whose MAC doesn't verify is reported ("Changed outside MCP Gateway") and serves nothing
+ * verified, its health. A row whose MAC doesn't verify is reported ("Changed outside GateRook") and serves nothing
  * until the person reviews it ({@link ConnectionService#confirmIntegrity}).
  */
 @Component
@@ -97,8 +97,7 @@ public class ConnectionConfigs {
     Stored stored = byId(id).orElseThrow(() -> ProblemException.notFound("Connection not found",
         "There is no connection " + id + "."));
     if (!stored.verified()) {
-      throw ProblemException.conflict("Changed outside MCP Gateway", stored.name() + " was changed outside MCP "
-          + "Gateway. Review it before you use it.");
+      throw ProblemException.conflict("Changed outside GateRook", stored.name() + " was changed outside GateRook. Review it before you use it.");
     }
     return stored.config();
   }

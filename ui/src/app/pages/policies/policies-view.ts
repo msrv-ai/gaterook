@@ -365,7 +365,7 @@ export function resetText(policies: PoliciesByEnv, schemas: PolicySchemas, env: 
   };
 }
 
-/** What a stored row says, for the person who reviews a policy changed outside MCP Gateway. */
+/** What a stored row says, for the person who reviews a policy changed outside GateRook. */
 export function storedPhrases(schemas: PolicySchemas, p: EnvPolicy): string[] {
   return explicitKeys(p).map((s) => {
     const info = keyInfo(schemas, s.section, s.key);

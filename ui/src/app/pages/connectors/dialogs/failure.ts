@@ -7,7 +7,7 @@ import { isApiError } from '../../../core/api/api-error';
 export function failureText(e: unknown, notAvailable = 'This build of the gateway core can’t do this yet.'): string {
   if (isApiError(e)) {
     if (e.kind === 'not-available') return notAvailable;
-    if (e.kind === 'network') return 'The core didn’t answer. Check that MCP Gateway is running, then try again.';
+    if (e.kind === 'network') return 'The core didn’t answer. Check that GateRook is running, then try again.';
     return e.detail;
   }
   return e instanceof Error ? e.message : 'Something went wrong. Try again.';

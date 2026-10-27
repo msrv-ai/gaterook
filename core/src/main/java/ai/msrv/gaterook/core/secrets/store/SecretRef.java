@@ -244,7 +244,7 @@ public sealed interface SecretRef permits SecretRef.Vault, SecretRef.GcpSm, Secr
     }
     for (String s : segments) {
       if (s.equals(".") || s.equals("..") || !VAULT_SEGMENT.matcher(s).matches()) {
-        throw new IllegalArgumentException("The Vault path has a segment MCP Gateway doesn't accept: \"" + s + "\".");
+        throw new IllegalArgumentException("The Vault path has a segment GateRook doesn't accept: \"" + s + "\".");
       }
     }
     Integer version = null;

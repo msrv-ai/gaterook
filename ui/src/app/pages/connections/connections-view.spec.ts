@@ -175,7 +175,7 @@ describe('Connections view: the alert under a row', () => {
     expect(splitMessage(null)).toEqual({ what: null, todo: null });
   });
 
-  it('shows the error of an unreachable row, and a row changed outside MCP Gateway', () => {
+  it('shows the error of an unreachable row, and a row changed outside GateRook', () => {
     const [, , billing] = kitRows();
     expect(rowAlert(billing)).toEqual({
       kind: 'unreachable',
@@ -190,7 +190,7 @@ describe('Connections view: the alert under a row', () => {
     });
     expect(rowAlert(row('ok'))).toBeNull();
     // Changed outside wins over its health: it stays off until reviewed.
-    expect(rowAlert({ ...billing, verified: false })).toMatchObject({ kind: 'integrity', tone: 'warning', title: 'Changed outside MCP Gateway' });
+    expect(rowAlert({ ...billing, verified: false })).toMatchObject({ kind: 'integrity', tone: 'warning', title: 'Changed outside GateRook' });
   });
 
   it('says since when a row is unreachable when the core tells (kit: "Connection refused since 11:42")', () => {
