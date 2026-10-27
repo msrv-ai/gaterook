@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, booleanAttribute, computed, inject, input, numberAttribute, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Injector, afterNextRender, booleanAttribute, computed, effect, inject, input, numberAttribute, output, viewChild } from '@angular/core';
 import { GwCodeBlock } from '../../../code/code-block';
 import { Iso } from '../../../core/api/types';
 import { duration } from '../../../core/time/time-format';
@@ -21,6 +21,7 @@ export interface StatusStep {
 
 /**
  * What the window shows while the core isn't available (design/elements/status-screen.html):
+ * - `unlock-required`: explanation and explicit OS key access, with pending and local preparation error states;
  * - `starting`: indeterminate progress and the steps done so far;
  * - `port-in-use`: the local API couldn't bind; the command that finds the other process;
  * - `locked`: the master key is missing (or doesn't open the secrets): restore the backup, or a new key, which
@@ -31,6 +32,7 @@ export interface StatusStep {
  * - `unreachable`: a browser during development, nothing answers on the address (no Electron to say why).
  */
 export type StatusScreenView =
+  | { readonly kind: 'unlock-required'; readonly unlocking: boolean; readonly error: string | null; readonly keychainService?: string }
   | { readonly kind: 'starting'; readonly steps: readonly StatusStep[] }
   | {
       readonly kind: 'port-in-use';
@@ -93,7 +95,7 @@ export interface StatusScreenNotice {
 }
 
 /** A footer or notice action that runs now: its button is busy and doesn't run twice. */
-export type StatusScreenBusy = 'restart' | 'create' | null;
+export type StatusScreenBusy = 'unlock' | 'restart' | 'create' | null;
 
 /** Step names of the kit's stepper (decision 2: the core is a native binary, "Native core" not "Java runtime"). */
 const STEP_LABELS: Record<string, string> = {
@@ -134,6 +136,8 @@ let nextId = 0;
 })
 export class GwStatusScreen {
   private readonly time = inject(TimeService);
+  private readonly injector = inject(Injector);
+  private readonly unlockButton = viewChild<ElementRef<HTMLButtonElement>>('unlockButton');
 
   readonly view = input.required<StatusScreenView>();
   /** `127.0.0.1:7465`. */
@@ -156,6 +160,7 @@ export class GwStatusScreen {
   readonly quitReason = input<string | null>(null);
 
   readonly quit = output<void>();
+  readonly unlock = output<void>();
   readonly usePort = output<void>();
   readonly restore = output<void>();
   readonly createKey = output<void>();
@@ -173,11 +178,11 @@ export class GwStatusScreen {
   });
   protected readonly dataState = computed(() => {
     const k = this.view().kind;
-    return k === 'starting' ? 'starting' : k === 'stopped' ? 'stopped' : 'failed';
+    return k === 'unlock-required' ? k : k === 'starting' ? 'starting' : k === 'stopped' ? 'stopped' : 'failed';
   });
   /** The kit's meta line: under a failure the log, otherwise the address; the page shows both. */
-  protected readonly metaShowsAddress = computed(() => this.fullMeta() || this.dataState() !== 'failed' || this.view().kind === 'unreachable');
-  protected readonly metaShowsLog = computed(() => this.fullMeta() || (this.dataState() === 'failed' && this.view().kind !== 'unreachable'));
+  protected readonly metaShowsAddress = computed(() => this.view().kind !== 'unlock-required' && (this.fullMeta() || this.dataState() !== 'failed' || this.view().kind === 'unreachable'));
+  protected readonly metaShowsLog = computed(() => this.view().kind !== 'unlock-required' && (this.fullMeta() || (this.dataState() === 'failed' && this.view().kind !== 'unreachable')));
   protected readonly versionText = computed(() => (this.version() ? `GateRook ${this.version()}` : 'GateRook'));
 
   protected readonly steps = computed<readonly StatusStep[]>(() => {
@@ -192,6 +197,25 @@ export class GwStatusScreen {
     if (i < 0) return 'Starting the gateway core.';
     return `Starting the gateway core: ${this.label(steps[i]).toLowerCase()}, step ${i + 1} of ${steps.length}.`;
   });
+
+  constructor() {
+    // Focus the explicit unlock action on arrival and after a preparation error, never during its system dialog.
+    effect(() => {
+      const view = this.view();
+      if (view.kind !== 'unlock-required' || view.unlocking || this.contained()) return;
+      afterNextRender(() => this.unlockButton()?.nativeElement.focus(), { injector: this.injector });
+    });
+  }
+
+  protected asUnlock() {
+    const view = this.view();
+    return view.kind === 'unlock-required' ? view : null;
+  }
+
+  protected requestUnlock(): void {
+    const view = this.asUnlock();
+    if (view && !view.unlocking && this.busy() !== 'unlock') this.unlock.emit();
+  }
 
   protected label(step: StatusStep): string {
     return STEP_LABELS[step.id] ?? step.id;

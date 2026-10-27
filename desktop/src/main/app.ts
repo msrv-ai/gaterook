@@ -18,6 +18,7 @@ import { desktopConfigPath, ensureHome, portProblem, portRequest, publicPortProb
 import { CoreEventFeed, type CoreEvent } from './events.ts';
 import { allowedExternalUrl } from './external.ts';
 import { planFileKey } from './file-key.ts';
+import { FileKeyUnlock } from './file-key-unlock.ts';
 import { chooseFile, openClientConfig, openMcpb, reveal, type FilesOptions } from './files.ts';
 import { isTrustedSender } from './ipc-guard.ts';
 import { resolveLayout, type Layout } from './layout.ts';
@@ -98,8 +99,10 @@ export class Desktop {
   readonly layout: Layout;
   readonly log: Logger;
   readonly supervisor: CoreSupervisor;
+  private readonly fileKeyUnlock: FileKeyUnlock;
   private readonly events: CoreEventFeed;
   private window: AppWindow | null = null;
+  private windowReady = false;
   private tray: AppTray | null = null;
   private notifications: DesktopNotifications | null = null;
   private updates: Updates | null = null;
@@ -125,6 +128,13 @@ export class Desktop {
     this.log = log;
     this.smoke = layout.dev && !!process.env['GW_SMOKE'];
     this.config = readDesktopConfig(layout.home).config;
+    this.fileKeyUnlock = new FileKeyUnlock({
+      load: () => planFileKey(this.layout.home, safeStorage),
+      changed: (state) => this.onCoreState(state ?? this.supervisor.state()),
+      log: (line) => log(line),
+      denied: () => app.quit(),
+      ...(process.platform === 'darwin' ? { keychainService: `${layout.dev ? 'MCP Gateway Dev' : 'MCP Gateway'} Safe Storage` } : {}),
+    });
     this.supervisor = new CoreSupervisor({
       version: app.getVersion(),
       home: layout.home,
@@ -204,7 +214,8 @@ export class Desktop {
     }
     const hidden = launchedHidden(this.config.startHidden) || (this.smoke && process.env['GW_SMOKE_HIDDEN'] === '1');
     window.win.once('ready-to-show', () => {
-      if (!hidden) this.showWindow();
+      this.windowReady = true;
+      if (!hidden || (this.fileKeyUnlock.state() && !this.smoke)) this.showWindow();
     });
     void window.win.loadURL(APP_URL);
 
@@ -255,16 +266,18 @@ export class Desktop {
 
   private async prepareFileKey(): Promise<{ fileKey: Buffer | null; protection: string }> {
     const off = this.layout.dev && process.env['GW_DESKTOP_PROTECTION'] === 'off';
-    const plan = await planFileKey(this.layout.home, off ? null : safeStorage);
+    const plan = await (off ? planFileKey(this.layout.home, null) : this.fileKeyUnlock.prepare());
     if (plan.note) this.log(`OS protection: ${plan.note}`);
     return { fileKey: plan.fileKey, protection: plan.protection };
   }
 
   private onCoreState(state: DesktopCoreState): void {
     this.send(IPC.coreStatePush, state);
+    // A hidden login launch may finish loading before the broker starts and the unlock gate is published.
+    if (state.kind === 'unlock-required' && !state.unlocking && !this.smoke && this.windowReady) this.showWindow();
     if (state.kind === 'ready' && this.rendererSubscribed) this.readyDeliveredFor = this.supervisor.endpoint()?.instanceNonce ?? null;
     this.tray?.update({ core: state.kind === 'ready' ? (state.locked ? 'locked' : null)
-      : state.kind === 'starting' ? 'starting' : state.kind === 'failed' ? 'didn’t start' : 'stopped' });
+      : state.kind === 'unlock-required' ? 'locked' : state.kind === 'starting' ? 'starting' : state.kind === 'failed' ? 'didn’t start' : 'stopped' });
   }
 
   private onCoreReady(core: ReadyCore): void {
@@ -577,6 +590,8 @@ export class Desktop {
 
     handle(IPC.coreState, () => {
       this.rendererSubscribed = true;
+      const unlock = this.fileKeyUnlock.state();
+      if (unlock) return [unlock];
       const core = this.supervisor.endpoint();
       if (this.supervisor.state().kind === 'ready' && core) this.readyDeliveredFor = core.instanceNonce;
       return this.supervisor.replay();
@@ -608,6 +623,10 @@ export class Desktop {
     });
     handle(IPC.restartCore, async () => {
       void this.supervisor.restart();
+    });
+    handle(IPC.unlock, () => {
+      if (this.quitting) return;
+      return this.fileKeyUnlock.unlock();
     });
     handle(IPC.usePort, async (raw) => {
       // A number moves the local API; {port?, publicPort?} also moves the tunnel's public listener, which the core
@@ -649,6 +668,7 @@ export class Desktop {
     this.stopped = true;
     this.updates?.stop();
     this.events.stop();
+    this.fileKeyUnlock.close();
     void (async () => {
       try {
         await this.supervisor.stop();
@@ -668,6 +688,8 @@ export class Desktop {
       layout: this.layout,
       log: this.log,
       supervisor: this.supervisor,
+      unlockState: () => this.fileKeyUnlock.state(),
+      cancelUnlock: () => this.fileKeyUnlock.close(),
       window: () => this.window,
       tray: () => this.tray,
       notifications: () => this.notifications,

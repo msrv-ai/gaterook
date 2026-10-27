@@ -37,7 +37,7 @@ For the two launch configurations, add **Run Another Configuration → GateRook:
 
 In each configuration's environment variables, set `JAVA_HOME` to the local JDK 25 installation and ensure `PATH` starts with the selected Node, Maven, and JDK `bin` directories while retaining the system paths. Choose paths for your machine; keep these IDE settings local. The npm build invokes `mvn` through `PATH`, so changing IDEA's Maven home alone does not select the Maven used by this build. This also prevents a desktop-launched IDE from using an older system Node or Java installation.
 
-Select **GateRook: Run** and click **Run** to build and start the desktop application. **GateRook: Demo** uses a separate home and seeds demo data only when that home is empty. It keeps the default OS credential protection, so the operating system may request key-store access. Neither configuration resets existing data. Use the Run tool window's **Stop** action to stop the application.
+Select **GateRook: Run** and click **Run** to build and start the desktop application. **GateRook: Demo** uses a separate home and seeds demo data only when that home is empty. Both keep the default OS credential protection: select **Unlock GateRook** in the application window before the operating system can request key-store access. If access is denied or cancelled, GateRook closes without starting the core. Neither configuration resets existing data. Use the Run tool window's **Stop** action to stop the application.
 
 On macOS, the development launcher caches a locally signed `GateRook.app` under the ignored `desktop/.dev/runtime/` directory so the Dock and application menu show the product name. It refreshes the cache when Electron changes and leaves the installed npm dependency untouched. Existing Chromium profiles, key-store identities, and `mcp-gateway://` links retain their compatibility names.
 
@@ -73,6 +73,8 @@ npm start -- --demo --home ./desktop/.dev/demo --protection off
 ```
 
 The launcher rebuilds Electron, uses the built renderer, and starts the core as its child. Its default home is `desktop/.dev/home`. `--demo` seeds an empty home; `--protection off` avoids OS key-store use for a disposable instance. `--fresh` recursively deletes the chosen development home, so use it only for disposable data. Ctrl+C stops Electron and the core.
+
+With protection enabled, startup waits at **Unlock GateRook** before accessing the OS key store. On macOS the system dialog may name **MCP Gateway Dev Safe Storage**: this is the development build's retained storage identity. The application explains that name before requesting access. The development option `--protection off` skips this screen; use a separate disposable home because it cannot open an existing OS-protected keyset without its key.
 
 The launcher builds the renderer automatically only when its output is missing. Run the build again to pick up later UI or Java changes. Legacy runtime IDs and paths are deliberately preserved during this source migration; see [product decisions](DECISIONS.md).
 

@@ -16,6 +16,13 @@ export type CoreLock = 'MASTER_KEY_MISSING' | 'MASTER_KEY_INVALID';
 
 export type DesktopCoreState =
   | {
+      readonly kind: 'unlock-required';
+      readonly unlocking: boolean;
+      readonly error: string | null;
+      /** The compatibility name shown by macOS in its access dialog. */
+      readonly keychainService?: string;
+    }
+  | {
       readonly kind: 'starting';
       readonly steps: readonly CoreStep[];
       readonly port?: number;
@@ -91,6 +98,7 @@ export const IPC = {
   openClientConfig: 'gw:open-client-config',
   reveal: 'gw:reveal',
   applyGeneral: 'gw:apply-general',
+  unlock: 'gw:unlock',
   restartCore: 'gw:restart-core',
   usePort: 'gw:use-port',
   findFreePort: 'gw:find-free-port',

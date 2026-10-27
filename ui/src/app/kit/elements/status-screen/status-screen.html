@@ -7,6 +7,39 @@
 
   <section class="gw-card gw-status-screen__card" [attr.aria-labelledby]="uid + '-title'">
     @switch (view().kind) {
+      @case ('unlock-required') {
+        @let access = asUnlock()!;
+        @let unlocking = access.unlocking || busy() === 'unlock';
+        <div class="gw-card__body gw-status-screen__body">
+          <div class="gw-status-screen__intro">
+            <span class="gw-icon-tile gw-icon-tile--lg"><svg lucideIcon="lock-keyhole" class="gw-icon gw-icon--lg"></svg></span>
+            <div class="gw-status-screen__text">
+              <ng-container *ngTemplateOutlet="heading; context: { $implicit: 'Unlock GateRook' }" />
+              <p class="gw-text-body-read">Your operating system protects the encryption key for your saved credentials. Unlock GateRook to start the app.</p>
+            </div>
+          </div>
+          <p class="gw-text-body-read">After you choose Unlock GateRook, your operating system may ask you to allow access or enter your computer password. If you deny access, GateRook will close.</p>
+          @if (access.keychainService; as service) {
+            <div class="gw-alert gw-alert--info gw-alert--compact">
+              <svg lucideIcon="info" class="gw-icon gw-alert__icon"></svg>
+              <div class="gw-alert__content"><p class="gw-alert__body">The macOS prompt may name “<span class="gw-mono">{{ service }}</span>”. This is GateRook’s existing keychain entry; its name is kept so saved credentials stay accessible.</p></div>
+            </div>
+          }
+          @if (access.error; as error) {
+            <div class="gw-alert gw-alert--warning gw-alert--compact" role="alert">
+              <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+              <div class="gw-alert__content"><p class="gw-alert__title">GateRook is still locked</p><p class="gw-alert__body">{{ error }}</p></div>
+            </div>
+          }
+          <ng-container *ngTemplateOutlet="noticeAlert" />
+          <p class="gw-text-small gw-fg-muted" [class.gw-sr-only]="!unlocking" role="status" [id]="uid + '-unlock-status'">@if (unlocking) {Complete the request from your operating system to continue.}</p>
+        </div>
+        <footer class="gw-card__footer">
+          <ng-container *ngTemplateOutlet="quitButton" />
+          <button class="gw-btn gw-btn--primary" type="button" #unlockButton [attr.aria-busy]="unlocking ? 'true' : null" [attr.aria-disabled]="unlocking ? 'true' : null" [attr.aria-describedby]="unlocking ? uid + '-unlock-status' : null" (click)="requestUnlock()">@if (unlocking) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="lock-keyhole-open" class="gw-icon"></svg>} Unlock GateRook</button>
+        </footer>
+      }
+
       @case ('starting') {
         <div class="gw-card__body gw-status-screen__body">
           <div class="gw-status-screen__intro">
@@ -236,7 +269,9 @@
     }
   </section>
 
-  <p class="gw-status-screen__meta gw-text-caption gw-fg-muted">{{ versionText() }}@if (metaShowsAddress()) { · core on <span class="gw-mono">{{ address() }}</span>}@if (metaShowsLog()) { · log <span class="gw-mono">{{ logFile() }}</span>}</p>
+  @if (view().kind !== 'unlock-required') {
+    <p class="gw-status-screen__meta gw-text-caption gw-fg-muted">{{ versionText() }}@if (metaShowsAddress()) { · core on <span class="gw-mono">{{ address() }}</span>}@if (metaShowsLog()) { · log <span class="gw-mono">{{ logFile() }}</span>}</p>
+  }
 </div>
 <!-- The page's own dialogs (Use another port, Restore from backup) live inside this main landmark, as in the kit. -->
 <ng-content />

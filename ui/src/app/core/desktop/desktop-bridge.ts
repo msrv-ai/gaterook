@@ -17,6 +17,13 @@ export interface CoreStep {
  */
 export type DesktopCoreState =
   | {
+      readonly kind: 'unlock-required';
+      readonly unlocking: boolean;
+      readonly error: string | null;
+      /** The existing macOS Keychain entry that its permission dialog may name. */
+      readonly keychainService?: string;
+    }
+  | {
       readonly kind: 'starting';
       readonly steps: readonly CoreStep[];
       /** The ports main started the core on (`desktop.json`): the status screen names them before the API answers. */
@@ -89,6 +96,8 @@ export interface GwDesktop {
   onCoreState(cb: (state: DesktopCoreState) => void): () => void;
   onEvent(cb: (type: string, data: unknown, id: string | null) => void): () => void;
   applyGeneral(settings: { readonly openAtLogin?: boolean; readonly startHidden?: boolean }): Promise<void>;
+  /** Requests OS access to the encryption key after the person chooses Unlock GateRook. */
+  unlock(): Promise<void>;
   restartCore(): Promise<void>;
   /**
    * Writes `desktop.json` and restarts the core on `port` — a number moves the local API, `{ publicPort }` the tunnel's
@@ -185,6 +194,10 @@ export class DesktopBridge {
 
   async restartCore(): Promise<void> {
     await this.desktop?.restartCore();
+  }
+
+  async unlock(): Promise<void> {
+    await this.desktop?.unlock();
   }
 
   async usePort(port: number | DesktopPorts): Promise<void> {

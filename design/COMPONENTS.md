@@ -1650,7 +1650,7 @@ Grouped settings. On the left, a sticky settings nav: gw-nav with groups Workspa
 
 ### `status-screen`
 
-Stands in for the whole window while the gateway core is unavailable: fixed, z status-screen, on the window canvas, no gw-shell. Shows the logo, then a card with the title, the reason, the start-up steps of the native core (Native core, Master key, Database migrations, Local API) and the one or two actions that fix it, then version / address / log path under it. A drag strip keeps the frameless window movable. --contained puts it in page flow inside a gw-card.gw-status-screen__frame preview.
+Stands in for the whole window while the gateway core is unavailable: fixed, z status-screen, on the window canvas, no gw-shell. Before OS-protected startup, explains why the encryption key is needed and waits for Unlock GateRook before requesting OS access. Shows the logo, then a card with the title, the reason, the start-up steps of the native core (Native core, Master key, Database migrations, Local API) and the one or two actions that fix it, then version / address / log path under it. A drag strip keeps the frameless window movable. --contained puts it in page flow inside a gw-card.gw-status-screen__frame preview.
 
 [SCSS](elements/_status-screen.scss) · [Interactive demo](elements/status-screen.html)
 
@@ -1673,6 +1673,8 @@ Stands in for the whole window while the gateway core is unavailable: fixed, z s
 
 **States and behavior:**
 
+- unlock-required, waiting: neutral lock-keyhole tile; 'Unlock GateRook' title; explain that the operating system protects the encryption key for saved credentials and may ask for access or a computer password after the action; denial or cancellation closes GateRook without starting the core; on macOS, gw-alert--info --compact explains the existing Safe Storage entry name; footer Quit + Unlock GateRook (primary); no password field, metadata line, or core progress steps
+- unlock-required, unlocking: keep the Unlock GateRook label with gw-spinner--sm, aria-busy and aria-disabled; describe the busy button with the visible role=status text 'Complete the request from your operating system to continue.'; prevent duplicate requests
 - starting: 'Starting the native core and the local API on 127.0.0.1:7465. This usually takes about a second.'; gw-progress--indeterminate named by the title; stepper Native core ('Native image · 0.1 s'), Master key and Database migrations complete + Local API current (gw-spinner--sm in the marker); sr-only role=status line updated per step
 - failed, port in use: danger tile; Local API step data-state=error with the reason; the text says what another port costs (endpoint URLs change; clients with the URL in their config, such as Codex and Cursor, reconnect); open disclosure with the lsof command (copy) + netstat for Windows; footer Quit + Use another port (primary)
 - failed, master key not found: error on the Master key step; Database migrations and Local API complete (the locked core has migrated and listens); gw-alert--danger (circle-alert) says a new key makes the 8 secrets encrypted here unreadable (6 connections, github-mcp, the Vault sign-in) while the 3 references keep working (11 in all, as in Secrets), with a danger-ghost 'Create a new key' that opens gw-dialog--danger (Cancel autofocus, confirm 'Create a new master key'); footer Quit + Restore from backup (primary)

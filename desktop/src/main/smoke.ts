@@ -8,7 +8,7 @@
 import { app, BrowserWindow, Notification } from 'electron';
 import { request as httpRequest } from 'node:http';
 import { connect } from 'node:net';
-import { readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { SmokeHost } from './app.ts';
 import { callCore } from './core-client.ts';
@@ -65,6 +65,7 @@ export function run(host: SmokeHost, scenario: string): void {
       else if (scenario === 'real') await realScenario(host);
       else if (scenario === 'protect') await protectScenario(host);
       else if (scenario === 'unprotected') await unprotectedScenario(host);
+      else if (scenario === 'unlock') await unlockScenario(host);
       else record('known scenario', false, scenario);
     } catch (e) {
       record('scenario ran to the end', false, (e as Error).stack ?? String(e));
@@ -81,6 +82,7 @@ async function finish(host: SmokeHost): Promise<void> {
   if (failed === 0) {
     app.quit(); // the normal quit: the core gets stdin EOF and exits
   } else {
+    host.cancelUnlock();
     await host.supervisor.stop();
     app.exit(1);
   }
@@ -244,7 +246,7 @@ async function hardening(host: SmokeHost): Promise<void> {
   expect('window.gwDesktop is the contract and nothing else', JSON.stringify(page['keys']) === JSON.stringify([
     'applyGeneral', 'checkForUpdates', 'findFreePort', 'onCoreState', 'onDeepLink', 'onEvent', 'onUpdateState',
     'openClientConfig', 'openExternal', 'openFile', 'openMcpb', 'platform', 'quit', 'restartCore', 'revealInFolder',
-    'saveFile', 'setNativeTheme', 'usePort']), page['keys']);
+    'saveFile', 'setNativeTheme', 'unlock', 'usePort']), page['keys']);
   expect('a script injected into the DOM is refused (Trusted Types)', /TypeError/.test(String(page['inject'])), page['inject']);
   expect('HTML injected into the DOM is refused (Trusted Types)', page['html'] === 'TypeError', page['html']);
   expect('a direct fetch to the core\'s port is blocked by the CSP', page['direct'] === 'TypeError'
@@ -640,6 +642,24 @@ async function realScenario(host: SmokeHost): Promise<void> {
   expect('a click after 700 ms denies the request', after === 'rejected', after);
 }
 
+/** Protection is enabled, but neither the OS key store nor the core is touched before the person unlocks. */
+async function unlockScenario(host: SmokeHost): Promise<void> {
+  await until('the unlock gate', () => host.unlockState());
+  await waitForText(host, 'the unlock explanation', /Unlock GateRook/);
+  const controls = await inPage<{ heading: string; button: boolean; disabled: boolean }>(host, `
+    const button = Array.from(document.querySelectorAll('button')).find((b) => b.textContent.trim() === 'Unlock GateRook');
+    return { heading: document.querySelector('h1')?.textContent ?? '', button: !!button,
+      disabled: !!button?.disabled || button?.getAttribute('aria-disabled') === 'true' };
+  `);
+  expect('the app explains the locked state and offers Unlock GateRook', controls.heading.length > 0 && controls.button && !controls.disabled, controls);
+  expect('the OS key-store waits for the button', host.unlockState()?.unlocking === false && host.supervisor.pid() === null
+    && !existsSync(join(host.layout.home, 'master.keyset.osk')));
+  win(host).webContents.reload();
+  await waitForText(host, 'the explanation after reload', /Unlock GateRook/);
+  expect('reload keeps the unlock gate without starting the core', host.unlockState()?.unlocking === false
+    && host.supervisor.pid() === null && !existsSync(join(host.layout.home, 'master.keyset.osk')));
+}
+
 /**
  * OS protection of the master key (A14) on this system, with the real core: a first start gets a file key from
  * safeStorage, the core writes the keyset encrypted under it, a restart opens it again. Opt-in (it writes a Keychain
@@ -647,6 +667,8 @@ async function realScenario(host: SmokeHost): Promise<void> {
  */
 async function protectScenario(host: SmokeHost): Promise<void> {
   const home = host.layout.home;
+  await waitForText(host, 'the unlock explanation', /Unlock GateRook/);
+  await inPage(host, 'await window.gwDesktop.unlock(); return true;');
   const first = await ready(host, 120_000);
   expect('the core starts unlocked', first.locked === null, first.locked);
   // A keyset written before (the `unprotected` run) is switched over after ready: wait for the rewrite.

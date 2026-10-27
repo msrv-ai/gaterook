@@ -16,7 +16,7 @@
     <div class="gw-page-header__row">
       <div class="gw-page-header__heading">
         <h1 class="gw-page-header__title">Status screen</h1>
-        <p class="gw-page-header__description">What the window shows while the gateway core is not available: starting, failed to start (port in use, master key missing, any other reason), or stopped. It replaces the whole app (no sidebar, nothing to navigate to), says what is happening and why, and offers the one or two actions that fix it. Used on Core starting and by the desktop app whenever the core exits. Each state below sits in a preview frame; in the app the screen covers the window.</p>
+        <p class="gw-page-header__description">What the window shows while the gateway core is not available: waiting for unlock, starting, failed to start (port in use, master key missing, any other reason), or stopped. It replaces the whole app (no sidebar, nothing to navigate to), says what is happening and why, and offers the one or two actions that fix it. Used on Core starting and by the desktop app whenever the core exits. Each state below sits in a preview frame; in the app the screen covers the window.</p>
       </div>
       <div class="gw-page-header__actions">
         <fieldset class="gw-segmented gw-segmented--sm">
@@ -28,6 +28,84 @@
       </div>
     </div>
   </header>
+
+  <!-- Unlock requires an explicit action; these previews never call the operating system. -->
+  <section class="gw-section" aria-labelledby="s-unlock">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-unlock">Unlock required</h2>
+      <p class="gw-section__description">The core waits for an explicit unlock action. Explain the system prompt before requesting access to the encryption key.</p>
+    </header>
+    <div class="gw-card gw-status-screen__frame">
+      <div class="gw-status-screen gw-status-screen--contained" data-state="unlock-required">
+        <div class="gw-status-screen__drag" aria-hidden="true"></div>
+        <div class="gw-status-screen__column">
+          <span class="gw-logo gw-logo--xl">
+            <img class="gw-logo__mark" src="../assets/logo-mark.svg" alt="">
+            <span class="gw-logo__name">GateRook</span>
+          </span>
+          <section class="gw-card gw-status-screen__card" aria-labelledby="ss-unlock-title">
+            <div class="gw-card__body gw-status-screen__body">
+              <div class="gw-status-screen__intro">
+                <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="lock-keyhole"></i></span>
+                <div class="gw-status-screen__text">
+                  <h3 class="gw-text-h1" id="ss-unlock-title">Unlock GateRook</h3>
+                  <p class="gw-text-body-read">Your operating system protects the encryption key for your saved credentials. Unlock GateRook to start the app.</p>
+                </div>
+              </div>
+              <p class="gw-text-body-read">After you choose Unlock GateRook, your operating system may ask you to allow access or enter your computer password. If you deny access, GateRook will close.</p>
+              <div class="gw-alert gw-alert--info gw-alert--compact">
+                <i class="gw-icon gw-alert__icon" data-lucide="info"></i>
+                <div class="gw-alert__content"><p class="gw-alert__body">The macOS prompt may name “<span class="gw-mono">MCP Gateway Dev Safe Storage</span>”. This is GateRook’s existing keychain entry; its name is kept so saved credentials stay accessible.</p></div>
+              </div>
+            </div>
+            <footer class="gw-card__footer">
+              <button class="gw-btn" type="button">Quit</button>
+              <button class="gw-btn gw-btn--primary" type="button"><i class="gw-icon" data-lucide="lock-keyhole-open"></i> Unlock GateRook</button>
+            </footer>
+          </section>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="gw-section" aria-labelledby="s-unlocking">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-unlocking">Waiting for the operating system</h2>
+      <p class="gw-section__description">Keep the action label stable and prevent repeated requests while the system authorization is pending.</p>
+    </header>
+    <div class="gw-card gw-status-screen__frame">
+      <div class="gw-status-screen gw-status-screen--contained" data-state="unlock-required">
+        <div class="gw-status-screen__drag" aria-hidden="true"></div>
+        <div class="gw-status-screen__column">
+          <span class="gw-logo gw-logo--xl">
+            <img class="gw-logo__mark" src="../assets/logo-mark.svg" alt="">
+            <span class="gw-logo__name">GateRook</span>
+          </span>
+          <section class="gw-card gw-status-screen__card" aria-labelledby="ss-unlocking-title">
+            <div class="gw-card__body gw-status-screen__body">
+              <div class="gw-status-screen__intro">
+                <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="lock-keyhole"></i></span>
+                <div class="gw-status-screen__text">
+                  <h3 class="gw-text-h1" id="ss-unlocking-title">Unlock GateRook</h3>
+                  <p class="gw-text-body-read">Your operating system protects the encryption key for your saved credentials. Unlock GateRook to start the app.</p>
+                </div>
+              </div>
+              <p class="gw-text-body-read">After you choose Unlock GateRook, your operating system may ask you to allow access or enter your computer password. If you deny access, GateRook will close.</p>
+              <div class="gw-alert gw-alert--info gw-alert--compact">
+                <i class="gw-icon gw-alert__icon" data-lucide="info"></i>
+                <div class="gw-alert__content"><p class="gw-alert__body">The macOS prompt may name “<span class="gw-mono">MCP Gateway Dev Safe Storage</span>”. This is GateRook’s existing keychain entry; its name is kept so saved credentials stay accessible.</p></div>
+              </div>
+              <p class="gw-text-small gw-fg-muted" role="status" id="ss-unlocking-pending">Complete the request from your operating system to continue.</p>
+            </div>
+            <footer class="gw-card__footer">
+              <button class="gw-btn" type="button">Quit</button>
+              <button class="gw-btn gw-btn--primary" type="button" aria-busy="true" aria-disabled="true" aria-describedby="ss-unlocking-pending"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> Unlock GateRook</button>
+            </footer>
+          </section>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <!-- ───────────────────────── Starting ───────────────────────── -->
   <section class="gw-section" aria-labelledby="s-starting">

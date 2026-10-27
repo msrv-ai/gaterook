@@ -53,6 +53,7 @@ const QUIT_IN_BROWSER = 'This window is a browser tab: close the tab to leave.';
  * over the whole window while the core isn't running, driven by Electron's core state (`onCoreState`: progress lines,
  * the ready line, a failed start, an exit) and `/api/health`.
  *
+ * - unlock-required: explain OS protection before Unlock GateRook asks main to access the encryption key;
  * - starting: the four steps of the kit from the progress lines;
  * - port in use: who holds the port, the command that finds it, Quit, and **Use another port** — a warning dialog
  *   with a port main checked is free; main writes `desktop.json` and restarts the core on it (`usePort`);
@@ -366,6 +367,21 @@ export class CoreStartingPage {
 
   protected openLogs(): void {
     void this.desktop.revealInFolder('logs');
+  }
+
+  /** Only this action asks main to touch the OS key store; the app never asks for a system password itself. */
+  protected async unlock(): Promise<void> {
+    const state = this.core.state();
+    if (state.kind !== 'unlock-required' || state.unlocking || this.busy() || !this.desktop.available) return;
+    this.busy.set('unlock');
+    this.notice.set(null);
+    try {
+      await this.desktop.unlock();
+    } catch (err) {
+      this.notice.set({ title: 'GateRook is still locked', body: desktopError(err, 'GateRook could not prepare its encryption key. Choose Unlock GateRook to try again.') });
+    } finally {
+      if (this.busy() === 'unlock') this.busy.set(null);
+    }
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────────────────────────────────────────

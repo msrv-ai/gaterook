@@ -7,13 +7,14 @@ import { CoreStep, DesktopBridge, DesktopCoreState } from '../desktop/desktop-br
 /**
  * Where the gateway core is, from the app's point of view (ARCHITECTURE.md §7.1, §8.4 core-starting):
  * - `connecting` — nothing known yet (first paint);
+ * - `unlock-required` — OS key access waits for the person's action or an OS permission dialog;
  * - `starting` — Electron reports progress lines (master key, migrations, local API);
  * - `running` — `/api/health` answered `ok` or `degraded`: the shell is shown;
  * - `locked` — the master key is missing or invalid: only restore / create work;
  * - `failed` — the core didn't start (port in use, …), `stopped` — it exited;
  * - `unreachable` — a browser without Electron and no core answering (development).
  */
-export type CoreStateKind = 'connecting' | 'starting' | 'running' | 'locked' | 'failed' | 'stopped' | 'unreachable';
+export type CoreStateKind = 'connecting' | 'unlock-required' | 'starting' | 'running' | 'locked' | 'failed' | 'stopped' | 'unreachable';
 
 export interface CoreState {
   readonly kind: CoreStateKind;
@@ -34,6 +35,9 @@ export interface CoreState {
   /** The core's version as Electron knows it (the app's), before `/api/health` says it. */
   readonly version: string | null;
   readonly firstRun: boolean;
+  /** OS key access is requested only by the unlock action, before the core is started. */
+  readonly unlocking?: boolean;
+  readonly keychainService?: string;
 }
 
 const INITIAL: CoreState = {
@@ -80,6 +84,8 @@ export class CoreStore {
   /** The health check in flight: callers that ask meanwhile (a failing call, a dropped stream) share it. */
   private refreshing: Promise<void> | null = null;
   private started = false;
+  private desktopReady = false;
+  private healthEpoch = 0;
   private instance: Instance | null = null;
   private readonly instanceChangesSignal = signal(0);
 
@@ -109,34 +115,44 @@ export class CoreStore {
    */
   readonly instanceChanges = this.instanceChangesSignal.asReadonly();
 
-  /** Starts watching the core: Electron's state when there is one, `/api/health` in any case. */
+  /** In Electron, wait for ready before using the API; a browser discovers readiness through `/api/health`. */
   start(): void {
     if (this.started) return;
     this.started = true;
     this.desktop.onCoreState((s) => this.onDesktopState(s));
-    void this.refresh();
+    if (!this.desktop.available) void this.refresh();
   }
 
   /** Asks `/api/health` again (after a restart, on "Check again", when a call met a network error). */
   refresh(): Promise<void> {
+    if (this.desktop.available && !this.desktopReady) return Promise.resolve();
     // One check at a time: its own failure also reaches noteApiError (through the interceptor) and must not loop.
-    this.refreshing ??= this.check().finally(() => (this.refreshing = null));
+    if (!this.refreshing) {
+      const pending = this.check().finally(() => {
+        if (this.refreshing === pending) this.refreshing = null;
+      });
+      this.refreshing = pending;
+    }
     return this.refreshing;
   }
 
   private async check(): Promise<void> {
+    const epoch = this.healthEpoch;
     if (this.retry) clearTimeout(this.retry);
     this.retry = null;
     try {
       const health = await withTimeout(this.api.health(), HEALTH_TIMEOUT_MS);
+      if (epoch !== this.healthEpoch) return;
       this.noteInstance({ nonce: this.client.instance(), startedAt: Date.now() - health.uptimeMs });
       this.healthSignal.set(health);
       this.patch({ kind: health.status === 'locked' ? 'locked' : 'running', reason: health.locked });
       // Not awaited: the check is over once health answered (a slow /api/info must not hold the next check back).
       // A locked core answers only health and the master key (§7.1): info waits until it is unlocked.
-      if (!this.infoSignal() && health.status !== 'locked') void this.api.info().then((info) => this.infoSignal.set(info), () => undefined);
+      if (!this.infoSignal() && health.status !== 'locked') void this.api.info().then((info) => {
+        if (epoch === this.healthEpoch) this.infoSignal.set(info);
+      }, () => undefined);
     } catch (e) {
-      this.onUnreachable(e);
+      if (epoch === this.healthEpoch) this.onUnreachable(e);
     }
   }
 
@@ -178,7 +194,11 @@ export class CoreStore {
   }
 
   private onDesktopState(s: DesktopCoreState): void {
+    if (s.kind !== 'ready') this.suspendHealth();
     switch (s.kind) {
+      case 'unlock-required':
+        this.patch({ kind: 'unlock-required', unlocking: s.unlocking, detail: s.error, keychainService: s.keychainService });
+        break;
       case 'starting':
         this.patch({
           kind: 'starting',
@@ -189,9 +209,10 @@ export class CoreStore {
         });
         break;
       case 'ready':
+        this.desktopReady = true;
         this.patch({
           firstRun: s.firstRun,
-          kind: s.locked ? 'locked' : this.state().kind,
+          kind: s.locked ? 'locked' : this.state().kind === 'unlock-required' ? 'starting' : this.state().kind,
           reason: s.locked,
           port: s.ports.local,
           publicPort: s.ports.public,
@@ -226,6 +247,15 @@ export class CoreStore {
         });
         break;
     }
+  }
+
+  /** Discard an earlier process's late API answer so it cannot dismiss the unlock screen. */
+  private suspendHealth(): void {
+    this.desktopReady = false;
+    this.healthEpoch += 1;
+    this.refreshing = null;
+    if (this.retry) clearTimeout(this.retry);
+    this.retry = null;
   }
 
   private patch(p: Partial<CoreState>): void {

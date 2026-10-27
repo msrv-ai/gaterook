@@ -86,7 +86,7 @@ describe('OS protection of the master key file (A14)', () => {
   it('without safeStorage nothing is protected and nothing is written', async () => {
     const h = home();
     assert.deepEqual(await planFileKey(h, fakeSafe({ available: false }), 'darwin'),
-      { fileKey: null, protection: 'unavailable', note: null });
+      { fileKey: null, protection: 'unavailable', note: null, accessFailed: true });
     assert.deepEqual(await planFileKey(h, null, 'darwin'), { fileKey: null, protection: 'off', note: null });
     assert.ok(!existsSync(oskPath(h)));
   });
@@ -108,6 +108,36 @@ describe('OS protection of the master key file (A14)', () => {
     const again = await planFileKey(h, fakeSafe({ reEncrypt: true, encryptFails: true }), 'darwin');
     assert.deepEqual(again.fileKey, first.fileKey);
     assert.match(again.note ?? '', /couldn't be re-encrypted/);
+  });
+
+  it('denied access is reported without replacing the protected key', async () => {
+    const h = home();
+    await planFileKey(h, fakeSafe(), 'darwin');
+    const before = readFileSync(oskPath(h));
+    const safe = fakeSafe();
+    // Electron's async availability probe can return true even when the Keychain provider was denied.
+    safe.decryptStringAsync = async () => {
+      throw new Error('safeStorage.decryptStringAsync is temporarily unavailable. Please try again.');
+    };
+    const plan = await planFileKey(h, safe, 'darwin');
+    assert.equal(plan.accessFailed, true);
+    assert.equal(plan.fileKey, null);
+    assert.deepEqual(readFileSync(oskPath(h)), before);
+  });
+
+  it('a temporarily locked Linux keyring reports access failure; unsupported backends keep their fallback', async () => {
+    const plan = await planFileKey(home(), fakeSafe({ available: false, backend: 'gnome_libsecret' }), 'linux');
+    assert.equal(plan.accessFailed, true);
+    const unsupported = await planFileKey(home(), fakeSafe({ available: false, backend: 'basic_text' }), 'linux');
+    assert.equal(unsupported.accessFailed, undefined);
+  });
+
+  it('a local read failure reaches the caller without being treated as native refusal', async () => {
+    const h = home();
+    mkdirSync(oskPath(h));
+    const safe = fakeSafe();
+    await assert.rejects(planFileKey(h, safe, 'darwin'), { code: 'EISDIR' });
+    assert.deepEqual(safe.calls, [], 'no native decryption was attempted');
   });
 
   it('re-encrypts when safeStorage asks to', async () => {

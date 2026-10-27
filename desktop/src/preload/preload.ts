@@ -84,6 +84,9 @@ const gwDesktop = {
   restartCore(): Promise<void> {
     return ipcRenderer.invoke(IPC.restartCore);
   },
+  unlock(): Promise<void> {
+    return ipcRenderer.invoke(IPC.unlock);
+  },
   usePort(target: number | { readonly port?: number; readonly publicPort?: number }): Promise<void> {
     // A number moves the local API; {port?, publicPort?} may move the tunnel's public listener too.
     const t = typeof target === 'object' && target !== null

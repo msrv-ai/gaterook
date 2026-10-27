@@ -9,9 +9,10 @@
 //             Deny only), tray and badge, the 700 ms input guard, content protection, quit stops the core
 //   real      the real core (app/target/app.jar, demo world): the UI end to end through the signing proxy, the event
 //             stream through app://, the 700 ms guard on a real approval, quit stops the core
+//   unlock    OS protection enabled: explanation and button precede key-store access; reload and quit while waiting
 //
 //   npm run smoke -w desktop                     all scenarios
-//   npm run smoke -w desktop -- --only fake      one of them (switches, fake, real; protect only on request)
+//   npm run smoke -w desktop -- --only fake      one of them (switches, fake, real, unlock; protect only on request)
 //   npm run smoke -w desktop -- --keep           keep the temporary homes (their logs) for a look
 //   npm run smoke -w desktop -- --only real --core-binary <mcp-gateway-core>
 //                                                `real` against a native core (its libsqlitejdbc next to it or in
@@ -264,7 +265,18 @@ async function protect() {
   }
 }
 
-const scenarios = { switches, fake, real };
+async function unlock() {
+  log('scenario unlock (does not access the OS key store)');
+  const h = home('unlock');
+  const result = await runApp({ GW_HOME: h, GW_CORE_COMMAND: JSON.stringify([process.execPath, fakeCore]), GW_UI_DIST: ui,
+    GW_SMOKE: 'unlock', GW_DESKTOP_PROTECTION: 'os' }, [], 60_000);
+  const summary = resultOf(result.stdout);
+  check('unlock: explanation, reload, and quit while locked passed', result.code === 0 && summary?.ok === true,
+    { code: result.code, summary, stderr: result.code === 0 ? undefined : result.stderr.slice(-2000) });
+  check('unlock: no core or protected key was created', summary?.corePid === null && !existsSync(join(h, 'master.keyset.osk')));
+}
+
+const scenarios = { switches, fake, real, unlock };
 for (const [name, fn] of Object.entries(scenarios)) {
   if (only && only !== name) continue;
   await fn();

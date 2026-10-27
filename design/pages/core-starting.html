@@ -15,7 +15,7 @@
   screen IS the window. The Electron renderer shows it before the first successful health call and
   again whenever the core exits (it then covers the app shell: position fixed, z status-screen).
 
-  Live state: starting. The other states (port in use, master key not found, stopped, didn't start) are
+  Live state: unlock required. The other states (unlocking, starting, and failures) are
   reachable with the demo switcher at the bottom; in the app the core's state picks the card and the
   switcher does not exist. In the app each state's title is the page h1; here only the live state's
   title is an h1 (one h1 per page) and the alternative cards use h2 with the same h1 look.
@@ -25,7 +25,7 @@
   missing or not the one the secrets were encrypted with) has migrated its database and listens on its
   port (§7.1 case b), so the steps after Master key are complete (§8.6.18).
 -->
-<main class="gw-status-screen" id="main" data-state="starting" aria-labelledby="core-start-t">
+<main class="gw-status-screen" id="main" data-state="unlock-required" aria-labelledby="core-unlock-title">
   <div class="gw-status-screen__drag" aria-hidden="true"></div>
   <div class="gw-status-screen__column">
     <span class="gw-logo gw-logo--xl">
@@ -33,13 +33,61 @@
       <span class="gw-logo__name">GateRook</span>
     </span>
 
-    <!-- ═════════════ Starting (live state) ═════════════ -->
-    <div class="gw-tabs__panel" role="tabpanel" id="core-p-starting" aria-labelledby="core-t-starting" tabindex="0" data-state="starting" data-title="core-start-t">
+    <!-- Unlock previews: no operating-system access is requested by this reference page. -->
+    <div class="gw-tabs__panel" role="tabpanel" id="core-p-unlock" aria-labelledby="core-t-unlock" tabindex="0" data-state="unlock-required" data-title="core-unlock-title">
+      <section class="gw-card gw-status-screen__card" aria-labelledby="core-unlock-title">
+        <div class="gw-card__body gw-status-screen__body">
+          <div class="gw-status-screen__intro">
+            <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="lock-keyhole"></i></span>
+            <div class="gw-status-screen__text">
+              <h1 class="gw-text-h1" id="core-unlock-title">Unlock GateRook</h1>
+              <p class="gw-text-body-read">Your operating system protects the encryption key for your saved credentials. Unlock GateRook to start the app.</p>
+            </div>
+          </div>
+          <p class="gw-text-body-read">After you choose Unlock GateRook, your operating system may ask you to allow access or enter your computer password. If you deny access, GateRook will close.</p>
+          <div class="gw-alert gw-alert--info gw-alert--compact">
+            <i class="gw-icon gw-alert__icon" data-lucide="info"></i>
+            <div class="gw-alert__content"><p class="gw-alert__body">The macOS prompt may name “<span class="gw-mono">MCP Gateway Dev Safe Storage</span>”. This is GateRook’s existing keychain entry; its name is kept so saved credentials stay accessible.</p></div>
+          </div>
+        </div>
+        <footer class="gw-card__footer">
+          <button class="gw-btn" type="button">Quit</button>
+          <button class="gw-btn gw-btn--primary" type="button"><i class="gw-icon" data-lucide="lock-keyhole-open"></i> Unlock GateRook</button>
+        </footer>
+      </section>
+    </div>
+
+    <div class="gw-tabs__panel" role="tabpanel" id="core-p-unlocking" aria-labelledby="core-t-unlocking" hidden data-state="unlock-required" data-title="core-unlocking-title">
+      <section class="gw-card gw-status-screen__card" aria-labelledby="core-unlocking-title">
+        <div class="gw-card__body gw-status-screen__body">
+          <div class="gw-status-screen__intro">
+            <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="lock-keyhole"></i></span>
+            <div class="gw-status-screen__text">
+              <h2 class="gw-text-h1" id="core-unlocking-title">Unlock GateRook</h2>
+              <p class="gw-text-body-read">Your operating system protects the encryption key for your saved credentials. Unlock GateRook to start the app.</p>
+            </div>
+          </div>
+          <p class="gw-text-body-read">After you choose Unlock GateRook, your operating system may ask you to allow access or enter your computer password. If you deny access, GateRook will close.</p>
+          <div class="gw-alert gw-alert--info gw-alert--compact">
+            <i class="gw-icon gw-alert__icon" data-lucide="info"></i>
+            <div class="gw-alert__content"><p class="gw-alert__body">The macOS prompt may name “<span class="gw-mono">MCP Gateway Dev Safe Storage</span>”. This is GateRook’s existing keychain entry; its name is kept so saved credentials stay accessible.</p></div>
+          </div>
+          <p class="gw-text-small gw-fg-muted" role="status" id="core-unlocking-pending">Complete the request from your operating system to continue.</p>
+        </div>
+        <footer class="gw-card__footer">
+          <button class="gw-btn" type="button">Quit</button>
+          <button class="gw-btn gw-btn--primary" type="button" aria-busy="true" aria-disabled="true" aria-describedby="core-unlocking-pending"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> Unlock GateRook</button>
+        </footer>
+      </section>
+    </div>
+
+    <!-- ═════════════ Starting ═════════════ -->
+    <div class="gw-tabs__panel" role="tabpanel" id="core-p-starting" aria-labelledby="core-t-starting" hidden data-state="starting" data-title="core-start-t">
       <section class="gw-card gw-status-screen__card" aria-labelledby="core-start-t">
         <div class="gw-card__body gw-status-screen__body">
           <div class="gw-status-screen__intro">
             <div class="gw-status-screen__text">
-              <h1 class="gw-text-h1" id="core-start-t">Starting the gateway core</h1>
+              <h2 class="gw-text-h1" id="core-start-t">Starting the gateway core</h2>
               <p class="gw-text-body-read">Starting the native core and the local API on <span class="gw-mono">127.0.0.1:7465</span>. This usually takes about a second.</p>
             </div>
           </div>
@@ -277,14 +325,16 @@
       </section>
     </div>
 
-    <p class="gw-status-screen__meta gw-text-caption gw-fg-muted">GateRook 0.4.0 · core on <span class="gw-mono">127.0.0.1:7465</span> · log <span class="gw-mono">~/.gaterook/logs/core.log</span></p>
+    <p class="gw-status-screen__meta gw-text-caption gw-fg-muted" id="core-meta" hidden>GateRook 0.4.0 · core on <span class="gw-mono">127.0.0.1:7465</span> · log <span class="gw-mono">~/.gaterook/logs/core.log</span></p>
 
     <!-- Demo switcher: reference pages only, never in the app -->
     <div class="gw-stack gw-stack--sm">
       <p class="gw-text-caption gw-fg-muted" id="core-demo-l">Demo only: preview the other states of this screen</p>
       <div class="gw-tabs gw-tabs--contained">
         <div class="gw-tabs__list" role="tablist" aria-labelledby="core-demo-l">
-          <button class="gw-tabs__tab" type="button" role="tab" id="core-t-starting" aria-selected="true" aria-controls="core-p-starting">Starting</button>
+          <button class="gw-tabs__tab" type="button" role="tab" id="core-t-unlock" aria-selected="true" aria-controls="core-p-unlock">Unlock required</button>
+          <button class="gw-tabs__tab" type="button" role="tab" id="core-t-unlocking" aria-selected="false" aria-controls="core-p-unlocking" tabindex="-1">Unlocking</button>
+          <button class="gw-tabs__tab" type="button" role="tab" id="core-t-starting" aria-selected="false" aria-controls="core-p-starting" tabindex="-1">Starting</button>
           <button class="gw-tabs__tab" type="button" role="tab" id="core-t-port" aria-selected="false" aria-controls="core-p-port" tabindex="-1">Port in use</button>
           <button class="gw-tabs__tab" type="button" role="tab" id="core-t-key" aria-selected="false" aria-controls="core-p-key" tabindex="-1">Master key not found</button>
           <button class="gw-tabs__tab" type="button" role="tab" id="core-t-stopped" aria-selected="false" aria-controls="core-p-stopped" tabindex="-1">Stopped</button>
@@ -403,6 +453,7 @@
     if (!panel) return;
     screen.setAttribute("data-state", panel.getAttribute("data-state"));
     screen.setAttribute("aria-labelledby", panel.getAttribute("data-title"));
+    document.getElementById("core-meta").hidden = panel.getAttribute("data-state") === "unlock-required";
   }
   new MutationObserver(sync).observe(list, { subtree: true, attributes: true, attributeFilter: ["aria-selected"] });
 })();

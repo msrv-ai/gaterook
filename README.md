@@ -20,7 +20,9 @@ npm run build
 npm start
 ```
 
-`npm run build` builds the design kit, all Java modules, the Angular UI, and the Electron main/preload bundle. It compiles tests but skips running them. `npm start` opens the desktop application and starts its JVM core automatically. Development data is stored in `desktop/.dev/home/`; stop the application with **Ctrl+C** in the terminal.
+`npm run build` builds the design kit, all Java modules, the Angular UI, and the Electron main/preload bundle. It compiles tests but skips running them. `npm start` opens the desktop application, which manages its JVM core. Development data is stored in `desktop/.dev/home/`; stop the application with **Ctrl+C** in the terminal.
+
+With OS credential protection enabled, the window first explains how the encryption key is protected. Select **Unlock GateRook** to allow access to the OS key store and continue startup. The operating system may then ask for permission or your login password; enter it only in the system dialog. Denying access closes GateRook.
 
 To open a separate demo instance without OS key-store prompts:
 

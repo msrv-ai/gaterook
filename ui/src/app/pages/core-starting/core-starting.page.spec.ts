@@ -37,10 +37,13 @@ class FakeDesktop {
   openFileToken: string | null = 'open-token-1';
   usePortResult: (port: number) => Promise<void> = () => Promise.resolve();
   restartResult: () => Promise<void> = () => Promise.resolve();
+  unlockResult: () => Promise<void> = () => Promise.resolve();
+  initialState: DesktopCoreState | null = { kind: 'ready', firstRun: false, locked: null, version: '0.4.0', ports: { local: 7465, public: 7466 }, runtime: 'native' };
   private listener: ((s: DesktopCoreState) => void) | null = null;
 
   onCoreState(cb: (s: DesktopCoreState) => void): () => void {
     this.listener = cb;
+    if (this.available && this.initialState) cb(this.initialState);
     return () => (this.listener = null);
   }
   emit(s: DesktopCoreState): void {
@@ -52,6 +55,10 @@ class FakeDesktop {
   restartCore(): Promise<void> {
     this.calls.push('restart');
     return this.restartResult();
+  }
+  unlock(): Promise<void> {
+    this.calls.push('unlock');
+    return this.unlockResult();
   }
   usePort(port: number): Promise<void> {
     this.calls.push(`usePort ${port}`);
@@ -259,6 +266,99 @@ describe('starting', () => {
     await emit({ kind: 'starting', steps: [], port: 7475, publicPort: 7466 });
     expect(text(page.querySelector('.gw-status-screen__text p'))).toContain('127.0.0.1:7475');
     expect(text(page.querySelector('.gw-stepper__step[data-state=current]'))).toContain('Native core');
+  });
+});
+
+describe('OS-protected encryption key', () => {
+  const waiting: DesktopCoreState = { kind: 'unlock-required', unlocking: false, error: null, keychainService: 'MCP Gateway Dev Safe Storage' };
+
+  beforeEach(() => {
+    desktop.initialState = waiting;
+  });
+
+  it('explains OS access, focuses Unlock GateRook, and waits for a click and core readiness before using the API', async () => {
+    const healthCall = vi.fn(() => Promise.resolve(health({})));
+    world.health = healthCall;
+    const page = await render();
+    const unlock = button('Unlock GateRook')!;
+    expect(text(page.querySelector('h1'))).toBe('Unlock GateRook');
+    expect(text(page)).toContain('Your operating system protects the encryption key for your saved credentials.');
+    expect(text(page)).toContain('may ask you to allow access or enter your computer password');
+    expect(text(page)).toContain('If you deny access, GateRook will close.');
+    expect(text(page)).toContain('MCP Gateway Dev Safe Storage');
+    expect(page.querySelector('.gw-status-screen__meta')).toBeNull();
+    expect(page.querySelector('.gw-card input[type=password]')).toBeNull();
+    expect(document.activeElement).toBe(unlock);
+    expect(desktop.calls).toEqual([]);
+    expect(healthCall).not.toHaveBeenCalled();
+    expect(keyCalls).toEqual([]);
+    await TestBed.inject(CoreStore).refresh();
+    expect(healthCall).not.toHaveBeenCalled();
+
+    let finish!: () => void;
+    desktop.unlockResult = () => new Promise<void>((resolve) => (finish = resolve));
+    unlock.click();
+    unlock.click();
+    await settle();
+    expect(desktop.calls).toEqual(['unlock']);
+    expect(unlock.getAttribute('aria-busy')).toBe('true');
+    expect(unlock.getAttribute('aria-disabled')).toBe('true');
+    expect(text(page.querySelector('[role=status]'))).toBe('Complete the request from your operating system to continue.');
+    expect(document.activeElement).toBe(unlock);
+    await emit({ ...waiting, unlocking: true });
+    finish();
+    await settle();
+    expect(unlock.getAttribute('aria-disabled')).toBe('true');
+    expect(healthCall).not.toHaveBeenCalled();
+
+    await emit(KIT_LIVE);
+    expect(healthCall).not.toHaveBeenCalled();
+    await emit({ kind: 'ready', firstRun: false, locked: null, version: '0.4.0', ports: { local: 7465, public: 7466 }, runtime: 'native' });
+    expect(healthCall).toHaveBeenCalledOnce();
+    expect(TestBed.inject(CoreStore).running()).toBe(true);
+  });
+
+  it('keeps a local key preparation error retryable and Quit available without offering key recovery', async () => {
+    const page = await render();
+    button('Unlock GateRook')!.click();
+    await emit({ ...waiting, unlocking: true });
+    await emit({ ...waiting, error: 'The encryption key could not be saved. Check the data folder permissions, then choose Unlock GateRook to try again.' });
+    expect(text(page.querySelector('[role=alert]'))).toContain('GateRook is still locked');
+    expect(button('Unlock GateRook')!.getAttribute('aria-disabled')).toBeNull();
+    expect(document.activeElement).toBe(button('Unlock GateRook'));
+    expect(button('Create a new key')).toBeNull();
+    expect(button('Restore from backup')).toBeNull();
+    button('Unlock GateRook')!.click();
+    await settle();
+    expect(desktop.calls).toEqual(['unlock', 'unlock']);
+    button('Quit')!.click();
+    expect(desktop.calls.at(-1)).toBe('quit');
+  });
+
+  it('shows a failed unlock IPC call in the card and permits another attempt', async () => {
+    const page = await render();
+    desktop.unlockResult = () => Promise.reject(new Error("Error invoking remote method 'gw:unlock': Error: Try unlocking again."));
+    button('Unlock GateRook')!.click();
+    await settle();
+    expect(text(page.querySelector('[role=alert]'))).toContain('Try unlocking again.');
+    expect(button('Unlock GateRook')!.getAttribute('aria-disabled')).toBeNull();
+    desktop.unlockResult = () => Promise.resolve();
+    button('Unlock GateRook')!.click();
+    await settle();
+    expect(desktop.calls).toEqual(['unlock', 'unlock']);
+    expect(page.querySelector('[role=alert]')).toBeNull();
+  });
+
+  it('ignores an old health answer that arrives after the OS key becomes locked', async () => {
+    desktop.initialState = { kind: 'ready', firstRun: false, locked: null, version: '0.4.0', ports: { local: 7465, public: 7466 }, runtime: 'native' };
+    let answer!: (value: Health) => void;
+    world.health = () => new Promise<Health>((resolve) => (answer = resolve));
+    const page = await render();
+    await emit(waiting);
+    answer(health({}));
+    await settle();
+    expect(TestBed.inject(CoreStore).running()).toBe(false);
+    expect(text(page.querySelector('h1'))).toBe('Unlock GateRook');
   });
 });
 
