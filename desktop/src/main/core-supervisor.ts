@@ -221,8 +221,13 @@ export class CoreSupervisor {
     try {
       key = await this.o.fileKey();
     } catch (e) {
-      this.o.log(`no OS-protection key for this start: ${(e as Error).message}`);
-      key = { fileKey: null, protection: 'off' };
+      this.o.log(`could not prepare the OS-protection key: ${(e as Error).message}`);
+      // A provider failure is never permission to start without a key. Explicitly disabled or unavailable
+      // protection is represented by a successful plan; errors must leave both the core and its data untouched.
+      if (!this.shuttingDown) this.emit({ kind: 'failed', reason: 'STARTUP_FAILED',
+        detail: 'The encryption key could not be prepared. Check the native unlock helper and restart GateRook.',
+        portOwner: null, log: null, ...meta });
+      return;
     }
     if (this.shuttingDown) {
       key.fileKey?.fill(0);

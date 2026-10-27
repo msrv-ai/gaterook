@@ -662,8 +662,8 @@ async function unlockScenario(host: SmokeHost): Promise<void> {
 
 /**
  * OS protection of the master key (A14) on this system, with the real core: a first start gets a file key from
- * safeStorage, the core writes the keyset encrypted under it, a restart opens it again. Opt-in (it writes a Keychain
- * entry, "GateRook Dev Safe Storage").
+ * the OS store, the core writes the keyset encrypted under it, a restart opens it again. Opt-in: it authenticates
+ * and writes a native Keychain entry on macOS or safeStorage ciphertext on Windows/Linux.
  */
 async function protectScenario(host: SmokeHost): Promise<void> {
   const home = host.layout.home;
@@ -675,7 +675,7 @@ async function protectScenario(host: SmokeHost): Promise<void> {
   await until('the keyset encrypted', () => readFileSync(join(home, 'master.keyset'), 'utf8').includes('encryptedKeyset'), 30_000, 200);
   const osk = join(home, 'master.keyset.osk');
   const mode = process.platform === 'win32' ? 0o600 : statSync(osk).mode & 0o777;
-  expect('the file key is kept by safeStorage in master.keyset.osk (0600)', mode === 0o600, mode.toString(8));
+  expect('the protected file-key ciphertext or native reference is owner-only (0600)', mode === 0o600, mode.toString(8));
   const keyset = readFileSync(join(home, 'master.keyset'), 'utf8');
   expect('the core wrote the keyset encrypted under the file key', keyset.includes('encryptedKeyset') && !keyset.includes('"keyData"'));
   const health = await callCore<{ masterKey?: { protection?: string } }>(first, 'GET', '/api/health');

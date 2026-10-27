@@ -12,6 +12,7 @@ import { build } from 'esbuild';
 import { copyFileSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildNativeUnlock } from './build-native-unlock.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const release = process.argv.includes('--release');
@@ -35,6 +36,7 @@ const common = {
 
 await build({ ...common, entryPoints: ['src/main/main.ts'], outfile: join(dist, 'main.cjs') });
 await build({ ...common, entryPoints: ['src/preload/preload.ts'], outfile: join(dist, 'preload.cjs') });
+buildNativeUnlock({ root, dist });
 
 // Runtime and installer icons consume the design kit's exports without redrawing the artwork.
 mkdirSync(join(dist, 'icons'), { recursive: true });

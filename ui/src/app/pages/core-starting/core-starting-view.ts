@@ -205,7 +205,8 @@ export function statusView(state: CoreState, facts: ScreenFacts): StatusScreenVi
   const keyPath = facts.key?.path ?? DEFAULT_KEY_PATH;
   switch (state.kind) {
     case 'unlock-required':
-      return { kind: 'unlock-required', unlocking: state.unlocking ?? false, error: state.detail, keychainService: state.keychainService };
+      return { kind: 'unlock-required', unlocking: state.unlocking ?? false, error: state.detail,
+        authentication: state.authentication, keychainService: state.keychainService };
     case 'connecting':
       // In Electron the core has just been spawned; a browser knows nothing until /api/health answers.
       return { kind: 'starting', steps: facts.desktop ? progressSteps([], facts.address, keyPath) : [] };

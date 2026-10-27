@@ -12,6 +12,7 @@ interface Options {
   /** Refused or unavailable native key access closes the application. Called synchronously before yielding. */
   readonly denied: () => void;
   readonly keychainService?: string;
+  readonly details?: () => Pick<UnlockState, 'authentication' | 'keychainService'>;
 }
 
 const CANCELLED: FileKeyPlan = { fileKey: null, protection: 'off', note: null };
@@ -25,6 +26,7 @@ export class FileKeyUnlock {
   private pending: Promise<FileKeyPlan> | null = null;
   private resolve: ((plan: FileKeyPlan) => void) | null = null;
   private attempt: Promise<void> | null = null;
+  private cached: FileKeyPlan | null = null;
 
   constructor(options: Options) {
     this.o = options;
@@ -37,6 +39,8 @@ export class FileKeyUnlock {
   /** Only a successful unlock grants consent for later core restarts in this app session. */
   prepare(): Promise<FileKeyPlan> {
     if (this.closed) return Promise.resolve(CANCELLED);
+    // The core zeroes its bootstrap copy. Keep a separate session copy so a core restart never asks the OS again.
+    if (this.cached?.fileKey) return Promise.resolve({ ...this.cached, fileKey: Buffer.from(this.cached.fileKey), note: null });
     if (this.pending) return this.pending;
     this.pending = new Promise((resolve) => { this.resolve = resolve; });
     const pending = this.pending;
@@ -56,6 +60,8 @@ export class FileKeyUnlock {
   /** Release a pending startup immediately, including when a system prompt is still open. */
   close(): void {
     this.closed = true;
+    this.cached?.fileKey?.fill(0);
+    this.cached = null;
     this.current = null;
     this.finish(CANCELLED);
   }
@@ -74,6 +80,7 @@ export class FileKeyUnlock {
         return;
       }
       this.authorized = true;
+      if (plan.fileKey) this.cached = { ...plan, fileKey: Buffer.from(plan.fileKey), note: null };
       this.current = null;
       this.o.changed(null);
       this.finish(plan);
@@ -102,7 +109,8 @@ export class FileKeyUnlock {
 
   private publish(unlocking: boolean, error: string | null): void {
     this.current = { kind: 'unlock-required', unlocking, error,
-      ...(this.o.keychainService ? { keychainService: this.o.keychainService } : {}) };
+      ...(this.o.keychainService ? { keychainService: this.o.keychainService } : {}),
+      ...this.o.details?.() };
     this.o.changed(this.current);
   }
 }

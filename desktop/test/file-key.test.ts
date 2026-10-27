@@ -65,6 +65,21 @@ describe('OS protection of the master key file (A14)', () => {
     assert.deepEqual(again.fileKey, plan.fileKey);
   });
 
+  for (const platform of ['darwin', 'win32'] as const) {
+    it(`opens an existing ${platform} key with one decryption and no preliminary OS-store access`, async () => {
+      const h = home();
+      const first = await planFileKey(h, fakeSafe(), platform);
+      const safe = fakeSafe();
+      safe.isAsyncEncryptionAvailable = async () => {
+        assert.fail('an existing protected key must not trigger a preliminary native-store probe');
+      };
+      const again = await planFileKey(h, safe, platform);
+      assert.deepEqual(again.fileKey, first.fileKey);
+      assert.equal(again.protection, 'os');
+      assert.deepEqual(safe.calls, ['decrypt']);
+    });
+  }
+
   it('an encrypted keyset whose key is gone gets no new key (the core reports it invalid)', async () => {
     const h = home();
     writeFileSync(keysetPath(h), '{"encryptedKeyset":"AAAA","keysetInfo":{}}');

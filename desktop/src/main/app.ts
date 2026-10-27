@@ -19,6 +19,8 @@ import { CoreEventFeed, type CoreEvent } from './events.ts';
 import { allowedExternalUrl } from './external.ts';
 import { planFileKey } from './file-key.ts';
 import { FileKeyUnlock } from './file-key-unlock.ts';
+import { NativeUnlockClient } from './native-unlock.ts';
+import { OsFileKey } from './os-file-key.ts';
 import { chooseFile, openClientConfig, openMcpb, reveal, type FilesOptions } from './files.ts';
 import { isTrustedSender } from './ipc-guard.ts';
 import { resolveLayout, type Layout } from './layout.ts';
@@ -99,6 +101,8 @@ export class Desktop {
   readonly log: Logger;
   readonly supervisor: CoreSupervisor;
   private readonly fileKeyUnlock: FileKeyUnlock;
+  private readonly nativeUnlock: NativeUnlockClient;
+  private readonly osFileKey: OsFileKey;
   private readonly events: CoreEventFeed;
   private window: AppWindow | null = null;
   private windowReady = false;
@@ -127,12 +131,23 @@ export class Desktop {
     this.log = log;
     this.smoke = layout.dev && !!process.env['GW_SMOKE'];
     this.config = readDesktopConfig(layout.home).config;
+    this.nativeUnlock = new NativeUnlockClient(join(app.isPackaged ? process.resourcesPath : join(app.getAppPath(), 'dist'),
+      'native', process.platform === 'win32' ? 'gaterook-unlock.exe' : 'gaterook-unlock'));
+    this.osFileKey = new OsFileKey({ home: layout.home, platform: process.platform, safe: safeStorage,
+      native: this.nativeUnlock.call,
+      windowHandle: () => {
+        const handle = this.window?.win.getNativeWindowHandle();
+        if (!handle) throw new Error('The unlock window is unavailable.');
+        return handle.length === 8 ? handle.readBigUInt64LE().toString() : handle.readUInt32LE().toString();
+      },
+      keychainService: `${layout.dev ? 'GateRook Dev' : 'GateRook'} Safe Storage`,
+    });
     this.fileKeyUnlock = new FileKeyUnlock({
-      load: () => planFileKey(this.layout.home, safeStorage),
+      load: () => this.osFileKey.load(),
       changed: (state) => this.onCoreState(state ?? this.supervisor.state()),
       log: (line) => log(line),
       denied: () => app.quit(),
-      ...(process.platform === 'darwin' ? { keychainService: `${layout.dev ? 'GateRook Dev' : 'GateRook'} Safe Storage` } : {}),
+      details: () => this.osFileKey.details(),
     });
     this.supervisor = new CoreSupervisor({
       version: app.getVersion(),
@@ -266,6 +281,7 @@ export class Desktop {
 
   private async prepareFileKey(): Promise<{ fileKey: Buffer | null; protection: string }> {
     const off = this.layout.dev && process.env['GW_DESKTOP_PROTECTION'] === 'off';
+    if (!off) await this.osFileKey.initialize();
     const plan = await (off ? planFileKey(this.layout.home, null) : this.fileKeyUnlock.prepare());
     if (plan.note) this.log(`OS protection: ${plan.note}`);
     return { fileKey: plan.fileKey, protection: plan.protection };
@@ -669,6 +685,7 @@ export class Desktop {
     this.updates?.stop();
     this.events.stop();
     this.fileKeyUnlock.close();
+    this.nativeUnlock.close();
     void (async () => {
       try {
         await this.supervisor.stop();

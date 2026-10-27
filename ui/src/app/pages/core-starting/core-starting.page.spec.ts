@@ -318,6 +318,52 @@ describe('OS-protected encryption key', () => {
     expect(TestBed.inject(CoreStore).running()).toBe(true);
   });
 
+  for (const mode of [
+    { authentication: 'touch-id', explanation: 'Use Touch ID or your Mac password to unlock your saved credentials.',
+      pending: 'Complete Touch ID or enter your Mac password in the system dialog to continue.' },
+    { authentication: 'windows-hello', explanation: 'Use Windows Hello to unlock your saved credentials with your face, fingerprint, or PIN.',
+      pending: 'Complete Windows Hello in the system dialog to continue.' },
+  ] as const) {
+    it(`explains ${mode.authentication} and keeps authentication in the OS dialog`, async () => {
+      desktop.initialState = { kind: 'unlock-required', unlocking: false, error: null, authentication: mode.authentication };
+      const healthCall = vi.fn(() => Promise.resolve(health({})));
+      world.health = healthCall;
+      const page = await render();
+      const unlock = button('Unlock GateRook')!;
+      expect(text(page)).toContain(mode.explanation);
+      expect(text(page)).toContain('If you deny access, GateRook will close.');
+      expect(text(page)).not.toContain('Safe Storage');
+      expect(page.querySelector('.gw-card input')).toBeNull();
+      expect(document.activeElement).toBe(unlock);
+      expect(desktop.calls).toEqual([]);
+      expect(healthCall).not.toHaveBeenCalled();
+
+      desktop.unlockResult = () => never<void>();
+      unlock.click();
+      unlock.click();
+      await settle();
+      expect(desktop.calls).toEqual(['unlock']);
+      expect(unlock.getAttribute('aria-busy')).toBe('true');
+      expect(unlock.getAttribute('aria-disabled')).toBe('true');
+      expect(text(page.querySelector('[role=status]'))).toBe(mode.pending);
+      expect(unlock.getAttribute('aria-describedby')).toBe(page.querySelector('[role=status]')!.id);
+      expect(healthCall).not.toHaveBeenCalled();
+      button('Quit')!.click();
+      expect(desktop.calls).toEqual(['unlock', 'quit']);
+    });
+  }
+
+  it('replaces the legacy Keychain explanation when native authentication becomes available', async () => {
+    const page = await render();
+    expect(text(page)).toContain('GateRook Dev Safe Storage');
+    await emit({ kind: 'unlock-required', unlocking: false, error: null, authentication: 'touch-id' });
+    expect(text(page)).toContain('Use Touch ID or your Mac password');
+    expect(text(page)).not.toContain('Safe Storage');
+    await emit({ kind: 'unlock-required', unlocking: false, error: null, authentication: 'system' });
+    expect(text(page)).toContain('may ask you to allow access or enter your computer password');
+    expect(text(page)).not.toContain('Touch ID');
+  });
+
   it('keeps a local key preparation error retryable and Quit available without offering key recovery', async () => {
     const page = await render();
     button('Unlock GateRook')!.click();

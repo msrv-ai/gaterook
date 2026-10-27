@@ -20,6 +20,8 @@ export type DesktopCoreState =
       readonly kind: 'unlock-required';
       readonly unlocking: boolean;
       readonly error: string | null;
+      /** Available system authentication; the renderer never receives passwords or biometric data. */
+      readonly authentication?: 'touch-id' | 'windows-hello' | 'system';
       /** The existing macOS Keychain entry that its permission dialog may name. */
       readonly keychainService?: string;
     }

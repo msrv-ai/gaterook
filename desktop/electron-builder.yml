@@ -22,6 +22,8 @@ files:
     to: ui
   - "!node_modules/**/*"              # main is one bundle: nothing from node_modules ships
 extraResources:
+  - from: dist/native                 # signed OS authentication helper; executable outside the asar
+    to: native
   - from: stage/core                  # the native core and libsqlitejdbc (signed with the app)
     to: core
   - from: stage/jre                   # the plugin host's jlink JRE

@@ -19,6 +19,7 @@ export type DesktopCoreState =
       readonly kind: 'unlock-required';
       readonly unlocking: boolean;
       readonly error: string | null;
+      readonly authentication?: 'touch-id' | 'windows-hello' | 'system';
       /** The compatibility name shown by macOS in its access dialog. */
       readonly keychainService?: string;
     }

@@ -7,6 +7,7 @@ import type { DesktopCoreState } from '../src/shared/contract.ts';
 import { CoreSupervisor, logTail, type SupervisorOptions } from '../src/main/core-supervisor.ts';
 import { callCoreOk } from '../src/main/core-client.ts';
 import { FAKE_CORE, tempDir, waitFor } from './helpers.ts';
+import { NativeUnlockError } from '../src/main/native-unlock.ts';
 
 const t = tempDir('supervisor');
 after(t.remove);
@@ -61,6 +62,24 @@ const alive = (pid: number): boolean => {
 };
 
 describe('the core process', () => {
+  for (const error of [new NativeUnlockError('unavailable'), new Error('provider preparation failed')]) {
+    it(`never starts an unprotected core when key preparation rejects: ${error.name}`, async () => {
+      let commands = 0;
+      const { supervisor, runs } = await setup({}, {
+        fileKey: async () => { throw error; },
+        command: () => { commands++; throw new Error('The core must not start'); },
+      });
+      await supervisor.start();
+      assert.equal(supervisor.state().kind, 'failed');
+      assert.equal(supervisor.pid(), null);
+      assert.equal(commands, 0);
+      assert.throws(runs, { code: 'ENOENT' });
+      await supervisor.restart();
+      assert.equal(supervisor.state().kind, 'failed');
+      assert.equal(commands, 0, 'retry does not downgrade protection');
+    });
+  }
+
   it('starts with the bootstrap line, reports the steps, says ready, stops on stdin EOF', async () => {
     const { supervisor, states, runs, port } = await setup();
     let ready = 0;

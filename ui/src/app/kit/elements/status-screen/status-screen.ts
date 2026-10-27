@@ -33,7 +33,13 @@ export interface StatusStep {
  * - `unreachable`: a browser during development, nothing answers on the address (no Electron to say why).
  */
 export type StatusScreenView =
-  | { readonly kind: 'unlock-required'; readonly unlocking: boolean; readonly error: string | null; readonly keychainService?: string }
+  | {
+      readonly kind: 'unlock-required';
+      readonly unlocking: boolean;
+      readonly error: string | null;
+      readonly authentication?: 'touch-id' | 'windows-hello' | 'system';
+      readonly keychainService?: string;
+    }
   | { readonly kind: 'starting'; readonly steps: readonly StatusStep[] }
   | {
       readonly kind: 'port-in-use';

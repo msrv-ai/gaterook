@@ -37,6 +37,7 @@ export interface CoreState {
   readonly firstRun: boolean;
   /** OS key access is requested only by the unlock action, before the core is started. */
   readonly unlocking?: boolean;
+  readonly authentication?: 'touch-id' | 'windows-hello' | 'system';
   readonly keychainService?: string;
 }
 
@@ -197,7 +198,8 @@ export class CoreStore {
     if (s.kind !== 'ready') this.suspendHealth();
     switch (s.kind) {
       case 'unlock-required':
-        this.patch({ kind: 'unlock-required', unlocking: s.unlocking, detail: s.error, keychainService: s.keychainService });
+        this.patch({ kind: 'unlock-required', unlocking: s.unlocking, detail: s.error,
+          authentication: s.authentication, keychainService: s.keychainService });
         break;
       case 'starting':
         this.patch({

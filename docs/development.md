@@ -13,6 +13,10 @@ npm run build
 npm start
 ```
 
+The desktop build compiles a small native unlock helper on macOS and Windows. Install Xcode Command Line Tools with Swift on macOS. On Windows, install Visual Studio C++ build tools and the Windows 11 SDK, then build from a Developer Command Prompt targeting the same architecture as Node.js (x64 or arm64). The Windows Hello desktop interop requires a supported Windows version and configured Hello credentials. Linux keeps its existing Secret Service/KWallet integration and does not compile this helper.
+
+The helper is cached by source and compiler identity under ignored `desktop/.dev/native-unlock/` and copied into `desktop/dist/native/`. Rebuilding unchanged sources keeps the same macOS Keychain identity. Packaged helpers live in the application's `resources/native/` folder and must be signed with the release. A local ad-hoc signature is only for development; signed installer and interactive authentication verification remain separate checks.
+
 Dependencies and pinned artifacts require network access on the first build. The root npm workspace contains `ui`, `desktop`, and `bridge`; the design kit is a local package with its own build dependencies and lockfile. Do not replace lockfile-based installs with unpinned upgrades during routine builds.
 
 ## IntelliJ IDEA
@@ -74,7 +78,11 @@ npm start -- --demo --home ./desktop/.dev/demo --protection off
 
 The launcher rebuilds Electron, uses the built renderer, and starts the core as its child. Its default home is `desktop/.dev/home`. `--demo` seeds an empty home; `--protection off` avoids OS key-store use for a disposable instance. `--fresh` recursively deletes the chosen development home, so use it only for disposable data. Ctrl+C stops Electron and the core.
 
-With protection enabled, startup waits at **Unlock GateRook** before accessing the OS key store. On macOS the system dialog may name **GateRook Dev Safe Storage**: this is the development build's keychain entry. The application explains that name before requesting access. The development option `--protection off` skips this screen; use a separate disposable home because it cannot open an existing OS-protected keyset without its key.
+With protection enabled, startup waits at **Unlock GateRook** before accessing any stored key or showing authentication. A capability check can identify available authentication before that click without requesting access. macOS uses Touch ID or the Mac password. Windows uses Windows Hello face, fingerprint, or PIN when configured, while DPAPI continues to protect the stored key. Cancellation closes the app without starting the core; helper failures do not silently bypass authentication.
+
+An existing macOS vault initially uses its previous **GateRook Dev Safe Storage** entry. After successful access, the same file key is saved in **GateRook Vault Unlock**, and `master.keyset.osk` is atomically replaced with a reference to that Keychain item. The encrypted master keyset is unchanged. If migration cannot finish, the previous ciphertext remains usable. A locked Keychain or changed helper signature uses the Keychain access dialog alone; ordinary subsequent launches use Touch ID/password alone. The app retains a private file-key copy for core restarts and zeroes it on quit.
+
+The development option `--protection off` skips this screen; use a separate disposable home because it cannot open an existing OS-protected keyset without its key. Never use a real home to test missing keys or recovery. Test native authentication on each release platform, including cancellation, password/PIN fallback, migration, restart, and changed signing identity; automated tests cannot validate the actual biometric dialog.
 
 The launcher builds the renderer automatically only when its output is missing. Run the build again to pick up later UI or Java changes. The default installed-app home is `~/.gaterook`; it does not import or modify `~/.mcp-gateway`. The development launcher continues to use its selected repository-local home. See [product decisions](DECISIONS.md).
 

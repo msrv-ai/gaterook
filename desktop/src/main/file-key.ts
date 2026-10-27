@@ -89,9 +89,15 @@ function normalizeBackend(name: string): string {
  */
 export async function planFileKey(home: string, safe: SafeStorageLike | null,
     platform: NodeJS.Platform = process.platform): Promise<FileKeyPlan> {
-  const a = await availability(safe, platform);
   const osk = oskPath(home);
-  if (existsSync(osk)) {
+  const stored = existsSync(osk);
+  // Decryption initializes Electron's async provider itself. On macOS and Windows, opening an existing key
+  // needs only that operation; a separate availability probe can access the native store before the read and
+  // is not proof that decryption is permitted. Linux still needs its backend check to reject basic_text.
+  const a: Availability = stored && safe && (platform === 'darwin' || platform === 'win32')
+    ? { available: true, on: 'os', off: 'off', unavailable: 'unavailable' }
+    : await availability(safe, platform);
+  if (stored) {
     if (!a.available || !safe) {
       return { fileKey: null, protection: a.unavailable, note: 'the key file is OS-protected, but OS protection is unavailable now',
         ...(safe ? { accessFailed: true as const } : {}) };

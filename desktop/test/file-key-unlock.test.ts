@@ -25,12 +25,19 @@ describe('explicit OS-key-store unlock', () => {
       keychainService: 'GateRook Dev Safe Storage' });
     assert.equal(gate.prepare(), pending);
     await gate.unlock();
-    assert.equal((await pending).fileKey?.length, 32);
+    const first = (await pending).fileKey!;
+    assert.equal(first.length, 32);
+    first.fill(0); // the bootstrap writer zeroes its copy
     assert.equal(calls, 1);
     assert.equal(gate.state(), null);
     assert.deepEqual(states.map((state) => state?.unlocking ?? null), [false, true, null]);
-    await gate.prepare();
-    assert.equal(calls, 2, 'restarting the core needs no second consent screen');
+    const restarted = await gate.prepare();
+    assert.deepEqual(restarted.fileKey, Buffer.alloc(32, 7));
+    restarted.fileKey!.fill(0);
+    assert.deepEqual((await gate.prepare()).fileKey, Buffer.alloc(32, 7));
+    assert.equal(calls, 1, 'restarting the core reuses a separate session copy without another OS request');
+    gate.close();
+    assert.equal((await gate.prepare()).fileKey, null);
   });
 
   it('deduplicates clicks and closes exactly once after denial without another OS request', async () => {
