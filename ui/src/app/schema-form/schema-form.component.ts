@@ -17,7 +17,7 @@ import { GwSchemaSection } from './section';
     @if (loose(); as root) {
       <gw-schema-section [form]="form()" [node]="root" />
     }
-    @for (section of form().compiled.sections; track section.pointer) {
+    @for (section of form().compiled.sections; track section) {
       <gw-schema-section [form]="form()" [node]="section" />
     }
   `,

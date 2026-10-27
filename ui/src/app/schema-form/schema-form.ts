@@ -20,9 +20,16 @@ import {
   setAt,
 } from './compile';
 import { jsonProblem, requiredMessage, valueProblem } from './messages';
+import { secretSourceId } from './secret-sources';
 
 /** Sources whose secret is a reference the core resolves at call time (the value never passes through here). */
 export const REFERENCE_SOURCES: ReadonlySet<string> = new Set(['vault', 'gcp-sm', 'aws-sm', 'dynamic']);
+
+/** A saved reference remains configured while its store is disconnected or its credentials are leased. */
+export function storedReference(secret: StoredSecret): boolean {
+  return ['reference', 'short-lived', 'not-connected'].includes(secret.state)
+    && !!secret.source && secret.source !== 'local';
+}
 
 /** What a secret field asks its page to do (the API calls are the page's: replace a version, test a reference). */
 export type SecretAction =
@@ -142,8 +149,8 @@ export class SchemaForm {
     this.stricterBadges = options.stricterBadges ?? true;
     this.expanded.set(new Set(options.expanded ?? []));
     this.replacing.set(new Set(options.replacing ?? []));
-    const firstRef = (options.stored ?? []).find((s) => s.state === 'reference');
-    if (firstRef?.source) this.source.set(firstRef.source === 'short-lived' ? 'dynamic' : firstRef.source);
+    const firstRef = (options.stored ?? []).find(storedReference);
+    if (firstRef?.source) this.source.set(firstRef.state === 'short-lived' ? 'dynamic' : secretSourceId(firstRef.source));
     const env = options.env ?? 'dev';
     this.envState.set(env);
     this.metadata.set(options.metadata ?? null);
@@ -186,7 +193,17 @@ export class SchemaForm {
   }
 
   visible(node: SchemaNode): boolean {
-    return isVisible(node, this.model());
+    return isVisible(node, this.model()) && !(this.source() === 'dynamic' && this.loginUsername(node));
+  }
+
+  loginUsername(node: SchemaNode): boolean {
+    return this.loginField(node) && node.kind === 'text' && (node.key === 'user' || node.key === 'username');
+  }
+
+  /** Login providers supply the username, but other fields such as MongoDB's authSource remain editable. */
+  private loginField(node: SchemaNode): boolean {
+    return this.compiled.all.some((parent) => parent.secret === 'login' && parent.kind === 'object'
+      && parent.path.length + 1 === node.path.length && parent.path.every((part, i) => part === node.path[i]));
   }
 
   /** A value the person chose: it is theirs from now on, so an env change no longer moves it. */
@@ -202,11 +219,11 @@ export class SchemaForm {
 
   /** The message under a field: the core's (until the value changes), else the first rule it breaks after Save. */
   error(node: SchemaNode): string | null {
-    if (node.kind === 'object') return null;
+    if (node.kind === 'object' || !this.visible(node)) return null;
     const value = node.kind === 'secret' ? (this.secrets()[node.pointer] ?? '') : getAt(this.model(), node.path);
     const server = this.serverErrors().find((e) => e.pointer === node.pointer && e.value === value);
     if (server) return server.message;
-    if (!this.submitted() || !this.visible(node)) return null;
+    if (!this.submitted()) return null;
     if (node.kind === 'secret') return this.secretProblem(node);
     return this.field(node)().errors()[0]?.message ?? null;
   }
@@ -318,7 +335,8 @@ export class SchemaForm {
   /** How a secret field shows: a new value, the stored version, its replacement, a reference. */
   secretState(node: SchemaNode): 'empty' | 'stored' | 'editing' | 'reference' {
     const stored = this.stored.get(node.pointer);
-    if (REFERENCE_SOURCES.has(this.source())) return stored?.state === 'reference' && !this.replacing().has(node.pointer) ? 'reference' : 'empty';
+    if (REFERENCE_SOURCES.has(this.source())) return stored && storedReference(stored)
+      && !this.replacing().has(node.pointer) ? 'reference' : 'empty';
     if (stored?.state === 'stored') return this.replacing().has(node.pointer) ? 'editing' : 'stored';
     return 'empty';
   }
@@ -385,7 +403,9 @@ export class SchemaForm {
       if (node.kind !== 'secret' || !this.visible(node)) continue;
       const typed = this.secrets()[node.pointer]?.trim() ?? '';
       if (!typed) continue;
-      out[node.pointer] = reference ? { source: 'reference', ref: typed } : { source: 'local', value: this.secrets()[node.pointer] };
+      out[node.pointer] = reference
+        ? { source: this.source() === 'dynamic' ? 'vault-dynamic' : 'reference', ref: typed }
+        : { source: 'local', value: this.secrets()[node.pointer] };
     }
     return out;
   });
@@ -405,9 +425,11 @@ export class SchemaForm {
     if (state === 'stored' || state === 'reference') return null;
     const typed = this.secrets()[node.pointer]?.trim() ?? '';
     if (REFERENCE_SOURCES.has(this.source())) {
+      const dynamicLogin = this.source() === 'dynamic' && this.loginField(node);
+      if (!typed && !node.required && state !== 'editing' && !dynamicLogin) return null;
       if (!typed) return this.source() === 'dynamic' ? 'Enter the Vault role.' : 'Enter the secret reference.';
-      const scheme = this.source() === 'dynamic' ? null : `${this.source()}://`;
-      if (scheme && !typed.startsWith(scheme)) return `A reference starts with ${scheme}. Copy it from the store.`;
+      const scheme = this.source() === 'dynamic' ? 'vault://' : `${this.source()}://`;
+      if (!typed.startsWith(scheme)) return `A reference starts with ${scheme}. Copy it from the store.`;
       return null;
     }
     if (!typed && (node.required || state === 'editing')) return `${node.title} is required.`;
@@ -468,7 +490,7 @@ export class SchemaForm {
     untracked(() => this.tree().markAsTouched());
     const invalid = untracked(this.invalidNodes).filter((node) => !ignorePointers.includes(node.pointer));
     if (!invalid.length) return true;
-    for (const section of this.compiled.sections) {
+    for (const section of this.compiled.all.filter((n) => n.kind === 'object')) {
       if (section.collapsed && invalid.some((n) => containsNode(section, n))) this.setExpanded(section, true);
     }
     this.focus(invalid[0]);
@@ -495,7 +517,7 @@ export class SchemaForm {
     const others: ApiError['errors'][number][] = [];
     for (const e of error.errors) {
       const pointer = e.field.startsWith(this.pointerPrefix + '/') ? e.field.slice(this.pointerPrefix.length) : null;
-      const node = pointer ? this.compiled.all.find((n) => n.pointer === pointer) : undefined;
+      const node = pointer ? this.compiled.all.find((n) => n.pointer === pointer && n.kind !== 'object' && this.visible(n)) : undefined;
       if (!node) {
         others.push(e);
         continue;
@@ -504,9 +526,11 @@ export class SchemaForm {
       mine.push({ pointer: node.pointer, message: e.message, value });
     }
     this.serverErrors.set(mine);
-    const first = this.compiled.all.find((n) => mine.some((m) => m.pointer === n.pointer));
+    const first = this.compiled.all.find((n) => this.visible(n) && mine.some((m) => m.pointer === n.pointer));
     if (first) {
-      for (const section of this.compiled.sections) if (containsNode(section, first)) this.setExpanded(section, true);
+      for (const section of this.compiled.all) {
+        if (section.kind === 'object' && containsNode(section, first)) this.setExpanded(section, true);
+      }
       this.focus(first);
     }
     return others;
@@ -529,13 +553,26 @@ export class SchemaForm {
 
   /** Signal Forms rules from the compiled nodes: required, the value checks, hidden for inactive branches. */
   private rules(p: SchemaPathTree<Record<string, unknown>>): void {
+    const siblings = new Map<string, SchemaNode[]>();
+    for (const node of this.compiled.all) {
+      if (node.kind === 'object' || node.kind === 'secret') continue;
+      const at = siblings.get(node.pointer) ?? [];
+      at.push(node);
+      siblings.set(node.pointer, at);
+    }
+    // Branches can share a saved path. One inactive branch must not hide the active branch's control or errors.
+    for (const nodes of siblings.values()) {
+      const node = nodes[0];
+      let sp: unknown = p;
+      for (const k of node.path) sp = (sp as Record<string, unknown>)[k];
+      hidden(sp as SchemaPath<JsonValue>, () => !nodes.some((n) => this.visible(n)));
+    }
     for (const node of this.compiled.all) {
       if (node.kind === 'object' || node.kind === 'secret') continue;
       let sp: unknown = p;
       for (const k of node.path) sp = (sp as Record<string, unknown>)[k];
       const path = sp as SchemaPath<JsonValue>;
-      const active = () => isVisible(node, this.model());
-      if (node.when.length) hidden(path, () => !active());
+      const active = () => this.visible(node);
       if (node.required && node.kind === 'tags') {
         // An empty list is a value to `required`; "at least one" is the rule here.
         validate(path, ({ value }) => {

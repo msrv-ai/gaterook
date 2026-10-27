@@ -50,12 +50,17 @@ class LogsCoreProcessIT {
   private static final String LOKI_TOKEN = "glc_cnry-loki-" + Long.toHexString(System.nanoTime());
   private static final String GCP_TOKEN = "ya29.cnry-impersonated-" + Long.toHexString(System.nanoTime());
   private static final String AWS_SECRET = "cnry-aws-secret-" + Long.toHexString(System.nanoTime());
+  private static final String OPENSEARCH_USER = "search-reader";
+  private static final String OPENSEARCH_PASSWORD = "cnry-search-password-" + Long.toHexString(System.nanoTime());
+  private static final String OPENSEARCH_BASIC = Base64.getEncoder()
+      .encodeToString((OPENSEARCH_USER + ":" + OPENSEARCH_PASSWORD).getBytes(StandardCharsets.UTF_8));
   private static final String SA = "gw-logs@acme-dev.iam.gserviceaccount.com";
   private static final HttpClient HTTP = HttpClient.newBuilder().proxy(HttpClient.Builder.NO_PROXY)
       .connectTimeout(Duration.ofSeconds(5)).build();
 
   private static final Instant T = Instant.now().minusSeconds(300);
   private static final List<RecordedRequest> REQUESTS = new CopyOnWriteArrayList<>();
+  private static final List<String> MCP_ANSWERS = new CopyOnWriteArrayList<>();
   private static MockWebServer fake;
   private static CoreProcess core;
   private static String token;
@@ -238,9 +243,13 @@ class LogsCoreProcessIT {
   void fullOpenSearchApisAreAvailableByDefaultAndSettingsWaitForExactApproval() throws Exception {
     String base = "http://127.0.0.1:" + fake.getPort();
     JsonNode tested = save("search-api", """
-        {"backend":"opensearch","url":"%s","auth":{"mode":"none"}}
-        """.formatted(base), "{}");
+        {"backend":"opensearch","url":"%s","auth":{"mode":"basic","username":"%s"}}
+        """.formatted(base, OPENSEARCH_USER),
+        "{\"/auth/secret\":{\"source\":\"local\",\"value\":\"" + OPENSEARCH_PASSWORD + "\"}}");
     assertThat(tested.path("serverVersion").asString()).isEqualTo("OpenSearch 3.9.0");
+    assertThat(REQUESTS.stream().filter(r -> r.getUrl().encodedPath().equals("/")
+        && r.getMethod().equals("GET")).toList()).isNotEmpty().allSatisfy(r ->
+        assertThat(r.getHeaders().get("Authorization")).isEqualTo("Basic " + OPENSEARCH_BASIC));
     json(admin("POST", "/api/endpoints/logs/connections/search-api", "{}"), 200);
     JsonNode settings = json(admin("GET", "/api/endpoints/logs/settings", null), 200);
     json(admin("PUT", "/api/endpoints/logs/settings", "{\"approvalWait\":{\"firstWaitSeconds\":0},\"version\":"
@@ -272,6 +281,9 @@ class LogsCoreProcessIT {
 
     JsonNode indices = call(21, "opensearch_indices", "{\"connection\":\"search-api\"}");
     assertThat(indices.at("/result/structuredContent/body/indices/0/name").asString()).isEqualTo("products");
+    assertThat(REQUESTS.stream().filter(r -> r.getUrl().encodedPath().equals("/_resolve/index/*")).toList())
+        .isNotEmpty().allSatisfy(r ->
+            assertThat(r.getHeaders().get("Authorization")).isEqualTo("Basic " + OPENSEARCH_BASIC));
     JsonNode queried = call(22, "opensearch_query", """
         {"connection":"search-api","method":"POST","path":"/products/_search",
          "body":{"size":0,"query":{"match_all":{}},"aggs":{"categories":{"terms":{"field":"category.keyword"}}}}}
@@ -282,6 +294,7 @@ class LogsCoreProcessIT {
     RecordedRequest search = REQUESTS.stream().filter(r -> r.getUrl().encodedPath().equals("/products/_search"))
         .findFirst().orElseThrow();
     assertThat(search.getMethod()).isEqualTo("POST");
+    assertThat(search.getHeaders().get("Authorization")).isEqualTo("Basic " + OPENSEARCH_BASIC);
     assertThat(CoreProcess.JSON.readTree(search.getBody().utf8()).at("/aggs/categories/terms/field").asString())
         .isEqualTo("category.keyword");
 
@@ -294,6 +307,7 @@ class LogsCoreProcessIT {
     assertThat(REQUESTS).noneMatch(r -> r.getUrl().encodedPath().equals("/products/_settings"));
     String id = handle.path("handle").asString();
     JsonNode approval = json(admin("GET", "/api/approvals/" + id, null), 200);
+    assertThat(approval.toString()).doesNotContain(OPENSEARCH_PASSWORD, OPENSEARCH_BASIC);
     String exact = approval.at("/action/text").asString();
     assertThat(exact).startsWith("PUT " + base + "/products/_settings?preserve_existing=false\n");
     json(admin("POST", "/api/approvals/" + id + "/decision", "{\"decision\":\"approve\",\"digest\":\""
@@ -304,6 +318,7 @@ class LogsCoreProcessIT {
     assertThat(REQUESTS.stream().filter(r -> r.getUrl().encodedPath().equals("/products/_settings")).toList())
         .singleElement().satisfies(r -> {
           assertThat(r.getMethod()).isEqualTo("PUT");
+          assertThat(r.getHeaders().get("Authorization")).isEqualTo("Basic " + OPENSEARCH_BASIC);
           assertThat(r.getUrl().encodedQuery()).isEqualTo("preserve_existing=false");
           assertThat(r.getBody().utf8()).isEqualTo(exact.substring(exact.indexOf("\n\n") + 2));
         });
@@ -313,12 +328,13 @@ class LogsCoreProcessIT {
   @Order(6)
   void noCredentialReachesAnAnswerOrTheLog() throws Exception {
     List<String> seen = new ArrayList<>(core.stdoutSoFar());
+    seen.addAll(MCP_ANSWERS);
     seen.add(core.coreLog());
     seen.add(core.stderr());
     seen.add(json(admin("GET", "/api/connections", null), 200).toString());
     seen.add(json(admin("GET", "/api/activity/events", null), 200).toString());
     String everything = String.join("\n", seen);
-    for (String canary : List.of(LOKI_TOKEN, GCP_TOKEN, AWS_SECRET, token)) {
+    for (String canary : List.of(LOKI_TOKEN, GCP_TOKEN, AWS_SECRET, OPENSEARCH_PASSWORD, OPENSEARCH_BASIC, token)) {
       assertThat(everything).doesNotContain(canary);
     }
     assertThat(core.coreLog()).doesNotContainPattern("Missing[A-Za-z]*Registration")
@@ -460,6 +476,7 @@ class LogsCoreProcessIT {
         .header("MCP-Protocol-Version", "2025-11-25").header("Authorization", "Bearer " + token)
         .POST(HttpRequest.BodyPublishers.ofString(message)).build(), HttpResponse.BodyHandlers.ofString());
     assertThat(r.statusCode()).as(r.body()).isEqualTo(200);
+    MCP_ANSWERS.add(r.body());
     return CoreProcess.JSON.readTree(r.body());
   }
 

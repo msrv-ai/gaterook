@@ -41,6 +41,38 @@ class ConnectionsIT {
   private static ConnectionConfigs configs;
 
   @Test
+  void dynamicLoginsSupplyTheUserForCreateEditAndDraftTestsWithoutPersistingAStandIn() {
+    ObjectNode config = TestCore.config("hostkey.test");
+    ((ObjectNode) config.path("credentials")).remove("user");
+    ((ObjectNode) config.path("connection")).put("hostKey", "trusted-test-key");
+    String password = "/credentials/password";
+    SecretInput dynamic = SecretInput.dynamic("vault://database/creds/reader", null);
+    assertThat(tester.testDraft("pgfake", Env.DEV, config, Map.of(password, dynamic), null, null).result().ok())
+        .isTrue();
+    ConnectionService.Summary created = connections.create("leased-login", "pgfake", Env.DEV, config,
+        Map.of(password, dynamic), null);
+    ConnectionService.Detail detail = connections.get("leased-login");
+    assertThat(detail.config().at("/credentials/user").isMissingNode()).isTrue();
+    assertThat(detail.secrets()).singleElement().satisfies(secret -> {
+      assertThat(secret.state()).isEqualTo("not-connected");
+      assertThat(secret.source()).isEqualTo("vault-dynamic");
+      assertThat(core.bean(SecretService.class).get(secret.secretId()).source()).isEqualTo("vault");
+    });
+    ConnectionService.Summary updated = connections.update("leased-login", Env.DEV, config, created.version(), null, null);
+    assertThat(updated.version()).isGreaterThan(created.version());
+    assertThat(tester.testDraft("pgfake", Env.DEV, config, Map.of(), "leased-login", null).result().ok()).isTrue();
+    for (SecretInput replacement : List.of(SecretInput.local("static-password".toCharArray()),
+        SecretInput.reference("vault://kv/database#password"))) {
+      assertThatThrownBy(() -> tester.testDraft("pgfake", Env.DEV, config, Map.of(password, replacement),
+          "leased-login", null)).isInstanceOfSatisfying(ProblemException.class,
+              error -> assertThat(error.field()).isEqualTo("/config/credentials/user"));
+    }
+    assertThat(config.at("/credentials/user").isMissingNode()).isTrue();
+    assertThat(configs.byName("leased-login").orElseThrow().config().config().at("/credentials/user").isMissingNode())
+        .isTrue();
+  }
+
+  @Test
   void databaseSelectionMayBeOmittedOnlyWhileDiscoveringOrForALegacySingleDatabase() {
     ObjectNode schema = TestCore.JSON.createObjectNode();
     schema.put("type", "object");

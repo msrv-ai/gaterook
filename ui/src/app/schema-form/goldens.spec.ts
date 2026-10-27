@@ -254,6 +254,44 @@ describe('schema-form: display sections', () => {
     expect(remaining).toEqual([]);
     expect(f.isExpanded(advanced)).toBe(true);
   });
+
+  it('groups flat settings in Advanced without changing their persisted paths', () => {
+    const f = createSchemaForm({
+      type: 'object',
+      properties: {
+        url: { type: 'string' },
+        timestampField: { type: 'string', 'x-section': '/advanced', maxLength: 10 },
+        advanced: { type: 'object', title: 'Advanced', 'x-collapsed': true, properties: {} },
+      },
+    }, { idPrefix: 't', current: { url: 'https://search.test', timestampField: 'too-long-field-name' }, injector: TestBed.inject(Injector) });
+    expect(f.compiled.loose.map((n) => n.pointer)).toEqual(['/url']);
+    expect(f.compiled.sections[0].children.map((n) => n.pointer)).toEqual(['/timestampField']);
+    expect(f.submit()).toBe(false);
+    expect(f.isExpanded(f.compiled.sections[0])).toBe(true);
+    expect(f.value()).toEqual({ url: 'https://search.test', timestampField: 'too-long-field-name' });
+  });
+
+  it('initializes OpenSearch authentication from its backend and validates only active shared fields', () => {
+    const f = createSchemaForm(CONNECTOR_FORMS['logs'], {
+      idPrefix: 't', pointerPrefix: '/config',
+      current: { backend: 'opensearch', url: 'https://search.test' }, injector: TestBed.inject(Injector),
+    });
+    expect(getAt(f.model(), ['auth', 'mode'])).toBe('basic');
+    const active = (pointer: string) => f.compiled.all.find((n) => n.pointer === pointer && f.visible(n))!;
+    expect(f.field(active('/url'))().hidden()).toBe(false);
+    expect(f.submit()).toBe(false);
+    expect(f.invalidNodes().map((n) => n.pointer)).toEqual(['/auth/username', '/auth/secret']);
+    f.set(active('/auth/username'), 'reader');
+    f.setSecret(active('/auth/secret'), 'test-password');
+    expect(f.submit()).toBe(true);
+    expect(f.value()['auth']).toEqual({ mode: 'basic', username: 'reader' });
+    expect(f.applyServerErrors(new ApiError('unprocessable', 422, {
+      errors: [{ field: '/config/auth', message: 'Authorization is invalid.' },
+        { field: '/config/auth/awsRegion', message: 'Not used for Basic.' },
+        { field: '/config/auth/username', message: 'Choose a different user.' }],
+    })).map((e) => e.field)).toEqual(['/config/auth', '/config/auth/awsRegion']);
+    expect(f.error(active('/auth/username'))).toBe('Choose a different user.');
+  });
 });
 
 describe('schema-form: environments, locks, confirmations (x-env-default, x-forbidden-env, x-confirm)', () => {

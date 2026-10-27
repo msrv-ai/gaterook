@@ -87,8 +87,7 @@
       "x-gateway-secret": "login",
       "additionalProperties": false,
       "required": [
-        "user",
-        "password"
+        "user"
       ],
       "properties": {
         "user": {
@@ -100,6 +99,7 @@
         "password": {
           "type": "string",
           "title": "Password",
+          "description": "Leave empty when the server permits this user to connect without a password.",
           "writeOnly": true,
           "format": "password"
         }

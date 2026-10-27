@@ -262,6 +262,12 @@
       >
         <!-- Projected first inside the form; the slot's node is the ng-container itself (whitespace is preserved here). -->
         <ng-container ngProjectAs="[gwFormLead]">
+          @if (formProblem(); as problem) {
+            <div id="connection-form-error" class="gw-alert gw-alert--danger gw-alert--compact" role="alert" tabindex="-1" aria-labelledby="connection-form-error-title" aria-describedby="connection-form-error-detail">
+              <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+              <div class="gw-alert__content"><p class="gw-alert__title" id="connection-form-error-title">{{ problem.title }}</p><p class="gw-alert__body" id="connection-form-error-detail">{{ problem.message }}</p></div>
+            </div>
+          }
           @if (m === 'duplicate') {
             <div class="gw-alert gw-alert--info gw-alert--compact">
               <svg lucideIcon="copy-plus" class="gw-icon gw-alert__icon"></svg>

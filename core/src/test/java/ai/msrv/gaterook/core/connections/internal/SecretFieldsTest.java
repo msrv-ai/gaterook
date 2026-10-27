@@ -17,6 +17,27 @@ class SecretFieldsTest {
   }
 
   @Test
+  void dynamicLoginUsersAreScopedToTheReferencedArrayEntry() {
+    JsonNode schema = j("""
+        {"type":"object","properties":{"accounts":{"type":"array","items":{"$ref":"#/$defs/login"}},
+          "other":{"type":"string","writeOnly":true}},
+         "$defs":{"login":{"type":"object","x-gateway-secret":"login","required":["user"],
+          "properties":{"user":{"type":"string"},"password":{"type":"string","writeOnly":true}}}}}
+        """);
+    ObjectNode config = (ObjectNode) j("{\"accounts\":[{},{}]}");
+    ObjectNode probe = config.deepCopy();
+    SecretFields.dynamicLoginUsers(schema, probe, java.util.Set.of("/accounts/0/password", "/other"));
+    assertThat(probe.at("/accounts/0/user").asString()).isEqualTo("dynamic-login");
+    assertThat(probe.at("/accounts/1/user").isMissingNode()).isTrue();
+    assertThat(config.at("/accounts/0/user").isMissingNode()).isTrue();
+    assertThat(new ai.msrv.gaterook.core.platform.SchemaValidator().validate(schema, probe))
+        .extracting(ai.msrv.gaterook.core.platform.SchemaValidator.Violation::pointer)
+        .containsExactly("/accounts/1/user");
+    SecretFields.dynamicLoginUsers(schema, config, java.util.Set.of("/accounts/0/user", "/other"));
+    assertThat(config.at("/accounts/0/user").isMissingNode()).isTrue();
+  }
+
+  @Test
   void writeOnlyFieldsAreFoundThroughObjectsArraysAndBranches() {
     JsonNode schema = j("""
         {"type":"object","properties":{

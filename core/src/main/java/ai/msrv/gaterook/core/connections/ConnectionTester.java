@@ -164,6 +164,8 @@ public class ConnectionTester implements DisposableBean {
           ProblemException.notFound("Connection not found", "There is no connection " + existing + "."));
       Set<String> present = new LinkedHashSet<>(values.keySet());
       present.addAll(references.keySet());
+      Set<String> dynamic = new LinkedHashSet<>();
+      references.forEach((field, reference) -> { if (reference.dynamic()) dynamic.add(field); });
       Set<String> secretFields = new LinkedHashSet<>(present);
       for (String t : templates) {
         if (!t.contains("*")) {
@@ -188,10 +190,13 @@ public class ConnectionTester implements DisposableBean {
                     + "values.", ConnectionService.CONFIRM_NEW_HOST);
           });
         }
+        for (String field : connections.dynamicSecretFields(stored.secretIds())) {
+          if (!present.contains(field)) dynamic.add(field);
+        }
         present.addAll(stored.secretIds().keySet());
         secretFields.addAll(stored.secretIds().keySet());
       }
-      connections.validate(manifest, draft, present, env, discovery);
+      connections.validate(manifest, draft, present, dynamic, env, discovery);
       String id = stored == null ? "draft-" + Ids.uuid() : stored.id();
       ConnectionConfig cfg = new ConnectionConfig(id, stored == null ? "draft" : stored.name(), type, env,
           stored == null ? 0 : stored.config().version(), draft.deepCopy(), Set.copyOf(secretFields),

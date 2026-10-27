@@ -577,6 +577,24 @@ class SshConnectorIT {
   // ---------------------------------------------------------------------------------------------- bastion
 
   @Test
+  void aBastionCanExplicitlyReuseTheConnectionCredentials() throws Exception {
+    TestSshd bastion = server(true);
+    ObjectNode config = TestConfigs.with(TestConfigs.password(sshd.port(), sshd.hostKeyLine()), c -> {
+      ObjectNode jump = c.putObject("jump").put("host", "127.0.0.1").put("port", bastion.port());
+      jump.putObject("credentials").put("method", "inherit");
+      jump.putObject("hostKeys").putArray("pinned").add(bastion.hostKeyLine());
+    });
+    ConnectionConfig cfg = TestConfigs.connection("c1", "dev-vm", Env.DEV, 1, config);
+    offer(cfg, TestConfigs.runbook("uptime", "echo up", true, null));
+
+    ToolResult result = connector.execute(run("uptime", null), cfg, password(), TestCtx.read());
+
+    assertThat(out(result).path("stdout").asString()).isEqualTo("up\n");
+    assertThat(bastion.commands).isEmpty();
+    assertThat(sshd.commands).containsExactly("echo up");
+  }
+
+  @Test
   void runsThroughABastionWhoseCertificateMayForward() throws Exception {
     TestSshd bastion = server(true);
     KeyPair ca = KeyUtils.generateKeyPair(KeyPairProvider.SSH_ED25519, 256);

@@ -52,13 +52,6 @@
             "Service account key (JSON)"
           ]
         },
-        "serviceAccountKey": {
-          "type": "string",
-          "writeOnly": true,
-          "x-gateway-secret": "value",
-          "x-widget": "textarea",
-          "maxLength": 10000
-        },
         "impersonate": {
           "type": "string",
           "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
@@ -84,7 +77,38 @@
           "type": "string",
           "description": "Billed project (x-goog-user-project); needs serviceusage.services.use"
         }
-      }
+      },
+      "patternProperties": {
+        "^(serviceAccountKey)$": {}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "source": {
+                "const": "serviceAccountKey"
+              }
+            },
+            "required": [
+              "source"
+            ]
+          },
+          "then": {
+            "properties": {
+              "serviceAccountKey": {
+                "type": "string",
+                "writeOnly": true,
+                "x-gateway-secret": "value",
+                "x-widget": "textarea",
+                "maxLength": 10000
+              }
+            },
+            "required": [
+              "serviceAccountKey"
+            ]
+          }
+        }
+      ]
     },
     "liveGet": {
       "type": "boolean",

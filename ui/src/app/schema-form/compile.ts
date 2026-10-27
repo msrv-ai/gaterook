@@ -25,6 +25,8 @@ export interface Condition {
   readonly path: readonly string[];
   readonly values: readonly JsonValue[];
   readonly negate: boolean;
+  /** A required string activates optional settings after it reaches this length (for example a bastion host). */
+  readonly minLength?: number;
 }
 
 export interface FieldOption {
@@ -209,6 +211,10 @@ function conditionOf(test: JsonValue | undefined, parent: readonly string[], neg
     if (!isObject(cond)) continue;
     const values = 'const' in cond ? [cond['const']] : Array.isArray(cond['enum']) ? cond['enum'] : null;
     if (values) return { path: [...parent, key], values, negate };
+    if (cond['type'] === 'string' && typeof cond['minLength'] === 'number'
+      && Array.isArray(test['required']) && test['required'].includes(key)) {
+      return { path: [...parent, key], values: [], negate, minLength: cond['minLength'] };
+    }
   }
   return null;
 }
@@ -444,8 +450,7 @@ export function compileSchema(input: JsonValue): CompiledForm {
   const schema = normalizeSchema(input);
   if (!isObject(schema)) return { sections: [], loose: [], all: [] };
   const root = compileNode(null, { ...schema, type: 'object' }, [], true, schema, new Set(), [], null);
-  const sections = displaySections(root.children.filter((n) => n.kind === 'object'));
-  const loose = root.children.filter((n) => n.kind !== 'object');
+  const { sections, loose } = displaySections(root.children);
   const all: SchemaNode[] = [];
   const walk = (n: SchemaNode) => {
     all.push(n);
@@ -455,8 +460,10 @@ export function compileSchema(input: JsonValue): CompiledForm {
   return { sections, loose, all };
 }
 
-/** `x-section` moves a direct field into one unambiguous top-level section without changing its config path. */
-function displaySections(sections: readonly SchemaNode[]): readonly SchemaNode[] {
+/** `x-section` groups direct fields, including root fields, without changing their saved config paths. */
+function displaySections(nodes: readonly SchemaNode[]): Pick<CompiledForm, 'sections' | 'loose'> {
+  const sections = nodes.filter((n) => n.kind === 'object');
+  const loose: SchemaNode[] = [];
   const children = new Map(sections.map((section) => [section, [] as SchemaNode[]]));
   const destinations = new Map<string, SchemaNode | null>();
   for (const section of sections) {
@@ -468,11 +475,19 @@ function displaySections(sections: readonly SchemaNode[]): readonly SchemaNode[]
       children.get(destinations.get(target ?? '') ?? section)!.push(node);
     }
   }
-  return sections.map((section) => {
-    const fields = children.get(section)!;
-    if (fields.length === section.children.length && fields.every((node, i) => node === section.children[i])) return section;
-    return { ...section, children: fields, rows: layoutRows(fields) };
-  });
+  for (const node of nodes.filter((n) => n.kind !== 'object')) {
+    const target = destinations.get(str(node.schema['x-section']) ?? '');
+    if (target) children.get(target)!.push(node);
+    else loose.push(node);
+  }
+  return {
+    loose,
+    sections: sections.map((section) => {
+      const fields = children.get(section)!;
+      if (fields.length === section.children.length && fields.every((node, i) => node === section.children[i])) return section;
+      return { ...section, children: fields, rows: layoutRows(fields) };
+    }),
+  };
 }
 
 /** Display ancestry can differ from config paths when a field uses `x-section`. */
@@ -499,7 +514,17 @@ export function initialValue(input: JsonValue, current: JsonValue = null, env: s
       // The conditionals of allOf items too: a field only its branch declares (SSH vault, k8s token) has its default
       // there; cleanValue drops it again while its branch is hidden.
       const allOf = (Array.isArray(d['allOf']) ? d['allOf'] : []).filter(isObject);
-      const branches = branchesOf(d);
+      const declaredBranches = branchesOf(d);
+      const firstCondition = declaredBranches[0] ? conditionOf(declaredBranches[0], [], false) : null;
+      const selector = firstCondition?.path[0];
+      const property = selector && isObject(d['properties']) ? d['properties'][selector] : null;
+      const selected = selector ? (c[selector] ?? (isObject(property) ? property['default'] : null)
+        ?? firstCondition?.values[0]) : null;
+      // Shared objects (Logs auth/credentials) take defaults from the selected backend, then gain the other
+      // branches' model paths. This keeps every control addressable without leaking an inactive branch's defaults.
+      const branches = [...declaredBranches].sort((a, b) =>
+        Number(conditionOf(b, [], false)?.values.includes(selected ?? null) ?? false)
+        - Number(conditionOf(a, [], false)?.values.includes(selected ?? null) ?? false));
       const branchConditions = branches.flatMap((b) => [b, ...(Array.isArray(b['allOf']) ? b['allOf'] : [])])
         .filter(isObject).flatMap((p) => [p['then'], p['else']]);
       const parts = [d, ...allOf, ...allOf.flatMap((p) => [p['then'], p['else']]), ...branches,
@@ -508,6 +533,9 @@ export function initialValue(input: JsonValue, current: JsonValue = null, env: s
         if (!isObject(part) || !isObject(part['properties'])) continue;
         for (const [k, child] of Object.entries(part['properties'])) {
           if (out[k] === undefined || out[k] === null) out[k] = build(child, c[k], next);
+          else if (isObject(out[k]) && isObject(child) && kindOf(deref(child, root, next).schema) === 'object') {
+            out[k] = build(child, out[k], next);
+          }
         }
       }
       // A discriminator only the branches declare starts at the first branch, as its select shows it.
@@ -549,7 +577,8 @@ export function setAt(model: JsonObject, path: readonly string[], value: JsonVal
 export function isVisible(node: SchemaNode, model: JsonValue): boolean {
   return node.when.every((c) => {
     const v = getAt(model, c.path);
-    const hit = c.values.some((x) => x === v);
+    const hit = c.minLength === undefined ? c.values.some((x) => x === v)
+      : typeof v === 'string' && [...v].length >= c.minLength;
     return c.negate ? !hit : hit;
   });
 }
@@ -614,6 +643,10 @@ export function cleanValue(form: CompiledForm, model: JsonObject): JsonObject {
   }
   const requiredLists = new Set(form.all.filter((n) => n.kind === 'tags' && n.required && isVisible(n, model))
     .map((n) => n.pointer));
+  // An empty object can exist solely as the display destination for flat x-section fields.
+  const displayGroups = new Set(form.sections.filter((n) => isObject(n.schema['properties'])
+    && !Object.keys(n.schema['properties']).length && n.children.some((c) => c.schema['x-section'] === n.pointer))
+    .map((n) => n.pointer));
   const strip = (v: JsonValue, pointer: string): JsonValue | undefined => {
     if (v === null || v === '') return undefined;
     if (Array.isArray(v)) return v.length || requiredLists.has(pointer) ? v : undefined;
@@ -623,7 +656,7 @@ export function cleanValue(form: CompiledForm, model: JsonObject): JsonObject {
       const kept = strip(x, `${pointer}/${escapeKey(k)}`);
       if (kept !== undefined) o[k] = kept;
     }
-    return o;
+    return !Object.keys(o).length && displayGroups.has(pointer) ? undefined : o;
   };
   const cleaned = strip(out, '');
   return isObject(cleaned) ? cleaned : {};

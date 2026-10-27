@@ -213,6 +213,7 @@ export class ConnectionNewPage {
   protected readonly startEnv = signal<Env | null>(null);
   protected readonly stored = signal<StoredSecret[]>([]);
   protected readonly nameProblem = signal<{ readonly name: string; readonly message: string } | null>(null);
+  protected readonly formProblem = signal<{ readonly title: string; readonly message: string } | null>(null);
   private readonly policies = signal<{ readonly all: Policies; readonly schema: JsonObject | null } | null>(null);
   readonly form = viewChild(GwConnectionForm);
   /** The duplicate's settings: picking its type again keeps them, another type starts fresh. */
@@ -461,6 +462,7 @@ export class ConnectionNewPage {
     this.testedKey = null;
     this.draft.set(null);
     this.nameProblem.set(null);
+    this.formProblem.set(null);
     this.chosenTouched = false;
     this.copied = null;
     this.ready.set(null);
@@ -634,6 +636,7 @@ export class ConnectionNewPage {
     }
     this.specState.set('loading');
     this.specError.set(null);
+    this.formProblem.set(null);
     try {
       const [spec, detail] = await Promise.all([this.typesApi.form(type), this.typesApi.get(type).catch(() => null)]);
       this.startConfig.set(keepCopy ? this.copied!.config : this.preset(card));
@@ -683,23 +686,26 @@ export class ConnectionNewPage {
   }
 
   /** Back / Continue: the panel, the stepper, focus on the step's heading and "Step 2 of 4: Configure". */
-  go(n: StepNumber, opts: { readonly focus?: string | null; readonly initial?: boolean } = {}): void {
+  go(n: StepNumber, opts: { readonly focus?: string | false | null; readonly initial?: boolean } = {}): void {
     this.step.set(n);
     if (n === 3) this.testIfChanged();
     if (n === 4) void this.loadEndpoints();
     if (opts.initial) return;
-    afterNextRender(
-      () => {
-        const target = (opts.focus && this.doc.getElementById(opts.focus)) || this.doc.getElementById(`step-${n}-title`);
-        target?.focus();
-      },
-      { injector: this.injector },
-    );
+    if (opts.focus !== false) {
+      afterNextRender(
+        () => {
+          const target = (opts.focus && this.doc.getElementById(opts.focus)) || this.doc.getElementById(`step-${n}-title`);
+          target?.focus();
+        },
+        { injector: this.injector },
+      );
+    }
     this.announcer.announce(`Step ${n} of ${STEP_NAMES.length}: ${this.steps()[n - 1].name}`);
   }
 
   /** Configure's Continue (the form has checked itself) or the edit view's Save changes. */
   protected onFormSubmit(value: ConnectionFormValue): void {
+    this.formProblem.set(null);
     if (this.mode() === 'edit') {
       void this.saveEdit(value);
       return;
@@ -714,6 +720,7 @@ export class ConnectionNewPage {
     const form = this.form();
     const spec = this.spec();
     if (!form || !spec || !form.startDatabaseDiscovery(request.key)) return;
+    this.formProblem.set(null);
     const run = ++this.databaseRun;
     const gen = this.gen;
     try {
@@ -729,7 +736,7 @@ export class ConnectionNewPage {
         this.newHost.set({ title: error.title, detail: error.detail, value: request.value, discoveryKey: request.key });
         this.hostDialog()?.openAfterRender();
       } else if (error?.kind === 'unprocessable') {
-        form.applyServerError(error);
+        this.applyFormErrors(error, true, request.value.name);
       }
     }
   }
@@ -751,13 +758,14 @@ export class ConnectionNewPage {
     const run = ++this.testRun;
     const key = draftKey(spec.type, v);
     this.testState.set('testing');
+    this.formProblem.set(null);
     let outcome: TestOutcome;
     try {
       outcome = await this.connections.testDraft({ type: spec.type, env: v.env, config: v.config, secrets: v.secrets });
     } catch (e) {
       const err = isApiError(e) ? e : null;
       // A refused draft (422: a value this env forbids) says so here; its fields show it back in Configure.
-      if (err?.kind === 'unprocessable' && run === this.testRun) this.form()?.applyServerError(err);
+      if (err?.kind === 'unprocessable' && run === this.testRun) this.applyFormErrors(err, false, v.name);
       outcome = this.failure(err);
     }
     if (run !== this.testRun) return;
@@ -1021,17 +1029,29 @@ export class ConnectionNewPage {
       return;
     }
     if (err?.kind === 'unprocessable') {
-      const others = this.form()?.applyServerError(err) ?? [];
-      const name = others.find((o) => o.field === '/name');
-      if (name) this.nameProblem.set({ name: v.name, message: name.message });
-      const rest = others.filter((o) => o.field !== '/name');
-      this.go(2, { focus: name ? nameId : null });
-      if (rest.length || !err.errors.length) {
-        this.toasts.show({ tone: 'danger', title: err.title, body: rest.map((o) => o.message).join(' ') || err.detail });
-      }
+      // Validation owns focus; a second render callback for the heading would override the invalid control.
+      this.go(2, { focus: false });
+      this.applyFormErrors(err, true, v.name);
       return;
     }
     this.toasts.show({ tone: 'danger', title: `Couldn't save ${v.name}`, body: err?.detail ?? "The core didn't answer. Try again." });
+  }
+
+  /** Keep errors without a field beside the form, and focus them when there is no invalid control to visit. */
+  private applyFormErrors(error: ApiError, focus = true, submittedName = this.current().name): void {
+    const others = this.form()?.applyServerError(error) ?? error.errors;
+    const name = this.mode() !== 'edit' ? others.find((item) => item.field === '/name') : undefined;
+    if (name) this.nameProblem.set({ name: submittedName, message: name.message });
+    const rest = others.filter((item) => item !== name);
+    const problem = rest.length || !error.errors.length
+      ? { title: error.title, message: [...new Set(rest.map((item) => item.message))].join(' ') || error.detail }
+      : null;
+    this.formProblem.set(problem);
+    const target = name ? `${this.form()?.idPrefix() ?? 'cf'}-name`
+      : problem && others.length === error.errors.length ? 'connection-form-error' : null;
+    if (focus && target) {
+      afterNextRender(() => this.doc.getElementById(target)?.focus(), { injector: this.injector });
+    }
   }
 
   // ─── Edit: save, test, secrets, delete ───
@@ -1059,10 +1079,7 @@ export class ConnectionNewPage {
         this.toasts.show({ tone: 'warning', title: `${name} changed meanwhile`, body: `${err.detail} Its current settings are shown again.` });
         await this.reloadDetail().catch(() => undefined);
       } else if (err?.kind === 'unprocessable') {
-        const others = this.form()?.applyServerError(err) ?? [];
-        if (others.length || !err.errors.length) {
-          this.toasts.show({ tone: 'danger', title: err.title, body: others.map((o) => o.message).join(' ') || err.detail });
-        }
+        this.applyFormErrors(err);
       } else {
         this.toasts.show({ tone: 'danger', title: `Couldn't save ${name}`, body: err?.detail ?? "The core didn't answer. Try again." });
       }
@@ -1091,6 +1108,7 @@ export class ConnectionNewPage {
 
   protected discard(): void {
     this.form()?.reset();
+    this.formProblem.set(null);
     this.announcer.announce('Changes discarded');
   }
 

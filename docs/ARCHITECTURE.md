@@ -254,11 +254,15 @@ Kit behavior is represented by Angular directives/components with parity tests. 
 
 The schema-form layer renders bounded JSON Schema plus supported `x-*` extensions. CodeMirror is lazy and used for editing; approval display uses server-inspected segments and diffs. The action inspector exposes bidi, zero-width, confusable, whitespace, and dialect-sensitive ambiguities rather than rendering them invisibly. Client copy cannot replace the server's canonical action.
 
-A field directly inside a section can use `x-section` with an existing top-level section's JSON Pointer to change its display placement while retaining its configuration path. Validation errors expand the section that displays the field.
+A root field or a field directly inside a section can use `x-section` with an existing top-level section's JSON Pointer to change its display placement while retaining its configuration path. An empty object used only to group such fields is omitted from the saved configuration. Validation errors expand the section that displays the field.
+
+Conditional authentication fields are displayed and validated only for the selected method. An optional secret remains optional when its source is an external store. A required string condition with `minLength` can activate dependent fields, such as bastion settings after a host is entered.
 
 Database schemas declare `x-database-selection` with the selection array's `path` and an optional `legacyPath`. The connection wizard collects server settings and credentials first, loads accessible databases through `POST /api/connections/databases`, then saves the chosen databases as one connection. Discovery does not save credentials or create a connection. It shares draft testing's validation, masking, timeout, and confirmation before sending stored credentials to another host. Changing connection settings invalidates the loaded list. A `required` marker requires a nonempty selection or a legacy database outside discovery; selection arrays reject empty values.
 
 MySQL, PostgreSQL, MongoDB, Redis, and ClickHouse retain existing connection formats when no selection array is present. A new selection intersects existing schema, collection, or key restrictions. Calls that need a database select one explicitly when several are configured; a single selection supplies the default. Database identity participates in SQL/Redis pool routing, SQL approval payloads, and Redis cursors. PostgreSQL discovery uses a configurable bootstrap database; Redis reports an incomplete list when the account cannot read the configured database count.
+
+Redis setup does not require database discovery or selection. It defaults to logical database 0; an optional database number or allowlist can be configured in Advanced without changing saved connection scopes.
 
 ### 8.4 Screens and data
 

@@ -93,8 +93,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "x-gateway-secret": "login",
         "additionalProperties": false,
         "required": [
-          "user",
-          "password"
+          "user"
         ],
         "properties": {
           "user": {
@@ -106,6 +105,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           "password": {
             "type": "string",
             "title": "Password",
+            "description": "Leave empty when the server permits this user to connect without a password.",
             "writeOnly": true,
             "format": "password"
           }
@@ -282,8 +282,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "x-gateway-secret": "login",
         "additionalProperties": false,
         "required": [
-          "user",
-          "password"
+          "user"
         ],
         "properties": {
           "user": {
@@ -295,6 +294,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           "password": {
             "type": "string",
             "title": "Password",
+            "description": "Leave empty when the server permits this user to connect without a password.",
             "writeOnly": true,
             "format": "password"
           }
@@ -553,8 +553,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "title": "Connection",
         "additionalProperties": false,
         "required": [
-          "host",
-          "port"
+          "host"
         ],
         "x-paste-url": "redis(s)://[user@]host:port/db",
         "properties": {
@@ -575,7 +574,9 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "title": "Database",
             "minimum": 0,
             "maximum": 1023,
-            "default": 0
+            "default": 0,
+            "description": "Defaults to database 0. Used when no database allowlist is configured.",
+            "x-section": "/advanced"
           },
           "tls": {
             "type": "boolean",
@@ -614,7 +615,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           },
           "databases": {
             "type": "array",
-            "title": "Databases",
+            "title": "Database allowlist",
             "minItems": 1,
             "maxItems": 1024,
             "uniqueItems": true,
@@ -623,7 +624,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "minimum": 0,
               "maximum": 1023
             },
-            "description": "Only these logical databases are available to agents."
+            "description": "Optional. Only these logical databases are available to agents. Leave empty to use the database above, which defaults to 0.",
+            "x-section": "/advanced"
           }
         }
       },
@@ -722,10 +724,6 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           }
         }
       }
-    },
-    "x-database-selection": {
-      "path": "/connection/databases",
-      "legacyPath": "/connection/database"
     }
   },
   "ssh": {
@@ -794,12 +792,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         }
       },
       "credentials": {
-        "type": "object",
+        "$ref": "#/$defs/credentialFields",
         "title": "Credentials",
-        "additionalProperties": false,
-        "required": [
-          "method"
-        ],
         "properties": {
           "method": {
             "enum": [
@@ -813,7 +807,146 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "Private key",
               "Password"
             ]
+          }
+        }
+      },
+      "runbooksOnly": {
+        "type": "boolean",
+        "title": "Runbooks only",
+        "default": false,
+        "x-env-default": {
+          "prod": true
+        },
+        "description": "Agents run only saved runbooks here: ssh_exec is refused whatever the policy allows.",
+        "x-badge": "Runbooks only"
+      },
+      "jump": {
+        "type": "object",
+        "title": "Bastion",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "Optional jump host. It needs AllowTcpForwarding; a Vault certificate for it gets permit-port-forwarding.",
+        "properties": {
+          "host": {
+            "type": "string",
+            "maxLength": 253
+          }
+        },
+        "patternProperties": {
+          "^(port|username|credentials|hostKeys)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "host"
+              ],
+              "properties": {
+                "host": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "port": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 65535,
+                  "default": 22
+                },
+                "username": {
+                  "type": "string",
+                  "pattern": "^[a-z_][a-z0-9_.-]{0,31}$",
+                  "description": "Empty: use the connection user."
+                },
+                "credentials": {
+                  "$ref": "#/$defs/credentialFields",
+                  "title": "Jump host credentials",
+                  "properties": {
+                    "method": {
+                      "enum": [
+                        "inherit",
+                        "vaultSshCa",
+                        "privateKey",
+                        "password"
+                      ],
+                      "default": "inherit",
+                      "x-enumTitles": [
+                        "Use connection credentials",
+                        "Vault SSH CA: a fresh certificate per call",
+                        "Private key",
+                        "Password"
+                      ]
+                    }
+                  }
+                },
+                "hostKeys": {
+                  "$ref": "#/properties/hostKeys"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "properties": {
+          "connectTimeoutSeconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 60,
+            "default": 10,
+            "x-unit": "s"
           },
+          "keepaliveSeconds": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 300,
+            "default": 15,
+            "x-unit": "s"
+          },
+          "reuseSessions": {
+            "type": "boolean",
+            "default": true
+          },
+          "maxChannelsPerSession": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 8
+          },
+          "remoteDeadline": {
+            "type": "boolean",
+            "default": false,
+            "description": "Wrap commands in timeout -k 5 <limit> sh -c '…' so they stop even if this computer goes offline. Approvers see the wrapped text."
+          },
+          "legacyAlgorithms": {
+            "type": "boolean",
+            "default": false,
+            "description": "Allow ssh-rsa (SHA-1), CBC ciphers and hmac-sha1 for old servers."
+          },
+          "probeSudo": {
+            "type": "boolean",
+            "default": true,
+            "description": "Test connection runs sudo -n true; some hosts log it as a failed sudo."
+          }
+        }
+      }
+    },
+    "$defs": {
+      "credentialFields": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "method"
+        ],
+        "properties": {
+          "method": true,
           "vault": true,
           "privateKey": true,
           "passphrase": true,
@@ -930,92 +1063,6 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           }
         ],
         "$comment": "Each method declares its own fields in its then branch (the form shows them only for that method); the properties above name them with true, so additionalProperties still refuses other keys."
-      },
-      "runbooksOnly": {
-        "type": "boolean",
-        "title": "Runbooks only",
-        "default": false,
-        "x-env-default": {
-          "prod": true
-        },
-        "description": "Agents run only saved runbooks here: ssh_exec is refused whatever the policy allows.",
-        "x-badge": "Runbooks only"
-      },
-      "jump": {
-        "type": "object",
-        "title": "Bastion",
-        "x-collapsed": true,
-        "additionalProperties": false,
-        "description": "Optional jump host. It needs AllowTcpForwarding; a Vault certificate for it gets permit-port-forwarding.",
-        "properties": {
-          "host": {
-            "type": "string",
-            "maxLength": 253
-          },
-          "port": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 65535,
-            "default": 22
-          },
-          "username": {
-            "type": "string",
-            "pattern": "^[a-z_][a-z0-9_.-]{0,31}$"
-          },
-          "credentials": {
-            "$ref": "#/properties/credentials"
-          },
-          "hostKeys": {
-            "$ref": "#/properties/hostKeys"
-          }
-        }
-      },
-      "advanced": {
-        "type": "object",
-        "title": "Advanced",
-        "x-collapsed": true,
-        "additionalProperties": false,
-        "properties": {
-          "connectTimeoutSeconds": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 60,
-            "default": 10,
-            "x-unit": "s"
-          },
-          "keepaliveSeconds": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 300,
-            "default": 15,
-            "x-unit": "s"
-          },
-          "reuseSessions": {
-            "type": "boolean",
-            "default": true
-          },
-          "maxChannelsPerSession": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 10,
-            "default": 8
-          },
-          "remoteDeadline": {
-            "type": "boolean",
-            "default": false,
-            "description": "Wrap commands in timeout -k 5 <limit> sh -c '…' so they stop even if this computer goes offline. Approvers see the wrapped text."
-          },
-          "legacyAlgorithms": {
-            "type": "boolean",
-            "default": false,
-            "description": "Allow ssh-rsa (SHA-1), CBC ciphers and hmac-sha1 for old servers."
-          },
-          "probeSudo": {
-            "type": "boolean",
-            "default": true,
-            "description": "Test connection runs sudo -n true; some hosts log it as a failed sudo."
-          }
-        }
       }
     }
   },
@@ -1137,21 +1184,80 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
                   "bearer",
                   "basic"
                 ],
-                "default": "bearer"
-              },
-              "username": {
-                "type": "string",
-                "maxLength": 200,
-                "description": "basic only. Grafana Cloud: the numeric user ID"
-              },
-              "secret": {
-                "type": "string",
-                "writeOnly": true,
-                "x-gateway-secret": "value",
-                "format": "password",
-                "title": "Token or password"
+                "default": "bearer",
+                "title": "Authentication",
+                "x-enumTitles": [
+                  "No authentication",
+                  "Bearer token",
+                  "Username and password"
+                ]
               }
-            }
+            },
+            "patternProperties": {
+              "^(username|secret)$": {}
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "mode": {
+                      "const": "bearer"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "secret"
+                  ],
+                  "properties": {
+                    "secret": {
+                      "type": "string",
+                      "writeOnly": true,
+                      "x-gateway-secret": "value",
+                      "format": "password",
+                      "title": "Bearer token",
+                      "minLength": 1
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "mode": {
+                      "const": "basic"
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "username",
+                    "secret"
+                  ],
+                  "properties": {
+                    "username": {
+                      "type": "string",
+                      "maxLength": 200,
+                      "description": "Grafana Cloud: the numeric user ID.",
+                      "title": "Username",
+                      "minLength": 1,
+                      "pattern": ".*\\S.*"
+                    },
+                    "secret": {
+                      "type": "string",
+                      "writeOnly": true,
+                      "x-gateway-secret": "value",
+                      "format": "password",
+                      "title": "Password",
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            ]
           },
           "caCertificate": {
             "type": "string",
@@ -1208,13 +1314,6 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
                   "Service account key (JSON)"
                 ]
               },
-              "serviceAccountKey": {
-                "type": "string",
-                "writeOnly": true,
-                "x-gateway-secret": "value",
-                "x-widget": "textarea",
-                "maxLength": 10000
-              },
               "impersonate": {
                 "type": "string",
                 "maxLength": 254,
@@ -1230,7 +1329,40 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
                   "type": "string"
                 }
               }
-            }
+            },
+            "patternProperties": {
+              "^serviceAccountKey$": {}
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "source": {
+                      "const": "serviceAccountKey"
+                    }
+                  },
+                  "required": [
+                    "source"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "serviceAccountKey"
+                  ],
+                  "properties": {
+                    "serviceAccountKey": {
+                      "type": "string",
+                      "writeOnly": true,
+                      "x-gateway-secret": "value",
+                      "x-widget": "textarea",
+                      "maxLength": 10000,
+                      "title": "Service account key (JSON)",
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            ]
           },
           "scopeFilter": {
             "type": "string",
@@ -1280,55 +1412,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             }
           },
           "credentials": {
-            "type": "object",
-            "title": "Credentials",
-            "required": [
-              "source"
-            ],
-            "additionalProperties": false,
-            "properties": {
-              "source": {
-                "enum": [
-                  "accessKey",
-                  "profile"
-                ],
-                "default": "accessKey"
-              },
-              "accessKeyId": {
-                "type": "string",
-                "pattern": "^(AKIA|ASIA)[A-Z0-9]{16}$",
-                "x-not-secret": true
-              },
-              "secretAccessKey": {
-                "type": "string",
-                "writeOnly": true,
-                "x-gateway-secret": "value",
-                "format": "password"
-              },
-              "profile": {
-                "type": "string",
-                "maxLength": 128,
-                "description": "A profile in ~/.aws/config on this computer"
-              },
-              "roleArn": {
-                "type": "string",
-                "pattern": "^arn:aws[a-z-]*:iam::\\d{12}:role/[\\w+=,.@/-]+$",
-                "examples": [
-                  "arn:aws:iam::123456789012:role/gw-readonly"
-                ]
-              },
-              "externalId": {
-                "type": "string",
-                "maxLength": 1224
-              },
-              "sessionSeconds": {
-                "type": "integer",
-                "minimum": 900,
-                "maximum": 3600,
-                "default": 900,
-                "x-unit": "s"
-              }
-            }
+            "$ref": "#/$defs/awsCredentials",
+            "title": "Credentials"
           },
           "searchApi": {
             "enum": [
@@ -1347,11 +1432,184 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "title": "OpenSearch",
         "required": [
           "backend",
-          "url"
+          "url",
+          "auth"
         ],
         "properties": {
           "backend": {
             "const": "opensearch"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https?://[^/?#]+$",
+            "title": "Server URL",
+            "examples": [
+              "https://search.example.test:9200"
+            ],
+            "description": "OpenSearch host, including http:// or https:// and its port."
+          },
+          "auth": {
+            "type": "object",
+            "title": "Authorization",
+            "additionalProperties": false,
+            "properties": {
+              "mode": {
+                "title": "Authentication",
+                "enum": [
+                  "basic",
+                  "apiKey",
+                  "bearer",
+                  "awsSigV4",
+                  "none"
+                ],
+                "default": "basic",
+                "x-enumTitles": [
+                  "Username and password",
+                  "API key",
+                  "Bearer token",
+                  "AWS request signing",
+                  "No authentication"
+                ]
+              }
+            },
+            "patternProperties": {
+              "^(username|secret|awsRegion|awsService|awsCredentials)$": {}
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "mode": {
+                      "const": "basic"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "username",
+                    "secret"
+                  ],
+                  "properties": {
+                    "username": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200,
+                      "pattern": ".*\\S.*",
+                      "title": "Username"
+                    },
+                    "secret": {
+                      "type": "string",
+                      "minLength": 1,
+                      "writeOnly": true,
+                      "x-gateway-secret": "value",
+                      "format": "password",
+                      "title": "Password",
+                      "description": "Stored securely by GateRook."
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "mode": {
+                      "const": "apiKey"
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "secret"
+                  ],
+                  "properties": {
+                    "secret": {
+                      "type": "string",
+                      "minLength": 1,
+                      "writeOnly": true,
+                      "x-gateway-secret": "value",
+                      "format": "password",
+                      "title": "API key",
+                      "description": "OpenSearch API key, such as os_...; requires server support."
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "mode": {
+                      "const": "bearer"
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "secret"
+                  ],
+                  "properties": {
+                    "secret": {
+                      "type": "string",
+                      "minLength": 1,
+                      "writeOnly": true,
+                      "x-gateway-secret": "value",
+                      "format": "password",
+                      "title": "Bearer token",
+                      "description": "Stored securely by GateRook."
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "mode": {
+                      "const": "awsSigV4"
+                    }
+                  },
+                  "required": [
+                    "mode"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "awsRegion",
+                    "awsCredentials"
+                  ],
+                  "properties": {
+                    "awsRegion": {
+                      "type": "string",
+                      "title": "AWS region",
+                      "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
+                      "examples": [
+                        "eu-central-1"
+                      ]
+                    },
+                    "awsService": {
+                      "title": "AWS service",
+                      "enum": [
+                        "es",
+                        "aoss"
+                      ],
+                      "default": "es",
+                      "x-enumTitles": [
+                        "OpenSearch Service",
+                        "OpenSearch Serverless"
+                      ]
+                    },
+                    "awsCredentials": {
+                      "$ref": "#/$defs/awsCredentials"
+                    }
+                  }
+                }
+              }
+            ]
           },
           "apiAccess": {
             "enum": [
@@ -1364,24 +1622,26 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "Scoped log search",
               "Full OpenSearch REST API"
             ],
-            "description": "Full API access is the default and enables arbitrary queries and server operations using this connection user's OpenSearch permissions. Log index patterns and scopeQuery restrict only logs_search and logs_tail; they do not restrict REST tools. Select Scoped log search to disable the full REST tools."
-          },
-          "url": {
-            "type": "string",
-            "format": "uri",
-            "pattern": "^https?://[^/?#]+$"
+            "description": "Full API access is the default and enables arbitrary queries and server operations using this connection user's OpenSearch permissions. Log index patterns and scopeQuery restrict only logs_search and logs_tail; they do not restrict REST tools. Select Scoped log search to disable the full REST tools.",
+            "x-section": "/advanced"
           },
           "timestampField": {
             "type": "string",
-            "default": "@timestamp"
+            "default": "@timestamp",
+            "x-section": "/advanced",
+            "title": "Timestamp field"
           },
           "messageField": {
             "type": "string",
-            "default": "message"
+            "default": "message",
+            "x-section": "/advanced",
+            "title": "Message field"
           },
           "severityField": {
             "type": "string",
-            "default": "log.level"
+            "default": "log.level",
+            "x-section": "/advanced",
+            "title": "Severity field"
           },
           "labelFields": {
             "type": "array",
@@ -1394,60 +1654,31 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             ],
             "items": {
               "type": "string"
-            }
+            },
+            "x-section": "/advanced",
+            "title": "Label fields"
           },
           "scopeQuery": {
             "type": "string",
             "maxLength": 2000,
             "title": "Always add this query (Lucene)",
-            "description": "Lucene filter always added to logs_search and logs_tail. Does not constrain full OpenSearch REST API tools."
-          },
-          "auth": {
-            "type": "object",
-            "title": "Credentials",
-            "additionalProperties": false,
-            "properties": {
-              "mode": {
-                "enum": [
-                  "none",
-                  "basic",
-                  "apiKey",
-                  "bearer",
-                  "awsSigV4"
-                ],
-                "default": "basic"
-              },
-              "username": {
-                "type": "string"
-              },
-              "secret": {
-                "type": "string",
-                "writeOnly": true,
-                "x-gateway-secret": "value",
-                "format": "password",
-                "description": "Password, ApiKey (os_…, OpenSearch ≥ 3.7) or bearer token"
-              },
-              "awsRegion": {
-                "type": "string"
-              },
-              "awsService": {
-                "enum": [
-                  "es",
-                  "aoss"
-                ],
-                "default": "es"
-              },
-              "awsCredentials": {
-                "$ref": "#/oneOf/2/properties/credentials"
-              }
-            }
+            "description": "Lucene filter always added to logs_search and logs_tail. Does not constrain full OpenSearch REST API tools.",
+            "x-section": "/advanced"
           },
           "caCertificate": {
             "type": "string",
             "maxLength": 20000,
             "x-widget": "textarea",
             "title": "CA certificate (PEM)",
-            "description": "Only for a private CA."
+            "description": "Only for a private CA.",
+            "x-section": "/advanced"
+          },
+          "advanced": {
+            "type": "object",
+            "title": "Advanced",
+            "description": "Log field mappings, log scope, API access and private certificate authority.",
+            "properties": {},
+            "x-collapsed": true
           }
         },
         "allOf": [
@@ -1503,7 +1734,117 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           ]
         ],
         "description": "Index patterns for logs_search, logs_tail and log-only index discovery. Required in scoped log mode. Full API mode defaults to * when omitted; REST tools use the server user's permissions instead.",
-        "title": "Log index patterns"
+        "title": "Log index patterns",
+        "x-section": "/advanced"
+      },
+      "awsCredentials": {
+        "type": "object",
+        "title": "AWS credentials",
+        "required": [
+          "source"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "enum": [
+              "accessKey",
+              "profile"
+            ],
+            "default": "accessKey",
+            "title": "Credential source",
+            "x-enumTitles": [
+              "Access key",
+              "AWS profile"
+            ]
+          },
+          "roleArn": {
+            "type": "string",
+            "pattern": "^arn:aws[a-z-]*:iam::\\d{12}:role/[\\w+=,.@/-]+$",
+            "examples": [
+              "arn:aws:iam::123456789012:role/gw-readonly"
+            ],
+            "title": "Assume role ARN"
+          },
+          "externalId": {
+            "type": "string",
+            "maxLength": 1224,
+            "title": "External ID"
+          },
+          "sessionSeconds": {
+            "type": "integer",
+            "minimum": 900,
+            "maximum": 3600,
+            "default": 900,
+            "x-unit": "s",
+            "title": "Session duration"
+          }
+        },
+        "patternProperties": {
+          "^(accessKeyId|secretAccessKey|profile)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "accessKey"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "required": [
+                "accessKeyId",
+                "secretAccessKey"
+              ],
+              "properties": {
+                "accessKeyId": {
+                  "type": "string",
+                  "pattern": "^(AKIA|ASIA)[A-Z0-9]{16}$",
+                  "x-not-secret": true,
+                  "title": "Access key ID"
+                },
+                "secretAccessKey": {
+                  "type": "string",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "title": "Secret access key",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "profile"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "required": [
+                "profile"
+              ],
+              "properties": {
+                "profile": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "description": "A profile in ~/.aws/config on this computer",
+                  "title": "Profile",
+                  "minLength": 1,
+                  "pattern": ".*\\S.*"
+                }
+              }
+            }
+          }
+        ]
       }
     }
   },
@@ -1767,13 +2108,6 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "Service account key (JSON)"
             ]
           },
-          "serviceAccountKey": {
-            "type": "string",
-            "writeOnly": true,
-            "x-gateway-secret": "value",
-            "x-widget": "textarea",
-            "maxLength": 10000
-          },
           "impersonate": {
             "type": "string",
             "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
@@ -1799,7 +2133,38 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "type": "string",
             "description": "Billed project (x-goog-user-project); needs serviceusage.services.use"
           }
-        }
+        },
+        "patternProperties": {
+          "^(serviceAccountKey)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "serviceAccountKey"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "properties": {
+                "serviceAccountKey": {
+                  "type": "string",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "x-widget": "textarea",
+                  "maxLength": 10000
+                }
+              },
+              "required": [
+                "serviceAccountKey"
+              ]
+            }
+          }
+        ]
       },
       "liveGet": {
         "type": "boolean",
@@ -1861,21 +2226,6 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             ],
             "default": "accessKey"
           },
-          "accessKeyId": {
-            "type": "string",
-            "pattern": "^AKIA[A-Z0-9]{16}$",
-            "x-not-secret": true
-          },
-          "secretAccessKey": {
-            "type": "string",
-            "writeOnly": true,
-            "x-gateway-secret": "value",
-            "format": "password"
-          },
-          "profile": {
-            "type": "string",
-            "maxLength": 128
-          },
           "roleArn": {
             "type": "string",
             "pattern": "^arn:aws(-cn|-us-gov)?:iam::\\d{12}:role/[\\w+=,.@/-]{1,512}$",
@@ -1912,7 +2262,67 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "The role's permissions as they are"
             ]
           }
-        }
+        },
+        "patternProperties": {
+          "^(accessKeyId|secretAccessKey|profile)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "accessKey"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "properties": {
+                "accessKeyId": {
+                  "type": "string",
+                  "pattern": "^AKIA[A-Z0-9]{16}$",
+                  "x-not-secret": true
+                },
+                "secretAccessKey": {
+                  "type": "string",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password"
+                }
+              },
+              "required": [
+                "accessKeyId",
+                "secretAccessKey"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "source": {
+                  "const": "profile"
+                }
+              },
+              "required": [
+                "source"
+              ]
+            },
+            "then": {
+              "properties": {
+                "profile": {
+                  "type": "string",
+                  "maxLength": 128,
+                  "pattern": "\\S"
+                }
+              },
+              "required": [
+                "profile"
+              ]
+            }
+          }
+        ]
       }
     }
   },
@@ -1935,7 +2345,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           "maxLength": 512,
           "pattern": "^https?://[^/?#@\\s]+(/[^?#\\s]*)?$"
         },
-        "description": "Requests must start with one of these, path included: https://billing.stage.acme.dev/v1. Added to the allowlist of this environment in Policies."
+        "description": "Requests must start with one of these, path included: https://billing.stage.acme.dev/v1. Added to the allowlist of this environment in Policies.",
+        "x-agent-visible": true
       },
       "allowedPaths": {
         "type": "array",
@@ -1947,7 +2358,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "default": [
           "/**"
         ],
-        "description": "Globs under the base path: /invoices/**, /refunds/*"
+        "description": "Globs under the base path: /invoices/**, /refunds/*",
+        "x-agent-visible": true
       },
       "mutatingGetPaths": {
         "type": "array",
@@ -1957,7 +2369,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           "maxLength": 256
         },
         "default": [],
-        "description": "GET requests here change state, so they need approval."
+        "description": "GET requests here change state: http_get refuses them, every other tool asks a person first. Globs like allowedPaths.",
+        "x-agent-visible": true
       },
       "auth": {
         "type": "object",
@@ -1987,39 +2400,126 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "prod": [
                 "apiKeyQuery"
               ]
+            },
+            "x-agent-visible": true
+          }
+        },
+        "patternProperties": {
+          "^(token|headerName|queryName|apiKey|username|password)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "bearer"
+                }
+              },
+              "required": [
+                "type"
+              ]
+            },
+            "then": {
+              "properties": {
+                "token": {
+                  "type": "string",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value"
+                }
+              },
+              "required": [
+                "token"
+              ]
             }
           },
-          "token": {
-            "type": "string",
-            "writeOnly": true,
-            "x-gateway-secret": "value"
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "apiKeyHeader"
+                }
+              },
+              "required": [
+                "type"
+              ]
+            },
+            "then": {
+              "properties": {
+                "headerName": {
+                  "type": "string",
+                  "default": "X-API-Key",
+                  "pattern": "^[A-Za-z0-9-]{1,64}$"
+                },
+                "apiKey": {
+                  "type": "string",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value"
+                }
+              },
+              "required": [
+                "apiKey"
+              ]
+            }
           },
-          "headerName": {
-            "type": "string",
-            "default": "X-API-Key",
-            "pattern": "^[A-Za-z0-9-]{1,64}$"
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "apiKeyQuery"
+                }
+              },
+              "required": [
+                "type"
+              ]
+            },
+            "then": {
+              "properties": {
+                "queryName": {
+                  "type": "string",
+                  "default": "api_key",
+                  "maxLength": 64
+                },
+                "apiKey": {
+                  "type": "string",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value"
+                }
+              },
+              "required": [
+                "apiKey"
+              ]
+            }
           },
-          "queryName": {
-            "type": "string",
-            "default": "api_key",
-            "maxLength": 64
-          },
-          "apiKey": {
-            "type": "string",
-            "writeOnly": true,
-            "x-gateway-secret": "value"
-          },
-          "username": {
-            "type": "string",
-            "maxLength": 256
-          },
-          "password": {
-            "type": "string",
-            "writeOnly": true,
-            "x-gateway-secret": "value",
-            "format": "password"
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "basic"
+                }
+              },
+              "required": [
+                "type"
+              ]
+            },
+            "then": {
+              "properties": {
+                "username": {
+                  "type": "string",
+                  "maxLength": 256
+                },
+                "password": {
+                  "type": "string",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password"
+                }
+              },
+              "required": [
+                "password"
+              ]
+            }
           }
-        }
+        ]
       },
       "secretHeaders": {
         "type": "array",
@@ -2120,7 +2620,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "prod": [
                 "same-origin"
               ]
-            }
+            },
+            "description": "same-origin: a read follows up to 3 redirects on the same host, each under the base URL and the allowed paths. Never on prod."
           },
           "allowPlainHttp": {
             "type": "boolean",
@@ -2185,88 +2686,6 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           "URL (Streamable HTTP)"
         ]
       },
-      "command": {
-        "type": "array",
-        "title": "Command",
-        "items": {
-          "type": "string",
-          "maxLength": 1024
-        },
-        "minItems": 1,
-        "maxItems": 64,
-        "description": "argv; the UI line is tokenized (quotes only), never run by a shell"
-      },
-      "env": {
-        "type": "array",
-        "title": "Environment variables from secrets",
-        "maxItems": 32,
-        "items": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "name",
-            "secretRef"
-          ],
-          "properties": {
-            "name": {
-              "type": "string",
-              "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
-            },
-            "secretRef": {
-              "type": "string",
-              "writeOnly": true,
-              "x-gateway-secret": "value",
-              "description": "A secret, or a vault:// | gcp-sm:// | aws-sm:// reference"
-            }
-          }
-        }
-      },
-      "inheritEnv": {
-        "type": "array",
-        "title": "Pass these variables of this computer",
-        "uniqueItems": true,
-        "items": {
-          "enum": [
-            "HTTPS_PROXY",
-            "HTTP_PROXY",
-            "NO_PROXY",
-            "NODE_EXTRA_CA_CERTS",
-            "SSL_CERT_FILE",
-            "LANG"
-          ]
-        },
-        "default": []
-      },
-      "url": {
-        "type": "string",
-        "format": "uri",
-        "pattern": "^(https://|http://(127\\.0\\.0\\.1|localhost)[:/])"
-      },
-      "headers": {
-        "type": "array",
-        "title": "Headers from secrets",
-        "maxItems": 16,
-        "items": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "name",
-            "secretRef"
-          ],
-          "properties": {
-            "name": {
-              "type": "string",
-              "pattern": "^[A-Za-z0-9-]{1,64}$"
-            },
-            "secretRef": {
-              "type": "string",
-              "writeOnly": true,
-              "x-gateway-secret": "value",
-              "description": "A secret, or a vault:// | gcp-sm:// | aws-sm:// reference"
-            }
-          }
-        }
-      },
       "start": {
         "enum": [
           "on-first-call",
@@ -2325,7 +2744,61 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "then": {
           "required": [
             "command"
-          ]
+          ],
+          "properties": {
+            "command": {
+              "type": "array",
+              "title": "Command",
+              "items": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "minItems": 1,
+              "maxItems": 64,
+              "description": "argv; the UI line is tokenized (quotes only), never run by a shell"
+            },
+            "env": {
+              "type": "array",
+              "title": "Environment variables from secrets",
+              "maxItems": 32,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name",
+                  "secretRef"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+                  },
+                  "secretRef": {
+                    "type": "string",
+                    "writeOnly": true,
+                    "x-gateway-secret": "value",
+                    "description": "A secret, or a vault:// | gcp-sm:// | aws-sm:// reference"
+                  }
+                }
+              }
+            },
+            "inheritEnv": {
+              "type": "array",
+              "title": "Pass these variables of this computer",
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "HTTPS_PROXY",
+                  "HTTP_PROXY",
+                  "NO_PROXY",
+                  "NODE_EXTRA_CA_CERTS",
+                  "SSL_CERT_FILE",
+                  "LANG"
+                ]
+              },
+              "default": []
+            }
+          }
         }
       },
       {
@@ -2339,10 +2812,45 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "then": {
           "required": [
             "url"
-          ]
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^(https://|http://(127\\.0\\.0\\.1|localhost)[:/])"
+            },
+            "headers": {
+              "type": "array",
+              "title": "Headers from secrets",
+              "maxItems": 16,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name",
+                  "secretRef"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9-]{1,64}$"
+                  },
+                  "secretRef": {
+                    "type": "string",
+                    "writeOnly": true,
+                    "x-gateway-secret": "value",
+                    "description": "A secret, or a vault:// | gcp-sm:// | aws-sm:// reference"
+                  }
+                }
+              }
+            }
+          }
         }
       }
-    ]
+    ],
+    "patternProperties": {
+      "^(command|env|inheritEnv|url|headers)$": {}
+    }
   }
 };
 
@@ -2516,7 +3024,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "pointer": "/credentials/password",
         "kind": "secret",
         "title": "Password",
-        "required": true,
+        "required": false,
         "secret": "value",
         "mono": false,
         "unit": null,
@@ -2891,7 +3399,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "pointer": "/credentials/password",
         "kind": "secret",
         "title": "Password",
-        "required": true,
+        "required": false,
         "secret": "value",
         "mono": false,
         "unit": null,
@@ -3463,11 +3971,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       "/connection": [
         [
           "/connection/host",
-          "/connection/port",
-          "/connection/database"
-        ],
-        [
-          "/connection/databases"
+          "/connection/port"
         ]
       ],
       "/credentials": [
@@ -3480,6 +3984,9 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       ],
       "/advanced": [
         [
+          "/connection/database"
+        ],
+        [
           "/connection/tls"
         ],
         [
@@ -3487,6 +3994,9 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         ],
         [
           "/connection/caCertificate"
+        ],
+        [
+          "/connection/databases"
         ],
         [
           "/advanced/keyAllowlist"
@@ -3544,41 +4054,9 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "pointer": "/connection/port",
         "kind": "number",
         "title": "Port",
-        "required": true,
-        "secret": null,
-        "mono": true,
-        "unit": null,
-        "options": [],
-        "when": [],
-        "multiline": false,
-        "envDefault": {},
-        "prodForbidden": null,
-        "optionsFrom": null,
-        "confirm": null
-      },
-      {
-        "pointer": "/connection/database",
-        "kind": "number",
-        "title": "Database",
         "required": false,
         "secret": null,
         "mono": true,
-        "unit": null,
-        "options": [],
-        "when": [],
-        "multiline": false,
-        "envDefault": {},
-        "prodForbidden": null,
-        "optionsFrom": null,
-        "confirm": null
-      },
-      {
-        "pointer": "/connection/databases",
-        "kind": "json",
-        "title": "Databases",
-        "required": false,
-        "secret": null,
-        "mono": false,
         "unit": null,
         "options": [],
         "when": [],
@@ -3653,6 +4131,22 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "confirm": null
       },
       {
+        "pointer": "/connection/database",
+        "kind": "number",
+        "title": "Database",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
         "pointer": "/connection/tls",
         "kind": "checkbox",
         "title": "Use TLS",
@@ -3695,6 +4189,22 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "pointer": "/connection/caCertificate",
         "kind": "textarea",
         "title": "CA certificate (PEM)",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/databases",
+        "kind": "json",
+        "title": "Database allowlist",
         "required": false,
         "secret": null,
         "mono": false,
@@ -3921,8 +4431,12 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       ],
       "/jump": [
         [
-          "/jump/host",
-          "/jump/port",
+          "/jump/host"
+        ],
+        [
+          "/jump/port"
+        ],
+        [
           "/jump/username"
         ],
         [
@@ -4392,7 +4906,9 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "mono": true,
         "unit": null,
         "options": [],
-        "when": [],
+        "when": [
+          "jump.host length >= 1"
+        ],
         "multiline": false,
         "envDefault": {},
         "prodForbidden": null,
@@ -4408,7 +4924,9 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "mono": true,
         "unit": null,
         "options": [],
-        "when": [],
+        "when": [
+          "jump.host length >= 1"
+        ],
         "multiline": false,
         "envDefault": {},
         "prodForbidden": null,
@@ -4418,13 +4936,15 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/jump/credentials",
         "kind": "object",
-        "title": "Credentials",
+        "title": "Jump host credentials",
         "required": false,
         "secret": null,
         "mono": false,
         "unit": null,
         "options": [],
-        "when": [],
+        "when": [
+          "jump.host length >= 1"
+        ],
         "multiline": false,
         "envDefault": {},
         "prodForbidden": null,
@@ -4440,11 +4960,14 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "mono": false,
         "unit": null,
         "options": [
+          "inherit",
           "vaultSshCa",
           "privateKey",
           "password"
         ],
-        "when": [],
+        "when": [
+          "jump.host length >= 1"
+        ],
         "multiline": false,
         "envDefault": {},
         "prodForbidden": null,
@@ -4461,6 +4984,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "unit": null,
         "options": [],
         "when": [
+          "jump.host length >= 1",
           "jump.credentials.method in [\"vaultSshCa\"]"
         ],
         "multiline": false,
@@ -4479,6 +5003,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "unit": null,
         "options": [],
         "when": [
+          "jump.host length >= 1",
           "jump.credentials.method in [\"vaultSshCa\"]"
         ],
         "multiline": false,
@@ -4497,6 +5022,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "unit": null,
         "options": [],
         "when": [
+          "jump.host length >= 1",
           "jump.credentials.method in [\"vaultSshCa\"]"
         ],
         "multiline": false,
@@ -4515,6 +5041,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "unit": null,
         "options": [],
         "when": [
+          "jump.host length >= 1",
           "jump.credentials.method in [\"vaultSshCa\"]"
         ],
         "multiline": false,
@@ -4538,6 +5065,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
           "10m"
         ],
         "when": [
+          "jump.host length >= 1",
           "jump.credentials.method in [\"vaultSshCa\"]"
         ],
         "multiline": false,
@@ -4556,6 +5084,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "unit": null,
         "options": [],
         "when": [
+          "jump.host length >= 1",
           "jump.credentials.method in [\"vaultSshCa\"]"
         ],
         "multiline": false,
@@ -4574,6 +5103,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "unit": null,
         "options": [],
         "when": [
+          "jump.host length >= 1",
           "jump.credentials.method in [\"privateKey\"]"
         ],
         "multiline": true,
@@ -4592,6 +5122,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "unit": null,
         "options": [],
         "when": [
+          "jump.host length >= 1",
           "jump.credentials.method in [\"privateKey\"]"
         ],
         "multiline": false,
@@ -4610,6 +5141,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "unit": null,
         "options": [],
         "when": [
+          "jump.host length >= 1",
           "jump.credentials.method in [\"privateKey\"]"
         ],
         "multiline": false,
@@ -4628,6 +5160,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "unit": null,
         "options": [],
         "when": [
+          "jump.host length >= 1",
           "jump.credentials.method in [\"password\"]"
         ],
         "multiline": false,
@@ -4645,7 +5178,9 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "mono": false,
         "unit": null,
         "options": [],
-        "when": [],
+        "when": [
+          "jump.host length >= 1"
+        ],
         "multiline": false,
         "envDefault": {},
         "prodForbidden": null,
@@ -4661,7 +5196,9 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "mono": true,
         "unit": null,
         "options": [],
-        "when": [],
+        "when": [
+          "jump.host length >= 1"
+        ],
         "multiline": false,
         "envDefault": {},
         "prodForbidden": null,
@@ -4677,7 +5214,9 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "mono": false,
         "unit": null,
         "options": [],
-        "when": [],
+        "when": [
+          "jump.host length >= 1"
+        ],
         "multiline": false,
         "envDefault": {},
         "prodForbidden": null,
@@ -4827,18 +5366,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         }
       },
       "runbooksOnly": false,
-      "jump": {
-        "port": 22,
-        "credentials": {
-          "method": "vaultSshCa",
-          "vault": {
-            "mount": "ssh-client-signer",
-            "role": "gw-runbooks",
-            "ttl": "5m"
-          }
-        },
-        "hostKeys": {}
-      },
+      "jump": {},
       "advanced": {
         "connectTimeoutSeconds": 10,
         "keepaliveSeconds": 15,
@@ -4863,18 +5391,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         }
       },
       "runbooksOnly": true,
-      "jump": {
-        "port": 22,
-        "credentials": {
-          "method": "vaultSshCa",
-          "vault": {
-            "mount": "ssh-client-signer",
-            "role": "gw-runbooks",
-            "ttl": "5m"
-          }
-        },
-        "hostKeys": {}
-      },
+      "jump": {},
       "advanced": {
         "connectTimeoutSeconds": 10,
         "keepaliveSeconds": 15,
@@ -4891,7 +5408,8 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       "/auth",
       "/credentials",
       "/credentials",
-      "/auth"
+      "/auth",
+      "/advanced"
     ],
     "loose": [
       "/backend",
@@ -4904,16 +5422,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       "/region",
       "/logGroups",
       "/searchApi",
-      "/apiAccess",
-      "/indices",
-      "/indices",
-      "/url",
-      "/timestampField",
-      "/messageField",
-      "/severityField",
-      "/labelFields",
-      "/scopeQuery",
-      "/caCertificate"
+      "/url"
     ],
     "rows": {
       "/auth": [
@@ -4922,6 +5431,12 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         ],
         [
           "/auth/username"
+        ],
+        [
+          "/auth/secret"
+        ],
+        [
+          "/auth/secret"
         ],
         [
           "/auth/secret"
@@ -4957,6 +5472,58 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         ],
         [
           "/credentials/sessionSeconds"
+        ]
+      ],
+      "/auth/awsCredentials": [
+        [
+          "/auth/awsCredentials/source"
+        ],
+        [
+          "/auth/awsCredentials/accessKeyId"
+        ],
+        [
+          "/auth/awsCredentials/secretAccessKey"
+        ],
+        [
+          "/auth/awsCredentials/profile"
+        ],
+        [
+          "/auth/awsCredentials/roleArn"
+        ],
+        [
+          "/auth/awsCredentials/externalId"
+        ],
+        [
+          "/auth/awsCredentials/sessionSeconds"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/apiAccess"
+        ],
+        [
+          "/indices"
+        ],
+        [
+          "/indices"
+        ],
+        [
+          "/timestampField"
+        ],
+        [
+          "/messageField"
+        ],
+        [
+          "/severityField"
+        ],
+        [
+          "/labelFields"
+        ],
+        [
+          "/scopeQuery"
+        ],
+        [
+          "/caCertificate"
         ]
       ]
     },
@@ -5148,179 +5715,12 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "confirm": null
       },
       {
-        "pointer": "/apiAccess",
-        "kind": "select",
-        "title": "OpenSearch API access",
-        "required": false,
-        "secret": null,
-        "mono": false,
-        "unit": null,
-        "options": [
-          "logs",
-          "full"
-        ],
-        "when": [
-          "backend in [\"opensearch\"]"
-        ],
-        "multiline": false,
-        "envDefault": {},
-        "prodForbidden": null,
-        "optionsFrom": null,
-        "confirm": null
-      },
-      {
-        "pointer": "/indices",
-        "kind": "tags",
-        "title": "Log index patterns",
-        "required": true,
-        "secret": null,
-        "mono": true,
-        "unit": null,
-        "options": [],
-        "when": [
-          "backend in [\"opensearch\"]",
-          "apiAccess in [\"logs\"]"
-        ],
-        "multiline": false,
-        "envDefault": {},
-        "prodForbidden": null,
-        "optionsFrom": null,
-        "confirm": null
-      },
-      {
-        "pointer": "/indices",
-        "kind": "tags",
-        "title": "Log index patterns",
-        "required": false,
-        "secret": null,
-        "mono": true,
-        "unit": null,
-        "options": [],
-        "when": [
-          "backend in [\"opensearch\"]",
-          "not apiAccess in [\"logs\"]"
-        ],
-        "multiline": false,
-        "envDefault": {},
-        "prodForbidden": null,
-        "optionsFrom": null,
-        "confirm": null
-      },
-      {
         "pointer": "/url",
         "kind": "text",
-        "title": "url",
+        "title": "Server URL",
         "required": true,
         "secret": null,
         "mono": true,
-        "unit": null,
-        "options": [],
-        "when": [
-          "backend in [\"opensearch\"]"
-        ],
-        "multiline": false,
-        "envDefault": {},
-        "prodForbidden": null,
-        "optionsFrom": null,
-        "confirm": null
-      },
-      {
-        "pointer": "/timestampField",
-        "kind": "text",
-        "title": "timestampField",
-        "required": false,
-        "secret": null,
-        "mono": true,
-        "unit": null,
-        "options": [],
-        "when": [
-          "backend in [\"opensearch\"]"
-        ],
-        "multiline": false,
-        "envDefault": {},
-        "prodForbidden": null,
-        "optionsFrom": null,
-        "confirm": null
-      },
-      {
-        "pointer": "/messageField",
-        "kind": "text",
-        "title": "messageField",
-        "required": false,
-        "secret": null,
-        "mono": true,
-        "unit": null,
-        "options": [],
-        "when": [
-          "backend in [\"opensearch\"]"
-        ],
-        "multiline": false,
-        "envDefault": {},
-        "prodForbidden": null,
-        "optionsFrom": null,
-        "confirm": null
-      },
-      {
-        "pointer": "/severityField",
-        "kind": "text",
-        "title": "severityField",
-        "required": false,
-        "secret": null,
-        "mono": true,
-        "unit": null,
-        "options": [],
-        "when": [
-          "backend in [\"opensearch\"]"
-        ],
-        "multiline": false,
-        "envDefault": {},
-        "prodForbidden": null,
-        "optionsFrom": null,
-        "confirm": null
-      },
-      {
-        "pointer": "/labelFields",
-        "kind": "tags",
-        "title": "labelFields",
-        "required": false,
-        "secret": null,
-        "mono": true,
-        "unit": null,
-        "options": [],
-        "when": [
-          "backend in [\"opensearch\"]"
-        ],
-        "multiline": false,
-        "envDefault": {},
-        "prodForbidden": null,
-        "optionsFrom": null,
-        "confirm": null
-      },
-      {
-        "pointer": "/scopeQuery",
-        "kind": "text",
-        "title": "Always add this query (Lucene)",
-        "required": false,
-        "secret": null,
-        "mono": true,
-        "unit": null,
-        "options": [],
-        "when": [
-          "backend in [\"opensearch\"]"
-        ],
-        "multiline": false,
-        "envDefault": {},
-        "prodForbidden": null,
-        "optionsFrom": null,
-        "confirm": null
-      },
-      {
-        "pointer": "/caCertificate",
-        "kind": "textarea",
-        "title": "CA certificate (PEM)",
-        "required": false,
-        "secret": null,
-        "mono": false,
         "unit": null,
         "options": [],
         "when": [
@@ -5353,7 +5753,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/mode",
         "kind": "select",
-        "title": "mode",
+        "title": "Authentication",
         "required": false,
         "secret": null,
         "mono": false,
@@ -5373,16 +5773,36 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "confirm": null
       },
       {
+        "pointer": "/auth/secret",
+        "kind": "secret",
+        "title": "Bearer token",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "backend in [\"loki\"]",
+          "auth.mode in [\"bearer\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
         "pointer": "/auth/username",
         "kind": "text",
-        "title": "username",
-        "required": false,
+        "title": "Username",
+        "required": true,
         "secret": null,
         "mono": true,
         "unit": null,
         "options": [],
         "when": [
-          "backend in [\"loki\"]"
+          "backend in [\"loki\"]",
+          "auth.mode in [\"basic\"]"
         ],
         "multiline": false,
         "envDefault": {},
@@ -5393,14 +5813,15 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/secret",
         "kind": "secret",
-        "title": "Token or password",
-        "required": false,
+        "title": "Password",
+        "required": true,
         "secret": "value",
         "mono": false,
         "unit": null,
         "options": [],
         "when": [
-          "backend in [\"loki\"]"
+          "backend in [\"loki\"]",
+          "auth.mode in [\"basic\"]"
         ],
         "multiline": false,
         "envDefault": {},
@@ -5450,14 +5871,15 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/serviceAccountKey",
         "kind": "secret",
-        "title": "serviceAccountKey",
-        "required": false,
+        "title": "Service account key (JSON)",
+        "required": true,
         "secret": "value",
         "mono": false,
         "unit": null,
         "options": [],
         "when": [
-          "backend in [\"gcp-logging\"]"
+          "backend in [\"gcp-logging\"]",
+          "credentials.source in [\"serviceAccountKey\"]"
         ],
         "multiline": true,
         "envDefault": {},
@@ -5522,7 +5944,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/source",
         "kind": "select",
-        "title": "source",
+        "title": "Credential source",
         "required": true,
         "secret": null,
         "mono": false,
@@ -5543,14 +5965,15 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/accessKeyId",
         "kind": "text",
-        "title": "accessKeyId",
-        "required": false,
+        "title": "Access key ID",
+        "required": true,
         "secret": null,
         "mono": true,
         "unit": null,
         "options": [],
         "when": [
-          "backend in [\"cloudwatch\"]"
+          "backend in [\"cloudwatch\"]",
+          "credentials.source in [\"accessKey\"]"
         ],
         "multiline": false,
         "envDefault": {},
@@ -5561,14 +5984,15 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/secretAccessKey",
         "kind": "secret",
-        "title": "secretAccessKey",
-        "required": false,
+        "title": "Secret access key",
+        "required": true,
         "secret": "value",
         "mono": false,
         "unit": null,
         "options": [],
         "when": [
-          "backend in [\"cloudwatch\"]"
+          "backend in [\"cloudwatch\"]",
+          "credentials.source in [\"accessKey\"]"
         ],
         "multiline": false,
         "envDefault": {},
@@ -5579,14 +6003,15 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/profile",
         "kind": "text",
-        "title": "profile",
-        "required": false,
+        "title": "Profile",
+        "required": true,
         "secret": null,
         "mono": true,
         "unit": null,
         "options": [],
         "when": [
-          "backend in [\"cloudwatch\"]"
+          "backend in [\"cloudwatch\"]",
+          "credentials.source in [\"profile\"]"
         ],
         "multiline": false,
         "envDefault": {},
@@ -5597,7 +6022,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/roleArn",
         "kind": "text",
-        "title": "roleArn",
+        "title": "Assume role ARN",
         "required": false,
         "secret": null,
         "mono": true,
@@ -5615,7 +6040,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/externalId",
         "kind": "text",
-        "title": "externalId",
+        "title": "External ID",
         "required": false,
         "secret": null,
         "mono": true,
@@ -5633,7 +6058,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/sessionSeconds",
         "kind": "number",
-        "title": "sessionSeconds",
+        "title": "Session duration",
         "required": false,
         "secret": null,
         "mono": true,
@@ -5651,8 +6076,8 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth",
         "kind": "object",
-        "title": "Credentials",
-        "required": false,
+        "title": "Authorization",
+        "required": true,
         "secret": null,
         "mono": false,
         "unit": null,
@@ -5669,17 +6094,17 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/mode",
         "kind": "select",
-        "title": "mode",
+        "title": "Authentication",
         "required": false,
         "secret": null,
         "mono": false,
         "unit": null,
         "options": [
-          "none",
           "basic",
           "apiKey",
           "bearer",
-          "awsSigV4"
+          "awsSigV4",
+          "none"
         ],
         "when": [
           "backend in [\"opensearch\"]"
@@ -5693,14 +6118,15 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/username",
         "kind": "text",
-        "title": "username",
-        "required": false,
+        "title": "Username",
+        "required": true,
         "secret": null,
         "mono": true,
         "unit": null,
         "options": [],
         "when": [
-          "backend in [\"opensearch\"]"
+          "backend in [\"opensearch\"]",
+          "auth.mode in [\"basic\"]"
         ],
         "multiline": false,
         "envDefault": {},
@@ -5711,9 +6137,265 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/auth/secret",
         "kind": "secret",
-        "title": "secret",
-        "required": false,
+        "title": "Password",
+        "required": true,
         "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "backend in [\"opensearch\"]",
+          "auth.mode in [\"basic\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/secret",
+        "kind": "secret",
+        "title": "API key",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "backend in [\"opensearch\"]",
+          "auth.mode in [\"apiKey\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/secret",
+        "kind": "secret",
+        "title": "Bearer token",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "backend in [\"opensearch\"]",
+          "auth.mode in [\"bearer\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/awsRegion",
+        "kind": "text",
+        "title": "AWS region",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "backend in [\"opensearch\"]",
+          "auth.mode in [\"awsSigV4\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/awsService",
+        "kind": "select",
+        "title": "AWS service",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "es",
+          "aoss"
+        ],
+        "when": [
+          "backend in [\"opensearch\"]",
+          "auth.mode in [\"awsSigV4\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/awsCredentials",
+        "kind": "object",
+        "title": "AWS credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "backend in [\"opensearch\"]",
+          "auth.mode in [\"awsSigV4\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/awsCredentials/source",
+        "kind": "select",
+        "title": "Credential source",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "accessKey",
+          "profile"
+        ],
+        "when": [
+          "backend in [\"opensearch\"]",
+          "auth.mode in [\"awsSigV4\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/awsCredentials/accessKeyId",
+        "kind": "text",
+        "title": "Access key ID",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "backend in [\"opensearch\"]",
+          "auth.mode in [\"awsSigV4\"]",
+          "auth.awsCredentials.source in [\"accessKey\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/awsCredentials/secretAccessKey",
+        "kind": "secret",
+        "title": "Secret access key",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "backend in [\"opensearch\"]",
+          "auth.mode in [\"awsSigV4\"]",
+          "auth.awsCredentials.source in [\"accessKey\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/awsCredentials/profile",
+        "kind": "text",
+        "title": "Profile",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "backend in [\"opensearch\"]",
+          "auth.mode in [\"awsSigV4\"]",
+          "auth.awsCredentials.source in [\"profile\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/awsCredentials/roleArn",
+        "kind": "text",
+        "title": "Assume role ARN",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "backend in [\"opensearch\"]",
+          "auth.mode in [\"awsSigV4\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/awsCredentials/externalId",
+        "kind": "text",
+        "title": "External ID",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "backend in [\"opensearch\"]",
+          "auth.mode in [\"awsSigV4\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/awsCredentials/sessionSeconds",
+        "kind": "number",
+        "title": "Session duration",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "s",
+        "options": [],
+        "when": [
+          "backend in [\"opensearch\"]",
+          "auth.mode in [\"awsSigV4\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
         "mono": false,
         "unit": null,
         "options": [],
@@ -5727,9 +6409,68 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "confirm": null
       },
       {
-        "pointer": "/auth/awsRegion",
+        "pointer": "/apiAccess",
+        "kind": "select",
+        "title": "OpenSearch API access",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "logs",
+          "full"
+        ],
+        "when": [
+          "backend in [\"opensearch\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/indices",
+        "kind": "tags",
+        "title": "Log index patterns",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "backend in [\"opensearch\"]",
+          "apiAccess in [\"logs\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/indices",
+        "kind": "tags",
+        "title": "Log index patterns",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "backend in [\"opensearch\"]",
+          "not apiAccess in [\"logs\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/timestampField",
         "kind": "text",
-        "title": "awsRegion",
+        "title": "Timestamp field",
         "required": false,
         "secret": null,
         "mono": true,
@@ -5745,17 +6486,14 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "confirm": null
       },
       {
-        "pointer": "/auth/awsService",
-        "kind": "select",
-        "title": "awsService",
+        "pointer": "/messageField",
+        "kind": "text",
+        "title": "Message field",
         "required": false,
         "secret": null,
-        "mono": false,
+        "mono": true,
         "unit": null,
-        "options": [
-          "es",
-          "aoss"
-        ],
+        "options": [],
         "when": [
           "backend in [\"opensearch\"]"
         ],
@@ -5766,9 +6504,63 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "confirm": null
       },
       {
-        "pointer": "/auth/awsCredentials",
-        "kind": "json",
-        "title": "awsCredentials",
+        "pointer": "/severityField",
+        "kind": "text",
+        "title": "Severity field",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "backend in [\"opensearch\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/labelFields",
+        "kind": "tags",
+        "title": "Label fields",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "backend in [\"opensearch\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/scopeQuery",
+        "kind": "text",
+        "title": "Always add this query (Lucene)",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "backend in [\"opensearch\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/caCertificate",
+        "kind": "textarea",
+        "title": "CA certificate (PEM)",
         "required": false,
         "secret": null,
         "mono": false,
@@ -6240,12 +7032,14 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "pointer": "/credentials/serviceAccountKey",
         "kind": "secret",
         "title": "serviceAccountKey",
-        "required": false,
+        "required": true,
         "secret": "value",
         "mono": false,
         "unit": null,
         "options": [],
-        "when": [],
+        "when": [
+          "credentials.source in [\"serviceAccountKey\"]"
+        ],
         "multiline": true,
         "envDefault": {},
         "prodForbidden": null,
@@ -6355,7 +7149,9 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
           "/credentials/secretAccessKey"
         ],
         [
-          "/credentials/profile",
+          "/credentials/profile"
+        ],
+        [
           "/credentials/roleArn"
         ],
         [
@@ -6457,12 +7253,14 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "pointer": "/credentials/accessKeyId",
         "kind": "text",
         "title": "accessKeyId",
-        "required": false,
+        "required": true,
         "secret": null,
         "mono": true,
         "unit": null,
         "options": [],
-        "when": [],
+        "when": [
+          "credentials.source in [\"accessKey\"]"
+        ],
         "multiline": false,
         "envDefault": {},
         "prodForbidden": null,
@@ -6473,12 +7271,14 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "pointer": "/credentials/secretAccessKey",
         "kind": "secret",
         "title": "secretAccessKey",
-        "required": false,
+        "required": true,
         "secret": "value",
         "mono": false,
         "unit": null,
         "options": [],
-        "when": [],
+        "when": [
+          "credentials.source in [\"accessKey\"]"
+        ],
         "multiline": false,
         "envDefault": {},
         "prodForbidden": null,
@@ -6489,12 +7289,14 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "pointer": "/credentials/profile",
         "kind": "text",
         "title": "profile",
-        "required": false,
+        "required": true,
         "secret": null,
         "mono": true,
         "unit": null,
         "options": [],
-        "when": [],
+        "when": [
+          "credentials.source in [\"profile\"]"
+        ],
         "multiline": false,
         "envDefault": {},
         "prodForbidden": null,
@@ -6610,7 +7412,12 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
           "/auth/token"
         ],
         [
-          "/auth/headerName",
+          "/auth/headerName"
+        ],
+        [
+          "/auth/apiKey"
+        ],
+        [
           "/auth/queryName"
         ],
         [
@@ -6785,12 +7592,14 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "pointer": "/auth/token",
         "kind": "secret",
         "title": "token",
-        "required": false,
+        "required": true,
         "secret": "value",
         "mono": false,
         "unit": null,
         "options": [],
-        "when": [],
+        "when": [
+          "auth.type in [\"bearer\"]"
+        ],
         "multiline": false,
         "envDefault": {},
         "prodForbidden": null,
@@ -6806,7 +7615,27 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "mono": true,
         "unit": null,
         "options": [],
-        "when": [],
+        "when": [
+          "auth.type in [\"apiKeyHeader\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/apiKey",
+        "kind": "secret",
+        "title": "apiKey",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.type in [\"apiKeyHeader\"]"
+        ],
         "multiline": false,
         "envDefault": {},
         "prodForbidden": null,
@@ -6822,7 +7651,9 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "mono": true,
         "unit": null,
         "options": [],
-        "when": [],
+        "when": [
+          "auth.type in [\"apiKeyQuery\"]"
+        ],
         "multiline": false,
         "envDefault": {},
         "prodForbidden": null,
@@ -6833,12 +7664,14 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "pointer": "/auth/apiKey",
         "kind": "secret",
         "title": "apiKey",
-        "required": false,
+        "required": true,
         "secret": "value",
         "mono": false,
         "unit": null,
         "options": [],
-        "when": [],
+        "when": [
+          "auth.type in [\"apiKeyQuery\"]"
+        ],
         "multiline": false,
         "envDefault": {},
         "prodForbidden": null,
@@ -6854,7 +7687,9 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "mono": true,
         "unit": null,
         "options": [],
-        "when": [],
+        "when": [
+          "auth.type in [\"basic\"]"
+        ],
         "multiline": false,
         "envDefault": {},
         "prodForbidden": null,
@@ -6865,12 +7700,14 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "pointer": "/auth/password",
         "kind": "secret",
         "title": "password",
-        "required": false,
+        "required": true,
         "secret": "value",
         "mono": false,
         "unit": null,
         "options": [],
-        "when": [],
+        "when": [
+          "auth.type in [\"basic\"]"
+        ],
         "multiline": false,
         "envDefault": {},
         "prodForbidden": null,
@@ -7089,9 +7926,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "/**"
       ],
       "auth": {
-        "type": "bearer",
-        "headerName": "X-API-Key",
-        "queryName": "api_key"
+        "type": "bearer"
       },
       "tls": {
         "minVersion": "TLSv1.2"
@@ -7113,9 +7948,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "/**"
       ],
       "auth": {
-        "type": "bearer",
-        "headerName": "X-API-Key",
-        "queryName": "api_key"
+        "type": "bearer"
       },
       "tls": {
         "minVersion": "TLSv1.2"
@@ -7190,12 +8023,14 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "pointer": "/command",
         "kind": "tags",
         "title": "Command",
-        "required": false,
+        "required": true,
         "secret": null,
         "mono": true,
         "unit": null,
         "options": [],
-        "when": [],
+        "when": [
+          "transport in [\"stdio\"]"
+        ],
         "multiline": false,
         "envDefault": {},
         "prodForbidden": null,
@@ -7211,7 +8046,9 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "mono": false,
         "unit": null,
         "options": [],
-        "when": [],
+        "when": [
+          "transport in [\"stdio\"]"
+        ],
         "multiline": false,
         "envDefault": {},
         "prodForbidden": null,
@@ -7227,7 +8064,9 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "mono": false,
         "unit": null,
         "options": [],
-        "when": [],
+        "when": [
+          "transport in [\"stdio\"]"
+        ],
         "multiline": false,
         "envDefault": {},
         "prodForbidden": null,
@@ -7238,12 +8077,14 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "pointer": "/url",
         "kind": "text",
         "title": "url",
-        "required": false,
+        "required": true,
         "secret": null,
         "mono": true,
         "unit": null,
         "options": [],
-        "when": [],
+        "when": [
+          "transport in [\"http\"]"
+        ],
         "multiline": false,
         "envDefault": {},
         "prodForbidden": null,
@@ -7259,7 +8100,9 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "mono": false,
         "unit": null,
         "options": [],
-        "when": [],
+        "when": [
+          "transport in [\"http\"]"
+        ],
         "multiline": false,
         "envDefault": {},
         "prodForbidden": null,
@@ -7376,7 +8219,8 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       "idleStopMinutes": 15,
       "startTimeoutSeconds": 30,
       "callTimeoutSeconds": 60,
-      "maxInFlight": 4
+      "maxInFlight": 4,
+      "command": []
     },
     "prodDefaults": {
       "transport": "stdio",
@@ -7384,7 +8228,8 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       "idleStopMinutes": 5,
       "startTimeoutSeconds": 30,
       "callTimeoutSeconds": 30,
-      "maxInFlight": 4
+      "maxInFlight": 4,
+      "command": []
     }
   }
 };

@@ -5,7 +5,7 @@ import { Env, Iso, JsonObject, JsonValue, ToolMode, WithReason } from './types';
 /** The value of one secret field of a form: typed here, sent once, never kept by the UI. */
 export type SecretInput =
   | { readonly source: 'local'; readonly value: string }
-  | { readonly source: 'reference'; readonly ref: string };
+  | { readonly source: 'reference' | 'vault-dynamic'; readonly ref: string };
 
 /** Secrets of a draft by JSON Pointer of the field (`/credentials/password`). */
 export type SecretInputs = { readonly [pointer: string]: SecretInput };

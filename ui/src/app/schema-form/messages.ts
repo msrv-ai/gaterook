@@ -24,7 +24,10 @@ export function requiredMessage(node: SchemaNode): string {
 export function valueProblem(node: SchemaNode, value: JsonValue): string | null {
   const s = node.schema;
   if (value === null || value === '') return null;
-  switch (node.kind) {
+  // Metadata supplies suggestions, including a saved value absent from the latest list. Without a schema enum,
+  // the field also accepts typed text before discovery and follows the schema's string constraints.
+  const kind = node.kind === 'select' && node.optionsFrom && !node.options.length ? 'text' : node.kind;
+  switch (kind) {
     case 'text':
     case 'textarea':
     case 'code': {

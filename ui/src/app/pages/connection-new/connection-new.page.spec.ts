@@ -24,7 +24,7 @@ import { ConnectionNewPage } from './connection-new.page';
 /**
  * Add connection against the kit's page script (design/pages/connection-new.html): the four steps with their focus
  * and announcements, what the test shows, the endpoints a connection may join, Save, the duplicate and the edit view
- * with its dialogs. The admin API is faked at the service level with the demo world's PostgreSQL (BLUEPRINT §9).
+ * with its dialogs. The admin API is faked at the service level with PostgreSQL and the real OpenSearch schema.
  */
 
 const NOW = Date.parse('2026-10-22T14:30:00+02:00');
@@ -415,7 +415,102 @@ async function toTest(p: Awaited<ReturnType<typeof open>>, host = 'db.dev.intern
   await p.settle();
 }
 
+/** The Logs catalog preset and canonical connector schema used by the OpenSearch Configure page. */
+function openSearch(): void {
+  core.spec = {
+    ...structuredClone(SPEC), type: 'logs', name: 'Logs', schema: CONNECTOR_FORMS['logs'],
+    secretFields: [{ pointer: '/auth/secret', kind: 'value', title: 'Password, API key or bearer token' }],
+  };
+  core.catalog = {
+    groups: [{ name: 'Logs', cards: [{
+      ...structuredClone(CATALOG.groups[0].cards[0]), type: 'logs', variant: 'opensearch', name: 'OpenSearch',
+      presetConfig: { backend: 'opensearch' }, tools: 5, connections: 0,
+    }] }], installed: [],
+  };
+}
+
+async function openSearchToTest(p: Awaited<ReturnType<typeof open>>): Promise<void> {
+  await p.type('cf-name', 'dev-search');
+  await p.type('cf-url', 'http://localhost:9200');
+  await p.type('cf-auth-username', 'search-user');
+  await p.type('cf-auth-secret', 'search-password');
+  p.button('Continue', p.q('#cf-form')!).click();
+  await p.settle();
+}
+
 describe('Add connection: wizard', () => {
+  it('OpenSearch highlights invalid visible fields and advances after the basic credentials are filled', async () => {
+    openSearch();
+    const p = await open('/connections/new#step-2');
+    await p.type('cf-name', 'dev-search');
+    p.button('Continue', p.q('#cf-form')!).click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-2']);
+    expect(core.tests).toEqual([]);
+    expect(p.q('#cf-url')!.getAttribute('aria-invalid')).toBe('true');
+    expect(text(p.q('#cf-url-err'))).not.toBe('');
+    expect(document.activeElement?.id).toBe('cf-url');
+    expect(p.q('#cf-auth-awsRegion')).toBeNull();
+    await openSearchToTest(p);
+    expect(p.visible()).toEqual(['step-3']);
+    expect(core.tests).toHaveLength(1);
+    expect(core.tests[0]).toMatchObject({
+      type: 'logs', config: { backend: 'opensearch', url: 'http://localhost:9200', auth: { mode: 'basic', username: 'search-user' } },
+      secrets: { '/auth/secret': { source: 'local', value: 'search-password' } },
+    });
+    p.button('Continue', p.q('#step-3')!).click();
+    await p.settle();
+    p.button('Save connection').click();
+    await p.settle();
+    expect(core.created.map((request) => request.name)).toEqual(['dev-search']);
+  });
+
+  it('an OpenSearch server field error returns to Configure, opens Advanced and focuses the field', async () => {
+    openSearch();
+    core.createFails = new ApiError('unprocessable', 422, {
+      title: 'Invalid connection', errors: [{ field: '/config/caCertificate', message: 'Use a PEM-encoded CA certificate.' }],
+    });
+    const p = await open('/connections/new#step-2');
+    await openSearchToTest(p);
+    p.button('Continue', p.q('#step-3')!).click();
+    await p.settle();
+    p.button('Save connection').click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-2']);
+    expect(text(p.q('#cf-caCertificate-err'))).toBe('Use a PEM-encoded CA certificate.');
+    const field = p.q('#cf-caCertificate')!;
+    expect(field.closest('[hidden]')).toBeNull();
+    expect(document.activeElement).toBe(field);
+    expect(p.q('#connection-form-error')).toBeNull();
+    expect(core.created).toEqual([]);
+  });
+
+  it.each([
+    { errors: [{ field: '/config', message: 'Choose an authentication mode supported by this cluster.' }] },
+    { errors: [] },
+  ])('keeps a root save error in Configure and focuses the alert when errors are $errors', async ({ errors }) => {
+    core.createFails = new ApiError('unprocessable', 422, {
+      title: 'Invalid connection', detail: 'Choose an authentication mode supported by this cluster.', errors,
+    });
+    const p = await open();
+    await toTest(p);
+    p.button('Continue', p.q('#step-3')!).click();
+    await p.settle();
+    p.button('Save connection').click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-2']);
+    const alert = p.q('#connection-form-error')!;
+    expect(alert.getAttribute('role')).toBe('alert');
+    expect(text(alert)).toContain('Choose an authentication mode supported by this cluster.');
+    expect(document.activeElement).toBe(alert);
+    expect(core.created).toEqual([]);
+    core.createFails = null;
+    p.button('Continue', p.q('#cf-form')!).click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-3']);
+    expect(p.q('#connection-form-error')).toBeNull();
+  });
+
   it('discovers with the entered credentials, retries errors and empty lists, and saves multiple choices', async () => {
     const p = await open('/connections/new#step-2');
     await p.type('cf-name', 'qa-db');
@@ -753,6 +848,26 @@ describe('Add connection: wizard', () => {
     expect(document.activeElement?.id).toBe('cf-name');
   });
 
+  it('a rejected name takes focus before schema fields while root errors stay visible', async () => {
+    core.createFails = new ApiError('unprocessable', 422, {
+      title: 'Invalid connection', errors: [
+        { field: '/config/connection/host', message: 'Use an allowed host.' },
+        { field: '/name', message: 'Choose another connection name.' },
+        { field: '/config', message: 'This combination is not allowed.' },
+      ],
+    });
+    const p = await open();
+    await toTest(p);
+    p.button('Continue', p.q('#step-3')!).click();
+    await p.settle();
+    p.button('Save connection').click();
+    await p.settle();
+    expect(text(p.q('#cf-name-err'))).toBe('Choose another connection name.');
+    expect(text(p.q('#cf-connection-host-err'))).toBe('Use an allowed host.');
+    expect(text(p.q('#connection-form-error'))).toContain('This combination is not allowed.');
+    expect(document.activeElement?.id).toBe('cf-name');
+  });
+
   it('shows prod’s stricter defaults read from the policies', async () => {
     const p = await open();
     p.button('Continue').click();
@@ -801,6 +916,21 @@ describe('Add connection: duplicate', () => {
 });
 
 describe('Connection: edit view', () => {
+  it('keeps unmatched update errors beside the form until retry or Discard', async () => {
+    core.updateFails = [new ApiError('unprocessable', 422, {
+      title: 'Invalid connection', errors: [{ field: '/config', message: 'The selected settings cannot be used together.' }],
+    })];
+    const p = await open('/connections/dev-db');
+    p.button('Save changes').click();
+    await p.settle();
+    const alert = p.q('#connection-form-error')!;
+    expect(text(alert)).toContain('The selected settings cannot be used together.');
+    expect(document.activeElement).toBe(alert);
+    p.button('Discard').click();
+    await p.settle();
+    expect(p.q('#connection-form-error')).toBeNull();
+  });
+
   it('keeps a saved database and requests stored-secret consent before discovering on a new host', async () => {
     core.nextDiscovery = new ApiError('conflict', 409, {
       title: 'Send the stored password to db2.internal?', detail: 'The password will be used to load databases.', confirm: 'send-secret-to-new-host',

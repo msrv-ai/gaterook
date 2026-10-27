@@ -110,6 +110,36 @@ async function databaseForm(type = 'mysql') {
 }
 
 describe('connection form: database discovery', () => {
+  it('uses the API dynamic-login source without requiring a manually entered username', async () => {
+    const { el, host, settle } = await render();
+    host.spec.set({ ...spec('mysql'), secretSources: [
+      { id: 'local', label: 'Encrypted here', available: true, reason: null },
+      { id: 'vault-dynamic', label: 'Short-lived', available: true, reason: null },
+    ] });
+    host.config.set({ connection: { host: 'db.example.test', databases: ['orders'] } });
+    await settle();
+    const source = el.querySelector<HTMLInputElement>('input[name="cf-src"][value="dynamic"]')!;
+    source.click();
+    await settle();
+    expect(source.checked).toBe(true);
+    expect(el.querySelector('#cf-credentials-user')).toBeNull();
+    const reference = el.querySelector<HTMLInputElement>('#cf-credentials-password')!;
+    reference.value = 'vault://database/creds/orders-reader';
+    reference.dispatchEvent(new Event('input', { bubbles: true }));
+    await settle();
+    el.querySelector<HTMLButtonElement>('#cf-database-load')!.click();
+    await settle();
+    host.form().completeDatabaseDiscovery(host.discoveries.at(-1)!.key, discovered(['orders']));
+    await settle();
+    el.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+    expect(host.saved).toHaveLength(1);
+    expect(host.saved[0].secrets).toEqual({ '/credentials/password': {
+      source: 'vault-dynamic', ref: 'vault://database/creds/orders-reader',
+    } });
+    expect(host.saved[0].config['credentials']).not.toHaveProperty('user');
+  });
+
   it('puts credentials before loading databases and saves multiple selected databases in one connection', async () => {
     const { el, host, settle, load, choose } = await databaseForm();
     expect(el.querySelector('#cf-connection-database')).toBeNull();
@@ -186,15 +216,34 @@ describe('connection form: database discovery', () => {
     expect(host.form().databaseSelectionValid()).toBe(false);
   });
 
-  it('preserves integer Redis indexes and explains an incomplete list', async () => {
-    const { el, host, settle, load, choose } = await databaseForm('redis');
-    const request = await load();
-    host.form().completeDatabaseDiscovery(request.key, discovered([0, 2], false));
+  it('saves Redis with just a host and leaves optional logical databases in Advanced', async () => {
+    const { el, host, settle } = await render();
+    host.spec.set(spec('redis'));
+    host.config.set({ connection: { host: '127.0.0.1' } });
     await settle();
-    await choose(0);
-    await choose(2);
-    expect(host.form().value().config['connection']).toMatchObject({ databases: [0, 2] });
-    expect(el.textContent).toContain('The server returned a partial list');
+    expect(el.querySelector('#cf-database-load')).toBeNull();
+    expect(el.querySelector('#cf-connection-database')!.closest('[hidden]')).not.toBeNull();
+    expect(el.querySelector('#cf-connection-databases')!.closest('[hidden]')).not.toBeNull();
+    el.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+    expect(host.saved).toHaveLength(1);
+    expect(host.saved[0].config['connection']).toMatchObject({ host: '127.0.0.1', port: 6379, database: 0 });
+    expect(host.saved[0].config['connection']).not.toHaveProperty('databases');
+    expect(host.saved[0].secrets).toEqual({});
+    expect(host.discoveries).toEqual([]);
+  });
+
+  it.each<JsonObject>([{ database: 7 }, { databases: [0, 2] }])('preserves explicit Redis settings without discovery: %j', async (settings) => {
+    const { el, host, settle } = await render();
+    host.spec.set(spec('redis'));
+    host.mode.set('edit');
+    host.config.set({ connection: { host: '127.0.0.1', ...settings } });
+    await settle();
+    el.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+    expect(host.saved).toHaveLength(1);
+    expect(host.saved[0].config['connection']).toMatchObject(settings);
+    expect(host.discoveries).toEqual([]);
   });
 
   it('uses a plugin’s flat selection path and keeps root credentials out of config', async () => {

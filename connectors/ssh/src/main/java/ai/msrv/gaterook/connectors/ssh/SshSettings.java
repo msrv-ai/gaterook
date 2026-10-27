@@ -98,8 +98,9 @@ record SshSettings(Target target, Credentials credentials, HostKeyConfig hostKey
     if (j.isObject() && !j.path("host").asString("").isBlank()) {
       Target jt = target(j, target.username(), "jump");
       // Without credentials of its own the bastion takes the host's, and the host's secret fields.
-      Credentials jc = j.path("credentials").isObject()
-          ? credentials(j.path("credentials"), "/jump/credentials") : credentials;
+      JsonNode jumpCredentials = j.path("credentials");
+      Credentials jc = !jumpCredentials.isObject() || jumpCredentials.path("method").asString("").equals("inherit")
+          ? credentials : credentials(jumpCredentials, "/jump/credentials");
       jump = new Jump(jt, jc, hostKeys(j.path("hostKeys"), "/jump/hostKeys"));
     }
     JsonNode a = c.path("advanced");

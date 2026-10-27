@@ -44,28 +44,30 @@ import { SchemaForm } from './schema-form';
       <ng-container [ngTemplateOutlet]="trail()" />
     </ng-template>
 
-    @if (asSection()) {
-      <section class="gw-form__section" [class]="sectionClass()" [attr.aria-labelledby]="id + '-t'">
-        <header class="gw-form__section-header">
-          <h3 class="gw-form__legend" [id]="id + '-t'">{{ n.title }}</h3>
+    @if (f.visible(n)) {
+      @if (asSection()) {
+        <section class="gw-form__section" [class]="sectionClass()" [attr.aria-labelledby]="id + '-t'">
+          <header class="gw-form__section-header">
+            <h3 class="gw-form__legend" [id]="id + '-t'">{{ n.title }}</h3>
+            @if (descriptionTemplate()) {
+              <p class="gw-form__description"><ng-container [ngTemplateOutlet]="descriptionTemplate()" /></p>
+            } @else if (text()) {
+              <p class="gw-form__description">{{ text() }}</p>
+            }
+          </header>
+          <div class="gw-form__rows"><ng-container [ngTemplateOutlet]="rows" /></div>
+        </section>
+      } @else {
+        <fieldset class="gw-form__section" [class]="sectionClass()">
+          <legend class="gw-form__legend">{{ n.title }}</legend>
           @if (descriptionTemplate()) {
             <p class="gw-form__description"><ng-container [ngTemplateOutlet]="descriptionTemplate()" /></p>
           } @else if (text()) {
             <p class="gw-form__description">{{ text() }}</p>
           }
-        </header>
-        <div class="gw-form__rows"><ng-container [ngTemplateOutlet]="rows" /></div>
-      </section>
-    } @else {
-      <fieldset class="gw-form__section" [class]="sectionClass()">
-        <legend class="gw-form__legend">{{ n.title }}</legend>
-        @if (descriptionTemplate()) {
-          <p class="gw-form__description"><ng-container [ngTemplateOutlet]="descriptionTemplate()" /></p>
-        } @else if (text()) {
-          <p class="gw-form__description">{{ text() }}</p>
-        }
-        <div class="gw-form__rows"><ng-container [ngTemplateOutlet]="rows" /></div>
-      </fieldset>
+          <div class="gw-form__rows"><ng-container [ngTemplateOutlet]="rows" /></div>
+        </fieldset>
+      }
     }
   `,
 })

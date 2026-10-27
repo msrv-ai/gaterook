@@ -39,7 +39,8 @@ export interface FormGolden {
 }
 
 const cond = (n: SchemaNode): string[] =>
-  n.when.map((c) => `${c.negate ? 'not ' : ''}${c.path.join('.')} in ${JSON.stringify(c.values)}`);
+  n.when.map((c) => `${c.negate ? 'not ' : ''}${c.path.join('.')}${c.minLength === undefined
+    ? ` in ${JSON.stringify(c.values)}` : ` length >= ${c.minLength}`}`);
 
 export function formGolden(form: CompiledForm, schema: JsonValue): FormGolden {
   const rows: Record<string, (readonly string[])[]> = {};

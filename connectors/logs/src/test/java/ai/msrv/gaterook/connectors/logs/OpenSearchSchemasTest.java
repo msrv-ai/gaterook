@@ -64,4 +64,55 @@ class OpenSearchSchemasTest {
     assertThat(SCHEMAS.getSchema(RESOURCES.load("opensearch_query.input")).validate(mutation)).isNotEmpty();
     assertThat(SCHEMAS.getSchema(RESOURCES.load("opensearch_request.input")).validate(mutation)).isEmpty();
   }
+
+  @Test
+  void authorizationRequiresOnlyTheSelectedMethodsCredentials() {
+    var schema = SCHEMAS.getSchema(RESOURCES.load("config"));
+    for (String auth : new String[] {
+        "{\"mode\":\"none\"}",
+        "{\"mode\":\"basic\",\"username\":\"reader\",\"secret\":\"stored-password\"}",
+        "{\"username\":\"reader\",\"secret\":\"stored-password\"}",
+        "{\"mode\":\"apiKey\",\"secret\":\"os_example\"}",
+        "{\"mode\":\"bearer\",\"secret\":\"stored-token\"}"}) {
+      assertThat(schema.validate(configuration(auth))).as(auth).isEmpty();
+    }
+    for (String auth : new String[] {
+        "{\"mode\":\"basic\",\"secret\":\"stored-password\"}",
+        "{\"mode\":\"basic\",\"username\":\"reader\"}",
+        "{\"mode\":\"basic\",\"username\":\" \",\"secret\":\"stored-password\"}",
+        "{\"mode\":\"apiKey\"}",
+        "{\"mode\":\"bearer\"}"}) {
+      assertThat(schema.validate(configuration(auth))).as(auth).isNotEmpty();
+    }
+    assertThat(schema.validate(configuration("""
+        {"mode":"basic","username":"reader","secret":"stored-password","awsService":"es",
+         "awsCredentials":{"source":"accessKey"}}""")))
+        .as("Earlier forms stored inactive AWS defaults; they must not make basic authentication invalid")
+        .isEmpty();
+  }
+
+  @Test
+  void awsSigningRequiresItsRegionAndTheSelectedCredentialSource() {
+    var schema = SCHEMAS.getSchema(RESOURCES.load("config"));
+    assertThat(schema.validate(configuration("""
+        {"mode":"awsSigV4","awsRegion":"eu-central-1",
+         "awsCredentials":{"source":"profile","profile":"dev-search"}}"""))).isEmpty();
+    assertThat(schema.validate(configuration("""
+        {"mode":"awsSigV4","awsRegion":"eu-central-1","awsService":"aoss",
+         "awsCredentials":{"source":"accessKey","accessKeyId":"AKIAIOSFODNN7EXAMPLE",
+                           "secretAccessKey":"stored-secret-key"}}"""))).isEmpty();
+    for (String auth : new String[] {
+        "{\"mode\":\"awsSigV4\"}",
+        "{\"mode\":\"awsSigV4\",\"awsRegion\":\"eu-central-1\"}",
+        "{\"mode\":\"awsSigV4\",\"awsCredentials\":{\"source\":\"profile\",\"profile\":\"dev-search\"}}",
+        "{\"mode\":\"awsSigV4\",\"awsRegion\":\"eu-central-1\",\"awsCredentials\":{\"source\":\"profile\"}}",
+        "{\"mode\":\"awsSigV4\",\"awsRegion\":\"eu-central-1\",\"awsCredentials\":{\"source\":\"accessKey\"}}"}) {
+      assertThat(schema.validate(configuration(auth))).as(auth).isNotEmpty();
+    }
+  }
+
+  private static tools.jackson.databind.JsonNode configuration(String auth) {
+    return JSON.readTree("""
+        {"backend":"opensearch","url":"https://search.example.test:9200","auth":%s}""".formatted(auth));
+  }
 }

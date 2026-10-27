@@ -23,88 +23,6 @@
         "URL (Streamable HTTP)"
       ]
     },
-    "command": {
-      "type": "array",
-      "title": "Command",
-      "items": {
-        "type": "string",
-        "maxLength": 1024
-      },
-      "minItems": 1,
-      "maxItems": 64,
-      "description": "argv; the UI line is tokenized (quotes only), never run by a shell"
-    },
-    "env": {
-      "type": "array",
-      "title": "Environment variables from secrets",
-      "maxItems": 32,
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "name",
-          "secretRef"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
-          },
-          "secretRef": {
-            "type": "string",
-            "writeOnly": true,
-            "x-gateway-secret": "value",
-            "description": "A secret, or a vault:// | gcp-sm:// | aws-sm:// reference"
-          }
-        }
-      }
-    },
-    "inheritEnv": {
-      "type": "array",
-      "title": "Pass these variables of this computer",
-      "uniqueItems": true,
-      "items": {
-        "enum": [
-          "HTTPS_PROXY",
-          "HTTP_PROXY",
-          "NO_PROXY",
-          "NODE_EXTRA_CA_CERTS",
-          "SSL_CERT_FILE",
-          "LANG"
-        ]
-      },
-      "default": []
-    },
-    "url": {
-      "type": "string",
-      "format": "uri",
-      "pattern": "^(https://|http://(127\\.0\\.0\\.1|localhost)[:/])"
-    },
-    "headers": {
-      "type": "array",
-      "title": "Headers from secrets",
-      "maxItems": 16,
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "name",
-          "secretRef"
-        ],
-        "properties": {
-          "name": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9-]{1,64}$"
-          },
-          "secretRef": {
-            "type": "string",
-            "writeOnly": true,
-            "x-gateway-secret": "value",
-            "description": "A secret, or a vault:// | gcp-sm:// | aws-sm:// reference"
-          }
-        }
-      }
-    },
     "start": {
       "enum": [
         "on-first-call",
@@ -163,7 +81,61 @@
       "then": {
         "required": [
           "command"
-        ]
+        ],
+        "properties": {
+          "command": {
+            "type": "array",
+            "title": "Command",
+            "items": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "minItems": 1,
+            "maxItems": 64,
+            "description": "argv; the UI line is tokenized (quotes only), never run by a shell"
+          },
+          "env": {
+            "type": "array",
+            "title": "Environment variables from secrets",
+            "maxItems": 32,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "secretRef"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+                },
+                "secretRef": {
+                  "type": "string",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "description": "A secret, or a vault:// | gcp-sm:// | aws-sm:// reference"
+                }
+              }
+            }
+          },
+          "inheritEnv": {
+            "type": "array",
+            "title": "Pass these variables of this computer",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "HTTPS_PROXY",
+                "HTTP_PROXY",
+                "NO_PROXY",
+                "NODE_EXTRA_CA_CERTS",
+                "SSL_CERT_FILE",
+                "LANG"
+              ]
+            },
+            "default": []
+          }
+        }
       }
     },
     {
@@ -177,8 +149,43 @@
       "then": {
         "required": [
           "url"
-        ]
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^(https://|http://(127\\.0\\.0\\.1|localhost)[:/])"
+          },
+          "headers": {
+            "type": "array",
+            "title": "Headers from secrets",
+            "maxItems": 16,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "secretRef"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9-]{1,64}$"
+                },
+                "secretRef": {
+                  "type": "string",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "description": "A secret, or a vault:// | gcp-sm:// | aws-sm:// reference"
+                }
+              }
+            }
+          }
+        }
       }
     }
-  ]
+  ],
+  "patternProperties": {
+    "^(command|env|inheritEnv|url|headers)$": {}
+  }
 }
