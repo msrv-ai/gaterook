@@ -1,0 +1,88 @@
+# MCP Gateway installers (ARCHITECTURE.md §7.1 "Packaging", A20; report 14 §7.7). Built from:
+#   dist/          main and preload bundles (scripts/build.mjs --release: no development code, no node_modules)
+#   stage/         everything else, laid out by ../scripts/stage.mjs (UI, native core, JRE, plugin host, bridges,
+#                  cloudflared, icon)
+#   npm run dist -w desktop        stage + release bundle + installers of this platform
+#   npm run dist:dir -w desktop    the same, unpacked (release/<platform>-unpacked), for a quick look
+# Signing, notarization and Windows Azure signing: .github/workflows/release.yml passes them from the repository's
+# secrets (step R1; UNVERIFIED without the certificates), and signs ad hoc when there are none.
+appId: ai.msrv.gaterook.desktop          # = the Windows AUMID main sets (app.ts APP_ID): notifications belong to it
+productName: MCP Gateway
+copyright: Copyright © 2026 MCP Gateway
+directories:
+  output: release
+  buildResources: build
+asar: true
+files:
+  - package.json
+  - dist/main.cjs
+  - dist/preload.cjs
+  - from: stage/ui
+    to: ui
+  - "!node_modules/**/*"              # main is one bundle: nothing from node_modules ships
+extraResources:
+  - from: stage/core                  # the native core and libsqlitejdbc (signed with the app)
+    to: core
+  - from: stage/jre                   # the plugin host's jlink JRE
+    to: jre
+  - from: stage/plugin-host
+    to: plugin-host
+  - from: stage/bridge                # gw-bridge (native, jar) and gw-bridge.mjs
+    to: bridge
+  - from: stage/cloudflared           # <resources>/cloudflared/<os>-<arch>/cloudflared, pinned (A6)
+    to: cloudflared
+protocols:
+  - name: MCP Gateway
+    schemes: [mcp-gateway]
+electronLanguages: [en, en-US, en_GB]
+electronFuses:                        # §7.1 "fuses"
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+  grantFileProtocolExtraPrivileges: false
+  loadBrowserProcessSpecificV8Snapshot: false
+
+mac:
+  category: public.app-category.developer-tools
+  icon: stage/icons/icon.png
+  target: [dmg, zip]                  # zip: what electron-updater installs from
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.inherit.plist
+  # cloudflared stays as Cloudflare signed it: the core checks its SHA-256 against the upstream pin before every start
+  # (A6), and our signature would change its bytes (K3 review, finding 14). Its own signature is what notarization
+  # wants of nested code: Developer ID (Cloudflare Inc., 68WVV388M8), hardened runtime, itself notarized (spctl,
+  # 2026.10.0). Windows signs only the app's own executables.
+  signIgnore:
+    - /cloudflared/[^/]+/cloudflared$
+  extendInfo:
+    NSUserNotificationAlertStyle: alert   # without it macOS hides the Review / Deny buttons
+
+win:
+  icon: stage/icons/icon.png
+  target: [nsis]
+  # azureSignOptions: …                   R1: Windows signing (Azure Trusted Signing)
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false         # ~/.mcp-gateway is the person's data, not the installer's
+
+linux:
+  icon: stage/icons/icon.png
+  category: Development
+  target: [AppImage, deb]
+  synopsis: Agents use infrastructure through MCP without seeing secrets.
+deb:
+  # Ubuntu ≥ 24.04 restricts unprivileged user namespaces: without this profile Chromium's sandbox can't start, and a
+  # release refuses --no-sandbox (switches.ts).
+  appArmorProfile: build/linux/apparmor-profile.tpl
+
+publish:
+  provider: github                        # electron-updater reads latest*.yml from the releases (R1 sets owner/repo)
+  owner: mcp-gateway
+  repo: mcp-gateway

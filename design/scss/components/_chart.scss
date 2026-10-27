@@ -1,0 +1,303 @@
+// =============================================================
+// .gw-chart · .gw-legend · .gw-sparkline   Lightweight charts
+// -------------------------------------------------------------
+// HTML/CSS/SVG only, no chart library (strict Electron CSP, nothing to
+// load). Data enters as unitless custom properties in inline style
+// (style="--v: 0.42"): never a colour, never a px value.
+//
+// Vertical stacked histogram (calls over time by decision)
+//   <figure>                                   (or a gw-card body)
+//     <div class="gw-chart" role="img" aria-label="1,284 calls in 24 hours, peak 166 at 11:00 …">
+//       <div class="gw-chart__plot">
+//         <span class="gw-chart__gridline" style="--v: 0.5"><span class="gw-chart__label">100</span></span>
+//         <span class="gw-chart__bar">
+//           <span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.475"></span>
+//           <span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.005"></span>
+//         </span> …
+//       </div>
+//       <div class="gw-chart__axis"><span class="gw-chart__label" style="--v: 0">15:00</span> …</div>
+//     </div>
+//     <ul class="gw-legend">…</ul>
+//     <div class="gw-sr-only"><table><caption>…</caption>…the same numbers…</table></div>
+//   </figure>
+//
+// Accessibility contract (every chart):
+//   · the chart root is role="img" with an aria-label that states the FINDING
+//     ("peak 166 calls at 11:00; 34 denied, most 09:00–11:00"), not "chart";
+//   · the data itself sits NEXT to it (outside role="img", whose children are
+//     hidden from assistive tech) in a <table> with a <caption>, inside a
+//     <div class="gw-sr-only"> (never the class on the table itself: a clipped
+//     table box loses its table semantics);
+//   · series differ by more than colour: legend words, a fixed stack order
+//     (the legend order, bottom up), 1px gaps between stacked segments.
+//   Interactive histogram (log explorer: click a column to narrow the range):
+//   the root becomes role="group" + aria-label (finding + what a click
+//   does); each __bar is a <button type="button"> whose aria-label carries
+//   its numbers ("11:00 to 12:00, 166 calls, 5 denied"), which replaces the
+//   sr-only table; aria-pressed="true" marks the selected range (fill + 2px
+//   brand bar on top). Columns can be narrower than 24px: the time-range
+//   picker of the log explorer is the equivalent control (WCAG 2.5.8).
+//
+// Subparts
+//   __plot      bar area: height --gw-chart-height (160px default), baseline
+//               border, y-axis gutter --gw-chart-gutter at inline start, half
+//               a caption line of headroom for the top gridline label
+//   __gridline  horizontal guide at --v (0..1 of axis max); holds a y __label
+//   __bar       one column (vertical) or one track (--hbar); a stack of
+//               __segment, first child at the bottom / inline start
+//   __segment   --v = value ÷ axis max (0..1). Omit zero segments; a
+//               non-zero one is never thinner than 2px. The top segment
+//               gets the radius-xs corners.
+//     tone modifiers --success --warning --danger --info --neutral --brand
+//     category modifiers --series-1 … --series-6 (--gw-color-chart-1…6)
+//     no modifier = --gw-color-chart-1
+//     Marks paint with tone FG tokens (≥ 3:1), never solids.
+//   __axis      x axis labels; each __label at --v (0..1) of the width,
+//               shifted so 0 aligns start and 1 aligns end
+//   __label     axis / row label (caption, muted, tabular)
+//   __value     --hbar only: the number at the end of a row
+// Variants
+//   --hbar      horizontal bar list (top tools): label | bar | value rows as
+//               direct children, one grid; --v on segments = value ÷ max
+//
+// .gw-legend (<ul>)  __item, __swatch (8px dot, same modifiers as
+//                    __segment, plus --hatch: diagonal stripes for "waiting,
+//                    not working", as on gw-waterfall__span--approval),
+//                    __value (optional count, medium, tabular)
+// .gw-sparkline      inline <svg viewBox="0 0 230 40" preserveAspectRatio="none">
+//                    with a <polyline points="…">. currentColor stroke, no
+//                    fill, non-scaling 1.5px stroke. Height 24px, full width
+//                    (in gw-stat__chart the slot sizes it). Default colour is
+//                    brand fg; tone modifiers --brand --success --warning
+//                    --danger --info --neutral. aria-hidden when the number
+//                    beside it carries the meaning; otherwise role="img" +
+//                    aria-label ("Rising from 96 to 166 calls per hour").
+// Forced colours   bar, segment and swatch fills opt out of forced-colour
+//                  adjustment (they are data, not decoration); the legend
+//                  words and the sr-only table carry the meaning anyway.
+// Raw values   1.5 stroke width (unitless SVG user units, non-scaling);
+//              fit-content(40%) label column in --hbar.
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+// Fill vocabulary shared by segments and legend swatches.
+@mixin -fill-modifiers {
+  --gw-chart-fill: var(--gw-color-chart-1);
+
+  @each $tone in (success, warning, danger, info, neutral, brand) {
+    &--#{$tone} {
+      @include gw-tone($tone);
+      --gw-chart-fill: var(--gw-tone-fg);
+    }
+  }
+  @for $i from 1 through 6 {
+    &--series-#{$i} { --gw-chart-fill: var(--gw-color-chart-#{$i}); }
+  }
+}
+
+.gw-chart {
+  --gw-chart-height: calc(var(--gw-space-16) * 2.5);
+  --gw-chart-gutter: var(--gw-space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gw-space-2);
+  min-width: 0;
+
+  &__plot {
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    gap: var(--gw-space-0-5);
+    height: var(--gw-chart-height);
+    margin-block-start: calc(var(--gw-type-caption-line) / 2); // top label headroom
+    margin-inline-start: var(--gw-chart-gutter);
+    border-bottom: var(--gw-border-width-default) solid var(--gw-color-border-strong);
+  }
+
+  &__gridline {
+    position: absolute;
+    inset-inline: 0;
+    bottom: calc(var(--v, 0) * 100%);
+    border-top: var(--gw-border-width-default) solid var(--gw-color-chart-grid);
+    pointer-events: none;
+
+    > .gw-chart__label {
+      position: absolute;
+      top: 0;
+      inset-inline-end: 100%;
+      padding-inline-end: var(--gw-space-2);
+      translate: 0 -50%;
+    }
+  }
+
+  &__bar {
+    position: relative; // paints above the absolutely positioned gridlines
+    display: flex;
+    flex-direction: column-reverse;
+    gap: var(--gw-space-px);
+    flex: 1 1 0;
+    min-width: 0;
+    height: 100%;
+    padding: 0;
+    color: inherit;
+    background: transparent;
+    border: 0;
+    border-radius: var(--gw-radius-xs) var(--gw-radius-xs) 0 0;
+  }
+
+  // Interactive columns (log explorer).
+  &__bar:is(button, a) {
+    cursor: pointer;
+    transition: background-color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard);
+    @include gw-focus-ring;
+
+    &:hover { background: var(--gw-color-bg-hover); }
+    &[aria-pressed="true"] {
+      background: var(--gw-color-bg-selected);
+      box-shadow: inset 0 var(--gw-border-width-strong) 0 var(--gw-color-brand-fg);
+    }
+  }
+
+  &__segment {
+    @include -fill-modifiers;
+    flex: none;
+    height: calc(var(--v, 0) * 100%);
+    min-height: var(--gw-space-0-5);
+    background: var(--gw-chart-fill);
+    forced-color-adjust: none;
+
+    &:last-child { border-radius: var(--gw-radius-xs) var(--gw-radius-xs) 0 0; }
+  }
+
+  &__axis {
+    position: relative;
+    height: var(--gw-type-caption-line);
+    margin-inline-start: var(--gw-chart-gutter);
+
+    > .gw-chart__label {
+      position: absolute;
+      top: 0;
+      inset-inline-start: calc(var(--v, 0) * 100%);
+      translate: calc(var(--v, 0) * -100%) 0;
+    }
+  }
+
+  &__label {
+    @include gw-type(caption);
+    @include gw-tabular;
+    color: var(--gw-color-text-muted);
+    white-space: nowrap;
+  }
+
+  &__value {
+    @include gw-type(small);
+    @include gw-tabular;
+    color: var(--gw-color-text-primary);
+    text-align: end;
+    white-space: nowrap;
+  }
+
+  // ─── Horizontal bar list ───
+  &--hbar {
+    display: grid;
+    grid-template-columns: fit-content(40%) minmax(var(--gw-space-16), 1fr) max-content; // raw: label column caps at 40% of the width
+    align-items: center;
+    gap: var(--gw-space-2) var(--gw-space-3);
+
+    > .gw-chart__label {
+      @include gw-type(small);
+      @include gw-truncate;
+      color: var(--gw-color-text-secondary);
+    }
+
+    > .gw-chart__bar {
+      flex-direction: row;
+      height: var(--gw-space-2);
+      overflow: hidden;
+      background: var(--gw-color-chart-grid);
+      border-radius: var(--gw-radius-xs);
+      forced-color-adjust: none;
+    }
+
+    .gw-chart__segment {
+      width: calc(var(--v, 0) * 100%);
+      height: auto;
+      min-width: var(--gw-space-0-5);
+      min-height: 0;
+      border-radius: 0;
+    }
+  }
+}
+
+// ─────────────────── Legend ───────────────────
+
+.gw-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gw-space-1) var(--gw-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  @include gw-type(caption);
+  color: var(--gw-color-text-secondary);
+
+  &__item {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--gw-space-1-5);
+  }
+
+  &__swatch {
+    @include -fill-modifiers;
+    flex: none;
+    width: var(--gw-space-2);
+    height: var(--gw-space-2);
+    background: var(--gw-chart-fill);
+    border-radius: var(--gw-radius-full);
+    forced-color-adjust: none;
+
+    // "Waiting, not working": same stripes as the approval span.
+    &--hatch {
+      background: repeating-linear-gradient(
+        -45deg,
+        var(--gw-chart-fill) 0 var(--gw-space-0-5),
+        var(--gw-tone-subtle, transparent) var(--gw-space-0-5) var(--gw-space-1)
+      );
+      box-shadow: inset 0 0 0 var(--gw-border-width-default) var(--gw-chart-fill);
+    }
+  }
+
+  &__value {
+    @include gw-tabular;
+    font-weight: var(--gw-font-weight-medium);
+    color: var(--gw-color-text-primary);
+  }
+}
+
+// ─────────────────── Sparkline ───────────────────
+
+.gw-sparkline {
+  display: block;
+  width: 100%;
+  height: var(--gw-size-icon-xl);
+  overflow: visible;
+  color: var(--gw-color-brand-fg);
+
+  :is(polyline, path, line) {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5; // raw: SVG user units, non-scaling (1.5 CSS px)
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+  }
+
+  @each $tone in (brand, success, warning, danger, info, neutral) {
+    &--#{$tone} {
+      @include gw-tone($tone);
+      color: var(--gw-tone-fg);
+    }
+  }
+}

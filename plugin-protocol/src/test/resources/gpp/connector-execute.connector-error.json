@@ -1,0 +1,11 @@
+{
+  "jsonrpc" : "2.0",
+  "id" : 43,
+  "error" : {
+    "code" : -32030,
+    "message" : "SD-999 not found or not visible to this account",
+    "data" : {
+      "kind" : "RESOURCE_ERROR"
+    }
+  }
+}

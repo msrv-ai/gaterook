@@ -1,0 +1,117 @@
+// =============================================================
+// .gw-copy-field · Read-only value + Copy
+// -------------------------------------------------------------
+// A value the user takes elsewhere: endpoint URL, CLI command, the token
+// in the one moment it is visible. Never editable; never a secret that
+// is already stored (stored secrets are write-only: gw-secret).
+//
+//   <div class="gw-copy-field">
+//     <code class="gw-copy-field__value" id="ep-url">http://127.0.0.1:7465/mcp/dev</code>
+//     <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" data-gw-copy-from="#ep-url">
+//       <span class="gw-copy-field__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> endpoint URL</span></span>
+//       <span class="gw-copy-field__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+//     </button>
+//   </div>
+//
+// Subparts
+//   __value     <code> (default, selectable text) or <input readonly> inside
+//               a gw-field with a <label for> (focusable, Ctrl+A selects it;
+//               kit.js copies .value). One line, truncated with an ellipsis.
+//   __button    gw-btn gw-btn--sm (secondary) with data-gw-copy-from="#id".
+//   __copy / __copied   the button's two faces; kit.js sets [data-copied]
+//               for 1.6 s and announces "Copied to clipboard".
+//   __hint      helper line under the value (--secret-once): icon + text,
+//               referenced by the button's aria-describedby.
+// Variants
+//   --secret-once  the token right after it is issued (token-issue result
+//               step): warning frame, the value is a <code> that wraps and
+//               stays fully visible (this is the only time it can be copied),
+//               __hint "Shown once. Store it in your password manager."
+// States   [data-copied] on __button swaps the faces (kit.js) · focus ring on
+//          the whole field while an <input> value is :focus-visible.
+// Size     36px: a 28px (sm) button inset by 4px, edge included.
+// A11y     Name the field: role="group" + aria-labelledby around a <code>
+//          value, or <label for> on an <input readonly> value. The button
+//          text carries a gw-sr-only object ("Copy endpoint URL"); in
+//          --secret-once its aria-describedby points at the __hint.
+// Raw values none.
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+.gw-copy-field {
+  @include gw-well;
+  display: flex;
+  align-items: center;
+  gap: var(--gw-space-2);
+  min-width: 0;
+  padding: calc(var(--gw-space-1) - var(--gw-border-width-default));
+  padding-inline-start: var(--gw-space-3);
+
+  &:has(.gw-copy-field__value:focus-visible) {
+    outline: var(--gw-focus-width) solid var(--gw-color-border-focus);
+    outline-offset: var(--gw-focus-offset);
+  }
+
+  &__value {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: auto;
+    padding: 0;
+    @include gw-type(code);
+    @include gw-truncate;
+    color: var(--gw-color-text-primary);
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+
+    &:focus { outline: none; }
+  }
+
+  &__button { flex: none; }
+
+  // Button faces, swapped by [data-copied] (kit.js).
+  &__copy,
+  &__copied {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--gw-space-1-5);
+  }
+  &__copied {
+    display: none;
+    color: var(--gw-color-success-fg);
+  }
+  [data-copied] > &__copy { display: none; }
+  [data-copied] > &__copied { display: inline-flex; }
+
+  &__hint {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--gw-space-1-5);
+    flex-basis: 100%;
+    margin: 0;
+    @include gw-type(small);
+    color: var(--gw-tone-fg, var(--gw-color-text-muted));
+
+    > .gw-icon { margin-block-start: var(--gw-space-0-5); }
+  }
+
+  // ─── Variants ───
+  &--secret-once {
+    @include gw-tone(warning);
+    flex-wrap: wrap;
+    gap: var(--gw-space-2) var(--gw-space-3);
+    padding: var(--gw-space-3);
+    background: var(--gw-tone-subtle);
+    border-color: var(--gw-tone-border);
+
+    .gw-copy-field__value {
+      flex-basis: 0;
+      white-space: normal;
+      overflow: visible;
+      text-overflow: clip;
+      overflow-wrap: anywhere;
+    }
+  }
+}

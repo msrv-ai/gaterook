@@ -1,0 +1,141 @@
+// =============================================================
+// .gw-toast-region · .gw-toast · Toast notifications
+// -------------------------------------------------------------
+// Short-lived feedback in the bottom-right corner: the result of something
+// the user just did ("Token codex-laptop revoked"), or an event that needs
+// no answer right now ("Approval requested", with a link to it). A toast
+// is never the only place a decision or an error lives: approvals stay in
+// Approvals, errors stay on the object (gw-alert). Reversible actions show
+// a toast with Undo instead of asking for confirmation.
+//
+//   <section class="gw-toast-region" aria-label="Notifications">          (one per window)
+//     <div class="gw-toast gw-toast--success" role="status">
+//       <i class="gw-icon gw-toast__icon" data-lucide="circle-check"></i>
+//       <div class="gw-toast__content">
+//         <p class="gw-toast__title">Token codex-laptop revoked</p>
+//         <p class="gw-toast__body">Codex loses access on its next call.</p>
+//         <div class="gw-toast__actions"><button class="gw-btn gw-btn--sm" type="button">Undo</button></div>
+//       </div>
+//       <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-toast__close" type="button"
+//               aria-label="Dismiss notification"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+//     </div>
+//   </section>
+//
+// .gw-toast-region  fixed bottom-right, z toast, stacks toasts with a gap, width
+//                   --gw-layout-toast-width (never wider than the viewport). Lets
+//                   clicks through where there is no toast.
+// .gw-toast         overlay surface + 3px inline-start bar in the tone fg + tone icon.
+//   --<tone>        brand | success | warning | danger | info | neutral (default)
+//   Subparts        __icon __content __title __body __actions __close
+//   Icons per tone  success circle-check · warning triangle-alert (hourglass for
+//                   approvals) · danger circle-x · info info · neutral / brand bell
+// Behaviour (assets/kit.js): window.gwToast({ title, body, tone, timeout }) or
+//   [data-gw-toast="body"] [data-gw-toast-title] [data-gw-toast-tone] on a button.
+//   Auto-dismiss after 6 s (timeout: 0 keeps it); the close button removes it.
+//   kit.js appends to the FIRST .gw-toast-region in the document (and creates one
+//   when there is none): never give a static, in-page demo that class. Toasts with
+//   __actions are built by the app (gwToast renders title + body only).
+// a11y   role=status (polite); role=alert only for tone danger. The close button
+//   is named "Dismiss notification". Do not auto-dismiss a toast that has actions
+//   the user must be able to reach (pass timeout: 0).
+// Motion  enters with a short rise inside gw-motion; a plain fade otherwise.
+// Raw values: none (the bar is border-width strong + default = 3px).
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+.gw-toast-region {
+  position: fixed;
+  inset-block-end: var(--gw-space-4);
+  inset-inline-end: var(--gw-space-4);
+  z-index: var(--gw-z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gw-space-2);
+  width: var(--gw-layout-toast-width);
+  max-width: calc(100vw - 2 * var(--gw-space-4));
+  pointer-events: none;
+}
+
+.gw-toast {
+  @include gw-tone(neutral);
+  @include gw-tone-modifiers((brand, success, warning, danger, info, neutral));
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--gw-space-3);
+  min-width: 0;
+  padding: var(--gw-space-3) var(--gw-space-3) var(--gw-space-3) var(--gw-space-4);
+  @include gw-overlay-surface;
+  overflow: hidden;
+  pointer-events: auto;
+  animation: gw-toast-fade var(--gw-motion-duration-base) var(--gw-motion-ease-standard);
+
+  @include gw-motion {
+    animation-name: gw-toast-rise;
+  }
+
+  // Tone bar along the inline-start edge (a non-text mark: tone fg).
+  &::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    width: calc(var(--gw-border-width-strong) + var(--gw-border-width-default));
+    background: var(--gw-tone-fg);
+  }
+
+  &__icon {
+    flex: none;
+    margin-top: var(--gw-space-0-5);
+    color: var(--gw-tone-fg);
+  }
+
+  &__content {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: var(--gw-space-0-5);
+    min-width: 0;
+  }
+
+  &__title {
+    margin: 0;
+    @include gw-type(h3);
+    color: var(--gw-color-text-primary);
+    overflow-wrap: anywhere;
+  }
+
+  &__body {
+    margin: 0;
+    @include gw-type(small);
+    color: var(--gw-color-text-secondary);
+    overflow-wrap: anywhere;
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gw-space-2);
+    margin-top: var(--gw-space-2);
+  }
+
+  &__close {
+    flex: none;
+    margin-block-start: calc(-1 * var(--gw-space-1));
+    margin-inline-end: calc(-1 * var(--gw-space-1));
+  }
+}
+
+@keyframes gw-toast-fade {
+  from { opacity: 0; }
+}
+
+@keyframes gw-toast-rise {
+  from {
+    opacity: 0;
+    transform: translateY(var(--gw-space-2));
+  }
+}

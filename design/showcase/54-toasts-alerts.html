@@ -1,0 +1,155 @@
+<section class="sc-section" id="toasts-alerts" data-title="Toasts and alerts" data-group="Feedback">
+  <h2>Toasts and alerts <code class="gw-code">gw-toast</code> <code class="gw-code">gw-alert</code></h2>
+  <p>A <strong>toast</strong> reports the result of something the user just did, or an event that needs no answer now, and leaves after 6 s. It is never the only place a decision or an error lives: approvals stay in Approvals, a failing connection keeps its alert. Reversible actions show a toast with Undo instead of a confirmation. An <strong>alert</strong> describes a state that holds while it is true: inline in a section or form, or as a <strong>banner</strong> above the page for app-wide state (Core stopped, Tunnel is public). Both say what happened and what to do; the tone is never the only cue, the icon and the words say it too.</p>
+
+  <h3>Live toasts</h3>
+  <div class="sc-demo" data-sc-code>
+    <button class="gw-btn" type="button" data-gw-toast="Healthy · 12 ms · PostgreSQL 16.4" data-gw-toast-title="dev-db connected" data-gw-toast-tone="success">Test connection</button>
+    <button class="gw-btn" type="button" data-gw-toast="sql_execute on dev-db from Codex. Auto-deny in 4:12." data-gw-toast-title="Approval requested" data-gw-toast-tone="warning">Simulate approval request</button>
+    <button class="gw-btn" type="button" data-gw-toast="cache-redis did not answer within 5 s. Check the host or raise the timeout in the connection." data-gw-toast-title="Connection timed out" data-gw-toast-tone="danger">Simulate timeout</button>
+    <button class="gw-btn" type="button" data-gw-toast="Restart Claude Desktop to load the new config." data-gw-toast-title="Config written" data-gw-toast-tone="info">Simulate AI app config</button>
+    <button class="gw-btn" type="button" data-gw-copy="http://127.0.0.1:7465/activity?event=4f2a9c71" data-gw-toast="The link opens this event with its filters." data-gw-toast-title="Link copied">Copy event link</button>
+  </div>
+
+  <h3>Anatomy and tones</h3>
+  <div class="sc-demo sc-demo--canvas sc-demo--col" data-sc-code>
+    <div class="gw-stack gw-stack--sm" style="max-width: var(--gw-layout-toast-width)">
+      <div class="gw-toast gw-toast--warning" role="status">
+        <i class="gw-icon gw-toast__icon" data-lucide="hourglass"></i>
+        <div class="gw-toast__content">
+          <p class="gw-toast__title">Approval requested</p>
+          <p class="gw-toast__body"><span class="gw-mono">sql_execute</span> on dev-db from Codex. Auto-deny in 4:12.</p>
+          <div class="gw-toast__actions"><a class="gw-btn gw-btn--sm" href="#toasts-alerts">Review request</a></div>
+        </div>
+        <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-toast__close" type="button" aria-label="Dismiss notification"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+      </div>
+      <div class="gw-toast gw-toast--success" role="status">
+        <i class="gw-icon gw-toast__icon" data-lucide="circle-check"></i>
+        <div class="gw-toast__content">
+          <p class="gw-toast__title">Connection prod-replica removed from incident-prod</p>
+          <div class="gw-toast__actions"><button class="gw-btn gw-btn--sm" type="button">Undo</button></div>
+        </div>
+        <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-toast__close" type="button" aria-label="Dismiss notification"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+      </div>
+      <div class="gw-toast gw-toast--danger" role="alert">
+        <i class="gw-icon gw-toast__icon" data-lucide="circle-x"></i>
+        <div class="gw-toast__content">
+          <p class="gw-toast__title">Connection timed out</p>
+          <p class="gw-toast__body"><span class="gw-mono">cache-redis</span> did not answer within 5 s. Check the host or raise the timeout.</p>
+        </div>
+        <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-toast__close" type="button" aria-label="Dismiss notification"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+      </div>
+      <div class="gw-toast gw-toast--info" role="status">
+        <i class="gw-icon gw-toast__icon" data-lucide="info"></i>
+        <div class="gw-toast__content">
+          <p class="gw-toast__title">Config written</p>
+          <p class="gw-toast__body">Restart Claude Desktop to load the new config. Backup: <span class="gw-mono">claude_desktop_config.json.bak</span></p>
+        </div>
+        <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-toast__close" type="button" aria-label="Dismiss notification"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+      </div>
+      <div class="gw-toast" role="status">
+        <i class="gw-icon gw-toast__icon" data-lucide="bell"></i>
+        <div class="gw-toast__content">
+          <p class="gw-toast__title">Link copied</p>
+        </div>
+        <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-toast__close" type="button" aria-label="Dismiss notification"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <h3>Alert tones</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-alert gw-alert--info">
+      <i class="gw-icon gw-alert__icon" data-lucide="info"></i>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">Mutations always require approval</p>
+        <p class="gw-alert__body">Every tool that changes data waits for a human, in every environment. This is not a setting.</p>
+      </div>
+    </div>
+    <div class="gw-alert gw-alert--success">
+      <i class="gw-icon gw-alert__icon" data-lucide="circle-check"></i>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">Connection test passed</p>
+        <p class="gw-alert__body"><span class="gw-mono">db.dev.internal:5432/app</span> answered in 12 ms. PostgreSQL 16.4, user <span class="gw-mono">app_reader</span> can read 14 tables and write none.</p>
+      </div>
+    </div>
+    <div class="gw-alert gw-alert--warning">
+      <i class="gw-icon gw-alert__icon" data-lucide="triangle-alert"></i>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">This user can write</p>
+        <p class="gw-alert__body"><span class="gw-mono">app_rw</span> has INSERT and UPDATE on 14 tables. Use a read-only user for prod.</p>
+        <div class="gw-alert__actions">
+          <button class="gw-btn gw-btn--sm" type="button">Use another user</button>
+          <button class="gw-btn gw-btn--sm gw-btn--ghost" type="button">Keep app_rw</button>
+        </div>
+      </div>
+    </div>
+    <div class="gw-alert gw-alert--danger">
+      <i class="gw-icon gw-alert__icon" data-lucide="circle-alert"></i>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">billing-api is unreachable</p>
+        <p class="gw-alert__body">Connection refused at <span class="gw-mono">https://billing.stage.acme.dev</span>. Calls to <span class="gw-mono">http_request</span> fail until it answers. Check the VPN, then test again.</p>
+        <div class="gw-alert__actions">
+          <button class="gw-btn gw-btn--sm" type="button"><i class="gw-icon gw-icon--sm" data-lucide="refresh-cw"></i> Test again</button>
+          <button class="gw-btn gw-btn--sm gw-btn--ghost" type="button">Edit connection</button>
+        </div>
+      </div>
+    </div>
+    <div class="gw-alert gw-alert--neutral">
+      <i class="gw-icon gw-alert__icon" data-lucide="circle-help"></i>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">Not checked yet</p>
+        <p class="gw-alert__body">Health of <span class="gw-mono">aws-stage</span> is checked on the first call or when you test it.</p>
+      </div>
+    </div>
+    <div class="gw-alert gw-alert--brand">
+      <i class="gw-icon gw-alert__icon" data-lucide="lightbulb"></i>
+      <div class="gw-alert__content">
+        <p class="gw-alert__body">Group the log by trace to see each agent task as one row.</p>
+      </div>
+    </div>
+  </div>
+
+  <h3>Banner: app-wide state above the page</h3>
+  <div class="sc-demo sc-demo--canvas sc-demo--col" data-sc-code>
+    <div class="gw-alert gw-alert--danger gw-alert--banner">
+      <i class="gw-icon gw-alert__icon" data-lucide="server-off"></i>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">Core stopped</p>
+        <p class="gw-alert__body">Agents get no answer from <span class="gw-mono">127.0.0.1:7465</span>. Pending approvals are kept.</p>
+      </div>
+      <div class="gw-alert__actions">
+        <button class="gw-btn gw-btn--sm gw-btn--ghost" type="button">Open log</button>
+        <button class="gw-btn gw-btn--sm" type="button"><i class="gw-icon gw-icon--sm" data-lucide="power"></i> Start core</button>
+      </div>
+    </div>
+    <div class="gw-alert gw-alert--warning gw-alert--banner">
+      <i class="gw-icon gw-alert__icon" data-lucide="globe"></i>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">Tunnel is public</p>
+        <p class="gw-alert__body">Endpoint <span class="gw-mono">stage-readonly</span> is reachable from the internet for claude.ai.</p>
+      </div>
+      <div class="gw-alert__actions">
+        <button class="gw-btn gw-btn--sm" type="button">Turn off tunnel</button>
+      </div>
+    </div>
+  </div>
+
+  <h3>Compact: one line inside a card, row or form</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-alert gw-alert--warning gw-alert--compact">
+      <i class="gw-icon gw-alert__icon" data-lucide="hourglass"></i>
+      <div class="gw-alert__content"><p class="gw-alert__body">Token <span class="gw-mono">inspector-debug</span> expires in 3 days.</p></div>
+      <div class="gw-alert__actions"><button class="gw-btn gw-btn--link" type="button">Rotate token</button></div>
+    </div>
+    <div class="gw-alert gw-alert--info gw-alert--compact">
+      <i class="gw-icon gw-alert__icon" data-lucide="user-check"></i>
+      <div class="gw-alert__content"><p class="gw-alert__title">Needs approval</p><p class="gw-alert__body">This call waits for a human before it runs.</p></div>
+    </div>
+    <div class="gw-alert gw-alert--danger gw-alert--compact">
+      <i class="gw-icon gw-alert__icon" data-lucide="circle-alert"></i>
+      <div class="gw-alert__content"><p class="gw-alert__title">Risky combination</p><p class="gw-alert__body">Private data, untrusted content and an external channel in one endpoint.</p></div>
+      <div class="gw-alert__actions"><button class="gw-btn gw-btn--link" type="button">Review tools</button></div>
+    </div>
+  </div>
+</section>

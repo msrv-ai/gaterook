@@ -1,0 +1,227 @@
+{
+  "manifestVersion": 1,
+  "id": "jira-service-desk",
+  "version": "1.3.0",
+  "name": "Jira Service Desk",
+  "provider": "MCP Gateway",
+  "license": "Apache-2.0",
+  "description": "Search requests and read queues. Comments and transitions wait for approval.",
+  "requires": {
+    "gateway": ">=0.4.0 & <1.0.0",
+    "connectorApi": ">=1.0.0 & <2.0.0",
+    "javaModules": ["java.net.http"]
+  },
+  "connectorClass": "gaterook.plugins.jira.JiraServiceDeskConnector",
+  "type": "jira-service-desk",
+  "toolNamespace": "jira_",
+  "icon": "puzzle",
+  "group": "HTTP and MCP",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["baseUrl", "deployment", "apiToken"],
+    "properties": {
+      "baseUrl": {
+        "type": "string",
+        "format": "uri",
+        "pattern": "^https://",
+        "maxLength": 500,
+        "title": "Site URL",
+        "description": "https://acme.atlassian.net, or the base URL of your Data Center",
+        "x-agent-visible": true
+      },
+      "deployment": {
+        "enum": ["cloud", "datacenter"],
+        "default": "cloud",
+        "title": "Deployment",
+        "x-agent-visible": true
+      },
+      "email": {
+        "type": "string",
+        "format": "email",
+        "maxLength": 200,
+        "title": "Email",
+        "description": "Cloud only: the account the API token belongs to"
+      },
+      "apiToken": {
+        "type": "string",
+        "writeOnly": true,
+        "format": "password",
+        "title": "API token",
+        "description": "Cloud: an API token of the account above. Data Center: a personal access token.",
+        "x-gateway-secret": "value"
+      },
+      "serviceDeskIds": {
+        "type": "array",
+        "items": {"type": "integer", "minimum": 1},
+        "uniqueItems": true,
+        "maxItems": 50,
+        "title": "Service desks",
+        "description": "Only these service desks; empty: every desk the account sees",
+        "x-agent-visible": true
+      },
+      "timeoutMs": {
+        "type": "integer",
+        "minimum": 1000,
+        "maximum": 30000,
+        "default": 10000,
+        "title": "Timeout (ms)"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "jira_search_requests",
+      "title": "Search requests",
+      "description": "Search customer requests by text, status and service desk. At most 50 requests per call; page with start.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "searchTerm": {"type": "string", "maxLength": 200, "description": "Text to look for in the summary and description"},
+          "requestStatus": {"enum": ["OPEN_REQUESTS", "CLOSED_REQUESTS", "ALL_REQUESTS"], "default": "OPEN_REQUESTS", "description": "Open (default), closed or all requests"},
+          "serviceDeskId": {"type": "integer", "minimum": 1, "description": "Only requests of this service desk"},
+          "start": {"type": "integer", "minimum": 0, "maximum": 10000, "default": 0, "description": "Index of the first request: the next page starts where the last one ended"},
+          "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 20}
+        }
+      },
+      "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+      "nature": "READ",
+      "resultShape": "TABLE",
+      "risk": {"privateData": true, "untrustedContent": true, "egress": "NONE"}
+    },
+    {
+      "name": "jira_request_sla",
+      "title": "Request SLA",
+      "description": "The SLAs of one customer request (time to first response, time to resolution): state, goal, elapsed and remaining time, breach time.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["issueKey"],
+        "properties": {
+          "issueKey": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,9}-[0-9]{1,9}$", "description": "Request key, for example SD-123"}
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["issueKey", "slas", "truncated"],
+        "properties": {
+          "issueKey": {"type": "string"},
+          "slas": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "state", "breached"],
+              "properties": {
+                "name": {"type": "string"},
+                "state": {"enum": ["ongoing", "paused", "completed"]},
+                "breached": {"type": "boolean"},
+                "goalMillis": {"type": ["integer", "null"]},
+                "elapsedMillis": {"type": ["integer", "null"]},
+                "remainingMillis": {"type": ["integer", "null"]},
+                "breachTime": {"type": ["string", "null"]}
+              }
+            }
+          },
+          "truncated": {"type": "boolean"}
+        }
+      },
+      "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+      "nature": "READ",
+      "resultShape": "JSON",
+      "risk": {"privateData": false, "untrustedContent": false, "egress": "NONE"}
+    },
+    {
+      "name": "jira_get_request",
+      "title": "Get request",
+      "description": "One customer request: summary, status, reporter, its fields and the transitions it can take now.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["issueKey"],
+        "properties": {
+          "issueKey": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,9}-[0-9]{1,9}$", "description": "Request key, for example SD-123"}
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["issueKey", "fields", "transitions"],
+        "properties": {
+          "issueKey": {"type": "string"},
+          "summary": {"type": ["string", "null"]},
+          "status": {"type": ["string", "null"]},
+          "statusCategory": {"type": ["string", "null"]},
+          "serviceDeskId": {"type": ["string", "null"]},
+          "requestTypeId": {"type": ["string", "null"]},
+          "reporter": {"type": ["string", "null"]},
+          "created": {"type": ["string", "null"]},
+          "fields": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "label": {"type": "string"}, "value": {}}}},
+          "transitions": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "name": {"type": "string"}}}}
+        }
+      },
+      "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+      "nature": "READ",
+      "resultShape": "JSON",
+      "risk": {"privateData": true, "untrustedContent": true, "egress": "NONE"}
+    },
+    {
+      "name": "jira_list_queues",
+      "title": "List queues",
+      "description": "The queues of one service desk with how many requests each holds.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["serviceDeskId"],
+        "properties": {
+          "serviceDeskId": {"type": "integer", "minimum": 1, "description": "The service desk whose queues to list"},
+          "start": {"type": "integer", "minimum": 0, "maximum": 10000, "default": 0},
+          "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 50}
+        }
+      },
+      "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+      "nature": "READ",
+      "resultShape": "TABLE",
+      "risk": {"privateData": false, "untrustedContent": true, "egress": "NONE"}
+    },
+    {
+      "name": "jira_add_comment",
+      "title": "Add comment",
+      "description": "Adds a comment to a customer request: internal for agents by default, public when the customer should see it.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["issueKey", "body"],
+        "properties": {
+          "issueKey": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,9}-[0-9]{1,9}$", "description": "Request key, for example SD-123"},
+          "body": {"type": "string", "minLength": 1, "maxLength": 32000, "description": "The comment"},
+          "public": {"type": "boolean", "default": false, "description": "true: the customer sees it; false (default): an internal note"}
+        }
+      },
+      "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false},
+      "nature": "MUTATION",
+      "resultShape": "JSON",
+      "risk": {"privateData": true, "untrustedContent": true, "egress": "CHANNEL"}
+    },
+    {
+      "name": "jira_transition_request",
+      "title": "Transition request",
+      "description": "Moves a customer request through its workflow (resolve, reopen, …) with an optional comment. jira_get_request lists the transitions it can take.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["issueKey", "transitionId"],
+        "properties": {
+          "issueKey": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,9}-[0-9]{1,9}$", "description": "Request key, for example SD-123"},
+          "transitionId": {"type": "string", "pattern": "^[0-9]{1,10}$", "description": "The id of the transition, as jira_get_request lists it"},
+          "comment": {"type": "string", "maxLength": 32000, "description": "A comment added with the transition"}
+        }
+      },
+      "annotations": {"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": false},
+      "nature": "MUTATION",
+      "resultShape": "JSON",
+      "risk": {"privateData": true, "untrustedContent": true, "egress": "CHANNEL"}
+    }
+  ],
+  "access": {"hosts": ["{connection.host}"], "commands": [], "files": []},
+  "resources": {"maxHeapMb": 128}
+}

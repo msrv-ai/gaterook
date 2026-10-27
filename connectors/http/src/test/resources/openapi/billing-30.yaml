@@ -1,0 +1,80 @@
+openapi: 3.0.3
+info: {title: Billing API, version: "2.0"}
+servers:
+  - url: https://billing.stage.acme.dev/v1
+  - url: "{scheme}://billing.{region}.acme.dev/v1"
+    variables:
+      scheme: {default: https, enum: [https]}
+      region: {default: stage}
+security: [{bearerAuth: []}]
+paths:
+  /refunds:
+    post:
+      operationId: createRefund
+      summary: Create a refund
+      parameters:
+        - {name: Idempotency-Key, in: header, required: false, schema: {type: string, maxLength: 64}}
+        - {name: Authorization, in: header, schema: {type: string}}
+      requestBody: {$ref: '#/components/requestBodies/Refund'}
+      responses: {'201': {description: created}}
+    get:
+      operationId: listRefunds
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - {name: status, in: query, schema: {type: string, enum: [pending, succeeded, failed], nullable: true}}
+        - {name: created, in: query, style: deepObject, explode: true, schema: {type: object, properties: {gte: {type: integer}, lte: {type: integer}}}}
+      responses: {'200': {description: ok}}
+  /refunds/{refundId}:
+    parameters:
+      - {name: refundId, in: path, required: true, schema: {type: string, pattern: '^re_[A-Za-z0-9]+$'}}
+    get:
+      operationId: get-refund.by id
+      responses: {'200': {description: ok}}
+  /customers/{id}:
+    delete:
+      operationId: deleteCustomer
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: integer, format: int64, minimum: 1, exclusiveMinimum: false}}
+        - {name: id, in: query, schema: {type: string}}
+      responses: {'204': {description: gone}}
+  /tree:
+    get:
+      responses: {'200': {description: ok}}
+    put:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/Node'}
+      responses: {'200': {description: ok}}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer}
+  parameters:
+    Limit: {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 10}}
+  requestBodies:
+    Refund:
+      required: true
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Refund'}
+  schemas:
+    Money:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount: {type: integer, minimum: 1, description: Minor units}
+        currency: {type: string, enum: [EUR, USD]}
+    Refund:
+      allOf:
+        - $ref: '#/components/schemas/Money'
+        - type: object
+          required: [order_id]
+          properties:
+            order_id: {type: integer}
+            reason: {type: string, nullable: true, maxLength: 500}
+    Node:
+      type: object
+      properties:
+        name: {type: string}
+        children: {type: array, items: {$ref: '#/components/schemas/Node'}}

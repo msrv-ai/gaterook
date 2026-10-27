@@ -1,0 +1,222 @@
+// =============================================================
+// .gw-event-detail · Everything about one logged call
+// -------------------------------------------------------------
+// Element (composition): layout glue only, every look comes from the
+// components it arranges. One call, top to bottom in the order a developer
+// asks about it: what happened (summary) → who asked (request) → with what
+// (arguments, masked) → why it was decided so (policy) → who decided
+// (approval) → what came back (result) → where the time went (timing) →
+// the stored record (raw). Plus the trace view: the calls of one agent task
+// grouped into phases.
+//
+// Used in   pages/activity.html (inside a gw-drawer--lg opened from an event
+//           row, so the list stays in place; the trace view in the Traces tab)
+//           pages/approvals.html (detail of a history item)
+//           pages/playground.html (the last call)
+// Composes  gw-badge (decision vocabulary, BLUEPRINT §7) · gw-code · gw-env ·
+//           gw-kv (default, --inline) · gw-client-mark · gw-btn · gw-copy-field ·
+//           gw-code-block (--wrap, --scroll) + gw-tok-* incl. gw-tok-secret ·
+//           gw-timeline (policy rules, approval path, trace phases) ·
+//           gw-waterfall + gw-legend · gw-alert--danger (error) · gw-divider ·
+//           gw-drawer (container in Activity) · gw-card (static container)
+//
+//   <dialog class="gw-drawer gw-drawer--lg" …>   or any container (gw-card body)
+//     <article class="gw-event-detail" aria-labelledby="ev-decision ev-title">
+//       <header class="gw-event-detail__summary">
+//         <div class="gw-event-detail__headline">
+//           <span class="gw-badge gw-badge--success" id="ev-decision"><i class="gw-icon gw-badge__icon" data-lucide="user-check"></i>Approved</span>
+//           <h3 class="gw-event-detail__title gw-text-h3" id="ev-title">
+//             <code class="gw-code">sql_execute</code> on <code class="gw-code">dev-db</code>
+//             <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev">dev</span>
+//           </h3>
+//         </div>
+//         <dl class="gw-kv gw-kv--inline">Time (ISO <time> + relative) · Duration · Event id</dl>
+//         <div class="gw-event-detail__actions">Copy link · Open trace · View raw</div>
+//       </header>
+//       [<div class="gw-alert gw-alert--danger">…</div>]            error only
+//       <section class="gw-event-detail__section" aria-labelledby="ev-request">
+//         <div class="gw-event-detail__section-header">
+//           <h4 class="gw-text-overline" id="ev-request">Request</h4>
+//           [one gw-btn--link --sm action]
+//         </div>
+//         <dl class="gw-kv">AI app, token + prefix, endpoint, protocol, trace id (gw-copy-field)</dl>
+//       </section>
+//       … Arguments · Policy decision · Approval · Result · Timing · Raw event …
+//       <hr class="gw-divider">
+//       <footer class="gw-event-detail__footer">Filter by this token · Filter by this tool · View in Insights</footer>
+//     </article>
+//   </dialog>
+//
+// Parts
+//   __summary         decision badge + call title + env, the time / duration
+//                     strip (gw-kv--inline) and the event actions
+//   __headline        badge and title on one wrapping line
+//   __title           the call: tool and connection as gw-code chips, then the
+//                     env marker (inside the heading, so it is part of the
+//                     name). Heading one level below its container (h3 under
+//                     a drawer's or a section's h2), h3 type
+//   __actions         Copy link (data-gw-copy + data-gw-toast), Open trace
+//                     (Activity, Traces view, trace:<id>), View raw (a
+//                     <button data-gw-expand="#…-raw-body">: kit.js opens the
+//                     Raw event disclosure and focuses the JSON region; never
+//                     an in-page link that lands on a collapsed section)
+//   __section         one block: __section-header + content, 12px inside,
+//                     24px between sections
+//   __section-header  overline heading at the start, at most one small action
+//                     at the end (Open policies, Open in Approvals, Show JSON)
+//   __when-collapsed / __when-expanded
+//                     the two faces of a disclosure button (data-gw-toggle):
+//                     only the face matching its aria-expanded is shown
+//   __footer          one-click filters into Activity and Insights
+//                     (?q=token:codex-laptop, ?q=tool:sql_execute), after a
+//                     gw-divider
+//   __trace           trace view: __trace-header (__trace-heading: task name
+//                     as h3, mono trace id + counts, and the caption "Task name
+//                     as reported by <client>, unverified"; actions at the end),
+//                     a gw-kv--inline strip and a gw-timeline of phases; each
+//                     phase lists its decisions in __trace-decisions (a <ul>
+//                     of gw-badge--sm with icons)
+// Patterns (no class of their own)
+//   caption under a block  <p class="gw-text-caption gw-fg-muted">: "2 values
+//                     masked by policy", "What Codex received, verbatim."
+//   policy rules      a gw-timeline in evaluation order; the deciding rule
+//                     carries a gw-badge--brand --sm "Matched rule" in its
+//                     title; a rule that was not reached has an empty (dot)
+//                     marker and says "not checked"; the last item is the
+//                     decision in words
+//   timing            a one-line summary (<p id>) names the gw-waterfall
+//                     (aria-labelledby); legend lists only the phases present,
+//                     in the span tones: --neutral Gateway, --brand Resource,
+//                     --warning --hatch Waiting for approval
+// States (all expressed by content, none by extra styling)
+//   allowed / approved / denied by policy / rejected / expired / error: the
+//   decision badge (BLUEPRINT §7). Approval appears only when a human was
+//   asked (mutations); under its timeline a gw-kv--dense records the
+//   fingerprint: "Approved action SHA-256" (gw-copy-field) and "Executed
+//   action": gw-status--success "Matches the approved action, byte for byte",
+//   or gw-status--danger "Doesn't match the approved action: blocked, not run"
+//   (the gateway refuses to run a changed action). Raw JSON carries
+//   approval.action_sha256, executed_action_sha256 and action_match. With
+//   several approvers the timeline has one step per approver ("Approved by
+//   Priya Nair · 1 of 2"). Result says "Not executed" for denied, rejected and
+//   expired calls and shows the isError result the agent got. An error adds
+//   a gw-alert--danger under the summary (what happened + what to do + the
+//   connection). Raw is collapsed by default (data-gw-toggle + [hidden]).
+// Safety
+//   Masked values stay ‹masked› everywhere, raw JSON included (there is no
+//   reveal). Tokens show their name and prefix only. The action is shown
+//   verbatim in Arguments. Agent-supplied text that is not an argument (a
+//   trace's task name) is captioned "unverified".
+// A11y
+//   <article aria-labelledby> → decision badge + __title ("Approved
+//   sql_execute on dev-db environment dev"). Section headings are real
+//   headings one level below the title (overline look). Times are
+//   <time datetime> with the full ISO time in title. Masked values are
+//   gw-tok-secret ‹masked› (the guillemets are the non-colour cue) and counted
+//   in words. Code bodies are focusable named regions (gw-code-block). Long ids
+//   (trace, sha256) sit in gw-copy-field: truncated on screen, copied in full.
+//   Repeated buttons carry a gw-sr-only object ("Copy trace id",
+//   "Filter by this tool sql_execute").
+// Responsive
+//   Built for the 560–720px drawer, works from 320px up to a full page column:
+//   the headline, the strip, actions and footer wrap; kv keys take at most 40%;
+//   JSON soft-wraps (--wrap), raw JSON scrolls (--scroll); waterfall labels
+//   truncate before the bars do.
+// Raw values none.
+// =============================================================
+
+@use "../scss/tokens" as *;
+@use "../scss/mixins" as *;
+
+.gw-event-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gw-space-6);
+  min-width: 0;
+
+  &__summary {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-3);
+    min-width: 0;
+  }
+
+  &__headline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gw-space-2);
+    min-width: 0;
+  }
+
+  &__title {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  &__actions,
+  &__footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gw-space-2);
+  }
+
+  &__section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-3);
+    min-width: 0;
+  }
+
+  &__section-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--gw-space-2) var(--gw-space-3);
+    min-height: var(--gw-size-control-sm);
+  }
+
+  // Two faces of a disclosure button, following its aria-expanded.
+  &__when-collapsed,
+  &__when-expanded {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--gw-space-1-5);
+  }
+
+  [aria-expanded="true"] > &__when-collapsed,
+  [aria-expanded="false"] > &__when-expanded { display: none; }
+
+  // ─── Trace view ───
+  &__trace {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-4);
+    min-width: 0;
+  }
+
+  &__trace-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--gw-space-3) var(--gw-space-4);
+    min-width: 0;
+  }
+
+  &__trace-heading {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-1);
+    min-width: 0;
+  }
+
+  &__trace-decisions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--gw-space-1-5);
+    margin-block-start: var(--gw-space-1-5);
+  }
+}

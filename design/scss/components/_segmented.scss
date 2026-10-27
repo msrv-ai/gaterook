@@ -1,0 +1,175 @@
+// =============================================================
+// .gw-segmented · Segmented radio group
+// -------------------------------------------------------------
+// Two to four mutually exclusive options as joined segments. It is a
+// real radio group: Tab enters at the checked option, arrow keys move
+// and select, the value submits with the form. No script needed.
+// The main case is the tool mode: Off · Read only · Approval (there is
+// no "allow writes" mode anywhere in the product).
+//
+//   <fieldset class="gw-segmented" aria-describedby="exec-mode-why">
+//     <legend class="gw-sr-only">Mode for sql_execute</legend>
+//     <label class="gw-segmented__option" data-tone="off">
+//       <input class="gw-segmented__input" type="radio" name="mode-sql_execute" value="off">
+//       <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span>
+//     </label>
+//     <label class="gw-segmented__option" data-tone="read">
+//       <input class="gw-segmented__input" type="radio" name="mode-sql_execute" value="read" disabled>
+//       <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span>
+//     </label>
+//     <label class="gw-segmented__option" data-tone="approval">
+//       <input class="gw-segmented__input" type="radio" name="mode-sql_execute" value="approval" checked>
+//       <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span>
+//     </label>
+//   </fieldset>
+//   <p id="exec-mode-why">Read only is unavailable: sql_execute changes data.</p>
+//
+//   Without a fieldset: <div class="gw-segmented" role="radiogroup" aria-label="…">.
+//
+// Subparts   __option (<label>, one per value) · __input (visually hidden radio)
+//            · __label (the visible segment: icon + text)
+// Tone       data-tone on __option paints the CHECKED segment:
+//              off → neutral · read → info · approval → warning (BLUEPRINT §7)
+//              or any tone name: brand success warning danger info neutral dev stage prod
+//            No data-tone = brand (a plain view switch, the theme picker).
+// Variants   --sm (28px, table rows) · --block (fills its container, equal segments)
+// States     checked = tone subtle fill + tone text + semibold + an edge in the
+//            tone FG (a non-text mark: the faint tone border would be lighter
+//            than the unchecked segments' edge, so "Off" would look unpicked);
+//            the option keeps its own icon. Never colour alone: weight + edge.
+//            Forced colours: a transparent inner outline becomes a second ring.
+//            :disabled / [aria-disabled="true"] = raised fill, disabled text,
+//            not-allowed; a checked option that is disabled (inherited, locked
+//            group) keeps its weight and a strong edge in muted text.
+//            Native disabled radios leave the arrow order: put the reason in
+//            visible text next to the control and point the group's (and the
+//            option's) aria-describedby at it. aria-disabled="true" keeps the
+//            option in the arrow order; kit.js refuses the change (click and
+//            Space are cancelled, an arrow-key change is reverted) and the
+//            Angular component must do the same. An option that would REMOVE
+//            an approval (Read only on a destructive tool) stays natively
+//            disabled, with its reason visible.
+// A11y       legend (or aria-label) names the group with its object ("Mode for
+//            sql_query"); focus ring around the focused segment, lifted above
+//            its neighbours.
+// Raw values: none
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+$segmented-tones: (brand, success, warning, danger, info, neutral, dev, stage, prod);
+
+.gw-segmented {
+  display: inline-flex;
+  isolation: isolate;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  vertical-align: middle;
+
+  &__option {
+    @include gw-tone(brand);
+    position: relative;
+    display: flex;
+    min-width: 0;
+
+    & + & { margin-inline-start: calc(-1 * var(--gw-border-width-default)); }
+
+    &[data-tone="off"] { @include gw-tone(neutral); }
+    &[data-tone="read"] { @include gw-tone(info); }
+    &[data-tone="approval"] { @include gw-tone(warning); }
+    @each $t in $segmented-tones {
+      &[data-tone="#{$t}"] { @include gw-tone($t); }
+    }
+  }
+
+  &__input { @include gw-sr-only; }
+
+  &__label {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--gw-space-1-5);
+    // Fills its option (equal segments in --block) without a percentage width,
+    // which some intrinsic-size passes (a table cell) resolve against zero.
+    flex: 1 1 auto;
+    min-width: 0;
+    height: var(--gw-size-control-md);
+    padding-inline: var(--gw-space-3);
+    @include gw-type(ui);
+    color: var(--gw-color-text-secondary);
+    white-space: nowrap;
+    background: var(--gw-color-bg-surface);
+    border: var(--gw-border-width-default) solid var(--gw-color-border-strong);
+    cursor: pointer;
+    user-select: none;
+    transition:
+      background-color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard),
+      border-color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard),
+      color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard);
+  }
+
+  // ─── Variants ───
+  &--sm .gw-segmented__label {
+    height: var(--gw-size-control-sm);
+    padding-inline: var(--gw-space-2);
+    gap: var(--gw-space-1);
+  }
+
+  &--block {
+    display: flex;
+    width: 100%;
+
+    .gw-segmented__option { flex: 1 1 0; }
+  }
+}
+
+// Outer corners only: segments are joined.
+.gw-segmented__option:first-of-type > .gw-segmented__label {
+  border-start-start-radius: var(--gw-radius-sm);
+  border-end-start-radius: var(--gw-radius-sm);
+}
+.gw-segmented__option:last-of-type > .gw-segmented__label {
+  border-start-end-radius: var(--gw-radius-sm);
+  border-end-end-radius: var(--gw-radius-sm);
+}
+
+// ─── States ───
+.gw-segmented__input:not(:checked):not(:disabled):not([aria-disabled="true"]) + .gw-segmented__label:hover {
+  color: var(--gw-color-text-primary);
+  background: var(--gw-color-bg-raised);
+}
+
+.gw-segmented__input:checked + .gw-segmented__label {
+  z-index: var(--gw-z-raised);
+  color: var(--gw-tone-fg);
+  font-weight: var(--gw-font-weight-semibold);
+  background: var(--gw-tone-subtle);
+  border-color: var(--gw-tone-fg);
+  // Invisible normally; forced colours paint it as a second, inner ring.
+  outline: var(--gw-border-width-default) solid transparent;
+  outline-offset: calc(-1 * var(--gw-border-width-strong) - var(--gw-border-width-default));
+}
+
+.gw-segmented__input:disabled + .gw-segmented__label,
+.gw-segmented__input[aria-disabled="true"] + .gw-segmented__label {
+  color: var(--gw-color-text-disabled);
+  background: var(--gw-color-bg-raised);
+  cursor: not-allowed;
+}
+
+.gw-segmented__input:checked:disabled + .gw-segmented__label,
+.gw-segmented__input:checked[aria-disabled="true"] + .gw-segmented__label {
+  color: var(--gw-color-text-muted);
+  border-color: var(--gw-color-border-input);
+}
+
+.gw-segmented__input:focus-visible + .gw-segmented__label {
+  z-index: var(--gw-z-raised);
+  outline: var(--gw-focus-width) solid var(--gw-color-border-focus);
+  outline-offset: var(--gw-focus-offset);
+}

@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Kubernetes (report 08): k8s_get (Table, describe with events and rollout), k8s_logs (tail ring buffer),
+  k8s_rollout_restart (merge patch with a uid precondition) and k8s_apply (server-side dry run, diff, resourceVersion
+  precondition). Fabric8 gives the configuration, TLS material and the JDK HTTP client with its auth interceptors; the
+  connector sends the REST calls itself and reads every answer as a JSON tree, so no Fabric8 model class is
+  (de)serialized by reflection, on the JVM or in the native image (ARCHITECTURE.md §3, report 15 §9).
+  Spring only in the .boot subpackage. Built by step C6.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>ai.msrv.gaterook</groupId>
+    <artifactId>mcp-gateway</artifactId>
+    <version>0.4.0-SNAPSHOT</version>
+    <relativePath>../../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>connectors-kubernetes</artifactId>
+  <name>MCP Gateway · Connectors · Kubernetes</name>
+
+  <dependencies>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connector-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connectors-support</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>tools.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+    </dependency>
+    <!--
+      Config, TLS material (client keys of every format kubeconfig uses) and the HTTP client with its auth
+      interceptors. Not the DSL (kubernetes-client): every call is a REST request the connector builds itself.
+    -->
+    <dependency>
+      <groupId>io.fabric8</groupId>
+      <artifactId>kubernetes-client-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.fabric8</groupId>
+      <artifactId>kubernetes-httpclient-jdk</artifactId>
+    </dependency>
+    <!-- Unified diff shown to the approver of k8s_apply. -->
+    <dependency>
+      <groupId>io.github.java-diff-utils</groupId>
+      <artifactId>java-diff-utils</artifactId>
+    </dependency>
+    <!-- Manifests and kubeconfigs are parsed with aliases, duplicate keys and custom tags off. -->
+    <dependency>
+      <groupId>org.snakeyaml</groupId>
+      <artifactId>snakeyaml-engine</artifactId>
+    </dependency>
+
+    <!-- Registration of the built-in beans, .boot subpackage only (ARCHITECTURE.md §2.3). -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-autoconfigure</artifactId>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- An API server stand-in that keeps objects (crud) and answers recorded expectations. -->
+    <dependency>
+      <groupId>io.fabric8</groupId>
+      <artifactId>kubernetes-server-mock</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- A real kube-apiserver + etcd without Docker, under -Pkube-api (with kubectl to compare the diff). -->
+    <dependency>
+      <groupId>io.fabric8</groupId>
+      <artifactId>kube-api-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!-- KubeApiServerIT: tag kube-api, excluded unless -Pkube-api (root pom, it.excludedGroups). -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>

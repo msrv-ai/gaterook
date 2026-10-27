@@ -1,0 +1,220 @@
+<ng-template #stepTitle let-text>
+  @if (level() >= 4) {
+    <h4 class="gw-text-h3">{{ text }}</h4>
+  } @else {
+    <h3 class="gw-text-h3">{{ text }}</h3>
+  }
+</ng-template>
+
+<ng-template #endpointField>
+  <div class="gw-field">
+    <label class="gw-field__label" [for]="idPrefix() + '-ep'">Endpoint</label>
+    <select class="gw-select" [id]="idPrefix() + '-ep'" [attr.aria-describedby]="idPrefix() + '-ep-hint' + (warnings().length ? ' ' + warningsId() : '')" [attr.autofocus]="autofocus() ? '' : null" (change)="onEndpoint($event)">
+      @for (e of endpoints(); track e.slug) {
+        <option [value]="e.slug" [selected]="e.slug === endpoint()">{{ endpointOption(e) }}</option>
+      }
+    </select>
+    <p class="gw-field__hint" [id]="idPrefix() + '-ep-hint'">{{ endpointHint() }}@if (!page() && refusedReason(); as why) { {{ why }}}</p>
+  </div>
+</ng-template>
+
+<!-- The page: the endpoint's warnings (prod) right under its select, which points at them. -->
+<ng-template #endpointWarnings>
+  @if (warnings().length) {
+    <div class="gw-alert gw-alert--warning gw-alert--compact" [id]="warningsId()">
+      <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content">
+        @for (w of warnings(); track $index) {
+          <p class="gw-alert__body">{{ w }}</p>
+        }
+      </div>
+    </div>
+  }
+</ng-template>
+
+@if (page()) {
+  <p class="gw-text-small gw-fg-secondary">{{ intro() }}</p>
+}
+
+@if (choices().length > 1) {
+  <div class="gw-grid gw-grid--2">
+    @if (page()) {
+      <div class="gw-stack gw-stack--sm">
+        <ng-container [ngTemplateOutlet]="endpointField" />
+        <ng-container [ngTemplateOutlet]="endpointWarnings" />
+      </div>
+    } @else {
+      <ng-container [ngTemplateOutlet]="endpointField" />
+    }
+    <fieldset class="gw-field">
+      <legend class="gw-field__label">Sign-in</legend>
+      <div class="gw-stack gw-stack--sm">
+        @for (c of choices(); track c.method.id) {
+          <label class="gw-choice-card gw-choice-card--compact">
+            <input class="gw-choice-card__input" type="radio" [name]="idPrefix() + '-auth'" [value]="c.method.id" [checked]="c.method.id === method()" [attr.aria-disabled]="c.refused ? 'true' : null" [attr.aria-labelledby]="idPrefix() + '-auth-' + c.method.id + '-t'" [attr.aria-describedby]="idPrefix() + '-auth-' + c.method.id + '-d' + (page() ? ' ' + idPrefix() + '-auth-' + c.method.id + '-m' : '')" (change)="c.refused || onMethod(c.method.id)">
+            <span class="gw-choice-card__icon"><svg [lucideIcon]="c.icon" class="gw-icon"></svg></span>
+            <span class="gw-choice-card__title" [id]="idPrefix() + '-auth-' + c.method.id + '-t'">{{ c.method.label }}</span>
+            <span class="gw-choice-card__description" [id]="idPrefix() + '-auth-' + c.method.id + '-d'">{{ c.description }}{{ page() && c.method.id === 'token' ? ' Keep it short-lived and local.' : '' }}</span>
+            @if (page()) {
+              <span class="gw-choice-card__meta" [id]="idPrefix() + '-auth-' + c.method.id + '-m'">{{ c.refused ? 'Not on prod endpoints' : choiceMeta(c.method) }}</span>
+            }
+          </label>
+        }
+      </div>
+    </fieldset>
+  </div>
+} @else if (page()) {
+  <div class="gw-stack gw-stack--sm">
+    <ng-container [ngTemplateOutlet]="endpointField" />
+    <ng-container [ngTemplateOutlet]="endpointWarnings" />
+  </div>
+} @else {
+  <ng-container [ngTemplateOutlet]="endpointField" />
+}
+
+@if (!page()) {
+  @for (w of preview()?.warnings ?? []; track $index) {
+    <div class="gw-alert gw-alert--warning gw-alert--compact">
+      <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content"><p class="gw-alert__title">{{ w }}</p></div>
+    </div>
+  }
+}
+
+@if (method() === 'token') {
+  <!-- Token mode: the token Connect issues, before anything is written -->
+  <div class="gw-client-card__step">
+    <ng-container [ngTemplateOutlet]="stepTitle" [ngTemplateOutletContext]="{ $implicit: 'Token for ' + card().name }" />
+    <div class="gw-form__row">
+      <div class="gw-field">
+        <label class="gw-field__label" [for]="idPrefix() + '-tok-name'">Name</label>
+        <input class="gw-input gw-input--mono" [id]="idPrefix() + '-tok-name'" type="text" [value]="tokenName()" required pattern="[a-z0-9]+(-[a-z0-9]+)*" maxlength="40" autocomplete="off" spellcheck="false" autocapitalize="off" [attr.aria-invalid]="tokenValid() ? null : 'true'" [attr.aria-describedby]="idPrefix() + '-tok-name-hint'" (input)="onTokenName($event)" (change)="onTokenCommit()">
+        @if (tokenValid()) {
+          <p class="gw-field__hint" [id]="idPrefix() + '-tok-name-hint'">Shown next to every call in Activity.</p>
+        } @else {
+          <p class="gw-field__error" [id]="idPrefix() + '-tok-name-hint'">Lowercase letters, digits and dashes, up to 40, such as {{ card().client === 'claude-desktop' ? 'claude' : card().client }}-laptop.</p>
+        }
+      </div>
+      <div class="gw-field">
+        <label class="gw-field__label" [for]="idPrefix() + '-tok-exp'">Expires</label>
+        <select class="gw-select" [id]="idPrefix() + '-tok-exp'" [attr.aria-describedby]="idPrefix() + '-tok-exp-hint'" (change)="onTtl($event)">
+          @for (d of ttls; track d) {
+            <option [value]="d" [selected]="d === ttlDays()">{{ d }} days</option>
+          }
+        </select>
+        <p class="gw-field__hint" [id]="idPrefix() + '-tok-exp-hint'">On <time [attr.datetime]="time.iso(expiry()).slice(0, 10)">{{ time.date(expiry(), true) }}</time>. Connect again to renew it.</p>
+      </div>
+    </div>
+    @if (page()) {
+      <p class="gw-text-caption gw-fg-muted">Token <span class="gw-mono">{{ tokenName() || '…' }}</span> · expires in {{ ttlDays() }} days · written in plain text to <span class="gw-mono">{{ card().configDisplay }}</span> · <a class="gw-link" [routerLink]="['/endpoints', endpoint()]" [queryParams]="{ tab: 'tokens' }">Revoke<span class="gw-sr-only"> it on the Tokens tab of the endpoint</span></a></p>
+    } @else {
+      <p class="gw-text-caption gw-fg-muted">No IP allowlist on the desktop (server mode only): the gateway listens on <span class="gw-mono">127.0.0.1</span>, so the token works from this computer only. You never see its value; revoke it on the endpoint's Tokens tab any time.</p>
+    }
+  </div>
+}
+
+@if (page() && failure(); as f) {
+  <!-- The page's "Connect failed": nothing was written; what failed, where to fix it, and the details. -->
+  <div class="gw-alert gw-alert--danger" role="alert">
+    <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+    <div class="gw-alert__content">
+      <p class="gw-alert__title">@for (p of f.title; track $index) {@if (p.code) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</p>
+      <p class="gw-alert__body">@for (p of f.body; track $index) {@if (p.code) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</p>
+      <div class="gw-alert__actions">
+        <button class="gw-btn gw-btn--sm" type="button" [attr.aria-disabled]="canOpenConfig() ? null : 'true'" [attr.aria-describedby]="canOpenConfig() ? null : idPrefix() + '-oc-why'" (click)="canOpenConfig() && openConfig.emit()">Open config<span class="gw-sr-only"> of {{ card().name }}</span></button>
+        @if (f.details) {
+          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [attr.aria-controls]="idPrefix() + '-err-details'"><svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg>Details<span class="gw-sr-only"> of the error</span></button>
+        }
+      </div>
+      @if (!canOpenConfig()) {
+        <span class="gw-sr-only" [id]="idPrefix() + '-oc-why'">Opens the file in the desktop app</span>
+      }
+    </div>
+  </div>
+  @if (f.details; as d) {
+    <div [id]="idPrefix() + '-err-details'" hidden>
+      <gw-code-block [text]="d.text" lang="Error" [filename]="d.title" copyLabel="error details" [regionLabel]="'Error details of Connect ' + card().name" wrap />
+    </div>
+  }
+  @if (f.fix; as fix) {
+    <gw-code-block [text]="fix.text" [lang]="langLabel(fix.language)" [filename]="fix.title" [copyLabel]="fix.label" [regionLabel]="fix.title" />
+  }
+} @else {
+  <div class="gw-client-card__step" [attr.aria-busy]="loading() ? 'true' : null">
+    <ng-container [ngTemplateOutlet]="stepTitle" [ngTemplateOutletContext]="{ $implicit: 'What will change' }" />
+    @if (failure(); as f) {
+      <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+        <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content">
+          <p class="gw-alert__title">@for (p of f.title; track $index) {@if (p.code) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</p>
+          <p class="gw-alert__body">@for (p of f.body; track $index) {@if (p.code) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</p>
+        </div>
+      </div>
+      @if (f.fix; as fix) {
+        <gw-code-block [text]="fix.text" [lang]="langLabel(fix.language)" [filename]="fix.title" [copyLabel]="fix.label" [regionLabel]="fix.title" />
+      }
+    } @else if (loading() || !preview()) {
+      <p class="gw-text-small gw-fg-muted" role="status"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> Preparing the exact change…</p>
+    } @else {
+      @for (f of files(); track f.file.path) {
+        @if (f.diff) {
+          <gw-diff [diff]="f.diff" [filename]="f.file.display" [summary]="f.summary" [regionLabel]="'Changes to ' + f.file.display" [wrap]="wrap()" />
+        }
+        @if (f.file.kind === 'mcpb') {
+          <p class="gw-client-card__backup gw-text-small gw-fg-muted"><svg lucideIcon="package" class="gw-icon gw-icon--sm"></svg>New file: <code class="gw-code">{{ f.file.display }}</code></p>
+        } @else if (f.file.backupPath) {
+          <p class="gw-client-card__backup gw-text-small gw-fg-muted"><svg lucideIcon="archive" class="gw-icon gw-icon--sm"></svg>Backup: <code class="gw-code">{{ f.file.backupPath }}</code></p>
+        } @else if (!f.file.exists) {
+          <p class="gw-client-card__backup gw-text-small gw-fg-muted"><svg lucideIcon="archive" class="gw-icon gw-icon--sm"></svg>New file: nothing to back up</p>
+        }
+        @if (f.file.modeChange) {
+          <!-- The core's sentence: "Permissions change from rw-r--r-- to rw------- because it now holds a token". -->
+          <p class="gw-text-small gw-fg-muted">{{ f.file.modeChange }}</p>
+        }
+      }
+      @if (notes().length) {
+        <ul class="gw-stack gw-stack--sm" aria-label="Notes">
+          @for (n of notes(); track $index) {
+            <li class="gw-text-small gw-fg-secondary">{{ n }}</li>
+          }
+        </ul>
+      }
+    }
+  </div>
+}
+
+@if (deeplink(); as link) {
+  <!-- Sign-in through the browser: the other way in, started from the client. The link carries the URL, never a token. -->
+  <div class="gw-alert gw-alert--info gw-alert--compact">
+    <svg lucideIcon="link" class="gw-icon gw-alert__icon"></svg>
+    <div class="gw-alert__content">
+      <p class="gw-alert__body">Prefer to add it from {{ card().name }}? An Add to {{ card().name }} link carries only the endpoint URL; {{ card().name }} then signs in through the browser.</p>
+    </div>
+    <div class="gw-alert__actions">
+      <button class="gw-btn gw-btn--link gw-btn--sm" type="button" [gwCopy]="link">
+        <span class="gw-btn__copy">Copy Add to {{ card().name }} link</span><span class="gw-btn__copied">Copied</span>
+      </button>
+    </div>
+  </div>
+}
+
+@if (!page()) {
+  @if (auth(); as a) {
+    <div class="gw-alert gw-alert--compact" [class.gw-alert--info]="a.tone === 'info'" [class.gw-alert--warning]="a.tone === 'warning'">
+      <svg [lucideIcon]="a.icon" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">{{ a.title }}</p>
+        <p class="gw-alert__body">@for (p of a.body; track $index) {@if (p.code) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</p>
+      </div>
+    </div>
+  }
+}
+@if (restart(); as r) {
+  <div class="gw-alert gw-alert--warning gw-alert--compact">
+    <svg lucideIcon="rotate-cw" class="gw-icon gw-alert__icon"></svg>
+    <div class="gw-alert__content">
+      <p class="gw-alert__title">{{ r.title }}</p>
+      <p class="gw-alert__body">@for (p of r.body; track $index) {@if (p.code) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</p>
+    </div>
+  </div>
+}

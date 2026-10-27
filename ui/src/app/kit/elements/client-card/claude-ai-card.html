@@ -1,0 +1,201 @@
+<header class="gw-card__header gw-client-card__header">
+  <div class="gw-client-card__identity">
+    <span gwClientMark="claude-ai" size="lg"></span>
+    <div class="gw-card__heading">
+      @switch (level()) {
+        @case (2) { <h2 class="gw-card__title" [id]="uid + '-t'">claude.ai</h2> }
+        @case (4) { <h4 class="gw-card__title" [id]="uid + '-t'">claude.ai</h4> }
+        @default { <h3 class="gw-card__title" [id]="uid + '-t'">claude.ai</h3> }
+      }
+      <p class="gw-card__description gw-client-card__via">{{ on() ? 'Public URL via tunnel' : 'Public URL via tunnel · OAuth 2.1' }}</p>
+    </div>
+  </div>
+  <span class="gw-status gw-status--{{ look().tone }} gw-client-card__status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ look().text }}</span></span>
+</header>
+
+<div class="gw-card__body gw-stack gw-client-card__body">
+  @if (t(); as tunnel) {
+    @if (tunnel.state === 'error' && tunnel.error) {
+      <div class="gw-alert gw-alert--danger">
+        <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content">
+          <p class="gw-alert__title">The tunnel didn't start</p>
+          <p class="gw-alert__body">{{ tunnel.error }} Nothing is public.</p>
+        </div>
+      </div>
+    }
+    @if (on()) {
+      <div class="gw-field">
+        <label class="gw-field__label" [for]="uid + '-url'">Public URL</label>
+        <div class="gw-copy-field">
+          <input class="gw-copy-field__value" [id]="uid + '-url'" type="text" readonly [value]="publicUrl() ?? ''" [attr.aria-describedby]="uid + '-url-hint'">
+          <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" [gwCopyFrom]="'#' + uid + '-url'">
+            <span class="gw-copy-field__copy"><svg lucideIcon="copy" class="gw-icon gw-icon--sm"></svg> Copy<span class="gw-sr-only"> public URL</span></span>
+            <span class="gw-copy-field__copied"><svg lucideIcon="check" class="gw-icon gw-icon--sm"></svg> Copied</span>
+          </button>
+        </div>
+        <p class="gw-field__hint" [id]="uid + '-url-hint'">In claude.ai open Settings, Connectors, Add custom connector and paste it. Then allow the sign-in here, on this computer.</p>
+      </div>
+      <dl class="gw-kv gw-kv--dense">
+        <div class="gw-kv__row"><dt class="gw-kv__key">Published</dt><dd class="gw-kv__value">@for (p of publicPaths(); track p; let last = $last) {<span class="gw-mono">{{ p }}</span>@if (!last) {, }}</dd></div>
+        <div class="gw-kv__row"><dt class="gw-kv__key">Stays local</dt><dd class="gw-kv__value">The app UI, the admin API@if (local().length) {, {{ local().length === 1 ? 'endpoint' : 'endpoints' }} @for (s of local(); track s; let last = $last; let i = $index) {@if (i > 0) {{{ last ? ' and ' : ', ' }}}<span class="gw-mono">{{ s }}</span>}}</dd></div>
+        <div class="gw-kv__row"><dt class="gw-kv__key">Callers</dt><dd class="gw-kv__value">{{ anthropicOnly() ? 'Anthropic IP ranges only' : 'Any address' }} · <a class="gw-link" routerLink="/settings/tunnel" fragment="settings-tunnel-callers">change in Tunnel settings</a></dd></div>
+        <div class="gw-kv__row"><dt class="gw-kv__key">Sign-in</dt><dd class="gw-kv__value">OAuth 2.1, each new sign-in allowed on this computer · {{ signedIn().length }} signed in</dd></div>
+        <div class="gw-kv__row"><dt class="gw-kv__key">Tunnel</dt><dd class="gw-kv__value">{{ history() }} · <a class="gw-link" routerLink="/activity" [queryParams]="{ view: 'changes' }">Setup changes</a></dd></div>
+      </dl>
+    } @else {
+      <div class="gw-grid gw-grid--2">
+        <div class="gw-stack gw-stack--sm">
+          @if (level() >= 3) { <h4 class="gw-text-h3">What gets published</h4> } @else { <h3 class="gw-text-h3">What gets published</h3> }
+          @if (slug(); as s) {
+            <dl class="gw-kv">
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key gw-mono">/mcp/{{ s }}</dt>
+                <dd class="gw-kv__value">Endpoint <a class="gw-link gw-mono" [routerLink]="['/endpoints', s]">{{ s }}</a>@if (readOnly()) {, read only}@if (preview()?.connections?.length) {: @for (c of preview()!.connections; track c.name; let last = $last; let i = $index) {@if (i > 0) {{{ last ? ' and ' : ', ' }}}<span class="gw-mono">{{ c.name }}</span>}}@for (env of connectionEnvs(); track env) { <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--{{ env }}">{{ env }}</span>}</dd>
+              </div>
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key gw-mono">/oauth/*</dt>
+                <dd class="gw-kv__value">OAuth 2.1 sign-in, with its metadata at <span class="gw-mono">/.well-known/oauth-*</span>. The sign-in page only asks you to confirm on this computer.</dd>
+              </div>
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key">Stays local</dt>
+                <dd class="gw-kv__value">The app UI, the admin API@if (local().length) {, and {{ local().length === 1 ? 'endpoint' : 'endpoints' }} @for (l of local(); track l; let last = $last; let i = $index) {@if (i > 0) {{{ last ? ' and ' : ', ' }}}<span class="gw-mono">{{ l }}</span>}}</dd>
+              </div>
+            </dl>
+          } @else {
+            <p class="gw-text-small gw-fg-secondary">Choose the endpoint to publish in Tunnel settings. Only that endpoint and the sign-in become public.</p>
+          }
+        </div>
+        <div class="gw-stack gw-stack--sm">
+          @if (level() >= 3) { <h4 class="gw-text-h3" [id]="uid + '-gates-t'">Who gets in</h4> } @else { <h3 class="gw-text-h3" [id]="uid + '-gates-t'">Who gets in</h3> }
+          <ol class="gw-stack gw-stack--sm" [attr.aria-labelledby]="uid + '-gates-t'">
+            <!-- Gate 1 per ARCHITECTURE §8.6.4 (kit after KIT): the IP gate guards the MCP path; the sign-in page opens in the person's own browser. -->
+            <li class="gw-text-small"><span class="gw-counter" aria-hidden="true">1</span> Only Anthropic IP ranges reach @if (slug(); as s) {<span class="gw-mono">/mcp/{{ s }}</span>} @else {the endpoint}: {{ anthropicOnly() ? 'on' : 'off, any address reaches it' }}; the sign-in page opens in your own browser. <a class="gw-link" routerLink="/settings/tunnel" fragment="settings-tunnel-callers">Change in Tunnel settings<span class="gw-sr-only">, callers</span></a></li>
+            <li class="gw-text-small"><span class="gw-counter" aria-hidden="true">2</span> Each new sign-in waits until you allow it on this computer, with a code to match.</li>
+            <li class="gw-text-small"><span class="gw-counter" aria-hidden="true">3</span> The endpoint's own modes: @if (slug(); as s) {<span class="gw-mono">{{ s }}</span> is {{ readOnly() ? 'read only' : 'as its tools are set' }}, and its token works for nothing else.} @else {its token works for nothing else.}</li>
+          </ol>
+          <dl class="gw-kv gw-kv--dense">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Public URL</dt><dd class="gw-kv__value">None while the tunnel is off</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Tunnel</dt><dd class="gw-kv__value">{{ history() }} · <a class="gw-link" routerLink="/activity" [queryParams]="{ view: 'changes' }">Setup changes</a></dd></div>
+            @if (meanwhile(); as m) {
+              <div class="gw-kv__row"><dt class="gw-kv__key">While public</dt><dd class="gw-kv__value">{{ m.calls }} {{ m.calls === 1 ? 'call' : 'calls' }}@if (m.lastAt) {, last at <time [attr.datetime]="time.iso(m.lastAt)" [title]="time.absolute(m.lastAt)">{{ time.clock(m.lastAt) }}</time>} · <a class="gw-link" routerLink="/activity" [queryParams]="activity('claude-ai')">View activity<span class="gw-sr-only"> of claude.ai</span></a></dd></div>
+            }
+          </dl>
+        </div>
+      </div>
+
+      <section class="gw-stack gw-stack--sm" [attr.aria-labelledby]="uid + '-sessions-t'">
+        @if (level() >= 3) {
+          <h4 class="gw-text-h3" [id]="uid + '-sessions-t'">Signed in <span class="gw-counter">{{ signedIn().length }}<span class="gw-sr-only"> {{ signedIn().length === 1 ? 'sign-in' : 'sign-ins' }}</span></span></h4>
+        } @else {
+          <h3 class="gw-text-h3" [id]="uid + '-sessions-t'">Signed in <span class="gw-counter">{{ signedIn().length }}<span class="gw-sr-only"> {{ signedIn().length === 1 ? 'sign-in' : 'sign-ins' }}</span></span></h3>
+        }
+        <p class="gw-text-small gw-fg-secondary">Sign-ins you allowed. They outlive the tunnel: revoke one to cut it off before the tunnel is on again.</p>
+        @if (signedIn().length) {
+          <div class="gw-table-wrap" role="region" [attr.aria-labelledby]="uid + '-sessions-cap'" tabindex="0">
+            <table class="gw-table gw-table--dense">
+              <caption class="gw-sr-only" [id]="uid + '-sessions-cap'">OAuth sign-ins of claude.ai</caption>
+              <thead><tr><th scope="col">Client</th><th scope="col">Endpoint</th><th scope="col">Allowed</th><th scope="col">Last call</th><th scope="col">Expires</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th></tr></thead>
+              <tbody>
+                @for (g of signedIn(); track g.id) {
+                  <tr>
+                    <th scope="row">{{ g.client }}</th>
+                    <td class="gw-table__cell--mono">{{ g.endpoint }}</td>
+                    <td><time [attr.datetime]="time.iso(g.createdAt)" [title]="time.absolute(g.createdAt, false)">{{ time.date(g.createdAt) }} {{ time.clock(g.createdAt) }}</time>, by you</td>
+                    <td>@if (g.lastUsedAt) {<time [attr.datetime]="time.iso(g.lastUsedAt)" [title]="time.absolute(g.lastUsedAt)">{{ time.clock(g.lastUsedAt) }}</time>} @else {<span class="gw-fg-muted">No call yet</span>}</td>
+                    <td><time [attr.datetime]="time.iso(g.expiresAt)" [title]="time.absolute(g.expiresAt, false)">{{ time.date(g.expiresAt) }}</time></td>
+                    <td class="gw-table__cell--actions"><button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askRevoke(g, $any($event.currentTarget))">Revoke<span class="gw-sr-only"> {{ g.client }} access to {{ g.endpoint }}</span></button></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <p class="gw-text-small gw-fg-muted">No sign-ins yet.</p>
+        }
+      </section>
+    }
+  } @else {
+    <p class="gw-text-small gw-fg-secondary">claude.ai runs in Anthropic's cloud, so it needs a public URL to reach this computer. Publishing through a tunnel isn't available in this version of the app yet.</p>
+  }
+</div>
+
+@if (t(); as tunnel) {
+  @if (on()) {
+    <footer class="gw-card__footer gw-card__footer--split gw-client-card__footer">
+      <a class="gw-btn gw-btn--link gw-btn--sm" routerLink="/activity" [queryParams]="activity('claude-ai')">View activity<span class="gw-sr-only"> of claude.ai</span></a>
+      <div class="gw-client-card__actions">
+        <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/settings/tunnel">Tunnel settings</a>
+        <button class="gw-btn gw-btn--sm" type="button" [attr.aria-busy]="busy() ? 'true' : null" (click)="stop.emit()">Turn off tunnel<span class="gw-sr-only"> for claude.ai</span></button>
+      </div>
+    </footer>
+  } @else {
+    <footer class="gw-card__footer gw-card__footer--split gw-client-card__footer">
+      <a class="gw-btn gw-btn--link gw-btn--sm" routerLink="/settings/tunnel">Tunnel settings</a>
+      <div class="gw-client-card__actions">
+        @if (sampleConsent()) {
+          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="previewConsent()">Preview a sign-in request</button>
+        }
+        @if (slug(); as s) {
+          <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="dialog" [attr.aria-disabled]="tunnel.state === 'starting' ? 'true' : null" (click)="askPublish($any($event.currentTarget))"><svg lucideIcon="globe-lock" class="gw-icon gw-icon--sm"></svg>Publish for claude.ai</button>
+        }
+      </div>
+    </footer>
+  }
+}
+
+<!-- Publish: makes one endpoint public. gw-dialog--warning (risky, reversible), Cancel autofocus. -->
+<dialog class="gw-dialog gw-dialog--md gw-dialog--warning" gwDialog #publishDialog="gwDialog" [attr.aria-labelledby]="uid + '-pub-t'" [attr.aria-describedby]="uid + '-pub-d'">
+  @if (slug(); as s) {
+    <header class="gw-dialog__header">
+      <span class="gw-icon-tile"><svg lucideIcon="globe-lock" class="gw-icon"></svg></span>
+      <h2 class="gw-dialog__title" [id]="uid + '-pub-t'">Publish <span class="gw-mono">{{ s }}</span> to the internet?</h2>
+      <p class="gw-dialog__description" [id]="uid + '-pub-d'">The tunnel gives it a public HTTPS address with three gates in front: {{ anthropicOnly() ? 'only Anthropic IP ranges get through' : 'any address gets through to the sign-in' }}, each new sign-in waits for you to allow it on this computer, and the endpoint's own modes apply{{ readOnly() ? ' (read only)' : '' }}. Every call still goes through policy, approvals and the audit log.</p>
+      <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+    </header>
+    <div class="gw-dialog__body">
+      @if (preview()?.refusal; as why) {
+        <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+          <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content"><p class="gw-alert__title" [id]="uid + '-pub-why'">{{ why }}</p></div>
+        </div>
+      } @else if (preview()?.risk; as risk) {
+        <div class="gw-alert gw-alert--warning gw-alert--compact">
+          <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content"><p class="gw-alert__title">{{ risk }}</p></div>
+        </div>
+      }
+      <dl class="gw-kv gw-kv--dense">
+        <div class="gw-kv__row"><dt class="gw-kv__key">Becomes public</dt><dd class="gw-kv__value">@for (p of publicPaths(); track p; let last = $last) {<span class="gw-mono">{{ p }}</span>@if (!last) {, }}</dd></div>
+        <div class="gw-kv__row"><dt class="gw-kv__key">Stays local</dt><dd class="gw-kv__value">The app UI, the admin API@if (local().length) {, {{ local().length === 1 ? 'endpoint' : 'endpoints' }} @for (l of local(); track l; let last = $last; let i = $index) {@if (i > 0) {{{ last ? ' and ' : ', ' }}}<span class="gw-mono">{{ l }}</span>}}</dd></div>
+        @if (publicUrl(); as url) {
+          <div class="gw-kv__row"><dt class="gw-kv__key">Public URL</dt><dd class="gw-kv__value gw-mono">{{ url }}</dd></div>
+        }
+        <div class="gw-kv__row"><dt class="gw-kv__key">Callers</dt><dd class="gw-kv__value">{{ anthropicOnly() ? 'Anthropic IP ranges only' : 'Any address' }} · <a class="gw-link" routerLink="/settings/tunnel" fragment="settings-tunnel-callers">change in Tunnel settings</a></dd></div>
+        <div class="gw-kv__row"><dt class="gw-kv__key">Sign-in</dt><dd class="gw-kv__value">You allow each new one here@if (signedIn().length) {; {{ signedIn().length }} earlier {{ signedIn().length === 1 ? 'sign-in is' : 'sign-ins are' }} still valid}</dd></div>
+      </dl>
+    </div>
+    <footer class="gw-dialog__footer">
+      <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
+      <button class="gw-btn gw-btn--primary" type="button" [attr.aria-disabled]="preview()?.refusal || !preview() ? 'true' : null" [attr.aria-describedby]="preview()?.refusal ? uid + '-pub-why' : null" (click)="confirmPublish()">Publish {{ s }}</button>
+    </footer>
+  }
+</dialog>
+
+<!-- Revoke one OAuth sign-in -->
+<dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" gwDialog #revokeDialog="gwDialog" [attr.aria-labelledby]="revoking() ? uid + '-rv-t' : null" [attr.aria-describedby]="revoking() ? uid + '-rv-d' : null">
+  @if (revoking(); as g) {
+    <header class="gw-dialog__header">
+      <span class="gw-icon-tile"><svg lucideIcon="key-round" class="gw-icon"></svg></span>
+      <h2 class="gw-dialog__title" [id]="uid + '-rv-t'">Revoke {{ g.client }} access to {{ g.endpoint }}?</h2>
+      <p class="gw-dialog__description" [id]="uid + '-rv-d'">The sign-in stops working at once, also when the tunnel is on again. To come back, {{ g.client }} signs in again and you allow it here.</p>
+      <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+    </header>
+    <footer class="gw-dialog__footer">
+      <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
+      <button class="gw-btn gw-btn--danger" type="button" (click)="confirmRevoke()">Revoke {{ g.client }} access</button>
+    </footer>
+  }
+</dialog>
+
+<gw-oauth-consent [consent]="consentShown()" (decide)="consentShown.set(null)" />

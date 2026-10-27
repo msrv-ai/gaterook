@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SSH",
+  "type": "object",
+  "x-policy-section": "ssh",
+  "additionalProperties": false,
+  "properties": {
+    "runbookApproval": {
+      "type": "boolean",
+      "const": true,
+      "default": true,
+      "readOnly": true,
+      "title": "Runbooks that change state wait for approval",
+      "description": "Always on: a runbook not marked read only and every ssh_exec call wait for a person."
+    },
+    "allowExec": {
+      "type": "boolean",
+      "title": "Allow any shell command (ssh_exec)",
+      "default": false,
+      "x-stricter": "and",
+      "x-inherit": false,
+      "x-confirm": "danger",
+      "description": "Off: only runbooks run. Not inherited between environments."
+    },
+    "commandTimeoutSeconds": {
+      "type": "integer",
+      "title": "Command timeout",
+      "minimum": 1,
+      "maximum": 600,
+      "default": 30,
+      "x-unit": "s",
+      "x-stricter": "min"
+    },
+    "maxOutputKb": {
+      "type": "integer",
+      "title": "Max output",
+      "minimum": 1,
+      "maximum": 4096,
+      "default": 256,
+      "x-unit": "KB",
+      "x-stricter": "min"
+    },
+    "maxStderrKb": {
+      "type": "integer",
+      "title": "Max stderr",
+      "minimum": 1,
+      "maximum": 1024,
+      "default": 64,
+      "x-unit": "KB",
+      "x-stricter": "min"
+    },
+    "allowedCredentialMethods": {
+      "type": "array",
+      "title": "Sign-in methods",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "vaultSshCa",
+          "privateKey",
+          "password"
+        ]
+      },
+      "default": [
+        "vaultSshCa",
+        "privateKey",
+        "password"
+      ],
+      "x-stricter": "intersect",
+      "x-env-default": {
+        "prod": [
+          "vaultSshCa",
+          "privateKey"
+        ]
+      }
+    },
+    "maxConcurrentCalls": {
+      "type": "integer",
+      "title": "Parallel calls per connection",
+      "minimum": 1,
+      "maximum": 16,
+      "default": 4,
+      "x-stricter": "min",
+      "x-env-default": {
+        "prod": 2
+      }
+    }
+  }
+}

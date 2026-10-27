@@ -1,0 +1,56 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "path"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048,
+      "description": "Path under the base URL with an optional query, e.g. /v1/invoices?limit=10. A full URL works only if it starts with an allowed base URL."
+    },
+    "query": {
+      "type": "object",
+      "maxProperties": 50,
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean",
+          "array"
+        ],
+        "items": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        }
+      },
+      "description": "Extra query parameters; an array repeats the key."
+    },
+    "headers": {
+      "type": "object",
+      "maxProperties": 20,
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 1024
+      },
+      "description": "Extra request headers. Authorization is added by the gateway."
+    },
+    "method": {
+      "type": "string",
+      "enum": [
+        "GET",
+        "HEAD"
+      ],
+      "default": "GET"
+    }
+  }
+}

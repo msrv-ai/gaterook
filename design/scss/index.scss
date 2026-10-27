@@ -1,0 +1,87 @@
+// =============================================================
+// GateRook Design Kit · single entry point
+// -------------------------------------------------------------
+//   @use "@gaterook/design-kit/scss" as gw;                       // everything
+//   @use "@gaterook/design-kit/scss" as gw with ($gw-font-path: "/assets/fonts");
+//
+// Emits fonts, tokens (all themes), reset, typography, every
+// component and every element. Mixins and $gw-* variables are
+// forwarded for consumers that write their own partials.
+// Compiled to dist/gw-kit.css by `npm run build`.
+// =============================================================
+
+@forward "tokens";
+@forward "mixins";
+@forward "fonts" show $gw-font-path;
+
+@use "fonts";
+@use "tokens-css";
+@use "reset";
+@use "typography";
+
+// ─── Components ───
+@use "components/logo";
+@use "components/icon";
+@use "components/button";
+@use "components/card";
+// A · Shell & navigation
+@use "components/shell";
+@use "components/page";
+@use "components/promo";
+@use "components/kbd";
+@use "components/avatar";
+// B · Status & data display
+@use "components/badge";
+@use "components/status";
+@use "components/tag";
+@use "components/kv";
+@use "components/stat";
+@use "components/progress";
+@use "components/empty";
+// C · Forms
+@use "components/field";
+@use "components/input";
+@use "components/choice";
+@use "components/segmented";
+@use "components/secret";
+@use "components/choice-card";
+@use "components/search";
+@use "components/file-drop";
+@use "components/form";
+// D · Overlays & feedback
+@use "components/tabs";
+@use "components/menu";
+@use "components/tooltip";
+@use "components/dialog";
+@use "components/toast";
+@use "components/alert";
+@use "components/stepper";
+@use "components/paginator";
+@use "components/skeleton";
+// E · Code & data
+@use "components/code";
+@use "components/diff";
+@use "components/copy-field";
+@use "components/table";
+@use "components/chart";
+@use "components/waterfall";
+@use "components/timeline";
+
+// ─── Elements (compositions of the components above) ───
+@use "../elements/setup-map";
+@use "../elements/how-it-works";
+@use "../elements/getting-started";
+@use "../elements/approval-request";
+@use "../elements/approval-notification";
+@use "../elements/tool-policy-list";
+@use "../elements/risk-callout";
+@use "../elements/token-issue";
+@use "../elements/client-card";
+@use "../elements/connection-form";
+@use "../elements/connector-card";
+@use "../elements/event-detail";
+@use "../elements/log-explorer";
+@use "../elements/settings-layout";
+@use "../elements/status-screen";
+@use "../elements/command-palette";
+@use "../elements/status-tile";

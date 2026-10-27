@@ -1,0 +1,146 @@
+// =============================================================
+// .gw-tooltip · Tooltip
+// -------------------------------------------------------------
+// A short, non-essential hint next to its trigger: names an icon-only
+// button, shows the absolute time behind "3 min ago", explains why a
+// control is unavailable. CSS only. The wrapper holds the trigger and the
+// bubble; the bubble shows while the wrapper is hovered OR its trigger has
+// keyboard focus (:focus-visible), and stays while the pointer moves onto it.
+//
+//   Bubble NAMES the trigger (icon-only button: the tooltip is its label)
+//   <span class="gw-tooltip">
+//     <button class="gw-btn gw-btn--ghost gw-btn--icon" type="button" aria-labelledby="tip-copy">
+//       <i class="gw-icon" data-lucide="copy"></i>
+//     </button>
+//     <span class="gw-tooltip__bubble" role="tooltip" id="tip-copy">Copy endpoint URL</span>
+//   </span>
+//
+//   Bubble DESCRIBES the trigger (extra information)
+//   <span class="gw-tooltip gw-tooltip--bottom">
+//     <time datetime="2026-10-22T14:07:31+02:00" tabindex="0" aria-describedby="tip-t">3 min ago</time>
+//     <span class="gw-tooltip__bubble" role="tooltip" id="tip-t">2026-10-22 14:07:31 CEST</span>
+//   </span>
+//
+// Placement (side + alignment, compose them)
+//   (default) above, centred   --bottom  below
+//   --start   aligned to the trigger's start edge (trigger near the left edge)
+//   --end     aligned to the trigger's end edge (titlebar actions, right column)
+// Subparts  __bubble  role=tooltip, inverse surface, caption type, radius sm,
+//           max 280px; a transparent border keeps its edge in forced colours
+// States    shown on .gw-tooltip:hover (after duration-base, so a pointer passing
+//           over a toolbar stays quiet) and :has(:focus-visible) (at once);
+//           suppressed while a menu opened by the trigger is expanded
+//           ([aria-expanded="true"]).
+// A plain-text trigger (time, abbr, a number) is a direct child with
+//   tabindex="0": it gets a dotted underline and the focus ring here.
+// Rules  Never put links, buttons or anything required to finish a task in the
+//   bubble (it is not reachable by touch and not interactive): use gw-popover.
+//   A disabled control that needs a "why" keeps focus: use aria-disabled="true"
+//   instead of `disabled`, so keyboard users can reach the tooltip.
+// a11y   role=tooltip + aria-describedby (or aria-labelledby when it is the name).
+//   Content is also hoverable (WCAG 1.4.13: an invisible bridge spans the gap).
+//   Esc dismisses (kit.js sets [data-dismissed] on the wrapper until the pointer
+//   leaves or focus moves): WCAG 1.4.13 "dismissible".
+// RTL    the centred bubble uses a physical left: 50% + translateX(-50%), which
+//   centres in both directions; --start / --end use logical insets.
+// Raw values: 280px bubble max width.
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+.gw-tooltip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+
+  // Plain-text trigger made focusable for the tooltip.
+  > [tabindex="0"]:not([class*="gw-btn"]) {
+    border-radius: var(--gw-radius-xs);
+    text-decoration: underline dotted;
+    text-decoration-color: var(--gw-color-text-muted);
+    text-underline-offset: 0.2em;
+    cursor: help;
+    @include gw-focus-ring(var(--gw-space-0-5));
+  }
+
+  &__bubble {
+    position: absolute;
+    z-index: var(--gw-z-popover);
+    bottom: calc(100% + var(--gw-space-1-5));
+    left: 50%;
+    width: max-content;
+    max-width: 280px; // raw: tooltip measure, ~40 characters of caption text
+    padding: var(--gw-space-1) var(--gw-space-2);
+    @include gw-type(caption);
+    color: var(--gw-color-text-inverse);
+    text-align: start;
+    white-space: normal;
+    overflow-wrap: break-word;
+    background: var(--gw-color-bg-inverse);
+    border: var(--gw-border-width-default) solid transparent;
+    border-radius: var(--gw-radius-sm);
+    box-shadow: var(--gw-shadow-md);
+    transform: translateX(-50%);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+      opacity var(--gw-motion-duration-fast) var(--gw-motion-ease-standard),
+      visibility var(--gw-motion-duration-fast) var(--gw-motion-ease-standard);
+
+    // Invisible bridge over the gap, so the pointer can travel onto the bubble.
+    &::before {
+      content: "";
+      position: absolute;
+      inset-inline: 0;
+      top: 100%;
+      height: calc(var(--gw-space-1-5) + var(--gw-border-width-default));
+    }
+  }
+
+  &:hover > &__bubble,
+  &:has(:focus-visible) > &__bubble {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  // Hover reveals after a beat, so a pointer passing over a toolbar stays quiet.
+  &:hover > &__bubble { transition-delay: var(--gw-motion-duration-base); }
+  &:has(:focus-visible) > &__bubble { transition-delay: initial; } // keyboard focus shows at once
+
+  // Esc pressed (kit.js): hidden until the pointer leaves or focus moves.
+  &[data-dismissed] > &__bubble { visibility: hidden; opacity: 0; }
+
+  // The trigger's own menu is open: the tooltip would cover it.
+  &:has([aria-expanded="true"]) > &__bubble {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  // ─── Placement ───
+  &--bottom > &__bubble {
+    top: calc(100% + var(--gw-space-1-5));
+    bottom: auto;
+
+    &::before {
+      top: auto;
+      bottom: 100%;
+    }
+  }
+
+  &--start > &__bubble {
+    left: auto;
+    inset-inline-start: 0;
+    transform: none;
+  }
+
+  &--end > &__bubble {
+    left: auto;
+    inset-inline-end: 0;
+    transform: none;
+  }
+}

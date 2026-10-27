@@ -1,0 +1,851 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connection form · Element · GateRook kit</title>
+<link rel="icon" href="../assets/logo-mark.svg" type="image/svg+xml">
+<script src="../assets/theme-boot.js"></script>
+<link rel="stylesheet" href="../dist/gw-kit.css">
+</head>
+<body>
+<a class="gw-skip-link" href="#main">Skip to content</a>
+<main class="gw-page" id="main" tabindex="-1">
+
+  <header class="gw-page-header">
+    <div class="gw-page-header__row">
+      <div class="gw-page-header__heading">
+        <h1 class="gw-page-header__title">Connection form</h1>
+        <p class="gw-page-header__description">The Configure step of Add connection, shown for PostgreSQL. Fields come from the connector's JSON Schema; the gateway adds the secret source, the environment with its safety defaults and a Test connection panel that shows what the database user may do before anything is saved.</p>
+      </div>
+      <div class="gw-page-header__actions">
+        <fieldset class="gw-segmented gw-segmented--sm">
+          <legend class="gw-sr-only">Theme</legend>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i>System</span></label>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i>Light</span></label>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i>Dark</span></label>
+        </fieldset>
+      </div>
+    </div>
+  </header>
+
+  <section class="gw-section" aria-labelledby="s-new">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-new">New PostgreSQL connection</h2>
+      <p class="gw-section__description">Fields come from the connector's JSON Schema. Pick another secret source or environment and the form follows: the secret control changes, prod shows its stricter defaults.</p>
+    </header>
+    <!-- method="dialog" keeps the demo from submitting: no navigation and no values in a URL. The app handles submit itself. -->
+    <form class="gw-form gw-connection-form" method="dialog" novalidate aria-labelledby="s-new">
+      <fieldset class="gw-form__section">
+        <legend class="gw-form__legend">Connection</legend>
+        <p class="gw-form__description">Where the core reaches the database. It connects from this machine, so your VPN and hosts file apply.</p>
+        <div class="gw-form__rows">
+          <div class="gw-field">
+            <label class="gw-field__label" for="f1-name">Name</label>
+            <input class="gw-input gw-input--mono" id="f1-name" name="name" value="dev-db" required autocomplete="off" spellcheck="false" aria-describedby="f1-name-hint">
+            <p class="gw-field__hint" id="f1-name-hint">A slug: lowercase letters, digits and dashes. Agents and Activity see it as <span class="gw-mono">connection:dev-db</span>.</p>
+          </div>
+          <div class="gw-form__row">
+            <div class="gw-field">
+              <label class="gw-field__label" for="f1-host">Host</label>
+              <input class="gw-input gw-input--mono" id="f1-host" name="host" value="db.dev.internal" required autocomplete="off" spellcheck="false">
+            </div>
+            <div class="gw-field">
+              <label class="gw-field__label" for="f1-port">Port</label>
+              <input class="gw-input gw-input--mono" id="f1-port" name="port" type="text" inputmode="numeric" value="5432" required autocomplete="off">
+            </div>
+            <div class="gw-field">
+              <label class="gw-field__label" for="f1-db">Database</label>
+              <input class="gw-input gw-input--mono" id="f1-db" name="database" value="app" required autocomplete="off" spellcheck="false">
+            </div>
+          </div>
+          <div class="gw-field">
+            <label class="gw-field__label" for="f1-ssl">SSL mode</label>
+            <select class="gw-select" id="f1-ssl" name="sslmode" aria-describedby="f1-ssl-hint">
+              <option value="disable">Off (disable)</option>
+              <option value="require">Encrypt, don't verify (require)</option>
+              <option value="verify-ca">Verify the CA (verify-ca)</option>
+              <option value="verify-full" selected>Verify the CA and host name (verify-full)</option>
+            </select>
+            <p class="gw-field__hint" id="f1-ssl-hint">verify-full checks the certificate and the host name. Lower it only for a database without TLS on a network you trust.</p>
+          </div>
+        </div>
+      </fieldset>
+      <section class="gw-form__section gw-connection-form__credentials" aria-labelledby="f1-cred-t">
+        <header class="gw-form__section-header">
+          <h3 class="gw-form__legend" id="f1-cred-t">Credentials</h3>
+          <p class="gw-form__description">The agent never sees these. The core decrypts or fetches the secret only for the duration of a call.</p>
+        </header>
+        <div class="gw-form__rows">
+          <fieldset class="gw-field">
+            <legend class="gw-field__label">Secret source</legend>
+            <div class="gw-grid gw-grid--auto gw-connection-form__sources">
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="f1-src" value="local" checked aria-labelledby="f1-src-local-t" aria-describedby="f1-src-local-d">
+                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="lock-keyhole"></i></span>
+                <span class="gw-choice-card__title" id="f1-src-local-t">Encrypted here</span>
+                <span class="gw-choice-card__description" id="f1-src-local-d">Stored in the local database, encrypted with the master key. Write-only.</span>
+                <span class="gw-choice-card__meta">Default</span>
+              </label>
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="f1-src" value="vault" aria-labelledby="f1-src-vault-t" aria-describedby="f1-src-vault-d">
+                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="vault"></i></span>
+                <span class="gw-choice-card__title" id="f1-src-vault-t">HashiCorp Vault or OpenBao</span>
+                <span class="gw-choice-card__description" id="f1-src-vault-d">Resolve a <span class="gw-mono">vault://</span> reference at call time.</span>
+                <span class="gw-choice-card__meta">KV v2</span>
+              </label>
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="f1-src" value="gcp" aria-labelledby="f1-src-gcp-t" aria-describedby="f1-src-gcp-d">
+                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
+                <span class="gw-choice-card__title" id="f1-src-gcp-t">GCP Secret Manager</span>
+                <span class="gw-choice-card__description" id="f1-src-gcp-d">Resolve <span class="gw-mono">gcp-sm://</span> with the core&#39;s service account.</span>
+                <span class="gw-choice-card__meta">Needs secretAccessor</span>
+              </label>
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="f1-src" value="aws" aria-labelledby="f1-src-aws-t" aria-describedby="f1-src-aws-d">
+                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
+                <span class="gw-choice-card__title" id="f1-src-aws-t">AWS Secrets Manager</span>
+                <span class="gw-choice-card__description" id="f1-src-aws-d">Resolve <span class="gw-mono">aws-sm://</span> with the core&#39;s AWS profile.</span>
+                <span class="gw-choice-card__meta">Needs GetSecretValue</span>
+              </label>
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="f1-src" value="dynamic" aria-labelledby="f1-src-dynamic-t" aria-describedby="f1-src-dynamic-d">
+                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="timer"></i></span>
+                <span class="gw-choice-card__title" id="f1-src-dynamic-t">Short-lived (Vault dynamic credentials)</span>
+                <span class="gw-choice-card__description" id="f1-src-dynamic-d">Vault creates a short-lived database user, renewed automatically. Nothing is stored here.</span>
+                <span class="gw-choice-card__meta">Recommended for prod</span>
+              </label>
+            </div>
+          </fieldset>
+          <div class="gw-field gw-connection-form__user">
+            <label class="gw-field__label" for="f1-user">User</label>
+            <input class="gw-input gw-input--mono" id="f1-user" name="user" value="app_rw" required autocomplete="off" spellcheck="false" aria-describedby="f1-user-hint">
+            <p class="gw-field__hint" id="f1-user-hint">Use a user that can only read wherever you can. The test below shows what it may do.</p>
+          </div>
+          <div class="gw-field gw-connection-form__secret" data-source="local">
+            <label class="gw-field__label" for="f1-pw">Password</label>
+            <div class="gw-secret" data-state="empty">
+              <div class="gw-input-group">
+                <input class="gw-input" type="password" id="f1-pw" name="password" placeholder="Paste or type the password" autocomplete="new-password" aria-describedby="f1-pw-hint">
+                <button class="gw-input-group__addon" type="button" data-gw-reveal aria-pressed="false" aria-label="Show password" aria-controls="f1-pw"><i class="gw-icon" data-lucide="eye"></i><i class="gw-icon" data-lucide="eye-off"></i></button>
+              </div>
+            </div>
+            <p class="gw-field__hint" id="f1-pw-hint">Encrypted with the master key on save. Nobody can view it afterwards: Replace or Rotate only.</p>
+          </div>
+          <div class="gw-field gw-connection-form__secret" data-source="vault">
+            <label class="gw-field__label" for="f1-ref-vault">Secret reference</label>
+            <div class="gw-secret" data-state="empty">
+              <input class="gw-input gw-input--mono" type="text" id="f1-ref-vault" name="secretRef" placeholder="vault://kv/dev/db#password" autocomplete="off" spellcheck="false" aria-describedby="f1-ref-vault-hint">
+              <span class="gw-secret__actions"><button class="gw-btn" type="button">Test reference</button></span>
+            </div>
+            <p class="gw-field__hint" id="f1-ref-vault-hint">Path and key in Vault or OpenBao, resolved at call time with the core's Vault token.</p>
+          </div>
+          <div class="gw-field gw-connection-form__secret" data-source="gcp">
+            <label class="gw-field__label" for="f1-ref-gcp">Secret reference</label>
+            <div class="gw-secret" data-state="empty">
+              <input class="gw-input gw-input--mono" type="text" id="f1-ref-gcp" name="secretRef" placeholder="gcp-sm://projects/acme-dev/secrets/dev-db-password/versions/latest" autocomplete="off" spellcheck="false" aria-describedby="f1-ref-gcp-hint">
+              <span class="gw-secret__actions"><button class="gw-btn" type="button">Test reference</button></span>
+            </div>
+            <p class="gw-field__hint" id="f1-ref-gcp-hint">Resolved at call time with the core's service account.</p>
+          </div>
+          <div class="gw-field gw-connection-form__secret" data-source="aws">
+            <label class="gw-field__label" for="f1-ref-aws">Secret reference</label>
+            <div class="gw-secret" data-state="empty">
+              <input class="gw-input gw-input--mono" type="text" id="f1-ref-aws" name="secretRef" placeholder="aws-sm://eu-central-1/dev/db#password" autocomplete="off" spellcheck="false" aria-describedby="f1-ref-aws-hint">
+              <span class="gw-secret__actions"><button class="gw-btn" type="button">Test reference</button></span>
+            </div>
+            <p class="gw-field__hint" id="f1-ref-aws-hint">Resolved at call time with the core's AWS profile.</p>
+          </div>
+          <div class="gw-field gw-connection-form__secret" data-source="dynamic">
+            <label class="gw-field__label" for="f1-role">Vault role</label>
+            <div class="gw-secret" data-state="empty">
+              <input class="gw-input gw-input--mono" type="text" id="f1-role" name="vaultRole" placeholder="database/creds/dev-readonly" autocomplete="off" spellcheck="false" aria-describedby="f1-role-hint">
+              <span class="gw-secret__actions"><button class="gw-btn" type="button">Test role</button></span>
+            </div>
+            <p class="gw-field__hint" id="f1-role-hint">Vault creates a short-lived database user, renewed automatically. No user or password is stored here.</p>
+          </div>
+        </div>
+      </section>
+      <section class="gw-form__section gw-connection-form__safety" aria-labelledby="f1-env-t">
+        <header class="gw-form__section-header">
+          <h3 class="gw-form__legend" id="f1-env-t">Environment and safety</h3>
+          <p class="gw-form__description">Sets the policy defaults and the marker approvers and agents see next to this connection. Prod is always red and always stricter.</p>
+        </header>
+        <div class="gw-form__rows">
+          <fieldset class="gw-field">
+            <legend class="gw-field__label">Environment</legend>
+            <div class="gw-form__row">
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="f1-env" value="dev" checked aria-labelledby="f1-env-dev-t" aria-describedby="f1-env-dev-d">
+                <span class="gw-choice-card__title" id="f1-env-dev-t"><span class="gw-env gw-env--dev">dev</span> Development</span>
+                <span class="gw-choice-card__description" id="f1-env-dev-d">Local work and test data. Mutations still wait for approval.</span>
+              </label>
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="f1-env" value="stage" aria-labelledby="f1-env-stage-t" aria-describedby="f1-env-stage-d">
+                <span class="gw-choice-card__title" id="f1-env-stage-t"><span class="gw-env gw-env--stage">stage</span> Staging</span>
+                <span class="gw-choice-card__description" id="f1-env-stage-d">Shared test systems. Tighter limits than dev.</span>
+              </label>
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="f1-env" value="prod" aria-labelledby="f1-env-prod-t" aria-describedby="f1-env-prod-d f1-env-prod-m">
+                <span class="gw-choice-card__title" id="f1-env-prod-t"><span class="gw-env gw-env--prod">prod</span> Production</span>
+                <span class="gw-choice-card__description" id="f1-env-prod-d">Real data. Read-only by default, stricter limits.</span>
+                <span class="gw-choice-card__meta" id="f1-env-prod-m">Turns on stricter defaults</span>
+              </label>
+            </div>
+          </fieldset>
+          <div class="gw-alert gw-alert--info gw-connection-form__prod-defaults" id="f1-prod">
+            <i class="gw-icon gw-alert__icon" data-lucide="shield"></i>
+            <div class="gw-alert__content">
+              <p class="gw-alert__title">Prod turns on stricter defaults</p>
+              <!-- The prod policy's values (policies.html, prod tab): the app reads them from the policy, never hard-codes them -->
+              <ul class="gw-alert__body gw-connection-form__defaults">
+                <li><i class="gw-icon gw-icon--sm" data-lucide="lock"></i>Read-only transactions</li>
+                <li><i class="gw-icon gw-icon--sm" data-lucide="rows-3"></i>Row limit 100 (dev: 1,000)</li>
+                <li><i class="gw-icon gw-icon--sm" data-lucide="timer"></i>Statement timeout 3 s (dev: 5 s)</li>
+                <li><i class="gw-icon gw-icon--sm" data-lucide="ban"></i>No DDL: <span class="gw-mono">CREATE</span>, <span class="gw-mono">ALTER</span>, <span class="gw-mono">DROP</span>, <span class="gw-mono">TRUNCATE</span> are refused</li>
+                <li><i class="gw-icon gw-icon--sm" data-lucide="hourglass"></i>Approval timeout 10 min, and a comment is required to approve</li>
+              </ul>
+              <div class="gw-alert__actions"><a class="gw-btn gw-btn--link gw-btn--sm" href="../pages/policies.html">Review the prod policy</a></div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <fieldset class="gw-form__section">
+        <legend class="gw-form__legend">Advanced</legend>
+        <p class="gw-form__description">Timeouts, pool and schema allowlist. The defaults suit most databases; policies can tighten them per environment.</p>
+        <div class="gw-form__rows">
+          <button class="gw-btn gw-btn--ghost gw-btn--sm gw-connection-form__toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="f1-adv"><i class="gw-icon gw-icon--sm gw-connection-form__when-closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-connection-form__when-open" data-lucide="chevron-up"></i>Advanced settings</button>
+          <div class="gw-form__rows" id="f1-adv" hidden>
+            <div class="gw-form__row">
+              <div class="gw-field">
+                <label class="gw-field__label" for="f1-timeout">Statement timeout <span class="gw-field__optional">Optional</span></label>
+                <div class="gw-input-group">
+                  <input class="gw-input gw-input--mono" id="f1-timeout" name="statementTimeoutMs" type="text" inputmode="numeric" autocomplete="off" aria-describedby="f1-timeout-hint">
+                  <span class="gw-input-group__affix">ms</span>
+                </div>
+                <p class="gw-field__hint" id="f1-timeout-hint">The database cancels slower statements. Empty: the environment policy.</p>
+              </div>
+              <div class="gw-field">
+                <label class="gw-field__label" for="f1-pool">Pool size</label>
+                <div class="gw-input-group">
+                  <input class="gw-input gw-input--mono" id="f1-pool" name="poolSize" type="text" inputmode="numeric" value="4" autocomplete="off" aria-describedby="f1-pool-hint">
+                  <span class="gw-input-group__affix">connections</span>
+                </div>
+                <p class="gw-field__hint" id="f1-pool-hint">Open connections the core keeps to this database.</p>
+              </div>
+            </div>
+            <div class="gw-field">
+              <label class="gw-field__label" for="f1-schema">Schema allowlist <span class="gw-field__optional">Optional</span></label>
+              <div class="gw-connection-form__tags">
+                <ul class="gw-tag-list" aria-label="Allowed schemas">
+                  <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">public</span><button class="gw-tag__remove" type="button" aria-label="Remove schema public"><i class="gw-icon" data-lucide="x"></i></button></li>
+                  <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">app</span><button class="gw-tag__remove" type="button" aria-label="Remove schema app"><i class="gw-icon" data-lucide="x"></i></button></li>
+                </ul>
+                <div class="gw-input-group">
+                  <input class="gw-input gw-input--mono" id="f1-schema" name="schemaAllowlist" placeholder="Add a schema, for example audit" autocomplete="off" spellcheck="false" aria-describedby="f1-schema-hint">
+                  <button class="gw-input-group__addon" type="button" aria-label="Add schema"><i class="gw-icon" data-lucide="plus"></i></button>
+                </div>
+              </div>
+              <p class="gw-field__hint" id="f1-schema-hint">Agents see only these schemas. Leave it empty to allow every schema the user can read. Enter adds the value.</p>
+            </div>
+          </div>
+        </div>
+      </fieldset>
+      <section class="gw-card gw-card--muted gw-connection-form__test" aria-labelledby="f1-test-t">
+        <header class="gw-card__header">
+          <div class="gw-card__heading">
+            <h3 class="gw-card__title" id="f1-test-t">Test connection</h3>
+            <p class="gw-card__description">Connects from this machine with the values above. Nothing is saved.</p>
+          </div>
+          <div class="gw-card__actions"><button class="gw-btn" type="button"><i class="gw-icon" data-lucide="play"></i>Test connection</button></div>
+        </header>
+        <div class="gw-card__body gw-connection-form__result" role="status">
+          <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Not tested yet</span></span>
+          <p class="gw-text-small gw-fg-muted">You will see the server version, the latency and what this user is allowed to do.</p>
+        </div>
+      </section>
+      <div class="gw-form__actions">
+        <button class="gw-btn gw-btn--ghost" type="button">Back</button>
+        <button class="gw-btn gw-btn--primary" type="submit">Save connection</button>
+      </div>
+    </form>
+  </section>
+  <section class="gw-section" aria-labelledby="s-first">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-first">First run: secret managers behind a disclosure</h2>
+      <p class="gw-section__description">connection-new.html?state=first-run: Encrypted here is preselected and the password field shows at once; the other sources wait behind "Use a secret manager instead", placed before them. Every line about the secret follows the source picked.</p>
+    </header>
+    <form class="gw-form gw-connection-form" method="dialog" novalidate aria-label="dev-db credentials, first run">
+      <section class="gw-form__section gw-connection-form__credentials" aria-labelledby="f7-cred-t">
+        <header class="gw-form__section-header">
+          <h3 class="gw-form__legend" id="f7-cred-t">Credentials</h3>
+          <p class="gw-form__description">Your AI never sees these. GateRook uses them only to sign in to the database.</p>
+        </header>
+        <div class="gw-form__rows">
+          <div class="gw-stack gw-stack--sm">
+            <p class="gw-text-small gw-fg-secondary"><i class="gw-icon gw-icon--sm" data-lucide="lock-keyhole"></i> The password is stored encrypted on this computer. Nobody can view it afterwards, not even you.</p>
+            <button class="gw-btn gw-btn--ghost gw-btn--sm gw-connection-form__toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="f7-src-field"><i class="gw-icon gw-icon--sm gw-connection-form__when-closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-connection-form__when-open" data-lucide="chevron-up"></i>Use a secret manager instead (Vault, GCP, AWS)</button>
+          </div>
+          <fieldset class="gw-field" id="f7-src-field" hidden>
+            <legend class="gw-field__label">Secret source</legend>
+            <div class="gw-grid gw-grid--auto gw-connection-form__sources">
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="f7-src" value="local" checked aria-labelledby="f7-src-local-t" aria-describedby="f7-src-local-d">
+                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="lock-keyhole"></i></span>
+                <span class="gw-choice-card__title" id="f7-src-local-t">Encrypted here</span>
+                <span class="gw-choice-card__description" id="f7-src-local-d">Stored in the local database, encrypted with the master key. Write-only.</span>
+                <span class="gw-choice-card__meta">Default</span>
+              </label>
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="f7-src" value="vault" aria-labelledby="f7-src-vault-t" aria-describedby="f7-src-vault-d">
+                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="vault"></i></span>
+                <span class="gw-choice-card__title" id="f7-src-vault-t">HashiCorp Vault or OpenBao</span>
+                <span class="gw-choice-card__description" id="f7-src-vault-d">Resolve a <span class="gw-mono">vault://</span> reference at call time.</span>
+                <span class="gw-choice-card__meta">KV v2</span>
+              </label>
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="f7-src" value="gcp" aria-labelledby="f7-src-gcp-t" aria-describedby="f7-src-gcp-d">
+                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
+                <span class="gw-choice-card__title" id="f7-src-gcp-t">GCP Secret Manager</span>
+                <span class="gw-choice-card__description" id="f7-src-gcp-d">Resolve <span class="gw-mono">gcp-sm://</span> with the core&#39;s service account.</span>
+                <span class="gw-choice-card__meta">Needs secretAccessor</span>
+              </label>
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="f7-src" value="aws" aria-labelledby="f7-src-aws-t" aria-describedby="f7-src-aws-d">
+                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
+                <span class="gw-choice-card__title" id="f7-src-aws-t">AWS Secrets Manager</span>
+                <span class="gw-choice-card__description" id="f7-src-aws-d">Resolve <span class="gw-mono">aws-sm://</span> with the core&#39;s AWS profile.</span>
+                <span class="gw-choice-card__meta">Needs GetSecretValue</span>
+              </label>
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="f7-src" value="dynamic" aria-labelledby="f7-src-dynamic-t" aria-describedby="f7-src-dynamic-d">
+                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="timer"></i></span>
+                <span class="gw-choice-card__title" id="f7-src-dynamic-t">Short-lived (Vault dynamic credentials)</span>
+                <span class="gw-choice-card__description" id="f7-src-dynamic-d">Vault creates a database user per call. Nothing is stored here.</span>
+                <span class="gw-choice-card__meta">Recommended for prod</span>
+              </label>
+            </div>
+          </fieldset>
+          <div class="gw-field gw-connection-form__user">
+            <label class="gw-field__label" for="f7-user">User</label>
+            <input class="gw-input gw-input--mono" id="f7-user" name="user" value="app_rw" required autocomplete="off" spellcheck="false" aria-describedby="f7-user-hint">
+            <p class="gw-field__hint" id="f7-user-hint">Use a user that can only read wherever you can. The test below shows what it may do.</p>
+          </div>
+          <div class="gw-field gw-connection-form__secret" data-source="local">
+            <label class="gw-field__label" for="f7-pw">Password</label>
+            <div class="gw-secret" data-state="empty">
+              <div class="gw-input-group">
+                <input class="gw-input" type="password" id="f7-pw" name="password" placeholder="Paste or type the password" autocomplete="new-password" aria-describedby="f7-pw-hint">
+                <button class="gw-input-group__addon" type="button" data-gw-reveal aria-pressed="false" aria-label="Show password" aria-controls="f7-pw"><i class="gw-icon" data-lucide="eye"></i><i class="gw-icon" data-lucide="eye-off"></i></button>
+              </div>
+            </div>
+            <p class="gw-field__hint" id="f7-pw-hint">Encrypted on this computer when you save.</p>
+          </div>
+          <div class="gw-field gw-connection-form__secret" data-source="vault">
+            <label class="gw-field__label" for="f7-ref-vault">Secret reference</label>
+            <div class="gw-secret" data-state="empty">
+              <input class="gw-input gw-input--mono" type="text" id="f7-ref-vault" name="secretRef" placeholder="vault://kv/dev/db#password" autocomplete="off" spellcheck="false" aria-describedby="f7-ref-vault-hint">
+              <span class="gw-secret__actions"><button class="gw-btn" type="button">Test reference</button></span>
+            </div>
+            <p class="gw-field__hint" id="f7-ref-vault-hint">Path and key in Vault or OpenBao, resolved at call time with the core's Vault token.</p>
+          </div>
+          <div class="gw-field gw-connection-form__secret" data-source="gcp">
+            <label class="gw-field__label" for="f7-ref-gcp">Secret reference</label>
+            <div class="gw-secret" data-state="empty">
+              <input class="gw-input gw-input--mono" type="text" id="f7-ref-gcp" name="secretRef" placeholder="gcp-sm://projects/acme-dev/secrets/dev-db-password/versions/latest" autocomplete="off" spellcheck="false" aria-describedby="f7-ref-gcp-hint">
+              <span class="gw-secret__actions"><button class="gw-btn" type="button">Test reference</button></span>
+            </div>
+            <p class="gw-field__hint" id="f7-ref-gcp-hint">Resolved at call time with the core's service account.</p>
+          </div>
+          <div class="gw-field gw-connection-form__secret" data-source="aws">
+            <label class="gw-field__label" for="f7-ref-aws">Secret reference</label>
+            <div class="gw-secret" data-state="empty">
+              <input class="gw-input gw-input--mono" type="text" id="f7-ref-aws" name="secretRef" placeholder="aws-sm://eu-central-1/dev/db#password" autocomplete="off" spellcheck="false" aria-describedby="f7-ref-aws-hint">
+              <span class="gw-secret__actions"><button class="gw-btn" type="button">Test reference</button></span>
+            </div>
+            <p class="gw-field__hint" id="f7-ref-aws-hint">Resolved at call time with the core's AWS profile.</p>
+          </div>
+          <div class="gw-field gw-connection-form__secret" data-source="dynamic">
+            <label class="gw-field__label" for="f7-role">Vault role</label>
+            <div class="gw-secret" data-state="empty">
+              <input class="gw-input gw-input--mono" type="text" id="f7-role" name="vaultRole" placeholder="database/creds/dev-readonly" autocomplete="off" spellcheck="false" aria-describedby="f7-role-hint">
+              <span class="gw-secret__actions"><button class="gw-btn" type="button">Test role</button></span>
+            </div>
+            <p class="gw-field__hint" id="f7-role-hint">Vault creates a database user for each call, valid 5 min. No user or password is stored here.</p>
+          </div>
+        </div>
+      </section>
+    </form>
+  </section>
+  <section class="gw-section" aria-labelledby="s-ref">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-ref">Secret reference</h2>
+      <p class="gw-section__description">The secret lives in an external store and is resolved at call time: stage-db from Vault KV, prod-replica with short-lived Vault credentials (no User field: Vault issues a short-lived user, renewed automatically). Tested references show as a sunken well with the provider.</p>
+    </header>
+    <form class="gw-form gw-connection-form" method="dialog" novalidate aria-label="stage-db credentials, Vault reference">
+      <section class="gw-form__section gw-connection-form__credentials" aria-labelledby="f2-cred-t">
+        <header class="gw-form__section-header">
+          <h3 class="gw-form__legend" id="f2-cred-t">Credentials</h3>
+          <p class="gw-form__description"><span class="gw-mono">stage-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--stage">stage</span> reads its password from Vault. The reference is not a secret: it is shown in full and can be copied.</p>
+        </header>
+        <div class="gw-form__rows">
+          <fieldset class="gw-field">
+            <legend class="gw-field__label">Secret source</legend>
+            <div class="gw-grid gw-grid--auto gw-connection-form__sources">
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="f2-src" value="local" aria-labelledby="f2-src-local-t" aria-describedby="f2-src-local-d">
+                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="lock-keyhole"></i></span>
+                <span class="gw-choice-card__title" id="f2-src-local-t">Encrypted here</span>
+                <span class="gw-choice-card__description" id="f2-src-local-d">Stored in the local database, encrypted with the master key. Write-only.</span>
+                <span class="gw-choice-card__meta">Default</span>
+              </label>
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="f2-src" value="vault" checked aria-labelledby="f2-src-vault-t" aria-describedby="f2-src-vault-d">
+                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="vault"></i></span>
+                <span class="gw-choice-card__title" id="f2-src-vault-t">HashiCorp Vault or OpenBao</span>
+                <span class="gw-choice-card__description" id="f2-src-vault-d">Resolve a <span class="gw-mono">vault://</span> reference at call time.</span>
+                <span class="gw-choice-card__meta">KV v2</span>
+              </label>
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="f2-src" value="gcp" aria-labelledby="f2-src-gcp-t" aria-describedby="f2-src-gcp-d">
+                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
+                <span class="gw-choice-card__title" id="f2-src-gcp-t">GCP Secret Manager</span>
+                <span class="gw-choice-card__description" id="f2-src-gcp-d">Resolve <span class="gw-mono">gcp-sm://</span> with the core&#39;s service account.</span>
+                <span class="gw-choice-card__meta">Needs secretAccessor</span>
+              </label>
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="f2-src" value="aws" aria-labelledby="f2-src-aws-t" aria-describedby="f2-src-aws-d">
+                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
+                <span class="gw-choice-card__title" id="f2-src-aws-t">AWS Secrets Manager</span>
+                <span class="gw-choice-card__description" id="f2-src-aws-d">Resolve <span class="gw-mono">aws-sm://</span> with the core&#39;s AWS profile.</span>
+                <span class="gw-choice-card__meta">Needs GetSecretValue</span>
+              </label>
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="f2-src" value="dynamic" aria-labelledby="f2-src-dynamic-t" aria-describedby="f2-src-dynamic-d">
+                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="timer"></i></span>
+                <span class="gw-choice-card__title" id="f2-src-dynamic-t">Short-lived (Vault dynamic credentials)</span>
+                <span class="gw-choice-card__description" id="f2-src-dynamic-d">Vault creates a short-lived database user, renewed automatically. Nothing is stored here.</span>
+                <span class="gw-choice-card__meta">Recommended for prod</span>
+              </label>
+            </div>
+          </fieldset>
+          <div class="gw-field gw-connection-form__user">
+            <label class="gw-field__label" for="f2-user">User</label>
+            <input class="gw-input gw-input--mono" id="f2-user" name="user" value="app_reader" required autocomplete="off" spellcheck="false" aria-describedby="f2-user-hint">
+            <p class="gw-field__hint" id="f2-user-hint">Use a user that can only read wherever you can. The test below shows what it may do.</p>
+          </div>
+          <div class="gw-field gw-connection-form__secret" data-source="vault">
+            <span class="gw-field__label" id="f2-ref-l">Secret reference</span>
+            <div class="gw-secret" data-state="reference" role="group" aria-labelledby="f2-ref-l" aria-describedby="f2-ref-hint">
+              <span class="gw-secret__status"><i class="gw-icon" data-lucide="vault"></i>Vault</span>
+              <code class="gw-secret__ref">vault://kv/stage/db#password</code>
+              <span class="gw-secret__actions">
+                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Test reference for stage-db">Test reference</button>
+                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Change reference for stage-db">Change</button>
+              </span>
+            </div>
+            <p class="gw-field__hint" id="f2-ref-hint">Resolved at call time. Last test 3 min ago · 18 ms.</p>
+          </div>
+        </div>
+      </section>
+    </form>
+    <form class="gw-form gw-connection-form" method="dialog" novalidate aria-label="prod-replica credentials, short-lived">
+      <section class="gw-form__section gw-connection-form__credentials" aria-labelledby="f2b-cred-t">
+        <header class="gw-form__section-header">
+          <h3 class="gw-form__legend" id="f2b-cred-t">Credentials</h3>
+          <p class="gw-form__description"><span class="gw-mono">prod-replica</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--prod">prod</span> gets a fresh read-only user from Vault for every call. Nothing to store, nothing to leak.</p>
+        </header>
+        <div class="gw-form__rows">
+          <fieldset class="gw-field">
+            <legend class="gw-field__label">Secret source</legend>
+            <div class="gw-grid gw-grid--auto gw-connection-form__sources">
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="f2b-src" value="local" aria-labelledby="f2b-src-local-t" aria-describedby="f2b-src-local-d">
+                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="lock-keyhole"></i></span>
+                <span class="gw-choice-card__title" id="f2b-src-local-t">Encrypted here</span>
+                <span class="gw-choice-card__description" id="f2b-src-local-d">Stored in the local database, encrypted with the master key. Write-only.</span>
+                <span class="gw-choice-card__meta">Default</span>
+              </label>
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="f2b-src" value="vault" aria-labelledby="f2b-src-vault-t" aria-describedby="f2b-src-vault-d">
+                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="vault"></i></span>
+                <span class="gw-choice-card__title" id="f2b-src-vault-t">HashiCorp Vault or OpenBao</span>
+                <span class="gw-choice-card__description" id="f2b-src-vault-d">Resolve a <span class="gw-mono">vault://</span> reference at call time.</span>
+                <span class="gw-choice-card__meta">KV v2</span>
+              </label>
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="f2b-src" value="gcp" aria-labelledby="f2b-src-gcp-t" aria-describedby="f2b-src-gcp-d">
+                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
+                <span class="gw-choice-card__title" id="f2b-src-gcp-t">GCP Secret Manager</span>
+                <span class="gw-choice-card__description" id="f2b-src-gcp-d">Resolve <span class="gw-mono">gcp-sm://</span> with the core&#39;s service account.</span>
+                <span class="gw-choice-card__meta">Needs secretAccessor</span>
+              </label>
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="f2b-src" value="aws" aria-labelledby="f2b-src-aws-t" aria-describedby="f2b-src-aws-d">
+                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
+                <span class="gw-choice-card__title" id="f2b-src-aws-t">AWS Secrets Manager</span>
+                <span class="gw-choice-card__description" id="f2b-src-aws-d">Resolve <span class="gw-mono">aws-sm://</span> with the core&#39;s AWS profile.</span>
+                <span class="gw-choice-card__meta">Needs GetSecretValue</span>
+              </label>
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="f2b-src" value="dynamic" checked aria-labelledby="f2b-src-dynamic-t" aria-describedby="f2b-src-dynamic-d">
+                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="timer"></i></span>
+                <span class="gw-choice-card__title" id="f2b-src-dynamic-t">Short-lived (Vault dynamic credentials)</span>
+                <span class="gw-choice-card__description" id="f2b-src-dynamic-d">Vault creates a short-lived database user, renewed automatically. Nothing is stored here.</span>
+                <span class="gw-choice-card__meta">Recommended for prod</span>
+              </label>
+            </div>
+          </fieldset>
+          <div class="gw-field gw-connection-form__secret" data-source="dynamic">
+            <span class="gw-field__label" id="f2b-ref-l">Vault role</span>
+            <div class="gw-secret" data-state="reference" role="group" aria-labelledby="f2b-ref-l" aria-describedby="f2b-ref-hint">
+              <span class="gw-secret__status"><i class="gw-icon" data-lucide="timer"></i>Vault dynamic</span>
+              <code class="gw-secret__ref">vault://database/creds/prod-replica-readonly</code>
+              <span class="gw-secret__actions">
+                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Test role for prod-replica">Test role</button>
+                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Change role for prod-replica">Change</button>
+              </span>
+            </div>
+            <p class="gw-field__hint" id="f2b-ref-hint">A short-lived database user, renewed automatically. No user or password is stored here.</p>
+          </div>
+        </div>
+      </section>
+    </form>
+  </section>
+  <section class="gw-section" aria-labelledby="s-edit">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-edit">Editing a stored password</h2>
+      <p class="gw-section__description">The edit view of dev-db. The stored password shows as Encrypted with its version, never as a value; Replace swaps in an empty password input with Cancel and Save, still without a reveal button. A connector that can't set a new value at the source, such as Redis for cache-redis, keeps Rotate in the Tab order but unavailable, with the reason under the field.</p>
+    </header>
+    <form class="gw-form gw-connection-form" method="dialog" novalidate aria-label="dev-db credentials, stored">
+      <fieldset class="gw-form__section">
+        <legend class="gw-form__legend">Credentials</legend>
+        <p class="gw-form__description">Stored and encrypted here with the master key. Replace it with a new value; nobody can view the current one.</p>
+        <div class="gw-form__rows">
+          <div class="gw-field gw-connection-form__user">
+            <label class="gw-field__label" for="f3-user">User</label>
+            <input class="gw-input gw-input--mono" id="f3-user" name="user" value="app_rw" required autocomplete="off" spellcheck="false">
+          </div>
+          <div class="gw-field gw-connection-form__secret" data-source="local">
+            <span class="gw-field__label" id="f3-pw-l">Password</span>
+            <div class="gw-secret" data-state="stored" role="group" aria-labelledby="f3-pw-l" aria-describedby="f3-pw-hint">
+              <span class="gw-secret__status"><i class="gw-icon" data-lucide="lock-keyhole"></i>Encrypted</span>
+              <span class="gw-secret__meta">version <span class="gw-mono">3</span> · updated <time datetime="2026-10-20T09:14:00Z" title="2026-10-20 09:14 UTC">2 days ago</time></span>
+              <span class="gw-secret__actions">
+                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Replace password for dev-db">Replace</button>
+                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Rotate password for dev-db">Rotate</button>
+              </span>
+            </div>
+            <p class="gw-field__hint" id="f3-pw-hint">Decrypted inside the connector only for the duration of a call. Nobody can view it, here or in the API.</p>
+          </div>
+        </div>
+      </fieldset>
+    </form>
+    <form class="gw-form gw-connection-form" method="dialog" novalidate aria-label="dev-db credentials, replacing the password">
+      <fieldset class="gw-form__section">
+        <legend class="gw-form__legend">Credentials</legend>
+        <p class="gw-form__description">After Replace: type the new value. Version 3 stays in use until you save.</p>
+        <div class="gw-form__rows">
+          <div class="gw-field gw-connection-form__user">
+            <label class="gw-field__label" for="f3b-user">User</label>
+            <input class="gw-input gw-input--mono" id="f3b-user" name="user" value="app_rw" required autocomplete="off" spellcheck="false">
+          </div>
+          <div class="gw-field gw-connection-form__secret" data-source="local">
+            <label class="gw-field__label" for="f3b-pw">New password</label>
+            <div class="gw-secret" data-state="editing">
+              <input class="gw-input" type="password" id="f3b-pw" name="password" value="example-only" autocomplete="new-password" aria-describedby="f3b-pw-hint">
+              <span class="gw-secret__actions">
+                <button class="gw-btn gw-btn--ghost" type="button">Cancel</button>
+                <button class="gw-btn" type="button">Save password<span class="gw-sr-only"> for dev-db</span></button>
+              </span>
+            </div>
+            <p class="gw-field__hint" id="f3b-pw-hint">Saving creates version 4. There is no way to view either version.</p>
+          </div>
+        </div>
+      </fieldset>
+    </form>
+    <form class="gw-form gw-connection-form" method="dialog" novalidate aria-label="cache-redis credentials, stored, Rotate unavailable">
+      <fieldset class="gw-form__section">
+        <legend class="gw-form__legend">Credentials</legend>
+        <p class="gw-form__description">Only the SQL connectors set a new value at the source. Here Rotate is aria-disabled and says why under the field; Replace works as usual.</p>
+        <div class="gw-form__rows">
+          <div class="gw-field gw-connection-form__secret" data-source="local">
+            <span class="gw-field__label" id="f3c-pw-l">Password</span>
+            <div class="gw-secret" data-state="stored" role="group" aria-labelledby="f3c-pw-l" aria-describedby="f3c-pw-hint">
+              <span class="gw-secret__status"><i class="gw-icon" data-lucide="lock-keyhole"></i>Encrypted</span>
+              <span class="gw-secret__meta">version <span class="gw-mono">1</span> · updated <time datetime="2026-07-14T10:20:00+02:00" title="2026-07-14 10:20 +02:00">Jul 14</time></span>
+              <span class="gw-secret__actions">
+                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Replace password for cache-redis">Replace</button>
+                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Rotate password for cache-redis" aria-disabled="true" aria-describedby="f3c-rotate-why">Rotate</button>
+              </span>
+            </div>
+            <p class="gw-field__hint" id="f3c-pw-hint">Decrypted inside the connector only for the duration of a call. Nobody can view it, here or in the API.</p>
+            <p class="gw-field__hint" id="f3c-rotate-why">Rotate: This connector can't issue a new value for itself. Replace it with a new value.</p>
+          </div>
+        </div>
+      </fieldset>
+    </form>
+  </section>
+  <section class="gw-section" aria-labelledby="s-prod">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-prod">Production: stricter defaults</h2>
+      <p class="gw-section__description">Choosing prod shows what changes before you save. The defaults come from the prod policy and can be reviewed there.</p>
+    </header>
+    <form class="gw-form gw-connection-form" method="dialog" novalidate aria-labelledby="s-prod">
+      <section class="gw-form__section gw-connection-form__safety" aria-labelledby="f4-env-t">
+        <header class="gw-form__section-header">
+          <h3 class="gw-form__legend" id="f4-env-t">Environment and safety</h3>
+          <p class="gw-form__description">Sets the policy defaults and the marker approvers and agents see next to this connection. Prod is always red and always stricter.</p>
+        </header>
+        <div class="gw-form__rows">
+          <fieldset class="gw-field">
+            <legend class="gw-field__label">Environment</legend>
+            <div class="gw-form__row">
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="f4-env" value="dev" aria-labelledby="f4-env-dev-t" aria-describedby="f4-env-dev-d">
+                <span class="gw-choice-card__title" id="f4-env-dev-t"><span class="gw-env gw-env--dev">dev</span> Development</span>
+                <span class="gw-choice-card__description" id="f4-env-dev-d">Local work and test data. Mutations still wait for approval.</span>
+              </label>
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="f4-env" value="stage" aria-labelledby="f4-env-stage-t" aria-describedby="f4-env-stage-d">
+                <span class="gw-choice-card__title" id="f4-env-stage-t"><span class="gw-env gw-env--stage">stage</span> Staging</span>
+                <span class="gw-choice-card__description" id="f4-env-stage-d">Shared test systems. Tighter limits than dev.</span>
+              </label>
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="f4-env" value="prod" checked aria-labelledby="f4-env-prod-t" aria-describedby="f4-env-prod-d f4-env-prod-m">
+                <span class="gw-choice-card__title" id="f4-env-prod-t"><span class="gw-env gw-env--prod">prod</span> Production</span>
+                <span class="gw-choice-card__description" id="f4-env-prod-d">Real data. Read-only by default, stricter limits.</span>
+                <span class="gw-choice-card__meta" id="f4-env-prod-m">Turns on stricter defaults</span>
+              </label>
+            </div>
+          </fieldset>
+          <div class="gw-alert gw-alert--info gw-connection-form__prod-defaults" id="f4-prod">
+            <i class="gw-icon gw-alert__icon" data-lucide="shield"></i>
+            <div class="gw-alert__content">
+              <p class="gw-alert__title">Prod turns on stricter defaults</p>
+              <!-- The prod policy's values (policies.html, prod tab): the app reads them from the policy, never hard-codes them -->
+              <ul class="gw-alert__body gw-connection-form__defaults">
+                <li><i class="gw-icon gw-icon--sm" data-lucide="lock"></i>Read-only transactions</li>
+                <li><i class="gw-icon gw-icon--sm" data-lucide="rows-3"></i>Row limit 100 (dev: 1,000)</li>
+                <li><i class="gw-icon gw-icon--sm" data-lucide="timer"></i>Statement timeout 3 s (dev: 5 s)</li>
+                <li><i class="gw-icon gw-icon--sm" data-lucide="ban"></i>No DDL: <span class="gw-mono">CREATE</span>, <span class="gw-mono">ALTER</span>, <span class="gw-mono">DROP</span>, <span class="gw-mono">TRUNCATE</span> are refused</li>
+                <li><i class="gw-icon gw-icon--sm" data-lucide="hourglass"></i>Approval timeout 10 min, and a comment is required to approve</li>
+              </ul>
+              <div class="gw-alert__actions"><a class="gw-btn gw-btn--link gw-btn--sm" href="../pages/policies.html">Review the prod policy</a></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </form>
+  </section>
+  <section class="gw-section" aria-labelledby="s-adv">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-adv">Advanced settings, open</h2>
+      <p class="gw-section__description">A disclosure (data-gw-toggle): statement timeout, pool size and a schema allowlist entered as tags. The statement timeout is one value per environment in its policy; a connection may only set a shorter one, so the field starts empty.</p>
+    </header>
+    <form class="gw-form gw-connection-form" method="dialog" novalidate aria-labelledby="s-adv">
+      <fieldset class="gw-form__section">
+        <legend class="gw-form__legend">Advanced</legend>
+        <p class="gw-form__description">Timeouts, pool and schema allowlist. The defaults suit most databases; policies can tighten them per environment.</p>
+        <div class="gw-form__rows">
+          <button class="gw-btn gw-btn--ghost gw-btn--sm gw-connection-form__toggle" type="button" data-gw-toggle aria-expanded="true" aria-controls="f5-adv"><i class="gw-icon gw-icon--sm gw-connection-form__when-closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-connection-form__when-open" data-lucide="chevron-up"></i>Advanced settings</button>
+          <div class="gw-form__rows" id="f5-adv">
+            <div class="gw-form__row">
+              <div class="gw-field">
+                <label class="gw-field__label" for="f5-timeout">Statement timeout <span class="gw-field__optional">Optional</span></label>
+                <div class="gw-input-group">
+                  <input class="gw-input gw-input--mono" id="f5-timeout" name="statementTimeoutMs" type="text" inputmode="numeric" autocomplete="off" aria-describedby="f5-timeout-hint">
+                  <span class="gw-input-group__affix">ms</span>
+                </div>
+                <p class="gw-field__hint" id="f5-timeout-hint">The database cancels slower statements. Empty: the environment policy.</p>
+              </div>
+              <div class="gw-field">
+                <label class="gw-field__label" for="f5-pool">Pool size</label>
+                <div class="gw-input-group">
+                  <input class="gw-input gw-input--mono" id="f5-pool" name="poolSize" type="text" inputmode="numeric" value="4" autocomplete="off" aria-describedby="f5-pool-hint">
+                  <span class="gw-input-group__affix">connections</span>
+                </div>
+                <p class="gw-field__hint" id="f5-pool-hint">Open connections the core keeps to this database.</p>
+              </div>
+            </div>
+            <div class="gw-field">
+              <label class="gw-field__label" for="f5-schema">Schema allowlist <span class="gw-field__optional">Optional</span></label>
+              <div class="gw-connection-form__tags">
+                <ul class="gw-tag-list" aria-label="Allowed schemas">
+                  <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">public</span><button class="gw-tag__remove" type="button" aria-label="Remove schema public"><i class="gw-icon" data-lucide="x"></i></button></li>
+                  <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">app</span><button class="gw-tag__remove" type="button" aria-label="Remove schema app"><i class="gw-icon" data-lucide="x"></i></button></li>
+                </ul>
+                <div class="gw-input-group">
+                  <input class="gw-input gw-input--mono" id="f5-schema" name="schemaAllowlist" placeholder="Add a schema, for example audit" autocomplete="off" spellcheck="false" aria-describedby="f5-schema-hint">
+                  <button class="gw-input-group__addon" type="button" aria-label="Add schema"><i class="gw-icon" data-lucide="plus"></i></button>
+                </div>
+              </div>
+              <p class="gw-field__hint" id="f5-schema-hint">Agents see only these schemas. Leave it empty to allow every schema the user can read. Enter adds the value.</p>
+            </div>
+          </div>
+        </div>
+      </fieldset>
+    </form>
+  </section>
+  <section class="gw-section" aria-labelledby="s-testing">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-testing">Test connection: in progress</h2>
+      <p class="gw-section__description">The button keeps its label and gets a spinner (aria-busy, aria-disabled, described by the status line); the result area says what is happening and when it gives up. When the test ends, aria-busy, aria-disabled and aria-describedby go.</p>
+    </header>
+      <section class="gw-card gw-card--muted gw-connection-form__test" aria-labelledby="f6-test-t">
+        <header class="gw-card__header">
+          <div class="gw-card__heading">
+            <h3 class="gw-card__title" id="f6-test-t">Test connection</h3>
+            <p class="gw-card__description">Connects from this machine with the values above. Nothing is saved.</p>
+          </div>
+          <div class="gw-card__actions"><button class="gw-btn" type="button" aria-busy="true" aria-disabled="true" aria-describedby="f6-test-status"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>Test connection</button></div>
+        </header>
+        <div class="gw-card__body gw-connection-form__result" role="status">
+          <p class="gw-text-small gw-fg-muted" id="f6-test-status">Connecting to <span class="gw-mono">db.dev.internal:5432</span> as <span class="gw-mono">app_rw</span>. Gives up after 5 s.</p>
+        </div>
+      </section>
+  </section>
+  <section class="gw-section" aria-labelledby="s-test-ok">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-test-ok">Test passed, the user can write</h2>
+      <p class="gw-section__description">Server, latency and the detected permissions. A write grant is flagged in words and with an icon, plus a hint and a link back to the User field.</p>
+    </header>
+      <section class="gw-card gw-card--muted gw-connection-form__test" aria-labelledby="f7-test-t">
+        <header class="gw-card__header">
+          <div class="gw-card__heading">
+            <h3 class="gw-card__title" id="f7-test-t">Test connection</h3>
+            <p class="gw-card__description">Connects from this machine with the values above. Nothing is saved.</p>
+          </div>
+          <div class="gw-card__actions"><button class="gw-btn" type="button"><i class="gw-icon" data-lucide="refresh-cw"></i>Test again</button></div>
+        </header>
+        <div class="gw-card__body gw-connection-form__result" role="status">
+          <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Connected · PostgreSQL 16.4 · 12 ms</span></span>
+          <dl class="gw-kv gw-kv--dense" aria-label="Detected permissions of app_rw">
+            <div class="gw-kv__row"><dt class="gw-kv__key">User</dt><dd class="gw-kv__value gw-mono">app_rw</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Read</dt><dd class="gw-kv__value"><span class="gw-mono">SELECT</span> on 42 tables</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Write</dt><dd class="gw-kv__value"><span class="gw-badge gw-badge--warning gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="triangle-alert"></i>Can write</span> <span class="gw-mono">INSERT, UPDATE, DELETE</span> on <span class="gw-mono">public.*</span></dd></div>
+          </dl>
+          <div class="gw-alert gw-alert--warning gw-alert--compact">
+            <i class="gw-icon gw-alert__icon" data-lucide="triangle-alert"></i>
+            <div class="gw-alert__content">
+              <p class="gw-alert__title">This user can write</p>
+              <p class="gw-alert__body">For prod use a read-only user or a replica.</p>
+            </div>
+            <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" href="#f1-user">Change user<span class="gw-sr-only"> app_rw</span></a></div>
+          </div>
+        </div>
+      </section>
+  </section>
+  <section class="gw-section" aria-labelledby="s-test-fail">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-test-fail">Test failed</h2>
+      <p class="gw-section__description">What happened and what to do, with the technical details in a code block under a disclosure.</p>
+    </header>
+      <section class="gw-card gw-card--muted gw-connection-form__test" aria-labelledby="f8-test-t">
+        <header class="gw-card__header">
+          <div class="gw-card__heading">
+            <h3 class="gw-card__title" id="f8-test-t">Test connection</h3>
+            <p class="gw-card__description">Connects from this machine with the values above. Nothing is saved.</p>
+          </div>
+          <div class="gw-card__actions"><button class="gw-btn" type="button"><i class="gw-icon" data-lucide="refresh-cw"></i>Test again</button></div>
+        </header>
+        <div class="gw-card__body gw-connection-form__result" role="status">
+          <div class="gw-alert gw-alert--danger">
+            <i class="gw-icon gw-alert__icon" data-lucide="circle-alert"></i>
+            <div class="gw-alert__content">
+              <p class="gw-alert__title">Can't reach <span class="gw-mono">db.dev.internal:5432</span></p>
+              <p class="gw-alert__body">The connection timed out after 5 s. Check the VPN or the host, then test again.</p>
+              <div class="gw-alert__actions">
+                <button class="gw-btn gw-btn--ghost gw-btn--sm gw-connection-form__toggle" type="button" data-gw-toggle aria-expanded="true" aria-controls="f8-details"><i class="gw-icon gw-icon--sm gw-connection-form__when-closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-connection-form__when-open" data-lucide="chevron-up"></i>Details</button>
+              </div>
+            </div>
+          </div>
+          <div class="gw-code-block gw-code-block--wrap" id="f8-details">
+            <div class="gw-code-block__header">
+              <span class="gw-code-block__lang">Error</span>
+              <span class="gw-code-block__filename">core log · 14:02:11</span>
+              <div class="gw-code-block__actions">
+                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#f8-details-pre">
+                  <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> error details</span></span>
+                  <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                </button>
+              </div>
+            </div>
+            <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Error details">
+<pre class="gw-code-block__pre" id="f8-details-pre"><code>org.postgresql.util.PSQLException: The connection attempt failed.
+Caused by: java.net.SocketTimeoutException: Connect timed out
+  host=db.dev.internal port=5432 sslmode=verify-full connectTimeout=5s</code></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+  </section>
+  <section class="gw-section" aria-labelledby="s-invalid">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-invalid">Validation after submit</h2>
+      <p class="gw-section__description">Errors appear after Save, next to the field: red edge, icon, what is wrong and how to fix it. Focus moves to the first invalid field.</p>
+    </header>
+    <form class="gw-form gw-connection-form" method="dialog" novalidate aria-labelledby="s-invalid">
+      <fieldset class="gw-form__section">
+        <legend class="gw-form__legend">Connection</legend>
+        <p class="gw-form__description">Where the core reaches the database. It connects from this machine, so your VPN and hosts file apply.</p>
+        <div class="gw-form__rows">
+          <div class="gw-field">
+            <label class="gw-field__label" for="f9-name">Name</label>
+            <input class="gw-input gw-input--mono" id="f9-name" name="name" value="Dev DB" required aria-invalid="true" autocomplete="off" spellcheck="false" aria-describedby="f9-name-err f9-name-hint">
+            <p class="gw-field__error" id="f9-name-err"><i class="gw-icon" data-lucide="circle-alert"></i><span class="gw-mono">Dev DB</span> is not a slug. Use lowercase letters, digits and dashes, for example dev-db.</p>
+            <p class="gw-field__hint" id="f9-name-hint">Agents and Activity see it as <span class="gw-mono">connection:&lt;name&gt;</span>.</p>
+          </div>
+          <div class="gw-form__row">
+            <div class="gw-field">
+              <label class="gw-field__label" for="f9-host">Host</label>
+              <input class="gw-input gw-input--mono" id="f9-host" name="host" value="db.dev.internal" required autocomplete="off" spellcheck="false">
+            </div>
+            <div class="gw-field">
+              <label class="gw-field__label" for="f9-port">Port</label>
+              <input class="gw-input gw-input--mono" id="f9-port" name="port" type="text" inputmode="numeric" value="5432" required autocomplete="off">
+            </div>
+            <div class="gw-field">
+              <label class="gw-field__label" for="f9-db">Database</label>
+              <input class="gw-input gw-input--mono" id="f9-db" name="database" value="app" required autocomplete="off" spellcheck="false">
+            </div>
+          </div>
+          <div class="gw-field">
+            <label class="gw-field__label" for="f9-ssl">SSL mode</label>
+            <select class="gw-select" id="f9-ssl" name="sslmode" aria-describedby="f9-ssl-hint">
+              <option value="disable">Off (disable)</option>
+              <option value="require">Encrypt, don't verify (require)</option>
+              <option value="verify-ca">Verify the CA (verify-ca)</option>
+              <option value="verify-full" selected>Verify the CA and host name (verify-full)</option>
+            </select>
+            <p class="gw-field__hint" id="f9-ssl-hint">verify-full checks the certificate and the host name. Lower it only for a database without TLS on a network you trust.</p>
+          </div>
+        </div>
+      </fieldset>
+    </form>
+  </section>
+  <section class="gw-section" aria-labelledby="s-schema">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-schema">From JSON Schema to fields</h2>
+      <p class="gw-section__description">For designers and connector authors: how the connector's schema becomes this form.</p>
+    </header>
+    <div class="gw-card">
+      <div class="gw-card__body">
+        <dl class="gw-kv">
+          <div class="gw-kv__row"><dt class="gw-kv__key">Top-level objects</dt><dd class="gw-kv__value">One form section each, in schema order: <code class="gw-code">connection</code>, <code class="gw-code">credentials</code>, <code class="gw-code">advanced</code> (collapsed).</dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key"><code class="gw-code">title</code>, <code class="gw-code">description</code></dt><dd class="gw-kv__value">The field label and the hint under the control.</dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key"><code class="gw-code">required</code></dt><dd class="gw-kv__value">Required fields stay plain; the others get "Optional" after the label.</dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key"><code class="gw-code">enum</code></dt><dd class="gw-kv__value">A select (SSL mode). Five options or fewer with descriptions become choice cards.</dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key"><code class="gw-code">integer</code>, <code class="gw-code">minimum</code></dt><dd class="gw-kv__value">A mono text input with <code class="gw-code">inputmode="numeric"</code>, a unit affix, checked on save.</dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key"><code class="gw-code">array</code> of strings</dt><dd class="gw-kv__value">A tag list with an add input (schema allowlist).</dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key"><code class="gw-code">writeOnly</code>, <code class="gw-code">format: "password"</code></dt><dd class="gw-kv__value">A gw-secret with the secret source picker. Never echoed back by the API.</dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key">Added by the gateway</dt><dd class="gw-kv__value">Environment and safety, and Test connection: the same for every connector.</dd></div>
+        </dl>
+      </div>
+    </div>
+  </section>
+</main>
+<script src="../vendor/lucide/lucide.min.js"></script>
+<script src="../assets/kit.js"></script>
+</body>
+</html>

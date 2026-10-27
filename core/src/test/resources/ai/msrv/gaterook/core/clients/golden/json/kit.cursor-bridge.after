@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"]
+    },
+    "gateway-dev": {
+      "type": "stdio",
+      "command": "/home/me/.mcp-gateway/bin/gw-bridge",
+      "args": ["stdio", "--endpoint", "dev", "--grant", "gr_cx7q2lmaabcd", "--client", "cursor"]
+    }
+  }
+}

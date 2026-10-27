@@ -1,0 +1,13 @@
+{
+  "jsonrpc" : "2.0",
+  "id" : "h23",
+  "method" : "handles/seal",
+  "params" : {
+    "callToken" : "ct_Ab12",
+    "purpose" : "jira.search",
+    "payload" : {
+      "start" : 50
+    },
+    "ttlSeconds" : 86400
+  }
+}

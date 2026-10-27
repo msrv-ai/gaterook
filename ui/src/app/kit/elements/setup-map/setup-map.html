@@ -1,0 +1,48 @@
+<!-- The arrows are decorative: the chain points its aria-describedby at this sentence. -->
+<p class="gw-sr-only" [id]="uid + '-flow'">
+  @if (description(); as d) {
+    {{ d }}
+  } @else if (vertical()) {
+    Set it up top to bottom: secrets and resources, then connections that use them, policies, endpoints and clients. An agent's call travels the other way: client, endpoint (with a token or OAuth), policy (mode, limits, approval), connection, where the secret is injected. The agent never receives the secret.
+  } @else {
+    Set it up left to right: secrets and resources, then connections that use them, policies, endpoints and clients. An agent's call travels the other way: client, endpoint (with a token or OAuth), policy (mode, limits, approval), connection, where the secret is injected. The agent never receives the secret.
+  }
+</p>
+<ol class="gw-setup-map" [class.gw-setup-map--vertical]="vertical()" [attr.aria-label]="labelledBy() ? null : 'Setup path'" [attr.aria-labelledby]="labelledBy()" [attr.aria-describedby]="uid + '-flow'">
+  @for (node of ordered(); track node.id) {
+    @let c = copy[node.id];
+    @let s = look[node.state] ?? look.todo;
+    <li class="gw-setup-map__step" [attr.data-state]="node.state">
+      <div class="gw-card gw-setup-map__node" [class.gw-card--dashed]="node.state === 'todo'">
+        <div class="gw-card__body gw-setup-map__body">
+          <span [class]="'gw-icon-tile gw-icon-tile--' + s.tile + ' gw-setup-map__tile'"><svg [lucideIcon]="c.icon" class="gw-icon"></svg></span>
+          @switch (level()) {
+            @case (2) { <h2 class="gw-card__title gw-setup-map__title">{{ c.title }}</h2> }
+            @case (4) { <h4 class="gw-card__title gw-setup-map__title">{{ c.title }}</h4> }
+            @default { <h3 class="gw-card__title gw-setup-map__title">{{ c.title }}</h3> }
+          }
+          <p class="gw-card__description gw-setup-map__desc">{{ c.desc }}</p>
+          <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">{{ node.status }}</p>
+          <span [class]="'gw-badge gw-badge--' + s.badge + ' gw-setup-map__state'"><svg [lucideIcon]="s.icon" class="gw-icon gw-badge__icon"></svg>{{ s.text }}</span>
+          <a class="gw-btn gw-btn--link gw-setup-map__action" [routerLink]="c.route">Configure<span class="gw-sr-only"> {{ c.what }}</span></a>
+        </div>
+      </div>
+      @if (node.id === 'connections') {
+        <p class="gw-setup-map__note gw-text-caption gw-fg-muted"><svg lucideIcon="lock-keyhole" class="gw-icon gw-icon--xs"></svg><span>Secret injected here, never sent to the agent</span></p>
+      }
+      @if (!$last) {
+        <span class="gw-setup-map__connector" aria-hidden="true">
+          <span class="gw-setup-map__line"></span>
+          <svg lucideIcon="chevron-right" class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across"></svg>
+          <svg lucideIcon="chevron-down" class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down"></svg>
+        </span>
+      }
+    </li>
+  }
+</ol>
+@if (!caption()) {
+} @else if (vertical()) {
+  <p class="gw-text-caption gw-fg-muted" aria-hidden="true"><svg lucideIcon="arrow-up-down" class="gw-icon gw-icon--xs"></svg> Set it up top to bottom. An agent's call travels the other way: client, endpoint, policy, connection, where the secret is injected.</p>
+} @else {
+  <p class="gw-text-caption gw-fg-muted" aria-hidden="true"><svg lucideIcon="arrow-left-right" class="gw-icon gw-icon--xs"></svg> Set it up left to right (top to bottom when stacked). An agent's call travels the other way: client, endpoint, policy, connection, where the secret is injected.</p>
+}

@@ -1,0 +1,115 @@
+// =============================================================
+// .gw-waterfall · Where did the time go
+// -------------------------------------------------------------
+// Timing of one call in event-detail: gateway overhead vs time spent in
+// the resource vs waiting for a human. Rows are phases in order, so the
+// list is an <ol>; each row reads "label, value" to a screen reader and
+// the bar is decoration (the value is the information).
+//
+//   <ol class="gw-waterfall" aria-label="Timing, 38 ms total">
+//     <li class="gw-waterfall__row">
+//       <span class="gw-waterfall__label">Authenticate and check policy</span>
+//       <span class="gw-waterfall__track" aria-hidden="true">
+//         <span class="gw-waterfall__span gw-waterfall__span--gateway" style="--start: 0; --len: 0.08"></span>
+//       </span>
+//       <span class="gw-waterfall__value">3 ms</span>
+//     </li> …
+//   </ol>
+//   + a gw-legend (gateway / resource / approval) next to it.
+//
+// Subparts
+//   __row     one phase; all rows share one grid (subgrid), so labels,
+//             tracks and values line up
+//   __label   phase name (may hold a gw-code: dev-db, sql_execute)
+//   __track   the full duration of the call; a hairline marks its extent
+//   __span    the phase: --start and --len are fractions (0..1) of the
+//             total. Never thinner than 2px, so a 3 ms step in a 47 s call
+//             is still visible.
+//     --gateway   neutral: the gateway's own overhead (auth, policy, secret,
+//                 masking): small and expected, so it stays quiet
+//     --resource  brand: time inside the database / host / API, the part a
+//                 developer usually came to look at
+//     --approval  warning + hatching: idle wait for a human decision (the
+//                 hatch says "waiting, not working" without colour)
+//   __value   duration with its unit ("38 ms", "47.2 s"), tabular, end aligned
+// Legend    a gw-legend next to it with only the phases present:
+//           gw-legend__swatch--neutral (Gateway) · --brand (Resource) ·
+//           --warning gw-legend__swatch--hatch (Waiting for approval).
+//           Legend and spans must agree: the swatch tone IS the span tone.
+// A11y      Name the <ol> (aria-label or aria-labelledby: tool, connection,
+//           total). Tracks are aria-hidden; label + value carry the timing.
+//           Spans keep their fills in forced colours (data, not decoration).
+// Raw values none (the -45deg hatch angle is a direction, not a size).
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+.gw-waterfall {
+  display: grid;
+  grid-template-columns: minmax(0, max-content) minmax(var(--gw-space-16), 1fr) max-content;
+  column-gap: var(--gw-space-3);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  @include gw-type(small);
+
+  &__row {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    align-items: center;
+    min-height: var(--gw-size-row-compact);
+    border-bottom: var(--gw-border-width-default) solid var(--gw-color-border-subtle);
+
+    &:last-child { border-bottom: 0; }
+  }
+
+  &__label {
+    @include gw-truncate;
+    color: var(--gw-color-text-secondary);
+  }
+
+  &__track {
+    position: relative;
+    height: var(--gw-space-3);
+    // Hairline across the whole call: the extent the spans sit in.
+    background:
+      linear-gradient(var(--gw-color-chart-grid), var(--gw-color-chart-grid))
+      center / 100% var(--gw-border-width-default) no-repeat;
+  }
+
+  &__span {
+    @include gw-tone(brand);
+    position: absolute;
+    inset-block: 0;
+    // A 2px sliver at the very end still stays inside the track.
+    inset-inline-start: min(calc(var(--start, 0) * 100%), calc(100% - var(--gw-space-0-5)));
+    width: calc(var(--len, 0) * 100%);
+    min-width: var(--gw-space-0-5);
+    max-width: 100%;
+    background: var(--gw-tone-fg);
+    border-radius: var(--gw-radius-xs);
+    forced-color-adjust: none;
+
+    &--gateway { @include gw-tone(neutral); }
+    &--resource { @include gw-tone(brand); }
+    &--approval {
+      @include gw-tone(warning);
+      background: repeating-linear-gradient(
+        -45deg,
+        var(--gw-tone-fg) 0 var(--gw-space-1),
+        var(--gw-tone-subtle) var(--gw-space-1) var(--gw-space-2)
+      );
+      box-shadow: inset 0 0 0 var(--gw-border-width-default) var(--gw-tone-fg);
+    }
+  }
+
+  &__value {
+    @include gw-tabular;
+    color: var(--gw-color-text-primary);
+    text-align: end;
+    white-space: nowrap;
+  }
+}

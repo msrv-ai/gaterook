@@ -1,0 +1,147 @@
+{
+  "type": "object",
+  "required": [
+    "schema",
+    "name",
+    "kind",
+    "columns"
+  ],
+  "properties": {
+    "schema": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "estimatedRows": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "comment": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "columns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "type",
+          "nullable"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "nullable": {
+            "type": "boolean"
+          },
+          "default": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "comment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "primaryKey": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "foreignKeys": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "refSchema": {
+            "type": "string"
+          },
+          "refTable": {
+            "type": "string"
+          },
+          "refColumns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "definition": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "referencedBy": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "schema": {
+            "type": "string"
+          },
+          "table": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "indexes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "unique": {
+            "type": "boolean"
+          },
+          "primary": {
+            "type": "boolean"
+          },
+          "definition": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  }
+}

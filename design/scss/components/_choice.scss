@@ -1,0 +1,292 @@
+// =============================================================
+// .gw-checkbox · .gw-radio · .gw-switch
+// -------------------------------------------------------------
+// The real <input> does the work (keyboard, form value, state, name);
+// a drawn __control shows it. The input is transparent and stretched
+// over the whole choice, so the box, the label, the hint and the gaps
+// between them are one click target (24px tall at least).
+//
+//   <label class="gw-checkbox">
+//     <input class="gw-checkbox__input" type="checkbox" name="mask" checked>
+//     <span class="gw-checkbox__control" aria-hidden="true"></span>
+//     <span class="gw-checkbox__label">Mask secrets in results</span>
+//   </label>
+//
+//   With a hint, keep the hint out of the accessible name:
+//   <div class="gw-checkbox">
+//     <input class="gw-checkbox__input" type="checkbox" id="pii" aria-describedby="pii-hint">
+//     <span class="gw-checkbox__control" aria-hidden="true"></span>
+//     <label class="gw-checkbox__label" for="pii">Mask personal data</label>
+//     <p class="gw-checkbox__hint" id="pii-hint">Emails and phone numbers become ‹masked›.</p>
+//   </div>
+//
+//   <label class="gw-switch">
+//     <input class="gw-switch__input" type="checkbox" role="switch" checked>
+//     <span class="gw-switch__control" aria-hidden="true"></span>
+//     <span class="gw-switch__label">Desktop notifications</span>
+//   </label>
+//
+// When to use
+//   checkbox  a value inside a form that is saved with the form; several
+//             independent options; "select all" (indeterminate)
+//   radio     one of 2–5 options that need a sentence each (else gw-segmented,
+//             or gw-choice-card when options need an icon and a description)
+//   switch    a setting that applies immediately (no Save); label to the right
+// Subparts   __input (first child, always) · __control (right after it) ·
+//            __label · __hint (one line, muted, under the label)
+// States     :checked · :indeterminate (checkbox; set the IDL property from
+//            script, it has no HTML attribute) · :disabled · [aria-disabled="true"]
+//            (same muted look; unavailable WITH a reason: point aria-describedby at
+//            it. kit.js cancels the click and Space, and reverts a change that slips
+//            through, so it never toggles) · [aria-invalid="true"]
+//            · :focus-visible (ring around the control)
+// Look       checkbox / radio: 16px, border.input on bg.field; checked = brand
+//            solid fill + on-solid check / dot / bar. Switch: 32 × 18 track,
+//            off = border.input track + surface thumb at the start, on = brand
+//            solid track + white thumb at the end (position is the second cue).
+// Groups     put several in <fieldset class="gw-field"> with
+//            <legend class="gw-field__label">; they stack with the field gap.
+//            Dependent choices under a "select all": gw-field--nested.
+// No label   (table selection column) __input + __control only, name on the
+//            input (aria-label): the choice becomes a 24 × 24 target with the
+//            box centred.
+// Forced colours  marks are drawn with borders (check, dot, bar, thumb) and the
+//            switch track has a transparent outline, so Windows high contrast
+//            repaints them in system colours instead of dropping them with the
+//            fills. The switch state is also its thumb position.
+// A11y       native semantics; role="switch" on the switch's checkbox so it is
+//            announced on / off. No links or buttons inside a choice: the input
+//            covers it. Disabled choices keep a readable (muted) label.
+// Raw values: none (checkmark and switch geometry built from size / space tokens)
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+// ─── Shared frame ───
+.gw-checkbox,
+.gw-radio,
+.gw-switch {
+  position: relative;
+  isolation: isolate;
+  display: inline-grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: var(--gw-space-2);
+  align-items: start;
+  justify-self: start;
+  max-width: 100%;
+  min-height: var(--gw-size-target-min);
+  padding-block: var(--gw-space-0-5);
+  color: var(--gw-color-text-primary);
+  vertical-align: top;
+}
+
+// Without a visible label (table selection column): a 24 × 24 target, box centred.
+.gw-checkbox:not(:has(> .gw-checkbox__label)),
+.gw-radio:not(:has(> .gw-radio__label)) {
+  grid-template-columns: var(--gw-size-target-min);
+  justify-items: center;
+}
+
+.gw-checkbox__input,
+.gw-radio__input,
+.gw-switch__input {
+  position: absolute;
+  inset: 0;
+  z-index: var(--gw-z-raised);
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  appearance: none;
+  cursor: pointer;
+
+  &:disabled,
+  &[aria-disabled="true"] { cursor: not-allowed; }
+}
+
+.gw-checkbox__control,
+.gw-radio__control,
+.gw-switch__control {
+  grid-column: 1;
+  grid-row: 1;
+  transition:
+    background-color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard),
+    border-color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard);
+}
+
+.gw-checkbox__label,
+.gw-radio__label,
+.gw-switch__label {
+  grid-column: 2;
+  min-width: 0;
+  @include gw-type(body);
+}
+
+.gw-checkbox__hint,
+.gw-radio__hint,
+.gw-switch__hint {
+  grid-column: 2;
+  min-width: 0;
+  margin: 0;
+  @include gw-type(small);
+  color: var(--gw-color-text-muted);
+}
+
+.gw-checkbox__input:is(:disabled, [aria-disabled="true"]) ~ .gw-checkbox__label,
+.gw-radio__input:is(:disabled, [aria-disabled="true"]) ~ .gw-radio__label,
+.gw-switch__input:is(:disabled, [aria-disabled="true"]) ~ .gw-switch__label { color: var(--gw-color-text-muted); }
+
+// ─── Checkbox and radio: 16px box ───
+.gw-checkbox__control,
+.gw-radio__control {
+  display: grid;
+  place-items: center;
+  width: var(--gw-size-icon-md);
+  height: var(--gw-size-icon-md);
+  margin-block-start: var(--gw-space-0-5); // centre on the 20px label line
+  background: var(--gw-color-bg-field);
+  border: var(--gw-border-width-default) solid var(--gw-color-border-input);
+
+  &::after {
+    content: "";
+    display: block;
+    visibility: hidden;
+  }
+}
+
+.gw-checkbox__control {
+  border-radius: var(--gw-radius-xs);
+
+  // Checkmark: an L of two 2px strokes, rotated.
+  &::after {
+    width: calc(var(--gw-space-1) + var(--gw-space-px));
+    height: calc(var(--gw-space-2) + var(--gw-space-px));
+    border: solid var(--gw-color-brand-on-solid);
+    border-width: 0 var(--gw-border-width-strong) var(--gw-border-width-strong) 0;
+    transform: translateY(calc(-1 * var(--gw-space-px))) rotate(45deg);
+  }
+}
+
+.gw-radio__control {
+  border-radius: var(--gw-radius-full);
+
+  // Dot: a 6px disc drawn as a border (survives forced colours, a fill would not).
+  &::after {
+    width: 0;
+    height: 0;
+    border: calc(var(--gw-space-1-5) / 2) solid var(--gw-color-brand-on-solid);
+    border-radius: var(--gw-radius-full);
+  }
+}
+
+.gw-checkbox__input:checked + .gw-checkbox__control,
+.gw-checkbox__input:indeterminate + .gw-checkbox__control,
+.gw-radio__input:checked + .gw-radio__control {
+  background: var(--gw-color-brand-solid);
+  border-color: var(--gw-color-brand-solid);
+
+  &::after { visibility: visible; }
+}
+
+// Indeterminate: a bar instead of the check (a top border, for forced colours).
+.gw-checkbox__input:indeterminate + .gw-checkbox__control::after {
+  width: var(--gw-space-2);
+  height: 0;
+  border-width: var(--gw-border-width-strong) 0 0;
+  transform: none;
+}
+
+.gw-checkbox__input:hover:not(:disabled):not([aria-disabled="true"]):not(:checked):not(:indeterminate):not([aria-invalid="true"]) + .gw-checkbox__control,
+.gw-radio__input:hover:not(:disabled):not([aria-disabled="true"]):not(:checked):not([aria-invalid="true"]) + .gw-radio__control {
+  border-color: var(--gw-color-border-focus);
+}
+.gw-checkbox__input:hover:not(:disabled):not([aria-disabled="true"]):checked + .gw-checkbox__control,
+.gw-checkbox__input:hover:not(:disabled):not([aria-disabled="true"]):indeterminate + .gw-checkbox__control,
+.gw-radio__input:hover:not(:disabled):not([aria-disabled="true"]):checked + .gw-radio__control {
+  background: var(--gw-color-brand-solid-hover);
+  border-color: var(--gw-color-brand-solid-hover);
+}
+
+.gw-checkbox__input[aria-invalid="true"]:not(:checked) + .gw-checkbox__control,
+.gw-radio__input[aria-invalid="true"]:not(:checked) + .gw-radio__control {
+  border-color: var(--gw-color-danger-fg);
+}
+
+.gw-checkbox__input:is(:disabled, [aria-disabled="true"]) + .gw-checkbox__control,
+.gw-radio__input:is(:disabled, [aria-disabled="true"]) + .gw-radio__control {
+  background: var(--gw-color-bg-raised);
+  border-color: var(--gw-color-border-default);
+}
+.gw-checkbox__input:is(:disabled, [aria-disabled="true"]):checked + .gw-checkbox__control,
+.gw-checkbox__input:is(:disabled, [aria-disabled="true"]):indeterminate + .gw-checkbox__control,
+.gw-radio__input:is(:disabled, [aria-disabled="true"]):checked + .gw-radio__control {
+  background: var(--gw-color-text-disabled);
+  border-color: var(--gw-color-text-disabled);
+}
+.gw-checkbox__input:is(:disabled, [aria-disabled="true"]) + .gw-checkbox__control::after,
+.gw-radio__input:is(:disabled, [aria-disabled="true"]) + .gw-radio__control::after { border-color: var(--gw-color-bg-surface); }
+
+// ─── Switch: 32 × 18 track, 14px thumb ───
+.gw-switch__control {
+  display: flex;
+  align-items: center;
+  width: var(--gw-size-control-md);
+  height: calc(var(--gw-size-icon-md) + var(--gw-space-0-5));
+  margin-block-start: var(--gw-space-px); // centre the 18px track on the 20px line
+  padding: var(--gw-space-0-5);
+  background: var(--gw-color-border-input);
+  border-radius: var(--gw-radius-full);
+  // Invisible normally; forced colours paint it, so the track keeps an edge.
+  outline: var(--gw-border-width-default) solid transparent;
+  outline-offset: calc(-1 * var(--gw-border-width-default));
+
+  // Thumb: a 14px disc drawn as a border (survives forced colours). Off thumb =
+  // surface colour: ≥ 3:1 against the border.input track in all four modes
+  // (white on the dark-hc track would be ~2.6:1).
+  &::after {
+    content: "";
+    width: 0;
+    height: 0;
+    border: calc(var(--gw-size-icon-sm) / 2) solid var(--gw-color-bg-surface);
+    border-radius: var(--gw-radius-full);
+    box-shadow: var(--gw-shadow-sm);
+
+    @include gw-motion {
+      transition: transform var(--gw-motion-duration-fast) var(--gw-motion-ease-standard);
+    }
+  }
+}
+
+.gw-switch__input:checked + .gw-switch__control {
+  background: var(--gw-color-brand-solid);
+
+  // Travel = track 32 − 2 × 2 inset − 14 thumb = 14.
+  &::after {
+    border-color: var(--gw-color-brand-on-solid);
+    transform: translateX(var(--gw-size-icon-sm));
+  }
+}
+.gw-switch__input:hover:not(:disabled):not([aria-disabled="true"]):checked + .gw-switch__control { background: var(--gw-color-brand-solid-hover); }
+
+[dir="rtl"] .gw-switch__input:checked + .gw-switch__control::after {
+  transform: translateX(calc(-1 * var(--gw-size-icon-sm)));
+}
+
+.gw-switch__input:is(:disabled, [aria-disabled="true"]) + .gw-switch__control {
+  background: var(--gw-color-border-default);
+
+  &::after { border-color: var(--gw-color-bg-surface); box-shadow: none; }
+}
+.gw-switch__input:is(:disabled, [aria-disabled="true"]):checked + .gw-switch__control { background: var(--gw-color-brand-border); }
+
+// ─── Focus: ring around the drawn control ───
+.gw-checkbox__input:focus-visible + .gw-checkbox__control,
+.gw-radio__input:focus-visible + .gw-radio__control,
+.gw-switch__input:focus-visible + .gw-switch__control {
+  outline: var(--gw-focus-width) solid var(--gw-color-border-focus);
+  outline-offset: var(--gw-focus-offset);
+}
+.gw-checkbox__input:focus,
+.gw-radio__input:focus,
+.gw-switch__input:focus { outline: none; }

@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  GPP/1, the gateway plugin protocol (report 16 §4, §9): JSON-RPC 2.0 as NDJSON over stdio between the native core
+  and the plugin host. JsonRpcPeer, FrameReader and WireCodec (SPI types <-> ObjectNode without reflection) live
+  here; both processes use the same classes. Built by step K4.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>ai.msrv.gaterook</groupId>
+    <artifactId>mcp-gateway</artifactId>
+    <version>0.4.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>plugin-protocol</artifactId>
+  <name>MCP Gateway · Plugin protocol (GPP/1)</name>
+
+  <dependencies>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connector-api</artifactId>
+    </dependency>
+    <!-- Tree model only on the wire: nothing here needs native-image metadata. -->
+    <dependency>
+      <groupId>tools.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.platform</groupId>
+      <artifactId>junit-platform-launcher</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!-- The core's unit tests talk to a fake host from this test-jar over pipes (ARCHITECTURE.md §10, K4). -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>test-jar</id>
+            <goals><goal>test-jar</goal></goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <!--
+      Native self-test of the protocol (ARCHITECTURE.md §10 K4, report 16 §10.4): the codec, the framer and the peer
+      must work in a GraalVM native image with no reflection and no metadata, because that is where the native core
+      runs them. The full `native:test` (a native JUnit image) needs GraalVM's junit-platform-native support, which
+      isn't available offline, so this profile instead builds a tiny native binary of NativeSelfTest; running it exits
+      0 on success. `JAVA_HOME=<graalvm> mvn -Pnative -pl plugin-protocol -am package` then
+      `target/plugin-protocol-selftest`. Canary runtime is GraalVM CE. Never part of the default build.
+    -->
+    <profile>
+      <id>native</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.graalvm.buildtools</groupId>
+            <artifactId>native-maven-plugin</artifactId>
+            <extensions>true</extensions>
+            <executions>
+              <execution>
+                <id>selftest-image</id>
+                <phase>package</phase>
+                <goals><goal>compile-no-fork</goal></goals>
+                <configuration>
+                  <imageName>plugin-protocol-selftest</imageName>
+                  <mainClass>ai.msrv.gaterook.plugin.protocol.NativeSelfTest</mainClass>
+                  <buildArgs>
+                    <buildArg>--no-fallback</buildArg>
+                    <buildArg>-H:+ReportExceptionStackTraces</buildArg>
+                  </buildArgs>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>

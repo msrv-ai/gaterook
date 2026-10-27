@@ -1,0 +1,106 @@
+// =============================================================
+// .gw-paginator · Pagination
+// -------------------------------------------------------------
+// Moving through a long list in pages. Three patterns, one block:
+//
+//   Compact (tables sorted / filtered on the server): range + prev / next
+//   <nav class="gw-paginator" aria-label="Events pages">
+//     <p class="gw-paginator__info">1–50 of 1,284 events</p>
+//     <div class="gw-paginator__controls">
+//       <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm" type="button" aria-label="Previous page" disabled>…</button>
+//       <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm" type="button" aria-label="Next page">…</button>
+//     </div>
+//   </nav>
+//
+//   Numbered (short lists people browse: connector catalog)
+//   <ul class="gw-paginator__controls">
+//     <li><button class="gw-paginator__page" type="button" aria-label="Page 2">2</button></li>
+//     <li><button class="gw-paginator__page" type="button" aria-label="Page 3" aria-current="page">3</button></li>
+//     <li aria-hidden="true"><span class="gw-paginator__page"><i class="gw-icon gw-icon--sm" data-lucide="ellipsis"></i></span></li>
+//   </ul>
+//
+//   Load older (the audit log): a cursor, never page numbers. New events
+//   arrive at the top, so loading OLDER rows below never moves what you read.
+//   <div class="gw-paginator"><p class="gw-paginator__info">Newest 50 of 1,284</p>
+//     <div class="gw-paginator__controls"><button class="gw-btn gw-btn--sm" type="button">Load older events</button></div></div>
+//
+// Subparts  __info      range / position text, muted, tabular figures
+//           __controls  row of buttons (div, or ul of li for numbered pages)
+//           __page      28px page button (gw-pressable sm) or link; prev / next
+//                       arrows are __page buttons too; a <span> is the gap
+//                       (ellipsis icon, inside an aria-hidden li)
+// States    __page[aria-current="page"]  selected tint + brand border + brand text
+//           + semibold · :hover wash · :focus-visible ring · :disabled on prev /
+//           next at the ends · aria-busy + gw-spinner on "Load older"
+// a11y   Wrap in <nav aria-label="… pages"> when it navigates; page buttons are
+//   named "Page 3"; after a change announce the new range (window.gwAnnounce).
+//   Don't paginate fewer than ~50 rows: show them all.
+// Raw values: none.
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+.gw-paginator {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gw-space-2) var(--gw-space-4);
+  min-width: 0;
+  @include gw-type(small);
+  color: var(--gw-color-text-muted);
+
+  &__info {
+    margin: 0;
+    @include gw-tabular;
+    color: var(--gw-color-text-muted);
+  }
+
+  &__controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gw-space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+
+    > li { display: flex; }
+  }
+
+  // Page buttons: the kit's pressable control at sm size (28px, ≥ 24 target),
+  // narrowed for one or two digits.
+  &__page {
+    @include gw-pressable(sm);
+    min-width: var(--gw-size-control-sm);
+    margin: 0;
+    padding-inline: var(--gw-space-1-5);
+    @include gw-tabular;
+    color: var(--gw-color-text-secondary);
+    background: none;
+
+    &:is(a, button):not([aria-current="page"]) {
+      @include gw-hover-wash;
+      &:hover:not(:disabled):not([aria-disabled="true"]) { color: var(--gw-color-text-primary); }
+    }
+
+    // A <span> is the gap marker (ellipsis): not pressable.
+    &:not(a):not(button) {
+      color: var(--gw-color-text-muted);
+      cursor: default;
+    }
+
+    // Current page: tint + brand border + brand text + semibold (never colour alone).
+    &[aria-current="page"] {
+      color: var(--gw-color-brand-fg);
+      font-weight: var(--gw-font-weight-semibold);
+      background: var(--gw-color-bg-selected);
+      border-color: var(--gw-color-brand-border);
+      cursor: default;
+    }
+
+    &:disabled,
+    &[aria-disabled="true"] { color: var(--gw-color-text-disabled); }
+  }
+}

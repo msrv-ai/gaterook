@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  MongoDB (report 05): mongo_find and mongo_aggregate over the sync driver. RawBsonDocument, relaxed EJSON with
+  $numberLong outside ±2^53, a pipeline validator, connectionStatus{showPrivileges}; mongodb+srv:// through our own
+  dnsClient (JNDI DNS isn't registered in native). Spring only in the .boot subpackage. Built by step C2.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>ai.msrv.gaterook</groupId>
+    <artifactId>mcp-gateway</artifactId>
+    <version>0.4.0-SNAPSHOT</version>
+    <relativePath>../../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>connectors-mongodb</artifactId>
+  <name>MCP Gateway · Connectors · MongoDB</name>
+
+  <dependencies>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connector-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connectors-support</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>tools.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+    </dependency>
+    <!-- mongodb.version is pinned to 5.13.0 in the root pom (Boot 4.1.2 manages 5.8.1). -->
+    <dependency>
+      <groupId>org.mongodb</groupId>
+      <artifactId>mongodb-driver-sync</artifactId>
+    </dependency>
+
+    <!-- Registration of the built-in beans, .boot subpackage only (ARCHITECTURE.md §2.3). -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-autoconfigure</artifactId>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- A real mongod without Docker (8.0.23); other versions through GW_MONGOD_BIN under -Pmongo-it. -->
+    <dependency>
+      <groupId>de.flapdoodle.embed</groupId>
+      <artifactId>de.flapdoodle.embed.mongo</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- Golden answers against the tools' output schemas (report 05 §8). -->
+    <dependency>
+      <groupId>com.networknt</groupId>
+      <artifactId>json-schema-validator</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!--
+        *IT against a real mongod: 8.0.23 extracted by flapdoodle (or GW_MONGOD_BIN) in every verify; the 7.0.45 and
+        9.0.4 release tarballs only with -Pmongo-it (tag mongo-it; downloads into ~/.cache/mcp-gateway-test/mongodb,
+        SHA-256 checked).
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>

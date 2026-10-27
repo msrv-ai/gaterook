@@ -1,0 +1,182 @@
+{
+  "schema": 1,
+  "sequence": 412,
+  "generatedAt": "2026-10-26T00:00:00Z",
+  "expiresAt": "2027-01-24T00:00:00Z",
+  "entries": [
+    {
+      "kind": "plugin",
+      "id": "jira-service-desk",
+      "version": "1.3.0",
+      "name": "Jira Service Desk",
+      "description": "This release adds SLA timers: one new read-only tool, no new hosts.",
+      "icon": "puzzle",
+      "group": "HTTP and MCP",
+      "signed": true,
+      "requires": {
+        "gateway": ">=0.4.0 & <1.0.0",
+        "connectorApi": ">=1.0.0 & <2.0.0"
+      },
+      "tools": 6,
+      "access": {
+        "hosts": [
+          "{connection.host}"
+        ],
+        "commands": []
+      },
+      "artifact": {
+        "url": "gw-jira-service-desk-1.3.0.jar",
+        "sha256": "5911c228bb68fbdc3b0e6e7f08ecd029d56d5f6b6bec4939e30917ff39e20194",
+        "size": 14
+      }
+    },
+    {
+      "kind": "plugin",
+      "id": "clickhouse",
+      "version": "0.6.1",
+      "name": "ClickHouse",
+      "description": "Analytics queries with row and time limits. Read only.",
+      "icon": "database",
+      "group": "Databases",
+      "signed": true,
+      "requires": {
+        "gateway": ">=0.4.0 & <1.0.0",
+        "connectorApi": ">=1.0.0 & <2.0.0"
+      },
+      "tools": 6,
+      "access": {
+        "hosts": [
+          "{connection.host}:8443",
+          "{connection.host}:8123"
+        ],
+        "commands": []
+      },
+      "artifact": {
+        "url": "gw-clickhouse-0.6.1.jar",
+        "sha256": "057245bdeef51205fd234c252e23a064eb6ba0292bef0742582d2e35dac96be6",
+        "size": 20
+      }
+    },
+    {
+      "kind": "plugin",
+      "id": "rabbitmq",
+      "version": "0.3.0",
+      "name": "RabbitMQ",
+      "description": "Queue depth, consumers and dead letters. Community code, not reviewed.",
+      "icon": "puzzle",
+      "group": "HTTP and MCP",
+      "signed": false,
+      "requires": {
+        "gateway": ">=0.4.0 & <1.0.0",
+        "connectorApi": ">=1.0.0 & <2.0.0"
+      },
+      "tools": 4,
+      "access": {
+        "hosts": [
+          "{connection.host}:15672"
+        ],
+        "commands": []
+      },
+      "artifact": {
+        "url": "gw-rabbitmq-0.3.0.jar",
+        "sha256": "cbfab448a7b08ac8a7986b0ee67b2d89bc84532f92ce9c895b5a3a40c382a934",
+        "size": 18
+      }
+    },
+    {
+      "kind": "template",
+      "id": "pg-slow-queries",
+      "version": "1.0.0",
+      "name": "PostgreSQL slow queries",
+      "description": "pg_slow_queries and pg_locks as read-only SQL tools. No code runs.",
+      "icon": "file-code",
+      "signed": true,
+      "templateKind": "sql-query",
+      "connectionTypes": [
+        "postgres"
+      ],
+      "tools": 2,
+      "definitions": [
+        {
+          "name": "pg_slow_queries",
+          "title": "Slow queries",
+          "description": "The statements with the highest mean execution time from pg_stat_statements (PostgreSQL 13 or later with the extension installed): calls, mean and total time in milliseconds, rows. Read only.",
+          "sql": "SELECT queryid::text AS query_id,\n       left(query, 300) AS query,\n       calls,\n       round(mean_exec_time::numeric, 2) AS mean_ms,\n       round(total_exec_time::numeric, 2) AS total_ms,\n       rows\nFROM pg_stat_statements\nWHERE calls >= :min_calls\nORDER BY mean_exec_time DESC\nLIMIT :limit",
+          "maxRows": 100,
+          "params": [
+            {
+              "name": "min_calls",
+              "type": "integer",
+              "required": false,
+              "default": 5,
+              "minimum": 1,
+              "maximum": 1000000000,
+              "description": "Only statements that ran at least this many times"
+            },
+            {
+              "name": "limit",
+              "type": "integer",
+              "required": false,
+              "default": 20,
+              "minimum": 1,
+              "maximum": 100,
+              "description": "How many statements, slowest first"
+            }
+          ]
+        },
+        {
+          "name": "pg_locks",
+          "title": "Lock waits",
+          "description": "Sessions waiting for a lock and the sessions holding it: the lock, the relation, how long the wait is, the users and the first 200 characters of both queries. Read only.",
+          "sql": "SELECT blocked.pid AS waiting_pid,\n       blocked_activity.usename AS waiting_user,\n       now() - blocked_activity.query_start AS waiting_for,\n       blocked.locktype,\n       blocked.mode AS wanted_mode,\n       blocked.relation::regclass::text AS relation,\n       blocking.pid AS holding_pid,\n       blocking_activity.usename AS holding_user,\n       left(blocked_activity.query, 200) AS waiting_query,\n       left(blocking_activity.query, 200) AS holding_query\nFROM pg_locks AS blocked\nJOIN pg_stat_activity AS blocked_activity ON blocked_activity.pid = blocked.pid\nJOIN pg_locks AS blocking\n  ON blocking.locktype = blocked.locktype\n AND blocking.database IS NOT DISTINCT FROM blocked.database\n AND blocking.relation IS NOT DISTINCT FROM blocked.relation\n AND blocking.page IS NOT DISTINCT FROM blocked.page\n AND blocking.tuple IS NOT DISTINCT FROM blocked.tuple\n AND blocking.virtualxid IS NOT DISTINCT FROM blocked.virtualxid\n AND blocking.transactionid IS NOT DISTINCT FROM blocked.transactionid\n AND blocking.classid IS NOT DISTINCT FROM blocked.classid\n AND blocking.objid IS NOT DISTINCT FROM blocked.objid\n AND blocking.objsubid IS NOT DISTINCT FROM blocked.objsubid\n AND blocking.pid <> blocked.pid\n AND blocking.granted\nJOIN pg_stat_activity AS blocking_activity ON blocking_activity.pid = blocking.pid\nWHERE NOT blocked.granted\nORDER BY waiting_for DESC NULLS LAST\nLIMIT :limit",
+          "maxRows": 100,
+          "params": [
+            {
+              "name": "limit",
+              "type": "integer",
+              "required": false,
+              "default": 50,
+              "minimum": 1,
+              "maximum": 100,
+              "description": "How many waits, longest first"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "mcp-server",
+      "id": "github-mcp",
+      "version": "0.6.2",
+      "name": "GitHub",
+      "description": "Issues, pull requests and code search. Needs a GitHub token.",
+      "icon": "plug",
+      "signed": true,
+      "serverName": "github-mcp",
+      "transport": "stdio",
+      "npm": {
+        "package": "@modelcontextprotocol/server-github",
+        "version": "2025.4.8",
+        "integrity": "sha512-8N43bQw9MlUB0piTZHK2JMh8kYPKxH57d4Z7Wb8PS4by2MkZ0FzI5xPImg3xumpev82VZw2VWHQJJJYp+WkwEw==",
+        "lockfile": {
+          "url": "github-mcp-0.6.2.package-lock.json",
+          "sha256": "556e04c35b04ba85b76277e1da0fd30ce6e1eac9d78cdab75c5d823fbe7d43fd",
+          "size": 20002
+        },
+        "bin": "mcp-server-github",
+        "node": ">=18",
+        "ignoreScripts": true
+      },
+      "env": [
+        {
+          "name": "GITHUB_PERSONAL_ACCESS_TOKEN",
+          "secret": true
+        }
+      ],
+      "args": [],
+      "toolPrefix": "github_",
+      "tools": 26
+    }
+  ],
+  "revoked": []
+}

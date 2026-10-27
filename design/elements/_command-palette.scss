@@ -1,0 +1,168 @@
+// =============================================================
+// .gw-command-palette · Command palette, ⌘K (element)
+// -------------------------------------------------------------
+// Purpose   One keyboard entry point to the whole app: go to a page, run an
+//           action, open a connection or an endpoint by name. A native modal
+//           <dialog> with a search field on top and grouped results below; type
+//           to filter, Up / Down to move, Enter to open, Esc to close.
+// Used in   every app page: opened by ⌘K / Ctrl+K and by the Search button in
+//           gw-titlebar__actions (pages/_shell.html).
+// Composes  gw-dialog --md (surface, scrim, focus trap, Esc) · gw-search (the
+//           combobox input) · gw-menu__group / __note / __item / __icon /
+//           __label / __hint / __kbd / __check (result rows, outside a floating
+//           gw-menu) · gw-env --sm · gw-counter --attention · gw-empty --compact
+//           (no results) · gw-dialog__footer + gw-kbd (key hints) · gw-sr-only
+//           status (result count)
+//
+//   <dialog class="gw-dialog gw-dialog--md gw-command-palette" id="cmdk"
+//           aria-labelledby="cmdk-title" aria-describedby="cmdk-keys">
+//     <h2 class="gw-sr-only" id="cmdk-title">Command palette</h2>
+//     <div class="gw-command-palette__search">
+//       <div class="gw-search">
+//         <i class="gw-icon gw-search__icon" data-lucide="search"></i>
+//         <input class="gw-search__input" type="search" role="combobox" autofocus
+//                aria-expanded="true" aria-controls="cmdk-list" aria-autocomplete="list"
+//                aria-activedescendant="cmdk-o-connections"
+//                aria-label="Search pages, connections, endpoints, actions"
+//                placeholder="Search pages, connections, endpoints, actions">
+//         <button class="gw-search__clear" type="button" aria-label="Clear search">…x…</button>
+//       </div>
+//     </div>
+//     <div class="gw-command-palette__results">
+//       <div class="gw-command-palette__list" role="listbox" id="cmdk-list" aria-label="Results">
+//         <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-goto">
+//           <p class="gw-menu__note" id="cmdk-g-goto" aria-hidden="true">Go to</p>
+//           <a class="gw-menu__item gw-menu__item--active" role="option" id="cmdk-o-connections"
+//              href="connections.html" aria-selected="true" tabindex="-1" data-keywords="databases servers">
+//             <i class="gw-icon gw-menu__icon" data-lucide="database"></i>
+//             <span class="gw-menu__label">Connections</span>
+//             <span class="gw-menu__hint">Resources</span>
+//             <i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+//           </a>
+//         </div>
+//       </div>
+//       <div class="gw-empty gw-empty--compact" hidden>…No results for “…”…</div>
+//     </div>
+//     <footer class="gw-dialog__footer gw-command-palette__footer" id="cmdk-keys">
+//       <p class="gw-command-palette__hint gw-text-caption gw-fg-muted">
+//         <kbd class="gw-kbd"><i class="gw-icon" data-lucide="arrow-up"></i><span class="gw-sr-only">Up arrow</span></kbd>
+//         <kbd class="gw-kbd"><i class="gw-icon" data-lucide="arrow-down"></i><span class="gw-sr-only">Down arrow</span></kbd> to move</p>
+//       <p class="gw-command-palette__hint …"><kbd class="gw-kbd"><i class="gw-icon" data-lucide="corner-down-left"></i>
+//         <span class="gw-sr-only">Enter</span></kbd> to open</p>
+//       <p class="gw-command-palette__hint …"><kbd class="gw-kbd">Esc</kbd> to close</p>
+//     </footer>
+//     <p class="gw-sr-only" role="status" data-cmdk-status></p>
+//   </dialog>
+//   The empty state carries data-cmdk-empty, its query slot data-cmdk-query; the
+//   Toggle theme action data-cmdk-theme (kit.js hooks).
+//
+// Parts
+//   (root)     on the <dialog>: anchored near the top of the window (titlebar +
+//              64px), so the field stays put while the results shrink under it.
+//   __search   the field area above the results.
+//   __results  the scroller: list + empty state; about ten rows tall, then scrolls.
+//   __list     role="listbox": groups (role="group" + aria-labelledby → an
+//              aria-hidden gw-menu__note) stacked 8px apart.
+//   __footer   gw-dialog__footer turned into a row of key hints at the start.
+//   __hint     one hint: keys (gw-kbd) + words.
+// Groups     Go to (every page of the sidebar, in its order) · Actions (verb +
+//            object: Add connection, Create endpoint, Issue token, Copy URL of
+//            endpoint dev, Toggle theme) · Connections (by name + env) ·
+//            Endpoints (by slug). Empty groups hide while filtering.
+// Rows       gw-menu__item as role="option": <a href> to navigate, <button
+//            type="button"> for actions (data-gw-copy / data-gw-dialog-close run
+//            through kit.js); tabindex="-1" (focus stays in the field).
+//            Icon (BLUEPRINT §7) · label (literals in gw-mono, a connection's
+//            gw-env right after its name with sr-only "environment") · end:
+//            __hint (a page's sidebar group, a connection's kind, an endpoint's
+//            path in mono) and / or __kbd (aria-hidden; only shortcuts the app
+//            really has, mirrored in aria-keyshortcuts: ⌘ , for Settings) ·
+//            __check as the trailing Enter icon (corner-down-left), visible only
+//            on the active option. Approvals keeps its gw-counter --attention.
+// Variants
+//   --preview  the same panel in page flow (a <div> with role="group"): static
+//              states in docs and reviews. Never in the app.
+// States
+//   suggestions   empty query: every group, first option active
+//   filtered      query matches label + hint + data-keywords; groups with no match
+//                 hide; the first match becomes active; the count goes to the
+//                 status line ("4 results")
+//   active        aria-selected="true" + gw-menu__item--active on one option, and
+//                 aria-activedescendant on the input; Up / Down wrap, Home / End jump;
+//                 pointer movement moves it too; Enter clicks it. Visible cues: the
+//                 hover wash + inset focus ring of gw-menu__item--active and the
+//                 trailing return icon (never colour alone).
+//   no results    listbox hidden, aria-expanded="false", gw-empty--compact names the
+//                 query and offers one way on (Add connection)
+// Behaviour   assets/kit.js, no page script (the spec for the Angular component):
+//             the .gw-command-palette hook filters label + hint + data-keywords,
+//             hides empty groups, writes the count to the status line, moves the
+//             active option (Up / Down wrapping, Home / End, pointer), and Enter
+//             clicks it: a link navigates, a button runs its kit.js action
+//             (data-gw-copy, data-gw-dialog-close, data-cmdk-theme). ⌘K / Ctrl+K
+//             toggles <dialog id="cmdk"> from anywhere (not over another open
+//             dialog). Esc always closes (the field is type="search", whose first
+//             Esc would only clear it) and focus returns to where it was; closing
+//             resets the query and the active option. The titlebar button opens it
+//             through data-gw-dialog-open="cmdk"; the field's autofocus is the
+//             dialog's initial focus.
+// A11y        APG combobox with a listbox popup: DOM focus never leaves the input,
+//             aria-activedescendant names the active option, aria-selected marks it.
+//             The dialog is named by a sr-only h2 and described by the key hints.
+//             Shortcuts are decorative (aria-hidden): the row's name is its label.
+// Raw values: none (results cap = 12 control heights).
+// =============================================================
+
+@use "../scss/tokens" as *;
+@use "../scss/mixins" as *;
+
+.gw-command-palette {
+  --gw-command-palette-top: calc(var(--gw-layout-titlebar-height) + var(--gw-space-16));
+
+  // Modal: near the top instead of centred, so filtering never moves the field.
+  &:is(dialog) {
+    margin-block: var(--gw-command-palette-top) auto;
+    max-height: calc(100dvh - var(--gw-command-palette-top) - var(--gw-space-8));
+  }
+
+  // Static copy of the panel in page flow (docs, reviews).
+  &--preview {
+    display: flex;
+    flex-direction: column;
+    max-width: 100%;
+  }
+
+  &__search {
+    flex: none;
+    padding: var(--gw-space-3) var(--gw-space-3) var(--gw-space-2);
+  }
+
+  &__results {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-block-size: calc(var(--gw-size-control-md) * 12); // 384px: about ten rows and their group labels
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0 var(--gw-space-2) var(--gw-space-2);
+    @include gw-scrollbar;
+  }
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-2);
+    min-width: 0;
+  }
+
+  &__footer {
+    justify-content: flex-start;
+    gap: var(--gw-space-1) var(--gw-space-4);
+  }
+
+  &__hint {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--gw-space-1-5);
+    margin: 0;
+  }
+}

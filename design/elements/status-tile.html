@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Status tile · Element · GateRook kit</title>
+<link rel="icon" href="../assets/logo-mark.svg" type="image/svg+xml">
+<script src="../assets/theme-boot.js"></script>
+<link rel="stylesheet" href="../dist/gw-kit.css">
+</head>
+<body>
+<a class="gw-skip-link" href="#main">Skip to content</a>
+<main class="gw-page" id="main" tabindex="-1">
+  <div class="gw-stack gw-stack--lg">
+    <header class="gw-page-header">
+      <div class="gw-page-header__row">
+        <div class="gw-page-header__heading">
+          <h1 class="gw-page-header__title">Status tile</h1>
+          <p class="gw-page-header__description">One compact card per thing: what it is, its state in words, and at most one action. Used on Overview for connections and AI apps, in gw-grid --3 sets (--2 for the four AI apps), problems and tiles with an action first.</p>
+        </div>
+        <div class="gw-page-header__actions">
+          <fieldset class="gw-segmented gw-segmented--sm">
+            <legend class="gw-sr-only">Theme</legend>
+            <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i>System</span></label>
+            <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i>Light</span></label>
+            <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i>Dark</span></label>
+          </fieldset>
+        </div>
+      </div>
+    </header>
+
+    <section class="gw-section" aria-labelledby="st-conn">
+      <header class="gw-section__header">
+        <h2 class="gw-section__title" id="st-conn">Connections: unreachable, slow, healthy</h2>
+        <p class="gw-section__description">The whole tile opens the connection; Test again is its own target above that link.</p>
+      </header>
+      <ul class="gw-grid gw-grid--3" role="list" aria-label="Connections, problems first">
+        <li class="gw-card gw-card--interactive gw-status-tile">
+          <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="globe"></i></span>
+          <div class="gw-status-tile__main">
+            <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="../pages/connection-new.html?edit=billing-api">billing-api</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></h3>
+            <p class="gw-text-caption gw-fg-muted gw-truncate">HTTP API · billing.stage.acme.dev</p>
+          </div>
+          <div class="gw-status-tile__end">
+            <span class="gw-status gw-status--danger"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Unreachable</span></span>
+            <button class="gw-btn gw-btn--sm" type="button" data-gw-toast="billing.stage.acme.dev did not answer." data-gw-toast-title="billing-api is still unreachable" data-gw-toast-tone="danger">Test again<span class="gw-sr-only"> billing-api</span></button>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive gw-status-tile">
+          <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="layers"></i></span>
+          <div class="gw-status-tile__main">
+            <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="../pages/connection-new.html?edit=cache-redis">cache-redis</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></h3>
+            <p class="gw-text-caption gw-fg-muted gw-truncate">Redis 7</p>
+          </div>
+          <div class="gw-status-tile__end">
+            <span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Slow · 1.8 s</span></span>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive gw-status-tile">
+          <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="database"></i></span>
+          <div class="gw-status-tile__main">
+            <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="../pages/connection-new.html?edit=prod-replica">prod-replica</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--prod gw-env--sm">prod</span></h3>
+            <p class="gw-text-caption gw-fg-muted gw-truncate">Read replica · replica.prod.internal</p>
+          </div>
+          <div class="gw-status-tile__end">
+            <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span>
+          </div>
+        </li>
+      </ul>
+    </section>
+
+    <section class="gw-section" aria-labelledby="st-apps">
+      <header class="gw-section__header">
+        <h2 class="gw-section__title" id="st-apps">AI apps: connected, found, not installed</h2>
+        <p class="gw-section__description">The action fits the state: Connect for an app found on this computer, How to install for one that is not. When the action is the tile's only destination, the tile has no link of its own.</p>
+      </header>
+      <ul class="gw-grid gw-grid--3" role="list" aria-label="AI apps">
+        <li class="gw-card gw-status-tile">
+          <span class="gw-client-mark gw-client-mark--cursor" aria-hidden="true">Cu</span>
+          <div class="gw-status-tile__main">
+            <h3 class="gw-status-tile__title gw-text-ui">Cursor</h3>
+            <p class="gw-text-caption gw-fg-muted gw-truncate">Found on this computer</p>
+          </div>
+          <div class="gw-status-tile__end">
+            <span class="gw-status gw-status--info"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Not connected</span></span>
+            <a class="gw-btn gw-btn--sm" href="../pages/clients.html#cl-cu-t">Connect<span class="gw-sr-only"> Cursor</span></a>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive gw-status-tile">
+          <span class="gw-client-mark gw-client-mark--codex" aria-hidden="true">Cx</span>
+          <div class="gw-status-tile__main">
+            <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link" href="../pages/clients.html#cl-cx-t">Codex</a></h3>
+            <p class="gw-text-caption gw-fg-muted gw-truncate">Endpoint <span class="gw-mono">dev</span></p>
+          </div>
+          <div class="gw-status-tile__end">
+            <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Connected</span></span>
+          </div>
+        </li>
+        <li class="gw-card gw-status-tile">
+          <span class="gw-client-mark gw-client-mark--antigravity" aria-hidden="true">Ag</span>
+          <div class="gw-status-tile__main">
+            <h3 class="gw-status-tile__title gw-text-ui">Antigravity</h3>
+            <p class="gw-text-caption gw-fg-muted gw-truncate">Not found on this computer</p>
+          </div>
+          <div class="gw-status-tile__end">
+            <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Not installed</span></span>
+            <a class="gw-btn gw-btn--sm gw-btn--link" href="../pages/clients.html#cl-ag-t">How to install<span class="gw-sr-only"> Antigravity</span></a>
+          </div>
+        </li>
+      </ul>
+    </section>
+
+    <section class="gw-section" aria-labelledby="st-off">
+      <header class="gw-section__header">
+        <h2 class="gw-section__title" id="st-off">Action unavailable, with the reason</h2>
+        <p class="gw-section__description">First run: Connect is a button (not a link) with aria-disabled, stays in the Tab order, says why it waits, and does nothing until a connection exists.</p>
+      </header>
+      <ul class="gw-grid gw-grid--3" role="list" aria-label="AI apps on this computer">
+        <li class="gw-card gw-status-tile">
+          <span class="gw-client-mark gw-client-mark--claude" aria-hidden="true">CD</span>
+          <div class="gw-status-tile__main">
+            <h3 class="gw-status-tile__title gw-text-ui">Claude Desktop</h3>
+            <p class="gw-text-caption gw-fg-muted gw-truncate">Found on this computer</p>
+          </div>
+          <div class="gw-status-tile__end">
+            <span class="gw-status gw-status--info"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Not connected</span></span>
+            <button class="gw-btn gw-btn--sm" type="button" aria-disabled="true" aria-describedby="st-why">Connect<span class="gw-sr-only"> Claude Desktop</span></button>
+          </div>
+        </li>
+      </ul>
+      <p class="gw-text-caption gw-fg-muted" id="st-why"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i> Add a connection first: your AI app needs something to work with.</p>
+    </section>
+
+    <section class="gw-section" aria-labelledby="st-busy">
+      <header class="gw-section__header">
+        <h2 class="gw-section__title" id="st-busy">Busy: Test again is running</h2>
+        <p class="gw-section__description">The button keeps its label, gets a spinner and aria-busy; the state turns into gw-status--checking (role=status) until the result arrives.</p>
+      </header>
+      <ul class="gw-grid gw-grid--3" role="list" aria-label="Connection being checked">
+        <li class="gw-card gw-card--interactive gw-status-tile">
+          <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="globe"></i></span>
+          <div class="gw-status-tile__main">
+            <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="../pages/connection-new.html?edit=billing-api">billing-api</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></h3>
+            <p class="gw-text-caption gw-fg-muted">HTTP API · <span class="gw-mono">billing.stage.acme.dev</span></p>
+          </div>
+          <div class="gw-status-tile__end">
+            <span class="gw-status gw-status--checking" role="status" id="st-busy-state"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span><span class="gw-status__label">Checking…<span class="gw-sr-only"> billing-api</span></span></span>
+            <button class="gw-btn gw-btn--sm" type="button" aria-busy="true" aria-disabled="true" aria-describedby="st-busy-state"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> Test again<span class="gw-sr-only"> billing-api, busy example</span></button>
+          </div>
+        </li>
+      </ul>
+    </section>
+
+    <section class="gw-section" aria-labelledby="st-narrow">
+      <header class="gw-section__header">
+        <h2 class="gw-section__title" id="st-narrow">Narrow tile</h2>
+        <p class="gw-section__description">When the tile's content box is under 280px (about 314px outer), the state and its action move under the text on one row as tall as the button.</p>
+      </header>
+      <ul class="gw-grid gw-grid--auto" role="list" aria-label="Narrow example" style="--gw-grid-min: var(--gw-layout-dialog-sm); max-width: var(--gw-layout-sidebar-width)">
+        <li class="gw-card gw-card--interactive gw-status-tile">
+          <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="globe"></i></span>
+          <div class="gw-status-tile__main">
+            <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="../pages/connection-new.html?edit=billing-api">billing-api</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></h3>
+            <p class="gw-text-caption gw-fg-muted gw-truncate">HTTP API</p>
+          </div>
+          <div class="gw-status-tile__end">
+            <span class="gw-status gw-status--danger"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Unreachable</span></span>
+            <button class="gw-btn gw-btn--sm" type="button">Test again<span class="gw-sr-only"> billing-api, narrow example</span></button>
+          </div>
+        </li>
+      </ul>
+    </section>
+  </div>
+</main>
+<script src="../vendor/lucide/lucide.min.js"></script>
+<script src="../assets/kit.js"></script>
+</body>
+</html>

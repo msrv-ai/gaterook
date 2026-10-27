@@ -1,0 +1,113 @@
+<section class="sc-section" id="page-header" data-title="Page header" data-group="Shell">
+  <h2>Page header <code class="gw-code">gw-page-header</code> <code class="gw-code">gw-breadcrumb</code></h2>
+  <p>The top of every page and the home of its one <code class="gw-code">h1</code>: breadcrumb on nested pages, title with a one-sentence description, meta (status, URL, counts), actions on the right and an optional tab row. Actions wrap under the heading when the window narrows. Not for card or section titles (use <code class="gw-code">gw-card__title</code> and <code class="gw-code">gw-section__title</code>), and never twice on a page.</p>
+
+  <h3>Top-level page</h3>
+  <div class="sc-demo sc-demo--canvas sc-demo--col" data-sc-code>
+    <header class="gw-page-header">
+      <div class="gw-page-header__row">
+        <div class="gw-page-header__heading">
+          <!-- h1 on a real page -->
+          <h4 class="gw-page-header__title">Connections</h4>
+          <p class="gw-page-header__description">Resources the gateway can reach: databases, SSH hosts, logs, clusters, clouds and HTTP APIs. Agents never see their credentials.</p>
+        </div>
+        <div class="gw-page-header__actions">
+          <button class="gw-btn" type="button"><i class="gw-icon" data-lucide="refresh-cw"></i> Check all</button>
+          <a class="gw-btn gw-btn--primary" href="#page-header"><i class="gw-icon" data-lucide="plus"></i> Add connection</a>
+        </div>
+      </div>
+    </header>
+  </div>
+
+  <h3>Detail page: breadcrumb, meta and tabs</h3>
+  <div class="sc-demo sc-demo--canvas sc-demo--col" data-sc-code>
+    <header class="gw-page-header">
+      <nav class="gw-breadcrumb gw-page-header__breadcrumb" aria-label="Breadcrumb">
+        <ol>
+          <li><a href="#page-header">Endpoints</a></li>
+          <li><i class="gw-icon" data-lucide="chevron-right"></i><span class="gw-mono" aria-current="page">dev</span></li>
+        </ol>
+      </nav>
+      <div class="gw-page-header__row">
+        <div class="gw-page-header__heading">
+          <!-- h1 on a real page -->
+          <h4 class="gw-page-header__title">Endpoint <span class="gw-mono">dev</span></h4>
+          <p class="gw-page-header__description">Local development: 8 connections, mutations go through approval.</p>
+          <div class="gw-page-header__meta">
+            <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Serving</span></span>
+            <span class="gw-divider gw-divider--vertical" aria-hidden="true"></span>
+            <code class="gw-code">http://127.0.0.1:7465/mcp/dev</code>
+            <span class="gw-divider gw-divider--vertical" aria-hidden="true"></span>
+            <span>Claude Desktop and Codex connected</span>
+          </div>
+        </div>
+        <div class="gw-page-header__actions">
+          <button class="gw-btn" type="button"><i class="gw-icon" data-lucide="flask-conical"></i> Open in Playground</button>
+          <button class="gw-btn gw-btn--primary" type="button"><i class="gw-icon" data-lucide="plus"></i> Create token</button>
+        </div>
+      </div>
+      <div class="gw-page-header__tabs gw-tabs">
+        <div class="gw-tabs__list" role="tablist" aria-label="Endpoint dev">
+          <button class="gw-tabs__tab" type="button" role="tab" id="sc-a-ph-tab-tools" aria-selected="true" aria-controls="sc-a-ph-panel-tools">Tools &amp; policies <span class="gw-tabs__count">14<span class="gw-sr-only"> tools</span></span></button>
+          <button class="gw-tabs__tab" type="button" role="tab" id="sc-a-ph-tab-conn" aria-selected="false" aria-controls="sc-a-ph-panel-conn" tabindex="-1">Connections <span class="gw-tabs__count">8<span class="gw-sr-only"> connections</span></span></button>
+          <button class="gw-tabs__tab" type="button" role="tab" id="sc-a-ph-tab-tokens" aria-selected="false" aria-controls="sc-a-ph-panel-tokens" tabindex="-1">Tokens <span class="gw-tabs__count">3<span class="gw-sr-only"> tokens</span></span></button>
+          <button class="gw-tabs__tab" type="button" role="tab" id="sc-a-ph-tab-clients" aria-selected="false" aria-controls="sc-a-ph-panel-clients" tabindex="-1">AI apps <span class="gw-tabs__count">2<span class="gw-sr-only"> AI apps</span></span></button>
+          <button class="gw-tabs__tab" type="button" role="tab" id="sc-a-ph-tab-settings" aria-selected="false" aria-controls="sc-a-ph-panel-settings" tabindex="-1">Settings</button>
+        </div>
+      </div>
+    </header>
+    <div class="gw-tabs__panel" role="tabpanel" tabindex="0" id="sc-a-ph-panel-tools" aria-labelledby="sc-a-ph-tab-tools">
+      <p class="gw-text-small">14 tools on 8 connections. <code class="gw-code">sql_execute</code> and <code class="gw-code">k8s_rollout_restart</code> need approval.</p>
+    </div>
+    <div class="gw-tabs__panel" role="tabpanel" tabindex="0" id="sc-a-ph-panel-conn" aria-labelledby="sc-a-ph-tab-conn" hidden>
+      <p class="gw-text-small"><code class="gw-code">dev-db</code>, <code class="gw-code">orders-mongo</code>, <code class="gw-code">cache-redis</code>, <code class="gw-code">dev-vm</code>, <code class="gw-code">app-logs</code>, <code class="gw-code">dev-cluster</code> and 2 more.</p>
+    </div>
+    <div class="gw-tabs__panel" role="tabpanel" tabindex="0" id="sc-a-ph-panel-tokens" aria-labelledby="sc-a-ph-tab-tokens" hidden>
+      <p class="gw-text-small">Claude Desktop and Codex get tokens on the fly · <code class="gw-code">inspector-debug</code> expires in 3 days · <code class="gw-code">ci-smoke</code> expired.</p>
+    </div>
+    <div class="gw-tabs__panel" role="tabpanel" tabindex="0" id="sc-a-ph-panel-clients" aria-labelledby="sc-a-ph-tab-clients" hidden>
+      <p class="gw-text-small">Claude Desktop and Codex are connected to this endpoint.</p>
+    </div>
+    <div class="gw-tabs__panel" role="tabpanel" tabindex="0" id="sc-a-ph-panel-settings" aria-labelledby="sc-a-ph-tab-settings" hidden>
+      <p class="gw-text-small">OAuth, rate limits, response size and server instructions.</p>
+    </div>
+  </div>
+
+  <h3>Narrow window</h3>
+  <p class="sc-lead">The heading keeps at least 18rem. When the actions no longer fit beside it they drop under it and wrap; a long literal in the title breaks instead of overflowing. Put the environment marker right after the connection name.</p>
+  <div class="sc-demo sc-demo--canvas sc-demo--col" data-sc-code>
+    <div style="inline-size: 360px; max-inline-size: 100%">
+      <header class="gw-page-header">
+        <nav class="gw-breadcrumb gw-page-header__breadcrumb" aria-label="Breadcrumb">
+          <ol>
+            <li><a href="#page-header">Connections</a></li>
+            <li><i class="gw-icon" data-lucide="chevron-right"></i><span class="gw-mono" aria-current="page">prod-replica</span></li>
+          </ol>
+        </nav>
+        <div class="gw-page-header__row">
+          <div class="gw-page-header__heading">
+            <!-- h1 on a real page -->
+            <h4 class="gw-page-header__title">Connection <span class="gw-mono">prod-replica</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--prod">prod</span></h4>
+            <p class="gw-page-header__description">PostgreSQL read replica. Short-lived credentials from Vault, read only.</p>
+          </div>
+          <div class="gw-page-header__actions">
+            <button class="gw-btn" type="button"><i class="gw-icon" data-lucide="refresh-cw"></i> Test connection</button>
+            <button class="gw-btn gw-btn--danger-ghost" type="button"><i class="gw-icon" data-lucide="trash-2"></i> Delete connection</button>
+          </div>
+        </div>
+      </header>
+    </div>
+  </div>
+
+  <h3>Breadcrumb</h3>
+  <p class="sc-lead">A <code class="gw-code">nav</code> labelled "Breadcrumb" around an ordered list. The chevron is a decorative icon before each item after the first; the last item is the current page (<code class="gw-code">aria-current="page"</code>), not a link. Literal names (slugs, connection names) are mono.</p>
+  <div class="sc-demo" data-sc-code>
+    <nav class="gw-breadcrumb" aria-label="Breadcrumb">
+      <ol>
+        <li><a href="#page-header">Endpoints</a></li>
+        <li><i class="gw-icon" data-lucide="chevron-right"></i><a class="gw-mono" href="#page-header">dev</a></li>
+        <li><i class="gw-icon" data-lucide="chevron-right"></i><span aria-current="page">Tokens</span></li>
+      </ol>
+    </nav>
+  </div>
+</section>

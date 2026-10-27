@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Limits",
+  "description": "Caps per minute and per call. An endpoint cap or a tool's own limit can only be stricter; the strictest value wins.",
+  "type": "object",
+  "x-policy-section": "limits",
+  "additionalProperties": false,
+  "properties": {
+    "rateLimitPerToken": {
+      "type": "integer",
+      "title": "Rate limit per token",
+      "minimum": 1,
+      "maximum": 10000,
+      "default": 120,
+      "x-env-default": {"prod": 60},
+      "x-unit": "calls per min",
+      "x-stricter": "min"
+    },
+    "rateLimitPerTool": {
+      "type": "integer",
+      "title": "Rate limit per tool",
+      "minimum": 1,
+      "maximum": 10000,
+      "default": 30,
+      "x-env-default": {"prod": 20},
+      "x-unit": "calls per min",
+      "x-stricter": "min"
+    },
+    "maxResponseKb": {
+      "type": "integer",
+      "title": "Max response size",
+      "minimum": 1,
+      "maximum": 10240,
+      "default": 512,
+      "x-env-default": {"prod": 256},
+      "x-unit": "KB",
+      "x-stricter": "min"
+    },
+    "toolTimeoutSeconds": {
+      "type": "integer",
+      "title": "Tool timeout",
+      "minimum": 1,
+      "maximum": 300,
+      "default": 10,
+      "x-env-default": {"prod": 5},
+      "x-unit": "s",
+      "x-stricter": "min"
+    },
+    "logLines": {
+      "type": "integer",
+      "title": "Log lines per call",
+      "minimum": 1,
+      "maximum": 100000,
+      "default": 1000,
+      "x-env-default": {"prod": 200},
+      "x-unit": "lines",
+      "x-stricter": "min"
+    }
+  }
+}

@@ -1,0 +1,39 @@
+<section class="sc-section" id="buttons" data-title="Buttons" data-group="Actions">
+  <h2>Buttons <code class="gw-code">gw-btn</code></h2>
+  <p>One primitive for every action. <strong>Primary</strong> marks the one main action of a view. <strong>Approve</strong> (green) exists only for the approval decision, so green always means "let it run". <strong>Danger</strong> is the confirming step of something irreversible; <strong>danger ghost</strong> is the trigger that opens that confirmation. Labels are a verb and an object, in sentence case.</p>
+
+  <h3>Variants</h3>
+  <div class="sc-demo" data-sc-code>
+    <button class="gw-btn gw-btn--primary" type="button"><i class="gw-icon" data-lucide="plus"></i> Create endpoint</button>
+    <button class="gw-btn" type="button">Test connection</button>
+    <button class="gw-btn gw-btn--ghost" type="button"><i class="gw-icon" data-lucide="download"></i> Export</button>
+    <button class="gw-btn gw-btn--approve" type="button"><i class="gw-icon" data-lucide="check"></i> Approve and run</button>
+    <button class="gw-btn gw-btn--danger" type="button">Revoke token inspector-debug</button>
+    <button class="gw-btn gw-btn--danger-ghost" type="button"><i class="gw-icon" data-lucide="trash-2"></i> Delete connection</button>
+    <button class="gw-btn gw-btn--link" type="button">View in Activity</button>
+  </div>
+
+  <h3>Sizes, icon only, keyboard hint</h3>
+  <div class="sc-demo" data-sc-code>
+    <button class="gw-btn gw-btn--sm" type="button">Small</button>
+    <button class="gw-btn" type="button">Medium</button>
+    <button class="gw-btn gw-btn--lg gw-btn--primary" type="button">Large</button>
+    <button class="gw-btn gw-btn--icon gw-btn--ghost" type="button" aria-label="Copy endpoint URL"><i class="gw-icon" data-lucide="copy"></i></button>
+    <button class="gw-btn gw-btn--icon gw-btn--sm gw-btn--ghost" type="button" aria-label="More actions for dev-db"><i class="gw-icon gw-icon--sm" data-lucide="ellipsis"></i></button>
+    <button class="gw-btn gw-btn--ghost" type="button"><i class="gw-icon" data-lucide="search"></i> Search <kbd class="gw-btn__kbd" aria-hidden="true">⌘K</kbd></button>
+  </div>
+
+  <h3>States</h3>
+  <div class="sc-demo" data-sc-code>
+    <button class="gw-btn" type="button" aria-busy="true"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> Testing connection</button>
+    <button class="gw-btn gw-btn--primary" type="button" disabled>Save connection</button>
+    <button class="gw-btn gw-btn--ghost" type="button" aria-pressed="true" data-gw-pressed><i class="gw-icon gw-btn__unpressed" data-lucide="radio"></i><span class="gw-status gw-status--brand gw-status--live gw-btn__pressed"><span class="gw-status__dot" aria-hidden="true"></span></span> Live</button>
+    <button class="gw-btn gw-btn--ghost" type="button" aria-pressed="false" data-gw-pressed><i class="gw-icon" data-lucide="list-tree"></i> Group by trace</button>
+    <button class="gw-btn gw-btn--danger-ghost" type="button" aria-disabled="true" aria-describedby="sc-b-btn-why">Delete connection</button>
+    <p class="gw-text-caption gw-fg-muted" id="sc-b-btn-why">Used by endpoint dev: remove it there first.</p>
+    <div class="gw-btn-group" role="group" aria-label="Export">
+      <button class="gw-btn" type="button">Export JSONL</button>
+      <button class="gw-btn gw-btn--icon" type="button" aria-label="More export formats"><i class="gw-icon" data-lucide="chevron-down"></i></button>
+    </div>
+  </div>
+</section>

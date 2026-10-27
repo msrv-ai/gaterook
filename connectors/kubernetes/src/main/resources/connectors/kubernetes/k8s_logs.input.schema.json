@@ -1,0 +1,54 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "pod"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "namespace": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+      "maxLength": 63,
+      "description": "Default: the connection's namespace."
+    },
+    "pod": {
+      "type": "string",
+      "maxLength": 253,
+      "description": "Pod name, or deployment/<name>, statefulset/<name>, job/<name> to pick one pod like kubectl logs"
+    },
+    "container": {
+      "type": "string",
+      "maxLength": 63
+    },
+    "tailLines": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5000,
+      "default": 200
+    },
+    "sinceSeconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 604800
+    },
+    "previous": {
+      "type": "boolean",
+      "default": false,
+      "description": "Logs of the previous (crashed) container."
+    },
+    "timestamps": {
+      "type": "boolean",
+      "default": false
+    },
+    "maxBytes": {
+      "type": "integer",
+      "minimum": 1024,
+      "maximum": 1048576,
+      "default": 262144
+    }
+  }
+}

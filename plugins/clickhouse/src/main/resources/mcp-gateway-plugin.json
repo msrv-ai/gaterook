@@ -1,0 +1,251 @@
+{
+  "manifestVersion": 1,
+  "id": "clickhouse",
+  "version": "0.6.1",
+  "name": "ClickHouse",
+  "provider": "MCP Gateway",
+  "license": "Apache-2.0",
+  "description": "Analytics queries with row and time limits. Read only.",
+  "requires": {
+    "gateway": ">=0.4.0 & <1.0.0",
+    "connectorApi": ">=1.0.0 & <2.0.0",
+    "javaModules": ["java.net.http"]
+  },
+  "connectorClass": "gaterook.plugins.clickhouse.ClickHouseConnector",
+  "type": "clickhouse",
+  "toolNamespace": "clickhouse_",
+  "icon": "database",
+  "group": "Databases",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["host", "user", "password"],
+    "x-card": {"description": "Analytics queries with row and time limits. Read only."},
+    "properties": {
+      "host": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 253,
+        "pattern": "^[A-Za-z0-9.:\\[\\]-]+$",
+        "title": "Host",
+        "description": "The ClickHouse server: clickhouse.acme.internal, or the host of a ClickHouse Cloud service",
+        "x-agent-visible": true
+      },
+      "port": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 65535,
+        "default": 8443,
+        "title": "Port",
+        "description": "The HTTP interface: 8443 with TLS (ClickHouse Cloud), 8123 without. The plugin may reach only these two ports.",
+        "x-agent-visible": true
+      },
+      "database": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "default": "default",
+        "title": "Database",
+        "description": "The database queries run in when they don't name one",
+        "x-agent-visible": true
+      },
+      "user": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "default": "default",
+        "title": "User",
+        "description": "Best a user that can only read. MCP Gateway also sends readonly=1 with every query.",
+        "x-agent-visible": true
+      },
+      "password": {
+        "type": "string",
+        "writeOnly": true,
+        "format": "password",
+        "title": "Password",
+        "x-gateway-secret": "value"
+      },
+      "options": {
+        "type": "object",
+        "additionalProperties": false,
+        "title": "TLS and limits",
+        "x-collapsed": true,
+        "properties": {
+          "tls": {
+            "type": "boolean",
+            "default": true,
+            "title": "TLS",
+            "description": "https:// to the HTTP interface. Without TLS the plugin reaches only a private address the environment's policy allows."
+          },
+          "maxRows": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000,
+            "default": 1000,
+            "title": "Max rows",
+            "description": "Rows a query returns at most; the environment's row limit still applies"
+          },
+          "maxExecutionSeconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 300,
+            "default": 30,
+            "title": "Max execution time (s)",
+            "description": "ClickHouse stops a query that runs longer (max_execution_time)"
+          }
+        }
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "clickhouse_query",
+      "title": "Run a read-only query",
+      "description": "Runs one read-only query: SELECT, WITH … SELECT, SHOW, DESCRIBE, EXPLAIN or EXISTS. ClickHouse runs it with readonly=1, a row limit and a time limit; table functions that reach other systems (url, s3, remote, file, …) and FORMAT, SETTINGS or INTO OUTFILE clauses are refused.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sql"],
+        "properties": {
+          "sql": {"type": "string", "minLength": 1, "maxLength": 100000, "description": "One SELECT, WITH … SELECT, SHOW, DESCRIBE, EXPLAIN or EXISTS statement"},
+          "limit": {"type": "integer", "minimum": 1, "maximum": 1000, "default": 100, "description": "Max rows; the connection and the endpoint cap it"}
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["columns", "rows", "rowCount", "truncated"],
+        "properties": {
+          "columns": {"type": "array", "items": {"type": "string"}},
+          "types": {"type": "array", "items": {"type": "string"}},
+          "rows": {"type": "array", "items": {"type": "array"}},
+          "rowCount": {"type": "integer"},
+          "truncated": {"type": "boolean"},
+          "truncatedReason": {"type": ["string", "null"]},
+          "elapsedMs": {"type": "integer"},
+          "rowsRead": {"type": ["integer", "null"]}
+        }
+      },
+      "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+      "nature": "READ",
+      "resultShape": "TABLE",
+      "risk": {"privateData": true, "untrustedContent": true, "egress": "NONE"}
+    },
+    {
+      "name": "clickhouse_list_databases",
+      "title": "List databases",
+      "description": "The databases this user can see, with their engines and how many tables each has.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      },
+      "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+      "nature": "READ",
+      "resultShape": "TABLE",
+      "risk": {"privateData": false, "untrustedContent": false, "egress": "NONE"}
+    },
+    {
+      "name": "clickhouse_list_tables",
+      "title": "List tables",
+      "description": "The tables of one database (the connection's when not given): engine, rows, size on disk and comment, largest first.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "database": {"type": "string", "minLength": 1, "maxLength": 128, "description": "The database; the connection's when absent"},
+          "like": {"type": "string", "maxLength": 200, "description": "Only tables whose name matches this LIKE pattern, for example events_%"},
+          "limit": {"type": "integer", "minimum": 1, "maximum": 500, "default": 100}
+        }
+      },
+      "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+      "nature": "READ",
+      "resultShape": "TABLE",
+      "risk": {"privateData": false, "untrustedContent": true, "egress": "NONE"}
+    },
+    {
+      "name": "clickhouse_describe_table",
+      "title": "Describe table",
+      "description": "The columns of one table with their types, defaults and comments, and its engine, sorting key, partition key and size.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["table"],
+        "properties": {
+          "database": {"type": "string", "minLength": 1, "maxLength": 128, "description": "The database; the connection's when absent"},
+          "table": {"type": "string", "minLength": 1, "maxLength": 256}
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "required": ["database", "table", "columns"],
+        "properties": {
+          "database": {"type": "string"},
+          "table": {"type": "string"},
+          "engine": {"type": ["string", "null"]},
+          "sortingKey": {"type": ["string", "null"]},
+          "partitionKey": {"type": ["string", "null"]},
+          "primaryKey": {"type": ["string", "null"]},
+          "totalRows": {"type": ["integer", "null"]},
+          "totalBytes": {"type": ["integer", "null"]},
+          "comment": {"type": ["string", "null"]},
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["name", "type"],
+              "properties": {
+                "name": {"type": "string"},
+                "type": {"type": "string"},
+                "defaultKind": {"type": ["string", "null"]},
+                "defaultExpression": {"type": ["string", "null"]},
+                "comment": {"type": ["string", "null"]},
+                "inSortingKey": {"type": "boolean"},
+                "inPrimaryKey": {"type": "boolean"}
+              }
+            }
+          }
+        }
+      },
+      "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+      "nature": "READ",
+      "resultShape": "JSON",
+      "risk": {"privateData": false, "untrustedContent": true, "egress": "NONE"}
+    },
+    {
+      "name": "clickhouse_explain",
+      "title": "Explain a query",
+      "description": "How ClickHouse would run a read-only query, without running it: the plan, the pipeline, an estimate of the rows and marks it reads, or the query as ClickHouse rewrites it.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sql"],
+        "properties": {
+          "sql": {"type": "string", "minLength": 1, "maxLength": 100000, "description": "One SELECT or WITH … SELECT statement"},
+          "kind": {"enum": ["PLAN", "PIPELINE", "ESTIMATE", "SYNTAX"], "default": "PLAN", "description": "What to explain"}
+        }
+      },
+      "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+      "nature": "READ",
+      "resultShape": "TABLE",
+      "risk": {"privateData": false, "untrustedContent": true, "egress": "NONE"}
+    },
+    {
+      "name": "clickhouse_running_queries",
+      "title": "Running queries",
+      "description": "The queries running on the server now (system.processes): who runs them, for how long, rows read and memory. The query text is cut to 300 characters.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "limit": {"type": "integer", "minimum": 1, "maximum": 200, "default": 50}
+        }
+      },
+      "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+      "nature": "READ",
+      "resultShape": "TABLE",
+      "risk": {"privateData": true, "untrustedContent": true, "egress": "NONE"}
+    }
+  ],
+  "access": {"hosts": ["{connection.host}:8443", "{connection.host}:8123"], "commands": [], "files": []},
+  "resources": {"maxHeapMb": 128}
+}

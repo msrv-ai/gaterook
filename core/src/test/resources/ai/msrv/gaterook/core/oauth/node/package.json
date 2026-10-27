@@ -1,0 +1,10 @@
+{
+  "name": "mcp-gateway-test-oauth-clients",
+  "private": true,
+  "description": "Reference OAuth clients for the mcp-clients profile (ARCHITECTURE.md K3): the TypeScript SDK 1.32.1 and conformance 0.2.0-alpha.12, installed into ~/.cache/mcp-gateway-test/k3-oauth, never into the repository.",
+  "type": "module",
+  "dependencies": {
+    "@modelcontextprotocol/conformance": "0.2.0-alpha.12",
+    "@modelcontextprotocol/sdk": "1.32.1"
+  }
+}

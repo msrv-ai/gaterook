@@ -1,0 +1,36 @@
+{
+  "area": "mongodb",
+  "module": "connectors/mongodb",
+  "connectorTypes": ["mongodb"],
+  "description": "Touches of the MongoDB connector for the native smoke (report 15 §6): the validator without I/O, the driver with its error mapping, and mongodb+srv:// through the gateway's own DNS client (the image has no JNDI DNS provider). The first two need no server; the third needs a mongod with access control and TLS only (fixture mongod-srv: the 8.0.23 binary of flapdoodle or GW_MONGOD_BIN, a CA of its own, the users of report 05 §8) and a DNS server on UDP answering SRV _mongodb._tcp.<srvHost> → 127.0.0.1:<port> and TXT authSource=admin, passed to the core as -Dgateway.test.dns-server=<host:port> (ignored by a release). The app's MongoCoreProcessIT runs the same touch with -Dgateway.core.binary.",
+  "touches": [
+    {
+      "name": "nested-out-denied-without-io",
+      "connection": {"type": "mongodb", "env": "dev",
+        "config": {"connection": {"uri": "mongodb://127.0.0.1:1/orders"}, "credentials": {"user": "gw_reader"}},
+        "secrets": {"/credentials/password": "smoke-only-0001"}},
+      "call": {"tool": "mongo_aggregate", "arguments": {"collection": "orders", "pipeline": [
+        {"$lookup": {"from": "customers", "as": "c", "pipeline": [{"$match": {}}, {"$out": "stolen"}]}}]}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.mongodb.write-stage"}
+    },
+    {
+      "name": "driver-refused",
+      "connection": {"type": "mongodb", "env": "dev",
+        "config": {"connection": {"uri": "mongodb://127.0.0.1:1/orders"},
+                   "advanced": {"serverSelectionTimeoutMs": 1000}}},
+      "test": true,
+      "expect": {"ok": false, "errorCode": "mongo.refused"}
+    },
+    {
+      "name": "srv-find-over-tls",
+      "fixture": "mongod-srv",
+      "connection": {"type": "mongodb", "env": "dev",
+        "config": {"connection": {"uri": "mongodb+srv://${fixture.srvHost}/orders",
+                                  "caCertificate": "${fixture.caCertificate}"},
+                   "credentials": {"user": "${fixture.user}"}},
+        "secrets": {"/credentials/password": "${fixture.password}"}},
+      "call": {"tool": "mongo_find", "arguments": {"collection": "orders", "filter": {"_id": 1}}},
+      "expect": {"isError": false, "structuredContent": {"returned": 1}}
+    }
+  ]
+}

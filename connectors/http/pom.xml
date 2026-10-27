@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  HTTP API and OpenAPI (report 10): http_get and http_request through the egress guard of connectors/support
+  (OkHttp 5), a canonical approved payload, Idempotency-Key, TLS trust on first use and TemplateKind "openapi" with
+  our own loader on Jackson 3 + snakeyaml-engine (no swagger-parser: Jackson 2 and reflection).
+  Spring only in the .boot subpackage. Built by step C9.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>ai.msrv.gaterook</groupId>
+    <artifactId>mcp-gateway</artifactId>
+    <version>0.4.0-SNAPSHOT</version>
+    <relativePath>../../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>connectors-http</artifactId>
+  <name>MCP Gateway · Connectors · HTTP API</name>
+
+  <dependencies>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connector-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connectors-support</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>tools.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.squareup.okhttp3</groupId>
+      <artifactId>okhttp-jvm</artifactId>
+    </dependency>
+    <!-- PEM of an internal CA and pinned certificates. -->
+    <dependency>
+      <groupId>com.squareup.okhttp3</groupId>
+      <artifactId>okhttp-tls</artifactId>
+    </dependency>
+    <!-- YAML OpenAPI documents; YAML 1.2 core schema, alias limits. -->
+    <dependency>
+      <groupId>org.snakeyaml</groupId>
+      <artifactId>snakeyaml-engine</artifactId>
+    </dependency>
+
+    <!-- Registration of the built-in beans, .boot subpackage only (ARCHITECTURE.md §2.3). -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-autoconfigure</artifactId>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.squareup.okhttp3</groupId>
+      <artifactId>mockwebserver3</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- Every generated inputSchema is valid JSON Schema 2020-12 (report 10 §8.1). -->
+    <dependency>
+      <groupId>com.networknt</groupId>
+      <artifactId>json-schema-validator</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

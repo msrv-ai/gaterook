@@ -1,0 +1,1105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connections · GateRook</title>
+<link rel="icon" href="../assets/logo-mark.svg" type="image/svg+xml">
+<script src="../assets/theme-boot.js"></script>
+<link rel="stylesheet" href="../dist/gw-kit.css">
+</head>
+<body>
+<a class="gw-skip-link" href="#main">Skip to content</a>
+<div class="gw-shell">
+
+  <header class="gw-titlebar">
+    <span class="gw-titlebar__title">Connections</span>
+    <div class="gw-titlebar__drag"></div>
+    <div class="gw-titlebar__actions">
+      <!-- Opens the command palette (#cmdk at the end of <main>, elements/command-palette.html) -->
+      <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Search and commands" aria-haspopup="dialog" aria-keyshortcuts="Meta+K Control+K" data-gw-dialog-open="cmdk"><i class="gw-icon" data-lucide="search"></i> Search <kbd class="gw-btn__kbd" aria-hidden="true">⌘K</kbd></button>
+      <a class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" href="approvals.html" aria-label="Approvals, 3 waiting"><i class="gw-icon" data-lucide="bell"></i><span class="gw-counter gw-counter--attention" aria-hidden="true">3</span></a>
+      <!--
+        Appearance popover. gw-popover belongs to component group D, gw-segmented to group C.
+        The <form method="dialog"> scopes the radio groups (Settings › Appearance has its own
+        gw-theme radios) and never submits outside a <dialog>. kit.js binds name="gw-theme" /
+        name="gw-contrast" to window.gwTheme.
+      -->
+      <div class="gw-menu-host">
+        <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="gw-appearance" aria-label="Appearance"><i class="gw-icon" data-lucide="sun-moon"></i></button>
+        <div class="gw-popover gw-popover--right" id="gw-appearance" role="dialog" aria-labelledby="gw-appearance-title" hidden>
+          <div class="gw-popover__header">
+            <p class="gw-popover__title" id="gw-appearance-title">Appearance</p>
+          </div>
+          <form class="gw-popover__body" method="dialog">
+            <div class="gw-stack gw-stack--sm">
+              <p class="gw-text-caption gw-fg-muted" id="gw-appearance-theme">Theme</p>
+              <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="gw-appearance-theme">
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i> System</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i> Light</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i> Dark</span></label>
+              </div>
+              <p class="gw-text-caption gw-fg-muted" id="gw-appearance-contrast">Contrast</p>
+              <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="gw-appearance-contrast">
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="system"><span class="gw-segmented__label">System</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="normal"><span class="gw-segmented__label">Normal</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="more"><span class="gw-segmented__label">High</span></label>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="gw-sidebar" id="gw-sidebar">
+    <div class="gw-sidebar__header">
+      <a class="gw-logo" href="overview.html" aria-label="GateRook, overview">
+        <img class="gw-logo__mark" src="../assets/logo-mark.svg" alt="">
+        <span class="gw-logo__name">GateRook</span>
+      </a>
+      <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-sidebar__toggle" type="button" data-gw-sidebar-toggle aria-controls="gw-sidebar" aria-expanded="true" aria-label="Collapse sidebar"><i class="gw-icon" data-lucide="panel-left"></i></button>
+    </div>
+
+    <nav class="gw-sidebar__body gw-nav" data-gw-nav aria-label="Main">
+      <div class="gw-nav__group">
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="overview.html"><i class="gw-icon gw-nav__icon" data-lucide="layout-dashboard"></i><span class="gw-nav__label">Overview</span></a></li>
+          <li><a class="gw-nav__item" href="approvals.html"><i class="gw-icon gw-nav__icon" data-lucide="user-check"></i><span class="gw-nav__label">Approvals</span><span class="gw-nav__counter gw-counter gw-counter--attention"><span class="gw-sr-only">, </span>3<span class="gw-sr-only"> waiting</span></span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-resources">
+        <p class="gw-nav__group-label" id="gw-nav-resources">Resources</p>
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="connections.html" aria-current="page"><i class="gw-icon gw-nav__icon" data-lucide="database"></i><span class="gw-nav__label">Connections</span></a></li>
+          <li><a class="gw-nav__item" href="connectors.html"><i class="gw-icon gw-nav__icon" data-lucide="puzzle"></i><span class="gw-nav__label">Connectors</span></a></li>
+          <li><a class="gw-nav__item" href="secrets.html"><i class="gw-icon gw-nav__icon" data-lucide="key-round"></i><span class="gw-nav__label">Secrets</span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-access">
+        <p class="gw-nav__group-label" id="gw-nav-access">Access</p>
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="endpoints.html"><i class="gw-icon gw-nav__icon" data-lucide="waypoints"></i><span class="gw-nav__label">Endpoints</span></a></li>
+          <li><a class="gw-nav__item" href="clients.html"><i class="gw-icon gw-nav__icon" data-lucide="app-window"></i><span class="gw-nav__label">AI apps</span></a></li>
+          <li><a class="gw-nav__item" href="policies.html"><i class="gw-icon gw-nav__icon" data-lucide="shield"></i><span class="gw-nav__label">Policies</span></a></li>
+          <li><a class="gw-nav__item" href="playground.html"><i class="gw-icon gw-nav__icon" data-lucide="flask-conical"></i><span class="gw-nav__label">Playground</span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-observe">
+        <p class="gw-nav__group-label" id="gw-nav-observe">Observe</p>
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="activity.html"><i class="gw-icon gw-nav__icon" data-lucide="activity"></i><span class="gw-nav__label">Activity</span></a></li>
+          <li><a class="gw-nav__item" href="insights.html"><i class="gw-icon gw-nav__icon" data-lucide="chart-column"></i><span class="gw-nav__label">Insights</span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group gw-nav__group--end">
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="settings.html"><i class="gw-icon gw-nav__icon" data-lucide="settings"></i><span class="gw-nav__label">Settings</span></a></li>
+        </ul>
+      </div>
+    </nav>
+
+    <!-- gw-status belongs to component group B. Static on purpose: no gw-status--live in the shell (WCAG 2.2.2) -->
+    <div class="gw-sidebar__footer">
+      <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Core running</span></span>
+      <span class="gw-sidebar__meta">127.0.0.1:7465 · v0.4.0</span>
+      <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off</span></span>
+    </div>
+  </div>
+
+  <main class="gw-shell__main" id="main" tabindex="-1">
+    <!-- App-wide gw-alert--banner (Core stopped, Tunnel is public) goes here, before gw-page -->
+    <div class="gw-page">
+      <header class="gw-page-header">
+        <div class="gw-page-header__row">
+          <div class="gw-page-header__heading">
+            <h1 class="gw-page-header__title">Connections</h1>
+            <p class="gw-page-header__description">The databases, servers, logs, clusters, clouds and APIs your agents can reach, and whether each one answers right now.</p>
+            <div class="gw-page-header__meta">
+              <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">10 healthy</span></span>
+              <span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">1 slow</span></span>
+              <span class="gw-status gw-status--danger"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">1 unreachable</span></span>
+              <span class="gw-divider gw-divider--vertical" aria-hidden="true"></span>
+              <span class="gw-text-small gw-fg-muted">Health is checked every minute</span>
+            </div>
+          </div>
+          <div class="gw-page-header__actions">
+            <a class="gw-btn gw-btn--primary" href="connection-new.html"><i class="gw-icon" data-lucide="plus"></i> Add connection</a>
+          </div>
+        </div>
+      </header>
+
+      <!-- how-it-works element: collapsed by default, kit.js remembers the choice (data-gw-toggle-persist) -->
+      <section class="gw-card gw-card--muted gw-how-it-works" aria-labelledby="conn-hiw-title">
+        <div class="gw-card__body gw-how-it-works__body">
+          <div class="gw-how-it-works__header">
+            <div class="gw-card__heading">
+              <h2 class="gw-card__title" id="conn-hiw-title">How connections work</h2>
+              <p class="gw-card__description">Add a resource once. Agents call its tools by name through an endpoint and never see its credentials.</p>
+            </div>
+            <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-how-it-works__toggle" type="button" data-gw-toggle data-gw-toggle-persist="connections-how-it-works" aria-expanded="false" aria-controls="conn-hiw-panel" aria-labelledby="conn-hiw-title">
+              <i class="gw-icon gw-how-it-works__toggle-icon gw-how-it-works__toggle-icon--collapse" data-lucide="chevron-up"></i>
+              <i class="gw-icon gw-how-it-works__toggle-icon gw-how-it-works__toggle-icon--expand" data-lucide="chevron-down"></i>
+            </button>
+          </div>
+          <div class="gw-how-it-works__panel" id="conn-hiw-panel" hidden>
+            <ol class="gw-how-it-works__steps" aria-label="How a connection reaches an agent">
+              <li class="gw-how-it-works__step">
+                <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="plug-zap"></i></span>
+                <span class="gw-how-it-works__arrow gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="chevron-right"></i></span>
+                <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">1</span>Add and test</p>
+                <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">Pick a type, point it at a host and test it. The test shows what the account is allowed to do.</p>
+              </li>
+              <li class="gw-how-it-works__step">
+                <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="lock-keyhole"></i></span>
+                <span class="gw-how-it-works__arrow gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="chevron-right"></i></span>
+                <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">2</span>Credentials stay here</p>
+                <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">Encrypted with your master key, read from Vault, GCP or AWS at call time, or issued short-lived and renewed automatically. Write-only.</p>
+              </li>
+              <li class="gw-how-it-works__step">
+                <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="waypoints"></i></span>
+                <span class="gw-how-it-works__arrow gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="chevron-right"></i></span>
+                <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">3</span>Add it to an endpoint</p>
+                <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">Its tools appear there as Off, Read only or Approval. Anything that writes waits for a person.</p>
+              </li>
+              <li class="gw-how-it-works__step">
+                <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="activity"></i></span>
+                <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">4</span>Agents call it by name</p>
+                <p class="gw-how-it-works__text gw-text-small gw-fg-secondary"><code class="gw-code">sql_query(connection='dev-db', …)</code>. Every call is logged in Activity.</p>
+              </li>
+            </ol>
+            <p class="gw-how-it-works__more"><a class="gw-link gw-text-small" href="secrets.html">Learn how credentials are protected</a></p>
+          </div>
+        </div>
+      </section>
+
+      <div class="gw-stack">
+        <div class="gw-toolbar">
+          <div class="gw-toolbar__start" role="search" aria-label="Filter connections">
+            <div class="gw-search gw-search--sm">
+              <i class="gw-icon gw-search__icon" data-lucide="search"></i>
+              <input class="gw-search__input" type="search" id="conn-q" placeholder="Search name, host or type" aria-label="Search connections by name, host or type" aria-keyshortcuts="/" autocomplete="off" spellcheck="false">
+              <button class="gw-search__clear" type="button" aria-label="Clear search"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+              <kbd class="gw-search__kbd" aria-hidden="true">/</kbd>
+            </div>
+            <div class="gw-menu-host">
+              <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="conn-type-menu"><i class="gw-icon gw-icon--sm" data-lucide="list-filter"></i> Type: <span data-gw-menu-value>All types</span> <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i></button>
+              <div class="gw-menu" id="conn-type-menu" role="listbox" aria-label="Filter by type" hidden>
+                  <button class="gw-menu__item" type="button" role="option" aria-selected="true" tabindex="-1" data-value="all"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="shapes"></i><span class="gw-menu__label">All types</span><span class="gw-menu__hint">12<span class="gw-sr-only"> connections</span></span></button>
+                  <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1" data-value="postgresql"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label">PostgreSQL</span><span class="gw-menu__hint">3<span class="gw-sr-only"> connections</span></span></button>
+                  <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1" data-value="mongodb"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="leaf"></i><span class="gw-menu__label">MongoDB</span><span class="gw-menu__hint">1<span class="gw-sr-only"> connections</span></span></button>
+                  <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1" data-value="redis"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="layers"></i><span class="gw-menu__label">Redis</span><span class="gw-menu__hint">1<span class="gw-sr-only"> connections</span></span></button>
+                  <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1" data-value="ssh"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="terminal"></i><span class="gw-menu__label">SSH</span><span class="gw-menu__hint">2<span class="gw-sr-only"> connections</span></span></button>
+                  <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1" data-value="logs"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="scroll-text"></i><span class="gw-menu__label">Logs</span><span class="gw-menu__hint">2<span class="gw-sr-only"> connections</span></span></button>
+                  <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1" data-value="kubernetes"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="ship-wheel"></i><span class="gw-menu__label">Kubernetes</span><span class="gw-menu__hint">1<span class="gw-sr-only"> connections</span></span></button>
+                  <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1" data-value="aws"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="cloud"></i><span class="gw-menu__label">AWS</span><span class="gw-menu__hint">1<span class="gw-sr-only"> connections</span></span></button>
+                  <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1" data-value="http"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="globe"></i><span class="gw-menu__label">HTTP API</span><span class="gw-menu__hint">1<span class="gw-sr-only"> connections</span></span></button>
+              </div>
+            </div>
+            <fieldset class="gw-segmented gw-segmented--sm">
+              <legend class="gw-sr-only">Environment</legend>
+              <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="conn-env" value="all" checked><span class="gw-segmented__label">All</span></label>
+              <label class="gw-segmented__option" data-tone="dev"><input class="gw-segmented__input" type="radio" name="conn-env" value="dev"><span class="gw-segmented__label">dev</span></label>
+              <label class="gw-segmented__option" data-tone="stage"><input class="gw-segmented__input" type="radio" name="conn-env" value="stage"><span class="gw-segmented__label">stage</span></label>
+              <label class="gw-segmented__option" data-tone="prod"><input class="gw-segmented__input" type="radio" name="conn-env" value="prod"><span class="gw-segmented__label">prod</span></label>
+            </fieldset>
+            <div class="gw-menu-host">
+              <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="conn-health-menu"><i class="gw-icon gw-icon--sm" data-lucide="heart-pulse"></i> Health: <span data-gw-menu-value>Any health</span> <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i></button>
+              <div class="gw-menu" id="conn-health-menu" role="listbox" aria-label="Filter by health" hidden>
+                  <button class="gw-menu__item" type="button" role="option" aria-selected="true" tabindex="-1" data-value="all"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Any health</span><span class="gw-menu__hint">12<span class="gw-sr-only"> connections</span></span></button>
+                  <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1" data-value="healthy"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Healthy</span><span class="gw-menu__hint">10<span class="gw-sr-only"> connections</span></span></button>
+                  <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1" data-value="slow"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Slow</span><span class="gw-menu__hint">1<span class="gw-sr-only"> connections</span></span></button>
+                  <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1" data-value="unreachable"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Unreachable</span><span class="gw-menu__hint">1<span class="gw-sr-only"> connections</span></span></button>
+              </div>
+            </div>
+            <span class="gw-divider gw-divider--vertical" aria-hidden="true"></span>
+            <p class="gw-text-small gw-fg-muted" id="conn-count" role="status">12 connections</p>
+          </div>
+          <div class="gw-toolbar__end">
+            <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" id="conn-test-all"><i class="gw-icon gw-icon--sm" data-lucide="refresh-cw"></i> Test all<span class="gw-sr-only"> connections</span></button>
+          </div>
+        </div>
+
+        <div class="gw-table-wrap" role="region" aria-labelledby="conn-cap" tabindex="0" id="conn-wrap">
+          <table class="gw-table" id="conn-table">
+            <caption class="gw-sr-only" id="conn-cap">All connections, by name</caption>
+            <thead>
+              <tr>
+                <th scope="col">Connection</th>
+                <th scope="col" class="gw-table__cell--optional">Type</th>
+                <th scope="col" class="gw-table__cell--optional">Credentials</th>
+                <th scope="col">Health</th>
+                <th scope="col">Used by</th>
+                <th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+            <tr data-conn="app-logs" data-type="logs" data-env="dev" data-health="healthy">
+              <th scope="row">
+                <a class="gw-link gw-mono" href="connection-new.html?edit=app-logs">app-logs</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span>
+                <div class="gw-text-code-sm gw-fg-muted" title="loki.dev.internal:3100">loki.dev.internal:3100</div>
+              </th>
+              <td class="gw-table__cell--optional"><i class="gw-icon gw-icon--sm" data-lucide="scroll-text"></i> Loki</td>
+              <td class="gw-table__cell--optional">
+                <i class="gw-icon gw-icon--sm" data-lucide="lock-keyhole"></i> Encrypted here
+              </td>
+              <td>
+                <span class="gw-status gw-status--success" data-conn-status><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy · 64 ms</span></span>
+                <div class="gw-text-caption gw-fg-muted">Checked <time datetime="2026-10-22T14:29:40+02:00" title="2026-10-22 14:29:40 CEST" data-conn-checked>1 min ago</time></div>
+              </td>
+              <td>
+                <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a>
+              </td>
+              <td class="gw-table__cell--actions">
+                <div class="gw-menu-host">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Actions for connection app-logs" aria-haspopup="menu" aria-expanded="false" aria-controls="conn-menu-app-logs"><i class="gw-icon" data-lucide="ellipsis"></i></button>
+                  <div class="gw-menu gw-menu--right" id="conn-menu-app-logs" role="menu" aria-label="Actions for connection app-logs" hidden>
+                    <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-conn-test="app-logs"><i class="gw-icon gw-menu__icon" data-lucide="plug-zap"></i><span class="gw-menu__label">Test connection</span></button>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="connection-new.html?edit=app-logs"><i class="gw-icon gw-menu__icon" data-lucide="pencil"></i><span class="gw-menu__label">Edit</span></a>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="activity.html?q=connection:app-logs"><i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">View activity<span class="gw-menu__hint gw-mono">connection:app-logs</span></span></a>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="connection-new.html?duplicate=app-logs"><i class="gw-icon gw-menu__icon" data-lucide="copy-plus"></i><span class="gw-menu__label">Duplicate</span></a>
+                    <div class="gw-menu__divider" role="separator"></div>
+                    <button class="gw-menu__item gw-menu__item--danger" type="button" role="menuitem" tabindex="-1" data-gw-dialog-open="dlg-delete-connection" data-conn-delete="app-logs"><i class="gw-icon gw-menu__icon" data-lucide="trash-2"></i><span class="gw-menu__label">Delete connection</span></button>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            <tr data-conn="aws-stage" data-type="aws" data-env="stage" data-health="healthy">
+              <th scope="row">
+                <a class="gw-link gw-mono" href="connection-new.html?edit=aws-stage">aws-stage</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--stage">stage</span>
+                <div class="gw-text-code-sm gw-fg-muted" title="eu-central-1 · acme-stage">eu-central-1 · acme-stage</div>
+              </th>
+              <td class="gw-table__cell--optional"><i class="gw-icon gw-icon--sm" data-lucide="cloud"></i> AWS</td>
+              <td class="gw-table__cell--optional">
+                <i class="gw-icon gw-icon--sm" data-lucide="timer"></i> Short-lived
+                <div class="gw-text-caption gw-fg-muted" title="AssumeRole gw-readonly with the base access key aws-stage/access-key, encrypted here">AssumeRole · base key encrypted here</div>
+              </td>
+              <td>
+                <span class="gw-status gw-status--success" data-conn-status><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy · 96 ms</span></span>
+                <div class="gw-text-caption gw-fg-muted">Checked <time datetime="2026-10-22T14:29:41+02:00" title="2026-10-22 14:29:41 CEST" data-conn-checked>1 min ago</time></div>
+              </td>
+              <td>
+                <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a><br>
+                <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=stage-readonly"><span class="gw-sr-only">Endpoint </span>stage-readonly</a>
+              </td>
+              <td class="gw-table__cell--actions">
+                <div class="gw-menu-host">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Actions for connection aws-stage" aria-haspopup="menu" aria-expanded="false" aria-controls="conn-menu-aws-stage"><i class="gw-icon" data-lucide="ellipsis"></i></button>
+                  <div class="gw-menu gw-menu--right" id="conn-menu-aws-stage" role="menu" aria-label="Actions for connection aws-stage" hidden>
+                    <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-conn-test="aws-stage"><i class="gw-icon gw-menu__icon" data-lucide="plug-zap"></i><span class="gw-menu__label">Test connection</span></button>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="connection-new.html?edit=aws-stage"><i class="gw-icon gw-menu__icon" data-lucide="pencil"></i><span class="gw-menu__label">Edit</span></a>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="activity.html?q=connection:aws-stage"><i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">View activity<span class="gw-menu__hint gw-mono">connection:aws-stage</span></span></a>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="connection-new.html?duplicate=aws-stage"><i class="gw-icon gw-menu__icon" data-lucide="copy-plus"></i><span class="gw-menu__label">Duplicate</span></a>
+                    <div class="gw-menu__divider" role="separator"></div>
+                    <button class="gw-menu__item gw-menu__item--danger" type="button" role="menuitem" tabindex="-1" data-gw-dialog-open="dlg-delete-connection" data-conn-delete="aws-stage"><i class="gw-icon gw-menu__icon" data-lucide="trash-2"></i><span class="gw-menu__label">Delete connection</span></button>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            <tr data-conn="billing-api" data-type="http" data-env="stage" data-health="unreachable">
+              <th scope="row">
+                <a class="gw-link gw-mono" href="connection-new.html?edit=billing-api">billing-api</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--stage">stage</span>
+                <div class="gw-text-code-sm gw-fg-muted" title="https://billing.stage.acme.dev">https://billing.stage.acme.dev</div>
+              </th>
+              <td class="gw-table__cell--optional"><i class="gw-icon gw-icon--sm" data-lucide="globe"></i> HTTP API</td>
+              <td class="gw-table__cell--optional">
+                <i class="gw-icon gw-icon--sm" data-lucide="cloud"></i> GCP SM reference
+                <div><span class="gw-status gw-status--warning" title="billing-api/webhook-secret points to AWS Secrets Manager, which isn't connected"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Webhook secret unresolved</span></span></div>
+              </td>
+              <td>
+                <span class="gw-status gw-status--danger" data-conn-status><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Unreachable</span></span>
+                <div class="gw-text-caption gw-fg-muted">Checked <time datetime="2026-10-22T14:29:41+02:00" title="2026-10-22 14:29:41 CEST" data-conn-checked>1 min ago</time></div>
+              </td>
+              <td>
+                <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a><br>
+                <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=stage-readonly"><span class="gw-sr-only">Endpoint </span>stage-readonly</a>
+              </td>
+              <td class="gw-table__cell--actions">
+                <div class="gw-menu-host">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Actions for connection billing-api" aria-haspopup="menu" aria-expanded="false" aria-controls="conn-menu-billing-api"><i class="gw-icon" data-lucide="ellipsis"></i></button>
+                  <div class="gw-menu gw-menu--right" id="conn-menu-billing-api" role="menu" aria-label="Actions for connection billing-api" hidden>
+                    <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-conn-test="billing-api"><i class="gw-icon gw-menu__icon" data-lucide="plug-zap"></i><span class="gw-menu__label">Test connection</span></button>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="connection-new.html?edit=billing-api"><i class="gw-icon gw-menu__icon" data-lucide="pencil"></i><span class="gw-menu__label">Edit</span></a>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="activity.html?q=connection:billing-api"><i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">View activity<span class="gw-menu__hint gw-mono">connection:billing-api</span></span></a>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="connection-new.html?duplicate=billing-api"><i class="gw-icon gw-menu__icon" data-lucide="copy-plus"></i><span class="gw-menu__label">Duplicate</span></a>
+                    <div class="gw-menu__divider" role="separator"></div>
+                    <button class="gw-menu__item gw-menu__item--danger" type="button" role="menuitem" tabindex="-1" data-gw-dialog-open="dlg-delete-connection" data-conn-delete="billing-api"><i class="gw-icon gw-menu__icon" data-lucide="trash-2"></i><span class="gw-menu__label">Delete connection</span></button>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            <tr data-detail-for="billing-api">
+              <td colspan="6">
+                <div class="gw-alert gw-alert--danger gw-alert--compact">
+                  <i class="gw-icon gw-alert__icon" data-lucide="circle-alert"></i>
+                  <div class="gw-alert__content">
+                    <p class="gw-alert__title"><span class="gw-sr-only">billing-api: </span>Connection refused since <time datetime="2026-10-22T11:42:05+02:00" title="2026-10-22 11:42:05 CEST">11:42</time></p>
+                    <p class="gw-alert__body">Check the stage VPN or the billing service, then test again.</p>
+                  </div>
+                  <div class="gw-alert__actions">
+                    <button class="gw-btn gw-btn--sm" type="button" data-conn-test="billing-api">Test again<span class="gw-sr-only"> billing-api</span></button>
+                    <a class="gw-btn gw-btn--link" href="activity.html?q=connection:billing-api%20decision:error">View errors<span class="gw-sr-only"> of billing-api</span></a>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            <tr data-conn="cache-redis" data-type="redis" data-env="dev" data-health="slow">
+              <th scope="row">
+                <a class="gw-link gw-mono" href="connection-new.html?edit=cache-redis">cache-redis</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span>
+                <div class="gw-text-code-sm gw-fg-muted" title="cache.dev.internal:6379">cache.dev.internal:6379</div>
+              </th>
+              <td class="gw-table__cell--optional"><i class="gw-icon gw-icon--sm" data-lucide="layers"></i> Redis 7</td>
+              <td class="gw-table__cell--optional">
+                <i class="gw-icon gw-icon--sm" data-lucide="lock-keyhole"></i> Encrypted here
+              </td>
+              <td>
+                <span class="gw-status gw-status--warning" data-conn-status><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Slow · 1.8 s</span></span>
+                <div class="gw-text-caption gw-fg-muted">Checked <time datetime="2026-10-22T14:29:42+02:00" title="2026-10-22 14:29:42 CEST" data-conn-checked>1 min ago</time></div>
+              </td>
+              <td>
+                <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a>
+              </td>
+              <td class="gw-table__cell--actions">
+                <div class="gw-menu-host">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Actions for connection cache-redis" aria-haspopup="menu" aria-expanded="false" aria-controls="conn-menu-cache-redis"><i class="gw-icon" data-lucide="ellipsis"></i></button>
+                  <div class="gw-menu gw-menu--right" id="conn-menu-cache-redis" role="menu" aria-label="Actions for connection cache-redis" hidden>
+                    <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-conn-test="cache-redis"><i class="gw-icon gw-menu__icon" data-lucide="plug-zap"></i><span class="gw-menu__label">Test connection</span></button>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="connection-new.html?edit=cache-redis"><i class="gw-icon gw-menu__icon" data-lucide="pencil"></i><span class="gw-menu__label">Edit</span></a>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="activity.html?q=connection:cache-redis"><i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">View activity<span class="gw-menu__hint gw-mono">connection:cache-redis</span></span></a>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="connection-new.html?duplicate=cache-redis"><i class="gw-icon gw-menu__icon" data-lucide="copy-plus"></i><span class="gw-menu__label">Duplicate</span></a>
+                    <div class="gw-menu__divider" role="separator"></div>
+                    <button class="gw-menu__item gw-menu__item--danger" type="button" role="menuitem" tabindex="-1" data-gw-dialog-open="dlg-delete-connection" data-conn-delete="cache-redis"><i class="gw-icon gw-menu__icon" data-lucide="trash-2"></i><span class="gw-menu__label">Delete connection</span></button>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            <tr data-conn="dev-cluster" data-type="kubernetes" data-env="dev" data-health="healthy">
+              <th scope="row">
+                <a class="gw-link gw-mono" href="connection-new.html?edit=dev-cluster">dev-cluster</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span>
+                <div class="gw-text-code-sm gw-fg-muted" title="k8s.dev.internal:6443 · ns app-dev">k8s.dev.internal:6443 · ns app-dev</div>
+              </th>
+              <td class="gw-table__cell--optional"><i class="gw-icon gw-icon--sm" data-lucide="ship-wheel"></i> Kubernetes</td>
+              <td class="gw-table__cell--optional">
+                <i class="gw-icon gw-icon--sm" data-lucide="lock-keyhole"></i> Encrypted here
+              </td>
+              <td>
+                <span class="gw-status gw-status--success" data-conn-status><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy · 38 ms</span></span>
+                <div class="gw-text-caption gw-fg-muted">Checked <time datetime="2026-10-22T14:29:42+02:00" title="2026-10-22 14:29:42 CEST" data-conn-checked>1 min ago</time></div>
+              </td>
+              <td>
+                <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a>
+              </td>
+              <td class="gw-table__cell--actions">
+                <div class="gw-menu-host">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Actions for connection dev-cluster" aria-haspopup="menu" aria-expanded="false" aria-controls="conn-menu-dev-cluster"><i class="gw-icon" data-lucide="ellipsis"></i></button>
+                  <div class="gw-menu gw-menu--right" id="conn-menu-dev-cluster" role="menu" aria-label="Actions for connection dev-cluster" hidden>
+                    <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-conn-test="dev-cluster"><i class="gw-icon gw-menu__icon" data-lucide="plug-zap"></i><span class="gw-menu__label">Test connection</span></button>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="connection-new.html?edit=dev-cluster"><i class="gw-icon gw-menu__icon" data-lucide="pencil"></i><span class="gw-menu__label">Edit</span></a>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="activity.html?q=connection:dev-cluster"><i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">View activity<span class="gw-menu__hint gw-mono">connection:dev-cluster</span></span></a>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="connection-new.html?duplicate=dev-cluster"><i class="gw-icon gw-menu__icon" data-lucide="copy-plus"></i><span class="gw-menu__label">Duplicate</span></a>
+                    <div class="gw-menu__divider" role="separator"></div>
+                    <button class="gw-menu__item gw-menu__item--danger" type="button" role="menuitem" tabindex="-1" data-gw-dialog-open="dlg-delete-connection" data-conn-delete="dev-cluster"><i class="gw-icon gw-menu__icon" data-lucide="trash-2"></i><span class="gw-menu__label">Delete connection</span></button>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            <tr data-conn="dev-db" data-type="postgresql" data-env="dev" data-health="healthy">
+              <th scope="row">
+                <a class="gw-link gw-mono" href="connection-new.html?edit=dev-db">dev-db</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span>
+                <div class="gw-text-code-sm gw-fg-muted" title="db.dev.internal:5432/app">db.dev.internal:5432/app</div>
+              </th>
+              <td class="gw-table__cell--optional"><i class="gw-icon gw-icon--sm" data-lucide="database"></i> PostgreSQL 16</td>
+              <td class="gw-table__cell--optional">
+                <i class="gw-icon gw-icon--sm" data-lucide="lock-keyhole"></i> Encrypted here
+              </td>
+              <td>
+                <span class="gw-status gw-status--success" data-conn-status><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy · 12 ms</span></span>
+                <div class="gw-text-caption gw-fg-muted">Checked <time datetime="2026-10-22T14:29:43+02:00" title="2026-10-22 14:29:43 CEST" data-conn-checked>1 min ago</time></div>
+              </td>
+              <td>
+                <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a>
+              </td>
+              <td class="gw-table__cell--actions">
+                <div class="gw-menu-host">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Actions for connection dev-db" aria-haspopup="menu" aria-expanded="false" aria-controls="conn-menu-dev-db"><i class="gw-icon" data-lucide="ellipsis"></i></button>
+                  <div class="gw-menu gw-menu--right" id="conn-menu-dev-db" role="menu" aria-label="Actions for connection dev-db" hidden>
+                    <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-conn-test="dev-db"><i class="gw-icon gw-menu__icon" data-lucide="plug-zap"></i><span class="gw-menu__label">Test connection</span></button>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="connection-new.html?edit=dev-db"><i class="gw-icon gw-menu__icon" data-lucide="pencil"></i><span class="gw-menu__label">Edit</span></a>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="activity.html?q=connection:dev-db"><i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">View activity<span class="gw-menu__hint gw-mono">connection:dev-db</span></span></a>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="connection-new.html?duplicate=dev-db"><i class="gw-icon gw-menu__icon" data-lucide="copy-plus"></i><span class="gw-menu__label">Duplicate</span></a>
+                    <div class="gw-menu__divider" role="separator"></div>
+                    <button class="gw-menu__item gw-menu__item--danger" type="button" role="menuitem" tabindex="-1" data-gw-dialog-open="dlg-delete-connection" data-conn-delete="dev-db"><i class="gw-icon gw-menu__icon" data-lucide="trash-2"></i><span class="gw-menu__label">Delete connection</span></button>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            <tr data-conn="dev-vm" data-type="ssh" data-env="dev" data-health="healthy">
+              <th scope="row">
+                <a class="gw-link gw-mono" href="connection-new.html?edit=dev-vm">dev-vm</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span>
+                <div class="gw-text-code-sm gw-fg-muted" title="10.20.0.14:22">10.20.0.14:22</div>
+              </th>
+              <td class="gw-table__cell--optional"><i class="gw-icon gw-icon--sm" data-lucide="terminal"></i> SSH</td>
+              <td class="gw-table__cell--optional">
+                <i class="gw-icon gw-icon--sm" data-lucide="timer"></i> Short-lived
+                <div class="gw-text-caption gw-fg-muted">SSH CA certificate</div>
+              </td>
+              <td>
+                <span class="gw-status gw-status--success" data-conn-status><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy · 46 ms</span></span>
+                <div class="gw-text-caption gw-fg-muted">Checked <time datetime="2026-10-22T14:29:43+02:00" title="2026-10-22 14:29:43 CEST" data-conn-checked>1 min ago</time></div>
+              </td>
+              <td>
+                <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a>
+              </td>
+              <td class="gw-table__cell--actions">
+                <div class="gw-menu-host">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Actions for connection dev-vm" aria-haspopup="menu" aria-expanded="false" aria-controls="conn-menu-dev-vm"><i class="gw-icon" data-lucide="ellipsis"></i></button>
+                  <div class="gw-menu gw-menu--right" id="conn-menu-dev-vm" role="menu" aria-label="Actions for connection dev-vm" hidden>
+                    <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-conn-test="dev-vm"><i class="gw-icon gw-menu__icon" data-lucide="plug-zap"></i><span class="gw-menu__label">Test connection</span></button>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="connection-new.html?edit=dev-vm"><i class="gw-icon gw-menu__icon" data-lucide="pencil"></i><span class="gw-menu__label">Edit</span></a>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="activity.html?q=connection:dev-vm"><i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">View activity<span class="gw-menu__hint gw-mono">connection:dev-vm</span></span></a>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="connection-new.html?duplicate=dev-vm"><i class="gw-icon gw-menu__icon" data-lucide="copy-plus"></i><span class="gw-menu__label">Duplicate</span></a>
+                    <div class="gw-menu__divider" role="separator"></div>
+                    <button class="gw-menu__item gw-menu__item--danger" type="button" role="menuitem" tabindex="-1" data-gw-dialog-open="dlg-delete-connection" data-conn-delete="dev-vm"><i class="gw-icon gw-menu__icon" data-lucide="trash-2"></i><span class="gw-menu__label">Delete connection</span></button>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            <tr data-conn="orders-mongo" data-type="mongodb" data-env="dev" data-health="healthy">
+              <th scope="row">
+                <a class="gw-link gw-mono" href="connection-new.html?edit=orders-mongo">orders-mongo</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span>
+                <div class="gw-text-code-sm gw-fg-muted" title="mongo.dev.internal:27017/orders">mongo.dev.internal:27017/orders</div>
+              </th>
+              <td class="gw-table__cell--optional"><i class="gw-icon gw-icon--sm" data-lucide="leaf"></i> MongoDB 7</td>
+              <td class="gw-table__cell--optional">
+                <i class="gw-icon gw-icon--sm" data-lucide="lock-keyhole"></i> Encrypted here
+              </td>
+              <td>
+                <span class="gw-status gw-status--success" data-conn-status><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy · 9 ms</span></span>
+                <div class="gw-text-caption gw-fg-muted">Checked <time datetime="2026-10-22T14:29:44+02:00" title="2026-10-22 14:29:44 CEST" data-conn-checked>1 min ago</time></div>
+              </td>
+              <td>
+                <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a>
+              </td>
+              <td class="gw-table__cell--actions">
+                <div class="gw-menu-host">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Actions for connection orders-mongo" aria-haspopup="menu" aria-expanded="false" aria-controls="conn-menu-orders-mongo"><i class="gw-icon" data-lucide="ellipsis"></i></button>
+                  <div class="gw-menu gw-menu--right" id="conn-menu-orders-mongo" role="menu" aria-label="Actions for connection orders-mongo" hidden>
+                    <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-conn-test="orders-mongo"><i class="gw-icon gw-menu__icon" data-lucide="plug-zap"></i><span class="gw-menu__label">Test connection</span></button>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="connection-new.html?edit=orders-mongo"><i class="gw-icon gw-menu__icon" data-lucide="pencil"></i><span class="gw-menu__label">Edit</span></a>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="activity.html?q=connection:orders-mongo"><i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">View activity<span class="gw-menu__hint gw-mono">connection:orders-mongo</span></span></a>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="connection-new.html?duplicate=orders-mongo"><i class="gw-icon gw-menu__icon" data-lucide="copy-plus"></i><span class="gw-menu__label">Duplicate</span></a>
+                    <div class="gw-menu__divider" role="separator"></div>
+                    <button class="gw-menu__item gw-menu__item--danger" type="button" role="menuitem" tabindex="-1" data-gw-dialog-open="dlg-delete-connection" data-conn-delete="orders-mongo"><i class="gw-icon gw-menu__icon" data-lucide="trash-2"></i><span class="gw-menu__label">Delete connection</span></button>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            <tr data-conn="prod-logs" data-type="logs" data-env="prod" data-health="healthy">
+              <th scope="row">
+                <a class="gw-link gw-mono" href="connection-new.html?edit=prod-logs">prod-logs</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--prod">prod</span>
+                <div class="gw-text-code-sm gw-fg-muted" title="projects/acme-prod">projects/acme-prod</div>
+              </th>
+              <td class="gw-table__cell--optional"><i class="gw-icon gw-icon--sm" data-lucide="scroll-text"></i> GCP Cloud Logging</td>
+              <td class="gw-table__cell--optional">
+                <i class="gw-icon gw-icon--sm" data-lucide="timer"></i> Short-lived
+                <div class="gw-text-caption gw-fg-muted" title="gw-reader@acme-prod.iam.gserviceaccount.com">GCP impersonation</div>
+              </td>
+              <td>
+                <span class="gw-status gw-status--success" data-conn-status><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy · 210 ms</span></span>
+                <div class="gw-text-caption gw-fg-muted">Checked <time datetime="2026-10-22T14:29:45+02:00" title="2026-10-22 14:29:45 CEST" data-conn-checked>1 min ago</time></div>
+              </td>
+              <td>
+                <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=incident-prod"><span class="gw-sr-only">Endpoint </span>incident-prod</a>
+              </td>
+              <td class="gw-table__cell--actions">
+                <div class="gw-menu-host">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Actions for connection prod-logs" aria-haspopup="menu" aria-expanded="false" aria-controls="conn-menu-prod-logs"><i class="gw-icon" data-lucide="ellipsis"></i></button>
+                  <div class="gw-menu gw-menu--right" id="conn-menu-prod-logs" role="menu" aria-label="Actions for connection prod-logs" hidden>
+                    <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-conn-test="prod-logs"><i class="gw-icon gw-menu__icon" data-lucide="plug-zap"></i><span class="gw-menu__label">Test connection</span></button>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="connection-new.html?edit=prod-logs"><i class="gw-icon gw-menu__icon" data-lucide="pencil"></i><span class="gw-menu__label">Edit</span></a>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="activity.html?q=connection:prod-logs"><i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">View activity<span class="gw-menu__hint gw-mono">connection:prod-logs</span></span></a>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="connection-new.html?duplicate=prod-logs"><i class="gw-icon gw-menu__icon" data-lucide="copy-plus"></i><span class="gw-menu__label">Duplicate</span></a>
+                    <div class="gw-menu__divider" role="separator"></div>
+                    <button class="gw-menu__item gw-menu__item--danger" type="button" role="menuitem" tabindex="-1" data-gw-dialog-open="dlg-delete-connection" data-conn-delete="prod-logs"><i class="gw-icon gw-menu__icon" data-lucide="trash-2"></i><span class="gw-menu__label">Delete connection</span></button>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            <tr data-conn="prod-replica" data-type="postgresql" data-env="prod" data-health="healthy">
+              <th scope="row">
+                <a class="gw-link gw-mono" href="connection-new.html?edit=prod-replica">prod-replica</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--prod">prod</span>
+                <div class="gw-text-code-sm gw-fg-muted" title="replica.prod.internal:5432/app">replica.prod.internal:5432/app</div>
+              </th>
+              <td class="gw-table__cell--optional"><i class="gw-icon gw-icon--sm" data-lucide="database"></i> PostgreSQL 16 <span class="gw-badge gw-badge--outline gw-badge--sm">Read replica</span></td>
+              <td class="gw-table__cell--optional">
+                <i class="gw-icon gw-icon--sm" data-lucide="timer"></i> Short-lived
+                <div class="gw-text-caption gw-fg-muted">Vault dynamic user</div>
+              </td>
+              <td>
+                <span class="gw-status gw-status--success" data-conn-status><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy · 31 ms</span></span>
+                <div class="gw-text-caption gw-fg-muted">Checked <time datetime="2026-10-22T14:29:45+02:00" title="2026-10-22 14:29:45 CEST" data-conn-checked>1 min ago</time></div>
+              </td>
+              <td>
+                <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=incident-prod"><span class="gw-sr-only">Endpoint </span>incident-prod</a>
+              </td>
+              <td class="gw-table__cell--actions">
+                <div class="gw-menu-host">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Actions for connection prod-replica" aria-haspopup="menu" aria-expanded="false" aria-controls="conn-menu-prod-replica"><i class="gw-icon" data-lucide="ellipsis"></i></button>
+                  <div class="gw-menu gw-menu--right" id="conn-menu-prod-replica" role="menu" aria-label="Actions for connection prod-replica" hidden>
+                    <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-conn-test="prod-replica"><i class="gw-icon gw-menu__icon" data-lucide="plug-zap"></i><span class="gw-menu__label">Test connection</span></button>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="connection-new.html?edit=prod-replica"><i class="gw-icon gw-menu__icon" data-lucide="pencil"></i><span class="gw-menu__label">Edit</span></a>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="activity.html?q=connection:prod-replica"><i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">View activity<span class="gw-menu__hint gw-mono">connection:prod-replica</span></span></a>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="connection-new.html?duplicate=prod-replica"><i class="gw-icon gw-menu__icon" data-lucide="copy-plus"></i><span class="gw-menu__label">Duplicate</span></a>
+                    <div class="gw-menu__divider" role="separator"></div>
+                    <button class="gw-menu__item gw-menu__item--danger" type="button" role="menuitem" tabindex="-1" data-gw-dialog-open="dlg-delete-connection" data-conn-delete="prod-replica"><i class="gw-icon gw-menu__icon" data-lucide="trash-2"></i><span class="gw-menu__label">Delete connection</span></button>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            <tr data-conn="prod-vm" data-type="ssh" data-env="prod" data-health="healthy">
+              <th scope="row">
+                <a class="gw-link gw-mono" href="connection-new.html?edit=prod-vm">prod-vm</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--prod">prod</span>
+                <div class="gw-text-code-sm gw-fg-muted" title="10.40.0.21:22">10.40.0.21:22</div>
+              </th>
+              <td class="gw-table__cell--optional"><i class="gw-icon gw-icon--sm" data-lucide="terminal"></i> SSH <span class="gw-badge gw-badge--outline gw-badge--sm">Runbooks only</span></td>
+              <td class="gw-table__cell--optional">
+                <i class="gw-icon gw-icon--sm" data-lucide="timer"></i> Short-lived
+                <div class="gw-text-caption gw-fg-muted">SSH CA certificate</div>
+              </td>
+              <td>
+                <span class="gw-status gw-status--success" data-conn-status><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy · 52 ms</span></span>
+                <div class="gw-text-caption gw-fg-muted">Checked <time datetime="2026-10-22T14:29:46+02:00" title="2026-10-22 14:29:46 CEST" data-conn-checked>1 min ago</time></div>
+              </td>
+              <td>
+                <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=incident-prod"><span class="gw-sr-only">Endpoint </span>incident-prod</a>
+              </td>
+              <td class="gw-table__cell--actions">
+                <div class="gw-menu-host">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Actions for connection prod-vm" aria-haspopup="menu" aria-expanded="false" aria-controls="conn-menu-prod-vm"><i class="gw-icon" data-lucide="ellipsis"></i></button>
+                  <div class="gw-menu gw-menu--right" id="conn-menu-prod-vm" role="menu" aria-label="Actions for connection prod-vm" hidden>
+                    <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-conn-test="prod-vm"><i class="gw-icon gw-menu__icon" data-lucide="plug-zap"></i><span class="gw-menu__label">Test connection</span></button>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="connection-new.html?edit=prod-vm"><i class="gw-icon gw-menu__icon" data-lucide="pencil"></i><span class="gw-menu__label">Edit</span></a>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="activity.html?q=connection:prod-vm"><i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">View activity<span class="gw-menu__hint gw-mono">connection:prod-vm</span></span></a>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="connection-new.html?duplicate=prod-vm"><i class="gw-icon gw-menu__icon" data-lucide="copy-plus"></i><span class="gw-menu__label">Duplicate</span></a>
+                    <div class="gw-menu__divider" role="separator"></div>
+                    <button class="gw-menu__item gw-menu__item--danger" type="button" role="menuitem" tabindex="-1" data-gw-dialog-open="dlg-delete-connection" data-conn-delete="prod-vm"><i class="gw-icon gw-menu__icon" data-lucide="trash-2"></i><span class="gw-menu__label">Delete connection</span></button>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            <tr data-conn="stage-db" data-type="postgresql" data-env="stage" data-health="healthy">
+              <th scope="row">
+                <a class="gw-link gw-mono" href="connection-new.html?edit=stage-db">stage-db</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--stage">stage</span>
+                <div class="gw-text-code-sm gw-fg-muted" title="db.stage.internal:5432/app">db.stage.internal:5432/app</div>
+              </th>
+              <td class="gw-table__cell--optional"><i class="gw-icon gw-icon--sm" data-lucide="database"></i> PostgreSQL 16</td>
+              <td class="gw-table__cell--optional">
+                <i class="gw-icon gw-icon--sm" data-lucide="vault"></i> Vault reference
+                <div class="gw-text-code-sm gw-fg-muted" title="vault://kv/stage/db#password">kv/stage/db#password</div>
+              </td>
+              <td>
+                <span class="gw-status gw-status--success" data-conn-status><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy · 24 ms</span></span>
+                <div class="gw-text-caption gw-fg-muted">Checked <time datetime="2026-10-22T14:29:46+02:00" title="2026-10-22 14:29:46 CEST" data-conn-checked>1 min ago</time></div>
+              </td>
+              <td>
+                <a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=stage-readonly"><span class="gw-sr-only">Endpoint </span>stage-readonly</a>
+              </td>
+              <td class="gw-table__cell--actions">
+                <div class="gw-menu-host">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Actions for connection stage-db" aria-haspopup="menu" aria-expanded="false" aria-controls="conn-menu-stage-db"><i class="gw-icon" data-lucide="ellipsis"></i></button>
+                  <div class="gw-menu gw-menu--right" id="conn-menu-stage-db" role="menu" aria-label="Actions for connection stage-db" hidden>
+                    <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-conn-test="stage-db"><i class="gw-icon gw-menu__icon" data-lucide="plug-zap"></i><span class="gw-menu__label">Test connection</span></button>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="connection-new.html?edit=stage-db"><i class="gw-icon gw-menu__icon" data-lucide="pencil"></i><span class="gw-menu__label">Edit</span></a>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="activity.html?q=connection:stage-db"><i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">View activity<span class="gw-menu__hint gw-mono">connection:stage-db</span></span></a>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" href="connection-new.html?duplicate=stage-db"><i class="gw-icon gw-menu__icon" data-lucide="copy-plus"></i><span class="gw-menu__label">Duplicate</span></a>
+                    <div class="gw-menu__divider" role="separator"></div>
+                    <button class="gw-menu__item gw-menu__item--danger" type="button" role="menuitem" tabindex="-1" data-gw-dialog-open="dlg-delete-connection" data-conn-delete="stage-db"><i class="gw-icon gw-menu__icon" data-lucide="trash-2"></i><span class="gw-menu__label">Delete connection</span></button>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            <tr id="conn-no-match" hidden>
+              <td class="gw-table__empty" colspan="6">
+                <div class="gw-empty gw-empty--compact">
+                  <span class="gw-empty__icon"><i class="gw-icon" data-lucide="search-x"></i></span>
+                  <p class="gw-empty__title">No connections match these filters</p>
+                  <p class="gw-empty__text">Try another type, environment or health, or search by host.</p>
+                  <div class="gw-empty__actions"><button class="gw-btn gw-btn--sm" type="button" id="conn-clear"><i class="gw-icon gw-icon--sm" data-lucide="filter-x"></i> Clear filters</button></div>
+                </div>
+              </td>
+            </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <section class="gw-section" aria-labelledby="conn-states-title">
+        <header class="gw-section__header">
+          <h2 class="gw-section__title" id="conn-states-title">Empty and loading states</h2>
+          <p class="gw-section__description">Reference for the app: what replaces the toolbar and table before the first connection, and while the list loads.</p>
+          <div class="gw-section__actions">
+            <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="conn-states-panel">Show states <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i></button>
+          </div>
+        </header>
+        <div class="gw-grid gw-grid--2" id="conn-states-panel" hidden>
+          <section class="gw-card" aria-labelledby="conn-first-title">
+            <header class="gw-card__header">
+              <div class="gw-card__heading">
+                <h3 class="gw-card__title" id="conn-first-title">First run</h3>
+                <p class="gw-card__description">No connections yet. How connections work opens expanded.</p>
+              </div>
+            </header>
+            <div class="gw-empty">
+              <span class="gw-empty__icon"><i class="gw-icon gw-icon--lg" data-lucide="database"></i></span>
+              <p class="gw-empty__title">No connections yet</p>
+              <p class="gw-empty__text">Connect a database, server, log store or cluster. Agents reach it through an endpoint and never see its credentials.</p>
+              <div class="gw-empty__actions"><a class="gw-btn" href="connection-new.html"><i class="gw-icon" data-lucide="plus"></i> Add your first connection</a></div>
+            </div>
+          </section>
+          <section class="gw-card" aria-labelledby="conn-loading-title">
+            <header class="gw-card__header">
+              <div class="gw-card__heading">
+                <h3 class="gw-card__title" id="conn-loading-title">Loading</h3>
+                <p class="gw-card__description">The first render of the list, when it takes longer than 300 ms.</p>
+              </div>
+            </header>
+            <div class="gw-card__body">
+              <div class="gw-table-wrap" role="region" aria-labelledby="conn-skel-cap" tabindex="0" aria-busy="true">
+                <table class="gw-table">
+                  <caption class="gw-sr-only" id="conn-skel-cap">Connections, loading</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Connection</th>
+                      <th scope="col" class="gw-table__cell--optional">Type</th>
+                      <th scope="col">Health</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr aria-hidden="true"><td><span class="gw-skeleton gw-skeleton--text"></span></td><td class="gw-table__cell--optional"><span class="gw-skeleton gw-skeleton--text"></span></td><td><span class="gw-skeleton gw-skeleton--text"></span></td></tr>
+                    <tr aria-hidden="true"><td><span class="gw-skeleton gw-skeleton--text"></span></td><td class="gw-table__cell--optional"><span class="gw-skeleton gw-skeleton--text"></span></td><td><span class="gw-skeleton gw-skeleton--text"></span></td></tr>
+                    <tr aria-hidden="true"><td><span class="gw-skeleton gw-skeleton--text"></span></td><td class="gw-table__cell--optional"><span class="gw-skeleton gw-skeleton--text"></span></td><td><span class="gw-skeleton gw-skeleton--text"></span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="gw-sr-only" role="status">Loading connections</p>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <!-- One delete confirmation for every row. Static content shows dev-db; the page script fills it for the row that opened it (the app binds the same template to data). -->
+      <dialog class="gw-dialog gw-dialog--md gw-dialog--danger" id="dlg-delete-connection" aria-labelledby="dlg-del-title" aria-describedby="dlg-del-desc">
+        <header class="gw-dialog__header">
+          <span class="gw-icon-tile"><i class="gw-icon" data-lucide="trash-2"></i></span>
+          <h2 class="gw-dialog__title" id="dlg-del-title">Delete connection <span class="gw-mono" data-del-name>dev-db</span>?</h2>
+          <p class="gw-dialog__description" id="dlg-del-desc"><span data-del-lead>Agents lose it on their next call.</span> <span data-del-secret>Its encrypted password (version 3) is destroyed.</span> This can't be undone.</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <div class="gw-dialog__body">
+          <div class="gw-stack gw-stack--sm">
+            <dl class="gw-kv gw-kv--dense">
+              <div class="gw-kv__row"><dt class="gw-kv__key">Connection</dt><dd class="gw-kv__value"><span class="gw-mono" data-del-name>dev-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev" data-del-env>dev</span> · <span data-del-type>PostgreSQL 16</span></dd></div>
+            </dl>
+            <p class="gw-text-ui">Stops working</p>
+            <dl class="gw-kv gw-kv--dense" data-del-impact>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint <span class="gw-mono">dev</span></dt><dd class="gw-kv__value">4 tools: <code class="gw-code">sql_list_schemas</code>, <code class="gw-code">sql_describe_table</code>, <code class="gw-code">sql_query</code>, <code class="gw-code">sql_execute</code> · used by Claude Desktop and Codex</dd></div>
+            </dl>
+            <div class="gw-alert gw-alert--warning gw-alert--compact" data-del-pending>
+              <i class="gw-icon gw-alert__icon" data-lucide="hourglass"></i>
+              <div class="gw-alert__content">
+                <p class="gw-alert__title">1 pending approval is denied</p>
+                <p class="gw-alert__body" data-del-pending-text><code class="gw-code">sql_execute</code> from Codex</p>
+              </div>
+            </div>
+            <p class="gw-text-small gw-fg-muted">Past calls stay in Activity: the audit log is append-only.</p>
+          </div>
+        </div>
+        <footer class="gw-dialog__footer">
+          <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
+          <button class="gw-btn gw-btn--danger" type="button" data-gw-dialog-close data-del-confirm="dev-db">Delete connection <span data-del-name>dev-db</span></button>
+        </footer>
+      </dialog>
+    </div>
+    <!--
+      Command palette (elements/command-palette.html), opened by the titlebar Search button and ⌘K / Ctrl+K.
+      Part of the shell: copy it with the titlebar into every page, at the end of main. kit.js drives it, no page
+      script: data-gw-dialog-open="cmdk" opens it, the .gw-command-palette hook filters the options, moves the
+      active one (arrows, Home / End, pointer), runs it on Enter and resets on close, and the global ⌘K / Ctrl+K
+      listener toggles #cmdk (COMPONENTS.md › command-palette).
+    -->
+    <dialog class="gw-dialog gw-dialog--md gw-command-palette" id="cmdk" aria-labelledby="cmdk-title" aria-describedby="cmdk-keys">
+      <h2 class="gw-sr-only" id="cmdk-title">Command palette</h2>
+      <div class="gw-command-palette__search">
+        <div class="gw-search">
+          <i class="gw-icon gw-search__icon" data-lucide="search"></i>
+          <input class="gw-search__input" type="search" id="cmdk-q" role="combobox" aria-expanded="true" aria-controls="cmdk-list" aria-autocomplete="list" aria-activedescendant="cmdk-o-overview" aria-label="Search pages, connections, endpoints, actions" placeholder="Search pages, connections, endpoints, actions" autocomplete="off" spellcheck="false" autofocus>
+          <button class="gw-search__clear" type="button" aria-label="Clear search"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+        </div>
+      </div>
+      <div class="gw-command-palette__results">
+        <div class="gw-command-palette__list" role="listbox" id="cmdk-list" aria-label="Results">
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-goto">
+            <p class="gw-menu__note" id="cmdk-g-goto" aria-hidden="true">Go to</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-overview" href="overview.html" aria-selected="true" tabindex="-1" data-keywords="home dashboard setup map health">
+              <i class="gw-icon gw-menu__icon" data-lucide="layout-dashboard"></i><span class="gw-menu__label">Overview</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-approvals" href="approvals.html" aria-selected="false" tabindex="-1" data-keywords="requests pending queue decide">
+              <i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approvals <span class="gw-counter gw-counter--attention">3<span class="gw-sr-only"> waiting</span></span></span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-connections" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="databases servers logs clusters">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label">Connections</span><span class="gw-menu__hint">Resources</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-connectors" href="connectors.html" aria-selected="false" tabindex="-1" data-keywords="plugins templates mcp servers catalog">
+              <i class="gw-icon gw-menu__icon" data-lucide="puzzle"></i><span class="gw-menu__label">Connectors</span><span class="gw-menu__hint">Resources</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-secrets" href="secrets.html" aria-selected="false" tabindex="-1" data-keywords="master key vault encryption">
+              <i class="gw-icon gw-menu__icon" data-lucide="key-round"></i><span class="gw-menu__label">Secrets</span><span class="gw-menu__hint">Resources</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-endpoints" href="endpoints.html" aria-selected="false" tabindex="-1" data-keywords="mcp url tools tokens">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label">Endpoints</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-clients" href="clients.html" aria-selected="false" tabindex="-1" data-keywords="clients mcp claude desktop codex cursor antigravity">
+              <i class="gw-icon gw-menu__icon" data-lucide="app-window"></i><span class="gw-menu__label">AI apps</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-policies" href="policies.html" aria-selected="false" tabindex="-1" data-keywords="limits allowlist environments">
+              <i class="gw-icon gw-menu__icon" data-lucide="shield"></i><span class="gw-menu__label">Policies</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-playground" href="playground.html" aria-selected="false" tabindex="-1" data-keywords="try call tool">
+              <i class="gw-icon gw-menu__icon" data-lucide="flask-conical"></i><span class="gw-menu__label">Playground</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-activity" href="activity.html" aria-selected="false" tabindex="-1" data-keywords="log audit calls events traces">
+              <i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">Activity</span><span class="gw-menu__hint">Observe</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-insights" href="insights.html" aria-selected="false" tabindex="-1" data-keywords="analytics charts latency errors">
+              <i class="gw-icon gw-menu__icon" data-lucide="chart-column"></i><span class="gw-menu__label">Insights</span><span class="gw-menu__hint">Observe</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-settings" href="settings.html" aria-selected="false" tabindex="-1" aria-keyshortcuts="Meta+Comma Control+Comma" data-keywords="preferences notifications tunnel authorization appearance">
+              <i class="gw-icon gw-menu__icon" data-lucide="settings"></i><span class="gw-menu__label">Settings</span><kbd class="gw-menu__kbd" aria-hidden="true">⌘ ,</kbd><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+          </div>
+
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-actions">
+            <p class="gw-menu__note" id="cmdk-g-actions" aria-hidden="true">Actions</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-add-connection" href="connection-new.html" aria-selected="false" tabindex="-1" data-keywords="new resource postgres mongodb redis kubernetes">
+              <i class="gw-icon gw-menu__icon" data-lucide="plus"></i><span class="gw-menu__label">Add connection</span><span class="gw-menu__hint">Database, SSH, logs, cluster</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-create-endpoint" href="endpoints.html" aria-selected="false" tabindex="-1" data-keywords="new mcp url">
+              <i class="gw-icon gw-menu__icon" data-lucide="square-plus"></i><span class="gw-menu__label">Create endpoint</span><span class="gw-menu__hint">New MCP URL</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-issue-token" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="new token access key client">
+              <i class="gw-icon gw-menu__icon" data-lucide="key-round"></i><span class="gw-menu__label">Issue token</span><span class="gw-menu__hint">Shown once</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <button class="gw-menu__item" type="button" role="option" id="cmdk-o-copy-dev" aria-selected="false" tabindex="-1" data-gw-copy="http://127.0.0.1:7465/mcp/dev" data-gw-dialog-close data-keywords="clipboard link">
+              <i class="gw-icon gw-menu__icon" data-lucide="copy"></i><span class="gw-menu__label">Copy URL of endpoint <span class="gw-mono">dev</span></span><span class="gw-menu__hint gw-mono">/mcp/dev</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </button>
+            <button class="gw-menu__item" type="button" role="option" id="cmdk-o-theme" aria-selected="false" tabindex="-1" data-cmdk-theme data-gw-dialog-close data-keywords="dark light appearance">
+              <i class="gw-icon gw-menu__icon" data-lucide="sun-moon"></i><span class="gw-menu__label">Toggle theme</span><span class="gw-menu__hint">Light or dark</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </button>
+          </div>
+
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-connections">
+            <p class="gw-menu__note" id="cmdk-g-connections" aria-hidden="true">Connections</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-dev-db" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="postgres sql db.dev.internal">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label"><span class="gw-mono">dev-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></span><span class="gw-menu__hint">PostgreSQL 16</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-stage-db" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="postgres sql vault">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label"><span class="gw-mono">stage-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--stage">stage</span></span><span class="gw-menu__hint">PostgreSQL</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-prod-replica" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="postgres sql replica">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label"><span class="gw-mono">prod-replica</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--prod">prod</span></span><span class="gw-menu__hint">PostgreSQL read replica</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-dev-vm" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="ssh server runbook">
+              <i class="gw-icon gw-menu__icon" data-lucide="terminal"></i><span class="gw-menu__label"><span class="gw-mono">dev-vm</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></span><span class="gw-menu__hint">SSH · <span class="gw-mono">10.20.0.14</span></span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+          </div>
+
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-endpoints">
+            <p class="gw-menu__note" id="cmdk-g-endpoints" aria-hidden="true">Endpoints</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-ep-dev" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="endpoint tools tokens">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label gw-mono">dev</span><span class="gw-menu__hint gw-mono">/mcp/dev</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-ep-stage-readonly" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="endpoint claude.ai tunnel read only">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label gw-mono">stage-readonly</span><span class="gw-menu__hint gw-mono">/mcp/stage-readonly</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-ep-incident-prod" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="endpoint prod logs read only incident">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label gw-mono">incident-prod</span><span class="gw-menu__hint gw-mono">/mcp/incident-prod</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+          </div>
+        </div>
+
+        <div class="gw-empty gw-empty--compact" hidden data-cmdk-empty>
+          <span class="gw-empty__icon"><i class="gw-icon" data-lucide="search-x"></i></span>
+          <p class="gw-empty__title">No results for “<span data-cmdk-query></span>”</p>
+          <p class="gw-empty__text">Search covers pages, actions, connections and endpoints. A resource that isn't here yet starts with a new connection.</p>
+          <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" href="connection-new.html">Add connection</a></div>
+        </div>
+      </div>
+      <footer class="gw-dialog__footer gw-command-palette__footer" id="cmdk-keys">
+        <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd"><i class="gw-icon" data-lucide="arrow-up"></i><span class="gw-sr-only">Up arrow</span></kbd><kbd class="gw-kbd"><i class="gw-icon" data-lucide="arrow-down"></i><span class="gw-sr-only">Down arrow</span></kbd> to move</p>
+        <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd"><i class="gw-icon" data-lucide="corner-down-left"></i><span class="gw-sr-only">Enter</span></kbd> to open</p>
+        <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd">Esc</kbd> to close</p>
+      </footer>
+      <p class="gw-sr-only" role="status" data-cmdk-status></p>
+    </dialog>
+  </main>
+
+</div>
+<script src="../vendor/lucide/lucide.min.js"></script>
+<script src="../assets/kit.js"></script>
+<script>
+/* Demo-only behaviour of this reference page (the app does this with data):
+   filter the table, test one or all connections in place, fill the delete
+   confirmation for the row that opened it. kit.js runs first for menus,
+   listboxes, dialogs and the search clear button. */
+(function () {
+  "use strict";
+  var doc = document;
+  var table = doc.getElementById("conn-table");
+  if (!table) return;
+  var rows = Array.prototype.slice.call(table.querySelectorAll("tbody tr[data-conn]"));
+  var search = doc.getElementById("conn-q");
+  var count = doc.getElementById("conn-count");
+  var noMatch = doc.getElementById("conn-no-match");
+  var announce = window.gwAnnounce || function () {};
+  var toast = window.gwToast || function () {};
+
+  function rowOf(name) { return table.querySelector('tr[data-conn="' + name + '"]'); }
+  function detailOf(name) { return table.querySelector('tr[data-detail-for="' + name + '"]'); }
+  function picked(menuId) {
+    var o = doc.querySelector("#" + menuId + ' [aria-selected="true"]');
+    return o ? o.getAttribute("data-value") : "all";
+  }
+
+  // ───── Filters: search, type, environment, health ─────
+  function apply() {
+    var q = search.value.trim().toLowerCase();
+    var type = picked("conn-type-menu");
+    var health = picked("conn-health-menu");
+    var envInput = doc.querySelector('input[name="conn-env"]:checked');
+    var env = envInput ? envInput.value : "all";
+    var live = rows.filter(function (r) { return !r.hasAttribute("data-deleted"); });
+    var shown = 0;
+    live.forEach(function (r) {
+      var text = (r.cells[0].textContent + " " + r.cells[1].textContent).toLowerCase();
+      var ok = (type === "all" || r.getAttribute("data-type") === type) &&
+        (health === "all" || r.getAttribute("data-health") === health) &&
+        (env === "all" || r.getAttribute("data-env") === env) &&
+        (!q || text.indexOf(q) !== -1);
+      r.hidden = !ok;
+      var d = detailOf(r.getAttribute("data-conn"));
+      if (d) d.hidden = !ok;
+      if (ok) shown++;
+    });
+    noMatch.hidden = shown > 0;
+    count.textContent = shown === live.length ? live.length + " connections" : shown + " of " + live.length + " connections";
+  }
+  function resetListbox(menuId) {
+    var menu = doc.getElementById(menuId);
+    menu.querySelectorAll('[role="option"]').forEach(function (o) { o.setAttribute("aria-selected", String(o.getAttribute("data-value") === "all")); });
+    var trigger = doc.querySelector('[aria-controls="' + menuId + '"] [data-gw-menu-value]');
+    var first = menu.querySelector('[data-value="all"] .gw-menu__label');
+    if (trigger && first) trigger.textContent = first.textContent;
+  }
+  search.addEventListener("input", apply);
+  doc.addEventListener("change", function (e) { if (e.target.name === "conn-env") apply(); });
+  doc.addEventListener("click", function (e) {
+    if (e.target.closest('#conn-type-menu [role="option"], #conn-health-menu [role="option"]')) setTimeout(apply, 0);
+    if (e.target.closest("#conn-clear")) {
+      search.value = "";
+      resetListbox("conn-type-menu");
+      resetListbox("conn-health-menu");
+      doc.querySelector('input[name="conn-env"][value="all"]').checked = true;
+      apply();
+      search.focus();
+    }
+  });
+  // "/" focuses the search through kit.js (aria-keyshortcuts="/" on #conn-q): no page handler,
+  // so Settings › General › Single-key shortcuts can turn it off (WCAG 2.1.4)
+
+  // ───── Test connection: in-place checking state, then the result ─────
+  var RESULT = {
+    healthy: function (r, label) { return { tone: "success", title: r + " is healthy", body: "Connected in " + label.split("· ")[1] + "." }; },
+    slow: function (r, label) { return { tone: "warning", title: r + " is slow", body: "Answered in " + label.split("· ")[1] + ". Agent calls may time out." }; },
+    unreachable: function (r) { return { tone: "danger", title: r + " is unreachable", body: "Connection refused. Check the stage VPN or the service, then test again." }; }
+  };
+  function checking() {
+    var s = doc.createElement("span");
+    s.className = "gw-status gw-status--checking";
+    var spin = doc.createElement("span");
+    spin.className = "gw-spinner gw-spinner--sm";
+    spin.setAttribute("aria-hidden", "true");
+    var label = doc.createElement("span");
+    label.className = "gw-status__label";
+    label.textContent = "Checking";
+    s.appendChild(spin);
+    s.appendChild(label);
+    return s;
+  }
+  function test(name, done) {
+    var r = rowOf(name);
+    if (!r) return;
+    var status = r.querySelector("[data-conn-status]");
+    if (status.hidden) return;
+    var busy = checking();
+    status.hidden = true;
+    status.parentNode.insertBefore(busy, status);
+    setTimeout(function () {
+      busy.remove();
+      status.hidden = false;
+      var when = r.querySelector("[data-conn-checked]");
+      if (when) {
+        // the demo world's clock (BLUEPRINT §9): now is 14:30 on 2026-10-22
+        when.textContent = "just now";
+        when.setAttribute("datetime", "2026-10-22T14:30:00+02:00");
+        when.setAttribute("title", "2026-10-22 14:30:00 CEST");
+      }
+      if (done) done(r);
+    }, 1200);
+  }
+  doc.addEventListener("click", function (e) {
+    var item = e.target.closest("[data-conn-test]");
+    if (!item) return;
+    var name = item.getAttribute("data-conn-test");
+    announce("Testing " + name);
+    test(name, function (r) {
+      var h = r.getAttribute("data-health");
+      toast(RESULT[h](name, r.querySelector("[data-conn-status] .gw-status__label").textContent));
+    });
+  });
+  var testAll = doc.getElementById("conn-test-all");
+  testAll.addEventListener("click", function () {
+    if (testAll.getAttribute("aria-busy") === "true") return;
+    var live = rows.filter(function (r) { return !r.hasAttribute("data-deleted"); });
+    var spin = doc.createElement("span");
+    spin.className = "gw-spinner gw-spinner--sm";
+    spin.setAttribute("aria-hidden", "true");
+    testAll.setAttribute("aria-busy", "true");
+    testAll.setAttribute("aria-disabled", "true");
+    testAll.setAttribute("aria-describedby", "conn-count"); // the count line says what is going on
+    count.textContent = "Testing " + live.length + " connections";
+    testAll.insertBefore(spin, testAll.firstChild);
+    var left = live.length;
+    live.forEach(function (r) {
+      test(r.getAttribute("data-conn"), function () {
+        if (--left) return;
+        spin.remove();
+        testAll.removeAttribute("aria-busy");
+        testAll.removeAttribute("aria-disabled");
+        testAll.removeAttribute("aria-describedby");
+        apply();
+        var n = { healthy: 0, slow: 0, unreachable: 0 };
+        live.forEach(function (x) { n[x.getAttribute("data-health")]++; });
+        toast({ tone: n.unreachable ? "warning" : "success", title: live.length + " connections tested", body: n.healthy + " healthy, " + n.slow + " slow, " + n.unreachable + " unreachable." });
+      });
+    });
+  });
+
+  // ───── Delete: one confirmation, filled for the row that opened it ─────
+  // Enabled tools (not Off) per endpoint, from BLUEPRINT §9 (dev) and the endpoint pages (stage-readonly, incident-prod).
+  var CLIENTS = { "dev": "Claude Desktop and Codex", "stage-readonly": "claude.ai", "incident-prod": "Claude Desktop" };
+  var IMPACT = {
+    "app-logs": { secret: "Its encrypted token is destroyed.", eps: [["dev", ["logs_search"]]] },
+    "aws-stage": { secret: "Its encrypted base access key (version 2) is destroyed; the role gw-readonly stays in AWS.", eps: [["dev", ["aws_describe", "aws_metrics"]], ["stage-readonly", ["aws_describe", "aws_metrics"]]] },
+    "billing-api": { secret: "Its two references are removed; the secrets stay in GCP and AWS Secrets Manager.", eps: [["dev", ["http_request"]], ["stage-readonly", ["http_get"]]], pending: ["http_request", "Codex"] },
+    "cache-redis": { secret: "Its encrypted password is destroyed.", eps: [["dev", ["redis_get", "redis_scan"]]] },
+    "dev-cluster": { secret: "Its encrypted service account token is destroyed.", eps: [["dev", ["k8s_get", "k8s_rollout_restart"]]], pending: ["k8s_rollout_restart", "Claude Desktop"] },
+    "dev-db": { secret: "Its encrypted password (version 3) is destroyed.", eps: [["dev", ["sql_list_schemas", "sql_describe_table", "sql_query", "sql_execute"]]], pending: ["sql_execute", "Codex"] },
+    "dev-vm": { secret: "Nothing is stored here: certificates come from the Vault SSH CA.", eps: [["dev", ["ssh_run"]]] },
+    "orders-mongo": { secret: "Its encrypted password is destroyed.", eps: [["dev", ["mongo_find", "mongo_aggregate"]]] },
+    "prod-logs": { secret: "Nothing is stored here: the gw-reader service account stays in GCP.", eps: [["incident-prod", ["logs_search"]]] },
+    "prod-replica": { secret: "Nothing is stored here: the Vault role stays.", eps: [["incident-prod", ["sql_list_schemas", "sql_describe_table", "sql_query"]]] },
+    "prod-vm": { secret: "Nothing is stored here: certificates come from the Vault SSH CA.", eps: [["incident-prod", ["ssh_run"]]] },
+    "stage-db": { secret: "The Vault reference is removed; the secret itself stays in Vault.", eps: [["stage-readonly", ["sql_list_schemas", "sql_describe_table", "sql_query"]]] }
+  };
+  var dlg = doc.getElementById("dlg-delete-connection");
+  var opener = null;
+  var deleted = false;
+  function el(tag, cls, text) {
+    var n = doc.createElement(tag);
+    if (cls) n.className = cls;
+    if (text) n.textContent = text;
+    return n;
+  }
+  function fill(name) {
+    var r = rowOf(name);
+    var info = IMPACT[name];
+    var env = r.getAttribute("data-env");
+    dlg.querySelectorAll("[data-del-name]").forEach(function (n) { n.textContent = name; });
+    var envEl = dlg.querySelector("[data-del-env]");
+    envEl.className = "gw-env gw-env--sm gw-env--" + env;
+    envEl.textContent = env;
+    dlg.querySelector("[data-del-type]").textContent = r.cells[1].textContent.trim().replace(/\s+/g, " ");
+    dlg.querySelector("[data-del-secret]").textContent = info.secret;
+    dlg.querySelector("[data-del-confirm]").setAttribute("data-del-confirm", name);
+    var list = dlg.querySelector("[data-del-impact]");
+    list.textContent = "";
+    info.eps.forEach(function (ep) {
+      var row = el("div", "gw-kv__row");
+      var dt = el("dt", "gw-kv__key", "Endpoint ");
+      dt.appendChild(el("span", "gw-mono", ep[0]));
+      var dd = el("dd", "gw-kv__value", ep[1].length + (ep[1].length === 1 ? " tool: " : " tools: "));
+      ep[1].forEach(function (t, i) {
+        if (i) dd.appendChild(doc.createTextNode(", "));
+        dd.appendChild(el("code", "gw-code", t));
+      });
+      if (CLIENTS[ep[0]]) dd.appendChild(doc.createTextNode(" · used by " + CLIENTS[ep[0]]));
+      row.appendChild(dt);
+      row.appendChild(dd);
+      list.appendChild(row);
+    });
+    var pending = dlg.querySelector("[data-del-pending]");
+    pending.hidden = !info.pending;
+    if (info.pending) {
+      var p = dlg.querySelector("[data-del-pending-text]");
+      p.textContent = "";
+      p.appendChild(el("code", "gw-code", info.pending[0]));
+      p.appendChild(doc.createTextNode(" from " + info.pending[1]));
+    }
+  }
+  doc.addEventListener("click", function (e) {
+    var item = e.target.closest("[data-conn-delete]");
+    if (item) {
+      var host = item.closest(".gw-menu-host");
+      opener = host && host.querySelector("[aria-haspopup]");
+      deleted = false;
+      fill(item.getAttribute("data-conn-delete"));
+      return;
+    }
+    var confirm = e.target.closest("[data-del-confirm]");
+    if (confirm) {
+      var name = confirm.getAttribute("data-del-confirm");
+      var r = rowOf(name);
+      var d = detailOf(name);
+      r.setAttribute("data-deleted", "");
+      r.hidden = true;
+      if (d) { d.setAttribute("data-deleted", ""); d.hidden = true; }
+      deleted = true;
+      apply();
+      var eps = IMPACT[name].eps.map(function (ep) { return ep[0]; }).join(" and ");
+      toast({ tone: "success", title: "Connection " + name + " deleted", body: "Removed from " + eps + "." });
+    }
+  });
+  // The menu that opened the dialog is closed by then: return focus to its trigger,
+  // or to the search after the row is gone.
+  dlg.addEventListener("close", function () {
+    if (deleted) search.focus();
+    else if (opener) opener.focus();
+  });
+
+  // Links from other pages pre-fill the filters: connections.html?q=billing-api (search),
+  // connections.html?type=postgresql (type, from Connectors)
+  var params = new URLSearchParams(window.location.search);
+  var preset = params.get("q");
+  if (preset) search.value = preset;
+  var presetType = params.get("type");
+  var typeOption = presetType && doc.querySelector('#conn-type-menu [role="option"][data-value="' + presetType.replace(/[^a-z0-9-]/g, "") + '"]');
+  if (typeOption) {
+    doc.querySelectorAll('#conn-type-menu [role="option"]').forEach(function (o) { o.setAttribute("aria-selected", String(o === typeOption)); });
+    var trigger = doc.querySelector('[aria-controls="conn-type-menu"] [data-gw-menu-value]');
+    if (trigger) trigger.textContent = typeOption.querySelector(".gw-menu__label").textContent;
+  }
+  if (preset || typeOption) apply();
+})();
+</script>
+</body>
+</html>

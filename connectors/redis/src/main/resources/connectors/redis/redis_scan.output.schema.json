@@ -1,0 +1,80 @@
+{
+  "type": "object",
+  "required": [
+    "pattern",
+    "keys",
+    "returned",
+    "complete"
+  ],
+  "properties": {
+    "pattern": {
+      "type": "string"
+    },
+    "type": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "keys": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "key"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "ttlMs": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "encoding": {
+            "type": "string",
+            "enum": [
+              "base64"
+            ],
+            "description": "key is the base64 of a key that isn't UTF-8; pass encoding=base64 to redis_get."
+          }
+        }
+      }
+    },
+    "returned": {
+      "type": "integer"
+    },
+    "iterations": {
+      "type": "integer"
+    },
+    "nextCursor": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "complete": {
+      "type": "boolean"
+    },
+    "hiddenByPolicy": {
+      "type": "integer"
+    },
+    "elapsedMs": {
+      "type": "integer"
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

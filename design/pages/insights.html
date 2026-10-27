@@ -1,0 +1,864 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Insights · GateRook</title>
+<link rel="icon" href="../assets/logo-mark.svg" type="image/svg+xml">
+<script src="../assets/theme-boot.js"></script>
+<link rel="stylesheet" href="../dist/gw-kit.css">
+</head>
+<body>
+<a class="gw-skip-link" href="#main">Skip to content</a>
+<div class="gw-shell">
+
+  <header class="gw-titlebar">
+    <span class="gw-titlebar__title">Insights</span>
+    <div class="gw-titlebar__drag"></div>
+    <div class="gw-titlebar__actions">
+      <!-- Opens the command palette (#cmdk at the end of <main>, elements/command-palette.html) -->
+      <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Search and commands" aria-haspopup="dialog" aria-keyshortcuts="Meta+K Control+K" data-gw-dialog-open="cmdk"><i class="gw-icon" data-lucide="search"></i> Search <kbd class="gw-btn__kbd" aria-hidden="true">⌘K</kbd></button>
+      <a class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" href="approvals.html" aria-label="Approvals, 3 waiting"><i class="gw-icon" data-lucide="bell"></i><span class="gw-counter gw-counter--attention" aria-hidden="true">3</span></a>
+      <div class="gw-menu-host">
+        <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="gw-appearance" aria-label="Appearance"><i class="gw-icon" data-lucide="sun-moon"></i></button>
+        <div class="gw-popover gw-popover--right" id="gw-appearance" role="dialog" aria-labelledby="gw-appearance-title" hidden>
+          <div class="gw-popover__header">
+            <p class="gw-popover__title" id="gw-appearance-title">Appearance</p>
+          </div>
+          <form class="gw-popover__body" method="dialog">
+            <div class="gw-stack gw-stack--sm">
+              <p class="gw-text-caption gw-fg-muted" id="gw-appearance-theme">Theme</p>
+              <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="gw-appearance-theme">
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i> System</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i> Light</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i> Dark</span></label>
+              </div>
+              <p class="gw-text-caption gw-fg-muted" id="gw-appearance-contrast">Contrast</p>
+              <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="gw-appearance-contrast">
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="system"><span class="gw-segmented__label">System</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="normal"><span class="gw-segmented__label">Normal</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="more"><span class="gw-segmented__label">High</span></label>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="gw-sidebar" id="gw-sidebar">
+    <div class="gw-sidebar__header">
+      <a class="gw-logo" href="overview.html" aria-label="GateRook, overview">
+        <img class="gw-logo__mark" src="../assets/logo-mark.svg" alt="">
+        <span class="gw-logo__name">GateRook</span>
+      </a>
+      <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-sidebar__toggle" type="button" data-gw-sidebar-toggle aria-controls="gw-sidebar" aria-expanded="true" aria-label="Collapse sidebar"><i class="gw-icon" data-lucide="panel-left"></i></button>
+    </div>
+
+    <nav class="gw-sidebar__body gw-nav" data-gw-nav aria-label="Main">
+      <div class="gw-nav__group">
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="overview.html"><i class="gw-icon gw-nav__icon" data-lucide="layout-dashboard"></i><span class="gw-nav__label">Overview</span></a></li>
+          <li><a class="gw-nav__item" href="approvals.html"><i class="gw-icon gw-nav__icon" data-lucide="user-check"></i><span class="gw-nav__label">Approvals</span><span class="gw-nav__counter gw-counter gw-counter--attention"><span class="gw-sr-only">, </span>3<span class="gw-sr-only"> waiting</span></span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-resources">
+        <p class="gw-nav__group-label" id="gw-nav-resources">Resources</p>
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="connections.html"><i class="gw-icon gw-nav__icon" data-lucide="database"></i><span class="gw-nav__label">Connections</span></a></li>
+          <li><a class="gw-nav__item" href="connectors.html"><i class="gw-icon gw-nav__icon" data-lucide="puzzle"></i><span class="gw-nav__label">Connectors</span></a></li>
+          <li><a class="gw-nav__item" href="secrets.html"><i class="gw-icon gw-nav__icon" data-lucide="key-round"></i><span class="gw-nav__label">Secrets</span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-access">
+        <p class="gw-nav__group-label" id="gw-nav-access">Access</p>
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="endpoints.html"><i class="gw-icon gw-nav__icon" data-lucide="waypoints"></i><span class="gw-nav__label">Endpoints</span></a></li>
+          <li><a class="gw-nav__item" href="clients.html"><i class="gw-icon gw-nav__icon" data-lucide="app-window"></i><span class="gw-nav__label">AI apps</span></a></li>
+          <li><a class="gw-nav__item" href="policies.html"><i class="gw-icon gw-nav__icon" data-lucide="shield"></i><span class="gw-nav__label">Policies</span></a></li>
+          <li><a class="gw-nav__item" href="playground.html"><i class="gw-icon gw-nav__icon" data-lucide="flask-conical"></i><span class="gw-nav__label">Playground</span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-observe">
+        <p class="gw-nav__group-label" id="gw-nav-observe">Observe</p>
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="activity.html"><i class="gw-icon gw-nav__icon" data-lucide="activity"></i><span class="gw-nav__label">Activity</span></a></li>
+          <li><a class="gw-nav__item" href="insights.html" aria-current="page"><i class="gw-icon gw-nav__icon" data-lucide="chart-column"></i><span class="gw-nav__label">Insights</span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group gw-nav__group--end">
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="settings.html"><i class="gw-icon gw-nav__icon" data-lucide="settings"></i><span class="gw-nav__label">Settings</span></a></li>
+        </ul>
+      </div>
+    </nav>
+
+    <!-- gw-status belongs to component group B. Static on purpose: no gw-status--live in the shell (WCAG 2.2.2) -->
+    <div class="gw-sidebar__footer">
+      <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Core running</span></span>
+      <span class="gw-sidebar__meta">127.0.0.1:7465 · v0.4.0</span>
+      <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off</span></span>
+    </div>
+  </div>
+
+  <main class="gw-shell__main" id="main" tabindex="-1">
+    <div class="gw-page">
+      <header class="gw-page-header">
+        <div class="gw-page-header__row">
+          <div class="gw-page-header__heading">
+            <h1 class="gw-page-header__title">Insights</h1>
+            <p class="gw-page-header__description">How agents used the gateway: volume, decisions, approvals, latency and errors, with a link to the calls behind every number.</p>
+          </div>
+          <div class="gw-page-header__actions">
+            <a class="gw-btn" href="activity.html?range=24h"><i class="gw-icon" data-lucide="activity"></i> Open in Activity<span class="gw-sr-only"> with the same range and filters</span></a>
+          </div>
+        </div>
+      </header>
+
+      <!-- log-explorer, insights variant: rows 1 and 2 only (no Live, Saved views, Export or Custom range; ranges
+           Last hour to Last 30 days, every number compares with the range before it). The same query, range and
+           tags drive every chart below, and every link to Activity carries them (?q=…&range=24h). -->
+      <section class="gw-log-explorer" aria-label="Filter insights">
+        <div class="gw-toolbar gw-log-explorer__query">
+          <div class="gw-toolbar__start">
+            <div class="gw-log-explorer__search" role="search" aria-label="Insights">
+              <div class="gw-search">
+                <i class="gw-icon gw-search__icon" data-lucide="search"></i>
+                <input class="gw-search__input" type="search" id="in-q" placeholder="Filter: endpoint:dev client:codex env:prod" aria-label="Filter calls in insights" aria-keyshortcuts="/" spellcheck="false" autocomplete="off">
+                <button class="gw-search__clear" type="button" aria-label="Clear search"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+                <kbd class="gw-search__kbd" aria-hidden="true">/</kbd>
+              </div>
+              <div class="gw-menu-host">
+                <button class="gw-btn gw-btn--ghost gw-btn--icon" type="button" aria-label="Query syntax" aria-haspopup="dialog" aria-expanded="false" aria-controls="in-help"><i class="gw-icon" data-lucide="circle-help"></i></button>
+                <div class="gw-popover gw-popover--right" id="in-help" role="dialog" aria-labelledby="in-help-title" hidden>
+                  <div class="gw-popover__header">
+                    <h2 class="gw-popover__title" id="in-help-title">Query syntax</h2>
+                    <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm" type="button" aria-label="Close query syntax" data-gw-menu-close><i class="gw-icon" data-lucide="x"></i></button>
+                  </div>
+                  <div class="gw-popover__body">
+                    <p class="gw-text-small gw-fg-secondary">The same filters as Activity. Type <code class="gw-code">field:value</code> and press Enter: every chart and number on this page follows it. Different fields combine with and; repeat a field for or (<code class="gw-code">tool:sql_query tool:logs_search</code>); <code class="gw-code">-</code> excludes; <code class="gw-code">*</code> matches any text.</p>
+                    <dl class="gw-kv gw-kv--dense">
+                      <div class="gw-kv__row"><dt class="gw-kv__key gw-mono">endpoint</dt><dd class="gw-kv__value"><code class="gw-code">dev</code>, <code class="gw-code">incident-prod</code>, <code class="gw-code">stage-readonly</code></dd></div>
+                      <div class="gw-kv__row"><dt class="gw-kv__key gw-mono">client</dt><dd class="gw-kv__value"><code class="gw-code">codex</code>, <code class="gw-code">claude-desktop</code>, <code class="gw-code">claude-ai</code></dd></div>
+                      <div class="gw-kv__row"><dt class="gw-kv__key gw-mono">connection</dt><dd class="gw-kv__value"><code class="gw-code">dev-db</code>, <code class="gw-code">prod-replica</code></dd></div>
+                      <div class="gw-kv__row"><dt class="gw-kv__key gw-mono">env</dt><dd class="gw-kv__value">dev, stage, prod</dd></div>
+                      <div class="gw-kv__row"><dt class="gw-kv__key gw-mono">tool</dt><dd class="gw-kv__value"><code class="gw-code">sql_*</code>, <code class="gw-code">k8s_get</code></dd></div>
+                    </dl>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="gw-toolbar__end">
+            <div class="gw-menu-host">
+              <button class="gw-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="in-range" title="2026-10-21 14:30 – 2026-10-22 14:30 CEST"><i class="gw-icon" data-lucide="calendar-clock"></i> <span class="gw-sr-only">Time range: </span><span data-gw-menu-value>Last 24 hours</span><span class="gw-sr-only">, 2026-10-21 14:30 – 2026-10-22 14:30 CEST</span> <i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+              <div class="gw-menu gw-menu--right" id="in-range" role="menu" aria-label="Time range" hidden>
+                <div class="gw-menu__group" role="group" aria-label="Relative ranges">
+                  <button class="gw-menu__item" type="button" role="menuitemradio" aria-checked="false" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Last hour</span></button>
+                  <button class="gw-menu__item" type="button" role="menuitemradio" aria-checked="true" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Last 24 hours</span></button>
+                  <button class="gw-menu__item" type="button" role="menuitemradio" aria-checked="false" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Last 7 days</span></button>
+                  <button class="gw-menu__item" type="button" role="menuitemradio" aria-checked="false" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Last 30 days</span></button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="gw-toolbar gw-log-explorer__active">
+          <div class="gw-toolbar__start">
+            <p class="gw-text-small gw-fg-muted">No filters: every endpoint, AI app and connection. Type <code class="gw-code">field:value</code> above to narrow every chart.</p>
+          </div>
+          <div class="gw-toolbar__end">
+            <p class="gw-text-small gw-fg-muted gw-tabular" role="status">1,284 calls · compared with the previous 24 hours</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- First run: the app shows this instead of the numbers and charts below until the gateway has logged a
+           call. Not shown on this reference page. -->
+      <div class="gw-card" id="in-first-run" hidden>
+        <div class="gw-empty">
+          <span class="gw-empty__icon"><i class="gw-icon" data-lucide="chart-column"></i></span>
+          <h2 class="gw-empty__title">Charts appear after the first calls</h2>
+          <p class="gw-empty__text">Insights sums up what agents did through the gateway: volume, decisions, approvals, latency and errors. No call has reached the gateway yet.</p>
+          <div class="gw-empty__actions"><a class="gw-btn" href="playground.html"><i class="gw-icon" data-lucide="flask-conical"></i> Try a tool in Playground</a></div>
+        </div>
+      </div>
+
+      <dl class="gw-grid gw-grid--3">
+        <div class="gw-stat">
+          <dt class="gw-stat__label">Calls</dt>
+          <dd class="gw-stat__value">1,284</dd>
+          <dd class="gw-stat__chart">
+            <svg class="gw-sparkline" viewBox="0 0 230 40" preserveAspectRatio="none" role="img" aria-label="Calls per hour: quiet overnight, peak of 166 at 11:00">
+              <polyline points="0,18.3 10,14.2 20,16.7 30,24.1 40,30.2 50,33.9 60,35.1 70,36.0 80,36.6 90,37.4 100,37.8 110,38.0 120,37.8 130,38.0 140,37.4 150,36.2 160,33.1 170,26.5 180,16.7 190,7.3 200,4.0 210,19.6 220,13.2 230,20.4"></polyline>
+            </svg>
+          </dd>
+          <dd class="gw-stat__delta gw-stat__delta--up" data-sentiment="neutral"><i class="gw-icon" data-lucide="trending-up"></i>+12% vs previous 24 hours</dd>
+          <dd class="gw-stat__meta">Plus 3 waiting for approval · <a class="gw-link" href="approvals.html">Review<span class="gw-sr-only"> 3 waiting requests</span></a></dd>
+        </div>
+        <div class="gw-stat">
+          <dt class="gw-stat__label">Approved by you</dt>
+          <dd class="gw-stat__value">46</dd>
+          <dd class="gw-stat__delta gw-stat__delta--up" data-sentiment="neutral"><i class="gw-icon" data-lucide="trending-up"></i>6 more than previous 24 hours</dd>
+          <dd class="gw-stat__meta">Median wait 47 s</dd>
+        </div>
+        <div class="gw-stat">
+          <dt class="gw-stat__label">Denied by policy</dt>
+          <dd class="gw-stat__value">17</dd>
+          <dd class="gw-stat__delta gw-stat__delta--up" data-sentiment="bad"><i class="gw-icon" data-lucide="trending-up"></i>+5 vs previous 24 hours</dd>
+          <dd class="gw-stat__meta"><a class="gw-link" href="#in-denied-title">See by rule</a></dd><!-- jumps to the card and focuses its title -->
+        </div>
+        <div class="gw-stat">
+          <dt class="gw-stat__label">Errors</dt>
+          <dd class="gw-stat__value">8</dd>
+          <dd class="gw-stat__delta gw-stat__delta--down" data-sentiment="good"><i class="gw-icon" data-lucide="trending-down"></i>3 fewer than previous 24 hours</dd>
+          <dd class="gw-stat__meta"><a class="gw-link" href="#in-errors-title">See by connection</a></dd>
+        </div>
+        <div class="gw-stat">
+          <dt class="gw-stat__label">Gateway overhead p95</dt>
+          <dd class="gw-stat__value">31 <span class="gw-stat__unit">ms</span></dd>
+          <dd class="gw-stat__delta gw-stat__delta--down" data-sentiment="good"><i class="gw-icon" data-lucide="trending-down"></i>−4 ms vs previous 24 hours</dd>
+          <dd class="gw-stat__meta">
+            <div class="gw-meter" role="meter" aria-labelledby="in-meter-label" aria-valuemin="0" aria-valuemax="50" aria-valuenow="31" aria-valuetext="31 ms of the 50 ms target, within target" data-level="ok" style="--gw-meter: 0.62">
+              <span class="gw-meter__label" id="in-meter-label">Target ≤ 50 ms · p50 9 ms</span>
+              <span class="gw-meter__value">31 / 50 ms</span>
+              <span class="gw-meter__track"><span class="gw-meter__fill"></span></span>
+            </div>
+          </dd>
+        </div>
+        <div class="gw-stat">
+          <dt class="gw-stat__label">Agent tasks</dt>
+          <dd class="gw-stat__value">61</dd>
+          <dd class="gw-stat__delta gw-stat__delta--up" data-sentiment="neutral"><i class="gw-icon" data-lucide="trending-up"></i>7 more than previous 24 hours</dd>
+          <dd class="gw-stat__meta">21 calls per task on average · <a class="gw-link" href="activity.html?range=24h&amp;view=traces">View traces</a></dd>
+        </div>
+      </dl>
+
+      <!-- ═══════════════ Unusual activity ═══════════════ -->
+      <section class="gw-section" aria-labelledby="in-unusual-title">
+        <div class="gw-section__header">
+          <h2 class="gw-section__title" id="in-unusual-title">Unusual activity</h2>
+          <p class="gw-section__description">Compared with the last 7 days. Each item opens the calls behind it.</p>
+        </div>
+        <ul class="gw-stack gw-stack--sm" aria-label="Unusual activity, 3 items">
+          <li class="gw-alert gw-alert--danger gw-alert--compact">
+            <i class="gw-icon gw-alert__icon" data-lucide="shield-x"></i>
+            <div class="gw-alert__content"><p class="gw-alert__title">An agent tried to change prod</p><p class="gw-alert__body">Claude Desktop sent <code class="gw-code">TRUNCATE</code> and then <code class="gw-code">DROP TABLE</code> to <code class="gw-code">prod-replica</code> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--prod gw-env--sm">prod</span> within a minute, in one task. Both were denied.</p></div>
+            <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" href="activity.html?q=trace:b81e44&amp;range=24h&amp;view=traces">Open the task<span class="gw-sr-only"> Investigate failed order sync on prod</span></a></div>
+          </li>
+          <li class="gw-alert gw-alert--warning gw-alert--compact">
+            <i class="gw-icon gw-alert__icon" data-lucide="trending-up"></i>
+            <div class="gw-alert__content"><p class="gw-alert__title"><code class="gw-code">sql_query</code> on <code class="gw-code">prod-replica</code> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--prod gw-env--sm">prod</span> is 4× its 7-day average</p><p class="gw-alert__body">65 calls against 16 a day, mostly from Claude Desktop on <code class="gw-code">incident-prod</code> between 09:00 and 12:00.</p></div>
+            <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" href="activity.html?q=tool%3Asql_query%20connection%3Aprod-replica&amp;range=24h">View 65 calls<span class="gw-sr-only"> of sql_query on prod-replica</span></a></div>
+          </li>
+          <li class="gw-alert gw-alert--warning gw-alert--compact">
+            <i class="gw-icon gw-alert__icon" data-lucide="timer"></i>
+            <div class="gw-alert__content"><p class="gw-alert__title"><code class="gw-code">cache-redis</code> answers 45× slower than usual</p><p class="gw-alert__body">1.8 s at p95 since 13:30, against 40 ms over the last 7 days. Calls that wait longer than 2.0 s time out.</p></div>
+            <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" href="activity.html?q=connection:cache-redis&amp;range=24h">View 31 calls<span class="gw-sr-only"> on cache-redis</span></a></div>
+          </li>
+        </ul>
+      </section>
+
+      <!-- ═══════════════ Volume ═══════════════ -->
+      <section class="gw-section" aria-labelledby="in-volume-title">
+        <div class="gw-section__header">
+          <h2 class="gw-section__title" id="in-volume-title">Volume</h2>
+          <p class="gw-section__description">How many calls, when, which tools and from which AI apps.</p>
+        </div>
+        <div class="gw-stack">
+          <section class="gw-card" aria-labelledby="in-calls-title">
+            <header class="gw-card__header">
+              <div class="gw-card__heading">
+                <h3 class="gw-card__title" id="in-calls-title">Calls over time</h3>
+                <p class="gw-card__description">Traffic peaked at 166 calls at 11:00, and most denials came between 09:00 and 11:00.</p>
+              </div>
+            </header>
+            <div class="gw-card__body gw-stack">
+              <div class="gw-chart" role="img" aria-label="Calls per hour, last 24 hours. 1,284 calls finished: 1,247 allowed or approved, 34 denied, rejected or failed, 3 expired; 3 more are waiting for approval. Peak of 166 calls at 11:00. Most denials came between 09:00 and 11:00.">
+                <div class="gw-chart__plot">
+                  <span class="gw-chart__gridline" style="--v: 0.25"><span class="gw-chart__label">50</span></span>
+                  <span class="gw-chart__gridline" style="--v: 0.5"><span class="gw-chart__label">100</span></span>
+                  <span class="gw-chart__gridline" style="--v: 0.75"><span class="gw-chart__label">150</span></span>
+                  <span class="gw-chart__gridline" style="--v: 1"><span class="gw-chart__label">200</span></span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.475"></span><span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.005"></span></span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.555"></span><span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.02"></span><span class="gw-chart__segment gw-chart__segment--neutral" style="--v: 0.005"></span></span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.51"></span><span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.01"></span></span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.34"></span></span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.19"></span></span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.1"></span></span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.07"></span></span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.05"></span></span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.035"></span></span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.015"></span></span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.005"></span></span>
+                  <span class="gw-chart__bar"></span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.005"></span></span>
+                  <span class="gw-chart__bar"></span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.015"></span></span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.045"></span></span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.12"></span></span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.27"></span><span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.01"></span></span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.49"></span><span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.03"></span></span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.705"></span><span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.045"></span></span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.8"></span><span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.025"></span><span class="gw-chart__segment gw-chart__segment--neutral" style="--v: 0.005"></span></span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.45"></span></span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.585"></span><span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.015"></span><span class="gw-chart__segment gw-chart__segment--neutral" style="--v: 0.005"></span></span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.405"></span><span class="gw-chart__segment gw-chart__segment--warning" style="--v: 0.015"></span><span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.01"></span></span>
+                </div>
+                <div class="gw-chart__axis">
+                  <span class="gw-chart__label" style="--v: 0">15:00</span>
+                  <span class="gw-chart__label" style="--v: 0.25">21:00</span>
+                  <span class="gw-chart__label" style="--v: 0.5">03:00</span>
+                  <span class="gw-chart__label" style="--v: 0.75">09:00</span>
+                  <span class="gw-chart__label" style="--v: 1">Now</span>
+                </div>
+              </div>
+              <ul class="gw-legend" aria-label="Decisions, last 24 hours">
+                <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--success"></span>Allowed or approved <span class="gw-legend__value">1,247</span></li>
+                <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--warning"></span>Waiting for approval <span class="gw-legend__value">3</span></li>
+                <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--danger"></span>Denied, rejected or failed <span class="gw-legend__value">34</span></li>
+                <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--neutral"></span>Expired <span class="gw-legend__value">3</span></li>
+              </ul>
+              <div class="gw-sr-only">
+                <table>
+                  <caption>Calls per hour by decision, last 24 hours</caption>
+                  <thead>
+                    <tr><th scope="col">Hour</th><th scope="col">Allowed or approved</th><th scope="col">Waiting for approval</th><th scope="col">Denied, rejected or failed</th><th scope="col">Expired</th><th scope="col">Total</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr><th scope="row">15:00</th><td>95</td><td>0</td><td>1</td><td>0</td><td>96</td></tr>
+                    <tr><th scope="row">16:00</th><td>111</td><td>0</td><td>4</td><td>1</td><td>116</td></tr>
+                    <tr><th scope="row">17:00</th><td>102</td><td>0</td><td>2</td><td>0</td><td>104</td></tr>
+                    <tr><th scope="row">18:00</th><td>68</td><td>0</td><td>0</td><td>0</td><td>68</td></tr>
+                    <tr><th scope="row">19:00</th><td>38</td><td>0</td><td>0</td><td>0</td><td>38</td></tr>
+                    <tr><th scope="row">20:00</th><td>20</td><td>0</td><td>0</td><td>0</td><td>20</td></tr>
+                    <tr><th scope="row">21:00</th><td>14</td><td>0</td><td>0</td><td>0</td><td>14</td></tr>
+                    <tr><th scope="row">22:00</th><td>10</td><td>0</td><td>0</td><td>0</td><td>10</td></tr>
+                    <tr><th scope="row">23:00</th><td>7</td><td>0</td><td>0</td><td>0</td><td>7</td></tr>
+                    <tr><th scope="row">00:00</th><td>3</td><td>0</td><td>0</td><td>0</td><td>3</td></tr>
+                    <tr><th scope="row">01:00</th><td>1</td><td>0</td><td>0</td><td>0</td><td>1</td></tr>
+                    <tr><th scope="row">02:00</th><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+                    <tr><th scope="row">03:00</th><td>1</td><td>0</td><td>0</td><td>0</td><td>1</td></tr>
+                    <tr><th scope="row">04:00</th><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+                    <tr><th scope="row">05:00</th><td>3</td><td>0</td><td>0</td><td>0</td><td>3</td></tr>
+                    <tr><th scope="row">06:00</th><td>9</td><td>0</td><td>0</td><td>0</td><td>9</td></tr>
+                    <tr><th scope="row">07:00</th><td>24</td><td>0</td><td>0</td><td>0</td><td>24</td></tr>
+                    <tr><th scope="row">08:00</th><td>54</td><td>0</td><td>2</td><td>0</td><td>56</td></tr>
+                    <tr><th scope="row">09:00</th><td>98</td><td>0</td><td>6</td><td>0</td><td>104</td></tr>
+                    <tr><th scope="row">10:00</th><td>141</td><td>0</td><td>9</td><td>0</td><td>150</td></tr>
+                    <tr><th scope="row">11:00</th><td>160</td><td>0</td><td>5</td><td>1</td><td>166</td></tr>
+                    <tr><th scope="row">12:00</th><td>90</td><td>0</td><td>0</td><td>0</td><td>90</td></tr>
+                    <tr><th scope="row">13:00</th><td>117</td><td>0</td><td>3</td><td>1</td><td>121</td></tr>
+                    <tr><th scope="row">14:00</th><td>81</td><td>3</td><td>2</td><td>0</td><td>86</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <footer class="gw-card__footer">
+              <a class="gw-btn gw-btn--link" href="activity.html?range=24h">View in Activity<span class="gw-sr-only">: all calls in the last 24 hours</span></a>
+            </footer>
+          </section>
+
+          <div class="gw-grid gw-grid--2">
+            <section class="gw-card" aria-labelledby="in-tools-title">
+              <header class="gw-card__header">
+                <div class="gw-card__heading">
+                  <h3 class="gw-card__title" id="in-tools-title">Top tools</h3>
+                  <p class="gw-card__description"><code class="gw-code">sql_query</code> and <code class="gw-code">logs_search</code> make up two thirds of all calls.</p>
+                </div>
+              </header>
+              <div class="gw-card__body">
+                <div class="gw-chart gw-chart--hbar" role="img" aria-label="Top tools by calls, last 24 hours: sql_query leads with 512, then logs_search 341, k8s_get 150, ssh_run 98, http_request 61 and sql_execute 47; 5 other tools made 75 calls.">
+                  <span class="gw-chart__label gw-mono">sql_query</span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment" style="--v: 1"></span></span>
+                  <span class="gw-chart__value">512</span>
+                  <span class="gw-chart__label gw-mono">logs_search</span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment" style="--v: 0.666"></span></span>
+                  <span class="gw-chart__value">341</span>
+                  <span class="gw-chart__label gw-mono">k8s_get</span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment" style="--v: 0.293"></span></span>
+                  <span class="gw-chart__value">150</span>
+                  <span class="gw-chart__label gw-mono">ssh_run</span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment" style="--v: 0.191"></span></span>
+                  <span class="gw-chart__value">98</span>
+                  <span class="gw-chart__label gw-mono">http_request</span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment" style="--v: 0.119"></span></span>
+                  <span class="gw-chart__value">61</span>
+                  <span class="gw-chart__label gw-mono">sql_execute</span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment" style="--v: 0.092"></span></span>
+                  <span class="gw-chart__value">47</span>
+                  <span class="gw-chart__label">5 other tools</span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--neutral" style="--v: 0.1465"></span></span>
+                  <span class="gw-chart__value">75</span>
+                </div>
+                <div class="gw-sr-only">
+                  <table>
+                    <caption>Top tools by calls, last 24 hours</caption>
+                    <thead><tr><th scope="col">Tool</th><th scope="col">Calls</th></tr></thead>
+                    <tbody>
+                      <tr><th scope="row">sql_query</th><td>512</td></tr>
+                      <tr><th scope="row">logs_search</th><td>341</td></tr>
+                      <tr><th scope="row">k8s_get</th><td>150</td></tr>
+                      <tr><th scope="row">ssh_run</th><td>98</td></tr>
+                      <tr><th scope="row">http_request</th><td>61</td></tr>
+                      <tr><th scope="row">sql_execute</th><td>47</td></tr>
+                      <tr><th scope="row">redis_get</th><td>31</td></tr>
+                      <tr><th scope="row">mongo_find</th><td>23</td></tr>
+                      <tr><th scope="row">k8s_apply</th><td>9</td></tr>
+                      <tr><th scope="row">k8s_rollout_restart</th><td>6</td></tr>
+                      <tr><th scope="row">ssh_exec</th><td>6</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <footer class="gw-card__footer">
+                <a class="gw-btn gw-btn--link" href="activity.html?q=tool%3Asql_query%20tool%3Alogs_search&amp;range=24h">View <span class="gw-mono">sql_query</span> and <span class="gw-mono">logs_search</span> calls in Activity</a>
+              </footer>
+            </section>
+
+            <section class="gw-card" aria-labelledby="in-clients-title">
+              <header class="gw-card__header">
+                <div class="gw-card__heading">
+                  <h3 class="gw-card__title" id="in-clients-title">By AI app</h3>
+                  <!-- Said from the numbers: who calls most, how often they are denied or fail, and for an AI app whose
+                       calls all went through, when (first and last call) and where. Tunnel windows and "reads" are
+                       not in the numbers, so they are not said. -->
+                  <p class="gw-card__description">Codex makes 60% of calls; Codex and Claude Desktop are denied or fail on fewer than 3% of them. claude.ai: 19 calls from 08:41 to 12:08, all allowed, to <code class="gw-code">stage-db</code> through <code class="gw-code">stage-readonly</code>.</p>
+                </div>
+              </header>
+              <div class="gw-card__body gw-stack">
+                <div class="gw-chart gw-chart--hbar" role="img" aria-label="Calls by AI app, last 24 hours: Codex 772 (60%), of them 20 denied, rejected or failed and 2 expired; Claude Desktop 493 (38%), of them 14 denied, rejected or failed and 1 expired; claude.ai 19 (1%), all allowed or approved.">
+                  <span class="gw-chart__label"><span class="gw-client-mark gw-client-mark--codex gw-client-mark--sm" aria-hidden="true">Cx</span> Codex</span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.9715"></span><span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.0259"></span><span class="gw-chart__segment gw-chart__segment--neutral" style="--v: 0.0026"></span></span>
+                  <span class="gw-chart__value">772</span>
+                  <span class="gw-chart__label"><span class="gw-client-mark gw-client-mark--claude gw-client-mark--sm" aria-hidden="true">CD</span> Claude Desktop</span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.6192"></span><span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.0181"></span><span class="gw-chart__segment gw-chart__segment--neutral" style="--v: 0.0013"></span></span>
+                  <span class="gw-chart__value">493</span>
+                  <span class="gw-chart__label"><span class="gw-client-mark gw-client-mark--claudeai gw-client-mark--sm" aria-hidden="true">ai</span> claude.ai</span>
+                  <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.0246"></span></span>
+                  <span class="gw-chart__value">19</span>
+                </div>
+                <ul class="gw-legend" aria-label="Decisions by AI app">
+                  <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--success"></span>Allowed or approved</li>
+                  <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--danger"></span>Denied, rejected or failed</li>
+                  <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--neutral"></span>Expired</li>
+                </ul>
+                <div class="gw-sr-only">
+                  <table>
+                    <caption>Calls by AI app and decision, last 24 hours</caption>
+                    <thead><tr><th scope="col">AI app</th><th scope="col">Allowed or approved</th><th scope="col">Denied, rejected or failed</th><th scope="col">Expired</th><th scope="col">Total</th></tr></thead>
+                    <tbody>
+                      <tr><th scope="row">Codex</th><td>750</td><td>20</td><td>2</td><td>772</td></tr>
+                      <tr><th scope="row">Claude Desktop</th><td>478</td><td>14</td><td>1</td><td>493</td></tr>
+                      <tr><th scope="row">claude.ai</th><td>19</td><td>0</td><td>0</td><td>19</td></tr>
+                      <tr><th scope="row">Cursor, Antigravity</th><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="gw-empty gw-empty--compact">
+                  <span class="gw-empty__icon"><i class="gw-icon" data-lucide="app-window"></i></span>
+                  <p class="gw-empty__title">No calls from Cursor or Antigravity</p>
+                  <p class="gw-empty__text">Cursor is detected but not connected, and Antigravity is not installed.</p>
+                  <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" href="clients.html"><i class="gw-icon gw-icon--sm" data-lucide="app-window"></i> Connect your AI app</a></div>
+                </div>
+              </div>
+              <footer class="gw-card__footer gw-card__footer--split">
+                <a class="gw-btn gw-btn--link" href="activity.html?q=client:codex&amp;range=24h">View Codex calls</a>
+                <a class="gw-btn gw-btn--link" href="activity.html?q=client:claude-desktop&amp;range=24h">View Claude Desktop calls</a>
+                <a class="gw-btn gw-btn--link" href="activity.html?q=client:claude-ai&amp;range=24h">View claude.ai calls</a>
+              </footer>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══════════════ Decisions ═══════════════ -->
+      <section class="gw-section" aria-labelledby="in-decisions-title">
+        <div class="gw-section__header">
+          <h2 class="gw-section__title" id="in-decisions-title">Decisions</h2>
+          <p class="gw-section__description">What needed your approval and what the policies stopped.</p>
+        </div>
+        <div class="gw-grid gw-grid--auto" style="--gw-grid-min: calc(var(--gw-size-control-lg) * 12)">
+          <section class="gw-card" aria-labelledby="in-approvals-title">
+            <header class="gw-card__header">
+              <div class="gw-card__heading">
+                <h3 class="gw-card__title" id="in-approvals-title">Approvals</h3>
+                <!-- The windows in brackets are the approval timeouts of the environment policies (left out when they are unknown). -->
+                <p class="gw-card__description">You approved 4 of 5 requests, most within a minute; 3 expired before you answered (5 min on dev, 10 min on stage and prod).</p>
+              </div>
+            </header>
+            <div class="gw-card__body gw-stack">
+              <div class="gw-chart gw-chart--hbar" role="img" aria-label="58 approval requests decided in the last 24 hours: 46 approved (79%), 9 rejected (16%), 3 expired (5%).">
+                <span class="gw-chart__label">58 decided</span>
+                <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.7931"></span><span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.1552"></span><span class="gw-chart__segment gw-chart__segment--neutral" style="--v: 0.0517"></span></span>
+                <span class="gw-chart__value">58</span>
+              </div>
+              <ul class="gw-legend" aria-label="Approval outcomes">
+                <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--success"></span>Approved <span class="gw-legend__value">46</span></li>
+                <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--danger"></span>Rejected <span class="gw-legend__value">9</span></li>
+                <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--neutral"></span>Expired <span class="gw-legend__value">3</span></li>
+              </ul>
+              <div class="gw-sr-only">
+                <table>
+                  <caption>Approval requests by outcome, last 24 hours</caption>
+                  <thead><tr><th scope="col">Outcome</th><th scope="col">Requests</th><th scope="col">Share</th></tr></thead>
+                  <tbody>
+                    <tr><th scope="row">Approved</th><td>46</td><td>79%</td></tr>
+                    <tr><th scope="row">Rejected</th><td>9</td><td>16%</td></tr>
+                    <tr><th scope="row">Expired</th><td>3</td><td>5%</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <dl class="gw-kv gw-kv--inline">
+                <div class="gw-kv__row"><dt class="gw-kv__key">Decided within 1 min</dt><dd class="gw-kv__value gw-tabular">38 of 55</dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">p90 wait</dt><dd class="gw-kv__value gw-tabular">1 min 40 s</dd></div>
+              </dl>
+              <h4 class="gw-text-overline" id="in-slowest-title">Slowest decisions</h4>
+              <div class="gw-table-wrap" role="region" aria-labelledby="in-slowest-title" tabindex="0">
+                <table class="gw-table gw-table--dense gw-table--interactive">
+                  <caption class="gw-sr-only">Approval requests with the longest wait for your decision, last 24 hours</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Request</th>
+                      <th scope="col">Outcome</th>
+                      <th scope="col" class="gw-table__cell--num">Wait</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><a class="gw-table__row-link gw-mono" href="activity.html#event-ev_3c7a9d02">k8s_rollout_restart<span class="gw-sr-only"> on dev-cluster at 09:47, open call</span></a> <span class="gw-env gw-env--dev gw-env--sm">dev</span></td>
+                      <td><span class="gw-badge gw-badge--success gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="user-check"></i>Approved</span> by you</td>
+                      <td class="gw-table__cell--num">3 min 05 s</td>
+                    </tr>
+                    <tr>
+                      <td><a class="gw-table__row-link gw-mono" href="activity.html#event-ev_8d14e6b5">sql_execute<span class="gw-sr-only"> on dev-db at 11:20, open call</span></a> <span class="gw-env gw-env--dev gw-env--sm">dev</span></td>
+                      <td><span class="gw-badge gw-badge--success gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="user-check"></i>Approved</span> by you</td>
+                      <td class="gw-table__cell--num">2 min 31 s</td>
+                    </tr>
+                    <tr>
+                      <td><a class="gw-table__row-link gw-mono" href="activity.html#event-ev_f07b21c6">http_request<span class="gw-sr-only"> on billing-api at 10:06, open call</span></a> <span class="gw-env gw-env--stage gw-env--sm">stage</span></td>
+                      <td><span class="gw-badge gw-badge--danger gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="user-x"></i>Rejected</span> by you</td>
+                      <td class="gw-table__cell--num">2 min 12 s</td>
+                    </tr>
+                    <tr>
+                      <td><a class="gw-table__row-link gw-mono" href="activity.html#event-ev_52e9a8d3">ssh_run<span class="gw-sr-only"> on dev-vm at 16:41 yesterday, open call</span></a> <span class="gw-env gw-env--dev gw-env--sm">dev</span></td>
+                      <td><span class="gw-badge gw-badge--success gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="user-check"></i>Approved</span> by you</td>
+                      <td class="gw-table__cell--num">1 min 48 s</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <footer class="gw-card__footer gw-card__footer--split">
+              <a class="gw-btn gw-btn--link" href="activity.html?q=decision%3Aapproved%20decision%3Arejected%20decision%3Aexpired&amp;range=24h">View 58 requests in Activity</a>
+              <a class="gw-btn gw-btn--sm" href="approvals.html"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i> Open Approvals</a>
+            </footer>
+          </section>
+
+          <section class="gw-card" aria-labelledby="in-denied-title">
+            <header class="gw-card__header">
+              <div class="gw-card__heading">
+                <h3 class="gw-card__title" id="in-denied-title" tabindex="-1">Denied by rule</h3>
+                <p class="gw-card__description">Most denials were calls to tools that are off; 4 were DDL on prod.</p>
+              </div>
+            </header>
+            <div class="gw-card__body">
+              <div class="gw-table-wrap" role="region" aria-labelledby="in-denied-cap" tabindex="0">
+                <!-- The rule is the row link (its calls in Activity); the example truncates, so the table fits a half-width card. -->
+                <table class="gw-table gw-table--dense gw-table--interactive">
+                  <caption class="gw-sr-only" id="in-denied-cap">Calls denied by policy in the last 24 hours, by the rule that denied them. Each rule opens its calls in Activity.</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Rule</th>
+                      <th scope="col" class="gw-table__cell--num">Calls</th>
+                      <th scope="col">Example</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <th scope="row" class="gw-table__cell--mono"><a class="gw-table__row-link" href="activity.html?q=decision%3Adenied%20rule%3Amode.off&amp;range=24h">mode: off<span class="gw-sr-only">: view 6 denied calls in Activity</span></a></th>
+                      <td class="gw-table__cell--num">6</td>
+                      <td class="gw-table__cell--truncate" style="--gw-cell-max: calc(var(--gw-space-16) * 3)" title="ssh_exec on dev-vm"><code class="gw-code">ssh_exec</code> on <span class="gw-mono">dev-vm</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></td>
+                    </tr>
+                    <tr>
+                      <th scope="row" class="gw-table__cell--mono"><a class="gw-table__row-link" href="activity.html?q=decision%3Adenied%20rule%3Aprod.sql.block_ddl&amp;range=24h">prod.sql.block_ddl<span class="gw-sr-only">: view 4 denied calls in Activity</span></a></th>
+                      <td class="gw-table__cell--num">4</td>
+                      <td class="gw-table__cell--truncate" style="--gw-cell-max: calc(var(--gw-space-16) * 3)" title="DROP TABLE on prod-replica"><code class="gw-code">DROP TABLE</code> on <span class="gw-mono">prod-replica</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--prod gw-env--sm">prod</span></td>
+                    </tr>
+                    <tr>
+                      <th scope="row" class="gw-table__cell--mono"><a class="gw-table__row-link" href="activity.html?q=decision%3Adenied%20rule%3Asql.read_only_tool&amp;range=24h">sql.read_only_tool<span class="gw-sr-only">: view 3 denied calls in Activity</span></a></th>
+                      <td class="gw-table__cell--num">3</td>
+                      <td class="gw-table__cell--truncate" style="--gw-cell-max: calc(var(--gw-space-16) * 3)" title="DELETE on dev-db"><code class="gw-code">DELETE</code> on <span class="gw-mono">dev-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></td>
+                    </tr>
+                    <tr>
+                      <th scope="row" class="gw-table__cell--mono"><a class="gw-table__row-link" href="activity.html?q=decision%3Adenied%20rule%3Ahttp.block_private_ranges&amp;range=24h">http.block_private_ranges<span class="gw-sr-only">: view 2 denied calls in Activity</span></a></th>
+                      <td class="gw-table__cell--num">2</td>
+                      <td class="gw-table__cell--truncate" style="--gw-cell-max: calc(var(--gw-space-16) * 3)" title="GET 169.254.169.254 on billing-api"><code class="gw-code">GET 169.254.169.254</code> on <span class="gw-mono">billing-api</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></td>
+                    </tr>
+                    <tr>
+                      <th scope="row" class="gw-table__cell--mono"><a class="gw-table__row-link" href="activity.html?q=decision%3Adenied%20rule%3Ak8s.namespace_allowlist&amp;range=24h">k8s.namespace_allowlist<span class="gw-sr-only">: view 2 denied calls in Activity</span></a></th>
+                      <td class="gw-table__cell--num">2</td>
+                      <td class="gw-table__cell--truncate" style="--gw-cell-max: calc(var(--gw-space-16) * 3)" title="kube-system on dev-cluster"><code class="gw-code">kube-system</code> on <span class="gw-mono">dev-cluster</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <footer class="gw-card__footer gw-card__footer--split">
+              <a class="gw-btn gw-btn--link" href="activity.html?q=decision%3Adenied&amp;range=24h">View all 17 in Activity</a>
+              <a class="gw-btn gw-btn--sm" href="policies.html"><i class="gw-icon gw-icon--sm" data-lucide="shield"></i> Open policies</a>
+            </footer>
+          </section>
+        </div>
+      </section>
+
+      <!-- ═══════════════ Latency and errors ═══════════════ -->
+      <section class="gw-section" aria-labelledby="in-health-title">
+        <div class="gw-section__header">
+          <h2 class="gw-section__title" id="in-health-title">Latency and errors</h2>
+          <p class="gw-section__description">Where the time goes and which connections fail.</p>
+        </div>
+        <div class="gw-grid gw-grid--auto" style="--gw-grid-min: calc(var(--gw-size-control-lg) * 12)">
+          <section class="gw-card" aria-labelledby="in-latency-title">
+            <header class="gw-card__header">
+              <div class="gw-card__heading">
+                <h3 class="gw-card__title" id="in-latency-title">Latency by connection</h3>
+                <p class="gw-card__description">The gateway adds 18 to 38 ms at p95 everywhere; slow calls come from the resources, led by <code class="gw-code">cache-redis</code> and <code class="gw-code">prod-logs</code>.</p>
+              </div>
+            </header>
+            <div class="gw-card__body gw-stack">
+              <div class="gw-chart gw-chart--hbar" role="img" aria-label="p95 time per call by connection, last 24 hours, gateway then resource: cache-redis 18 ms plus 1.8 s, prod-logs 38 ms plus 1.1 s, dev-vm 35 ms plus 820 ms, billing-api 27 ms plus 480 ms, app-logs 33 ms plus 240 ms, dev-cluster 22 ms plus 96 ms, prod-replica 29 ms plus 62 ms, stage-db 25 ms plus 58 ms, dev-db 24 ms plus 41 ms, orders-mongo 21 ms plus 27 ms.">
+                <span class="gw-chart__label gw-mono">cache-redis</span>
+                <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--neutral" style="--v: 0.009"></span><span class="gw-chart__segment gw-chart__segment--brand" style="--v: 0.9"></span></span>
+                <span class="gw-chart__value">18 ms + 1.8 s</span>
+                <span class="gw-chart__label gw-mono">prod-logs</span>
+                <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--neutral" style="--v: 0.019"></span><span class="gw-chart__segment gw-chart__segment--brand" style="--v: 0.55"></span></span>
+                <span class="gw-chart__value">38 ms + 1.1 s</span>
+                <span class="gw-chart__label gw-mono">dev-vm</span>
+                <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--neutral" style="--v: 0.0175"></span><span class="gw-chart__segment gw-chart__segment--brand" style="--v: 0.41"></span></span>
+                <span class="gw-chart__value">35 ms + 820 ms</span>
+                <span class="gw-chart__label gw-mono">billing-api</span>
+                <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--neutral" style="--v: 0.0135"></span><span class="gw-chart__segment gw-chart__segment--brand" style="--v: 0.24"></span></span>
+                <span class="gw-chart__value">27 ms + 480 ms</span>
+                <span class="gw-chart__label gw-mono">app-logs</span>
+                <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--neutral" style="--v: 0.0165"></span><span class="gw-chart__segment gw-chart__segment--brand" style="--v: 0.12"></span></span>
+                <span class="gw-chart__value">33 ms + 240 ms</span>
+                <span class="gw-chart__label gw-mono">dev-cluster</span>
+                <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--neutral" style="--v: 0.011"></span><span class="gw-chart__segment gw-chart__segment--brand" style="--v: 0.048"></span></span>
+                <span class="gw-chart__value">22 ms + 96 ms</span>
+                <span class="gw-chart__label gw-mono">prod-replica</span>
+                <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--neutral" style="--v: 0.0145"></span><span class="gw-chart__segment gw-chart__segment--brand" style="--v: 0.031"></span></span>
+                <span class="gw-chart__value">29 ms + 62 ms</span>
+                <span class="gw-chart__label gw-mono">stage-db</span>
+                <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--neutral" style="--v: 0.0125"></span><span class="gw-chart__segment gw-chart__segment--brand" style="--v: 0.029"></span></span>
+                <span class="gw-chart__value">25 ms + 58 ms</span>
+                <span class="gw-chart__label gw-mono">dev-db</span>
+                <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--neutral" style="--v: 0.012"></span><span class="gw-chart__segment gw-chart__segment--brand" style="--v: 0.0205"></span></span>
+                <span class="gw-chart__value">24 ms + 41 ms</span>
+                <span class="gw-chart__label gw-mono">orders-mongo</span>
+                <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--neutral" style="--v: 0.0105"></span><span class="gw-chart__segment gw-chart__segment--brand" style="--v: 0.0135"></span></span>
+                <span class="gw-chart__value">21 ms + 27 ms</span>
+              </div>
+              <ul class="gw-legend" aria-label="Where the time goes, p95">
+                <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--neutral"></span>Gateway</li>
+                <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--brand"></span>Resource</li>
+              </ul>
+              <p class="gw-text-caption gw-fg-muted">p95 of each part, axis up to 2.0 s. Waiting for approval is not counted.</p>
+              <div class="gw-sr-only">
+                <table>
+                  <caption>Gateway overhead and resource time per connection, p50 and p95, last 24 hours</caption>
+                  <thead><tr><th scope="col">Connection</th><th scope="col">Gateway p50</th><th scope="col">Gateway p95</th><th scope="col">Resource p50</th><th scope="col">Resource p95</th></tr></thead>
+                  <tbody>
+                    <tr><th scope="row">cache-redis</th><td>6 ms</td><td>18 ms</td><td>1.2 s</td><td>1.8 s</td></tr>
+                    <tr><th scope="row">prod-logs</th><td>14 ms</td><td>38 ms</td><td>640 ms</td><td>1.1 s</td></tr>
+                    <tr><th scope="row">dev-vm</th><td>12 ms</td><td>35 ms</td><td>380 ms</td><td>820 ms</td></tr>
+                    <tr><th scope="row">billing-api</th><td>9 ms</td><td>27 ms</td><td>210 ms</td><td>480 ms</td></tr>
+                    <tr><th scope="row">app-logs</th><td>11 ms</td><td>33 ms</td><td>120 ms</td><td>240 ms</td></tr>
+                    <tr><th scope="row">dev-cluster</th><td>8 ms</td><td>22 ms</td><td>41 ms</td><td>96 ms</td></tr>
+                    <tr><th scope="row">prod-replica</th><td>9 ms</td><td>29 ms</td><td>28 ms</td><td>62 ms</td></tr>
+                    <tr><th scope="row">stage-db</th><td>8 ms</td><td>25 ms</td><td>22 ms</td><td>58 ms</td></tr>
+                    <tr><th scope="row">dev-db</th><td>7 ms</td><td>24 ms</td><td>12 ms</td><td>41 ms</td></tr>
+                    <tr><th scope="row">orders-mongo</th><td>6 ms</td><td>21 ms</td><td>9 ms</td><td>27 ms</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <footer class="gw-card__footer">
+              <a class="gw-btn gw-btn--link" href="activity.html?q=duration%3A%3E1s&amp;range=24h">View calls slower than 1 s in Activity</a>
+            </footer>
+          </section>
+
+          <section class="gw-card" aria-labelledby="in-errors-title">
+            <header class="gw-card__header">
+              <div class="gw-card__heading">
+                <h3 class="gw-card__title" id="in-errors-title" tabindex="-1">Errors by connection</h3>
+                <p class="gw-card__description">All 8 errors come from two connections: <code class="gw-code">cache-redis</code> times out and <code class="gw-code">billing-api</code> can't be reached.</p>
+              </div>
+            </header>
+            <div class="gw-card__body">
+              <div class="gw-table-wrap" role="region" aria-labelledby="in-errors-cap" tabindex="0">
+                <!-- The connection is the row link (its errors in Activity); the error text truncates (full text in title). -->
+                <table class="gw-table gw-table--dense gw-table--interactive">
+                  <caption class="gw-sr-only" id="in-errors-cap">Failed calls in the last 24 hours, by connection. Each connection opens its errors in Activity.</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Connection</th>
+                      <th scope="col" class="gw-table__cell--num">Errors</th>
+                      <th scope="col">Most common error</th>
+                      <th scope="col">Health now</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <th scope="row"><a class="gw-table__row-link gw-mono" href="activity.html?q=decision%3Aerror%20connection%3Acache-redis&amp;range=24h">cache-redis<span class="gw-sr-only">: view 5 errors in Activity</span></a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></th>
+                      <td class="gw-table__cell--num">5</td>
+                      <td class="gw-table__cell--mono gw-table__cell--truncate" style="--gw-cell-max: calc(var(--gw-space-12) * 3)" title="ETIMEDOUT after 2.0 s">ETIMEDOUT after 2.0 s</td>
+                      <td><span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Slow · 1.8 s</span></span></td>
+                    </tr>
+                    <tr>
+                      <th scope="row"><a class="gw-table__row-link gw-mono" href="activity.html?q=decision%3Aerror%20connection%3Abilling-api&amp;range=24h">billing-api<span class="gw-sr-only">: view 3 errors in Activity</span></a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></th>
+                      <td class="gw-table__cell--num">3</td>
+                      <td class="gw-table__cell--mono gw-table__cell--truncate" style="--gw-cell-max: calc(var(--gw-space-12) * 3)" title="ECONNREFUSED billing.stage.acme.dev:443">ECONNREFUSED billing.stage.acme.dev:443</td>
+                      <td><span class="gw-status gw-status--danger"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Unreachable</span></span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <footer class="gw-card__footer gw-card__footer--split">
+              <a class="gw-btn gw-btn--link" href="activity.html?q=decision%3Aerror&amp;range=24h">View all 8 in Activity</a>
+              <a class="gw-btn gw-btn--sm" href="connections.html"><i class="gw-icon gw-icon--sm" data-lucide="database"></i> Open connections</a>
+            </footer>
+          </section>
+        </div>
+      </section>
+
+    </div>
+    <!--
+      Command palette (elements/command-palette.html), opened by the titlebar Search button and ⌘K / Ctrl+K.
+      Part of the shell: copy it with the titlebar into every page, at the end of main. kit.js drives it, no page
+      script: data-gw-dialog-open="cmdk" opens it, the .gw-command-palette hook filters the options, moves the
+      active one (arrows, Home / End, pointer), runs it on Enter and resets on close, and the global ⌘K / Ctrl+K
+      listener toggles #cmdk (COMPONENTS.md › command-palette).
+    -->
+    <dialog class="gw-dialog gw-dialog--md gw-command-palette" id="cmdk" aria-labelledby="cmdk-title" aria-describedby="cmdk-keys">
+      <h2 class="gw-sr-only" id="cmdk-title">Command palette</h2>
+      <div class="gw-command-palette__search">
+        <div class="gw-search">
+          <i class="gw-icon gw-search__icon" data-lucide="search"></i>
+          <input class="gw-search__input" type="search" id="cmdk-q" role="combobox" aria-expanded="true" aria-controls="cmdk-list" aria-autocomplete="list" aria-activedescendant="cmdk-o-overview" aria-label="Search pages, connections, endpoints, actions" placeholder="Search pages, connections, endpoints, actions" autocomplete="off" spellcheck="false" autofocus>
+          <button class="gw-search__clear" type="button" aria-label="Clear search"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+        </div>
+      </div>
+      <div class="gw-command-palette__results">
+        <div class="gw-command-palette__list" role="listbox" id="cmdk-list" aria-label="Results">
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-goto">
+            <p class="gw-menu__note" id="cmdk-g-goto" aria-hidden="true">Go to</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-overview" href="overview.html" aria-selected="true" tabindex="-1" data-keywords="home dashboard setup map health">
+              <i class="gw-icon gw-menu__icon" data-lucide="layout-dashboard"></i><span class="gw-menu__label">Overview</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-approvals" href="approvals.html" aria-selected="false" tabindex="-1" data-keywords="requests pending queue decide">
+              <i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approvals <span class="gw-counter gw-counter--attention">3<span class="gw-sr-only"> waiting</span></span></span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-connections" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="databases servers logs clusters">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label">Connections</span><span class="gw-menu__hint">Resources</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-connectors" href="connectors.html" aria-selected="false" tabindex="-1" data-keywords="plugins templates mcp servers catalog">
+              <i class="gw-icon gw-menu__icon" data-lucide="puzzle"></i><span class="gw-menu__label">Connectors</span><span class="gw-menu__hint">Resources</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-secrets" href="secrets.html" aria-selected="false" tabindex="-1" data-keywords="master key vault encryption">
+              <i class="gw-icon gw-menu__icon" data-lucide="key-round"></i><span class="gw-menu__label">Secrets</span><span class="gw-menu__hint">Resources</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-endpoints" href="endpoints.html" aria-selected="false" tabindex="-1" data-keywords="mcp url tools tokens">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label">Endpoints</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-clients" href="clients.html" aria-selected="false" tabindex="-1" data-keywords="clients mcp claude desktop codex cursor antigravity">
+              <i class="gw-icon gw-menu__icon" data-lucide="app-window"></i><span class="gw-menu__label">AI apps</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-policies" href="policies.html" aria-selected="false" tabindex="-1" data-keywords="limits allowlist environments">
+              <i class="gw-icon gw-menu__icon" data-lucide="shield"></i><span class="gw-menu__label">Policies</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-playground" href="playground.html" aria-selected="false" tabindex="-1" data-keywords="try call tool">
+              <i class="gw-icon gw-menu__icon" data-lucide="flask-conical"></i><span class="gw-menu__label">Playground</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-activity" href="activity.html" aria-selected="false" tabindex="-1" data-keywords="log audit calls events traces">
+              <i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">Activity</span><span class="gw-menu__hint">Observe</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-insights" href="insights.html" aria-selected="false" tabindex="-1" data-keywords="analytics charts latency errors">
+              <i class="gw-icon gw-menu__icon" data-lucide="chart-column"></i><span class="gw-menu__label">Insights</span><span class="gw-menu__hint">Observe</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-settings" href="settings.html" aria-selected="false" tabindex="-1" aria-keyshortcuts="Meta+Comma Control+Comma" data-keywords="preferences notifications tunnel authorization appearance">
+              <i class="gw-icon gw-menu__icon" data-lucide="settings"></i><span class="gw-menu__label">Settings</span><kbd class="gw-menu__kbd" aria-hidden="true">⌘ ,</kbd><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+          </div>
+
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-actions">
+            <p class="gw-menu__note" id="cmdk-g-actions" aria-hidden="true">Actions</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-add-connection" href="connection-new.html" aria-selected="false" tabindex="-1" data-keywords="new resource postgres mongodb redis kubernetes">
+              <i class="gw-icon gw-menu__icon" data-lucide="plus"></i><span class="gw-menu__label">Add connection</span><span class="gw-menu__hint">Database, SSH, logs, cluster</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-create-endpoint" href="endpoints.html" aria-selected="false" tabindex="-1" data-keywords="new mcp url">
+              <i class="gw-icon gw-menu__icon" data-lucide="square-plus"></i><span class="gw-menu__label">Create endpoint</span><span class="gw-menu__hint">New MCP URL</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-issue-token" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="new token access key client">
+              <i class="gw-icon gw-menu__icon" data-lucide="key-round"></i><span class="gw-menu__label">Issue token</span><span class="gw-menu__hint">Shown once</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <button class="gw-menu__item" type="button" role="option" id="cmdk-o-copy-dev" aria-selected="false" tabindex="-1" data-gw-copy="http://127.0.0.1:7465/mcp/dev" data-gw-dialog-close data-keywords="clipboard link">
+              <i class="gw-icon gw-menu__icon" data-lucide="copy"></i><span class="gw-menu__label">Copy URL of endpoint <span class="gw-mono">dev</span></span><span class="gw-menu__hint gw-mono">/mcp/dev</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </button>
+            <button class="gw-menu__item" type="button" role="option" id="cmdk-o-theme" aria-selected="false" tabindex="-1" data-cmdk-theme data-gw-dialog-close data-keywords="dark light appearance">
+              <i class="gw-icon gw-menu__icon" data-lucide="sun-moon"></i><span class="gw-menu__label">Toggle theme</span><span class="gw-menu__hint">Light or dark</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </button>
+          </div>
+
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-connections">
+            <p class="gw-menu__note" id="cmdk-g-connections" aria-hidden="true">Connections</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-dev-db" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="postgres sql db.dev.internal">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label"><span class="gw-mono">dev-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></span><span class="gw-menu__hint">PostgreSQL 16</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-stage-db" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="postgres sql vault">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label"><span class="gw-mono">stage-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--stage">stage</span></span><span class="gw-menu__hint">PostgreSQL</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-prod-replica" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="postgres sql replica">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label"><span class="gw-mono">prod-replica</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--prod">prod</span></span><span class="gw-menu__hint">PostgreSQL read replica</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-dev-vm" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="ssh server runbook">
+              <i class="gw-icon gw-menu__icon" data-lucide="terminal"></i><span class="gw-menu__label"><span class="gw-mono">dev-vm</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></span><span class="gw-menu__hint">SSH · <span class="gw-mono">10.20.0.14</span></span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+          </div>
+
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-endpoints">
+            <p class="gw-menu__note" id="cmdk-g-endpoints" aria-hidden="true">Endpoints</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-ep-dev" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="endpoint tools tokens">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label gw-mono">dev</span><span class="gw-menu__hint gw-mono">/mcp/dev</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-ep-stage-readonly" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="endpoint claude.ai tunnel read only">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label gw-mono">stage-readonly</span><span class="gw-menu__hint gw-mono">/mcp/stage-readonly</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-ep-incident-prod" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="endpoint prod logs read only incident">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label gw-mono">incident-prod</span><span class="gw-menu__hint gw-mono">/mcp/incident-prod</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+          </div>
+        </div>
+
+        <div class="gw-empty gw-empty--compact" hidden data-cmdk-empty>
+          <span class="gw-empty__icon"><i class="gw-icon" data-lucide="search-x"></i></span>
+          <p class="gw-empty__title">No results for “<span data-cmdk-query></span>”</p>
+          <p class="gw-empty__text">Search covers pages, actions, connections and endpoints. A resource that isn't here yet starts with a new connection.</p>
+          <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" href="connection-new.html">Add connection</a></div>
+        </div>
+      </div>
+      <footer class="gw-dialog__footer gw-command-palette__footer" id="cmdk-keys">
+        <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd"><i class="gw-icon" data-lucide="arrow-up"></i><span class="gw-sr-only">Up arrow</span></kbd><kbd class="gw-kbd"><i class="gw-icon" data-lucide="arrow-down"></i><span class="gw-sr-only">Down arrow</span></kbd> to move</p>
+        <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd"><i class="gw-icon" data-lucide="corner-down-left"></i><span class="gw-sr-only">Enter</span></kbd> to open</p>
+        <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd">Esc</kbd> to close</p>
+      </footer>
+      <p class="gw-sr-only" role="status" data-cmdk-status></p>
+    </dialog>
+  </main>
+
+</div>
+<script src="../vendor/lucide/lucide.min.js"></script>
+<script src="../assets/kit.js"></script>
+</body>
+</html>

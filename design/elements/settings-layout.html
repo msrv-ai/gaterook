@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings layout · Element · GateRook kit</title>
+<link rel="icon" href="../assets/logo-mark.svg" type="image/svg+xml">
+<script src="../assets/theme-boot.js"></script>
+<link rel="stylesheet" href="../dist/gw-kit.css">
+</head>
+<body>
+<a class="gw-skip-link" href="#main">Skip to content</a>
+<main class="gw-page" id="main" tabindex="-1">
+
+  <header class="gw-page-header">
+    <div class="gw-page-header__row">
+      <div class="gw-page-header__heading">
+        <h1 class="gw-page-header__title">Settings layout</h1>
+        <p class="gw-page-header__description">Settings split into the groups people look for: Workspace, Security, Approvals, Network and Data. A settings nav on the left stays in view and marks where you are; each item is one section of topics on the right, with its own Save bar only where values need saving. Used on Settings and on the Settings tab of an endpoint.</p>
+      </div>
+      <div class="gw-page-header__actions">
+        <fieldset class="gw-segmented gw-segmented--sm">
+          <legend class="gw-sr-only">Theme</legend>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i>System</span></label>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i>Light</span></label>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i>Dark</span></label>
+        </fieldset>
+      </div>
+    </div>
+  </header>
+
+  <!-- ───────────────────────── The layout ───────────────────────── -->
+  <section class="gw-section" aria-labelledby="s-page">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-page">Settings page</h2>
+      <p class="gw-section__description">From 1280px the nav sits on the left and stays in view; the current item follows the section you scroll to. Appearance applies at once. In Authorization, client registration was switched to CIMD and not saved yet, so its Save bar floats at the bottom while that section is on screen (Discard brings back the saved value). Sign-in to the UI is server mode only: a read-only preview of what server mode adds, with the reason. Notifications apply at once (Slack is connected, Telegram is not set up); change a decision rule in Approval rules to see its Save bar appear. The nav marks the section in view with <code class="gw-code">aria-current="location"</code>.</p>
+    </header>
+
+    <div class="gw-settings-layout">
+
+      <nav class="gw-settings-layout__nav gw-nav" aria-label="Settings">
+        <div class="gw-nav__group" role="group" aria-labelledby="st-g-workspace">
+          <p class="gw-nav__group-label" id="st-g-workspace">Workspace</p>
+          <ul class="gw-nav__list">
+            <li><a class="gw-nav__item" href="../pages/settings.html#settings-general"><i class="gw-icon gw-nav__icon" data-lucide="sliders-horizontal"></i><span class="gw-nav__label">General</span></a></li>
+            <li><a class="gw-nav__item" href="#settings-appearance" aria-current="location"><i class="gw-icon gw-nav__icon" data-lucide="sun-moon"></i><span class="gw-nav__label">Appearance</span></a></li>
+          </ul>
+        </div>
+        <div class="gw-nav__group" role="group" aria-labelledby="st-g-security">
+          <p class="gw-nav__group-label" id="st-g-security">Security</p>
+          <ul class="gw-nav__list">
+            <li><a class="gw-nav__item" href="#settings-authorization"><i class="gw-icon gw-nav__icon" data-lucide="shield-check"></i><span class="gw-nav__label">Authorization</span></a></li>
+            <li><a class="gw-nav__item" href="../pages/settings.html#settings-users"><i class="gw-icon gw-nav__icon" data-lucide="users"></i><span class="gw-nav__label">Users &amp; roles</span></a></li>
+          </ul>
+        </div>
+        <div class="gw-nav__group" role="group" aria-labelledby="st-g-approvals">
+          <p class="gw-nav__group-label" id="st-g-approvals">Approvals</p>
+          <ul class="gw-nav__list">
+            <li><a class="gw-nav__item" href="#settings-notifications"><i class="gw-icon gw-nav__icon" data-lucide="bell"></i><span class="gw-nav__label">Notifications</span></a></li>
+            <li><a class="gw-nav__item" href="#settings-approval-rules"><i class="gw-icon gw-nav__icon" data-lucide="list-checks"></i><span class="gw-nav__label">Approval rules</span></a></li>
+          </ul>
+        </div>
+        <div class="gw-nav__group" role="group" aria-labelledby="st-g-network">
+          <p class="gw-nav__group-label" id="st-g-network">Network</p>
+          <ul class="gw-nav__list">
+            <li><a class="gw-nav__item" href="../pages/settings.html#settings-tunnel"><i class="gw-icon gw-nav__icon" data-lucide="globe"></i><span class="gw-nav__label">Tunnel</span></a></li>
+            <li><a class="gw-nav__item" href="../pages/settings.html#settings-local-api"><i class="gw-icon gw-nav__icon" data-lucide="server"></i><span class="gw-nav__label">Local API</span></a></li>
+          </ul>
+        </div>
+        <div class="gw-nav__group" role="group" aria-labelledby="st-g-data">
+          <p class="gw-nav__group-label" id="st-g-data">Data</p>
+          <ul class="gw-nav__list">
+            <li><a class="gw-nav__item" href="../pages/settings.html#settings-audit"><i class="gw-icon gw-nav__icon" data-lucide="scroll-text"></i><span class="gw-nav__label">Audit &amp; retention</span></a></li>
+            <li><a class="gw-nav__item" href="../pages/settings.html#settings-backup"><i class="gw-icon gw-nav__icon" data-lucide="archive"></i><span class="gw-nav__label">Backup</span></a></li>
+          </ul>
+        </div>
+      </nav>
+
+      <nav class="gw-settings-layout__jump" aria-label="Settings">
+        <div class="gw-field">
+          <label class="gw-field__label" for="st-jump">Jump to section</label>
+          <select class="gw-select" id="st-jump">
+            <optgroup label="Workspace">
+              <option value="../pages/settings.html#settings-general">General</option>
+              <option value="#settings-appearance" selected>Appearance</option>
+            </optgroup>
+            <optgroup label="Security">
+              <option value="#settings-authorization">Authorization</option>
+              <option value="../pages/settings.html#settings-users">Users &amp; roles</option>
+            </optgroup>
+            <optgroup label="Approvals">
+              <option value="#settings-notifications">Notifications</option>
+              <option value="../pages/settings.html#settings-approval-rules">Approval rules</option>
+            </optgroup>
+            <optgroup label="Network">
+              <option value="../pages/settings.html#settings-tunnel">Tunnel</option>
+              <option value="../pages/settings.html#settings-local-api">Local API</option>
+            </optgroup>
+            <optgroup label="Data">
+              <option value="../pages/settings.html#settings-audit">Audit &amp; retention</option>
+              <option value="../pages/settings.html#settings-backup">Backup</option>
+            </optgroup>
+          </select>
+        </div>
+      </nav>
+
+      <div class="gw-settings-layout__content">
+
+        <!-- ─── Workspace · Appearance: applies at once, no Save ─── -->
+        <section class="gw-settings-layout__section" id="settings-appearance" aria-labelledby="st-appearance-t">
+          <header class="gw-section__header">
+            <h3 class="gw-section__title" id="st-appearance-t">Appearance</h3>
+            <p class="gw-section__description">How GateRook looks on this device. Changes apply at once.</p>
+          </header>
+          <hr class="gw-divider">
+          <!-- A <form> only to scope the gw-theme / gw-contrast radio groups (apart from the
+               page's own theme switch): nothing to submit. Unnamed, so it adds no landmark. -->
+          <form class="gw-form" method="dialog">
+            <section class="gw-form__section" aria-labelledby="st-theme-t">
+              <header class="gw-form__section-header">
+                <h4 class="gw-form__legend" id="st-theme-t">Theme</h4>
+                <p class="gw-form__description" id="st-theme-d">System follows your operating system and switches with it.</p>
+              </header>
+              <div class="gw-form__rows">
+                <div class="gw-segmented" role="radiogroup" aria-labelledby="st-theme-t" aria-describedby="st-theme-d">
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i>System</span></label>
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i>Light</span></label>
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i>Dark</span></label>
+                </div>
+              </div>
+            </section>
+
+            <section class="gw-form__section" aria-labelledby="st-contrast-t">
+              <header class="gw-form__section-header">
+                <h4 class="gw-form__legend" id="st-contrast-t">Contrast</h4>
+                <p class="gw-form__description">High contrast strengthens text, borders and focus rings. Backgrounds and the brand colour stay the same.</p>
+              </header>
+              <div class="gw-form__rows">
+                <fieldset class="gw-field" aria-labelledby="st-contrast-t">
+                  <div class="gw-radio">
+                    <input class="gw-radio__input" type="radio" name="gw-contrast" id="st-contrast-system" value="system" checked aria-describedby="st-contrast-system-hint">
+                    <span class="gw-radio__control" aria-hidden="true"></span>
+                    <label class="gw-radio__label" for="st-contrast-system">System</label>
+                    <p class="gw-radio__hint" id="st-contrast-system-hint">Follows Increase contrast on macOS and contrast themes on Windows.</p>
+                  </div>
+                  <div class="gw-radio">
+                    <input class="gw-radio__input" type="radio" name="gw-contrast" id="st-contrast-normal" value="normal">
+                    <span class="gw-radio__control" aria-hidden="true"></span>
+                    <label class="gw-radio__label" for="st-contrast-normal">Normal</label>
+                  </div>
+                  <div class="gw-radio">
+                    <input class="gw-radio__input" type="radio" name="gw-contrast" id="st-contrast-more" value="more" aria-describedby="st-contrast-more-hint">
+                    <span class="gw-radio__control" aria-hidden="true"></span>
+                    <label class="gw-radio__label" for="st-contrast-more">High</label>
+                    <p class="gw-radio__hint" id="st-contrast-more-hint">Darker secondary text, stronger borders, a heavier focus ring.</p>
+                  </div>
+                </fieldset>
+              </div>
+            </section>
+
+            <section class="gw-form__section" aria-labelledby="st-density-t">
+              <header class="gw-form__section-header">
+                <h4 class="gw-form__legend" id="st-density-t">Density</h4>
+                <p class="gw-form__description">One compact density, tuned for long sessions: 32px controls and 40px table rows.</p>
+              </header>
+              <div class="gw-form__rows">
+                <div class="gw-alert gw-alert--info gw-alert--compact">
+                  <i class="gw-icon gw-alert__icon" data-lucide="info"></i>
+                  <div class="gw-alert__content"><p class="gw-alert__body">To make everything larger, zoom the window: View, then Zoom in, or <kbd class="gw-kbd">⌘</kbd><kbd class="gw-kbd">+</kbd> (<kbd class="gw-kbd">Ctrl</kbd><kbd class="gw-kbd">+</kbd> on Windows and Linux). The zoom level is remembered.</p></div>
+                </div>
+              </div>
+            </section>
+          </form>
+        </section>
+
+        <!-- ─── Security · Authorization: MCP access applies at once, OAuth needs Save ─── -->
+        <section class="gw-settings-layout__section" id="settings-authorization" aria-labelledby="st-auth-t">
+          <header class="gw-section__header">
+            <h3 class="gw-section__title" id="st-auth-t">Authorization</h3>
+            <p class="gw-section__description">How AI apps prove who they are before they call an endpoint, and who can sign in to this app.</p>
+          </header>
+          <hr class="gw-divider">
+          <!-- On the Settings page the how-it-works element (OAuth flow in 3 steps) goes here -->
+          <div class="gw-form gw-form--sticky-actions">
+            <section class="gw-form__section" aria-labelledby="st-mcp-t">
+              <header class="gw-form__section-header">
+                <h4 class="gw-form__legend" id="st-mcp-t">MCP access</h4>
+                <p class="gw-form__description">Defaults for named tokens (Cursor, Antigravity, MCP Inspector, scripts). Claude Desktop and Codex get 15-minute tokens on the fly and need none. They apply to new tokens at once; issued tokens keep their own.</p>
+              </header>
+              <div class="gw-form__rows">
+                <div class="gw-field">
+                  <label class="gw-field__label" for="st-ttl">Default token lifetime</label>
+                  <select class="gw-select" id="st-ttl" aria-describedby="st-ttl-hint">
+                    <option>1 day</option>
+                    <option selected>7 days</option>
+                    <option>30 days</option>
+                    <option>90 days</option>
+                  </select>
+                  <p class="gw-field__hint" id="st-ttl-hint">You can still pick another lifetime when you issue a token.</p>
+                </div>
+                <p class="gw-text-caption gw-fg-muted">No IP allowlist on the desktop: the gateway listens on <span class="gw-mono">127.0.0.1</span> only. Token IP allowlists are a server-mode setting.</p>
+              </div>
+            </section>
+
+            <form class="gw-form__section" id="st-oauth" method="dialog" aria-labelledby="st-oauth-t">
+              <header class="gw-form__section-header">
+                <h4 class="gw-form__legend" id="st-oauth-t">OAuth 2.1 for claude.ai</h4>
+                <p class="gw-form__description">claude.ai runs in the cloud, so instead of a pasted token it signs in with OAuth through the tunnel. It reaches endpoint <span class="gw-mono">stage-readonly</span> only.</p>
+              </header>
+              <div class="gw-form__rows">
+                <!-- A quick tunnel gets its address when it starts (ARCHITECTURE §8.6.9): with the tunnel off there is no
+                     issuer yet. While it is on, the field is a gw-copy-field with the address (pages/settings.html). -->
+                <div class="gw-field">
+                  <span class="gw-field__label" id="st-issuer-l">Issuer URL</span>
+                  <p class="gw-text-small gw-fg-secondary" aria-describedby="st-issuer-hint">None yet: the issuer is the tunnel's public address, and the tunnel has none.</p>
+                  <p class="gw-field__hint" id="st-issuer-hint">The tunnel's public address. claude.ai finds the metadata at <span class="gw-mono">/.well-known/oauth-protected-resource</span> from the endpoint URL.</p>
+                </div>
+                <div class="gw-alert gw-alert--warning gw-alert--compact">
+                  <i class="gw-icon gw-alert__icon" data-lucide="triangle-alert"></i>
+                  <div class="gw-alert__content"><p class="gw-alert__body">The tunnel is off, so claude.ai can't reach this issuer.</p></div>
+                  <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" href="../pages/settings.html#settings-tunnel">Set up tunnel</a></div>
+                </div>
+                <!-- Saved value: DCR (the checked attribute, so Discard = reset brings it back).
+                     The demo script selects CIMD on load to show the unsaved state. -->
+                <fieldset class="gw-field">
+                  <legend class="gw-field__label">Client registration</legend>
+                  <div class="gw-grid gw-grid--auto">
+                    <label class="gw-choice-card">
+                      <input class="gw-choice-card__input" type="radio" name="st-registration" value="cimd" aria-labelledby="st-reg-cimd-t" aria-describedby="st-reg-cimd-d">
+                      <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="file-key"></i></span>
+                      <span class="gw-choice-card__title" id="st-reg-cimd-t">CIMD <span class="gw-badge gw-badge--success gw-badge--sm">Recommended</span></span>
+                      <span class="gw-choice-card__description" id="st-reg-cimd-d">The client identifies itself with a metadata document at its own URL. Nothing to register or clean up.</span>
+                      <span class="gw-choice-card__meta">Client ID metadata document</span>
+                    </label>
+                    <label class="gw-choice-card">
+                      <input class="gw-choice-card__input" type="radio" name="st-registration" value="dcr" checked aria-labelledby="st-reg-dcr-t" aria-describedby="st-reg-dcr-d">
+                      <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="list-plus"></i></span>
+                      <span class="gw-choice-card__title" id="st-reg-dcr-t">Dynamic client registration <span class="gw-badge gw-badge--warning gw-badge--sm">Deprecated</span></span>
+                      <span class="gw-choice-card__description" id="st-reg-dcr-d">Each client registers itself and gets a client ID the gateway stores. Only for clients without CIMD.</span>
+                      <span class="gw-choice-card__meta">Deprecated in MCP 2026-07-28</span>
+                    </label>
+                  </div>
+                </fieldset>
+              </div>
+            </form>
+
+            <section class="gw-form__section" aria-labelledby="st-signin-t">
+              <header class="gw-form__section-header">
+                <h4 class="gw-form__legend" id="st-signin-t">Sign-in to the UI</h4>
+                <p class="gw-form__description">Who can open this app and decide on approval requests.</p>
+              </header>
+              <div class="gw-form__rows">
+                <div class="gw-alert gw-alert--neutral gw-alert--compact" id="st-signin-why">
+                  <i class="gw-icon gw-alert__icon" data-lucide="circle-help"></i>
+                  <div class="gw-alert__content"><p class="gw-alert__title">Server mode only</p><p class="gw-alert__body">This desktop app has one local user and no sign-in. Run GateRook in server mode to let a team sign in.</p></div>
+                </div>
+                <dl class="gw-kv gw-kv--dense" aria-label="Server mode preview: sign-in to the UI" aria-describedby="st-signin-why">
+                  <div class="gw-kv__row"><dt class="gw-kv__key">OIDC provider</dt><dd class="gw-kv__value">Google Workspace, Okta or Keycloak</dd></div>
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Two-factor sign-in</dt><dd class="gw-kv__value">Required for owners and admins: a passkey or an authenticator app</dd></div>
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Roles</dt><dd class="gw-kv__value">Owner, Admin, Approver, Developer, Viewer</dd></div>
+                </dl>
+              </div>
+            </section>
+
+            <div class="gw-form__actions">
+              <p class="gw-form__note" role="status"><i class="gw-icon" data-lucide="circle-dot"></i>Unsaved changes</p>
+              <button class="gw-btn" type="reset" form="st-oauth">Discard</button>
+              <button class="gw-btn gw-btn--primary" type="submit" form="st-oauth">Save OAuth settings</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ─── Approvals · Notifications: every channel applies at once (BLUEPRINT §9: desktop on, Slack connected,
+             Telegram not set up) ─── -->
+        <section class="gw-settings-layout__section" id="settings-notifications" aria-labelledby="st-notif-t">
+          <header class="gw-section__header">
+            <h3 class="gw-section__title" id="st-notif-t">Notifications</h3>
+            <p class="gw-section__description">Where approval requests reach you. Every channel shows the exact action, its connection and environment. You decide in the app after seeing the action; a channel can deny at once.</p>
+          </header>
+          <hr class="gw-divider">
+          <div class="gw-form">
+            <section class="gw-form__section" aria-labelledby="st-desktop-t">
+              <header class="gw-form__section-header">
+                <h4 class="gw-form__legend" id="st-desktop-t">Desktop</h4>
+                <p class="gw-form__description">System notifications on this computer. They apply at once.</p>
+              </header>
+              <div class="gw-form__rows">
+                <div class="gw-switch">
+                  <input class="gw-switch__input" type="checkbox" role="switch" id="st-desktop" checked aria-describedby="st-desktop-hint">
+                  <span class="gw-switch__control" aria-hidden="true"></span>
+                  <label class="gw-switch__label" for="st-desktop">Desktop notifications</label>
+                  <p class="gw-switch__hint" id="st-desktop-hint">A notification for every request, with Review and Deny. Approving always opens the full request first.</p>
+                </div>
+                <div class="gw-switch">
+                  <input class="gw-switch__input" type="checkbox" role="switch" id="st-sound" checked>
+                  <span class="gw-switch__control" aria-hidden="true"></span>
+                  <label class="gw-switch__label" for="st-sound">Play a sound for prod requests</label>
+                </div>
+              </div>
+            </section>
+
+            <section class="gw-form__section" aria-labelledby="st-slack-t">
+              <header class="gw-form__section-header">
+                <h4 class="gw-form__legend" id="st-slack-t">Slack</h4>
+                <p class="gw-form__description">Linked approvers decide with the buttons on the message. Changes apply at once.</p>
+              </header>
+              <div class="gw-form__rows">
+                <div class="gw-settings-layout__inline">
+                  <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Connected · workspace <span class="gw-mono">acme</span></span></span>
+                  <p class="gw-text-caption gw-fg-muted">Last request delivered <time datetime="2026-10-22T14:02:30+02:00" title="2026-10-22 14:02:30">28 min ago</time></p>
+                </div>
+                <fieldset class="gw-field">
+                  <legend class="gw-field__label">Send requests to</legend>
+                  <div class="gw-radio">
+                    <input class="gw-radio__input" type="radio" name="st-slack-to" id="st-slack-to-dm" value="dm" aria-describedby="st-slack-to-dm-hint">
+                    <span class="gw-radio__control" aria-hidden="true"></span>
+                    <label class="gw-radio__label" for="st-slack-to-dm">Direct messages to linked approvers <span class="gw-badge gw-badge--success gw-badge--sm">Recommended</span></label>
+                    <p class="gw-radio__hint" id="st-slack-to-dm-hint">Only the people who can decide see the exact action.</p>
+                  </div>
+                  <div class="gw-radio">
+                    <input class="gw-radio__input" type="radio" name="st-slack-to" id="st-slack-to-channel" value="channel" checked aria-describedby="st-slack-to-channel-hint">
+                    <span class="gw-radio__control" aria-hidden="true"></span>
+                    <label class="gw-radio__label" for="st-slack-to-channel">A channel</label>
+                    <p class="gw-radio__hint" id="st-slack-to-channel-hint">Everyone in the channel sees the exact action. Anyone who isn't a linked approver gets Open in app.</p>
+                  </div>
+                </fieldset>
+                <div class="gw-field gw-field--nested" role="group" aria-label="Slack channel">
+                  <label class="gw-field__label" for="st-slack-channel">Channel</label>
+                  <select class="gw-select" id="st-slack-channel" aria-describedby="st-slack-channel-hint">
+                    <option selected>#deploy-approvals</option>
+                    <option>#platform-oncall</option>
+                    <option>#dev-ops</option>
+                  </select>
+                  <p class="gw-field__hint" id="st-slack-channel-hint">Channels the GateRook app was added to.</p>
+                </div>
+              </div>
+            </section>
+
+            <section class="gw-form__section" aria-labelledby="st-telegram-t">
+              <header class="gw-form__section-header">
+                <h4 class="gw-form__legend" id="st-telegram-t">Telegram</h4>
+                <p class="gw-form__description">A bot posts each request to a chat. Linked approvers get Deny, and Approve when the request isn't on prod, the whole action fits and no comment is required.</p>
+              </header>
+              <div class="gw-form__rows">
+                <div class="gw-settings-layout__inline">
+                  <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Not set up</span></span>
+                  <a class="gw-btn" href="../pages/settings.html#settings-notifications" aria-describedby="st-tg-connect-hint"><i class="gw-icon" data-lucide="send"></i> Connect Telegram bot</a>
+                  <p class="gw-text-caption gw-fg-muted" id="st-tg-connect-hint">You need a bot token from <span class="gw-mono">@BotFather</span> and the chat the bot was added to.</p>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <!-- ─── Approvals · Approval rules: a Save form (edit it to see its Save bar) ─── -->
+        <section class="gw-settings-layout__section" id="settings-approval-rules" aria-labelledby="st-rules-t">
+          <header class="gw-section__header">
+            <h3 class="gw-section__title" id="st-rules-t">Approval rules</h3>
+            <p class="gw-section__description">Where decisions can be made and what a decision needs. Every mutation waits for a person; nothing here can skip that.</p>
+          </header>
+          <hr class="gw-divider">
+          <div class="gw-form gw-form--sticky-actions">
+            <form class="gw-form__section" id="st-rules" method="dialog" aria-labelledby="st-decisions-t">
+              <header class="gw-form__section-header">
+                <h4 class="gw-form__legend" id="st-decisions-t">Decisions</h4>
+                <p class="gw-form__description">Applies to every endpoint. Timeouts are set per environment in Policies.</p>
+              </header>
+              <div class="gw-form__rows">
+                <fieldset class="gw-field">
+                  <legend class="gw-field__label">Where decisions can be made</legend>
+                  <div class="gw-radio">
+                    <input class="gw-radio__input" type="radio" name="st-approvers" id="st-approvers-app" value="app" aria-describedby="st-approvers-app-hint">
+                    <span class="gw-radio__control" aria-hidden="true"></span>
+                    <label class="gw-radio__label" for="st-approvers-app">Only in this app</label>
+                    <p class="gw-radio__hint" id="st-approvers-app-hint">Slack and Telegram messages show Open in app instead of Approve and Deny.</p>
+                  </div>
+                  <div class="gw-radio">
+                    <input class="gw-radio__input" type="radio" name="st-approvers" id="st-approvers-linked" value="linked" checked aria-describedby="st-approvers-linked-hint">
+                    <span class="gw-radio__control" aria-hidden="true"></span>
+                    <label class="gw-radio__label" for="st-approvers-linked">In this app and from linked Slack or Telegram accounts</label>
+                    <p class="gw-radio__hint" id="st-approvers-linked-hint">Approve is still dropped from every prod request, from a message that can't show the whole action, and when a comment is required.</p>
+                  </div>
+                </fieldset>
+                <div class="gw-checkbox">
+                  <input class="gw-checkbox__input" type="checkbox" id="st-comment-prod" checked aria-describedby="st-comment-prod-hint">
+                  <span class="gw-checkbox__control" aria-hidden="true"></span>
+                  <label class="gw-checkbox__label" for="st-comment-prod">Require a comment on prod</label>
+                  <p class="gw-checkbox__hint" id="st-comment-prod-hint">Approve and run stays unavailable until the approver writes why. Slack and Telegram offer only Deny and Open in app for prod either way.</p>
+                </div>
+              </div>
+            </form>
+
+            <div class="gw-form__actions" hidden>
+              <p class="gw-form__note" role="status"><i class="gw-icon" data-lucide="circle-dot"></i>Unsaved changes</p>
+              <button class="gw-btn" type="reset" form="st-rules">Discard</button>
+              <button class="gw-btn gw-btn--primary" type="submit" form="st-rules">Save approval rules</button>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── Narrow window ───────────────────────── -->
+  <section class="gw-section" aria-labelledby="s-jump">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-jump">Narrow window: jump to section</h2>
+      <p class="gw-section__description">Below 1280px the nav gives its width back to the forms and becomes this select above the sections: same items, grouped the same way. Picking one scrolls to that section; focus stays on the select. A static copy, shown on its own so it is visible at any width.</p>
+    </header>
+    <div class="gw-grid gw-grid--auto">
+    <div class="gw-card">
+      <div class="gw-card__body">
+        <div class="gw-field">
+          <label class="gw-field__label" for="st-jump-preview">Jump to section</label>
+          <select class="gw-select" id="st-jump-preview">
+            <optgroup label="Workspace">
+              <option>General</option>
+              <option>Appearance</option>
+            </optgroup>
+            <optgroup label="Security">
+              <option selected>Authorization</option>
+              <option>Users &amp; roles</option>
+            </optgroup>
+            <optgroup label="Approvals">
+              <option>Notifications</option>
+              <option>Approval rules</option>
+            </optgroup>
+            <optgroup label="Network">
+              <option>Tunnel</option>
+              <option>Local API</option>
+            </optgroup>
+            <optgroup label="Data">
+              <option>Audit &amp; retention</option>
+              <option>Backup</option>
+            </optgroup>
+          </select>
+        </div>
+      </div>
+    </div>
+    </div>
+  </section>
+
+</main>
+<script src="../vendor/lucide/lucide.min.js"></script>
+<script src="../assets/kit.js"></script>
+<script>
+/* Demo-only reference behaviour of settings-layout (the app implements the same):
+   Jump to section scrolls to the section and leaves focus on the select (on Windows the
+   arrow keys change a closed select's value, so moving focus would strand the keyboard);
+   the current nav item follows the section in view; a Save form shows its sticky bar
+   while it has unsaved changes; settings that apply at once confirm with a toast.
+   In the app every item is a section of the same page; here the items without a demo
+   section open pages/settings.html. */
+(function () {
+  "use strict";
+  var layout = document.querySelector(".gw-settings-layout");
+  if (!layout) return;
+  var links = Array.prototype.slice.call(layout.querySelectorAll('.gw-settings-layout__nav a[href^="#"]'));
+  var jump = layout.querySelector(".gw-settings-layout__jump select");
+
+  // Demo state: client registration switched from the saved DCR to CIMD, not saved yet.
+  var cimd = layout.querySelector('#st-oauth input[value="cimd"]');
+  if (cimd) cimd.checked = true;
+
+  function setCurrent(id) {
+    links.forEach(function (a) {
+      if (a.getAttribute("href") === "#" + id) a.setAttribute("aria-current", "location");
+      else a.removeAttribute("aria-current");
+    });
+    if (jump) jump.value = "#" + id;
+  }
+
+  links.forEach(function (a) {
+    a.addEventListener("click", function () { setCurrent(a.getAttribute("href").slice(1)); });
+  });
+
+  if (jump) {
+    jump.addEventListener("change", function () {
+      var v = jump.value;
+      if (v.charAt(0) !== "#") { window.location.href = v; return; }
+      var section = document.getElementById(v.slice(1));
+      if (section) section.scrollIntoView({ block: "start" });
+    });
+  }
+
+  if ("IntersectionObserver" in window) {
+    var spy = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { if (e.isIntersecting) setCurrent(e.target.id); });
+    }, { rootMargin: "0px 0px -70% 0px" });
+    layout.querySelectorAll(".gw-settings-layout__section[id]").forEach(function (s) { spy.observe(s); });
+  }
+
+  layout.querySelectorAll("form.gw-form__section[id]").forEach(function (form) {
+    var save = layout.querySelector('.gw-form__actions [type="submit"][form="' + form.id + '"]');
+    var bar = save && save.closest(".gw-form__actions");
+    if (!bar) return;
+    var name = (form.querySelector(".gw-form__legend") || {}).textContent || "Settings";
+    function dirty() {
+      if (!bar.hidden) return;
+      bar.hidden = false;
+      if (window.gwAnnounce) window.gwAnnounce("Unsaved changes in " + name);
+    }
+    form.addEventListener("input", dirty);
+    form.addEventListener("change", dirty);
+    form.addEventListener("reset", function () { bar.hidden = true; });
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      bar.hidden = true;
+      if (window.gwToast) window.gwToast({ title: name + " saved", tone: "success" });
+    });
+  });
+
+  layout.addEventListener("change", function (e) {
+    var el = e.target;
+    if (el.form || el.closest(".gw-settings-layout__jump") || !window.gwToast) return;
+    var label = el.labels && el.labels[0] ? el.labels[0].textContent.trim() : "Setting";
+    var value = el.type === "checkbox" ? (el.checked ? "on" : "off") : (el.options ? el.options[el.selectedIndex].text : el.value);
+    window.gwToast({ title: "Saved", body: label + ": " + value + ".", tone: "success" });
+  });
+})();
+</script>
+</body>
+</html>

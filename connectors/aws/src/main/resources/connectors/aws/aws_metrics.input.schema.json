@@ -1,0 +1,169 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string",
+      "description": "Default: the connection's first region"
+    },
+    "action": {
+      "enum": [
+        "query",
+        "list_metrics",
+        "alarms"
+      ],
+      "default": "query"
+    },
+    "metrics": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "namespace",
+          "metric"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-zA-Z0-9_]{0,31}$"
+          },
+          "namespace": {
+            "type": "string",
+            "maxLength": 255,
+            "examples": [
+              "AWS/RDS"
+            ]
+          },
+          "metric": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "dimensions": {
+            "type": "object",
+            "maxProperties": 30,
+            "additionalProperties": {
+              "type": "string",
+              "maxLength": 1024
+            }
+          },
+          "stat": {
+            "type": "string",
+            "maxLength": 32,
+            "default": "Average",
+            "examples": [
+              "Average",
+              "Sum",
+              "Maximum",
+              "p99"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 256
+          }
+        }
+      }
+    },
+    "expressions": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "expression"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-zA-Z0-9_]{0,31}$"
+          },
+          "expression": {
+            "type": "string",
+            "maxLength": 512,
+            "examples": [
+              "100 * m2 / m1"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 256
+          }
+        }
+      }
+    },
+    "from": {
+      "type": "string",
+      "maxLength": 40,
+      "default": "-1h"
+    },
+    "to": {
+      "type": "string",
+      "maxLength": 40,
+      "default": "now"
+    },
+    "period": {
+      "type": "integer",
+      "enum": [
+        60,
+        300,
+        900,
+        3600,
+        21600,
+        86400
+      ],
+      "description": "Default: smallest giving ≤ 360 points that fits retention"
+    },
+    "namespace": {
+      "type": "string",
+      "maxLength": 255,
+      "description": "list_metrics"
+    },
+    "metric": {
+      "type": "string",
+      "maxLength": 255,
+      "description": "list_metrics"
+    },
+    "dimensions": {
+      "type": "object",
+      "maxProperties": 30,
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 1024
+      },
+      "description": "list_metrics"
+    },
+    "state": {
+      "enum": [
+        "ALARM",
+        "OK",
+        "INSUFFICIENT_DATA"
+      ],
+      "description": "alarms; default ALARM"
+    },
+    "alarmNamePrefix": {
+      "type": "string",
+      "maxLength": 255
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 50
+    },
+    "cursor": {
+      "type": "string",
+      "maxLength": 4096
+    }
+  }
+}

@@ -1,0 +1,108 @@
+<section class="sc-section" id="stepper" data-title="Stepper" data-group="In-page navigation">
+  <h2>Stepper <code class="gw-code">gw-stepper</code></h2>
+  <p>Where the user is in a short linear flow of three to five steps: Add connection, first-run onboarding. With <code class="gw-code">--guide</code> it is a two- or three-step first-run guide whose steps carry their own actions. An ordered list; the current step carries <code class="gw-code">aria-current="step"</code>, and completed or failed steps say so in sr-only text, not only with the check or the cross. Horizontal from 960px, vertical below it or always with <code class="gw-code">--vertical</code>. It shows progress, it is not navigation: going back is a Back button. Do not use it for views of equal weight (<code class="gw-code">gw-tabs</code>) or for an open-ended checklist (<code class="gw-code">getting-started</code>).</p>
+
+  <h3>Add connection</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <ol class="gw-stepper" aria-label="Add connection">
+      <li class="gw-stepper__step" data-state="complete">
+        <span class="gw-stepper__marker" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
+        <span class="gw-stepper__label">Choose type<span class="gw-sr-only">, completed</span></span>
+        <span class="gw-stepper__description">PostgreSQL</span>
+      </li>
+      <li class="gw-stepper__step" data-state="current" aria-current="step">
+        <span class="gw-stepper__marker" aria-hidden="true">2</span>
+        <span class="gw-stepper__label">Configure</span>
+        <span class="gw-stepper__description"><span class="gw-mono">dev-db</span> · dev</span>
+      </li>
+      <li class="gw-stepper__step" data-state="upcoming">
+        <span class="gw-stepper__marker" aria-hidden="true">3</span>
+        <span class="gw-stepper__label">Test</span>
+      </li>
+      <li class="gw-stepper__step" data-state="upcoming">
+        <span class="gw-stepper__marker" aria-hidden="true">4</span>
+        <span class="gw-stepper__label">Add to endpoint</span>
+      </li>
+    </ol>
+  </div>
+
+  <h3>Failed step</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <ol class="gw-stepper" aria-label="Add connection">
+      <li class="gw-stepper__step" data-state="complete">
+        <span class="gw-stepper__marker" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
+        <span class="gw-stepper__label">Choose type<span class="gw-sr-only">, completed</span></span>
+        <span class="gw-stepper__description">HTTP API</span>
+      </li>
+      <li class="gw-stepper__step" data-state="complete">
+        <span class="gw-stepper__marker" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
+        <span class="gw-stepper__label">Configure<span class="gw-sr-only">, completed</span></span>
+        <span class="gw-stepper__description"><span class="gw-mono">billing-api</span> · stage</span>
+      </li>
+      <li class="gw-stepper__step" data-state="error" aria-current="step">
+        <span class="gw-stepper__marker" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></span>
+        <span class="gw-stepper__label">Test<span class="gw-sr-only">, failed</span></span>
+        <span class="gw-stepper__description">Unreachable: <span class="gw-mono">https://billing.stage.acme.dev</span> refused the connection</span>
+      </li>
+      <li class="gw-stepper__step" data-state="upcoming">
+        <span class="gw-stepper__marker" aria-hidden="true">4</span>
+        <span class="gw-stepper__label">Add to endpoint</span>
+      </li>
+    </ol>
+  </div>
+
+  <h3>Vertical</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <ol class="gw-stepper gw-stepper--vertical" aria-label="Set up GateRook">
+      <li class="gw-stepper__step" data-state="complete">
+        <span class="gw-stepper__marker" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
+        <span class="gw-stepper__label">Protect master key<span class="gw-sr-only">, completed</span></span>
+        <span class="gw-stepper__description">Backed up 12 days ago · <span class="gw-mono">~/.gaterook/master.keyset</span></span>
+      </li>
+      <li class="gw-stepper__step" data-state="complete">
+        <span class="gw-stepper__marker" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
+        <span class="gw-stepper__label">Add connection<span class="gw-sr-only">, completed</span></span>
+        <span class="gw-stepper__description"><span class="gw-mono">dev-db</span> · healthy 12 ms</span>
+      </li>
+      <li class="gw-stepper__step" data-state="current" aria-current="step">
+        <span class="gw-stepper__marker" aria-hidden="true">3</span>
+        <span class="gw-stepper__label">Create endpoint</span>
+        <span class="gw-stepper__description">One URL for your agents: <span class="gw-mono">http://127.0.0.1:7465/mcp/dev</span></span>
+      </li>
+      <li class="gw-stepper__step" data-state="upcoming">
+        <span class="gw-stepper__marker" aria-hidden="true">4</span>
+        <span class="gw-stepper__label">Connect your AI app</span>
+        <span class="gw-stepper__description">Claude Desktop, Codex, Cursor, Antigravity or claude.ai</span>
+      </li>
+    </ol>
+  </div>
+
+  <h3>Guide (first run)</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <ol class="gw-stepper gw-stepper--guide" aria-label="Get started">
+      <li class="gw-stepper__step" data-state="current" aria-current="step">
+        <span class="gw-stepper__marker" aria-hidden="true">1</span>
+        <h4 class="gw-stepper__label">Add your first connection</h4>
+        <p class="gw-stepper__description">A connection is something your AI can work with: a database, a server, logs or an API.</p>
+        <div class="gw-stepper__content gw-stack gw-stack--sm">
+          <div><a class="gw-btn gw-btn--primary" href="#stepper"><i class="gw-icon" data-lucide="plus"></i> Add connection</a></div>
+          <p class="gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--xs" data-lucide="shield-check"></i> Your AI can read right away. Anything that changes data waits for your approval.</p>
+        </div>
+      </li>
+      <li class="gw-stepper__step" data-state="upcoming">
+        <span class="gw-stepper__marker" aria-hidden="true">2</span>
+        <h4 class="gw-stepper__label">Connect your AI app</h4>
+        <p class="gw-stepper__description">Choose the app you use and click Connect. We show what changes in its settings before writing anything.</p>
+        <div class="gw-stepper__content gw-stack gw-stack--sm">
+          <div><button class="gw-btn gw-btn--sm" type="button" aria-disabled="true" aria-describedby="sc-guide-why">Connect<span class="gw-sr-only"> Claude Desktop</span></button></div>
+          <p class="gw-text-caption gw-fg-muted" id="sc-guide-why"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i> Add a connection first: your AI app needs something to work with.</p>
+        </div>
+      </li>
+      <li class="gw-stepper__step" data-state="upcoming">
+        <span class="gw-stepper__marker" aria-hidden="true">3</span>
+        <h4 class="gw-stepper__label">Check that it works</h4>
+        <p class="gw-stepper__description">Ask your AI app something. Its first request shows up here.</p>
+      </li>
+    </ol>
+  </div>
+</section>

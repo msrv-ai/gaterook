@@ -1,0 +1,707 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  MCP Gateway: the Maven reactor.
+
+  Every library version lives here and only here (ARCHITECTURE.md §1): the Spring Boot BOM rewrites transitive
+  versions in `app`, so a pin in a module pom would silently not reach the e2e tests and the native image.
+  Module poms declare dependencies without versions.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>4.1.2</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>ai.msrv.gaterook</groupId>
+  <artifactId>mcp-gateway</artifactId>
+  <version>0.4.0-SNAPSHOT</version>
+  <packaging>pom</packaging>
+  <name>MCP Gateway</name>
+  <description>Desktop gateway through which AI agents use infrastructure via MCP without seeing secrets.</description>
+
+  <modules>
+    <module>connector-api</module>
+    <module>plugin-protocol</module>
+    <module>third-party/sshd-nofs</module>
+    <module>connectors/support</module>
+    <module>connectors/cloud-auth</module>
+    <module>connectors/sql</module>
+    <module>connectors/mongodb</module>
+    <module>connectors/redis</module>
+    <module>connectors/ssh</module>
+    <module>connectors/logs</module>
+    <module>connectors/kubernetes</module>
+    <module>connectors/gcp</module>
+    <module>connectors/aws</module>
+    <module>connectors/http</module>
+    <module>connectors/mcp-server</module>
+    <module>core</module>
+    <module>app</module>
+    <module>plugin-host</module>
+    <module>plugins/jira-service-desk</module>
+    <module>plugins/test-fixtures</module>
+    <module>plugins/clickhouse</module>
+    <module>plugins/rabbitmq</module>
+    <module>plugin-it</module>
+    <module>bridge-cli</module>
+  </modules>
+
+  <properties>
+    <java.version>25</java.version>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+    <!-- The SPI is versioned on its own: plugins declare requires.connectorApi against it (ApiVersion.CURRENT). -->
+    <connector-api.version>1.0.0</connector-api.version>
+
+    <!-- Overrides of versions the Spring Boot BOM manages (reports 05, 07, 09). -->
+    <mongodb.version>5.13.0</mongodb.version>
+    <jedis.version>8.0.2</jedis.version>
+    <!-- Jedis 8.0.2 and google-auth 1.54.0 need gson 2.14.0; Boot 4.1.2 would pin 2.13.2. -->
+    <gson.version>2.14.0</gson.version>
+
+    <!-- Versions the Spring Boot BOM does not manage. -->
+    <spring-modulith.version>2.1.2</spring-modulith.version>
+    <resilience4j.version>2.4.0</resilience4j.version>
+    <aws-sdk.version>2.57.3</aws-sdk.version>
+    <fabric8.version>8.0.0</fabric8.version>
+    <okhttp.version>5.5.1</okhttp.version>
+    <google-auth.version>1.54.0</google-auth.version>
+    <jsqlparser.version>5.4</jsqlparser.version>
+    <sshd.version>2.20.0</sshd.version>
+    <bouncycastle.version>1.86</bouncycastle.version>
+    <java-diff-utils.version>4.17</java-diff-utils.version>
+    <!-- Google client libraries disagree among themselves (google-auth 1.54.0, google-http-client 2.2.0, Tink):
+         one version each for app's dependencyConvergence, the highest any of them asks for. -->
+    <guava.version>33.6.0-jre</guava.version>
+    <error_prone_annotations.version>2.50.0</error_prone_annotations.version>
+    <j2objc-annotations.version>3.1</j2objc-annotations.version>
+    <!-- One pin for everybody: Fabric8 8.0.0 brings 3.1.1, the OpenAPI loader of report 10 was checked on 3.0.1. -->
+    <snakeyaml-engine.version>3.1.1</snakeyaml-engine.version>
+    <!-- Held at 3.0.6 until the RefCheck CI gate passes on 3.0.8 (3.0.7+ are built against Jackson 3.2). -->
+    <json-schema-validator.version>3.0.6</json-schema-validator.version>
+    <tink.version>1.24.0</tink.version>
+    <mcp-sdk.version>2.1.0</mcp-sdk.version>
+    <pf4j.version>3.16.0</pf4j.version>
+    <archunit.version>1.4.2</archunit.version>
+    <flapdoodle-mongo.version>5.0.0</flapdoodle-mongo.version>
+    <extra-enforcer-rules.version>1.12.1</extra-enforcer-rules.version>
+
+    <!-- Only `app` has a main class; libraries keep an empty Main-Class out of their manifests. -->
+    <start-class/>
+    <!-- `spring-boot:run` is meant for `app` only (ARCHITECTURE.md §2.4). -->
+    <spring-boot.run.skip>true</spring-boot.run.skip>
+
+    <!--
+      Heavy integration tests are JUnit 5 tags, excluded by default and switched on by a profile of the same name.
+      Each profile replaces its own tag with a name no test uses, so several profiles compose.
+    -->
+    <it.tag.mysql>mysql-it</it.tag.mysql>
+    <it.tag.mongo>mongo-it</it.tag.mongo>
+    <it.tag.logs>logs-it</it.tag.logs>
+    <it.tag.kube>kube-api</it.tag.kube>
+    <it.tag.vault>vault-it</it.tag.vault>
+    <it.tag.cloud>cloud-it</it.tag.cloud>
+    <it.tag.network>network</it.tag.network>
+    <it.tag.mcpclients>mcp-clients</it.tag.mcpclients>
+    <it.tag.openapi>openapi-corpus</it.tag.openapi>
+    <it.tag.mcpservers>mcp-servers</it.tag.mcpservers>
+    <!-- The folder of test-services/docker-compose.yml when the ITs use its servers (-Pservices), else empty. -->
+    <it.services></it.services>
+    <!-- Extra JVM options of the test forks: the tracing agent of the nightly metadata report (native.yml). -->
+    <test.jvm.extra></test.jvm.extra>
+    <it.excludedGroups>${it.tag.mysql},${it.tag.mongo},${it.tag.logs},${it.tag.kube},${it.tag.vault},${it.tag.cloud},${it.tag.network},${it.tag.mcpclients},${it.tag.openapi},${it.tag.mcpservers}</it.excludedGroups>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <!-- ── Our own modules ───────────────────────────────────────────────────────────────────────────── -->
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connector-api</artifactId>
+        <version>${connector-api.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>plugin-protocol</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>sshd-nofs</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-support</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-cloud-auth</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-sql</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-mongodb</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-redis</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-ssh</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-logs</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-kubernetes</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-gcp</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-aws</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-http</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>connectors-mcp-server</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>core</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>bridge-cli</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>ai.msrv.gaterook</groupId>
+        <artifactId>plugin-host</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+
+      <!-- ── BOMs ──────────────────────────────────────────────────────────────────────────────────────── -->
+      <dependency>
+        <groupId>org.springframework.modulith</groupId>
+        <artifactId>spring-modulith-bom</artifactId>
+        <version>${spring-modulith.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>io.github.resilience4j</groupId>
+        <artifactId>resilience4j-bom</artifactId>
+        <version>${resilience4j.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>bom</artifactId>
+        <version>${aws-sdk.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>io.fabric8</groupId>
+        <artifactId>kubernetes-client-bom</artifactId>
+        <version>${fabric8.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>com.squareup.okhttp3</groupId>
+        <artifactId>okhttp-bom</artifactId>
+        <version>${okhttp.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+
+      <!-- ── Connectors: SQL (report 04) ───────────────────────────────────────────────────────────────── -->
+      <dependency>
+        <groupId>com.mysql</groupId>
+        <artifactId>mysql-connector-j</artifactId>
+        <version>${mysql.version}</version>
+        <exclusions>
+          <!-- Only the X DevAPI needs protobuf; classic JDBC works without it. -->
+          <exclusion>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>com.github.jsqlparser</groupId>
+        <artifactId>jsqlparser</artifactId>
+        <version>${jsqlparser.version}</version>
+      </dependency>
+
+      <!-- ── Connectors: Redis (report 05) ─────────────────────────────────────────────────────────────── -->
+      <dependency>
+        <groupId>redis.clients</groupId>
+        <artifactId>jedis</artifactId>
+        <version>${jedis.version}</version>
+        <exclusions>
+          <!-- Entra ID authentication, a beta artifact our paths don't use. -->
+          <exclusion>
+            <groupId>redis.clients.authentication</groupId>
+            <artifactId>redis-authx-core</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+
+      <!-- ── Connectors: SSH (reports 06, 15 §4) ───────────────────────────────────────────────────────── -->
+      <!-- Only third-party/sshd-nofs may depend on these; everybody else uses ai.msrv.gaterook:sshd-nofs. -->
+      <dependency>
+        <groupId>org.apache.sshd</groupId>
+        <artifactId>sshd-core</artifactId>
+        <version>${sshd.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>jcl-over-slf4j</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.sshd</groupId>
+        <artifactId>sshd-common</artifactId>
+        <version>${sshd.version}</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>jcl-over-slf4j</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>org.bouncycastle</groupId>
+        <artifactId>bcprov-jdk18on</artifactId>
+        <version>${bouncycastle.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.bouncycastle</groupId>
+        <artifactId>bcpkix-jdk18on</artifactId>
+        <version>${bouncycastle.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.bouncycastle</groupId>
+        <artifactId>bcutil-jdk18on</artifactId>
+        <version>${bouncycastle.version}</version>
+      </dependency>
+
+      <!-- ── Cloud credentials (reports 07, 09, 12) ────────────────────────────────────────────────────── -->
+      <dependency>
+        <groupId>com.google.auth</groupId>
+        <artifactId>google-auth-library-oauth2-http</artifactId>
+        <version>${google-auth.version}</version>
+        <exclusions>
+          <!-- The default transport is NetHttpTransport; Apache HttpClient 4 is dead weight. -->
+          <exclusion>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpcore</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>com.google.auth</groupId>
+        <artifactId>google-auth-library-credentials</artifactId>
+        <version>${google-auth.version}</version>
+      </dependency>
+      <!--
+        Every AWS SDK client: only url-connection-client, never Apache 4/5 or Netty (report 09). Each client is built
+        with .httpClient(UrlConnectionHttpClient.create()); the enforcer bans the other HTTP clients as well.
+      -->
+      <dependency>
+        <groupId>com.google.guava</groupId>
+        <artifactId>guava</artifactId>
+        <version>${guava.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.google.errorprone</groupId>
+        <artifactId>error_prone_annotations</artifactId>
+        <version>${error_prone_annotations.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.google.j2objc</groupId>
+        <artifactId>j2objc-annotations</artifactId>
+        <version>${j2objc-annotations.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>sts</artifactId>
+        <version>${aws-sdk.version}</version>
+        <exclusions>
+          <exclusion><groupId>software.amazon.awssdk</groupId><artifactId>apache5-client</artifactId></exclusion>
+          <exclusion><groupId>software.amazon.awssdk</groupId><artifactId>apache-client</artifactId></exclusion>
+          <exclusion><groupId>software.amazon.awssdk</groupId><artifactId>netty-nio-client</artifactId></exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>cloudwatchlogs</artifactId>
+        <version>${aws-sdk.version}</version>
+        <exclusions>
+          <exclusion><groupId>software.amazon.awssdk</groupId><artifactId>apache5-client</artifactId></exclusion>
+          <exclusion><groupId>software.amazon.awssdk</groupId><artifactId>apache-client</artifactId></exclusion>
+          <exclusion><groupId>software.amazon.awssdk</groupId><artifactId>netty-nio-client</artifactId></exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>cloudcontrol</artifactId>
+        <version>${aws-sdk.version}</version>
+        <exclusions>
+          <exclusion><groupId>software.amazon.awssdk</groupId><artifactId>apache5-client</artifactId></exclusion>
+          <exclusion><groupId>software.amazon.awssdk</groupId><artifactId>apache-client</artifactId></exclusion>
+          <exclusion><groupId>software.amazon.awssdk</groupId><artifactId>netty-nio-client</artifactId></exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>cloudwatch</artifactId>
+        <version>${aws-sdk.version}</version>
+        <exclusions>
+          <exclusion><groupId>software.amazon.awssdk</groupId><artifactId>apache5-client</artifactId></exclusion>
+          <exclusion><groupId>software.amazon.awssdk</groupId><artifactId>apache-client</artifactId></exclusion>
+          <exclusion><groupId>software.amazon.awssdk</groupId><artifactId>netty-nio-client</artifactId></exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>secretsmanager</artifactId>
+        <version>${aws-sdk.version}</version>
+        <exclusions>
+          <exclusion><groupId>software.amazon.awssdk</groupId><artifactId>apache5-client</artifactId></exclusion>
+          <exclusion><groupId>software.amazon.awssdk</groupId><artifactId>apache-client</artifactId></exclusion>
+          <exclusion><groupId>software.amazon.awssdk</groupId><artifactId>netty-nio-client</artifactId></exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>http-auth-aws</artifactId>
+        <version>${aws-sdk.version}</version>
+        <exclusions>
+          <exclusion><groupId>software.amazon.awssdk</groupId><artifactId>apache5-client</artifactId></exclusion>
+          <exclusion><groupId>software.amazon.awssdk</groupId><artifactId>apache-client</artifactId></exclusion>
+          <exclusion><groupId>software.amazon.awssdk</groupId><artifactId>netty-nio-client</artifactId></exclusion>
+        </exclusions>
+      </dependency>
+
+      <!-- ── Connectors: Kubernetes (report 08) ────────────────────────────────────────────────────────── -->
+      <dependency>
+        <groupId>io.fabric8</groupId>
+        <artifactId>kubernetes-client</artifactId>
+        <version>${fabric8.version}</version>
+        <exclusions>
+          <!-- 8.0 renamed the default HTTP client module; we use kubernetes-httpclient-jdk. -->
+          <exclusion>
+            <groupId>io.fabric8</groupId>
+            <artifactId>kubernetes-httpclient-vertx-5</artifactId>
+          </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>io.github.java-diff-utils</groupId>
+        <artifactId>java-diff-utils</artifactId>
+        <version>${java-diff-utils.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.snakeyaml</groupId>
+        <artifactId>snakeyaml-engine</artifactId>
+        <version>${snakeyaml-engine.version}</version>
+      </dependency>
+
+      <!-- ── Core ──────────────────────────────────────────────────────────────────────────────────────── -->
+      <dependency>
+        <groupId>com.networknt</groupId>
+        <artifactId>json-schema-validator</artifactId>
+        <version>${json-schema-validator.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.google.crypto.tink</groupId>
+        <artifactId>tink</artifactId>
+        <version>${tink.version}</version>
+      </dependency>
+
+      <!-- ── MCP Java SDK: client to external MCP servers and reference client in tests (report 01, 11) ── -->
+      <dependency>
+        <groupId>io.modelcontextprotocol.sdk</groupId>
+        <artifactId>mcp-core</artifactId>
+        <version>${mcp-sdk.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.modelcontextprotocol.sdk</groupId>
+        <artifactId>mcp-json-jackson3</artifactId>
+        <version>${mcp-sdk.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.modelcontextprotocol.sdk</groupId>
+        <artifactId>mcp</artifactId>
+        <version>${mcp-sdk.version}</version>
+      </dependency>
+
+      <!-- ── Plugin host (report 16) ───────────────────────────────────────────────────────────────────── -->
+      <dependency>
+        <groupId>org.pf4j</groupId>
+        <artifactId>pf4j</artifactId>
+        <version>${pf4j.version}</version>
+      </dependency>
+
+      <!-- ── Tests ─────────────────────────────────────────────────────────────────────────────────────── -->
+      <dependency>
+        <groupId>de.flapdoodle.embed</groupId>
+        <artifactId>de.flapdoodle.embed.mongo</artifactId>
+        <version>${flapdoodle-mongo.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.tngtech.archunit</groupId>
+        <artifactId>archunit</artifactId>
+        <version>${archunit.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <configuration>
+            <compilerArgs>
+              <arg>-Xlint:all,-processing</arg>
+            </compilerArgs>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <configuration>
+            <!-- FFM (NativeOs, SQLite JNI) without warnings; same flag as the native image. -->
+            <argLine>--enable-native-access=ALL-UNNAMED ${test.jvm.extra}</argLine>
+            <excludedGroups>${it.excludedGroups}</excludedGroups>
+            <systemPropertyVariables>
+              <gateway.it.services>${it.services}</gateway.it.services>
+            </systemPropertyVariables>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-failsafe-plugin</artifactId>
+          <configuration>
+            <argLine>--enable-native-access=ALL-UNNAMED ${test.jvm.extra}</argLine>
+            <excludedGroups>${it.excludedGroups}</excludedGroups>
+            <systemPropertyVariables>
+              <gateway.it.services>${it.services}</gateway.it.services>
+            </systemPropertyVariables>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.hibernate.orm</groupId>
+          <artifactId>hibernate-maven-plugin</artifactId>
+          <version>${hibernate.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-enforcer-plugin</artifactId>
+          <dependencies>
+            <dependency>
+              <groupId>org.codehaus.mojo</groupId>
+              <artifactId>extra-enforcer-rules</artifactId>
+              <version>${extra-enforcer-rules.version}</version>
+            </dependency>
+          </dependencies>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+
+    <plugins>
+      <!--
+        Dependency bans (ARCHITECTURE.md §2.1). Each ban is its own execution so that the one module that
+        legitimately needs a banned artifact switches off exactly that execution (phase none) and nothing else.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>enforce-build</id>
+            <goals><goal>enforce</goal></goals>
+            <configuration>
+              <rules>
+                <requireMavenVersion><version>[3.9,)</version></requireMavenVersion>
+                <requireJavaVersion><version>[25,)</version></requireJavaVersion>
+              </rules>
+            </configuration>
+          </execution>
+          <execution>
+            <id>ban-libraries</id>
+            <goals><goal>enforce</goal></goals>
+            <configuration>
+              <rules>
+                <bannedDependencies>
+                  <message>Banned dependency: see ARCHITECTURE.md §1 (A9, A11) and §2.1.</message>
+                  <excludes>
+                    <!-- Jackson 3 only (A9). The AWS SDK shades its own copy, which is a different artifact. -->
+                    <exclude>com.fasterxml.jackson.core:jackson-databind</exclude>
+                    <exclude>org.springframework.boot:spring-boot-jackson2</exclude>
+                    <!-- ArchUnit-based verification is a test concern; the runtime only needs spring-modulith-api. -->
+                    <exclude>org.springframework.modulith:spring-modulith-core:*:*:compile</exclude>
+                    <exclude>org.springframework.modulith:spring-modulith-core:*:*:runtime</exclude>
+                    <exclude>org.springframework.modulith:spring-modulith-core:*:*:provided</exclude>
+                    <!-- AWS SDK HTTP clients other than url-connection-client. -->
+                    <exclude>software.amazon.awssdk:apache5-client</exclude>
+                    <exclude>software.amazon.awssdk:apache-client</exclude>
+                    <exclude>software.amazon.awssdk:netty-nio-client</exclude>
+                  </excludes>
+                </bannedDependencies>
+              </rules>
+            </configuration>
+          </execution>
+          <execution>
+            <!-- PF4J loads classes at run time: it lives in the plugin host process, never in the native core. -->
+            <id>ban-pf4j</id>
+            <goals><goal>enforce</goal></goals>
+            <configuration>
+              <rules>
+                <bannedDependencies>
+                  <message>PF4J belongs to plugin-host only (ARCHITECTURE.md A12).</message>
+                  <excludes>
+                    <exclude>org.pf4j:pf4j</exclude>
+                  </excludes>
+                </bannedDependencies>
+              </rules>
+            </configuration>
+          </execution>
+          <execution>
+            <!-- sshd-common registers a FileSystemProvider that breaks the native build: use ai.msrv.gaterook:sshd-nofs. -->
+            <id>ban-sshd</id>
+            <goals><goal>enforce</goal></goals>
+            <configuration>
+              <rules>
+                <bannedDependencies>
+                  <message>Use ai.msrv.gaterook:sshd-nofs instead of org.apache.sshd (ARCHITECTURE.md A23, report 15 §4).</message>
+                  <excludes>
+                    <exclude>org.apache.sshd:sshd-core</exclude>
+                    <exclude>org.apache.sshd:sshd-common</exclude>
+                  </excludes>
+                </bannedDependencies>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <!--
+      The servers of test-services/docker-compose.yml (scripts/test-services.sh up; test-services/README.md) instead of
+      the ones the ITs start themselves, and the ITs that need them: MySQL/MariaDB, MongoDB, logs, Vault, moto. The
+      modules connectors/redis and connectors/ssh turn on their own switches with the same profile.
+    -->
+    <profile>
+      <id>services</id>
+      <properties>
+        <it.services>${maven.multiModuleProjectDirectory}/test-services</it.services>
+        <it.tag.mysql>__enabled-mysql-it</it.tag.mysql>
+        <it.tag.mongo>__enabled-mongo-it</it.tag.mongo>
+        <it.tag.logs>__enabled-logs-it</it.tag.logs>
+        <it.tag.vault>__enabled-vault-it</it.tag.vault>
+        <it.tag.cloud>__enabled-cloud-it</it.tag.cloud>
+      </properties>
+    </profile>
+    <!-- Heavy integration tests (ARCHITECTURE.md §2.4); downloads go to ~/.cache/mcp-gateway-test/. -->
+    <profile>
+      <id>mysql-it</id>
+      <properties><it.tag.mysql>__enabled-mysql-it</it.tag.mysql></properties>
+    </profile>
+    <profile>
+      <id>mongo-it</id>
+      <properties><it.tag.mongo>__enabled-mongo-it</it.tag.mongo></properties>
+    </profile>
+    <profile>
+      <id>logs-it</id>
+      <properties><it.tag.logs>__enabled-logs-it</it.tag.logs></properties>
+    </profile>
+    <profile>
+      <id>kube-api</id>
+      <properties><it.tag.kube>__enabled-kube-api</it.tag.kube></properties>
+    </profile>
+    <profile>
+      <id>vault-it</id>
+      <properties><it.tag.vault>__enabled-vault-it</it.tag.vault></properties>
+    </profile>
+    <profile>
+      <!-- STS against moto 5.2.4 (report 09 §8): a venv at ~/.cache/mcp-gateway-test/moto-5.2.4, see README. -->
+      <id>cloud-it</id>
+      <properties><it.tag.cloud>__enabled-cloud-it</it.tag.cloud></properties>
+    </profile>
+    <profile>
+      <!-- Real network: cloudflared up to a hostname (K3). -->
+      <id>network</id>
+      <properties><it.tag.network>__enabled-network</it.tag.network></properties>
+    </profile>
+    <profile>
+      <!--
+        Reference Node MCP clients (M1.5): @modelcontextprotocol/client 2.3.1, inspector 2.12.0, conformance 0.1.16 from
+        core/src/test/node/package-lock.json into ~/.cache/mcp-gateway-test/node-clients; Node 24 (MCP_NODE).
+      -->
+      <id>mcp-clients</id>
+      <properties><it.tag.mcpclients>__enabled-mcp-clients</it.tag.mcpclients></properties>
+    </profile>
+    <profile>
+      <!--
+        Real OpenAPI descriptions (report 10 §8.5): Stripe spec3.json and GitHub api.github.com.json at pinned commits,
+        SHA-256 checked, into ~/.cache/mcp-gateway-test/openapi (C9).
+      -->
+      <id>openapi-corpus</id>
+      <properties><it.tag.openapi>__enabled-openapi-corpus</it.tag.openapi></properties>
+    </profile>
+    <profile>
+      <!--
+        Real external MCP servers (C10): @modelcontextprotocol/server-github 2025.4.8 and server-everything 2.0.0 from
+        app/src/test/node/mcp-servers/package-lock.json into ~/.cache/mcp-gateway-test/c10-mcp-servers; Node 24
+        (MCP_NODE, else the PATH).
+      -->
+      <id>mcp-servers</id>
+      <properties><it.tag.mcpservers>__enabled-mcp-servers</it.tag.mcpservers></properties>
+    </profile>
+  </profiles>
+</project>

@@ -1,0 +1,38 @@
+# Conformance 0.1.16, server suite, --spec-version 2025-11-25 (McpNodeClientsIT, profile mcp-clients).
+# Passing here: server-initialize, ping, tools-list, resources-list, prompts-list (and the rebinding rejection of
+# dns-rebinding-protection). Every entry below fails for a reason that is by design; a fix that makes one pass fails
+# the run until the entry is removed.
+server:
+  # The scenarios call fixtures of the reference "everything" server (test_simple_text, test_simple_prompt,
+  # test://static-text, ...): a gateway publishes only its connectors' tools, so "Unknown tool/prompt" and
+  # "Resource not found" are the right answers (report 01 §8 step 7).
+  - tools-call-simple-text
+  - tools-call-image
+  - tools-call-audio
+  - tools-call-embedded-resource
+  - tools-call-mixed-content
+  - tools-call-error
+  - tools-call-with-progress
+  - tools-call-sampling
+  - tools-call-elicitation
+  - elicitation-sep1034-defaults
+  - elicitation-sep1330-enums
+  - resources-read-text
+  - resources-read-binary
+  - resources-templates-read
+  - prompts-get-simple
+  - prompts-get-with-args
+  - prompts-get-embedded-resource
+  - prompts-get-with-image
+  # Not offered (report 01 §3.1): logging/setLevel, completion/complete, resources/subscribe answer -32601.
+  - logging-set-level
+  - tools-call-with-logging
+  - completion-complete
+  - resources-subscribe
+  - resources-unsubscribe
+  # A WARNING, "Server did not provide session ID": the gateway keeps no MCP sessions and offers no GET stream
+  # (report 01 §3.1), so there are no streams to multiply.
+  - server-sse-multiple-streams
+  # The rebinding check passes (evil Host → 421). Its second check sends a localhost Origin and wants 2xx; the core
+  # takes no browser Origin on /mcp at all (ARCHITECTURE.md §7.3: none allowed by default, 403), on purpose.
+  - dns-rebinding-protection

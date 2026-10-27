@@ -1,0 +1,250 @@
+// =============================================================
+// .gw-choice-card · Radio or checkbox drawn as a card
+// -------------------------------------------------------------
+// For a choice that needs an icon and a sentence: connection type,
+// secret source, environment (dev / stage / prod). The native input is
+// transparent and stretched over the card, so the whole card is the
+// click target and arrow keys move between radio cards as usual.
+//
+//   <label class="gw-choice-card">
+//     <input class="gw-choice-card__input" type="radio" name="secret-source" value="vault"
+//            aria-labelledby="src-vault-t" aria-describedby="src-vault-d">
+//     <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="vault"></i></span>
+//     <span class="gw-choice-card__title" id="src-vault-t">HashiCorp Vault</span>
+//     <span class="gw-choice-card__description" id="src-vault-d">Resolve vault://… at call time.</span>
+//     <span class="gw-choice-card__meta">KV v2 · dynamic secrets</span>
+//   </label>
+//
+//   Lay several out with gw-grid inside <fieldset class="gw-field"> +
+//   <legend class="gw-field__label">.
+//
+// Subparts
+//   __input        first child; type="radio" (one of) or "checkbox" (many)
+//   __icon         optional 32px tile (24px in --compact); turns brand when checked
+//   __title        what the option is; may hold a gw-env marker (then the marker
+//                  sits on its own line above the name) or a gw-badge
+//   __description  one or two lines: what choosing it means
+//   __meta         caption line: defaults, requirements ("Strict defaults")
+// Variants
+//   --compact      tighter padding, smaller title and icon (dense lists, dialogs)
+// States (from the input, via :has)
+//   :checked       brand border (2px) + brand tint + filled indicator with a
+//                  check: never the tint alone. The tint is bg.selected (the
+//                  same value as brand.subtle in every theme) because the card's
+//                  primary / muted text is contrast-checked on it.
+//   :focus-visible ring around the card
+//   :disabled / [aria-disabled="true"]  raised fill, muted text, not-allowed.
+//                  Prefer aria-disabled + aria-describedby → the visible reason
+//                  ("Not installed. Install it from the catalog…"): the card stays
+//                  in the arrow order and its reason is read; kit.js refuses the
+//                  change. Native disabled only when there is nothing to explain.
+//   [aria-invalid="true"]  danger border (a required group left empty)
+// Indicator  top-right: empty ring (radio) / rounded square (checkbox) when off,
+//            brand fill + check when on.
+// A11y       Without aria-labelledby / aria-describedby the whole card text
+//            becomes the input's name: fine for short cards, verbose for long
+//            ones. Use both when the card has a description. No buttons or
+//            links inside: the input covers the card.
+// Surface    hand-rolled on purpose: a choice card is a control on a surface,
+//            not a container, so it has no gw-surface shadow.
+// Raw values: none (indicator geometry from size / space tokens)
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+.gw-choice-card {
+  --gw-choice-card-pad-block: var(--gw-space-3);
+  --gw-choice-card-pad-inline: var(--gw-space-4);
+  --gw-choice-card-mark: var(--gw-size-icon-md);
+  // align the indicator with the 20px title line
+  --gw-choice-card-mark-top: calc(var(--gw-choice-card-pad-block) + var(--gw-space-0-5));
+
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  column-gap: var(--gw-space-3);
+  align-content: start;
+  align-items: start;
+  min-width: 0;
+  padding: var(--gw-choice-card-pad-block) var(--gw-choice-card-pad-inline);
+  padding-inline-end: calc(var(--gw-choice-card-pad-inline) + var(--gw-choice-card-mark) + var(--gw-space-2));
+  color: var(--gw-color-text-primary);
+  text-align: start;
+  background: var(--gw-color-bg-surface);
+  border: var(--gw-border-width-default) solid var(--gw-color-border-default);
+  border-radius: var(--gw-radius-md);
+  transition:
+    background-color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard),
+    border-color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard);
+
+  &:has(> .gw-choice-card__icon) { grid-template-columns: auto minmax(0, 1fr); }
+
+  // ─── Input: transparent, covers the card ───
+  &__input {
+    position: absolute;
+    inset: 0;
+    z-index: var(--gw-z-raised);
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    appearance: none;
+    cursor: pointer;
+
+    &:focus { outline: none; }
+    &:disabled,
+    &[aria-disabled="true"] { cursor: not-allowed; }
+  }
+
+  // ─── Indicator: ring / square, then the check ───
+  &::before {
+    content: "";
+    position: absolute;
+    inset-block-start: var(--gw-choice-card-mark-top);
+    inset-inline-end: var(--gw-choice-card-pad-inline);
+    width: var(--gw-choice-card-mark);
+    height: var(--gw-choice-card-mark);
+    background: var(--gw-color-bg-field);
+    border: var(--gw-border-width-default) solid var(--gw-color-border-input);
+    border-radius: var(--gw-radius-full);
+  }
+
+  &:has(> .gw-choice-card__input[type="checkbox"])::before { border-radius: var(--gw-radius-xs); }
+
+  &::after {
+    content: "";
+    position: absolute;
+    // centre a 5 × 9 L on the indicator, nudged up 1px so the rotated check looks centred
+    inset-block-start: calc(var(--gw-choice-card-mark-top) + var(--gw-choice-card-mark) / 2 - (var(--gw-space-2) + var(--gw-space-px)) / 2 - var(--gw-space-px));
+    inset-inline-end: calc(var(--gw-choice-card-pad-inline) + var(--gw-choice-card-mark) / 2 - (var(--gw-space-1) + var(--gw-space-px)) / 2);
+    width: calc(var(--gw-space-1) + var(--gw-space-px));
+    height: calc(var(--gw-space-2) + var(--gw-space-px));
+    border: solid var(--gw-color-brand-on-solid);
+    border-width: 0 var(--gw-border-width-strong) var(--gw-border-width-strong) 0;
+    transform: rotate(45deg);
+    visibility: hidden;
+  }
+
+  // ─── Parts ───
+  &__icon {
+    @include gw-icon-tile(var(--gw-size-control-md));
+    grid-column: 1;
+    grid-row: span 3;
+    color: var(--gw-color-text-secondary);
+    background: var(--gw-color-bg-raised);
+    transition:
+      background-color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard),
+      color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard);
+  }
+
+  &__title {
+    grid-column: -2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gw-space-2);
+    min-width: 0;
+    @include gw-type(h3);
+    color: var(--gw-color-text-primary);
+
+    // An env marker goes on its own line above the name, in every card of the
+    // group, so "Development" / "Staging" / "Production" align and none wraps alone.
+    &:has(> .gw-env) {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--gw-space-1);
+    }
+  }
+
+  &__description {
+    grid-column: -2;
+    min-width: 0;
+    margin-block-start: var(--gw-space-0-5);
+    @include gw-type(small);
+    color: var(--gw-color-text-muted);
+  }
+
+  &__meta {
+    grid-column: -2;
+    min-width: 0;
+    margin-block-start: var(--gw-space-1-5);
+    @include gw-type(caption);
+    color: var(--gw-color-text-muted);
+  }
+
+  // ─── Variants ───
+  &--compact {
+    --gw-choice-card-pad-block: var(--gw-space-2);
+    --gw-choice-card-pad-inline: var(--gw-space-3);
+    column-gap: var(--gw-space-2);
+
+    .gw-choice-card__icon {
+      width: var(--gw-size-icon-xl);
+      height: var(--gw-size-icon-xl);
+      border-radius: var(--gw-radius-xs);
+    }
+    .gw-choice-card__title { @include gw-type(ui); }
+    .gw-choice-card__description { margin-block-start: 0; }
+    .gw-choice-card__meta { margin-block-start: var(--gw-space-1); }
+  }
+
+  // ─── States ───
+  // Hover only on an enabled, unchecked, valid card (never hides the error edge).
+  &:hover:has(> .gw-choice-card__input:enabled:not(:checked):not([aria-invalid="true"]):not([aria-disabled="true"])) {
+    border-color: var(--gw-color-border-strong);
+
+    &::before { border-color: var(--gw-color-border-focus); }
+  }
+
+  &:has(> .gw-choice-card__input:checked) {
+    border-color: var(--gw-color-brand-solid);
+    box-shadow: inset 0 0 0 var(--gw-border-width-default) var(--gw-color-brand-solid);
+    background: var(--gw-color-bg-selected);
+
+    &::before {
+      background: var(--gw-color-brand-solid);
+      border-color: var(--gw-color-brand-solid);
+    }
+    &::after { visibility: visible; }
+
+    .gw-choice-card__icon {
+      color: var(--gw-color-brand-fg);
+      background: var(--gw-color-bg-surface);
+    }
+  }
+
+  &:has(> .gw-choice-card__input[aria-invalid="true"]:not(:checked)) {
+    border-color: var(--gw-color-danger-fg);
+
+    &::before { border-color: var(--gw-color-danger-fg); }
+  }
+
+  &:has(> .gw-choice-card__input:focus-visible) {
+    outline: var(--gw-focus-width) solid var(--gw-color-border-focus);
+    outline-offset: var(--gw-focus-offset);
+  }
+
+  &:has(> .gw-choice-card__input:is(:disabled, [aria-disabled="true"])) {
+    background: var(--gw-color-bg-raised);
+    border-color: var(--gw-color-border-subtle);
+    box-shadow: none;
+
+    &::before {
+      background: var(--gw-color-bg-raised);
+      border-color: var(--gw-color-border-default);
+    }
+
+    .gw-choice-card__title { color: var(--gw-color-text-muted); }
+    .gw-choice-card__icon { color: var(--gw-color-text-disabled); }
+  }
+
+  &:has(> .gw-choice-card__input:is(:disabled, [aria-disabled="true"]):checked) {
+    &::before {
+      background: var(--gw-color-text-disabled);
+      border-color: var(--gw-color-text-disabled);
+    }
+    &::after { border-color: var(--gw-color-bg-surface); }
+  }
+}

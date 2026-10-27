@@ -1,0 +1,124 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "project": {
+      "type": "string",
+      "description": "A project of the connection. Default: its first metrics project."
+    },
+    "action": {
+      "enum": [
+        "query",
+        "list_metrics",
+        "alerts"
+      ],
+      "default": "query"
+    },
+    "metric": {
+      "type": "string",
+      "maxLength": 512,
+      "pattern": "^[a-z0-9.-]+\\.(googleapis\\.com|io)(/[A-Za-z0-9_-][A-Za-z0-9_.-]*)+$",
+      "examples": [
+        "run.googleapis.com/request_count",
+        "kubernetes.io/container/cpu/core_usage_time"
+      ]
+    },
+    "filter": {
+      "type": "string",
+      "maxLength": 2000,
+      "examples": [
+        "resource.labels.service_name = \"api\" AND metric.labels.response_code_class = \"5xx\""
+      ],
+      "description": "ANDed with the metric; no metric.type or project here"
+    },
+    "from": {
+      "type": "string",
+      "maxLength": 40,
+      "default": "-1h"
+    },
+    "to": {
+      "type": "string",
+      "maxLength": 40,
+      "default": "now"
+    },
+    "period": {
+      "type": "integer",
+      "enum": [
+        60,
+        300,
+        900,
+        3600,
+        21600,
+        86400
+      ],
+      "description": "Default: smallest giving ≤ 360 points that fits retention"
+    },
+    "aligner": {
+      "enum": [
+        "ALIGN_MEAN",
+        "ALIGN_MAX",
+        "ALIGN_MIN",
+        "ALIGN_SUM",
+        "ALIGN_RATE",
+        "ALIGN_DELTA",
+        "ALIGN_COUNT",
+        "ALIGN_PERCENTILE_99",
+        "ALIGN_PERCENTILE_95",
+        "ALIGN_PERCENTILE_50"
+      ],
+      "description": "Default: ALIGN_MEAN for GAUGE, ALIGN_RATE for DELTA and CUMULATIVE"
+    },
+    "reducer": {
+      "enum": [
+        "REDUCE_NONE",
+        "REDUCE_SUM",
+        "REDUCE_MEAN",
+        "REDUCE_MAX",
+        "REDUCE_MIN",
+        "REDUCE_COUNT",
+        "REDUCE_PERCENTILE_99",
+        "REDUCE_PERCENTILE_95",
+        "REDUCE_PERCENTILE_50"
+      ],
+      "default": "REDUCE_NONE"
+    },
+    "groupBy": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "string",
+        "pattern": "^(metric|resource)\\.labels\\.[a-z0-9_]+$"
+      }
+    },
+    "prefix": {
+      "type": "string",
+      "maxLength": 256,
+      "description": "list_metrics"
+    },
+    "state": {
+      "enum": [
+        "OPEN",
+        "CLOSED"
+      ],
+      "default": "OPEN",
+      "description": "alerts"
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 20,
+      "description": "query: max series"
+    },
+    "cursor": {
+      "type": "string",
+      "maxLength": 4096
+    }
+  }
+}

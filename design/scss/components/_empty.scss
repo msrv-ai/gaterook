@@ -1,0 +1,114 @@
+// =============================================================
+// .gw-empty · Empty state
+// -------------------------------------------------------------
+// What will be here, and the one action that fills it. Shown for a first
+// run (no connections yet), for a query with no results (filters too
+// narrow) and for "all clear" (nothing waiting for approval). Not for
+// errors: a failure is a .gw-alert--danger that says what happened and
+// what to do.
+//
+//   <div class="gw-empty">
+//     <span class="gw-empty__icon"><i class="gw-icon" data-lucide="database"></i></span>
+//     <h2 class="gw-empty__title">No connections yet</h2>
+//     <p class="gw-empty__text">Connect a database, server, log store or cluster.
+//       Agents reach it through an endpoint and never see its secrets.</p>
+//     <div class="gw-empty__actions">
+//       <a class="gw-btn gw-btn--primary" href="connection-new.html">Add connection</a>
+//     </div>
+//   </div>
+//
+// Variants   (default)  page or card body: generous padding, 40px tile with a
+//                       20px icon, h2-size title
+//            --compact  inside a table body, a small card, a drawer section:
+//                       32px tile with a 16px icon, tighter spacing, h3-size
+//                       title, small text
+// Subparts   __icon     square tile, neutral tint, the section's or resource's
+//                       icon (BLUEPRINT §7). Tone it by adding a
+//                       gw-icon-tile--<tone> class on the same element when the
+//                       state is good news (success for "all clear").
+//            __title    states the situation ("No calls match these filters"):
+//                       a heading at the level that fits the outline (h2…h4);
+//                       a <p> when the container already has the heading
+//                       (a compact empty state under a card title)
+//            __text     one or two sentences: what appears here and why it
+//                       matters; no blame, no exclamation marks
+//            __actions  ONE primary action (or one secondary for "Clear
+//                       filters"); a link to docs may sit beside it
+// States     none of its own; the three situations differ by words and
+//            icon (database, search-x, circle-check), not by style.
+// A11y       Real heading for the title so it shows in the outline. When the
+//            empty state replaces results after a filter, announce it with a
+//            role="status" region on the list, not on the empty block. The
+//            tile icon is decorative; its border keeps the tile in
+//            forced-colors mode. The block resets inherited --gw-tone-* so a
+//            toned container never tints the tile.
+// Raw values the readable measure of the text (ch).
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+.gw-empty {
+  // Do not inherit a tone from the container (an alert, a toned card): the
+  // icon tile is neutral unless a gw-icon-tile--<tone> sits on the tile itself.
+  --gw-tone-fg: initial;
+  --gw-tone-subtle: initial;
+  --gw-tone-border: initial;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--gw-space-2);
+  min-width: 0;
+  padding: var(--gw-space-12) var(--gw-space-6);
+  text-align: center;
+
+  &__icon {
+    @include gw-icon-tile(var(--gw-size-control-lg));
+    margin-bottom: var(--gw-space-2);
+    border: var(--gw-border-width-default) solid var(--gw-tone-border, var(--gw-color-border-default));
+    border-radius: var(--gw-radius-md);
+
+    > .gw-icon { --gw-icon-size: var(--gw-size-icon-lg); }
+  }
+
+  &__title {
+    margin: 0;
+    @include gw-type(h2);
+    color: var(--gw-color-text-primary);
+  }
+
+  &__text {
+    max-width: 52ch; // raw: readable measure for one or two sentences
+    margin: 0;
+    @include gw-type(body-read);
+    color: var(--gw-color-text-secondary);
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: var(--gw-space-2);
+    margin-top: var(--gw-space-3);
+  }
+
+  // ─── Compact ───
+  &--compact {
+    gap: var(--gw-space-1);
+    padding: var(--gw-space-6) var(--gw-space-4);
+
+    .gw-empty__icon {
+      width: var(--gw-size-control-md);
+      height: var(--gw-size-control-md);
+      margin-bottom: var(--gw-space-1);
+      border-radius: var(--gw-radius-sm);
+
+      .gw-icon { --gw-icon-size: var(--gw-size-icon-md); }
+    }
+
+    .gw-empty__title { @include gw-type(h3); }
+    .gw-empty__text { @include gw-type(small); }
+    .gw-empty__actions { margin-top: var(--gw-space-2); }
+  }
+}

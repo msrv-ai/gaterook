@@ -1,41 +1,28 @@
 # Repository layout
 
-## Current contents
+GateRook is a single application source tree with Maven modules and npm workspaces. A local build does not require another repository.
 
-```text
-gaterook/
-├── AGENTS.md
-├── README.md
-├── .editorconfig
-├── .gitignore
-└── docs/
-    ├── repository-layout.md
-    └── migration.md
-```
-
-The application and design-kit source directories have not been added yet.
-
-## Planned source areas
-
-Determine final paths from the application source during migration. Do not create empty directories merely to match this outline.
-
-| Area | Contents |
+| Path | Responsibility |
 | --- | --- |
-| Java source directories | Core, API, connectors, plugins, plugin host, and client bridge source |
-| `ui/` | Angular interface source and runtime assets |
-| `desktop/` | Electron main/preload source and runtime assets |
-| `bridge/`, `bridge-cli/` | Client connection source |
-| `design/` | Canonical tokens, components, reusable assets, and design rules |
-| Test and fixture directories | Test implementation and sanitized fixture data |
-| `catalog/` | Runtime extension descriptions and related assets |
-| `docs/` | Application architecture, source-level decisions, and contributor documentation |
+| `pom.xml` | Java dependency management, reactor modules, build profiles, and test configuration |
+| `package.json`, `package-lock.json`, `.nvmrc` | Node toolchain, workspace dependencies, and local commands |
+| `.gitattributes` | Portable source line endings and exact-byte preservation for golden fixtures, vendored schemas, and migrations |
+| `app/` | Executable Spring Boot application, native image configuration, process and end-to-end tests |
+| `core/` | Gateway modules: policy, approvals, audit, secrets, endpoints, MCP, OAuth, clients, notifications, and admin API |
+| `connector-api/` | Connector SPI and shared types |
+| `connectors/` | SQL, MongoDB, Redis, SSH, logs, Kubernetes, GCP, AWS, HTTP, external MCP, and shared support |
+| `plugin-protocol/` | GPP/1 messages, framing, and protocol tests |
+| `plugin-host/`, `plugin-it/` | Isolated JVM plugin runtime and integration tests |
+| `plugins/` | First-party plugins and test fixtures |
+| `bridge/`, `bridge-cli/` | Electron token broker, Node stdio bridge, and Java/native helper |
+| `desktop/` | Electron main/preload, lifecycle, security, development runner, and packaging configuration |
+| `ui/` | Angular renderer, component tests, development proxy, and visual comparison tools |
+| `design/` | Canonical design tokens, SCSS, components, assets, examples, generators, and design documentation |
+| `catalog/` | Extension catalog format, signing tools, and pinned metadata |
+| `third-party/` | Build-time adaptation of third-party dependencies |
+| `scripts/` | Asset synchronization, staging, native/AOT checks, and test helpers |
+| `test-services/` | Disposable Docker Compose integration-test services and public test credentials |
+| `docs/` | Architecture, product decisions, development guide, and curated research |
+| `ai/` (ignored) | Internal scratch files, temporary research, experiments, and logs; never commit |
 
-Keep reusable design elements in one canonical source. Preserve licenses and notices alongside the relevant assets.
-
-## File selection
-
-Review files by purpose. Include runtime code, required runtime metadata, reusable design sources, tests, fixtures, and source-facing documentation. Exclude build configuration, generators, dependency locks, CI workflows, packaging and deployment tooling, credentials, caches, installed dependencies, and local user data.
-
-Some generated design assets may be required runtime resources. Review their use before removing them; a directory name alone does not establish whether its contents belong here.
-
-See [the migration checklist](migration.md) for source compatibility and completion criteria.
+Installed dependencies, runtime homes, build outputs, generated test keys, and editor state are ignored. Generated design assets needed by consumers remain versioned and are regenerated from canonical sources. The `/ai/` ignore rule is anchored at the root so Java packages under `src/main/java/ai/` and `src/test/java/ai/` remain application source.

@@ -1,0 +1,11 @@
+{
+  "jsonrpc" : "2.0",
+  "id" : 2,
+  "error" : {
+    "code" : -32011,
+    "message" : "Plugin file changed on disk",
+    "data" : {
+      "phase" : "verify"
+    }
+  }
+}

@@ -1,0 +1,189 @@
+@let t = target();
+<header class="gw-card__header">
+  <div class="gw-card__heading">
+    <h3 class="gw-card__title" id="tpl-title">@if (editing(); as tpl) {Edit template <span class="gw-mono">{{ tpl.name }}</span>} @else {New template}</h3>
+    @if (runsOn(); as c) {
+      <p class="gw-card__description">SQL query on <span class="gw-mono">{{ c.name }}</span> <span class="gw-sr-only">environment</span> <span [class]="'gw-env gw-env--sm gw-env--' + c.env">{{ c.env }}</span>. The agent calls it with typed arguments and never sees or writes this SQL.</p>
+    } @else {
+      <p class="gw-card__description">A SQL query with typed parameters. The agent calls it with arguments and never sees or writes the SQL.</p>
+    }
+  </div>
+  @if (editing()) {
+    <div class="gw-card__actions">
+      @if (t.playground; as p) {
+        <a class="gw-btn gw-btn--sm" routerLink="/playground" [queryParams]="{ endpoint: p.endpoint, tool: p.tool }"><svg lucideIcon="flask-conical" class="gw-icon gw-icon--sm"></svg> Try in Playground</a>
+      } @else {
+        <a class="gw-btn gw-btn--sm" routerLink="/playground"><svg lucideIcon="flask-conical" class="gw-icon gw-icon--sm"></svg> Try in Playground</a>
+      }
+    </div>
+  }
+</header>
+<div class="gw-card__body">
+  @if (t.unreadable) {
+    <!-- The core of this build sends a template's list row, not its definition: the SQL can't be shown or edited. -->
+    <div class="gw-alert gw-alert--info gw-alert--compact" role="status">
+      <svg lucideIcon="info" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">This template can't be opened here yet</p>
+        <p class="gw-alert__body">The gateway core of this build doesn't send a template's SQL and parameters. It keeps running as saved; its versions stay in the core.</p>
+      </div>
+    </div>
+  } @else {
+    <form class="gw-form" method="dialog" novalidate aria-labelledby="tpl-title" (submit)="save($event)" (reset)="discard($event)">
+      <fieldset class="gw-form__section">
+        <legend class="gw-form__legend">Query</legend>
+        <p class="gw-form__description">What the tool is called, where it runs and the SQL behind it.</p>
+        <div class="gw-form__rows">
+          <div class="gw-form__row">
+            <div class="gw-field">
+              <label class="gw-field__label" for="tpl-name">Tool name</label>
+              <input class="gw-input gw-input--mono" id="tpl-name" type="text" required pattern="[a-z][a-z0-9_]*" spellcheck="false" autocomplete="off" [value]="name()" (input)="setName(value($event))" [attr.aria-invalid]="errors().name ? 'true' : null" [attr.aria-describedby]="'tpl-name-hint' + (errors().name ? ' tpl-name-err' : '')">
+              <p class="gw-field__hint" id="tpl-name-hint">What the agent calls. Lowercase letters, digits and <span class="gw-mono">_</span>.</p>
+              @if (errors().name) {<p class="gw-field__error" id="tpl-name-err"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().name }}</p>}
+            </div>
+            <div class="gw-field">
+              <label class="gw-field__label" for="tpl-conn">Runs on</label>
+              <select class="gw-select" id="tpl-conn" [disabled]="!!editing()" (change)="setConnection(value($event))" [attr.aria-invalid]="errors().connection ? 'true' : null" [attr.aria-describedby]="'tpl-conn-hint' + (errors().connection ? ' tpl-conn-err' : '')">
+                @if (!connections().length) {
+                  <option value="" selected>No SQL connection yet</option>
+                }
+                @for (c of connections(); track c.name) {
+                  <option [value]="c.name" [selected]="connection() === c.name">{{ c.name }} · {{ c.typeName }} · {{ c.env }}</option>
+                }
+              </select>
+              <p class="gw-field__hint" id="tpl-conn-hint">@if (editing()) {A saved template stays on its connection. The secret stays with the connection.} @else {PostgreSQL and MySQL connections. The secret stays with the connection.}</p>
+              @if (errors().connection) {<p class="gw-field__error" id="tpl-conn-err"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().connection }}</p>}
+            </div>
+          </div>
+          <div class="gw-field">
+            <label class="gw-field__label" for="tpl-desc">Description for the agent</label>
+            <textarea class="gw-textarea" id="tpl-desc" rows="2" aria-describedby="tpl-desc-hint" [value]="description()" (input)="description.set(value($event))"></textarea>
+            <p class="gw-field__hint" id="tpl-desc-hint">The agent reads this to decide when to call the tool.</p>
+          </div>
+          <div class="gw-field">
+            <label class="gw-field__label" for="tpl-sql">SQL</label>
+            <textarea class="gw-textarea gw-textarea--code" id="tpl-sql" rows="7" required spellcheck="false" autocapitalize="off" [value]="sql()" (input)="setSql(value($event))" [attr.aria-invalid]="errors().sql ? 'true' : null" [attr.aria-describedby]="(status() ? 'tpl-sql-check ' : '') + 'tpl-sql-hint' + (errors().sql ? ' tpl-sql-err' : '')"></textarea>
+            <p class="gw-field__hint" id="tpl-sql-hint">Write <span class="gw-mono">:name</span> for a parameter. Values are bound by the driver, never pasted into the SQL.</p>
+            @if (status(); as s) {
+              <span [class]="'gw-status gw-status--' + s.tone" id="tpl-sql-check" role="status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ s.text }}@for (p of s.params; track p; let last = $last) {<span class="gw-mono">{{ p }}</span>@if (!last) {, }}</span></span>
+            }
+            @if (errors().sql) {<p class="gw-field__error" id="tpl-sql-err"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().sql }}</p>}
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="gw-form__section">
+        <legend class="gw-form__legend">Parameters</legend>
+        <p class="gw-form__description">Typed and validated before the query runs. The agent sees them as the input schema of the tool.</p>
+        <div class="gw-form__rows">
+          @if (params().length) {
+            <div class="gw-table-wrap" role="region" aria-labelledby="tpl-params-cap" tabindex="0">
+              <table class="gw-table">
+                <caption class="gw-sr-only" id="tpl-params-cap">Parameters of {{ toolName() }}</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Name</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Required</th>
+                    <th scope="col">Allowed values</th>
+                    <th scope="col">Default</th>
+                    <th scope="col">Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (p of params(); track p.name; let i = $index) {
+                    <tr>
+                      <th scope="row" class="gw-table__cell--mono">:{{ p.name }}</th>
+                      <td>
+                        <select class="gw-select gw-select--sm" [attr.aria-label]="'Type of parameter ' + p.name" (change)="setType(i, $event)">
+                          @for (o of paramTypes; track o.value) {
+                            <option [value]="o.value" [selected]="p.type === o.value">{{ o.label }}</option>
+                          }
+                        </select>
+                      </td>
+                      <td class="gw-table__cell--select"><label class="gw-checkbox"><input class="gw-checkbox__input" type="checkbox" [checked]="p.required" [attr.aria-label]="'Parameter ' + p.name + ' is required'" (change)="setParam(i, { required: $any($event.target).checked })"><span class="gw-checkbox__control" aria-hidden="true"></span></label></td>
+                      <td><input class="gw-input gw-input--sm gw-input--mono" type="text" [value]="p.values" [placeholder]="p.type === 'enum' ? 'pending, paid' : 'Any'" spellcheck="false" [attr.aria-label]="'Allowed values of ' + p.name" (input)="setParam(i, { values: value($event) })"></td>
+                      <td><input class="gw-input gw-input--sm gw-input--mono" type="text" [value]="p.dflt" placeholder="None" spellcheck="false" [attr.aria-label]="'Default of ' + p.name" aria-describedby="tpl-params-hint" (input)="setParam(i, { dflt: value($event) })"></td>
+                      <td><input class="gw-input gw-input--sm" type="text" [value]="p.description" [attr.aria-label]="'Description of ' + p.name" (input)="setParam(i, { description: value($event) })"></td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            <p class="gw-field__hint" id="tpl-params-hint">A default can be a time or an ISO 8601 duration relative to now: <span class="gw-mono">-PT24H</span> means 24 hours ago.</p>
+          } @else {
+            <p class="gw-field__hint" id="tpl-params-hint">No parameters yet. Write <span class="gw-mono">:name</span> in the SQL and it appears here with a type.</p>
+          }
+        </div>
+      </fieldset>
+
+      <section class="gw-form__section" aria-labelledby="tpl-preview-title">
+        <div class="gw-form__section-header">
+          <h4 class="gw-form__legend" id="tpl-preview-title">What the agent sees</h4>
+          <p class="gw-form__description">Generated from the fields above. This is the whole tool; the SQL and the connection secret stay in the gateway.</p>
+        </div>
+        <div class="gw-form__rows">
+          <dl class="gw-kv">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Tool</dt><dd class="gw-kv__value"><code class="gw-code">{{ toolName() }}</code></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Description</dt><dd class="gw-kv__value">{{ description().trim() || 'Runs the saved query ' + toolName() + '.' }}</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Annotations</dt><dd class="gw-kv__value">
+              @if (readOnly()) {
+                <span class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</span> <span class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</span>
+              } @else if (!insert()) {
+                <span class="gw-badge gw-badge--outline gw-badge--sm gw-badge--danger" title="destructiveHint">Destructive</span>
+              } @else {
+                None
+              }
+            </dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Default mode</dt><dd class="gw-kv__value">
+              @if (readOnly()) {
+                <span class="gw-mode gw-mode--read"><svg lucideIcon="eye" class="gw-icon"></svg>Read only</span> <span class="gw-text-caption gw-fg-muted">From the {{ scan().statement ?? 'SELECT' }}. An endpoint can set it to Off or Approval.</span>
+              } @else {
+                <span class="gw-mode gw-mode--approval"><svg lucideIcon="user-check" class="gw-icon"></svg>Approval</span> <span class="gw-text-caption gw-fg-muted">It changes data, so every call waits for a person. An endpoint can set it to Off.</span>
+              }
+            </dd></div>
+          </dl>
+          <gw-code-block lang="JSON" language="json" [filename]="'inputSchema · ' + toolName()" [text]="schemaText()" copyLabel="input schema" [regionLabel]="'Input schema of ' + toolName()" [id]="'tpl-schema'" />
+        </div>
+      </section>
+
+      @if (compileErrors().length) {
+        <div class="gw-alert gw-alert--danger" role="alert" id="tpl-compile" tabindex="-1">
+          <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content">
+            <p class="gw-alert__title">The template wasn't saved</p>
+            @for (m of compileErrors(); track $index) {
+              <p class="gw-alert__body">{{ m }}</p>
+            }
+          </div>
+        </div>
+      }
+      @if (failure()) {
+        <div class="gw-alert gw-alert--danger" role="alert" id="tpl-failure" tabindex="-1">
+          <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content">
+            <p class="gw-alert__title">The template wasn't saved</p>
+            <p class="gw-alert__body">{{ failure() }}</p>
+          </div>
+        </div>
+      }
+      @if (warnings().length) {
+        <div class="gw-alert gw-alert--warning gw-alert--compact" role="status">
+          <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content">
+            @for (m of warnings(); track $index) {
+              <p class="gw-alert__body">{{ m }}</p>
+            }
+          </div>
+        </div>
+      }
+
+      <div class="gw-form__actions">
+        <!-- The live region stays in place so the change of state is announced; it is empty while nothing changed. -->
+        <p class="gw-form__note" role="status">@if (dirty()) {<svg lucideIcon="circle-dot" class="gw-icon"></svg>Unsaved changes}</p>
+        <button class="gw-btn" type="reset">Discard</button>
+        <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="busy() ? 'true' : null" [attr.aria-disabled]="busy() ? 'true' : null">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Save template</button>
+      </div>
+    </form>
+  }
+</div>

@@ -1,0 +1,14 @@
+model = "gpt-5.5-codex"
+
+[mcp_servers.github]
+url = "https://api.githubcopilot.com/mcp/"
+bearer_token_env_var = "GITHUB_PAT"
+
+# >>> MCP Gateway · gateway-dev · managed entry: Disconnect in MCP Gateway removes it
+[mcp_servers.gateway-dev]
+url = "http://127.0.0.1:7465/mcp/dev"
+http_headers_helper = "~/.mcp-gateway/bin/gw-bridge headers --endpoint dev --grant gr_cx7q2lmaabcd"
+default_tools_approval_mode = "writes"
+startup_timeout_sec = 20
+tool_timeout_sec = 60
+# <<< MCP Gateway · gateway-dev

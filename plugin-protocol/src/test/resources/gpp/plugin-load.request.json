@@ -1,0 +1,17 @@
+{
+  "jsonrpc" : "2.0",
+  "id" : 2,
+  "method" : "plugin/load",
+  "params" : {
+    "generation" : "jira-service-desk@1.3.0",
+    "instance" : 1,
+    "jar" : "/home/ann/.mcp-gateway/plugins/jira-service-desk/1.3.0/plugin.jar",
+    "sha256" : "c4e19a07b3d25f8e61a0c9d7e42b58f13a6d09e7c25b81f4d3a96e0b7c18f52d",
+    "dataDir" : "/home/ann/.mcp-gateway/plugin-data/jira-service-desk",
+    "sandbox" : {
+      "enabled" : true,
+      "readOnly" : [ "/home/ann/.mcp-gateway/plugins/jira-service-desk/1.3.0" ],
+      "readWrite" : [ "/home/ann/.mcp-gateway/plugin-data/jira-service-desk" ]
+    }
+  }
+}

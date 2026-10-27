@@ -1,0 +1,202 @@
+// =============================================================
+// connector-card · Element
+// -------------------------------------------------------------
+// One connector TYPE (PostgreSQL, SSH, a template, a plugin, an external
+// MCP server): what it is, where it comes from, whether it is trusted,
+// how many tools it brings and the one thing to do with it. Two forms:
+//
+//   catalog card   pages/connectors.html (Installed / Catalog / Templates /
+//                  MCP servers tabs, laid out with gw-grid)
+//   picker card    pages/connection-new.html step 1 "Choose type": radio cards
+//                  grouped by category (Databases, Remote access, Logs,
+//                  Kubernetes, Cloud, HTTP and MCP)
+//
+// Composes  gw-card (__header __heading __title __body __footer--split),
+//           gw-icon-tile --lg, gw-icon, gw-badge (--outline --neutral --success
+//           --warning --sm, __icon), gw-status --info, gw-btn --sm, gw-grid
+//           --3/--auto, gw-choice-card (__input __icon __title __description
+//           __meta), gw-dialog --md --danger + gw-kv --dense + gw-checkbox
+//           (unsigned install), gw-field__error, gw-code, gw-mono, gw-sr-only,
+//           gw-text-*.
+//
+// Catalog card
+//   <article class="gw-card gw-connector-card" aria-labelledby="cn-pg">
+//     <header class="gw-card__header">
+//       <div class="gw-connector-card__identity">
+//         <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="database"></i></span>
+//         <div class="gw-card__heading">
+//           <h3 class="gw-card__title" id="cn-pg">PostgreSQL</h3>
+//           <p class="gw-connector-card__meta">
+//             <span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="package"></i>Built-in</span>
+//             <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v1.4.0</span></span>
+//           </p>
+//         </div>
+//       </div>
+//     </header>
+//     <div class="gw-card__body gw-connector-card__body">
+//       <p class="gw-text-small gw-fg-secondary">Queries, schema and EXPLAIN. Writes wait for approval.</p>
+//     </div>
+//     <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+//       <span class="gw-connector-card__tools gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="wrench"></i>4 tools</span>
+//       <a class="gw-btn gw-btn--sm" href="connection-new.html?type=postgresql">Add connection<span class="gw-sr-only"> for PostgreSQL</span></a>
+//     </footer>
+//   </article>
+//
+//   Several cards: <ul class="gw-grid gw-grid--3" aria-label="…"><li>card</li>…</ul>.
+//   The card fills its grid cell and the footer sits on the bottom edge, so
+//   actions line up across a row. The tile shows the resource type icon
+//   (BLUEPRINT §7: database, leaf, layers, terminal, scroll-text, ship-wheel,
+//   cloud, globe, plug; puzzle / file-code when the type has no icon of its own).
+//
+// Badges (same words, tones and icons everywhere)
+//   Kind    Template file-code · Plugin puzzle · MCP server plug:
+//           gw-badge --outline (quiet metadata).
+//   Trust   Signed: gw-badge --success + badge-check, sr-only " by the catalog".
+//           Unsigned: gw-badge --warning + shield-alert.
+//   Built-in connectors carry ONE badge, "Built-in" (gw-badge --neutral +
+//           package): kind and trust are the same fact (ships with the core).
+//           The Logs back ends (Loki, GCP Cloud Logging, AWS CloudWatch,
+//           OpenSearch) are built in: "Built-in Logs · 2 tools", never a plugin.
+//   Tool counts are the product's, the same on every surface: PostgreSQL 4,
+//           MySQL 4, MongoDB 2, Redis 2, SSH 2, each Logs back end 2,
+//           Kubernetes 4, GCP 2, AWS 2, HTTP API 2; plugins and MCP servers
+//           say theirs (Jira Service Desk 5, ClickHouse 6, RabbitMQ 4, github-mcp 26).
+//   Version mono, "v" prefix, sr-only "Version " before it.
+//
+// Action (footer end, gw-btn --sm, never --primary in a grid; the object goes
+//   in sr-only text so repeated buttons stay unique)
+//   Add connection   installed and ready (a link to connection-new?type=…)
+//   Install          catalog item that is not installed yet. Unsigned: opens a
+//                    gw-dialog--md --danger "Install unsigned plugin RabbitMQ?"
+//                    (--danger, never --warning: unverified code runs inside the
+//                    gateway; the review of an external MCP server is --danger
+//                    too) that names the risk, shows the package, its SHA-256,
+//                    "Unsigned" and the tools (Off until added; added, they
+//                    start in Approval), and an acknowledgement checkbox. The
+//                    danger button names the plugin and is aria-disabled with
+//                    aria-describedby → the acknowledgement until it is checked
+//                    (kit.js data-gw-enable-when). Cancel has autofocus.
+//   Configure        installed, needs settings first (MCP server URL, token)
+//   Update           a newer version exists (an installed plugin: Jira Service
+//                    Desk v1.2.0): the footer start shows gw-status --info
+//                    "Update available · v1.3.0" instead of the tools count
+//
+// Picker card (connection-new step 1)
+//   <fieldset class="gw-connector-card__picker">
+//     <legend class="gw-sr-only">Connector type</legend>
+//     <div class="gw-connector-card__group" role="group" aria-labelledby="pk-db">
+//       <h3 class="gw-connector-card__group-title gw-text-overline" id="pk-db">Databases</h3>
+//       <div class="gw-grid gw-grid--auto">
+//         <label class="gw-choice-card gw-connector-card__option">
+//           <input class="gw-choice-card__input" type="radio" name="connector" value="postgresql"
+//                  aria-labelledby="pk-pg-t" aria-describedby="pk-pg-d pk-pg-m" checked>
+//           <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="database"></i></span>
+//           <span class="gw-choice-card__title" id="pk-pg-t">PostgreSQL</span>
+//           <span class="gw-choice-card__description" id="pk-pg-d">Read queries, schema, EXPLAIN.</span>
+//           <span class="gw-choice-card__meta" id="pk-pg-m">Built-in · 4 tools</span>
+//         </label>
+//       </div>
+//     </div>
+//   </fieldset>
+//   One radio group (one name) across all categories: arrow keys move through
+//   every type in reading order. A non built-in type puts its kind badge in
+//   __title and its trust badge in __meta. A catalog plugin that is not
+//   installed is an aria-disabled="true" radio whose __description (in its
+//   aria-describedby) gives the reason: it stays focusable, kit.js keeps it
+//   from being picked, and gw-choice-card mutes it.
+//   Nothing chosen after Continue: aria-invalid="true" on the radios + a
+//   gw-field__error at the end of the fieldset, referenced by aria-describedby.
+//
+// Parts
+//   __identity      icon tile + heading, start aligned
+//   __meta          wrapping row of badges and version under the title
+//   __body          grows, so the footer is pinned to the bottom of the cell
+//   __footer        split footer that wraps on a narrow card
+//   __tools         icon + "4 tools"
+//   __picker        the step 1 fieldset: groups stacked 24px apart
+//   __group         one category: heading + grid, 12px apart
+//   __group-title   category heading (overline type from the utility class)
+//   __option        on a gw-choice-card (a grid item, so it already fills its
+//                   cell): __meta becomes a wrapping row so a trust badge sits
+//                   inline with the counts
+// States   catalog card: none of its own (the action and the badges carry the
+//          state). Picker card: the gw-choice-card states (:checked, focus,
+//          aria-disabled / :disabled with a reason in __description, aria-invalid).
+// A11y     article + aria-labelledby the title; repeated actions are unique
+//          through sr-only objects; badges always have words; icons are
+//          decorative. Picker: real radios, legend names the group, each
+//          category is role="group" named by its heading.
+// Raw values: none.
+// =============================================================
+
+@use "../scss/tokens" as *;
+@use "../scss/mixins" as *;
+
+.gw-connector-card {
+  // Fill the grid cell (a <li> of gw-grid stretches; the card follows it).
+  height: 100%;
+
+  &__identity {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--gw-space-3);
+    min-width: 0;
+  }
+
+  &__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gw-space-1-5);
+    min-width: 0;
+    margin: 0;
+  }
+
+  &__body {
+    flex: 1 1 auto;
+  }
+
+  &__footer {
+    flex-wrap: wrap;
+    row-gap: var(--gw-space-2);
+  }
+
+  &__tools {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--gw-space-1-5);
+    min-width: 0;
+  }
+
+  // ─── Picker (connection-new step 1) ───
+  &__picker {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-6);
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  &__group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-3);
+    min-width: 0;
+  }
+
+  &__group-title {
+    margin: 0;
+  }
+
+  // A grid item already stretches to its cell: only the meta row changes.
+  &__option {
+    > .gw-choice-card__meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--gw-space-1-5);
+    }
+  }
+}

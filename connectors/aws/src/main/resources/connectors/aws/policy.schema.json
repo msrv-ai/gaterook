@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Cloud",
+  "type": "object",
+  "x-policy-section": "cloud",
+  "additionalProperties": false,
+  "properties": {
+    "allowedServices": {
+      "type": "array",
+      "title": "Allowed services",
+      "uniqueItems": true,
+      "maxItems": 100,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9-]+$"
+      },
+      "default": [],
+      "x-stricter": "intersect",
+      "x-inherit": false,
+      "description": "ec2, rds, sqs (AWS); run, compute, sqladmin (GCP). Never inherited."
+    },
+    "regions": {
+      "type": "array",
+      "title": "Regions",
+      "uniqueItems": true,
+      "maxItems": 50,
+      "items": {
+        "type": "string",
+        "maxLength": 64
+      },
+      "default": [],
+      "x-stricter": "intersect",
+      "x-inherit": false
+    },
+    "resources": {
+      "type": "array",
+      "title": "Resources",
+      "uniqueItems": true,
+      "maxItems": 200,
+      "items": {
+        "type": "string",
+        "maxLength": 2048
+      },
+      "default": [],
+      "x-stricter": "intersect",
+      "x-inherit": false,
+      "description": "ARN or resource-name masks with *, e.g. arn:aws:rds:eu-central-1:*:db:stage-*. Empty: every resource of the allowed services."
+    },
+    "maxRangeDays": {
+      "type": "integer",
+      "title": "Longest time range",
+      "minimum": 1,
+      "maximum": 455,
+      "default": 14,
+      "x-unit": "days",
+      "x-stricter": "min",
+      "x-env-default": {
+        "prod": 7
+      }
+    },
+    "maxPoints": {
+      "type": "integer",
+      "title": "Data points per call",
+      "minimum": 10,
+      "maximum": 100000,
+      "default": 2000,
+      "x-stricter": "min",
+      "x-env-default": {
+        "prod": 1000
+      }
+    },
+    "maxItems": {
+      "type": "integer",
+      "title": "Items per call",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 100,
+      "x-stricter": "min",
+      "x-env-default": {
+        "prod": 50
+      }
+    }
+  }
+}

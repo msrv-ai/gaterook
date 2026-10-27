@@ -1,0 +1,1957 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Add connection · GateRook</title>
+<link rel="icon" href="../assets/logo-mark.svg" type="image/svg+xml">
+<script src="../assets/theme-boot.js"></script>
+<link rel="stylesheet" href="../dist/gw-kit.css">
+</head>
+<body>
+<a class="gw-skip-link" href="#main">Skip to content</a>
+<div class="gw-shell">
+
+  <header class="gw-titlebar">
+    <span class="gw-titlebar__title">Connections</span>
+    <div class="gw-titlebar__drag"></div>
+    <div class="gw-titlebar__actions">
+      <!-- Opens the command palette (#cmdk at the end of <main>, elements/command-palette.html) -->
+      <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Search and commands" aria-haspopup="dialog" aria-keyshortcuts="Meta+K Control+K" data-gw-dialog-open="cmdk"><i class="gw-icon" data-lucide="search"></i> Search <kbd class="gw-btn__kbd" aria-hidden="true">⌘K</kbd></button>
+      <a class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" href="approvals.html" aria-label="Approvals, 3 waiting"><i class="gw-icon" data-lucide="bell"></i><span class="gw-counter gw-counter--attention" aria-hidden="true">3</span></a>
+      <!--
+        Appearance popover. gw-popover belongs to component group D, gw-segmented to group C.
+        The <form method="dialog"> scopes the radio groups (Settings › Appearance has its own
+        gw-theme radios) and never submits outside a <dialog>. kit.js binds name="gw-theme" /
+        name="gw-contrast" to window.gwTheme.
+      -->
+      <div class="gw-menu-host">
+        <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="gw-appearance" aria-label="Appearance"><i class="gw-icon" data-lucide="sun-moon"></i></button>
+        <div class="gw-popover gw-popover--right" id="gw-appearance" role="dialog" aria-labelledby="gw-appearance-title" hidden>
+          <div class="gw-popover__header">
+            <p class="gw-popover__title" id="gw-appearance-title">Appearance</p>
+          </div>
+          <form class="gw-popover__body" method="dialog">
+            <div class="gw-stack gw-stack--sm">
+              <p class="gw-text-caption gw-fg-muted" id="gw-appearance-theme">Theme</p>
+              <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="gw-appearance-theme">
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i> System</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i> Light</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i> Dark</span></label>
+              </div>
+              <p class="gw-text-caption gw-fg-muted" id="gw-appearance-contrast">Contrast</p>
+              <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="gw-appearance-contrast">
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="system"><span class="gw-segmented__label">System</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="normal"><span class="gw-segmented__label">Normal</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="more"><span class="gw-segmented__label">High</span></label>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="gw-sidebar" id="gw-sidebar">
+    <div class="gw-sidebar__header">
+      <a class="gw-logo" href="overview.html" aria-label="GateRook, overview">
+        <img class="gw-logo__mark" src="../assets/logo-mark.svg" alt="">
+        <span class="gw-logo__name">GateRook</span>
+      </a>
+      <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-sidebar__toggle" type="button" data-gw-sidebar-toggle aria-controls="gw-sidebar" aria-expanded="true" aria-label="Collapse sidebar"><i class="gw-icon" data-lucide="panel-left"></i></button>
+    </div>
+
+    <nav class="gw-sidebar__body gw-nav" data-gw-nav aria-label="Main">
+      <div class="gw-nav__group">
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="overview.html"><i class="gw-icon gw-nav__icon" data-lucide="layout-dashboard"></i><span class="gw-nav__label">Overview</span></a></li>
+          <li><a class="gw-nav__item" href="approvals.html"><i class="gw-icon gw-nav__icon" data-lucide="user-check"></i><span class="gw-nav__label">Approvals</span><span class="gw-nav__counter gw-counter gw-counter--attention"><span class="gw-sr-only">, </span>3<span class="gw-sr-only"> waiting</span></span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-resources">
+        <p class="gw-nav__group-label" id="gw-nav-resources">Resources</p>
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="connections.html" aria-current="page"><i class="gw-icon gw-nav__icon" data-lucide="database"></i><span class="gw-nav__label">Connections</span></a></li>
+          <li><a class="gw-nav__item" href="connectors.html"><i class="gw-icon gw-nav__icon" data-lucide="puzzle"></i><span class="gw-nav__label">Connectors</span></a></li>
+          <li><a class="gw-nav__item" href="secrets.html"><i class="gw-icon gw-nav__icon" data-lucide="key-round"></i><span class="gw-nav__label">Secrets</span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-access">
+        <p class="gw-nav__group-label" id="gw-nav-access">Access</p>
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="endpoints.html"><i class="gw-icon gw-nav__icon" data-lucide="waypoints"></i><span class="gw-nav__label">Endpoints</span></a></li>
+          <li><a class="gw-nav__item" href="clients.html"><i class="gw-icon gw-nav__icon" data-lucide="app-window"></i><span class="gw-nav__label">AI apps</span></a></li>
+          <li><a class="gw-nav__item" href="policies.html"><i class="gw-icon gw-nav__icon" data-lucide="shield"></i><span class="gw-nav__label">Policies</span></a></li>
+          <li><a class="gw-nav__item" href="playground.html"><i class="gw-icon gw-nav__icon" data-lucide="flask-conical"></i><span class="gw-nav__label">Playground</span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-observe">
+        <p class="gw-nav__group-label" id="gw-nav-observe">Observe</p>
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="activity.html"><i class="gw-icon gw-nav__icon" data-lucide="activity"></i><span class="gw-nav__label">Activity</span></a></li>
+          <li><a class="gw-nav__item" href="insights.html"><i class="gw-icon gw-nav__icon" data-lucide="chart-column"></i><span class="gw-nav__label">Insights</span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group gw-nav__group--end">
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="settings.html"><i class="gw-icon gw-nav__icon" data-lucide="settings"></i><span class="gw-nav__label">Settings</span></a></li>
+        </ul>
+      </div>
+    </nav>
+
+    <!-- gw-status belongs to component group B. Static on purpose: no gw-status--live in the shell (WCAG 2.2.2) -->
+    <div class="gw-sidebar__footer">
+      <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Core running</span></span>
+      <span class="gw-sidebar__meta">127.0.0.1:7465 · v0.4.0</span>
+      <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off</span></span>
+    </div>
+  </div>
+
+  <main class="gw-shell__main" id="main" tabindex="-1">
+    <!-- App-wide gw-alert--banner (Core stopped, Tunnel is public) goes here, before gw-page -->
+    <div class="gw-page gw-page--narrow">
+      <!--
+        Three modes of one screen plus a first-run demo state (the page script picks one from the URL; the app routes them):
+          add        connection-new.html                    wizard: Choose type → Configure → Test → Add to endpoint
+          duplicate  connection-new.html?duplicate=dev-db   the same wizard from Configure, settings copied, secrets never copied
+          edit       connection-new.html?edit=dev-db        one connection: health, settings form (secret stored: Replace / Rotate),
+                                                            the endpoints and tool modes that use it, Delete
+        Elements carry data-mode-show="add duplicate | edit"; the static markup is the add mode plus the edit view of dev-db.
+        First run (connection-new.html?state=first-run, add mode only; Overview's first-run guide links here): nothing is
+          set up yet, so the wizard speaks to a beginner. Configure explains itself in plain words and keeps the secret
+          "encrypted here" (secret managers behind a disclosure); the last step creates the first endpoint, dev, instead
+          of picking among existing ones; after Save a "<name> is ready" card points to Connect your AI app. Blocks of
+          the other state carry data-cn-show and are removed before kit.js starts, as on Overview and AI apps.
+      -->
+      <header class="gw-page-header">
+        <nav class="gw-breadcrumb gw-page-header__breadcrumb" aria-label="Breadcrumb">
+          <ol>
+            <li><a href="connections.html">Connections</a></li>
+            <li><i class="gw-icon" data-lucide="chevron-right"></i><span aria-current="page" id="page-crumb">Add connection</span></li>
+          </ol>
+        </nav>
+        <div class="gw-page-header__row">
+          <div class="gw-page-header__heading">
+            <h1 class="gw-page-header__title" id="page-title">Add connection</h1>
+            <p class="gw-page-header__description" data-mode-show="add" data-cn-show="first-run" hidden>Choose its type, say where it is and how to sign in, and test it. GateRook then creates your first endpoint, the address your AI apps connect to. Nothing is saved until the last step.</p>
+            <p class="gw-page-header__description" data-mode-show="add" data-cn-show="in-use">Connect a resource once: choose its type, fill in where it is, test it, then pick the endpoints whose agents may use it. Nothing is saved until the last step.</p>
+            <p class="gw-page-header__description" data-mode-show="duplicate" hidden>A new connection with the settings of <span class="gw-mono" data-slot="name">dev-db</span>. Secrets are never copied: enter or reference the credentials of the copy.</p>
+            <p class="gw-page-header__description" data-mode-show="edit" hidden><span data-slot="type">PostgreSQL 16</span> at <span class="gw-mono" data-slot="host">db.dev.internal:5432/app</span>. Saved changes apply from the next call; calls in flight finish with the old settings.</p>
+            <div class="gw-page-header__meta" data-mode-show="edit" hidden>
+              <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev" data-slot="env">dev</span>
+              <span class="gw-status gw-status--success" data-slot="health"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy · 12 ms</span></span>
+              <span class="gw-text-small gw-fg-muted">Checked <time datetime="2026-10-22T14:29:43+02:00" title="2026-10-22 14:29:43 CEST" data-slot="checked">1 min ago</time></span>
+            </div>
+          </div>
+          <div class="gw-page-header__actions">
+            <a class="gw-btn gw-btn--ghost" href="connections.html" data-mode-show="add duplicate" data-cn-show="in-use">Cancel</a>
+            <a class="gw-btn gw-btn--ghost" href="overview.html?state=first-run" data-mode-show="add" data-cn-show="first-run" hidden>Cancel<span class="gw-sr-only"> and go back to Overview</span></a>
+            <a class="gw-btn gw-btn--ghost" href="activity.html?q=connection:dev-db" data-mode-show="edit" data-slot="activity" hidden><i class="gw-icon" data-lucide="activity"></i> View activity<span class="gw-sr-only"> of <span data-slot="name">dev-db</span></span></a>
+            <button class="gw-btn" type="button" id="edit-test" data-mode-show="edit" hidden><i class="gw-icon" data-lucide="plug-zap"></i> Test connection<span class="gw-sr-only"> <span data-slot="name">dev-db</span></span></button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Edit view only: how the connection is doing and who uses it -->
+      <dl class="gw-grid gw-grid--2" data-mode-show="edit" hidden>
+        <div class="gw-stat">
+          <dt class="gw-stat__label">Health check, last 24 hours</dt>
+          <dd class="gw-stat__value" data-slot="latency">12<span class="gw-stat__unit">ms</span></dd>
+          <dd class="gw-stat__chart">
+            <svg class="gw-sparkline gw-sparkline--success" viewBox="0 0 230 40" preserveAspectRatio="none" aria-hidden="true" data-slot="spark">
+              <polyline points="0,24 10,23 20,25 30,24 40,26 50,25 60,24 70,25 80,23 90,24 100,22 110,24 120,23 130,21 140,22 150,24 160,23 170,22 180,24 190,25 200,23 210,24 220,23 230,24"></polyline>
+            </svg>
+          </dd>
+          <dd class="gw-stat__meta" data-slot="health-meta">Steady between 10 and 15 ms · checked every minute</dd>
+        </div>
+        <div class="gw-stat">
+          <dt class="gw-stat__label">Used by</dt>
+          <dd class="gw-stat__value" data-slot="ep-count">1<span class="gw-stat__unit">endpoint</span></dd>
+          <dd class="gw-stat__meta" data-slot="ep-meta">4 tools on <span class="gw-mono">dev</span> · Claude Desktop and Codex</dd>
+        </div>
+      </dl>
+
+      <!-- Wizard progress. The page script moves aria-current / data-state and shows the choice made under each completed step. -->
+      <ol class="gw-stepper" id="add-steps" aria-label="Add connection" data-mode-show="add duplicate">
+        <li class="gw-stepper__step" data-state="current" aria-current="step">
+          <span class="gw-stepper__marker" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="check" data-step-check hidden></i><span data-step-num>1</span></span>
+          <span class="gw-stepper__label">Choose type<span class="gw-sr-only" data-step-done hidden>, completed</span></span>
+          <span class="gw-stepper__description" id="add-step-type" hidden>PostgreSQL</span>
+        </li>
+        <li class="gw-stepper__step" data-state="upcoming">
+          <span class="gw-stepper__marker" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="check" data-step-check hidden></i><span data-step-num>2</span></span>
+          <span class="gw-stepper__label">Configure<span class="gw-sr-only" data-step-done hidden>, completed</span></span>
+          <span class="gw-stepper__description" hidden><span class="gw-mono">dev-db</span> · dev</span>
+        </li>
+        <li class="gw-stepper__step" data-state="upcoming">
+          <span class="gw-stepper__marker" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="check" data-step-check hidden></i><span data-step-num>3</span></span>
+          <span class="gw-stepper__label">Test<span class="gw-sr-only" data-step-done hidden>, completed</span></span>
+          <span class="gw-stepper__description" hidden>Connected · 12 ms</span>
+        </li>
+        <li class="gw-stepper__step" data-state="upcoming">
+          <span class="gw-stepper__marker" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="check" data-step-check hidden></i><span data-step-num>4</span></span>
+          <span class="gw-stepper__label"><span data-cn-show="in-use">Add to endpoint</span><span data-cn-show="first-run" hidden>Create endpoint</span><span class="gw-sr-only" data-step-done hidden>, completed</span></span>
+          <span class="gw-stepper__description" hidden>Endpoint <span class="gw-mono">dev</span></span>
+        </li>
+      </ol>
+
+      <!-- ───────────── Step 1 · Choose type (connector-card picker) ───────────── -->
+      <section class="gw-section" id="step-1" data-wizard-panel="1" aria-labelledby="step-1-title">
+        <header class="gw-section__header">
+          <h2 class="gw-section__title" id="step-1-title" tabindex="-1">Choose a connector type</h2>
+          <p class="gw-section__description" data-cn-show="first-run" hidden>The type decides what you fill in next and what your AI apps can do with it.</p>
+          <p class="gw-section__description" data-cn-show="in-use">The type decides the fields and the tools agents get. Need another one? Install it in <a class="gw-link" href="connectors.html">Connectors</a>.</p>
+        </header>
+        <!-- method="dialog" keeps the reference page from submitting; the app owns the wizard state.
+             --sticky-actions keeps Back / Continue in reach below the long type list. -->
+        <form class="gw-form gw-form--sticky-actions" method="dialog" novalidate aria-labelledby="step-1-title">
+          <fieldset class="gw-connector-card__picker">
+            <legend class="gw-sr-only">Connector type</legend>
+
+            <div class="gw-connector-card__group" role="group" aria-labelledby="pk-g-db">
+              <h3 class="gw-connector-card__group-title gw-text-overline" id="pk-g-db">Databases</h3>
+              <div class="gw-grid gw-grid--auto">
+                <label class="gw-choice-card gw-connector-card__option">
+                  <input class="gw-choice-card__input" type="radio" name="connector-type" value="postgresql" checked aria-labelledby="pk-pg-t" aria-describedby="pk-pg-d pk-pg-m">
+                  <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="database"></i></span>
+                  <span class="gw-choice-card__title" id="pk-pg-t">PostgreSQL</span>
+                  <span class="gw-choice-card__description" id="pk-pg-d">Read queries, schema, EXPLAIN. Writes wait for approval.</span>
+                  <span class="gw-choice-card__meta" id="pk-pg-m">Built-in · 4 tools</span>
+                </label>
+                <label class="gw-choice-card gw-connector-card__option">
+                  <input class="gw-choice-card__input" type="radio" name="connector-type" value="mysql" aria-labelledby="pk-my-t" aria-describedby="pk-my-d pk-my-m">
+                  <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="database"></i></span>
+                  <span class="gw-choice-card__title" id="pk-my-t">MySQL</span>
+                  <span class="gw-choice-card__description" id="pk-my-d">MySQL 8 and MariaDB. Read queries, schema, EXPLAIN.</span>
+                  <span class="gw-choice-card__meta" id="pk-my-m">Built-in · 4 tools</span>
+                </label>
+                <label class="gw-choice-card gw-connector-card__option">
+                  <input class="gw-choice-card__input" type="radio" name="connector-type" value="mongodb" aria-labelledby="pk-mg-t" aria-describedby="pk-mg-d pk-mg-m">
+                  <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="leaf"></i></span>
+                  <span class="gw-choice-card__title" id="pk-mg-t">MongoDB</span>
+                  <span class="gw-choice-card__description" id="pk-mg-d">Find and aggregate over collections. Read only.</span>
+                  <span class="gw-choice-card__meta" id="pk-mg-m">Built-in · 2 tools</span>
+                </label>
+                <label class="gw-choice-card gw-connector-card__option">
+                  <input class="gw-choice-card__input" type="radio" name="connector-type" value="redis" aria-labelledby="pk-rd-t" aria-describedby="pk-rd-d pk-rd-m">
+                  <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="layers"></i></span>
+                  <span class="gw-choice-card__title" id="pk-rd-t">Redis</span>
+                  <span class="gw-choice-card__description" id="pk-rd-d">Read keys and scan by pattern. Read only.</span>
+                  <span class="gw-choice-card__meta" id="pk-rd-m">Built-in · 2 tools</span>
+                </label>
+                <label class="gw-choice-card gw-connector-card__option">
+                  <input class="gw-choice-card__input" type="radio" name="connector-type" value="clickhouse" aria-disabled="true" aria-labelledby="pk-ch-t" aria-describedby="pk-ch-d pk-ch-m">
+                  <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="database"></i></span>
+                  <span class="gw-choice-card__title" id="pk-ch-t">ClickHouse <span class="gw-badge gw-badge--outline gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="puzzle"></i>Plugin</span></span>
+                  <span class="gw-choice-card__description" id="pk-ch-d">Not installed. Install it from the catalog in Connectors first.</span>
+                  <span class="gw-choice-card__meta" id="pk-ch-m"><span class="gw-badge gw-badge--success gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="badge-check"></i>Signed<span class="gw-sr-only"> by the catalog</span></span>6 tools</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="gw-connector-card__group" role="group" aria-labelledby="pk-g-remote">
+              <h3 class="gw-connector-card__group-title gw-text-overline" id="pk-g-remote">Remote access</h3>
+              <div class="gw-grid gw-grid--auto">
+                <label class="gw-choice-card gw-connector-card__option">
+                  <input class="gw-choice-card__input" type="radio" name="connector-type" value="ssh" aria-labelledby="pk-ssh-t" aria-describedby="pk-ssh-d pk-ssh-m">
+                  <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="terminal"></i></span>
+                  <span class="gw-choice-card__title" id="pk-ssh-t">SSH</span>
+                  <span class="gw-choice-card__description" id="pk-ssh-d">Runbooks with typed parameters, through an SSH CA or a key.</span>
+                  <span class="gw-choice-card__meta" id="pk-ssh-m">Built-in · 2 tools</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="gw-connector-card__group" role="group" aria-labelledby="pk-g-logs">
+              <h3 class="gw-connector-card__group-title gw-text-overline" id="pk-g-logs">Logs</h3>
+              <div class="gw-grid gw-grid--auto">
+                <label class="gw-choice-card gw-connector-card__option">
+                  <input class="gw-choice-card__input" type="radio" name="connector-type" value="gcp-logging" aria-labelledby="pk-gcl-t" aria-describedby="pk-gcl-d pk-gcl-m">
+                  <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="scroll-text"></i></span>
+                  <span class="gw-choice-card__title" id="pk-gcl-t">GCP Cloud Logging</span>
+                  <span class="gw-choice-card__description" id="pk-gcl-d">Search logs with service account impersonation.</span>
+                  <span class="gw-choice-card__meta" id="pk-gcl-m">Built-in Logs · 2 tools</span>
+                </label>
+                <label class="gw-choice-card gw-connector-card__option">
+                  <input class="gw-choice-card__input" type="radio" name="connector-type" value="cloudwatch" aria-labelledby="pk-cw-t" aria-describedby="pk-cw-d pk-cw-m">
+                  <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="scroll-text"></i></span>
+                  <span class="gw-choice-card__title" id="pk-cw-t">AWS CloudWatch</span>
+                  <span class="gw-choice-card__description" id="pk-cw-d">Logs Insights queries with AssumeRole.</span>
+                  <span class="gw-choice-card__meta" id="pk-cw-m">Built-in Logs · 2 tools</span>
+                </label>
+                <label class="gw-choice-card gw-connector-card__option">
+                  <input class="gw-choice-card__input" type="radio" name="connector-type" value="loki" aria-labelledby="pk-loki-t" aria-describedby="pk-loki-d pk-loki-m">
+                  <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="scroll-text"></i></span>
+                  <span class="gw-choice-card__title" id="pk-loki-t">Loki</span>
+                  <span class="gw-choice-card__description" id="pk-loki-d">LogQL search and label browsing.</span>
+                  <span class="gw-choice-card__meta" id="pk-loki-m">Built-in Logs · 2 tools</span>
+                </label>
+                <label class="gw-choice-card gw-connector-card__option">
+                  <input class="gw-choice-card__input" type="radio" name="connector-type" value="opensearch" aria-labelledby="pk-os-t" aria-describedby="pk-os-d pk-os-m">
+                  <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="scroll-text"></i></span>
+                  <span class="gw-choice-card__title" id="pk-os-t">OpenSearch</span>
+                  <span class="gw-choice-card__description" id="pk-os-d">Lucene query search over log indices.</span>
+                  <span class="gw-choice-card__meta" id="pk-os-m">Built-in Logs · 2 tools</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="gw-connector-card__group" role="group" aria-labelledby="pk-g-k8s">
+              <h3 class="gw-connector-card__group-title gw-text-overline" id="pk-g-k8s">Kubernetes</h3>
+              <div class="gw-grid gw-grid--auto">
+                <label class="gw-choice-card gw-connector-card__option">
+                  <input class="gw-choice-card__input" type="radio" name="connector-type" value="kubernetes" aria-labelledby="pk-k8s-t" aria-describedby="pk-k8s-d pk-k8s-m">
+                  <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="ship-wheel"></i></span>
+                  <span class="gw-choice-card__title" id="pk-k8s-t">Kubernetes</span>
+                  <span class="gw-choice-card__description" id="pk-k8s-d">Pods, logs and events; rollouts and apply with approval.</span>
+                  <span class="gw-choice-card__meta" id="pk-k8s-m">Built-in · 4 tools</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="gw-connector-card__group" role="group" aria-labelledby="pk-g-cloud">
+              <h3 class="gw-connector-card__group-title gw-text-overline" id="pk-g-cloud">Cloud</h3>
+              <div class="gw-grid gw-grid--auto">
+                <label class="gw-choice-card gw-connector-card__option">
+                  <input class="gw-choice-card__input" type="radio" name="connector-type" value="gcp" aria-labelledby="pk-gcp-t" aria-describedby="pk-gcp-d pk-gcp-m">
+                  <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
+                  <span class="gw-choice-card__title" id="pk-gcp-t">GCP</span>
+                  <span class="gw-choice-card__description" id="pk-gcp-d">Resources, statuses and metrics, read through service account impersonation.</span>
+                  <span class="gw-choice-card__meta" id="pk-gcp-m">Built-in · 2 tools</span>
+                </label>
+                <label class="gw-choice-card gw-connector-card__option">
+                  <input class="gw-choice-card__input" type="radio" name="connector-type" value="aws" aria-labelledby="pk-aws-t" aria-describedby="pk-aws-d pk-aws-m">
+                  <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
+                  <span class="gw-choice-card__title" id="pk-aws-t">AWS</span>
+                  <span class="gw-choice-card__description" id="pk-aws-d">Resources, statuses and metrics, read with AssumeRole.</span>
+                  <span class="gw-choice-card__meta" id="pk-aws-m">Built-in · 2 tools</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="gw-connector-card__group" role="group" aria-labelledby="pk-g-http">
+              <h3 class="gw-connector-card__group-title gw-text-overline" id="pk-g-http">HTTP and MCP</h3>
+              <div class="gw-grid gw-grid--auto">
+                <label class="gw-choice-card gw-connector-card__option">
+                  <input class="gw-choice-card__input" type="radio" name="connector-type" value="http" aria-labelledby="pk-http-t" aria-describedby="pk-http-d pk-http-m">
+                  <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="globe"></i></span>
+                  <span class="gw-choice-card__title" id="pk-http-t">HTTP API</span>
+                  <span class="gw-choice-card__description" id="pk-http-d">One base URL with an allowlist. GET reads; every other method waits for approval.</span>
+                  <span class="gw-choice-card__meta" id="pk-http-m">Built-in · 2 tools</span>
+                </label>
+                <label class="gw-choice-card gw-connector-card__option">
+                  <input class="gw-choice-card__input" type="radio" name="connector-type" value="openapi" aria-labelledby="pk-oa-t" aria-describedby="pk-oa-d pk-oa-m">
+                  <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="file-code"></i></span>
+                  <span class="gw-choice-card__title" id="pk-oa-t">OpenAPI import <span class="gw-badge gw-badge--outline gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="file-code"></i>Template</span></span>
+                  <span class="gw-choice-card__description" id="pk-oa-d">Turn an OpenAPI 3 file into one tool per operation.</span>
+                  <span class="gw-choice-card__meta" id="pk-oa-m">Tools from the file</span>
+                </label>
+                <label class="gw-choice-card gw-connector-card__option">
+                  <input class="gw-choice-card__input" type="radio" name="connector-type" value="jira-service-desk" aria-labelledby="pk-jira-t" aria-describedby="pk-jira-d pk-jira-m">
+                  <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="puzzle"></i></span>
+                  <span class="gw-choice-card__title" id="pk-jira-t">Jira Service Desk <span class="gw-badge gw-badge--outline gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="puzzle"></i>Plugin</span></span>
+                  <span class="gw-choice-card__description" id="pk-jira-d">Search requests and read queues. Comments and transitions wait for approval.</span>
+                  <span class="gw-choice-card__meta" id="pk-jira-m"><span class="gw-badge gw-badge--success gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="badge-check"></i>Signed<span class="gw-sr-only"> by the catalog</span></span>v1.2.0 · 5 tools</span>
+                </label>
+                <label class="gw-choice-card gw-connector-card__option">
+                  <input class="gw-choice-card__input" type="radio" name="connector-type" value="mcp" aria-labelledby="pk-mcp-t" aria-describedby="pk-mcp-d pk-mcp-m">
+                  <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="plug"></i></span>
+                  <span class="gw-choice-card__title" id="pk-mcp-t">External MCP server</span>
+                  <span class="gw-choice-card__description" id="pk-mcp-d">Put any MCP server behind modes, approvals and audit.</span>
+                  <span class="gw-choice-card__meta" id="pk-mcp-m">Tools from the server</span>
+                </label>
+              </div>
+            </div>
+          </fieldset>
+          <div class="gw-form__actions">
+            <!-- How many connections already use the chosen type (or log back end); the page script follows the choice, none when 0 -->
+            <p class="gw-form__note" data-type-usage><i class="gw-icon" data-lucide="database" data-type-usage-icon></i><span data-type-usage-text>3 connections use PostgreSQL</span></p>
+            <button class="gw-btn gw-btn--primary" type="button" data-wizard-go="2">Continue<span class="gw-sr-only"> to configure</span> <i class="gw-icon" data-lucide="arrow-right"></i></button>
+          </div>
+        </form>
+      </section>
+
+      <!-- ───────────── Step 2 · Configure (connection-form element) ───────────── -->
+      <section class="gw-section" id="step-2" data-wizard-panel="2" aria-labelledby="step-2-title" hidden>
+        <header class="gw-section__header">
+          <h2 class="gw-section__title" id="step-2-title" tabindex="-1">Configure <span data-slot="type-name">PostgreSQL</span></h2>
+          <p class="gw-section__description" data-cn-show="first-run" hidden>Where it is and how to sign in. Your AI never sees the password.</p>
+          <p class="gw-section__description" data-cn-show="in-use">Fields come from the <span data-slot="type-name">PostgreSQL</span> connector's JSON Schema. The gateway adds the secret source, the environment and its safety defaults.</p>
+        </header>
+        <form class="gw-form gw-form--sticky-actions gw-connection-form" id="cf-form" method="dialog" novalidate aria-labelledby="step-2-title">
+          <!-- Demo only: this reference page draws the PostgreSQL schema; another type shows its own fields here -->
+          <div class="gw-alert gw-alert--info gw-alert--compact" data-standin hidden>
+            <i class="gw-icon gw-alert__icon" data-lucide="info"></i>
+            <div class="gw-alert__content"><p class="gw-alert__body">Reference page: the <span data-slot="type-name">PostgreSQL</span> connector draws its own fields from its JSON Schema. The PostgreSQL fields below stand in for them.</p></div>
+          </div>
+          <div class="gw-alert gw-alert--info gw-alert--compact" data-mode-show="duplicate" hidden>
+            <i class="gw-icon gw-alert__icon" data-lucide="copy-plus"></i>
+            <div class="gw-alert__content"><p class="gw-alert__body">Copied from <span class="gw-mono" data-slot="name">dev-db</span>: where it is, the environment and the advanced settings. The credentials are not: enter a password or reference a secret for the copy.</p></div>
+          </div>
+          <fieldset class="gw-form__section">
+            <legend class="gw-form__legend">Connection</legend>
+            <p class="gw-form__description" data-cn-show="first-run" hidden>GateRook connects from this computer, so your VPN and hosts file apply.</p>
+            <p class="gw-form__description" data-cn-show="in-use">Where the core reaches the database. It connects from this machine, so your VPN and hosts file apply.</p>
+            <div class="gw-form__rows">
+              <div class="gw-field">
+                <label class="gw-field__label" for="cf-name">Name</label>
+                <input class="gw-input gw-input--mono" id="cf-name" name="name" value="dev-db" required autocomplete="off" spellcheck="false" aria-describedby="cf-name-hint">
+                <p class="gw-field__hint" id="cf-name-hint"><span data-cn-show="first-run" hidden>Lowercase letters, digits and dashes, like <span class="gw-mono">dev-db</span>. Your AI apps use this name to pick the connection.</span><span data-cn-show="in-use">A slug: lowercase letters, digits and dashes. Agents call tools with it and Activity filters by <span class="gw-mono">connection:<span data-slot="conn-name">dev-db</span></span>.</span><span data-mode-show="edit" hidden> It can't be renamed: agents, policies and past calls refer to it.</span></p>
+              </div>
+              <div class="gw-form__row">
+                <div class="gw-field">
+                  <label class="gw-field__label" for="cf-host">Host</label>
+                  <input class="gw-input gw-input--mono" id="cf-host" name="host" value="db.dev.internal" required autocomplete="off" spellcheck="false">
+                </div>
+                <div class="gw-field">
+                  <label class="gw-field__label" for="cf-port">Port</label>
+                  <input class="gw-input gw-input--mono" id="cf-port" name="port" type="text" inputmode="numeric" value="5432" required autocomplete="off">
+                </div>
+                <div class="gw-field">
+                  <label class="gw-field__label" for="cf-db">Database</label>
+                  <input class="gw-input gw-input--mono" id="cf-db" name="database" value="app" required autocomplete="off" spellcheck="false">
+                </div>
+              </div>
+              <div class="gw-field">
+                <label class="gw-field__label" for="cf-ssl">SSL mode</label>
+                <select class="gw-select" id="cf-ssl" name="sslmode" aria-describedby="cf-ssl-hint">
+                  <option value="disable">Off (disable)</option>
+                  <option value="require">Encrypt, don't verify (require)</option>
+                  <option value="verify-ca">Verify the CA (verify-ca)</option>
+                  <option value="verify-full" selected>Verify the CA and host name (verify-full)</option>
+                </select>
+                <p class="gw-field__hint" id="cf-ssl-hint"><span data-cn-show="first-run" hidden>Keep the strictest setting. Lower it only if the test fails and the database is on a network you trust.</span><span data-cn-show="in-use">verify-full checks the certificate and the host name. Lower it only for a database without TLS on a network you trust.</span></p>
+              </div>
+            </div>
+          </fieldset>
+          <section class="gw-form__section gw-connection-form__credentials" aria-labelledby="cf-cred-t">
+            <header class="gw-form__section-header">
+              <h3 class="gw-form__legend" id="cf-cred-t">Credentials</h3>
+              <p class="gw-form__description" data-cn-show="first-run" hidden>Your AI never sees these. GateRook uses them only to sign in to the database.</p>
+              <p class="gw-form__description" data-cn-show="in-use">The agent never sees these. Inside the connector, the core decrypts or fetches the secret only to sign in to the database.</p>
+            </header>
+            <div class="gw-form__rows">
+              <!-- First run: the secret stays encrypted here; the other sources wait behind a disclosure placed before them -->
+              <div class="gw-stack gw-stack--sm" data-cn-show="first-run" hidden>
+                <p class="gw-text-small gw-fg-secondary"><i class="gw-icon gw-icon--sm" data-lucide="lock-keyhole"></i> <span data-fr-secret="local">The password is stored encrypted on this computer. Nobody can view it afterwards, not even you.</span><span data-fr-secret="manager" hidden>The secret stays in your secret manager. GateRook reads it only when a call needs it.</span></p>
+                <button class="gw-btn gw-btn--ghost gw-btn--sm gw-connection-form__toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="cf-src-field"><i class="gw-icon gw-icon--sm gw-connection-form__when-closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-connection-form__when-open" data-lucide="chevron-up"></i>Use a secret manager instead (Vault, GCP, AWS)</button>
+              </div>
+              <fieldset class="gw-field" id="cf-src-field">
+                <legend class="gw-field__label">Secret source</legend>
+                <div class="gw-grid gw-grid--auto gw-connection-form__sources">
+                  <label class="gw-choice-card gw-choice-card--compact">
+                    <input class="gw-choice-card__input" type="radio" name="cf-src" value="local" checked aria-labelledby="cf-src-local-t" aria-describedby="cf-src-local-d">
+                    <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="lock-keyhole"></i></span>
+                    <span class="gw-choice-card__title" id="cf-src-local-t">Encrypted here</span>
+                    <span class="gw-choice-card__description" id="cf-src-local-d">Stored in the local database, encrypted with the master key. Write-only.</span>
+                    <span class="gw-choice-card__meta">Default</span>
+                  </label>
+                  <label class="gw-choice-card gw-choice-card--compact">
+                    <input class="gw-choice-card__input" type="radio" name="cf-src" value="vault" aria-labelledby="cf-src-vault-t" aria-describedby="cf-src-vault-d">
+                    <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="vault"></i></span>
+                    <span class="gw-choice-card__title" id="cf-src-vault-t">HashiCorp Vault or OpenBao</span>
+                    <span class="gw-choice-card__description" id="cf-src-vault-d">Resolve a <span class="gw-mono">vault://</span> reference at call time.</span>
+                    <span class="gw-choice-card__meta">KV v2</span>
+                  </label>
+                  <label class="gw-choice-card gw-choice-card--compact">
+                    <input class="gw-choice-card__input" type="radio" name="cf-src" value="gcp" aria-labelledby="cf-src-gcp-t" aria-describedby="cf-src-gcp-d">
+                    <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
+                    <span class="gw-choice-card__title" id="cf-src-gcp-t">GCP Secret Manager</span>
+                    <span class="gw-choice-card__description" id="cf-src-gcp-d">Resolve <span class="gw-mono">gcp-sm://</span> with the core&#39;s service account.</span>
+                    <span class="gw-choice-card__meta">Needs secretAccessor</span>
+                  </label>
+                  <label class="gw-choice-card gw-choice-card--compact">
+                    <input class="gw-choice-card__input" type="radio" name="cf-src" value="aws" aria-labelledby="cf-src-aws-t" aria-describedby="cf-src-aws-d">
+                    <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
+                    <span class="gw-choice-card__title" id="cf-src-aws-t">AWS Secrets Manager</span>
+                    <span class="gw-choice-card__description" id="cf-src-aws-d">Resolve <span class="gw-mono">aws-sm://</span> with the core&#39;s AWS profile.</span>
+                    <span class="gw-choice-card__meta">Needs GetSecretValue</span>
+                  </label>
+                  <label class="gw-choice-card gw-choice-card--compact">
+                    <input class="gw-choice-card__input" type="radio" name="cf-src" value="dynamic" aria-labelledby="cf-src-dynamic-t" aria-describedby="cf-src-dynamic-d">
+                    <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="timer"></i></span>
+                    <span class="gw-choice-card__title" id="cf-src-dynamic-t">Short-lived (Vault dynamic credentials)</span>
+                    <span class="gw-choice-card__description" id="cf-src-dynamic-d">Vault creates a short-lived database user, renewed automatically. Nothing is stored here.</span>
+                    <span class="gw-choice-card__meta">Recommended for prod</span>
+                  </label>
+                </div>
+              </fieldset>
+              <div class="gw-field gw-connection-form__user">
+                <label class="gw-field__label" for="cf-user">User</label>
+                <input class="gw-input gw-input--mono" id="cf-user" name="user" value="app_rw" required autocomplete="off" spellcheck="false" aria-describedby="cf-user-hint">
+                <p class="gw-field__hint" id="cf-user-hint">Use a user that can only read wherever you can. The test shows what it may do.</p>
+              </div>
+              <div class="gw-field gw-connection-form__secret" data-source="local">
+                <label class="gw-field__label" for="cf-pw" id="cf-pw-label" data-slot="secret-label">Password</label>
+                <!-- New value (add, duplicate): a reveal toggle is allowed only while a brand new value is typed -->
+                <div class="gw-secret" data-state="empty" data-mode-show="add duplicate">
+                  <div class="gw-input-group">
+                    <input class="gw-input" type="password" id="cf-pw" name="password" placeholder="Paste or type the password" autocomplete="new-password" aria-describedby="cf-pw-hint">
+                    <button class="gw-input-group__addon" type="button" data-gw-reveal aria-pressed="false" aria-label="Show password" aria-controls="cf-pw"><i class="gw-icon" data-lucide="eye"></i><i class="gw-icon" data-lucide="eye-off"></i></button>
+                  </div>
+                </div>
+                <!-- Edit view: stored and write-only. Replace switches to the editing state in place; Rotate opens the rotate dialog. -->
+                <div class="gw-secret" data-state="stored" role="group" aria-labelledby="cf-pw-label" aria-describedby="cf-pw-edit-hint" data-mode-show="edit" data-secret-view="stored" hidden>
+                  <span class="gw-secret__status"><i class="gw-icon" data-lucide="lock-keyhole"></i>Encrypted</span>
+                  <span class="gw-secret__meta">version <span class="gw-mono" data-slot="secret-version">3</span> · updated <time datetime="2026-10-20T09:14:00Z" title="2026-10-20 09:14 UTC" data-slot="secret-updated">2 days ago</time></span>
+                  <span class="gw-secret__actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-secret-replace>Replace<span class="gw-sr-only"> <span data-slot="secret-what">password</span> of <span data-slot="name">dev-db</span></span></button>
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-dialog-open="dlg-rotate-secret">Rotate<span class="gw-sr-only"> <span data-slot="secret-what">password</span> of <span data-slot="name">dev-db</span></span></button>
+                  </span>
+                </div>
+                <div class="gw-secret" data-state="editing" data-secret-view="editing" hidden>
+                  <input class="gw-input" type="password" id="cf-pw-new" name="newPassword" autocomplete="new-password" aria-label="New password of dev-db" aria-describedby="cf-pw-new-hint">
+                  <span class="gw-secret__actions">
+                    <button class="gw-btn gw-btn--ghost" type="button" data-secret-cancel>Cancel</button>
+                    <button class="gw-btn" type="button" data-secret-save>Save <span data-slot="secret-what">password</span><span class="gw-sr-only"> of <span data-slot="name">dev-db</span></span></button>
+                  </span>
+                </div>
+                <p class="gw-field__hint" id="cf-pw-hint" data-mode-show="add duplicate"><span data-cn-show="first-run" hidden>Encrypted on this computer when you save.</span><span data-cn-show="in-use">Encrypted with the master key when you save. Nobody can view it afterwards: Replace or Rotate only.</span></p>
+                <p class="gw-field__hint" id="cf-pw-edit-hint" data-mode-show="edit" data-secret-view="stored" hidden>Write-only: nobody can view it, here or in the API. Every secret is listed in <a class="gw-link" href="secrets.html#stored-secrets">Secrets</a>.</p>
+                <!-- Edit view, a connector that can't set a new value at the source (only SQL can): Rotate stays in the Tab order,
+                     aria-disabled, and says why here; the page script shows it (DESIGN §8 "Action hierarchy and disabled behavior"). -->
+                <p class="gw-field__hint" id="cf-pw-rotate-why" hidden>Rotate: This connector can't issue a new value for itself. Replace it with a new value.</p>
+                <p class="gw-field__hint" id="cf-pw-new-hint" data-secret-view="editing" hidden>Saving creates version <span data-slot="secret-next">4</span>. Version <span data-slot="secret-version">3</span> stays in use until then, and there is no way to view either.</p>
+              </div>
+              <div class="gw-field gw-connection-form__secret" data-source="vault">
+                <label class="gw-field__label" for="cf-ref-vault" id="cf-ref-vault-label">Secret reference</label>
+                <div class="gw-secret" data-state="empty" data-mode-show="add duplicate">
+                  <input class="gw-input gw-input--mono" type="text" id="cf-ref-vault" name="secretRef" placeholder="vault://kv/dev/db#password" autocomplete="off" spellcheck="false" aria-describedby="cf-ref-vault-hint">
+                  <span class="gw-secret__actions"><button class="gw-btn" type="button">Test reference</button></span>
+                </div>
+                <div class="gw-secret" data-state="reference" role="group" aria-labelledby="cf-ref-vault-label" data-mode-show="edit" hidden>
+                  <span class="gw-secret__status"><i class="gw-icon" data-lucide="vault"></i><span data-slot="ref-provider">Vault</span></span>
+                  <code class="gw-secret__ref" data-slot="ref">vault://kv/stage/db#password</code>
+                  <span class="gw-secret__actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-ref-test>Test reference<span class="gw-sr-only"> of <span data-slot="name">dev-db</span></span></button>
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-ref-change>Change<span class="gw-sr-only"> reference of <span data-slot="name">dev-db</span></span></button>
+                  </span>
+                </div>
+                <p class="gw-field__hint" id="cf-ref-vault-hint">Path and key in Vault or OpenBao, resolved at call time with the core's Vault token.</p>
+              </div>
+              <div class="gw-field gw-connection-form__secret" data-source="gcp">
+                <label class="gw-field__label" for="cf-ref-gcp" id="cf-ref-gcp-label">Secret reference</label>
+                <div class="gw-secret" data-state="empty" data-mode-show="add duplicate">
+                  <input class="gw-input gw-input--mono" type="text" id="cf-ref-gcp" name="secretRef" placeholder="gcp-sm://projects/acme-dev/secrets/dev-db-password/versions/latest" autocomplete="off" spellcheck="false" aria-describedby="cf-ref-gcp-hint">
+                  <span class="gw-secret__actions"><button class="gw-btn" type="button">Test reference</button></span>
+                </div>
+                <div class="gw-secret" data-state="reference" role="group" aria-labelledby="cf-ref-gcp-label" data-mode-show="edit" hidden>
+                  <span class="gw-secret__status"><i class="gw-icon" data-lucide="cloud"></i><span data-slot="ref-provider">GCP Secret Manager</span></span>
+                  <code class="gw-secret__ref" data-slot="ref">gcp-sm://projects/acme-stage/secrets/billing-api-token/versions/latest</code>
+                  <span class="gw-secret__actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-ref-test>Test reference<span class="gw-sr-only"> of <span data-slot="name">dev-db</span></span></button>
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-ref-change>Change<span class="gw-sr-only"> reference of <span data-slot="name">dev-db</span></span></button>
+                  </span>
+                </div>
+                <p class="gw-field__hint" id="cf-ref-gcp-hint">Resolved at call time with the core's service account.</p>
+              </div>
+              <div class="gw-field gw-connection-form__secret" data-source="aws">
+                <label class="gw-field__label" for="cf-ref-aws" id="cf-ref-aws-label">Secret reference</label>
+                <div class="gw-secret" data-state="empty" data-mode-show="add duplicate">
+                  <input class="gw-input gw-input--mono" type="text" id="cf-ref-aws" name="secretRef" placeholder="aws-sm://eu-central-1/dev/db#password" autocomplete="off" spellcheck="false" aria-describedby="cf-ref-aws-hint">
+                  <span class="gw-secret__actions"><button class="gw-btn" type="button">Test reference</button></span>
+                </div>
+                <div class="gw-secret" data-state="reference" role="group" aria-labelledby="cf-ref-aws-label" data-mode-show="edit" hidden>
+                  <span class="gw-secret__status"><i class="gw-icon" data-lucide="cloud"></i><span data-slot="ref-provider">AWS Secrets Manager</span></span>
+                  <code class="gw-secret__ref" data-slot="ref">aws-sm://eu-central-1/stage/billing-api#webhook_secret</code>
+                  <span class="gw-secret__actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-ref-test>Test reference<span class="gw-sr-only"> of <span data-slot="name">dev-db</span></span></button>
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-ref-change>Change<span class="gw-sr-only"> reference of <span data-slot="name">dev-db</span></span></button>
+                  </span>
+                </div>
+                <p class="gw-field__hint" id="cf-ref-aws-hint">Resolved at call time with the core's AWS profile.</p>
+              </div>
+              <div class="gw-field gw-connection-form__secret" data-source="dynamic">
+                <label class="gw-field__label" for="cf-role" id="cf-role-label" data-slot="role-label">Vault role</label>
+                <div class="gw-secret" data-state="empty" data-mode-show="add duplicate">
+                  <input class="gw-input gw-input--mono" type="text" id="cf-role" name="vaultRole" placeholder="database/creds/dev-readonly" autocomplete="off" spellcheck="false" aria-describedby="cf-role-hint">
+                  <span class="gw-secret__actions"><button class="gw-btn" type="button">Test role</button></span>
+                </div>
+                <div class="gw-secret" data-state="reference" role="group" aria-labelledby="cf-role-label" data-mode-show="edit" hidden>
+                  <span class="gw-secret__status"><i class="gw-icon" data-lucide="timer"></i><span data-slot="ref-provider">Vault dynamic</span></span>
+                  <code class="gw-secret__ref" data-slot="ref">vault://database/creds/prod-replica-readonly</code>
+                  <span class="gw-secret__actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-ref-test>Test role<span class="gw-sr-only"> of <span data-slot="name">dev-db</span></span></button>
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-ref-change>Change<span class="gw-sr-only"> reference of <span data-slot="name">dev-db</span></span></button>
+                  </span>
+                </div>
+                <p class="gw-field__hint" id="cf-role-hint">Vault creates a short-lived database user, renewed automatically. No user or password is stored here.</p>
+              </div>
+              <!-- Edit view: a second credential of the connection that can't be resolved (billing-api's webhook secret) -->
+              <div class="gw-alert gw-alert--warning gw-alert--compact" data-cred-warning hidden>
+                <i class="gw-icon gw-alert__icon" data-lucide="triangle-alert"></i>
+                <div class="gw-alert__content">
+                  <p class="gw-alert__title"><span class="gw-mono">billing-api/webhook-secret</span> can't be resolved</p>
+                  <p class="gw-alert__body">It points to AWS Secrets Manager, which isn't connected. Calls that need it fail until you connect the store.</p>
+                </div>
+                <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" href="secrets.html#store-aws">Connect AWS Secrets Manager</a></div>
+              </div>
+            </div>
+          </section>
+          <section class="gw-form__section gw-connection-form__safety" aria-labelledby="cf-env-t">
+            <header class="gw-form__section-header">
+              <h3 class="gw-form__legend" id="cf-env-t">Environment and safety</h3>
+              <p class="gw-form__description" data-cn-show="first-run" hidden>Pick dev for your own work and test data. Prod turns on stricter rules.</p>
+              <p class="gw-form__description" data-cn-show="in-use">Sets the policy defaults and the marker approvers and agents see next to this connection. Prod is always red and always stricter.</p>
+            </header>
+            <div class="gw-form__rows">
+              <fieldset class="gw-field">
+                <legend class="gw-field__label">Environment</legend>
+                <div class="gw-form__row">
+                  <label class="gw-choice-card gw-choice-card--compact">
+                    <input class="gw-choice-card__input" type="radio" name="cf-env" value="dev" checked aria-labelledby="cf-env-dev-t" aria-describedby="cf-env-dev-d">
+                    <span class="gw-choice-card__title" id="cf-env-dev-t"><span class="gw-env gw-env--dev">dev</span> Development</span>
+                    <span class="gw-choice-card__description" id="cf-env-dev-d"><span data-cn-show="first-run" hidden>Local work and test data. Changes to data still wait for your approval.</span><span data-cn-show="in-use">Local work and test data. Mutations still wait for approval.</span></span>
+                  </label>
+                  <label class="gw-choice-card gw-choice-card--compact">
+                    <input class="gw-choice-card__input" type="radio" name="cf-env" value="stage" aria-labelledby="cf-env-stage-t" aria-describedby="cf-env-stage-d">
+                    <span class="gw-choice-card__title" id="cf-env-stage-t"><span class="gw-env gw-env--stage">stage</span> Staging</span>
+                    <span class="gw-choice-card__description" id="cf-env-stage-d">Shared test systems. Tighter limits than dev.</span>
+                  </label>
+                  <label class="gw-choice-card gw-choice-card--compact">
+                    <input class="gw-choice-card__input" type="radio" name="cf-env" value="prod" aria-labelledby="cf-env-prod-t" aria-describedby="cf-env-prod-d cf-env-prod-m">
+                    <span class="gw-choice-card__title" id="cf-env-prod-t"><span class="gw-env gw-env--prod">prod</span> Production</span>
+                    <span class="gw-choice-card__description" id="cf-env-prod-d">Real data. Read-only by default, stricter limits.</span>
+                    <span class="gw-choice-card__meta" id="cf-env-prod-m">Turns on stricter defaults</span>
+                  </label>
+                </div>
+              </fieldset>
+              <div class="gw-alert gw-alert--info gw-connection-form__prod-defaults">
+                <i class="gw-icon gw-alert__icon" data-lucide="shield"></i>
+                <div class="gw-alert__content">
+                  <p class="gw-alert__title">Prod turns on stricter defaults</p>
+                  <!-- The prod policy's values (policies.html, prod tab): the app reads them from the policy, never hard-codes them -->
+                  <ul class="gw-alert__body gw-connection-form__defaults">
+                    <li><i class="gw-icon gw-icon--sm" data-lucide="lock"></i>Read-only transactions</li>
+                    <li><i class="gw-icon gw-icon--sm" data-lucide="rows-3"></i>Row limit 100 (dev: 1,000)</li>
+                    <li><i class="gw-icon gw-icon--sm" data-lucide="timer"></i>Statement timeout 3 s (dev: 5 s)</li>
+                    <li><i class="gw-icon gw-icon--sm" data-lucide="ban"></i>No DDL: <span class="gw-mono">CREATE</span>, <span class="gw-mono">ALTER</span>, <span class="gw-mono">DROP</span>, <span class="gw-mono">TRUNCATE</span> are refused</li>
+                    <li><i class="gw-icon gw-icon--sm" data-lucide="hourglass"></i>Approval timeout 10 min, a comment is required to approve</li>
+                  </ul>
+                  <div class="gw-alert__actions"><a class="gw-btn gw-btn--link gw-btn--sm" href="policies.html#prod">Review the prod policy</a></div>
+                </div>
+              </div>
+            </div>
+          </section>
+          <fieldset class="gw-form__section">
+            <legend class="gw-form__legend">Advanced</legend>
+            <p class="gw-form__description" data-cn-show="first-run" hidden>Timeouts and which schemas your AI apps can see. The defaults suit most databases, so you can skip this.</p>
+            <p class="gw-form__description" data-cn-show="in-use">Timeouts, pool and schema allowlist. The defaults suit most databases; policies can tighten them per environment.</p>
+            <div class="gw-form__rows">
+              <button class="gw-btn gw-btn--ghost gw-btn--sm gw-connection-form__toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="cf-adv"><i class="gw-icon gw-icon--sm gw-connection-form__when-closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-connection-form__when-open" data-lucide="chevron-up"></i>Advanced settings</button>
+              <div class="gw-form__rows" id="cf-adv" hidden>
+                <div class="gw-form__row">
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="cf-timeout">Statement timeout <span class="gw-field__optional">Optional</span></label>
+                    <div class="gw-input-group">
+                      <input class="gw-input gw-input--mono" id="cf-timeout" name="statementTimeoutMs" type="text" inputmode="numeric" autocomplete="off" aria-describedby="cf-timeout-hint">
+                      <span class="gw-input-group__affix">ms</span>
+                    </div>
+                    <p class="gw-field__hint" id="cf-timeout-hint">The database cancels slower statements. Empty: the environment policy.</p>
+                  </div>
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="cf-pool">Pool size</label>
+                    <div class="gw-input-group">
+                      <input class="gw-input gw-input--mono" id="cf-pool" name="poolSize" type="text" inputmode="numeric" value="4" autocomplete="off" aria-describedby="cf-pool-hint">
+                      <span class="gw-input-group__affix">connections</span>
+                    </div>
+                    <p class="gw-field__hint" id="cf-pool-hint">Open connections the core keeps to this database.</p>
+                  </div>
+                </div>
+                <div class="gw-field">
+                  <label class="gw-field__label" for="cf-schema">Schema allowlist <span class="gw-field__optional">Optional</span></label>
+                  <div class="gw-connection-form__tags">
+                    <ul class="gw-tag-list" aria-label="Allowed schemas">
+                      <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">public</span><button class="gw-tag__remove" type="button" aria-label="Remove schema public"><i class="gw-icon" data-lucide="x"></i></button></li>
+                      <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">app</span><button class="gw-tag__remove" type="button" aria-label="Remove schema app"><i class="gw-icon" data-lucide="x"></i></button></li>
+                    </ul>
+                    <div class="gw-input-group">
+                      <input class="gw-input gw-input--mono" id="cf-schema" name="schemaAllowlist" placeholder="Add a schema, for example audit" autocomplete="off" spellcheck="false" aria-describedby="cf-schema-hint">
+                      <button class="gw-input-group__addon" type="button" aria-label="Add schema"><i class="gw-icon" data-lucide="plus"></i></button>
+                    </div>
+                  </div>
+                  <p class="gw-field__hint" id="cf-schema-hint">Agents see only these schemas. Leave it empty to allow every schema the user can read. Enter adds the value.</p>
+                </div>
+              </div>
+            </div>
+          </fieldset>
+          <div class="gw-form__actions">
+            <button class="gw-btn gw-btn--ghost" type="button" data-wizard-go="1" data-mode-show="add duplicate"><i class="gw-icon" data-lucide="arrow-left"></i> Back</button>
+            <button class="gw-btn gw-btn--primary" type="button" data-wizard-go="3" data-mode-show="add duplicate">Continue<span class="gw-sr-only"> to test</span> <i class="gw-icon" data-lucide="arrow-right"></i></button>
+            <p class="gw-form__note" data-mode-show="edit" hidden><i class="gw-icon" data-lucide="info"></i>Applies from the next call</p>
+            <button class="gw-btn" type="reset" data-mode-show="edit" hidden>Discard</button>
+            <button class="gw-btn gw-btn--primary" type="submit" data-mode-show="edit" hidden>Save changes<span class="gw-sr-only"> to <span data-slot="name">dev-db</span></span></button>
+          </div>
+        </form>
+      </section>
+
+      <!-- ───────────── Step 3 · Test (connection-form test panel) ───────────── -->
+      <section class="gw-section" id="step-3" data-wizard-panel="3" aria-labelledby="step-3-title" hidden>
+        <header class="gw-section__header">
+          <h2 class="gw-section__title" id="step-3-title" tabindex="-1">Test <span class="gw-mono" data-slot="conn-name">dev-db</span></h2>
+          <p class="gw-section__description" data-cn-show="first-run" hidden>GateRook connects from this computer with what you entered and checks what that user may do in the database.</p>
+          <p class="gw-section__description" data-cn-show="in-use">The core connects from this machine with the values you entered and checks what the user may do.</p>
+        </header>
+        <form class="gw-form gw-form--sticky-actions gw-connection-form" method="dialog" novalidate aria-labelledby="step-3-title">
+          <section class="gw-card gw-card--muted gw-connection-form__test" aria-labelledby="ct-title">
+            <header class="gw-card__header">
+              <div class="gw-card__heading">
+                <h3 class="gw-card__title" id="ct-title">Test result</h3>
+                <p class="gw-card__description"><span class="gw-mono">app_rw</span> at <span class="gw-mono">db.dev.internal:5432/app</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></p>
+              </div>
+              <div class="gw-card__actions"><button class="gw-btn" type="button" id="ct-run"><span class="gw-spinner gw-spinner--sm" aria-hidden="true" data-ct-spinner hidden></span><i class="gw-icon" data-lucide="refresh-cw" data-ct-icon></i>Test again</button></div>
+            </header>
+            <div class="gw-card__body gw-connection-form__result" role="status">
+              <p class="gw-text-small gw-fg-muted" id="ct-testing" data-ct-testing hidden>Connecting to <span class="gw-mono">db.dev.internal:5432</span> as <span class="gw-mono">app_rw</span>. Gives up after 5 s.</p>
+              <span class="gw-status gw-status--success" data-ct-ok><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Connected · PostgreSQL 16.4 · 12 ms</span></span>
+              <dl class="gw-kv gw-kv--dense" aria-label="Detected permissions of app_rw" data-ct-ok>
+                <div class="gw-kv__row"><dt class="gw-kv__key">User</dt><dd class="gw-kv__value gw-mono">app_rw</dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Read</dt><dd class="gw-kv__value"><span class="gw-mono">SELECT</span> on 42 tables</dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Write</dt><dd class="gw-kv__value"><span class="gw-badge gw-badge--warning gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="triangle-alert"></i>Can write</span> <span class="gw-mono">INSERT, UPDATE, DELETE</span> on <span class="gw-mono">public.*</span></dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Schema changes</dt><dd class="gw-kv__value">None: no <span class="gw-mono">CREATE</span> or ownership</dd></div>
+              </dl>
+              <div class="gw-alert gw-alert--warning gw-alert--compact" data-ct-ok>
+                <i class="gw-icon gw-alert__icon" data-lucide="triangle-alert"></i>
+                <div class="gw-alert__content">
+                  <p class="gw-alert__title">This user can write</p>
+                  <p class="gw-alert__body">Fine for dev: every write still waits for approval. For stage and prod use a read-only user or a replica.</p>
+                </div>
+                <div class="gw-alert__actions"><button class="gw-btn gw-btn--link" type="button" data-wizard-go="2" data-wizard-focus="cf-user">Change user<span class="gw-sr-only"> app_rw</span></button></div>
+              </div>
+            </div>
+          </section>
+
+          <div class="gw-stack gw-stack--sm">
+            <button class="gw-btn gw-btn--ghost gw-btn--sm gw-connection-form__toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="ct-readonly"><i class="gw-icon gw-icon--sm gw-connection-form__when-closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-connection-form__when-open" data-lucide="chevron-up"></i>Create a read-only user</button>
+            <div class="gw-code-block" id="ct-readonly" hidden>
+              <div class="gw-code-block__header">
+                <span class="gw-code-block__lang">SQL</span>
+                <span class="gw-code-block__filename">Run as an admin on <span class="gw-mono">app</span>, then use <span class="gw-mono">gw_reader</span> as the user</span>
+                <div class="gw-code-block__actions">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ct-readonly-pre">
+                    <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> SQL for a read-only user</span></span>
+                    <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                  </button>
+                </div>
+              </div>
+              <div class="gw-code-block__body" tabindex="0" role="region" aria-label="SQL for a read-only user">
+<pre class="gw-code-block__pre" id="ct-readonly-pre"><code><span class="gw-tok-keyword">CREATE ROLE</span> gw_reader <span class="gw-tok-keyword">LOGIN</span><span class="gw-tok-punctuation">;</span>
+<span class="gw-tok-comment">-- psql asks for the password; it never appears in this script</span>
+\password gw_reader
+<span class="gw-tok-keyword">GRANT CONNECT ON DATABASE</span> app <span class="gw-tok-keyword">TO</span> gw_reader<span class="gw-tok-punctuation">;</span>
+<span class="gw-tok-keyword">GRANT USAGE ON SCHEMA</span> public <span class="gw-tok-keyword">TO</span> gw_reader<span class="gw-tok-punctuation">;</span>
+<span class="gw-tok-keyword">GRANT SELECT ON ALL TABLES IN SCHEMA</span> public <span class="gw-tok-keyword">TO</span> gw_reader<span class="gw-tok-punctuation">;</span>
+<span class="gw-tok-keyword">ALTER DEFAULT PRIVILEGES IN SCHEMA</span> public <span class="gw-tok-keyword">GRANT SELECT ON TABLES TO</span> gw_reader<span class="gw-tok-punctuation">;</span></code></pre>
+              </div>
+            </div>
+          </div>
+
+          <div class="gw-stack gw-stack--sm">
+            <button class="gw-btn gw-btn--ghost gw-btn--sm gw-connection-form__toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="ct-fail"><i class="gw-icon gw-icon--sm gw-connection-form__when-closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-connection-form__when-open" data-lucide="chevron-up"></i>Show a failed test</button>
+            <section class="gw-card gw-card--muted gw-connection-form__test" id="ct-fail" aria-labelledby="ct-fail-title" hidden>
+              <header class="gw-card__header">
+                <div class="gw-card__heading">
+                  <h3 class="gw-card__title" id="ct-fail-title">Test result: failed</h3>
+                  <p class="gw-card__description">Reference: what this panel shows when the VPN to <span class="gw-mono">db.dev.internal</span> is off. The stepper marks Test as failed until a test passes; you can still continue and test later.</p>
+                </div>
+                <div class="gw-card__actions"><button class="gw-btn" type="button"><i class="gw-icon" data-lucide="refresh-cw"></i>Test again<span class="gw-sr-only"> after the failure</span></button></div>
+              </header>
+              <div class="gw-card__body gw-connection-form__result">
+                <div class="gw-alert gw-alert--danger">
+                  <i class="gw-icon gw-alert__icon" data-lucide="circle-alert"></i>
+                  <div class="gw-alert__content">
+                    <p class="gw-alert__title">Can't reach <span class="gw-mono">db.dev.internal:5432</span></p>
+                    <p class="gw-alert__body">The connection timed out after 5 s. Check the VPN or the host, then test again.</p>
+                    <div class="gw-alert__actions">
+                      <button class="gw-btn gw-btn--ghost gw-btn--sm gw-connection-form__toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="ct-fail-details"><i class="gw-icon gw-icon--sm gw-connection-form__when-closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-connection-form__when-open" data-lucide="chevron-up"></i>Details</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="gw-code-block gw-code-block--wrap" id="ct-fail-details" hidden>
+                  <div class="gw-code-block__header">
+                    <span class="gw-code-block__lang">Error</span>
+                    <span class="gw-code-block__filename">core log · 14:02:11</span>
+                    <div class="gw-code-block__actions">
+                      <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ct-fail-pre">
+                        <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> error details</span></span>
+                        <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Error details">
+<pre class="gw-code-block__pre" id="ct-fail-pre"><code>org.postgresql.util.PSQLException: The connection attempt failed.
+Caused by: java.net.SocketTimeoutException: Connect timed out
+  host=db.dev.internal port=5432 sslmode=verify-full connectTimeout=5s</code></pre>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div class="gw-form__actions">
+            <button class="gw-btn gw-btn--ghost" type="button" data-wizard-go="2"><i class="gw-icon" data-lucide="arrow-left"></i> Back</button>
+            <button class="gw-btn gw-btn--primary" type="button" data-wizard-go="4">Continue<span class="gw-sr-only"> to <span data-cn-show="in-use">add to an endpoint</span><span data-cn-show="first-run" hidden>create the endpoint</span></span> <i class="gw-icon" data-lucide="arrow-right"></i></button>
+          </div>
+        </form>
+      </section>
+
+      <!-- ───────────── Step 4 · Add to endpoint ───────────── -->
+      <section class="gw-section" id="step-4" data-wizard-panel="4" aria-labelledby="step-4-title" hidden>
+        <header class="gw-section__header">
+          <h2 class="gw-section__title" id="step-4-title" tabindex="-1"><span data-cn-show="in-use">Add <span class="gw-mono" data-slot="conn-name">dev-db</span> to an endpoint</span><span data-cn-show="first-run" hidden>Make <span class="gw-mono" data-slot="conn-name">dev-db</span> available to your AI apps</span></h2>
+          <p class="gw-section__description" data-cn-show="first-run" hidden>Your AI apps reach <span class="gw-mono" data-slot="conn-name">dev-db</span> through an endpoint: one address with the tools you allow.</p>
+          <p class="gw-section__description" data-cn-show="in-use">Agents reach a connection only through an endpoint. Its tools appear there with safe default modes you can change later.</p>
+        </header>
+        <form class="gw-form gw-form--sticky-actions" method="dialog" novalidate aria-labelledby="step-4-title" id="add-save">
+          <!-- First run: no endpoint exists, so the one that Save creates is shown, not offered as a choice -->
+          <section class="gw-form__section" aria-labelledby="ep-new-t" data-cn-show="first-run" hidden>
+            <header class="gw-form__section-header">
+              <h3 class="gw-form__legend" id="ep-new-t">Your first endpoint</h3>
+              <p class="gw-form__description">GateRook creates it when you save, with <span class="gw-mono" data-slot="conn-name">dev-db</span> on it. You can rename it or add more later, under Endpoints.</p>
+            </header>
+            <div class="gw-form__rows">
+              <div class="gw-card gw-card--muted">
+                <div class="gw-card__body">
+                  <dl class="gw-kv gw-kv--dense">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Name</dt><dd class="gw-kv__value gw-mono" data-slot="ep-name">dev</dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Address</dt><dd class="gw-kv__value"><span class="gw-mono">http://127.0.0.1:7465/mcp/<span data-slot="ep-name">dev</span></span>, the one your AI apps connect to</dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">AI apps</dt><dd class="gw-kv__value">None yet. You connect one next.</dd></div>
+                  </dl>
+                </div>
+              </div>
+            </div>
+          </section>
+          <fieldset class="gw-form__section" data-cn-show="in-use">
+            <legend class="gw-form__legend">Endpoints</legend>
+            <p class="gw-form__description">Pick where agents may use <span class="gw-mono" data-slot="conn-name">dev-db</span>. Every AI app of a chosen endpoint gets its tools on the next call.</p>
+            <div class="gw-form__rows">
+              <div class="gw-grid gw-grid--auto">
+                <label class="gw-choice-card gw-choice-card--compact">
+                  <input class="gw-choice-card__input" type="checkbox" name="endpoints" value="dev" checked aria-labelledby="ep-dev-t" aria-describedby="ep-dev-d ep-dev-m" data-endpoint="dev">
+                  <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="waypoints"></i></span>
+                  <span class="gw-choice-card__title gw-mono" id="ep-dev-t">dev</span>
+                  <span class="gw-choice-card__description" id="ep-dev-d">Local development. Reads run, writes wait for approval.</span>
+                  <span class="gw-choice-card__meta" id="ep-dev-m">Claude Desktop, Codex</span>
+                </label>
+                <label class="gw-choice-card gw-choice-card--compact">
+                  <input class="gw-choice-card__input" type="checkbox" name="endpoints" value="stage-readonly" aria-labelledby="ep-stage-t" aria-describedby="ep-stage-d ep-stage-m" data-endpoint="stage-readonly">
+                  <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="waypoints"></i></span>
+                  <span class="gw-choice-card__title gw-mono" id="ep-stage-t">stage-readonly</span>
+                  <span class="gw-choice-card__description" id="ep-stage-d">Read only. Published for claude.ai through the tunnel.</span>
+                  <span class="gw-choice-card__meta" id="ep-stage-m">claude.ai · tunnel off</span>
+                </label>
+                <label class="gw-choice-card gw-choice-card--compact">
+                  <input class="gw-choice-card__input" type="checkbox" name="endpoints" value="incident-prod" aria-disabled="true" aria-labelledby="ep-prod-t" aria-describedby="ep-prod-d" data-endpoint="incident-prod">
+                  <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="waypoints"></i></span>
+                  <span class="gw-choice-card__title gw-mono" id="ep-prod-t">incident-prod</span>
+                  <span class="gw-choice-card__description" id="ep-prod-d">Accepts prod connections only; <span class="gw-mono" data-slot="conn-name">dev-db</span> is dev.</span>
+                </label>
+              </div>
+              <p class="gw-text-small gw-fg-muted">Need a separate URL for this? <a class="gw-link" href="endpoints.html">Create an endpoint</a> first, or save now and add <span class="gw-mono" data-slot="conn-name">dev-db</span> from the endpoint later.</p>
+            </div>
+          </fieldset>
+
+          <section class="gw-form__section" aria-labelledby="pv-title">
+            <header class="gw-form__section-header">
+              <h3 class="gw-form__legend" id="pv-title"><span data-cn-show="in-use">Tools agents get</span><span data-cn-show="first-run" hidden>What your AI apps can do</span></h3>
+              <p class="gw-form__description" data-cn-show="first-run" hidden>Reads run at once. <span data-fr-env="write">Anything that changes data, like <span class="gw-mono">sql_execute</span>, waits for your approval.</span><span data-fr-env="prod" hidden><span class="gw-mono">sql_execute</span> is off: prod is read only by default.</span> You can change the modes later.</p>
+              <p class="gw-form__description" data-cn-show="in-use">Default modes from the PostgreSQL connector. Nothing writes without a person: <span class="gw-mono">sql_execute</span> is Approval or Off, never more.</p>
+            </header>
+            <div class="gw-form__rows" id="pv-rows">
+              <!-- tool-policy-list element, read-only form (gw-mode instead of the picker, as in its Playground variant) -->
+              <div class="gw-tool-policy-list" data-preview-for="dev">
+                <section class="gw-card gw-card--flush" aria-labelledby="pv-dev-t">
+                  <header class="gw-card__header">
+                    <div class="gw-tool-policy-list__group-heading">
+                      <span class="gw-icon-tile"><i class="gw-icon" data-lucide="database"></i></span>
+                      <div class="gw-card__heading">
+                        <h4 class="gw-card__title" id="pv-dev-t"><span class="gw-mono" data-slot="conn-name">dev-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev" data-fr-envtag>dev</span> on endpoint <span class="gw-mono" data-slot="ep-name">dev</span></h4>
+                        <p class="gw-card__description" data-fr-summary>4 tools · 3 read only · 1 approval</p>
+                      </div>
+                    </div>
+                  </header>
+                  <div class="gw-card__body">
+                    <div class="gw-table-wrap" role="region" aria-labelledby="pv-dev-cap" tabindex="0">
+                      <table class="gw-table">
+                        <caption class="gw-sr-only" id="pv-dev-cap">Tools of dev-db on endpoint dev, with default modes</caption>
+                        <thead><tr><th scope="col">Tool</th><th scope="col">Default mode</th></tr></thead>
+                        <tbody>
+                          <tr class="gw-tool-policy-list__row" data-mode="read">
+                            <th scope="row" class="gw-tool-policy-list__tool">
+                              <div class="gw-tool-policy-list__name">
+                                <code class="gw-code">sql_list_schemas</code>
+                                <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of sql_list_schemas"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                              </div>
+                              <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">List the schemas the connection user can see.</p>
+                            </th>
+                            <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                          </tr>
+                          <tr class="gw-tool-policy-list__row" data-mode="read">
+                            <th scope="row" class="gw-tool-policy-list__tool">
+                              <div class="gw-tool-policy-list__name">
+                                <code class="gw-code">sql_describe_table</code>
+                                <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of sql_describe_table"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                              </div>
+                              <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Columns, types, indexes and foreign keys of one table.</p>
+                            </th>
+                            <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                          </tr>
+                          <tr class="gw-tool-policy-list__row" data-mode="read">
+                            <th scope="row" class="gw-tool-policy-list__tool">
+                              <div class="gw-tool-policy-list__name">
+                                <code class="gw-code">sql_query</code>
+                                <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of sql_query"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                              </div>
+                              <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Run one SELECT in a read-only transaction. PII columns come back masked.</p>
+                            </th>
+                            <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                          </tr>
+                          <tr class="gw-tool-policy-list__row" data-mode="approval" data-fr-exec>
+                            <th scope="row" class="gw-tool-policy-list__tool">
+                              <div class="gw-tool-policy-list__name">
+                                <code class="gw-code">sql_execute</code>
+                                <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of sql_execute"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--danger" title="destructiveHint">Destructive</li></ul>
+                              </div>
+                              <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">INSERT, UPDATE or DELETE. You approve the exact statement.</p>
+                            </th>
+                            <td>
+                              <div class="gw-tool-policy-list__mode">
+                                <span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span>
+                                <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Mutates data: approval or off</p>
+                              </div>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+              <div class="gw-tool-policy-list" data-preview-for="stage-readonly" hidden>
+                <section class="gw-card gw-card--flush" aria-labelledby="pv-stage-t">
+                  <header class="gw-card__header">
+                    <div class="gw-tool-policy-list__group-heading">
+                      <span class="gw-icon-tile"><i class="gw-icon" data-lucide="database"></i></span>
+                      <div class="gw-card__heading">
+                        <h4 class="gw-card__title" id="pv-stage-t"><span class="gw-mono" data-slot="conn-name">dev-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span> on endpoint <span class="gw-mono">stage-readonly</span></h4>
+                        <p class="gw-card__description">4 tools · 3 read only · 1 off, locked by the read-only endpoint</p>
+                      </div>
+                    </div>
+                  </header>
+                  <div class="gw-card__body">
+                    <div class="gw-table-wrap" role="region" aria-labelledby="pv-stage-cap" tabindex="0">
+                      <table class="gw-table">
+                        <caption class="gw-sr-only" id="pv-stage-cap">Tools of dev-db on endpoint stage-readonly, with default modes</caption>
+                        <thead><tr><th scope="col">Tool</th><th scope="col">Default mode</th></tr></thead>
+                        <tbody>
+                          <tr class="gw-tool-policy-list__row" data-mode="read">
+                            <th scope="row" class="gw-tool-policy-list__tool"><div class="gw-tool-policy-list__name"><code class="gw-code">sql_list_schemas</code></div></th>
+                            <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                          </tr>
+                          <tr class="gw-tool-policy-list__row" data-mode="read">
+                            <th scope="row" class="gw-tool-policy-list__tool"><div class="gw-tool-policy-list__name"><code class="gw-code">sql_describe_table</code></div></th>
+                            <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                          </tr>
+                          <tr class="gw-tool-policy-list__row" data-mode="read">
+                            <th scope="row" class="gw-tool-policy-list__tool"><div class="gw-tool-policy-list__name"><code class="gw-code">sql_query</code></div></th>
+                            <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                          </tr>
+                          <tr class="gw-tool-policy-list__row" data-mode="off">
+                            <th scope="row" class="gw-tool-policy-list__tool"><div class="gw-tool-policy-list__name"><code class="gw-code">sql_execute</code></div></th>
+                            <td>
+                              <div class="gw-tool-policy-list__mode">
+                                <span class="gw-mode gw-mode--off"><i class="gw-icon" data-lucide="circle-off"></i>Off</span>
+                                <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>stage-readonly is read only</p>
+                              </div>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </section>
+              </div>
+              <div class="gw-alert gw-alert--warning gw-alert--compact" data-preview-for="stage-readonly" hidden>
+                <i class="gw-icon gw-alert__icon" data-lucide="triangle-alert"></i>
+                <div class="gw-alert__content">
+                  <p class="gw-alert__title">Dev data on a public endpoint</p>
+                  <p class="gw-alert__body">While the tunnel is on, claude.ai could read <span class="gw-mono" data-slot="conn-name">dev-db</span> through <span class="gw-mono">stage-readonly</span>.</p>
+                </div>
+              </div>
+
+              <div class="gw-card gw-card--dashed" data-preview-empty hidden>
+                <div class="gw-empty gw-empty--compact">
+                  <span class="gw-empty__icon"><i class="gw-icon" data-lucide="waypoints"></i></span>
+                  <p class="gw-empty__title">Not on an endpoint yet</p>
+                  <p class="gw-empty__text">Agents can't reach <span class="gw-mono" data-slot="conn-name">dev-db</span> until it is on an endpoint. Save now and add it from the endpoint later.</p>
+                </div>
+              </div>
+
+              <p class="gw-text-small gw-fg-muted" data-cn-show="in-use"><code class="gw-code">list_connections</code> and <code class="gw-code">describe_connection</code> on the chosen endpoints will include <span class="gw-mono" data-slot="conn-name">dev-db</span> too.</p>
+            </div>
+          </section>
+
+          <div class="gw-form__actions">
+            <p class="gw-form__note" data-cn-show="first-run" hidden><i class="gw-icon" data-lucide="lock-keyhole"></i><span data-fr-secret="local">The password is encrypted on this computer when you save</span><span data-fr-secret="manager" hidden>Nothing is stored here: the secret stays in your secret manager</span></p>
+            <p class="gw-form__note" data-cn-show="in-use"><i class="gw-icon" data-lucide="lock-keyhole"></i>The password is encrypted with your master key on save</p>
+            <button class="gw-btn gw-btn--ghost" type="button" data-wizard-go="3"><i class="gw-icon" data-lucide="arrow-left"></i> Back</button>
+            <button class="gw-btn gw-btn--primary" type="submit">Save connection</button>
+          </div>
+        </form>
+      </section>
+
+
+      <!-- ───────────── First run · after Save: what exists now and the one next step ───────────── -->
+      <section class="gw-card" id="fr-done" aria-labelledby="fr-done-t" data-cn-show="first-run" data-cn-later hidden>
+        <header class="gw-card__header">
+          <div class="gw-card__heading">
+            <h2 class="gw-card__title" id="fr-done-t" tabindex="-1"><span class="gw-mono" data-slot="conn-name">dev-db</span> is ready</h2>
+            <p class="gw-card__description">Saved and tested. Your AI apps can use it as soon as you connect one.</p>
+          </div>
+          <div class="gw-card__actions"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy · 12 ms</span></span></div>
+        </header>
+        <div class="gw-card__body">
+          <dl class="gw-kv gw-kv--dense">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><span class="gw-mono" data-slot="ep-name">dev</span> · <span class="gw-mono">http://127.0.0.1:7465/mcp/<span data-slot="ep-name">dev</span></span> · created <time datetime="2026-10-22T14:30:00+02:00" title="2026-10-22 14:30:00 CEST">just now</time></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Tools</dt><dd class="gw-kv__value"><span class="gw-mono">sql_list_schemas</span>, <span class="gw-mono">sql_describe_table</span> and <span class="gw-mono">sql_query</span> run at once (read only); <span data-fr-env="write"><span class="gw-mono">sql_execute</span> waits for your approval</span><span data-fr-env="prod" hidden><span class="gw-mono">sql_execute</span> is off: prod is read only by default</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Password</dt><dd class="gw-kv__value"><span data-fr-secret="local">Encrypted with a key kept on this computer. <a class="gw-link" href="secrets.html#master-key">Back up the key</a> so you can restore it.</span><span data-fr-secret="manager" hidden>Read from your secret manager when a call needs it; nothing is stored here.</span></dd></div>
+          </dl>
+        </div>
+        <footer class="gw-card__footer gw-card__footer--split">
+          <a class="gw-btn gw-btn--link" href="overview.html?state=setup">Back to Overview</a>
+          <a class="gw-btn gw-btn--primary" href="clients.html?state=setup"><i class="gw-icon" data-lucide="plug-zap"></i> Connect your AI app</a>
+        </footer>
+      </section>
+
+      <!-- ───────────── Edit view · Used by ───────────── -->
+      <section class="gw-section" id="used-by" aria-labelledby="used-by-title" data-mode-show="edit" hidden>
+        <header class="gw-section__header">
+          <h2 class="gw-section__title" id="used-by-title">Used by</h2>
+          <p class="gw-section__description">The endpoints that expose <span class="gw-mono" data-slot="name">dev-db</span> and the mode of each of its tools there. Modes are set on the endpoint.</p>
+        </header>
+        <div class="gw-table-wrap" role="region" aria-labelledby="used-by-cap" tabindex="0">
+          <table class="gw-table">
+            <caption class="gw-sr-only" id="used-by-cap">Tools of <span data-slot="name">dev-db</span> by endpoint, with their modes</caption>
+            <thead>
+              <tr>
+                <th scope="col">Tool</th>
+                <th scope="col">Endpoint</th>
+                <th scope="col">Mode</th>
+                <th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody data-used-by>
+              <tr>
+                <th scope="row" class="gw-table__cell--mono">sql_list_schemas</th>
+                <td><a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a></td>
+                <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                <td class="gw-table__cell--actions"><a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?q=connection:dev-db%20tool:sql_list_schemas">View activity<span class="gw-sr-only"> of sql_list_schemas on dev-db</span></a></td>
+              </tr>
+              <tr>
+                <th scope="row" class="gw-table__cell--mono">sql_describe_table</th>
+                <td><a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a></td>
+                <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                <td class="gw-table__cell--actions"><a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?q=connection:dev-db%20tool:sql_describe_table">View activity<span class="gw-sr-only"> of sql_describe_table on dev-db</span></a></td>
+              </tr>
+              <tr>
+                <th scope="row" class="gw-table__cell--mono">sql_query</th>
+                <td><a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a></td>
+                <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                <td class="gw-table__cell--actions"><a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?q=connection:dev-db%20tool:sql_query">View activity<span class="gw-sr-only"> of sql_query on dev-db</span></a></td>
+              </tr>
+              <tr>
+                <th scope="row" class="gw-table__cell--mono">sql_execute</th>
+                <td><a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=dev"><span class="gw-sr-only">Endpoint </span>dev</a></td>
+                <td><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span></td>
+                <td class="gw-table__cell--actions"><a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?q=connection:dev-db%20tool:sql_execute">View activity<span class="gw-sr-only"> of sql_execute on dev-db</span></a></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ───────────── Edit view · Delete ───────────── -->
+      <section class="gw-section" id="delete-connection" aria-labelledby="delete-title" data-mode-show="edit" hidden>
+        <header class="gw-section__header">
+          <h2 class="gw-section__title" id="delete-title">Delete connection</h2>
+          <p class="gw-section__description">Agents lose its tools on their next call and pending approvals for it are denied. Past calls stay in Activity.</p>
+          <div class="gw-section__actions">
+            <button class="gw-btn gw-btn--danger-ghost" type="button" data-gw-dialog-open="dlg-delete-connection"><i class="gw-icon" data-lucide="trash-2"></i> Delete connection<span class="gw-sr-only"> <span data-slot="name">dev-db</span></span></button>
+          </div>
+        </header>
+      </section>
+
+      <!-- Demo only: the other states of this page. Not part of the app. -->
+      <p class="gw-text-caption gw-fg-muted">Demo only, this page in other states:
+        <a class="gw-link" href="connection-new.html" data-cn-ref="add">Add connection</a> ·
+        <a class="gw-link" href="connection-new.html?state=first-run" data-cn-ref="first-run">First connection, nothing set up yet</a> ·
+        <a class="gw-link" href="connection-new.html?duplicate=dev-db" data-cn-ref="duplicate">Duplicate dev-db</a> ·
+        <a class="gw-link" href="connection-new.html?edit=dev-db" data-cn-ref="edit">Edit dev-db</a>
+      </p>
+
+      <!-- Rotate the stored secret of this connection (same dialog as on Secrets) -->
+      <dialog class="gw-dialog gw-dialog--sm" id="dlg-rotate-secret" aria-labelledby="dlg-rotate-secret-t" aria-describedby="dlg-rotate-secret-d">
+        <header class="gw-dialog__header">
+          <span class="gw-icon-tile"><i class="gw-icon" data-lucide="rotate-cw"></i></span>
+          <h2 class="gw-dialog__title" id="dlg-rotate-secret-t">Rotate <span class="gw-mono"><span data-slot="name">dev-db</span>/<span data-slot="secret-key">password</span></span>?</h2>
+          <p class="gw-dialog__description" id="dlg-rotate-secret-d">The connector sets a new value at the source, stores it as version <span data-slot="secret-next">4</span> and tests <span class="gw-mono" data-slot="name">dev-db</span>. Version <span data-slot="secret-version">3</span> keeps working until the test passes.</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <footer class="gw-dialog__footer">
+          <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
+          <button class="gw-btn gw-btn--primary" type="button" data-gw-dialog-close data-secret-rotate>Rotate <span data-slot="secret-what">password</span><span class="gw-sr-only"> of <span data-slot="name">dev-db</span></span></button>
+        </footer>
+      </dialog>
+
+      <!-- Replace on prod: the core keeps a comment with every change of a prod secret (Setup changes), so Save asks for it
+           first. The page script opens it for a prod connection with a stored secret; the prod connections of the demo
+           world use short-lived credentials, so none of them gets here. Initial focus: the comment. -->
+      <dialog class="gw-dialog gw-dialog--sm" id="dlg-comment" aria-labelledby="dlg-comment-t" aria-describedby="dlg-comment-d" data-gw-static>
+        <form method="dialog" novalidate id="dlg-comment-form">
+          <header class="gw-dialog__header">
+            <span class="gw-icon-tile"><i class="gw-icon" data-lucide="key-round"></i></span>
+            <h2 class="gw-dialog__title" id="dlg-comment-t">Save the new <span data-slot="secret-what">password</span> of <span class="gw-mono" data-slot="name">dev-db</span>?</h2>
+            <p class="gw-dialog__description" id="dlg-comment-d">A change of a prod secret keeps a comment in Activity. Nobody can view the value, here or in the API.</p>
+            <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+          </header>
+          <div class="gw-dialog__body">
+            <div class="gw-field">
+              <label class="gw-field__label" for="dlg-comment-text">Comment <span class="gw-field__required"><span aria-hidden="true">*</span><span class="gw-sr-only">required</span></span></label>
+              <textarea class="gw-textarea" id="dlg-comment-text" rows="3" required autofocus aria-describedby="dlg-comment-hint"></textarea>
+              <p class="gw-field__error" id="dlg-comment-err" hidden><i class="gw-icon" data-lucide="circle-alert"></i>Add a comment: it is required to change a secret on prod.</p>
+              <p class="gw-field__hint" id="dlg-comment-hint">Required on prod: say why the <span data-slot="secret-what">password</span> changes now.</p>
+            </div>
+          </div>
+          <footer class="gw-dialog__footer">
+            <button class="gw-btn" type="button" data-gw-dialog-close>Cancel</button>
+            <button class="gw-btn gw-btn--primary" type="submit">Save <span data-slot="secret-what">password</span><span class="gw-sr-only"> of <span data-slot="name">dev-db</span></span></button>
+          </footer>
+        </form>
+      </dialog>
+
+      <!-- Delete confirmation: the consequences of this connection (filled from data, static content shows dev-db) -->
+      <dialog class="gw-dialog gw-dialog--md gw-dialog--danger" id="dlg-delete-connection" aria-labelledby="dlg-del-title" aria-describedby="dlg-del-desc">
+        <header class="gw-dialog__header">
+          <span class="gw-icon-tile"><i class="gw-icon" data-lucide="trash-2"></i></span>
+          <h2 class="gw-dialog__title" id="dlg-del-title">Delete connection <span class="gw-mono" data-slot="name">dev-db</span>?</h2>
+          <p class="gw-dialog__description" id="dlg-del-desc">Agents lose it on their next call. <span data-slot="del-secret">Its encrypted password (version 3) is destroyed.</span> This can't be undone.</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <div class="gw-dialog__body">
+          <div class="gw-stack gw-stack--sm">
+            <p class="gw-text-ui">Stops working</p>
+            <dl class="gw-kv gw-kv--dense" data-del-impact>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint <span class="gw-mono">dev</span></dt><dd class="gw-kv__value">4 tools: <code class="gw-code">sql_list_schemas</code>, <code class="gw-code">sql_describe_table</code>, <code class="gw-code">sql_query</code>, <code class="gw-code">sql_execute</code> · used by Claude Desktop and Codex</dd></div>
+            </dl>
+            <div class="gw-alert gw-alert--warning gw-alert--compact" data-del-pending>
+              <i class="gw-icon gw-alert__icon" data-lucide="hourglass"></i>
+              <div class="gw-alert__content">
+                <p class="gw-alert__title">1 pending approval is denied</p>
+                <p class="gw-alert__body" data-del-pending-text><code class="gw-code">sql_execute</code> from Codex</p>
+              </div>
+            </div>
+            <p class="gw-text-small gw-fg-muted">Past calls stay in Activity: the audit log is append-only.</p>
+          </div>
+        </div>
+        <footer class="gw-dialog__footer">
+          <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
+          <button class="gw-btn gw-btn--danger" type="button" data-gw-dialog-close data-del-confirm>Delete connection <span data-slot="name">dev-db</span></button>
+        </footer>
+      </dialog>
+    </div>
+    <!--
+      Command palette (elements/command-palette.html), opened by the titlebar Search button and ⌘K / Ctrl+K.
+      Part of the shell: copy it with the titlebar into every page, at the end of main. kit.js drives it, no page
+      script: data-gw-dialog-open="cmdk" opens it, the .gw-command-palette hook filters the options, moves the
+      active one (arrows, Home / End, pointer), runs it on Enter and resets on close, and the global ⌘K / Ctrl+K
+      listener toggles #cmdk (COMPONENTS.md › command-palette).
+    -->
+    <dialog class="gw-dialog gw-dialog--md gw-command-palette" id="cmdk" aria-labelledby="cmdk-title" aria-describedby="cmdk-keys">
+      <h2 class="gw-sr-only" id="cmdk-title">Command palette</h2>
+      <div class="gw-command-palette__search">
+        <div class="gw-search">
+          <i class="gw-icon gw-search__icon" data-lucide="search"></i>
+          <input class="gw-search__input" type="search" id="cmdk-q" role="combobox" aria-expanded="true" aria-controls="cmdk-list" aria-autocomplete="list" aria-activedescendant="cmdk-o-overview" aria-label="Search pages, connections, endpoints, actions" placeholder="Search pages, connections, endpoints, actions" autocomplete="off" spellcheck="false" autofocus>
+          <button class="gw-search__clear" type="button" aria-label="Clear search"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+        </div>
+      </div>
+      <div class="gw-command-palette__results">
+        <div class="gw-command-palette__list" role="listbox" id="cmdk-list" aria-label="Results">
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-goto">
+            <p class="gw-menu__note" id="cmdk-g-goto" aria-hidden="true">Go to</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-overview" href="overview.html" aria-selected="true" tabindex="-1" data-keywords="home dashboard setup map health">
+              <i class="gw-icon gw-menu__icon" data-lucide="layout-dashboard"></i><span class="gw-menu__label">Overview</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-approvals" href="approvals.html" aria-selected="false" tabindex="-1" data-keywords="requests pending queue decide">
+              <i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approvals <span class="gw-counter gw-counter--attention">3<span class="gw-sr-only"> waiting</span></span></span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-connections" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="databases servers logs clusters">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label">Connections</span><span class="gw-menu__hint">Resources</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-connectors" href="connectors.html" aria-selected="false" tabindex="-1" data-keywords="plugins templates mcp servers catalog">
+              <i class="gw-icon gw-menu__icon" data-lucide="puzzle"></i><span class="gw-menu__label">Connectors</span><span class="gw-menu__hint">Resources</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-secrets" href="secrets.html" aria-selected="false" tabindex="-1" data-keywords="master key vault encryption">
+              <i class="gw-icon gw-menu__icon" data-lucide="key-round"></i><span class="gw-menu__label">Secrets</span><span class="gw-menu__hint">Resources</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-endpoints" href="endpoints.html" aria-selected="false" tabindex="-1" data-keywords="mcp url tools tokens">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label">Endpoints</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-clients" href="clients.html" aria-selected="false" tabindex="-1" data-keywords="clients mcp claude desktop codex cursor antigravity">
+              <i class="gw-icon gw-menu__icon" data-lucide="app-window"></i><span class="gw-menu__label">AI apps</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-policies" href="policies.html" aria-selected="false" tabindex="-1" data-keywords="limits allowlist environments">
+              <i class="gw-icon gw-menu__icon" data-lucide="shield"></i><span class="gw-menu__label">Policies</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-playground" href="playground.html" aria-selected="false" tabindex="-1" data-keywords="try call tool">
+              <i class="gw-icon gw-menu__icon" data-lucide="flask-conical"></i><span class="gw-menu__label">Playground</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-activity" href="activity.html" aria-selected="false" tabindex="-1" data-keywords="log audit calls events traces">
+              <i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">Activity</span><span class="gw-menu__hint">Observe</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-insights" href="insights.html" aria-selected="false" tabindex="-1" data-keywords="analytics charts latency errors">
+              <i class="gw-icon gw-menu__icon" data-lucide="chart-column"></i><span class="gw-menu__label">Insights</span><span class="gw-menu__hint">Observe</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-settings" href="settings.html" aria-selected="false" tabindex="-1" aria-keyshortcuts="Meta+Comma Control+Comma" data-keywords="preferences notifications tunnel authorization appearance">
+              <i class="gw-icon gw-menu__icon" data-lucide="settings"></i><span class="gw-menu__label">Settings</span><kbd class="gw-menu__kbd" aria-hidden="true">⌘ ,</kbd><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+          </div>
+
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-actions">
+            <p class="gw-menu__note" id="cmdk-g-actions" aria-hidden="true">Actions</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-add-connection" href="connection-new.html" aria-selected="false" tabindex="-1" data-keywords="new resource postgres mongodb redis kubernetes">
+              <i class="gw-icon gw-menu__icon" data-lucide="plus"></i><span class="gw-menu__label">Add connection</span><span class="gw-menu__hint">Database, SSH, logs, cluster</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-create-endpoint" href="endpoints.html" aria-selected="false" tabindex="-1" data-keywords="new mcp url">
+              <i class="gw-icon gw-menu__icon" data-lucide="square-plus"></i><span class="gw-menu__label">Create endpoint</span><span class="gw-menu__hint">New MCP URL</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-issue-token" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="new token access key client">
+              <i class="gw-icon gw-menu__icon" data-lucide="key-round"></i><span class="gw-menu__label">Issue token</span><span class="gw-menu__hint">Shown once</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <button class="gw-menu__item" type="button" role="option" id="cmdk-o-copy-dev" aria-selected="false" tabindex="-1" data-gw-copy="http://127.0.0.1:7465/mcp/dev" data-gw-dialog-close data-keywords="clipboard link">
+              <i class="gw-icon gw-menu__icon" data-lucide="copy"></i><span class="gw-menu__label">Copy URL of endpoint <span class="gw-mono">dev</span></span><span class="gw-menu__hint gw-mono">/mcp/dev</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </button>
+            <button class="gw-menu__item" type="button" role="option" id="cmdk-o-theme" aria-selected="false" tabindex="-1" data-cmdk-theme data-gw-dialog-close data-keywords="dark light appearance">
+              <i class="gw-icon gw-menu__icon" data-lucide="sun-moon"></i><span class="gw-menu__label">Toggle theme</span><span class="gw-menu__hint">Light or dark</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </button>
+          </div>
+
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-connections">
+            <p class="gw-menu__note" id="cmdk-g-connections" aria-hidden="true">Connections</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-dev-db" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="postgres sql db.dev.internal">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label"><span class="gw-mono">dev-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></span><span class="gw-menu__hint">PostgreSQL 16</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-stage-db" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="postgres sql vault">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label"><span class="gw-mono">stage-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--stage">stage</span></span><span class="gw-menu__hint">PostgreSQL</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-prod-replica" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="postgres sql replica">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label"><span class="gw-mono">prod-replica</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--prod">prod</span></span><span class="gw-menu__hint">PostgreSQL read replica</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-dev-vm" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="ssh server runbook">
+              <i class="gw-icon gw-menu__icon" data-lucide="terminal"></i><span class="gw-menu__label"><span class="gw-mono">dev-vm</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></span><span class="gw-menu__hint">SSH · <span class="gw-mono">10.20.0.14</span></span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+          </div>
+
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-endpoints">
+            <p class="gw-menu__note" id="cmdk-g-endpoints" aria-hidden="true">Endpoints</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-ep-dev" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="endpoint tools tokens">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label gw-mono">dev</span><span class="gw-menu__hint gw-mono">/mcp/dev</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-ep-stage-readonly" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="endpoint claude.ai tunnel read only">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label gw-mono">stage-readonly</span><span class="gw-menu__hint gw-mono">/mcp/stage-readonly</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-ep-incident-prod" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="endpoint prod logs read only incident">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label gw-mono">incident-prod</span><span class="gw-menu__hint gw-mono">/mcp/incident-prod</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+          </div>
+        </div>
+
+        <div class="gw-empty gw-empty--compact" hidden data-cmdk-empty>
+          <span class="gw-empty__icon"><i class="gw-icon" data-lucide="search-x"></i></span>
+          <p class="gw-empty__title">No results for “<span data-cmdk-query></span>”</p>
+          <p class="gw-empty__text">Search covers pages, actions, connections and endpoints. A resource that isn't here yet starts with a new connection.</p>
+          <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" href="connection-new.html">Add connection</a></div>
+        </div>
+      </div>
+      <footer class="gw-dialog__footer gw-command-palette__footer" id="cmdk-keys">
+        <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd"><i class="gw-icon" data-lucide="arrow-up"></i><span class="gw-sr-only">Up arrow</span></kbd><kbd class="gw-kbd"><i class="gw-icon" data-lucide="arrow-down"></i><span class="gw-sr-only">Down arrow</span></kbd> to move</p>
+        <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd"><i class="gw-icon" data-lucide="corner-down-left"></i><span class="gw-sr-only">Enter</span></kbd> to open</p>
+        <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd">Esc</kbd> to close</p>
+      </footer>
+      <p class="gw-sr-only" role="status" data-cmdk-status></p>
+    </dialog>
+  </main>
+
+</div>
+<script src="../vendor/lucide/lucide.min.js"></script>
+<script src="../assets/kit.js"></script>
+<script>
+/* Demo-only behaviour of this reference page (the app keeps this state and loads the data):
+   - Mode from the URL: ?edit=<name> opens the edit view of a connection, ?duplicate=<name>
+     starts the wizard at Configure with its settings (never its secret), ?type=<connector>
+     preselects a type (links from Connectors). Elements carry data-mode-show.
+   - Wizard: Back / Continue switch the step panels and keep the stepper in sync (data-state,
+     aria-current, sr-only "completed", the choice under each done step); Test again shows the
+     testing state in place; the endpoint checkboxes switch the tool preview; Save confirms (in first run: the ready card).
+   - First run (?state=first-run, add mode only): blocks whose data-cn-show lacks the state are removed before kit.js
+     boots ([data-cn-later] stays hidden until Save); approval counters, the palette's connections, endpoints, Copy URL
+     and Issue token go, and its Add connection stays in first run; the secret source starts behind its disclosure and
+     every line about the secret follows the source picked; step 4 is Create endpoint and names the endpoint after the
+     connection's environment (prod: sql_execute off); Save completes every step, hides the panels and the header's
+     Cancel, shows #fr-done, focuses its h2 and toasts.
+   - Edit view: Replace (editing state in place; on prod a comment first) / Rotate of the stored
+     secret (unavailable with its reason where the connector can't set a value at the source),
+     Change / Test of a reference, Test connection, Save changes, Delete. The name is read-only.
+   - Step 1: "3 connections use PostgreSQL" follows the chosen type.
+   Deep link: #step-2…#step-4. */
+(function () {
+  "use strict";
+  var doc = document;
+  var stepper = doc.getElementById("add-steps");
+  if (!stepper) return;
+  var steps = Array.prototype.slice.call(stepper.querySelectorAll(".gw-stepper__step"));
+  var panels = Array.prototype.slice.call(doc.querySelectorAll("[data-wizard-panel]"));
+  var NAMES = ["Choose type", "Configure", "Test", "Add to endpoint"];
+  var announce = window.gwAnnounce || function () {};
+  var toast = window.gwToast || function () {};
+  var params = new URLSearchParams(window.location.search);
+
+  // ───── Reference state: first run (add mode only). The blocks of the other state go before kit.js starts. ─────
+  var state = params.get("state") === "first-run" && !params.get("edit") && !params.get("duplicate") ? "first-run" : "in-use";
+  doc.querySelectorAll("[data-cn-show]").forEach(function (n) {
+    if (n.getAttribute("data-cn-show").split(/\s+/).indexOf(state) < 0) n.remove();
+    else if (!n.hasAttribute("data-cn-later")) n.hidden = false;
+  });
+  if (state === "first-run") {
+    // nothing exists yet: no approvals waiting, and the palette offers no connections or endpoints
+    doc.querySelectorAll(".gw-titlebar .gw-counter, .gw-nav__counter, #cmdk .gw-counter").forEach(function (c) { c.hidden = true; });
+    var bell = doc.querySelector('.gw-titlebar a[href="approvals.html"]');
+    if (bell) bell.setAttribute("aria-label", "Approvals, none waiting");
+    ["cmdk-g-connections", "cmdk-g-endpoints"].forEach(function (id) {
+      var group = doc.querySelector('#cmdk [aria-labelledby="' + id + '"]');
+      if (group) group.remove();
+    });
+    ["cmdk-o-copy-dev", "cmdk-o-issue-token"].forEach(function (id) { var o = doc.getElementById(id); if (o) o.remove(); });
+    doc.getElementById("cf-src-field").hidden = true; // behind "Use a secret manager instead"
+    NAMES[3] = "Create endpoint";
+    ["#cmdk-o-add-connection", "#cmdk .gw-empty__actions a"].forEach(function (sel) {
+      var a = doc.querySelector(sel);
+      if (a) a.setAttribute("href", "connection-new.html?state=first-run");
+    });
+    // every line about the secret says where it lives: encrypted here, or in the secret manager picked
+    doc.addEventListener("change", function (e) { if (e.target.name === "cf-src") syncSecret(); });
+  }
+  function syncSecret() {
+    var src = doc.querySelector('input[name="cf-src"]:checked');
+    var local = !src || src.value === "local";
+    doc.querySelectorAll("[data-fr-secret]").forEach(function (n) { n.hidden = (n.getAttribute("data-fr-secret") === "local") !== local; });
+  }
+  // first run: the first endpoint takes the connection's environment as its name; prod starts read only
+  function frEnv() { var r = doc.querySelector('input[name="cf-env"]:checked'); return r ? r.value : "dev"; }
+
+  // ───── Demo data: the connections of BLUEPRINT §9 ─────
+  // pick = connector type radio; cred = [source, …] where source is local | vault | gcp | dynamic;
+  // eps = tools per endpoint with their mode (read | approval | off).
+  var R = "read", A = "approval", O = "off";
+  var NOW = ["2026-10-22T14:30:00+02:00", "2026-10-22 14:30:00 CEST"]; // the demo world's clock: nothing happens after 14:30
+  var CLIENTS = { "dev": ["Claude Desktop", "Codex"], "stage-readonly": ["claude.ai"], "incident-prod": ["Claude Desktop"] };
+  var CONN = {
+    "app-logs": { pick: "loki", label: "Loki", env: "dev", host: "loki.dev.internal:3100", health: ["success", "Healthy · 64 ms"], ms: 64,
+      cred: ["local", 1, "41 days ago", "2026-09-11T09:40:00+02:00", "token", "token"],
+      eps: [["dev", [["logs_search", R], ["logs_tail", O]]]] },
+    "aws-stage": { pick: "aws", label: "AWS", env: "stage", host: "eu-central-1 · acme-stage", health: ["success", "Healthy · 96 ms"], ms: 96,
+      cred: ["local", 2, "30 days ago", "2026-09-22T15:05:00+02:00", "base access key", "access-key"],
+      del: "Its encrypted base access key (version 2) is destroyed; the role gw-readonly stays in AWS.",
+      eps: [["dev", [["aws_describe", R], ["aws_metrics", R]]], ["stage-readonly", [["aws_describe", R], ["aws_metrics", R]]]] },
+    "billing-api": { pick: "http", label: "HTTP API", env: "stage", host: "https://billing.stage.acme.dev", health: ["danger", "Unreachable"], ms: 0,
+      cred: ["gcp", "gcp-sm://projects/acme-stage/secrets/billing-api-token/versions/latest"], warn: true,
+      del: "Its two references are removed; the secrets stay in GCP and AWS Secrets Manager.",
+      eps: [["dev", [["http_get", O], ["http_request", A]]], ["stage-readonly", [["http_get", R], ["http_request", O]]]], pending: ["http_request", "Codex"] },
+    "cache-redis": { pick: "redis", label: "Redis 7", env: "dev", host: "cache.dev.internal:6379", health: ["warning", "Slow · 1.8 s"], ms: 1800, user: "default",
+      cred: ["local", 1, "Jul 14", "2026-07-14T10:20:00+02:00", "password", "password"],
+      eps: [["dev", [["redis_get", R], ["redis_scan", R]]]] },
+    "dev-cluster": { pick: "kubernetes", label: "Kubernetes", env: "dev", host: "k8s.dev.internal:6443 · ns app-dev", health: ["success", "Healthy · 38 ms"], ms: 38,
+      cred: ["local", 4, "16 days ago", "2026-10-06T08:45:00+02:00", "service account token", "token"],
+      eps: [["dev", [["k8s_get", R], ["k8s_logs", O], ["k8s_rollout_restart", A], ["k8s_apply", O]]]], pending: ["k8s_rollout_restart", "Claude Desktop"] },
+    "dev-db": { pick: "postgresql", label: "PostgreSQL 16", env: "dev", host: "db.dev.internal:5432/app", health: ["success", "Healthy · 12 ms"], ms: 12, user: "app_rw",
+      cred: ["local", 3, "2 days ago", "2026-10-20T09:14:00Z", "password", "password"],
+      eps: [["dev", [["sql_list_schemas", R], ["sql_describe_table", R], ["sql_query", R], ["sql_execute", A]]]], pending: ["sql_execute", "Codex"] },
+    "dev-vm": { pick: "ssh", label: "SSH", env: "dev", host: "10.20.0.14:22", health: ["success", "Healthy · 46 ms"], ms: 46, user: "deploy",
+      cred: ["dynamic", "ssh-client-signer/sign/gw-runbooks", "Vault SSH CA", "Certificate signer", "Vault signs a fresh key pair for each call, valid 5 min. No private key is kept anywhere."],
+      del: "Nothing is stored here: certificates come from the Vault SSH CA.",
+      eps: [["dev", [["ssh_run", R], ["ssh_exec", O]]]] },
+    "orders-mongo": { pick: "mongodb", label: "MongoDB 7", env: "dev", host: "mongo.dev.internal:27017/orders", health: ["success", "Healthy · 9 ms"], ms: 9, user: "gw_reader",
+      cred: ["local", 2, "23 days ago", "2026-09-29T17:10:00+02:00", "password", "password"],
+      eps: [["dev", [["mongo_find", R], ["mongo_aggregate", R]]]] },
+    "prod-logs": { pick: "gcp-logging", label: "GCP Cloud Logging", env: "prod", host: "projects/acme-prod", health: ["success", "Healthy · 210 ms"], ms: 210,
+      cred: ["dynamic", "gw-reader@acme-prod.iam.gserviceaccount.com", "GCP impersonation", "Service account", "Your Google sign-in borrows this account's read access: a short-lived token, valid 15 min."],
+      del: "Nothing is stored here: the gw-reader service account stays in GCP.",
+      eps: [["incident-prod", [["logs_search", R], ["logs_tail", O]]]] },
+    "prod-replica": { pick: "postgresql", label: "PostgreSQL 16 · read replica", env: "prod", host: "replica.prod.internal:5432/app", health: ["success", "Healthy · 31 ms"], ms: 31,
+      cred: ["dynamic", "vault://database/creds/prod-replica-readonly", "Vault dynamic", "Vault role", "Vault creates a short-lived database user, renews it automatically and revokes it when the connection goes idle."],
+      del: "Nothing is stored here: the Vault role stays.",
+      eps: [["incident-prod", [["sql_list_schemas", R], ["sql_describe_table", R], ["sql_query", R], ["sql_execute", O]]]] },
+    "prod-vm": { pick: "ssh", label: "SSH · runbooks only", env: "prod", host: "10.40.0.21:22", health: ["success", "Healthy · 52 ms"], ms: 52, user: "deploy",
+      cred: ["dynamic", "ssh-client-signer/sign/gw-runbooks", "Vault SSH CA", "Certificate signer", "Vault signs a fresh key pair for each call, valid 5 min. No private key is kept anywhere."],
+      del: "Nothing is stored here: certificates come from the Vault SSH CA.",
+      // ssh_run has one mode per endpoint; the runbook's flag decides the rest: service-status (read only) runs at once,
+      // restart-api changes state and always waits for approval (ARCHITECTURE §8.6.6)
+      eps: [["incident-prod", [["ssh_run", R], ["ssh_exec", O]]]] },
+    "stage-db": { pick: "postgresql", label: "PostgreSQL 16", env: "stage", host: "db.stage.internal:5432/app", health: ["success", "Healthy · 24 ms"], ms: 24, user: "gw_reader",
+      cred: ["vault", "vault://kv/stage/db#password"],
+      del: "The Vault reference is removed; the secret itself stays in Vault.",
+      eps: [["stage-readonly", [["sql_list_schemas", R], ["sql_describe_table", R], ["sql_query", R], ["sql_execute", O]]]] }
+  };
+  var TYPE_ALIAS = { logs: "loki" }; // connectors.html links by connector, the picker lists log back ends
+  var MODES = { read: ["eye", "Read only"], approval: ["user-check", "Approval"], off: ["circle-off", "Off"] };
+
+  function el(tag, cls, text) {
+    var n = doc.createElement(tag);
+    if (cls) n.className = cls;
+    if (text) n.textContent = text;
+    return n;
+  }
+  function slots(key) { return doc.querySelectorAll('[data-slot="' + key + '"]'); }
+  function setSlot(key, value) { slots(key).forEach(function (n) { n.textContent = value; }); }
+  function setVal(id, value) { var n = doc.getElementById(id); n.value = value; n.defaultValue = value; }
+  function pickRadio(name, value) {
+    var target = doc.querySelector('input[name="' + name + '"][value="' + value + '"]');
+    if (!target) return null;
+    doc.querySelectorAll('input[name="' + name + '"]').forEach(function (r) { r.defaultChecked = r === target; r.checked = r === target; });
+    return target;
+  }
+  function logLink(q) { return "activity.html?q=" + encodeURIComponent(q).replace(/%3A/g, ":"); }
+  function modeChip(m) {
+    var s = el("span", "gw-mode gw-mode--" + m);
+    var i = el("i", "gw-icon");
+    i.setAttribute("data-lucide", MODES[m][0]);
+    s.appendChild(i);
+    s.appendChild(doc.createTextNode(MODES[m][1]));
+    return s;
+  }
+  function enabled(c) {
+    var out = [];
+    c.eps.forEach(function (ep) {
+      var on = ep[1].filter(function (t) { return t[1] !== O; }).map(function (t) { return t[0]; });
+      if (on.length) out.push([ep[0], on]);
+    });
+    return out;
+  }
+  function list(words) { return words.length < 2 ? words.join("") : words.slice(0, -1).join(", ") + " and " + words[words.length - 1]; }
+
+  // ───── Mode ─────
+  var editName = params.get("edit");
+  var dupName = params.get("duplicate");
+  function known(name) { return !!name && Object.prototype.hasOwnProperty.call(CONN, name); }
+  var mode = known(editName) ? "edit" : known(dupName) ? "duplicate" : "add";
+  var current = mode === "edit" ? editName : mode === "duplicate" ? dupName : null;
+  doc.querySelectorAll("[data-mode-show]").forEach(function (n) {
+    n.hidden = n.getAttribute("data-mode-show").split(" ").indexOf(mode) === -1;
+  });
+  doc.querySelectorAll("[data-cn-ref]").forEach(function (a) {
+    if (mode !== "add" && current !== "dev-db") return; // the line names dev-db: another connection is not "this page"
+    if (a.getAttribute("data-cn-ref") !== (mode === "add" ? (state === "first-run" ? "first-run" : "add") : mode)) return;
+    var here = el("span", "", a.textContent);
+    here.setAttribute("aria-current", "page");
+    a.replaceWith(here);
+  });
+  if (state === "first-run") {
+    doc.getElementById("page-title").textContent = "Add your first connection";
+    doc.getElementById("page-crumb").textContent = "Add your first connection";
+    doc.title = "Add your first connection · GateRook";
+  }
+
+  // ───── Connector type: title of step 2, stand-in note for non-PostgreSQL schemas ─────
+  function typeName(input) {
+    var title = doc.getElementById(input.getAttribute("aria-labelledby"));
+    return title.firstChild.textContent.trim();
+  }
+  // "3 connections use PostgreSQL" under the picker: the connections of BLUEPRINT §9 by type and log back end; none when 0
+  var USAGE = { postgresql: 3, mongodb: 1, redis: 1, ssh: 2, "gcp-logging": 1, loki: 1, kubernetes: 1, aws: 1, http: 1 };
+  function syncUsage(input) {
+    var note = doc.querySelector("[data-type-usage]");
+    var n = USAGE[input.value] || 0;
+    note.hidden = !n;
+    if (!n) return;
+    note.querySelector("[data-type-usage-text]").textContent = n + (n === 1 ? " connection uses " : " connections use ") + typeName(input);
+    var src = input.parentNode.querySelector(".gw-choice-card__icon svg, .gw-choice-card__icon [data-lucide]");
+    var old = note.querySelector("[data-type-usage-icon]");
+    if (src && old) {
+      var icon = src.cloneNode(true); // the card's own icon (database, terminal, scroll-text…)
+      icon.setAttribute("data-type-usage-icon", "");
+      old.replaceWith(icon);
+    }
+  }
+  function syncType(input) {
+    doc.getElementById("add-step-type").textContent = typeName(input);
+    setSlot("type-name", typeName(input));
+    doc.querySelector("[data-standin]").hidden = input.value === "postgresql";
+    syncUsage(input);
+  }
+  function chooseType(value) {
+    var input = doc.querySelector('input[name="connector-type"][value="' + (TYPE_ALIAS[value] || value) + '"]');
+    if (!input || input.disabled || input.getAttribute("aria-disabled") === "true") return; // not installed (ClickHouse)
+    pickRadio("connector-type", input.value);
+    syncType(input);
+  }
+  doc.addEventListener("change", function (e) { if (e.target.name === "connector-type") syncType(e.target); });
+  syncType(doc.querySelector('input[name="connector-type"]:checked'));
+
+  // ───── Wizard ─────
+  function go(n, focusId, initial) {
+    steps.forEach(function (li, i) {
+      var k = i + 1;
+      var state = k < n ? "complete" : k === n ? "current" : "upcoming";
+      li.setAttribute("data-state", state);
+      if (k === n) li.setAttribute("aria-current", "step"); else li.removeAttribute("aria-current");
+      // toggleAttribute, not .hidden: lucide has turned the <i> into an <svg>, and SVG elements have no hidden property
+      li.querySelector("[data-step-check]").toggleAttribute("hidden", state !== "complete");
+      li.querySelector("[data-step-num]").toggleAttribute("hidden", state === "complete");
+      li.querySelector("[data-step-done]").hidden = state !== "complete";
+      li.querySelector(".gw-stepper__description").hidden = state !== "complete";
+    });
+    if (n > 2) {
+      // what step 2 decided: the name in the later steps, "name · env" under Configure
+      var name = doc.getElementById("cf-name").value.trim() || "this connection";
+      var env = doc.querySelector('input[name="cf-env"]:checked');
+      var desc = steps[1].querySelector(".gw-stepper__description");
+      desc.textContent = "";
+      desc.appendChild(el("span", "gw-mono", name));
+      desc.appendChild(doc.createTextNode(" · " + (env ? env.value : "")));
+      setSlot("conn-name", name);
+      if (state === "first-run") syncEndpoint();
+    }
+    panels.forEach(function (p) { p.hidden = Number(p.getAttribute("data-wizard-panel")) !== n; });
+    if (initial) return;
+    var target = doc.getElementById(focusId || "step-" + n + "-title");
+    if (target) target.focus();
+    announce("Step " + n + " of " + steps.length + ": " + NAMES[n - 1]);
+  }
+  doc.addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-wizard-go]");
+    if (!btn) return;
+    go(Number(btn.getAttribute("data-wizard-go")), btn.getAttribute("data-wizard-focus"));
+  });
+
+  // Step 3: Test again shows the testing state in place (one spinner, label kept)
+  var run = doc.getElementById("ct-run");
+  run.addEventListener("click", function () {
+    if (run.getAttribute("aria-busy") === "true") return;
+    var ok = doc.querySelectorAll("[data-ct-ok]");
+    var testing = doc.querySelector("[data-ct-testing]");
+    run.setAttribute("aria-busy", "true");
+    run.setAttribute("aria-disabled", "true");
+    run.setAttribute("aria-describedby", "ct-testing"); // what is going on, while it runs
+    run.querySelector("[data-ct-spinner]").hidden = false;
+    run.querySelector("[data-ct-icon]").toggleAttribute("hidden", true);
+    ok.forEach(function (n) { n.hidden = true; });
+    testing.hidden = false;
+    setTimeout(function () {
+      run.removeAttribute("aria-busy");
+      run.removeAttribute("aria-disabled");
+      run.removeAttribute("aria-describedby");
+      run.querySelector("[data-ct-spinner]").hidden = true;
+      run.querySelector("[data-ct-icon]").toggleAttribute("hidden", false);
+      testing.hidden = true;
+      ok.forEach(function (n) { n.hidden = false; });
+    }, 1400);
+  });
+
+  // First run, step 4: the endpoint Save creates is named after the environment; on prod sql_execute starts Off
+  function syncEndpoint() {
+    var env = frEnv(), prod = env === "prod";
+    setSlot("ep-name", env);
+    var tag = doc.querySelector("[data-fr-envtag]");
+    tag.className = "gw-env gw-env--sm gw-env--" + env;
+    tag.textContent = env;
+    doc.querySelectorAll("[data-fr-env]").forEach(function (n) { n.hidden = (n.getAttribute("data-fr-env") === "prod") !== prod; });
+    doc.querySelector("[data-fr-summary]").textContent = prod ? "4 tools · 3 read only · 1 off" : "4 tools · 3 read only · 1 approval";
+    var row = doc.querySelector("[data-fr-exec]");
+    var cell = row.querySelector(".gw-tool-policy-list__mode");
+    cell.replaceChild(modeChip(prod ? "off" : "approval"), cell.querySelector(".gw-mode"));
+    var note = cell.querySelector(".gw-tool-policy-list__mode-note");
+    note.lastChild.textContent = prod ? "Off on prod: read only by default" : "Mutates data: approval or off";
+    row.setAttribute("data-mode", prod ? "off" : "approval");
+    if (window.gwIcons) window.gwIcons(row);
+  }
+
+  // Step 4: the preview follows the chosen endpoints
+  var form = doc.getElementById("add-save");
+  function preview() {
+    var chosen = state === "first-run" ? ["dev"] // the endpoint Save creates
+      : Array.prototype.slice.call(form.querySelectorAll("input[data-endpoint]:checked")).map(function (c) { return c.value; });
+    form.querySelectorAll("[data-preview-for]").forEach(function (n) { n.hidden = chosen.indexOf(n.getAttribute("data-preview-for")) === -1; });
+    form.querySelector("[data-preview-empty]").hidden = chosen.length > 0;
+    var desc = steps[3].querySelector(".gw-stepper__description");
+    desc.textContent = state === "first-run" ? "Endpoint " + frEnv() : chosen.length ? "Endpoint " + chosen.join(", ") : "No endpoint yet";
+    return chosen;
+  }
+  form.addEventListener("change", function (e) { if (e.target.matches("input[data-endpoint]")) preview(); });
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var chosen = preview();
+    var name = doc.getElementById("cf-name").value.trim() || "dev-db";
+    if (state === "first-run") {
+      // every step done; the wizard gives way to what exists now and the one next step
+      syncSecret();
+      syncEndpoint();
+      go(5, null, true);
+      // the header's Cancel and "nothing is saved yet" no longer hold; the card holds the ways on
+      var cancel = doc.querySelector('.gw-page-header__actions a[href="overview.html?state=first-run"]');
+      if (cancel) cancel.hidden = true;
+      var intro = doc.querySelector('.gw-page-header__description[data-cn-show="first-run"]');
+      if (intro) intro.textContent = name + " is saved and on your first endpoint. Next, connect the AI app you use.";
+      doc.getElementById("fr-done").hidden = false;
+      doc.getElementById("fr-done-t").focus();
+      toast({ tone: "success", title: "Connection " + name + " saved",
+        body: "Endpoint " + frEnv() + " created with its tools. Next: connect your AI app." });
+      return;
+    }
+    toast({
+      tone: "success",
+      title: "Connection " + name + " saved",
+      body: chosen.length ? "Added to " + list(chosen) + ". Health is checked every minute." : "It is not on an endpoint yet, so agents can't use it.",
+      actions: [{ label: "Open Connections", onClick: function () { window.location.href = "connections.html"; } }]
+    });
+  });
+
+  // Step 2 / edit view: Enter in a field continues the wizard, or saves in the edit view
+  var cfForm = doc.getElementById("cf-form");
+  cfForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    if (doc.activeElement && doc.activeElement.id === "cf-schema") return; // Enter there adds a schema tag
+    if (mode !== "edit") { go(3); return; }
+    toast({ tone: "success", title: "Connection " + doc.getElementById("cf-name").value.trim() + " saved", body: "The new settings apply from the next call. Calls in flight finish with the old ones." });
+  });
+
+  // ───── Shared by duplicate and edit: the settings of an existing connection ─────
+  function fillSettings(name, c, withName) {
+    chooseType(c.pick);
+    setVal("cf-name", withName);
+    var m = /^([^:/]+):(\d+)\/?(.*)$/.exec(c.host);
+    setVal("cf-host", m && c.pick === "postgresql" ? m[1] : c.host);
+    setVal("cf-port", m && c.pick === "postgresql" ? m[2] : "");
+    setVal("cf-db", m && c.pick === "postgresql" ? m[3] : "");
+    setVal("cf-user", c.user || "");
+    pickRadio("cf-env", c.env);
+    pickRadio("cf-src", c.cred[0]);
+  }
+
+  // ───── Duplicate: the wizard from Configure, settings copied, credentials empty ─────
+  if (mode === "duplicate") {
+    var dup = CONN[current];
+    var h1d = doc.getElementById("page-title");
+    h1d.textContent = "Duplicate ";
+    h1d.appendChild(el("span", "gw-mono", current));
+    doc.getElementById("page-crumb").textContent = "Duplicate " + current;
+    doc.title = "Duplicate " + current + " · GateRook";
+    setSlot("name", current);
+    fillSettings(current, dup, current + "-copy");
+    go(2, null, true);
+  }
+
+  // ───── Edit view ─────
+  var secretVersion = 3;
+  var cannotRotate = false; // the connector can't set a new value at the source (all but SQL)
+  function showSecretView(view) {
+    doc.querySelectorAll("[data-secret-view]").forEach(function (n) { n.hidden = n.getAttribute("data-secret-view") !== view; });
+    doc.getElementById("cf-pw-rotate-why").hidden = view !== "stored" || !cannotRotate;
+  }
+  function setSecretVersion(v, when) {
+    secretVersion = v;
+    setSlot("secret-version", String(v));
+    setSlot("secret-next", String(v + 1));
+    if (when) {
+      var t = doc.querySelector('[data-slot="secret-updated"]');
+      t.textContent = when;
+      t.setAttribute("datetime", NOW[0]);
+      t.setAttribute("title", NOW[1]);
+    }
+  }
+  function fillEdit(name, c) {
+    var h1 = doc.getElementById("page-title");
+    h1.textContent = "Edit connection ";
+    h1.appendChild(el("span", "gw-mono", name));
+    doc.getElementById("page-crumb").textContent = name;
+    doc.title = name + " · Connections · GateRook";
+    setSlot("name", name);
+    setSlot("type", c.label);
+    setSlot("host", c.host);
+    var envEl = doc.querySelector('[data-slot="env"]');
+    envEl.className = "gw-env gw-env--" + c.env;
+    envEl.textContent = c.env;
+    var health = doc.querySelector('[data-slot="health"]');
+    health.className = "gw-status gw-status--" + c.health[0];
+    health.querySelector(".gw-status__label").textContent = c.health[1];
+    doc.querySelector('[data-slot="activity"]').setAttribute("href", logLink("connection:" + name));
+
+    // At a glance
+    var lat = doc.querySelector('[data-slot="latency"]');
+    lat.textContent = "";
+    if (c.ms) {
+      lat.appendChild(doc.createTextNode(c.ms >= 1000 ? (c.ms / 1000).toFixed(1) : String(c.ms)));
+      lat.appendChild(el("span", "gw-stat__unit", c.ms >= 1000 ? "s" : "ms"));
+    } else {
+      lat.textContent = "No answer";
+    }
+    doc.querySelector('[data-slot="spark"]').setAttribute("class", "gw-sparkline gw-sparkline--" + c.health[0]);
+    if (name !== "dev-db") setSlot("health-meta", c.health[0] === "success" ? "Steady over the last 24 hours · checked every minute"
+      : c.health[0] === "warning" ? "Slower than 1 s since this morning · checked every minute"
+      : "No answer since 11:42 · checked every minute");
+    var on = enabled(c);
+    var tools = on.reduce(function (n, ep) { return n + ep[1].length; }, 0);
+    var count = doc.querySelector('[data-slot="ep-count"]');
+    count.textContent = String(c.eps.length);
+    count.appendChild(el("span", "gw-stat__unit", c.eps.length === 1 ? "endpoint" : "endpoints"));
+    var meta = doc.querySelector('[data-slot="ep-meta"]');
+    meta.textContent = tools + (tools === 1 ? " tool on " : " tools on ");
+    c.eps.forEach(function (ep, i) {
+      if (i) meta.appendChild(doc.createTextNode(i === c.eps.length - 1 ? " and " : ", "));
+      meta.appendChild(el("span", "gw-mono", ep[0]));
+    });
+    var who = [];
+    c.eps.forEach(function (ep) { CLIENTS[ep[0]].forEach(function (x) { if (who.indexOf(x) === -1) who.push(x); }); });
+    meta.appendChild(doc.createTextNode(" · " + list(who)));
+
+    // Settings
+    fillSettings(name, c, name);
+    doc.getElementById("step-2-title").textContent = "Settings";
+    var cred = c.cred;
+    if (cred[0] === "local") {
+      setSecretVersion(cred[1]);
+      var t = doc.querySelector('[data-slot="secret-updated"]');
+      t.textContent = cred[2];
+      t.setAttribute("datetime", cred[3]);
+      t.setAttribute("title", cred[3].replace("T", " ").replace(/:00(\+02:00|Z)$/, function (s, z) { return z === "Z" ? " UTC" : " +02:00"; }));
+      setSlot("secret-what", cred[4]);
+      setSlot("secret-key", cred[5]);
+      setSlot("secret-label", cred[4].charAt(0).toUpperCase() + cred[4].slice(1));
+      doc.getElementById("cf-pw-new").setAttribute("aria-label", "New " + cred[4] + " of " + name);
+      // Rotate sets a new value at the source: only the SQL connectors can; elsewhere it stays in the Tab order, aria-disabled
+      // (kit.js keeps it from opening the dialog), and the reason sits under the field
+      cannotRotate = c.pick !== "postgresql" && c.pick !== "mysql";
+      if (cannotRotate) {
+        var rotate = doc.querySelector('[data-gw-dialog-open="dlg-rotate-secret"]');
+        rotate.setAttribute("aria-disabled", "true");
+        rotate.setAttribute("aria-describedby", "cf-pw-rotate-why");
+        doc.getElementById("cf-pw-rotate-why").hidden = false;
+      }
+    } else {
+      var field = doc.querySelector('.gw-connection-form__secret[data-source="' + cred[0] + '"]');
+      field.querySelector('[data-slot="ref"]').textContent = cred[1];
+      if (cred[2]) field.querySelector('[data-slot="ref-provider"]').textContent = cred[2];
+      if (cred[3]) setSlot("role-label", cred[3]);
+      if (cred[4]) doc.getElementById("cf-role-hint").textContent = cred[4];
+    }
+    doc.querySelector("[data-cred-warning]").hidden = !c.warn;
+
+    // Used by
+    var body = doc.querySelector("[data-used-by]");
+    body.textContent = "";
+    c.eps.forEach(function (ep) {
+      ep[1].forEach(function (t) {
+        var tr = el("tr");
+        var th = el("th", "gw-table__cell--mono", t[0]);
+        th.setAttribute("scope", "row");
+        var tdEp = el("td");
+        var a = el("a", "gw-link gw-mono");
+        a.href = "endpoint-detail.html?endpoint=" + ep[0];
+        a.appendChild(el("span", "gw-sr-only", "Endpoint "));
+        a.appendChild(doc.createTextNode(ep[0]));
+        tdEp.appendChild(a);
+        var tdMode = el("td");
+        tdMode.appendChild(modeChip(t[1]));
+        var tdAct = el("td", "gw-table__cell--actions");
+        var tool = t[0].split(" ")[0];
+        var act = el("a", "gw-btn gw-btn--ghost gw-btn--sm", "View activity");
+        act.href = logLink("connection:" + name + " tool:" + tool + " endpoint:" + ep[0]);
+        act.appendChild(el("span", "gw-sr-only", " of " + t[0] + " on " + name + " through " + ep[0]));
+        tdAct.appendChild(act);
+        [th, tdEp, tdMode, tdAct].forEach(function (n) { tr.appendChild(n); });
+        body.appendChild(tr);
+      });
+    });
+    if (window.gwIcons) window.gwIcons(body);
+
+    // Delete confirmation
+    var dlg = doc.getElementById("dlg-delete-connection");
+    dlg.querySelector('[data-slot="del-secret"]').textContent = c.del || "Its encrypted " + cred[4] + " (version " + cred[1] + ") is destroyed.";
+    var impact = dlg.querySelector("[data-del-impact]");
+    impact.textContent = "";
+    on.forEach(function (ep) {
+      var row = el("div", "gw-kv__row");
+      var dt = el("dt", "gw-kv__key", "Endpoint ");
+      dt.appendChild(el("span", "gw-mono", ep[0]));
+      var dd = el("dd", "gw-kv__value", ep[1].length + (ep[1].length === 1 ? " tool: " : " tools: "));
+      ep[1].forEach(function (tool, i) {
+        if (i) dd.appendChild(doc.createTextNode(", "));
+        dd.appendChild(el("code", "gw-code", tool));
+      });
+      dd.appendChild(doc.createTextNode(" · used by " + list(CLIENTS[ep[0]])));
+      row.appendChild(dt);
+      row.appendChild(dd);
+      impact.appendChild(row);
+    });
+    var pending = dlg.querySelector("[data-del-pending]");
+    pending.hidden = !c.pending;
+    if (c.pending) {
+      var p = dlg.querySelector("[data-del-pending-text]");
+      p.textContent = "";
+      p.appendChild(el("code", "gw-code", c.pending[0]));
+      p.appendChild(doc.createTextNode(" from " + c.pending[1]));
+    }
+  }
+
+  if (mode === "edit") {
+    var conn = CONN[current];
+    fillEdit(current, conn);
+    doc.getElementById("cf-name").readOnly = true; // agents, policies and past calls refer to the name
+    panels.forEach(function (p) { p.hidden = p.getAttribute("data-wizard-panel") !== "2"; });
+
+    // Test connection: in place on the button, then the result
+    var testBtn = doc.getElementById("edit-test");
+    testBtn.addEventListener("click", function () {
+      if (testBtn.getAttribute("aria-busy") === "true") return;
+      var icon = testBtn.querySelector("svg");
+      var spin = el("span", "gw-spinner gw-spinner--sm");
+      spin.setAttribute("aria-hidden", "true");
+      // the header status says what is going on; the busy button points at it
+      var health = doc.querySelector('[data-slot="health"]');
+      var checking = el("span", "gw-status gw-status--checking");
+      checking.id = "edit-checking";
+      var dot = el("span", "gw-spinner gw-spinner--sm");
+      dot.setAttribute("aria-hidden", "true");
+      checking.appendChild(dot);
+      checking.appendChild(el("span", "gw-status__label", "Checking " + current));
+      health.hidden = true;
+      health.parentNode.insertBefore(checking, health);
+      testBtn.setAttribute("aria-busy", "true");
+      testBtn.setAttribute("aria-disabled", "true");
+      testBtn.setAttribute("aria-describedby", "edit-checking");
+      if (icon) icon.toggleAttribute("hidden", true);
+      testBtn.insertBefore(spin, testBtn.firstChild);
+      announce("Testing " + current);
+      setTimeout(function () {
+        spin.remove();
+        checking.remove();
+        health.hidden = false;
+        if (icon) icon.toggleAttribute("hidden", false);
+        testBtn.removeAttribute("aria-busy");
+        testBtn.removeAttribute("aria-disabled");
+        testBtn.removeAttribute("aria-describedby");
+        var when = doc.querySelector('[data-slot="checked"]');
+        when.textContent = "just now";
+        when.setAttribute("datetime", NOW[0]);
+        when.setAttribute("title", NOW[1]);
+        var tone = conn.health[0];
+        toast(tone === "danger"
+          ? { tone: "danger", title: current + " is unreachable", body: "Connection refused. Check the VPN or the service, then test again." }
+          : { tone: tone, title: current + (tone === "warning" ? " is slow" : " is healthy"), body: conn.health[1].replace(/^\w+ · /, "Answered in ") + "." });
+      }, 1200);
+    });
+
+    // Discard brings back the stored secret too
+    cfForm.addEventListener("reset", function () {
+      showSecretView("stored");
+      doc.querySelectorAll('.gw-secret[data-state="reference"]').forEach(function (w) { w.hidden = false; });
+      doc.querySelectorAll('.gw-connection-form__secret .gw-secret[data-state="empty"]').forEach(function (n) { n.hidden = true; });
+      setTimeout(function () { syncType(doc.querySelector('input[name="connector-type"]:checked')); }, 0);
+    });
+  }
+
+  doc.addEventListener("click", function (e) {
+    var input = doc.getElementById("cf-pw-new");
+    var what = (doc.querySelector('[data-slot="secret-what"]') || {}).textContent || "password";
+    if (e.target.closest("[data-secret-replace]")) {
+      showSecretView("editing");
+      input.value = "";
+      input.removeAttribute("aria-invalid");
+      input.focus();
+    } else if (e.target.closest("[data-secret-cancel]")) {
+      showSecretView("stored");
+      doc.querySelector("[data-secret-replace]").focus();
+    } else if (e.target.closest("[data-secret-save]")) {
+      if (!input.value) {
+        input.setAttribute("aria-invalid", "true");
+        input.focus();
+        announce("Type the new " + what + ", then save");
+        return;
+      }
+      if (mode === "edit" && CONN[current].env === "prod") { askComment(e.target.closest("[data-secret-save]")); return; }
+      saveNewValue();
+    } else if (e.target.closest("[data-secret-rotate]")) {
+      setSecretVersion(secretVersion + 1, "just now");
+      toast({ tone: "success", title: current + "/" + doc.querySelector('[data-slot="secret-key"]').textContent + " rotated", body: "Version " + secretVersion + " passed the test and is in use. Nobody can view it." });
+    } else if (e.target.closest("[data-ref-change]")) {
+      var well = e.target.closest(".gw-secret");
+      var empty = well.parentNode.querySelector('.gw-secret[data-state="empty"]');
+      var ref = empty.querySelector("input");
+      ref.value = well.querySelector(".gw-secret__ref").textContent;
+      well.hidden = true;
+      empty.hidden = false;
+      ref.focus();
+    } else if (e.target.closest("[data-ref-test]")) {
+      toast({ tone: "success", title: "Reference of " + current + " works", body: "Resolved in 18 ms. The value was neither shown nor kept." });
+    } else if (e.target.closest("[data-del-confirm]")) {
+      var gone = enabled(CONN[current]).map(function (ep) { return ep[0]; });
+      toast({
+        tone: "success",
+        title: "Connection " + current + " deleted",
+        body: gone.length ? "Removed from " + list(gone) + "." : "It was on no endpoint.",
+        actions: [{ label: "Back to Connections", onClick: function () { window.location.href = "connections.html"; } }]
+      });
+    }
+  });
+  doc.addEventListener("input", function (e) { if (e.target.id === "cf-pw-new") e.target.removeAttribute("aria-invalid"); });
+
+  // The new value is in use from the next call (after the comment, on prod)
+  function saveNewValue() {
+    var input = doc.getElementById("cf-pw-new");
+    var what = (doc.querySelector('[data-slot="secret-what"]') || {}).textContent || "password";
+    input.value = "";
+    setSecretVersion(secretVersion + 1, "just now");
+    showSecretView("stored");
+    doc.querySelector("[data-secret-replace]").focus();
+    toast({ tone: "success", title: what.charAt(0).toUpperCase() + what.slice(1) + " of " + current + " saved", body: "Version " + secretVersion + " is in use from the next call. Nobody can view it." });
+  }
+
+  // Replace on prod: the core keeps a comment with every change of a prod secret, so it is asked before the save
+  var commentDlg = doc.getElementById("dlg-comment");
+  var commentText = doc.getElementById("dlg-comment-text");
+  function commentError(on) {
+    doc.getElementById("dlg-comment-err").hidden = !on;
+    if (on) commentText.setAttribute("aria-invalid", "true"); else commentText.removeAttribute("aria-invalid");
+    commentText.setAttribute("aria-describedby", on ? "dlg-comment-err dlg-comment-hint" : "dlg-comment-hint");
+  }
+  function askComment(opener) {
+    commentText.value = "";
+    commentError(false);
+    commentDlg._gwReturn = opener; // kit.js gives focus back to it when the dialog closes without saving
+    commentDlg.showModal();
+    if (window.gwIcons) window.gwIcons(commentDlg);
+  }
+  doc.getElementById("dlg-comment-form").addEventListener("submit", function (e) {
+    if (!commentText.value.trim()) {
+      e.preventDefault();
+      commentError(true);
+      commentText.focus();
+      return;
+    }
+    setTimeout(saveNewValue, 0); // after the dialog closes, so the toast lands on the page
+  });
+  commentText.addEventListener("input", function () { commentError(false); });
+
+  // The name typed in step 2 is the one the hint and the later steps show
+  var nameInput = doc.getElementById("cf-name");
+  nameInput.addEventListener("input", function () { setSlot("conn-name", nameInput.value.trim() || "this connection"); });
+  setSlot("conn-name", nameInput.value.trim());
+
+  // ───── Add: a type from the URL (connectors.html links), then the deep link to a step ─────
+  if (mode === "add" && params.get("type")) chooseType(params.get("type"));
+  var m = /^#step-([1-4])$/.exec(window.location.hash);
+  if (m && mode !== "edit") go(Number(m[1]), null, true);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,144 @@
+<div class="gw-stack">
+  <h2 class="gw-sr-only">MCP servers</h2>
+  <div class="gw-toolbar">
+    <div class="gw-toolbar__start">
+      <p class="gw-text-small gw-fg-secondary">Each server runs as its own process and gets only the variables you pass. Its tools go through modes, approvals and audit like any other.</p>
+    </div>
+    @if (servers()?.length !== 0) {
+      <!-- With no server yet, the empty state below holds the one Add MCP server. -->
+      <div class="gw-toolbar__end">
+        <button class="gw-btn gw-btn--sm" type="button" (click)="add($event)"><svg lucideIcon="plus" class="gw-icon gw-icon--sm"></svg> Add MCP server</button>
+      </div>
+    }
+  </div>
+
+  @if (data.connections.error(); as e) {
+    <div class="gw-alert gw-alert--danger" role="alert">
+      <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">The MCP servers didn't load</p>
+        <p class="gw-alert__body">{{ errorText(e) }}</p>
+        <div class="gw-alert__actions">
+          <button class="gw-btn gw-btn--sm" type="button" (click)="retry()" [attr.aria-busy]="data.connections.loading() ? 'true' : null" [attr.aria-disabled]="data.connections.loading() ? 'true' : null">@if (data.connections.loading()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Try again</button>
+          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle aria-controls="mcp-error-details">Details <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
+        </div>
+      </div>
+    </div>
+    <gw-code-block [attr.id]="'mcp-error-details'" hidden wrap lang="Error" [text]="errorDetails(e)" copyLabel="error details" regionLabel="Error details" />
+  } @else if (!servers()) {
+    @if (slow()) {
+      <div class="gw-table-wrap" role="region" aria-labelledby="mcp-skel-cap" tabindex="0" aria-busy="true">
+        <table class="gw-table">
+          <caption class="gw-sr-only" id="mcp-skel-cap">External MCP servers, loading</caption>
+          <thead><tr><th scope="col">Server</th><th scope="col">Command or URL</th><th scope="col">Status</th></tr></thead>
+          <tbody>
+            @for (i of [1, 2]; track i) {
+              <tr aria-hidden="true"><td><span class="gw-skeleton gw-skeleton--text"></span></td><td><span class="gw-skeleton gw-skeleton--text"></span></td><td><span class="gw-skeleton gw-skeleton--text"></span></td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <p class="gw-sr-only" role="status">Loading MCP servers</p>
+    }
+  } @else if (!servers()!.length) {
+    <div class="gw-card">
+      <div class="gw-empty">
+        <span class="gw-empty__icon"><svg lucideIcon="plug" class="gw-icon gw-icon--lg"></svg></span>
+        <h3 class="gw-empty__title">No MCP servers yet</h3>
+        <p class="gw-empty__text">Put an MCP server you already use behind the gateway: its tools get modes, approvals and audit, and its secrets stay here.</p>
+        <div class="gw-empty__actions"><button class="gw-btn" type="button" (click)="add($event)"><svg lucideIcon="plus" class="gw-icon"></svg> Add MCP server</button></div>
+      </div>
+    </div>
+  } @else {
+    <!-- Trust and the pinned version sit under the server name; the command truncates (full value in title), so the
+         table fits at 1440 (kit). -->
+    <div class="gw-table-wrap" role="region" aria-labelledby="mcp-cap" tabindex="0">
+      <table class="gw-table">
+        <caption class="gw-sr-only" id="mcp-cap">External MCP servers</caption>
+        <thead>
+          <tr>
+            <th scope="col">Server</th>
+            <th scope="col">Command or URL</th>
+            <th scope="col">Secrets passed</th>
+            <th scope="col" class="gw-table__cell--num">Tools</th>
+            <th scope="col">Status</th>
+            <th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (s of servers(); track s.name) {
+            @let st = serverStatus(s.state);
+            <tr [id]="'mcp-' + s.name">
+              <th scope="row">
+                <span class="gw-mono">{{ s.name }}</span>
+                <div class="gw-text-caption gw-fg-muted">@if (s.signed) {<span class="gw-badge gw-badge--success gw-badge--sm"><svg lucideIcon="badge-check" class="gw-icon gw-badge__icon"></svg>Signed<span class="gw-sr-only"> catalog entry</span></span> }{{ s.transport === 'http' ? 'HTTP' : 'stdio' }}@if (s.pinned === true && s.version) { · pinned <span class="gw-mono">v{{ s.version }}</span>} @else if (s.pinned === false) { · <span class="gw-badge gw-badge--warning gw-badge--sm"><svg lucideIcon="triangle-alert" class="gw-icon gw-badge__icon"></svg>Not pinned</span>}</div>
+              </th>
+              <td class="gw-table__cell--mono gw-table__cell--truncate" [attr.title]="s.command ?? s.url">{{ s.command ?? s.url }}</td>
+              <td>@for (sec of s.secrets; track sec.name; let last = $last) {<span class="gw-fg-muted"><svg lucideIcon="lock-keyhole" class="gw-icon gw-icon--sm"></svg></span> <a class="gw-link gw-mono" routerLink="/secrets" fragment="stored-secrets" [attr.title]="secretTitle(sec.name, sec.secret)">{{ sec.name }}@if (sec.secret) {<span class="gw-sr-only">, value from the secret {{ sec.secret }}</span>}</a>@if (!last) {, }} @empty {<span class="gw-fg-muted">None</span>}</td>
+              <td class="gw-table__cell--num">@if (s.tools !== null) {{{ s.tools }}} @else {<span class="gw-fg-muted">Not listed yet</span>}</td>
+              <td><span [class]="'gw-status gw-status--' + st.tone"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ st.text }}</span></span></td>
+              <td class="gw-table__cell--actions">
+                <span class="gw-tooltip"><button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" [attr.aria-labelledby]="'tip-restart-' + s.name" [attr.aria-busy]="restarting() === s.name ? 'true' : null" [attr.aria-disabled]="restarting() === s.name ? 'true' : null" (click)="restart(s)">@if (restarting() === s.name) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="rotate-cw" class="gw-icon gw-icon--sm"></svg>}</button><span class="gw-tooltip__bubble" role="tooltip" [id]="'tip-restart-' + s.name">Restart {{ s.name }}</span></span>
+                <div class="gw-menu-host">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" [attr.aria-label]="'More actions for ' + s.name" aria-haspopup="menu" [gwMenuTrigger]="menu"><svg lucideIcon="ellipsis" class="gw-icon"></svg></button>
+                  <div class="gw-menu gw-menu--right" gwMenu #menu="gwMenu" [id]="menuId(s)" role="menu" [attr.aria-label]="'More actions for ' + s.name" hidden>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" routerLink="/activity" [queryParams]="{ q: activityQuery(s) }"><svg lucideIcon="activity" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">View activity<span class="gw-menu__hint gw-mono">{{ activityQuery(s) }}</span></span></a>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" routerLink="/endpoints"><svg lucideIcon="waypoints" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Add tools to an endpoint</span></a>
+                    <div class="gw-menu__divider" role="separator"></div>
+                    <button class="gw-menu__item gw-menu__item--danger" type="button" role="menuitem" tabindex="-1" (click)="remove(s, $event)"><svg lucideIcon="trash-2" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Remove MCP server</span></button>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @for (s of unused(); track s.name) {
+      <div class="gw-alert gw-alert--info gw-alert--compact">
+        <svg lucideIcon="info" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content">
+          <p class="gw-alert__title">The {{ s.tools !== null ? plural(s.tools, 'tool') : 'tools' }} of <span class="gw-mono">{{ s.name }}</span> are Off until you add them to an endpoint</p>
+          <p class="gw-alert__body">There each starts as Approval. Its annotations, such as read only or destructive, are declared by the server and the gateway can't verify them, so Read only needs your confirmation per tool.</p>
+        </div>
+        <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" routerLink="/endpoints">Add to endpoint<span class="gw-sr-only"> {{ s.name }} tools</span></a></div>
+      </div>
+    }
+
+    @for (s of servers(); track s.name) {
+      @let p = paths(s.name);
+      <section class="gw-card gw-card--muted" [attr.aria-labelledby]="'mcp-proc-title-' + s.name">
+        <header class="gw-card__header">
+          <div class="gw-card__heading">
+            <h3 class="gw-card__title" [id]="'mcp-proc-title-' + s.name">How <span class="gw-mono">{{ s.name }}</span> runs</h3>
+            <p class="gw-card__description">Process, variables and logs.</p>
+          </div>
+          <div class="gw-card__actions">
+            <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" gwToggle [attr.aria-controls]="'mcp-proc-body-' + s.name" [attr.aria-labelledby]="'mcp-proc-title-' + s.name"><svg lucideIcon="chevron-down" class="gw-icon"></svg></button>
+          </div>
+        </header>
+        <div class="gw-card__body" [id]="'mcp-proc-body-' + s.name" hidden>
+          <dl class="gw-kv">
+            @if (s.transport === 'stdio' && s.catalogEntry) {
+              <div class="gw-kv__row"><dt class="gw-kv__key">Package</dt><dd class="gw-kv__value">@if (s.packageName) {<span class="gw-mono">{{ s.packageName }}</span>} @else {Catalog entry <span class="gw-mono">{{ s.catalogEntry }}</span>}, pinned. npm checks its integrity hash against the signed catalog entry on every start.</dd></div>
+            } @else if (s.transport === 'stdio' && s.pinned !== null) {
+              <div class="gw-kv__row"><dt class="gw-kv__key">Package</dt><dd class="gw-kv__value">@if (s.pinned) {<span class="gw-mono">{{ s.packageName }}</span>, pinned. npm checks the package integrity on every start.} @else {<span class="gw-mono">{{ s.packageName }}</span>, not pinned: npx can fetch new code on every start, with these secrets.}</dd></div>
+            }
+            <div class="gw-kv__row"><dt class="gw-kv__key">Trust</dt><dd class="gw-kv__value">@if (s.signed) {The signature says which package this is, not that its code was reviewed. } @else {Nobody has verified this code. }@if (s.transport === 'http') {Every call sends its secrets to <span class="gw-mono">{{ s.url }}</span>.} @else {It runs as your user, without a sandbox: it can reach the network and the files your account can.}</dd></div>
+            @if (s.transport === 'stdio') {
+              <div class="gw-kv__row"><dt class="gw-kv__key">Process</dt><dd class="gw-kv__value">{{ processText(s) }}</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Working directory</dt><dd class="gw-kv__value gw-mono">{{ p.workdir }}</dd></div>
+            }
+            <!-- Decision 10 (ARCHITECTURE §8.6.5): the process also gets HOME and basic user variables, not only PATH. -->
+            <div class="gw-kv__row"><dt class="gw-kv__key">{{ s.transport === 'http' ? 'Headers passed' : 'Variables passed' }}</dt><dd class="gw-kv__value">@for (sec of s.secrets; track sec.name; let i = $index) {@if (i > 0) {, }<span class="gw-mono">{{ sec.name }}</span>@if (sec.secret) { from the secret <a class="gw-link gw-mono" routerLink="/secrets" fragment="stored-secrets">{{ sec.secret }}</a>}}@if (s.transport === 'stdio') {@if (s.secrets.length) {, and }@if (s.inherited.length) {<span class="gw-mono">{{ joinAnd(s.inherited) }}</span>, }<span class="gw-mono">PATH</span>, <span class="gw-mono">HOME</span> and basic user variables. Nothing else from your shell. The process keeps them in its environment while it runs.} @else {@if (!s.secrets.length) {None}}</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Tool names</dt><dd class="gw-kv__value">Prefixed with <code class="gw-code">{{ s.toolPrefix }}</code></dd></div>
+            @if (s.transport === 'stdio') {
+              <div class="gw-kv__row"><dt class="gw-kv__key">Log</dt><dd class="gw-kv__value gw-mono">{{ p.log }}</dd></div>
+            }
+          </dl>
+        </div>
+      </section>
+    }
+  }
+</div>

@@ -1,0 +1,493 @@
+// =============================================================
+// .gw-shell · .gw-titlebar · .gw-sidebar · .gw-nav · App shell
+// -------------------------------------------------------------
+// The window frame every app page shares. Never hand-build it: copy
+// pages/_shell.html verbatim and change only <title>, the titlebar title,
+// aria-current on the nav and the content of .gw-page.
+//
+// A CSS grid: titlebar across the top, sidebar on the left, main on the
+// right. The window never scrolls as a whole (the shell is exactly one
+// viewport tall); the sidebar body and main each scroll on their own.
+//
+//   <a class="gw-skip-link" href="#main">Skip to content</a>
+//   <div class="gw-shell">
+//     <header class="gw-titlebar">                     (+ gw-titlebar--mac on macOS)
+//       <span class="gw-titlebar__title">Overview</span>
+//       <div class="gw-titlebar__drag"></div>
+//       <div class="gw-titlebar__actions">…search, approvals, appearance…</div>
+//     </header>
+//     <div class="gw-sidebar" id="gw-sidebar">
+//       <div class="gw-sidebar__header">
+//         <a class="gw-logo" href="overview.html" aria-label="GateRook, overview">…</a>
+//         <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-sidebar__toggle" type="button"
+//                 data-gw-sidebar-toggle aria-controls="gw-sidebar" aria-expanded="true"
+//                 aria-label="Collapse sidebar">…panel-left…</button>
+//       </div>
+//       <nav class="gw-sidebar__body gw-nav" data-gw-nav aria-label="Main">
+//         <div class="gw-nav__group">
+//           <ul class="gw-nav__list">
+//             <li><a class="gw-nav__item" href="overview.html" aria-current="page">
+//               <i class="gw-icon gw-nav__icon" data-lucide="layout-dashboard"></i>
+//               <span class="gw-nav__label">Overview</span></a></li>
+//           </ul>
+//         </div>
+//         <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-resources">
+//           <p class="gw-nav__group-label" id="gw-nav-resources">Resources</p>
+//           <ul class="gw-nav__list">…</ul>
+//         </div>
+//         <div class="gw-nav__group gw-nav__group--end"><ul class="gw-nav__list">…Settings…</ul></div>
+//       </nav>
+//       <div class="gw-sidebar__footer">…gw-status… <span class="gw-sidebar__meta">127.0.0.1:7465 · v0.4.0</span></div>
+//     </div>
+//     <main class="gw-shell__main" id="main" tabindex="-1">
+//       (app-wide gw-alert--banner here, before the page)
+//       <div class="gw-page">…</div>
+//     </main>
+//   </div>
+//
+// gw-shell        grid frame. A shell without .gw-sidebar (onboarding, status screens)
+//                 spans main full width. Height is the viewport, capped by a sized
+//                 parent (max-height: 100%), so the same markup works in a framed demo.
+//                 Only three children: titlebar, sidebar, main. Anything app-wide
+//                 (gw-alert--banner: Core stopped, Tunnel is public) goes first
+//                 INSIDE __main, never as a fourth grid child.
+//   __main        the one scroll container for page content; skip-link target.
+// gw-titlebar     Electron frameless titlebar (bg canvas, subtle bottom rule). The
+//                 whole bar is a drag region; links, buttons, inputs, labels, menus and
+//                 popovers inside opt out (no-drag) automatically.
+//   __title       current section name (ui role, truncates)
+//   __drag        flexible spacer that guarantees a grab area between title and actions
+//   __actions     search / ⌘K, approvals bell with gw-counter, appearance popover.
+//                 A gw-counter inside an icon button becomes a corner badge. Overlays
+//                 here sit at the window's end edge: use gw-menu--right / gw-popover--right.
+//                 Popover titles are <p>, not headings (they precede the page h1).
+//   --mac         clears the macOS traffic lights (--gw-layout-titlebar-inset-mac).
+//                 Windows / Linux with Window Controls Overlay pad the end side by
+//                 env(titlebar-area-*) automatically; without WCO the env() fallbacks
+//                 cancel out. Set the Electron titleBarOverlay height to the
+//                 --gw-layout-titlebar-height token.
+// gw-sidebar      navigation column: bg.sidebar + end border. A <div>, not <aside>:
+//                 primary navigation is not complementary content.
+//   __header      logo + __toggle (data-gw-sidebar-toggle, hidden below md)
+//   __toggle      the collapse button (an icon gw-btn)
+//   __body        scrolls on its own; carries .gw-nav
+//   __footer      core and tunnel gw-status (static: never gw-status--live here, a dot
+//                 that pulses on every screen forever fails WCAG 2.2.2); __meta is the
+//                 mono address / version line
+// gw-nav          the app's information architecture (BLUEPRINT §2).
+//   __group       a block of links; labelled groups are role="group" + aria-labelledby
+//                 pointing at their __group-label. --end pins the group to the bottom
+//                 behind a hairline (Settings).
+//   __group-label overline text naming the group (a <p>, not a heading)
+//   __list        <ul> of items
+//   __item        <a href>: 32px row, 16px icon + label, muted text, hover wash.
+//                 Current page: aria-current="page" → bg.selected + text primary +
+//                 semibold + a 2px brand bar on the inline-start edge (never colour alone).
+//                 A nav of sections INSIDE one page (Settings) marks the section in
+//                 view with aria-current="location": the same look.
+//   __icon __label __counter (a gw-counter, e.g. gw-counter--attention for Approvals)
+//
+// States
+//   .gw-shell[data-collapsed]   sidebar shrinks to --gw-layout-sidebar-collapsed. Labels,
+//                               group labels, the logo name, footer labels and __meta
+//                               are visually hidden (gw-sr-only: every link keeps its
+//                               accessible name; same effect as gw-logo--mark-only);
+//                               a hairline separates the groups; the label flies out
+//                               beside the icon on :hover AND :focus-visible (tooltip
+//                               look, hoverable through a bridge). Counters turn into an
+//                               8px dot on the icon's corner: --attention warning, plain
+//                               neutral; a --muted count is only kept for screen readers.
+//                               Set by kit.js (data-gw-sidebar-toggle), persisted.
+//   below md                    the same collapsed layout applies automatically and the
+//                               toggle is hidden (Electron's minimum window width is md).
+//   The width change animates only under prefers-reduced-motion: no-preference.
+//
+// A11y   Landmarks in order: skip link → <header> (banner) → <nav aria-label="Main">
+//        → <main>, each once per page. Nav items focus with an inset ring (the body
+//        clips). Write the counter's meaning for screen readers inside it:
+//        <span class="gw-sr-only">, </span>3<span class="gw-sr-only"> waiting</span>.
+//        The toggle keeps aria-expanded in sync (kit.js). Forced colours (Windows):
+//        the current-page bar and the collapsed counter dot are drawn with borders,
+//        the flyout has a transparent border, so all three survive.
+// Raw    none. Physical left / right only where the window chrome is physical
+//        (traffic lights, window controls).
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+// ─────────────────── Shell ───────────────────
+
+.gw-shell {
+  --gw-shell-sidebar: var(--gw-layout-sidebar-width);
+  display: grid;
+  grid-template-columns: var(--gw-shell-sidebar) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas:
+    "titlebar titlebar"
+    "sidebar main";
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100%;
+  overflow: hidden;
+  color: var(--gw-color-text-primary);
+  background: var(--gw-color-bg-canvas);
+
+  @include gw-motion {
+    transition: grid-template-columns var(--gw-motion-duration-base) var(--gw-motion-ease-standard);
+  }
+
+  // Onboarding and status screens run without a sidebar.
+  &:not(:has(> .gw-sidebar)) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "titlebar"
+      "main";
+  }
+
+  &__main {
+    grid-area: main;
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    @include gw-scrollbar;
+
+    // Programmatic focus target of the skip link (tabindex="-1"), never in the
+    // tab order: no ring around the whole content area.
+    &:focus { outline: none; }
+  }
+}
+
+// ─────────────────── Titlebar ───────────────────
+
+.gw-titlebar {
+  grid-area: titlebar;
+  position: relative;
+  z-index: var(--gw-z-titlebar);
+  display: flex;
+  align-items: center;
+  gap: var(--gw-space-2);
+  min-width: 0;
+  height: var(--gw-layout-titlebar-height);
+  // Physical sides: window controls sit at physical edges. With Window Controls
+  // Overlay the env() values reserve their area; without it they cancel out.
+  padding-left: calc(var(--gw-space-3) + env(titlebar-area-x, 0px));
+  padding-right: calc(var(--gw-space-2) + 100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
+  color: var(--gw-color-text-secondary);
+  background: var(--gw-color-bg-canvas);
+  border-bottom: var(--gw-border-width-default) solid var(--gw-color-border-subtle);
+  @include gw-drag-region;
+
+  // Anything you can click must opt out of the drag region, or Electron eats the click.
+  :is(a, button, input, select, textarea, label, summary, [tabindex], .gw-menu, .gw-popover) {
+    @include gw-no-drag;
+  }
+
+  &--mac { padding-left: var(--gw-layout-titlebar-inset-mac); }
+
+  &__title {
+    flex: 0 1 auto;
+    @include gw-type(ui);
+    color: var(--gw-color-text-primary);
+    @include gw-truncate;
+  }
+
+  &__drag {
+    flex: 1 1 auto;
+    align-self: stretch;
+    min-width: var(--gw-space-8);
+    @include gw-drag-region;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--gw-space-1);
+    flex: none;
+
+    // Approvals bell: the counter sits on the icon's corner, ringed in the bar colour.
+    .gw-btn--icon { position: relative; }
+    .gw-btn--icon > .gw-counter {
+      position: absolute;
+      inset-block-start: calc(-1 * var(--gw-space-0-5));
+      inset-inline-end: calc(-1 * var(--gw-space-1));
+      box-shadow: 0 0 0 var(--gw-border-width-strong) var(--gw-color-bg-canvas);
+      pointer-events: none;
+    }
+  }
+}
+
+// ─────────────────── Sidebar ───────────────────
+
+.gw-sidebar {
+  grid-area: sidebar;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--gw-color-bg-sidebar);
+  border-inline-end: var(--gw-border-width-default) solid var(--gw-color-border-default);
+
+  // Logo mark and nav icons share one start line (16px).
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--gw-space-2);
+    flex: none;
+    min-width: 0;
+    padding: var(--gw-space-3) var(--gw-space-2) var(--gw-space-2) var(--gw-space-4);
+  }
+
+  &__toggle { flex: none; }
+
+  &__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: var(--gw-space-2);
+    @include gw-scrollbar;
+  }
+
+  &__footer {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-1);
+    flex: none;
+    min-width: 0;
+    padding: var(--gw-space-3) var(--gw-space-4);
+    @include gw-type(small);
+    color: var(--gw-color-text-secondary);
+    border-top: var(--gw-border-width-default) solid var(--gw-color-border-subtle);
+  }
+
+  &__meta {
+    @include gw-type(code-sm);
+    color: var(--gw-color-text-muted);
+    @include gw-tabular;
+    @include gw-truncate;
+  }
+}
+
+// ─────────────────── Navigation ───────────────────
+
+.gw-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gw-space-4);
+  min-width: 0;
+
+  &__group {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  // Settings: pinned to the bottom of the body, behind a hairline.
+  &__group--end {
+    margin-top: auto;
+    padding-top: var(--gw-space-2);
+    border-top: var(--gw-border-width-default) solid var(--gw-color-border-subtle);
+  }
+
+  &__group-label {
+    margin: 0;
+    padding: var(--gw-space-1) var(--gw-space-2);
+    @include gw-type(overline);
+    color: var(--gw-color-text-muted);
+    @include gw-truncate;
+  }
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-0-5);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__item {
+    // Fill behind the item: the collapsed counter dot is ringed in it.
+    --gw-nav-item-bg: var(--gw-color-bg-sidebar);
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--gw-space-2);
+    min-height: var(--gw-size-control-md);
+    padding-inline: var(--gw-space-2);
+    @include gw-type(ui);
+    color: var(--gw-color-text-muted);
+    text-decoration: none;
+    border-radius: var(--gw-radius-sm);
+    transition:
+      background-color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard),
+      color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard);
+    @include gw-focus-ring-inset;
+
+    &:hover { color: var(--gw-color-text-primary); background: var(--gw-color-bg-hover); }
+    &:active { background: var(--gw-color-bg-active); }
+
+    // Current page (or, in an in-page nav, the section in view): fill + weight +
+    // bar. Declared after :hover so it keeps its fill.
+    &[aria-current="page"],
+    &[aria-current="location"] {
+      --gw-nav-item-bg: var(--gw-color-bg-selected);
+      color: var(--gw-color-text-primary);
+      font-weight: var(--gw-font-weight-semibold);
+      background: var(--gw-color-bg-selected);
+
+      // The bar is a border, not a fill: it survives Windows forced colours,
+      // where the selected background disappears.
+      &::before {
+        content: "";
+        position: absolute;
+        inset-block: var(--gw-space-1-5);
+        inset-inline-start: 0;
+        border-inline-start: var(--gw-border-width-strong) solid var(--gw-color-brand-fg);
+        border-radius: var(--gw-radius-full);
+      }
+
+      .gw-nav__icon { color: var(--gw-color-brand-fg); }
+    }
+  }
+
+  &__icon { flex: none; }
+
+  &__label {
+    flex: 1 1 auto;
+    @include gw-truncate;
+  }
+
+  &__counter {
+    flex: none;
+    margin-inline-start: auto;
+  }
+}
+
+// ─────────────────── Collapsed sidebar ───────────────────
+// One rule set for both triggers: the explicit toggle and the md breakpoint.
+// Scoped to .gw-sidebar: a gw-nav inside main (settings-layout) keeps its labels.
+
+@mixin _shell-collapsed {
+  --gw-shell-sidebar: var(--gw-layout-sidebar-collapsed);
+
+  .gw-sidebar__header {
+    flex-direction: column;
+    padding-inline: var(--gw-space-2);
+  }
+
+  .gw-sidebar__header .gw-logo__name,
+  .gw-sidebar .gw-nav__group-label,
+  .gw-sidebar .gw-nav__label,
+  .gw-sidebar__footer .gw-status__label,
+  .gw-sidebar__meta {
+    @include gw-sr-only;
+  }
+
+  .gw-sidebar .gw-nav { gap: var(--gw-space-2); }
+
+  // Group labels are gone visually: a hairline keeps the grouping.
+  .gw-sidebar .gw-nav__group + .gw-nav__group {
+    padding-top: var(--gw-space-2);
+    border-top: var(--gw-border-width-default) solid var(--gw-color-border-subtle);
+  }
+
+  // 12px padding centres the 16px icon in the 40px item (56px column − 2 × 8px body padding).
+  .gw-sidebar .gw-nav__item {
+    padding-inline: var(--gw-space-3);
+    anchor-name: --gw-nav-item;
+    anchor-scope: --gw-nav-item;
+  }
+
+  // Counter → 8px dot on the icon's top-end corner. The dot is a border, not a
+  // fill, so it survives forced colours; the ring takes the item's fill. The
+  // number keeps its size and stays in the accessibility tree: the border leaves
+  // a 0 × 0 content box and overflow clips the (transparent) digits.
+  .gw-sidebar .gw-nav__counter {
+    @include gw-tone(neutral);
+    position: absolute;
+    inset-block-start: var(--gw-space-1-5);
+    inset-inline-start: calc(var(--gw-space-3) + var(--gw-size-icon-md) - var(--gw-space-1-5));
+    width: var(--gw-space-2);
+    min-width: 0;
+    height: var(--gw-space-2);
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    color: transparent;
+    background: none;
+    border: var(--gw-space-1) solid var(--gw-tone-fg);
+    border-radius: var(--gw-radius-full);
+    box-shadow: 0 0 0 var(--gw-border-width-strong) var(--gw-nav-item-bg);
+
+    &.gw-counter--attention { @include gw-tone(warning); }
+
+    // A quiet count stays quiet: no dot, the number is read with the link name.
+    &.gw-counter--muted {
+      @include gw-sr-only;
+      box-shadow: none;
+    }
+  }
+
+  // Label flyout on hover AND keyboard focus, in the tooltip look. position: fixed
+  // escapes the sidebar's overflow clipping. Fallback: the fixed box keeps its static
+  // position (start of the item, centred) and is pushed past the column edge.
+  .gw-sidebar .gw-nav__item:is(:hover, :focus-visible) .gw-nav__label {
+    position: fixed;
+    z-index: var(--gw-z-popover);
+    width: max-content;
+    height: auto;
+    margin: 0;
+    // item content start (8px body + 12px item padding) → column edge + 8px gap
+    margin-inline-start: calc(var(--gw-layout-sidebar-collapsed) - var(--gw-space-3));
+    padding: var(--gw-space-1) var(--gw-space-2);
+    overflow: visible;
+    clip-path: none;
+    white-space: nowrap;
+    @include gw-type(caption);
+    font-weight: var(--gw-font-weight-medium);
+    color: var(--gw-color-text-inverse);
+    background: var(--gw-color-bg-inverse);
+    border: var(--gw-border-width-default) solid transparent;
+    border-radius: var(--gw-radius-sm);
+    box-shadow: var(--gw-shadow-md);
+
+    // Invisible bridge over the gap back to the item: the pointer can travel onto
+    // the label without losing it (WCAG 1.4.13). The label is part of the link.
+    &::before {
+      content: "";
+      position: absolute;
+      inset-block: 0;
+      inset-inline-end: 100%;
+      width: calc(var(--gw-space-4) + var(--gw-border-width-default));
+    }
+
+    // Anchor positioning (Electron's Chromium): pinned to the item, follows scroll.
+    @supports (anchor-scope: all) {
+      position-anchor: --gw-nav-item;
+      inset-block-start: anchor(center);
+      inset-inline-start: anchor(end);
+      margin-inline-start: var(--gw-space-4);
+      translate: 0 -50%;
+    }
+  }
+
+  .gw-sidebar__footer {
+    align-items: center;
+    padding-inline: var(--gw-space-2);
+  }
+}
+
+.gw-shell[data-collapsed] { @include _shell-collapsed; }
+
+@include gw-bp-down(md) {
+  .gw-shell { @include _shell-collapsed; }
+  .gw-sidebar__toggle { display: none; }
+}

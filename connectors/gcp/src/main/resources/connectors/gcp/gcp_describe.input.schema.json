@@ -1,0 +1,60 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "scope": {
+      "type": "string",
+      "description": "projects/…, folders/… or organizations/… of the connection. Default: its first scope."
+    },
+    "name": {
+      "type": "string",
+      "maxLength": 1024,
+      "pattern": "^//[a-z0-9-]+\\.googleapis\\.com/[A-Za-z0-9._~@:/-]+$",
+      "description": "Full resource name from a search result. Given: one resource with its full state"
+    },
+    "assetTypes": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9-]+\\.googleapis\\.com/[A-Za-z]+$"
+      },
+      "examples": [
+        [
+          "run.googleapis.com/Service",
+          "compute.googleapis.com/Instance"
+        ]
+      ]
+    },
+    "query": {
+      "type": "string",
+      "maxLength": 2000,
+      "description": "Cloud Asset query: state=RUNNING, labels.env:stage, location:europe-west1*, name:api"
+    },
+    "orderBy": {
+      "type": "string",
+      "pattern": "^(name|assetType|location|createTime|updateTime|state)( DESC)?$"
+    },
+    "live": {
+      "type": "boolean",
+      "default": true,
+      "description": "With name: read from the service's own API, not the inventory snapshot (minutes old), when supported"
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 25
+    },
+    "cursor": {
+      "type": "string",
+      "maxLength": 4096
+    }
+  }
+}

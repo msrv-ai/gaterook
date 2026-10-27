@@ -1,0 +1,142 @@
+@if (frame() === 'none') {
+  <!-- The dev gallery: the page is the whole document, like design/elements/*.html. -->
+  <router-outlet />
+  <gw-toast-region />
+} @else {
+  @if (showStatus()) {
+    <!-- core-starting: the status screen is the window until the core answers (ARCHITECTURE.md §8.1). -->
+    <gw-core-starting-page />
+  }
+  @if (mounted()) {
+  <!--
+    Once the core has run, the frame stays mounted under the status screen (inert, without its #main), so a restart
+    doesn't lose the page a person was on.
+  -->
+  <a class="gw-skip-link" href="#main" (click)="skipToMain($event)" [attr.inert]="showStatus() ? '' : null">Skip to content</a>
+  <div class="gw-shell" [attr.inert]="showStatus() ? '' : null" [attr.aria-hidden]="showStatus() ? 'true' : null">
+    <header class="gw-titlebar" [class.gw-titlebar--mac]="mac">
+      <span class="gw-titlebar__title">{{ section() }}</span>
+      <div class="gw-titlebar__drag"></div>
+      <div class="gw-titlebar__actions">
+        @if (frame() === 'app') {
+          <!-- Opens the command palette (#cmdk at the end of main). -->
+          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Search and commands" aria-haspopup="dialog" aria-keyshortcuts="Meta+K Control+K" (click)="openPalette($event)"><svg lucideIcon="search" class="gw-icon"></svg> Search <kbd class="gw-btn__kbd" aria-hidden="true">⌘K</kbd></button>
+          <a class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" routerLink="/approvals" [attr.aria-label]="approvalsLabel()"><svg lucideIcon="bell" class="gw-icon"></svg>@if (pending() > 0) {<span class="gw-counter gw-counter--attention" aria-hidden="true">{{ pending() }}</span>}</a>
+        }
+        <!--
+          Appearance popover. The <form method="dialog"> scopes the radio groups (Settings › Appearance has its own
+          gw-theme radios) and never submits outside a <dialog>; GwThemeControl binds them to window.gwTheme.
+        -->
+        <div class="gw-menu-host">
+          <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="Appearance" [gwMenuTrigger]="appearance"><svg lucideIcon="sun-moon" class="gw-icon"></svg></button>
+          <div class="gw-popover gw-popover--right" id="gw-appearance" role="dialog" aria-labelledby="gw-appearance-title" hidden gwMenu #appearance="gwMenu">
+            <div class="gw-popover__header">
+              <p class="gw-popover__title" id="gw-appearance-title">Appearance</p>
+            </div>
+            <form class="gw-popover__body" method="dialog">
+              <div class="gw-stack gw-stack--sm">
+                <p class="gw-text-caption gw-fg-muted" id="gw-appearance-theme">Theme</p>
+                <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="gw-appearance-theme">
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system"><span class="gw-segmented__label"><svg lucideIcon="monitor" class="gw-icon gw-icon--sm"></svg> System</span></label>
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><svg lucideIcon="sun" class="gw-icon gw-icon--sm"></svg> Light</span></label>
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><svg lucideIcon="moon" class="gw-icon gw-icon--sm"></svg> Dark</span></label>
+                </div>
+                <p class="gw-text-caption gw-fg-muted" id="gw-appearance-contrast">Contrast</p>
+                <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="gw-appearance-contrast">
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="system"><span class="gw-segmented__label">System</span></label>
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="normal"><span class="gw-segmented__label">Normal</span></label>
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="more"><span class="gw-segmented__label">High</span></label>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    @if (frame() === 'app') {
+      <div class="gw-sidebar" id="gw-sidebar">
+        <div class="gw-sidebar__header">
+          <a class="gw-logo" routerLink="/overview" aria-label="MCP Gateway, overview">
+            <img class="gw-logo__mark" src="assets/logo-mark.svg" alt="">
+            <span class="gw-logo__name">MCP Gateway</span>
+          </a>
+          <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-sidebar__toggle" type="button" gwSidebarToggle aria-controls="gw-sidebar" aria-expanded="true" aria-label="Collapse sidebar"><svg lucideIcon="panel-left" class="gw-icon"></svg></button>
+        </div>
+
+        <nav class="gw-sidebar__body gw-nav" data-gw-nav aria-label="Main">
+          @for (group of nav; track $index) {
+            <div class="gw-nav__group" [class.gw-nav__group--end]="group.end" [attr.role]="group.id ? 'group' : null" [attr.aria-labelledby]="group.id">
+              @if (group.label) {
+                <p class="gw-nav__group-label" [id]="group.id">{{ group.label }}</p>
+              }
+              <ul class="gw-nav__list">
+                @for (link of group.links; track link.route) {
+                  <li><a class="gw-nav__item" [routerLink]="link.route" routerLinkActive ariaCurrentWhenActive="page"><svg [lucideIcon]="link.icon" class="gw-icon gw-nav__icon"></svg><span class="gw-nav__label">{{ link.label }}</span>@if (link.route === '/approvals' && pending() > 0) {<span class="gw-nav__counter gw-counter gw-counter--attention"><span class="gw-sr-only">, </span>{{ pending() }}<span class="gw-sr-only"> waiting</span></span>}</a></li>
+                }
+              </ul>
+            </div>
+          }
+        </nav>
+
+        <!-- Static on purpose: no gw-status--live in the shell (WCAG 2.2.2). -->
+        <div class="gw-sidebar__footer">
+          @if (core.locked()) {
+            <span class="gw-status gw-status--danger"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Core locked</span></span>
+          } @else {
+            <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Core running</span></span>
+          }
+          <span class="gw-sidebar__meta">{{ coreLine() }}</span>
+          @if (tunnel.on()) {
+            <span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel on</span></span>
+          } @else {
+            <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off</span></span>
+          }
+        </div>
+      </div>
+    }
+
+    <main class="gw-shell__main" [attr.id]="showStatus() ? null : 'main'" tabindex="-1">
+      <!-- App-wide banners go first inside main, before the page (never a fourth grid child). -->
+      @if (tunnel.on()) {
+        <div class="gw-alert gw-alert--warning gw-alert--banner" role="status">
+          <svg lucideIcon="globe" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content">
+            <p class="gw-alert__title">Tunnel is public</p>
+            <p class="gw-alert__body">
+              @if (tunnel.endpoint(); as endpoint) {
+                Endpoint <span class="gw-mono">{{ endpoint }}</span> is reachable from the internet for claude.ai.
+              } @else {
+                An endpoint is reachable from the internet for claude.ai.
+              }
+            </p>
+          </div>
+          <div class="gw-alert__actions">
+            <button class="gw-btn gw-btn--sm" type="button" [attr.aria-disabled]="tunnelOff() ? 'true' : null" (click)="turnOffTunnel()">Turn off tunnel</button>
+          </div>
+        </div>
+      }
+      @for (w of warnings(); track w.kind + w.subject) {
+        <div class="gw-alert gw-alert--warning gw-alert--banner" role="status">
+          <svg [lucideIcon]="w.icon" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content">
+            <p class="gw-alert__body">{{ w.text }}</p>
+          </div>
+        </div>
+      }
+
+      <router-outlet />
+
+      @if (frame() === 'app') {
+        <gw-command-palette [address]="core.address()" />
+      }
+    </main>
+  </div>
+  }
+  <!--
+    A sign-in through the tunnel waits on any page (ARCHITECTURE.md §7.3): the oldest request, outside the frame so the
+    status screen's inert never covers it; it closes by itself when the core goes away (a restart denies it anyway).
+  -->
+  <gw-oauth-consent [consent]="consent()" (decide)="answerConsent($event)" />
+  <gw-toast-region />
+}

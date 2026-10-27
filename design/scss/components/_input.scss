@@ -1,0 +1,246 @@
+// =============================================================
+// .gw-input · .gw-textarea · .gw-select · .gw-input-group
+// -------------------------------------------------------------
+// Native text controls on one base (gw-input-base): 32px, bg.field,
+// border.input (3:1 against the fill), focus ring at offset 0, red
+// border when aria-invalid="true". Always inside a gw-field with a
+// visible label.
+//
+//   <input class="gw-input gw-input--mono" id="host" value="db.dev.internal">
+//   <textarea class="gw-textarea gw-textarea--code" id="sql" rows="4" spellcheck="false"></textarea>
+//   <select class="gw-select" id="ssl"><option>verify-full</option></select>
+//
+//   <div class="gw-input-group">
+//     <span class="gw-input-group__affix">https://</span>
+//     <input class="gw-input" id="base-url" value="billing.stage.acme.dev">
+//     <button class="gw-input-group__addon" type="button" aria-label="Copy base URL"
+//             data-gw-copy-from="#base-url">
+//       <i class="gw-icon" data-lucide="copy"></i><i class="gw-icon" data-lucide="check"></i>
+//     </button>
+//   </div>
+//
+// .gw-input
+//   --mono   literal values (hosts, ports, paths, slugs, keys): JetBrains Mono,
+//            ligatures off
+//   --sm (28, dense toolbars) | md (32, default) | --lg (40, onboarding)
+// .gw-textarea   grows with rows=""; resize: vertical
+//   --code   SQL templates, JSON arguments: mono, no wrapping, tab-size 2.
+//   --wrap   soft-wraps long lines (pre-wrap): prose such as server
+//            instructions (plain, not --code), and code fields where reading
+//            the whole statement beats line identity (gw-textarea--code
+//            gw-textarea--wrap: a Playground SQL argument).
+//            Add spellcheck="false" autocapitalize="off" in markup.
+// .gw-select     native <select> (keyboard, type-ahead and the OS picker for free)
+//                with a stroked chevron painted from two gradients in currentColor,
+//                so it follows text and disabled colour in every theme.
+//   --sm | --lg  same heights as the input
+// .gw-input-group  one bordered field made of parts; the group owns border,
+//                  fill, focus ring and invalid / disabled look of its .gw-input
+//   __affix  non-editable literal before or after the value: https://, ms, rows
+//   __addon  a button inside the field: copy, generate, show password. Icon only
+//            needs aria-label. A second .gw-icon is the "done" icon: shown while
+//            [data-copied] (kit.js copy) or [aria-pressed="true"] (toggle).
+// States   :disabled, [readonly] (sunken fill, still focusable and copyable),
+//          [aria-invalid="true"] (pair with gw-field__error; the red edge stays
+//          on hover), :placeholder-shown
+// A11y     Placeholder is an example ("db.internal"), never the label. Errors:
+//          aria-invalid + aria-describedby to the gw-field__error text.
+//          Ports and numbers: type="text" inputmode="numeric" (no spinner,
+//          no scroll-to-change), validated on save.
+// Raw values: none (chevron stroke is built from --gw-space-px)
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+// Stroked down chevron, 8 × 4: two 4px tiles, "\" then "/".
+$select-chevron:
+  linear-gradient(45deg,
+    transparent calc(50% - var(--gw-space-px)),
+    currentColor calc(50% - var(--gw-space-px) / 2),
+    currentColor calc(50% + var(--gw-space-px) / 2),
+    transparent calc(50% + var(--gw-space-px))),
+  linear-gradient(-45deg,
+    transparent calc(50% - var(--gw-space-px)),
+    currentColor calc(50% - var(--gw-space-px) / 2),
+    currentColor calc(50% + var(--gw-space-px) / 2),
+    transparent calc(50% + var(--gw-space-px)));
+
+@mixin select-chevron {
+  background-image: $select-chevron;
+  background-size: var(--gw-space-1) var(--gw-space-1);
+  background-position:
+    right calc(var(--gw-space-3) + var(--gw-space-1)) center,
+    right var(--gw-space-3) center;
+  background-repeat: no-repeat;
+}
+
+.gw-input,
+.gw-textarea,
+.gw-select {
+  @include gw-input-base;
+
+  // The base hover paints the focus colour over everything; an invalid field
+  // keeps its red edge while hovered.
+  &[aria-invalid="true"]:hover:not(:disabled) { border-color: var(--gw-color-danger-fg); }
+}
+
+// ─── Input ───
+.gw-input {
+  &--mono { @include gw-type(code); }
+
+  &--sm {
+    height: var(--gw-size-control-sm);
+    padding-inline: var(--gw-space-2);
+    @include gw-type(small);
+  }
+  &--sm.gw-input--mono { @include gw-type(code); }
+
+  &--lg {
+    height: var(--gw-size-control-lg);
+    padding-inline: var(--gw-space-3);
+  }
+}
+
+// ─── Textarea ───
+.gw-textarea {
+  display: block;
+  height: auto;
+  min-height: var(--gw-size-control-md);
+  padding-block: var(--gw-space-1-5);
+  resize: vertical;
+  @include gw-scrollbar;
+
+  &--code {
+    @include gw-type(code);
+    tab-size: 2;
+    white-space: pre;
+    overflow-wrap: normal;
+    overflow-x: auto;
+  }
+
+  // Soft wrap: prose (server instructions) and statements read in full without a
+  // sideways scroll. Combine with --code for a wrapping code field.
+  &--wrap {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    overflow-x: hidden;
+  }
+}
+
+// ─── Select ───
+.gw-select {
+  appearance: none;
+  padding-inline-end: var(--gw-space-8);
+  cursor: pointer;
+  @include gw-truncate;
+  @include select-chevron;
+
+  // The base resets `background` on these states; repaint the chevron.
+  &:disabled { @include select-chevron; }
+
+  &--sm {
+    height: var(--gw-size-control-sm);
+    padding-inline-start: var(--gw-space-2);
+    @include gw-type(small);
+  }
+  &--lg { height: var(--gw-size-control-lg); }
+
+  // Windows forced colours drop author fills: hand the arrow back to the OS.
+  @media (forced-colors: active) {
+    appearance: auto;
+    background-image: none;
+    padding-inline-end: var(--gw-space-2);
+  }
+}
+
+// ─── Input group ───
+.gw-input-group {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+  height: var(--gw-size-control-md);
+  overflow: hidden;
+  background: var(--gw-color-bg-field);
+  border: var(--gw-border-width-default) solid var(--gw-color-border-input);
+  border-radius: var(--gw-radius-sm);
+  transition: border-color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard);
+
+  // The inner input gives up its own frame; the group draws it.
+  > .gw-input {
+    flex: 1 1 auto;
+    width: auto;
+    height: auto;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+
+    &:focus-visible { outline: none; }
+  }
+
+  &:has(> .gw-input:focus-visible) {
+    outline: var(--gw-focus-width) solid var(--gw-color-border-focus);
+    outline-offset: 0;
+  }
+  &:hover:has(> .gw-input:not(:disabled):not([readonly]):not([aria-invalid="true"])) { border-color: var(--gw-color-border-focus); }
+  &:has(> .gw-input[aria-invalid="true"]) { border-color: var(--gw-color-danger-fg); }
+  &:has(> .gw-input[readonly]) { background: var(--gw-color-bg-sunken); }
+  &:has(> .gw-input:disabled) {
+    background: var(--gw-color-bg-raised);
+    border-color: var(--gw-color-border-default);
+  }
+
+  &__affix,
+  &__addon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    border: 0;
+    // Parts after the value get a start divider, parts before it an end divider.
+    border-inline-start: var(--gw-border-width-default) solid var(--gw-color-border-default);
+
+    &:has(~ .gw-input) {
+      border-inline-start: 0;
+      border-inline-end: var(--gw-border-width-default) solid var(--gw-color-border-default);
+    }
+  }
+
+  &__affix {
+    padding-inline: var(--gw-space-3);
+    @include gw-type(code);
+    color: var(--gw-color-text-muted);
+    background: var(--gw-color-bg-raised);
+    white-space: nowrap;
+    user-select: none;
+  }
+
+  &__addon {
+    gap: var(--gw-space-1-5);
+    min-width: var(--gw-size-control-md);
+    padding-inline: var(--gw-space-2);
+    font-family: var(--gw-font-family-sans);
+    @include gw-type(ui);
+    color: var(--gw-color-text-secondary);
+    background: transparent;
+    cursor: pointer;
+    transition:
+      background-color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard),
+      color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard);
+    @include gw-hover-wash;
+    @include gw-focus-ring-inset;
+
+    &:hover:not(:disabled) { color: var(--gw-color-text-primary); }
+    &[aria-pressed="true"] { color: var(--gw-color-brand-fg); background: var(--gw-color-brand-subtle); }
+    &[data-copied] { color: var(--gw-color-success-fg); }
+    &:disabled { color: var(--gw-color-text-disabled); cursor: not-allowed; }
+
+    // Two-icon swap: first = idle, second = pressed / copied.
+    > .gw-icon + .gw-icon { display: none; }
+    &[aria-pressed="true"] > .gw-icon:first-child,
+    &[data-copied] > .gw-icon:first-child { display: none; }
+    &[aria-pressed="true"] > .gw-icon + .gw-icon,
+    &[data-copied] > .gw-icon + .gw-icon { display: inline-block; }
+  }
+}

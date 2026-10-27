@@ -1,0 +1,188 @@
+// =============================================================
+// risk-callout · Element (E3 · Endpoint access control)
+// -------------------------------------------------------------
+// Warns about the dangerous combination inside ONE endpoint: tools that
+// read private data, tools that bring in untrusted content (text written
+// by someone else: log lines, HTTP responses, tickets) and tools that can
+// send data out. An agent that reads untrusted text can be steered into
+// sending private data out. The callout shows the three ingredients as a
+// small formula (A + B + C), marks which ones this endpoint has and names
+// the tools behind each, then offers the fixes.
+//
+// Ingredients (the spec's threat model; only tools that are not Off count, and
+//           each ingredient names them):
+//             private data       anything that reads your systems: sql_*, mongo_*,
+//                                redis_*, logs_*, k8s_*, aws_*, ssh_run output
+//             untrusted content  any RESULT that carries text someone else wrote:
+//                                DB rows (sql_query, mongo_*), log lines (logs_*,
+//                                k8s_logs), HTTP responses (http_get, http_request),
+//                                command output. So a database that is read is
+//                                both private data AND untrusted content.
+//                                Not untrusted: metadata your team wrote (aws_describe,
+//                                aws_metrics, k8s_get)
+//             external channel   any tool that reaches the outside or another host
+//                                with data the agent chooses: every HTTP tool (a GET
+//                                carries data in its URL), ssh_exec, and ssh_run when a
+//                                runbook takes free-text parameters
+//             limited channel    ssh_run limited to FIXED runbooks with no free-text
+//                                parameters: still a channel (it acts on a host), but
+//                                the agent can't put data into it. It never counts as
+//                                "no channel".
+// Rule      shown when the endpoint has private data AND an external channel
+//           (the way out). Untrusted content makes it worse:
+//             3 of 3  data-state="present"  present ingredients gw-badge--danger
+//             2 of 3  data-state="partial"  present ingredients gw-badge--warning,
+//                                           the missing one neutral with a check
+//           The alert itself is gw-alert--warning in both (a human must decide).
+//           (dev: sql_query reads dev-db · logs_search returns log lines users
+//           wrote · http_request can POST to billing-api; stage-readonly: sql_query
+//           rows and http_get responses are untrusted, and http_get puts data in a
+//           URL to billing-api: 3 of 3, and it is the endpoint published to the
+//           internet.)
+//             limited  data-state="limited"  the only way out is a limited channel:
+//                      gw-alert--info + shield-check, title "Contained combination
+//                      in endpoint incident-prod", the channel badge gw-badge--warning
+//                      "External channel · limited" naming the runbooks ("ssh_run
+//                      runs 2 fixed runbooks on prod-vm, no free-text parameters"),
+//                      and the condition that keeps it contained (adding a runbook
+//                      with a free-text parameter, or any HTTP tool, turns it into
+//                      the full warning). Compact: "Contained: … + limited channel".
+//           No channel at all = no callout; a list cell then says why
+//           ("None: no external channel"). Never write "nothing can send data out"
+//           for an endpoint that has SSH or HTTP tools.
+// Publish   a dialog that publishes an endpoint to the internet (claude.ai tunnel)
+//           repeats its risk as a row ("Risk: risky combination, 3 of 3" + a link to
+//           the callout) before the confirm button.
+// Used in   pages/endpoint-detail.html (under the header, above the tabs) ·
+//           pages/endpoints.html (--compact, in the endpoint row) ·
+//           pages/policies.html (endpoints that break a policy's intent)
+// Composes  gw-alert (--warning, --neutral, --compact) · gw-badge (--danger,
+//           --warning, --info, --neutral) + __icon · gw-icon · gw-code · gw-btn
+//           (--secondary, --ghost, --link, --sm) · gw-dialog--sm + gw-icon-tile
+//           --warning + gw-field + gw-textarea (dismiss with a reason) · gw-dialog
+//           --md + gw-choice-card --compact + gw-input-group + gw-card --muted +
+//           gw-checkbox (split) · <time> (when it was dismissed)
+//
+//   <div class="gw-alert gw-alert--warning gw-risk-callout" data-state="present">
+//     <i class="gw-icon gw-alert__icon" data-lucide="shield-alert"></i>
+//     <div class="gw-alert__content">
+//       <p class="gw-alert__title">Risky combination in endpoint dev</p>
+//       <p class="gw-alert__body">An agent that reads untrusted text can be steered into sending private data out. …</p>
+//       <ul class="gw-risk-callout__ingredients" aria-label="Risk ingredients in endpoint dev">
+//         <li class="gw-risk-callout__ingredient" data-present="true">
+//           <div class="gw-risk-callout__ingredient-body">
+//             <span class="gw-badge gw-badge--danger"><i class="gw-icon gw-badge__icon" data-lucide="database"></i>Private data<span class="gw-sr-only">, present</span></span>
+//             <span class="gw-text-caption gw-fg-secondary"><code class="gw-code">sql_query</code> reads <code class="gw-code">dev-db</code></span>
+//           </div>
+//         </li>
+//         <li class="gw-risk-callout__ingredient" data-present="true">
+//           <i class="gw-icon gw-icon--xs gw-fg-muted gw-risk-callout__plus" data-lucide="plus"></i>
+//           <div class="gw-risk-callout__ingredient-body">…Untrusted content…</div>
+//         </li>
+//         <li …>…plus… External channel…</li>
+//       </ul>
+//       <div class="gw-alert__actions">
+//         <a class="gw-btn gw-btn--secondary gw-btn--sm" href="#tools">…list-checks…Review tools<span class="gw-sr-only"> of dev</span></a>
+//         <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button">…split…Split endpoint<span class="gw-sr-only"> dev</span></button>
+//         <button class="gw-btn gw-btn--link gw-btn--sm" type="button" data-gw-dialog-open="dlg-dismiss">Dismiss for this endpoint<span class="gw-sr-only">, dev</span></button>
+//       </div>
+//     </div>
+//   </div>
+//
+//   Compact (endpoint lists, one line):
+//   <div class="gw-alert gw-alert--warning gw-alert--compact gw-risk-callout gw-risk-callout--compact" data-state="partial">
+//     <i class="gw-icon gw-alert__icon" data-lucide="shield-alert"></i>
+//     <div class="gw-alert__content"><p class="gw-alert__title">Risky combination:</p>
+//       <p class="gw-alert__body">private data + external channel</p></div>
+//   </div>
+//
+//   Dismissed (in place of the full callout):
+//   <div class="gw-alert gw-alert--neutral gw-alert--compact gw-risk-callout gw-risk-callout--compact" data-state="dismissed">
+//     <i class="gw-icon gw-alert__icon" data-lucide="shield-off"></i>
+//     <div class="gw-alert__content"><p class="gw-alert__title">Risk warning dismissed for dev</p>
+//       <p class="gw-alert__body">by you <time datetime="…" title="…">yesterday</time>: “reason”</p></div>
+//     <div class="gw-alert__actions"><button class="gw-btn gw-btn--link" type="button">Show warning…</button></div>
+//   </div>
+//
+// Parts     __ingredients      <ul> of the three ingredients, wrapping row
+//           __ingredient       one ingredient: [plus] + body; data-present="true|false"
+//           __plus             decorative "+" between ingredients (aria-hidden)
+//           __ingredient-body  badge over the caption that names the tools behind it
+// Variants  --compact          one line on gw-alert--compact: title "Risky combination:"
+//                              + the present ingredients in words; hugs its content,
+//                              wraps inside a table cell instead of widening it
+// States    data-state="present" (3 of 3) · "partial" (2 of 3) · "limited" (only a
+//           limited channel: info alert, explained) · "dismissed"
+//           (gw-alert--neutral --compact: endpoint, who dismissed it, when, the
+//           reason, and "Show warning"; it comes back by itself when a tool adds to
+//           the combination). Absent ingredient: neutral badge with a check icon and
+//           the words "No …", never only a missing colour.
+//           Dismiss dialog: gw-dialog--sm, data-gw-static, <form method="dialog">,
+//           required reason (native validation blocks the submit, autofocus on
+//           it), Cancel · Dismiss warning.
+//           Split dialog ("Split endpoint", as on endpoint-detail #ep-dlg-split):
+//           gw-dialog--md, data-gw-static, warning icon tile with split. Body: a
+//           fieldset "Move out of <endpoint>" of gw-choice-card --compact radios,
+//           one per ingredient's connection, the external channel PRE-SELECTED and
+//           marked "Recommended · removes the risk" (autofocus: the dialog's
+//           initial focus); the new slug (gw-input-group "/mcp/" + mono input +
+//           URL hint, starts with no tokens); before / after: two gw-card --muted
+//           side by side (gw-grid --2) listing each endpoint's __ingredients
+//           (present gw-badge--info, absent --neutral "No …") with a one-line
+//           verdict; "AI apps that need the moved tools" checkboxes (each opens
+//           its Connect step next). Footer: Cancel · primary "Create <slug>".
+// Ingredient icons  private data database · untrusted content file-warning ·
+//           external channel send-to-back · absent check · alert shield-alert ·
+//           limited shield-check · dismissed shield-off
+// A11y      Static alert: no role. The formula is a named <ul> (not a picture): each
+//           badge carries ", present" or the "No …" wording, so the state is in the
+//           text; the plus icons are decorative. Repeated actions name the endpoint
+//           (gw-sr-only). "Dismiss for this endpoint" opens a dialog with a required
+//           reason (kept in the audit log); the reason field gets focus.
+// Responsive  Ingredients wrap as whole items; the compact line hugs its text and
+//           wraps inside a nowrap table cell instead of widening the table.
+// Raw values  none
+// =============================================================
+
+@use "../scss/tokens" as *;
+@use "../scss/mixins" as *;
+
+.gw-risk-callout {
+  // Never wider than its slot (page header, tab panel, table cell).
+  max-width: 100%;
+
+  &__ingredients {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--gw-space-2);
+    margin: var(--gw-space-2) 0 var(--gw-space-1);
+    padding: 0;
+    list-style: none;
+  }
+
+  &__ingredient {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--gw-space-2);
+    min-width: 0;
+  }
+
+  // Centre the 12px plus on the 20px badge line.
+  &__plus { margin-block-start: var(--gw-space-1); }
+
+  &__ingredient-body {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--gw-space-1);
+    min-width: 0;
+  }
+
+  // ─── Compact: one line in an endpoint row ───
+  &--compact {
+    width: fit-content;
+    max-width: 100%;
+    white-space: normal; // wrap inside a nowrap table cell instead of widening it
+  }
+}

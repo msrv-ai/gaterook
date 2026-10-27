@@ -1,0 +1,57 @@
+<section class="sc-section" id="copy-field" data-title="Copy field" data-group="Code and data">
+  <h2>Copy field <code class="gw-code">gw-copy-field</code></h2>
+  <p>A read-only value the user takes somewhere else: an endpoint URL, a command for MCP Inspector, a token in the one moment it is visible. The "Copy" button reads the value through <code class="gw-code">data-gw-copy-from</code>, switches to "Copied" for 1.6 s and announces it. Do not use it for values the user edits (an input), for stored secrets (they are write-only: <code class="gw-code">gw-secret</code>) or for long snippets (a <code class="gw-code">gw-code-block</code>).</p>
+
+  <h3>Endpoint URL</h3>
+  <p class="sc-lead">Name the field with a visible label: a <code class="gw-code">role="group"</code> + <code class="gw-code">aria-labelledby</code> around a <code class="gw-code">&lt;code&gt;</code> value, or a <code class="gw-code">&lt;label for&gt;</code> when the value is an <code class="gw-code">&lt;input readonly&gt;</code> (focusable, select all with the keyboard).</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <p class="gw-text-ui" id="sc-e-cf-url-label">Endpoint URL</p>
+    <div class="gw-copy-field" role="group" aria-labelledby="sc-e-cf-url-label">
+      <code class="gw-copy-field__value" id="sc-e-cf-url">http://127.0.0.1:7465/mcp/dev</code>
+      <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" data-gw-copy-from="#sc-e-cf-url">
+        <span class="gw-copy-field__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> endpoint URL</span></span>
+        <span class="gw-copy-field__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+      </button>
+    </div>
+  </div>
+
+  <h3>Read-only input in a field</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-field">
+      <label class="gw-field__label" for="sc-e-cf-cmd">Connect MCP Inspector</label>
+      <div class="gw-copy-field">
+        <input class="gw-copy-field__value" id="sc-e-cf-cmd" type="text" readonly value="npx @modelcontextprotocol/inspector --transport http --server-url http://127.0.0.1:7465/mcp/dev">
+        <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" data-gw-copy-from="#sc-e-cf-cmd">
+          <span class="gw-copy-field__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> Inspector command</span></span>
+          <span class="gw-copy-field__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <h3>Copied state</h3>
+  <p class="sc-lead">Shown here with a static <code class="gw-code">data-copied</code>; in the app <code class="gw-code">kit.js</code> sets and clears it.</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-copy-field" role="group" aria-label="Endpoint URL, copied">
+      <code class="gw-copy-field__value" id="sc-e-cf-url-copied">http://127.0.0.1:7465/mcp/dev</code>
+      <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" data-gw-copy-from="#sc-e-cf-url-copied" data-copied>
+        <span class="gw-copy-field__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> endpoint URL</span></span>
+        <span class="gw-copy-field__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+      </button>
+    </div>
+  </div>
+
+  <h3>Token, shown once</h3>
+  <p class="sc-lead"><code class="gw-code">--secret-once</code> is the result step of issuing a token: the full value is visible and wraps, because this is the only moment it can be copied. After the dialog closes, the token appears only by its prefix <code class="gw-code">gwt_Vb8r…</code>. Claude Desktop and Codex never see this step: they get short-lived tokens on the fly.</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <p class="gw-text-ui" id="sc-e-cf-token-label">Token cursor-laptop</p>
+    <div class="gw-copy-field gw-copy-field--secret-once" role="group" aria-labelledby="sc-e-cf-token-label">
+      <code class="gw-copy-field__value" id="sc-e-cf-token">gwt_Vb8rT2kLq9XwN4cZ7mHs1PdF6yJa3eUg5RiK0oBt</code>
+      <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" data-gw-copy-from="#sc-e-cf-token" aria-describedby="sc-e-cf-token-hint">
+        <span class="gw-copy-field__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> token</span></span>
+        <span class="gw-copy-field__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+      </button>
+      <p class="gw-copy-field__hint" id="sc-e-cf-token-hint"><i class="gw-icon gw-icon--sm" data-lucide="triangle-alert"></i>Shown once. Store it in your password manager.</p>
+    </div>
+  </div>
+</section>

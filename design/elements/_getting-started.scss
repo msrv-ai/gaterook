@@ -1,0 +1,227 @@
+// =============================================================
+// .gw-getting-started · Getting started (element)
+// -------------------------------------------------------------
+// First-run checklist with a progress summary. Six steps in a fixed
+// order, each with a status icon, a title, one line on why it matters
+// and one action. Only the current step has the primary button; done
+// steps fold to one line; the whole card can be dismissed.
+//
+//   1 Protect your master key (back up)   4 Connect your AI app
+//   2 Add a connection                    5 Try a tool in Playground
+//   3 Create an endpoint                  6 Set up approval notifications
+//
+// Where   no reference page at the moment: Overview's first run is a short
+//         gw-stepper --guide (2–3 steps). This is the long six-step checklist,
+//         kept for a setup summary after the first run (demo: elements/).
+// Composes gw-card (+ __header __heading __title __description __actions __body),
+//         gw-icon-tile --sm (--brand; --success when complete), gw-progress --sm,
+//         gw-icon --lg (status icons circle-check / circle-dot / circle-dashed in a
+//         __icon span that carries gw-fg-success / -brand / -muted: a gw-fg-*
+//         class on the <i class="gw-icon"> itself loses to .gw-icon { color:
+//         inherit }), gw-btn --primary --sm (the current step only), --link (other
+//         steps), --ghost --sm (Dismiss, disclosure), gw-text-* / gw-fg-*
+//         utilities, gw-mono, gw-code, gw-link.
+//
+// Usage
+//   <section class="gw-card gw-getting-started" aria-labelledby="gs-t">
+//     <header class="gw-card__header">
+//       <div class="gw-card__heading">
+//         <h2 class="gw-card__title" id="gs-t"><span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--brand"><i class="gw-icon gw-icon--sm" data-lucide="list-checks"></i></span>Get started</h2>
+//         <p class="gw-card__description">Six steps from install to your agent's first safe call.</p>
+//       </div>
+//       <div class="gw-card__actions"><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button"><i class="gw-icon gw-icon--sm" data-lucide="x"></i>Dismiss checklist</button></div>
+//     </header>
+//     <div class="gw-card__body gw-getting-started__body">
+//       <div class="gw-getting-started__progress">
+//         <p class="gw-getting-started__count gw-text-small gw-fg-secondary gw-tabular" id="gs-c">3 of 6 done</p>
+//         <div class="gw-progress gw-progress--sm gw-getting-started__bar" role="progressbar" aria-labelledby="gs-c"
+//              aria-valuemin="0" aria-valuemax="6" aria-valuenow="3" aria-valuetext="3 of 6 steps done" style="--gw-progress: 0.5">
+//           <div class="gw-progress__bar"></div></div>
+//       </div>
+//       <ol class="gw-getting-started__steps" aria-label="Setup steps">
+//         <li class="gw-getting-started__step" data-state="done">
+//           <span class="gw-getting-started__icon gw-fg-success" aria-hidden="true"><i class="gw-icon gw-icon--lg" data-lucide="circle-check"></i></span>
+//           <p class="gw-getting-started__title gw-text-body gw-fg-secondary">Protect your master key<span class="gw-sr-only">, done</span></p>
+//           <p class="gw-getting-started__meta gw-text-small gw-fg-muted">Backed up 12 days ago</p>
+//         </li>
+//         <li class="gw-getting-started__step" data-state="current" aria-current="step">
+//           <span class="gw-getting-started__icon gw-fg-brand" aria-hidden="true"><i class="gw-icon gw-icon--lg" data-lucide="circle-dot"></i></span>
+//           <p class="gw-getting-started__title gw-text-h3">Connect your AI app</p>
+//           <p class="gw-getting-started__why gw-text-small gw-fg-secondary">One line: why this step matters.</p>
+//           <a class="gw-btn gw-btn--primary gw-btn--sm gw-getting-started__action" href="clients.html">Connect your AI app</a>
+//         </li>
+//         <li class="gw-getting-started__step" data-state="todo">
+//           <span class="gw-getting-started__icon gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--lg" data-lucide="circle-dashed"></i></span>
+//           <p class="gw-getting-started__title gw-text-body">Try a tool in Playground<span class="gw-sr-only">, not done yet</span></p>
+//           <p class="gw-getting-started__why gw-text-small gw-fg-secondary">…</p>
+//           <a class="gw-btn gw-btn--link gw-getting-started__action" href="playground.html">Open Playground</a>
+//         </li>
+//       </ol>
+//     </div>
+//   </section>
+//
+// Usage (complete: the header tile turns --success circle-check, "Setup complete";
+// no progress row; the steps fold behind the disclosure)
+//   <div class="gw-card__body gw-getting-started__body">
+//     <div class="gw-getting-started__summary">
+//       <button class="gw-btn gw-btn--ghost gw-btn--sm gw-getting-started__toggle" type="button"
+//               data-gw-toggle aria-expanded="false" aria-controls="gs-steps">
+//         <i class="gw-icon gw-icon--sm gw-getting-started__toggle-icon gw-getting-started__toggle-icon--expand" data-lucide="chevron-down"></i>
+//         <i class="gw-icon gw-icon--sm gw-getting-started__toggle-icon gw-getting-started__toggle-icon--collapse" data-lucide="chevron-up"></i>
+//         6 completed steps
+//       </button>
+//       <a class="gw-link gw-text-small" href="activity.html">See what your agents do in Activity</a>
+//     </div>
+//     <ol class="gw-getting-started__steps" id="gs-steps" aria-label="Completed setup steps" hidden>…six done rows…</ol>
+//   </div>
+//
+// data-state on __step (icon + words + weight; never colour alone)
+//   done     circle-check success; title in secondary text with sr-only ", done";
+//            one line: the title and a muted __meta (what was done, when). No why,
+//            no button.
+//   current  circle-dot brand; title semibold (gw-text-h3); aria-current="step";
+//            the one gw-btn--primary --sm. Exactly one step is current: the first
+//            that is not done.
+//   todo     circle-dashed muted; title regular with sr-only ", not done yet";
+//            the action is a gw-btn--link, so it can be done out of order.
+// Card states
+//   fresh install   0 of 6, step 1 current
+//   in progress     n of 6, done rows folded, the next step current
+//   complete        gw-getting-started--complete: a calm summary (success tile, no
+//                   progress bar, no confetti); the six done rows are behind a
+//                   disclosure (data-gw-toggle); Dismiss stays
+//   dismissed       the card goes away. Dismiss is undoable, so it asks nothing:
+//                   the app shows a toast with Undo (gwToast({ actions })), and the
+//                   setup-map under it still shows what is left
+// Parts    __body (on gw-card__body) __progress __count __bar __steps __step __icon
+//          __title __why __action __meta · complete: __summary __toggle
+//          __toggle-icon(--expand --collapse)
+// Layout   sm and up: icon | title + why | action at the end of the row. The
+//          action column is capped at 256px: a long __meta wraps there instead
+//          of squeezing the title. Below sm: the action drops under the text.
+// A11y     The progress bar is role=progressbar with valuemin/max/now and words in
+//          aria-valuetext, named by the visible count. The <ol> is named; icons are
+//          decorative and every state is also spoken (sr-only words or
+//          aria-current). Actions name their object; links navigate, buttons act.
+//          The disclosure is a real button with aria-expanded / aria-controls and a
+//          constant name. The card is a region named by its title.
+// Raw      none.
+// =============================================================
+
+@use "../scss/tokens" as *;
+@use "../scss/mixins" as *;
+
+.gw-getting-started {
+  min-width: 0; // the card can sit in a grid column on Overview
+
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-4);
+    min-width: 0;
+  }
+
+  // ─── Progress summary: "3 of 6 done" + bar ───
+  &__progress {
+    display: flex;
+    align-items: center;
+    gap: var(--gw-space-3);
+    min-width: 0;
+  }
+
+  &__count { flex: none; }
+  &__bar { flex: 1 1 auto; min-width: var(--gw-space-16); }
+
+  // ─── Steps ───
+  &__steps {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-3);
+    min-width: 0;
+  }
+
+  &__step {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) fit-content(calc(var(--gw-space-16) * 4));
+    grid-template-areas:
+      "icon title action"
+      "icon why   action";
+    align-items: center;
+    column-gap: var(--gw-space-3);
+    row-gap: var(--gw-space-0-5);
+    min-width: 0;
+  }
+
+  // Done: one line.
+  &__step[data-state="done"] { grid-template-areas: "icon title action"; }
+
+  // A span around the icon (it carries the gw-fg-* colour); flex so the svg
+  // does not sit on a text baseline. 20px icon on the 20px title line.
+  &__icon {
+    grid-area: icon;
+    align-self: start;
+    display: flex;
+  }
+
+  &__title {
+    grid-area: title;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  &__why {
+    grid-area: why;
+    min-width: 0;
+  }
+
+  &__action,
+  &__meta {
+    grid-area: action;
+    justify-self: end;
+  }
+
+  &__meta {
+    min-width: 0;
+    text-align: end;
+    overflow-wrap: anywhere;
+  }
+
+  // ─── Complete: summary row with the disclosure and a next step ───
+  &--complete > .gw-card__body { gap: var(--gw-space-3); }
+
+  &__summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--gw-space-2) var(--gw-space-4);
+    min-width: 0;
+  }
+
+  // Two chevrons in the disclosure button; the state shows one.
+  &__toggle-icon { flex: none; }
+  &__toggle[aria-expanded="true"] &__toggle-icon--expand,
+  &__toggle[aria-expanded="false"] &__toggle-icon--collapse { display: none; }
+
+  // A ghost button sits 8px in from its label: line the text up with the rows.
+  &__toggle { margin-inline-start: calc(-1 * var(--gw-space-2)); }
+}
+
+// ─── Narrow: the action goes under the text ───
+@include gw-bp-down(sm) {
+  .gw-getting-started__step,
+  .gw-getting-started__step[data-state="done"] {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "icon title"
+      "icon why"
+      "icon action";
+  }
+
+  .gw-getting-started__action,
+  .gw-getting-started__meta {
+    justify-self: start;
+    margin-top: var(--gw-space-1-5);
+    text-align: start;
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "файлы": {
+      "command": "/Users/zoë/bin/fs-server",
+      "args": ["--root", "/Users/zoë/Проекты"]
+    }
+  }
+}

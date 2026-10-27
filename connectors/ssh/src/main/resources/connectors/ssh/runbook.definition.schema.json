@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Runbook",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "command"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Name",
+      "pattern": "^[a-z][a-z0-9-]{1,47}$",
+      "description": "What agents call: ssh_run(runbook=…)."
+    },
+    "description": {
+      "type": "string",
+      "title": "Description",
+      "maxLength": 300
+    },
+    "command": {
+      "type": "string",
+      "title": "Command",
+      "maxLength": 2000,
+      "x-widget": "code",
+      "x-language": "sh",
+      "description": "One line. {param} marks a parameter: outside quotes, the gateway quotes its value."
+    },
+    "workdir": {
+      "type": "string",
+      "title": "Folder",
+      "maxLength": 512,
+      "description": "The command runs as cd '<folder>' && <command>."
+    },
+    "timeoutSeconds": {
+      "type": "integer",
+      "title": "Timeout",
+      "minimum": 1,
+      "maximum": 600,
+      "x-unit": "s",
+      "description": "Empty: the policy's command timeout. The tighter of the two applies."
+    },
+    "readOnly": {
+      "type": "boolean",
+      "title": "Read only",
+      "default": false,
+      "description": "A read-only runbook runs at once in Read only mode; any other waits for approval."
+    },
+    "readOnlyConfirmedFor": {
+      "type": "string",
+      "title": "I confirm this runbook doesn't change state",
+      "maxLength": 2000,
+      "x-generated": true,
+      "description": "The command the confirmation is for: a changed command waits for approval until confirmed again."
+    },
+    "params": {
+      "type": "array",
+      "title": "Parameters",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "type"],
+        "properties": {
+          "name": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,31}$"},
+          "type": {"enum": ["enum", "int", "bool", "string"]},
+          "required": {"type": "boolean", "default": false},
+          "values": {"type": "array", "maxItems": 64, "items": {"type": "string", "minLength": 1, "maxLength": 128}},
+          "min": {"type": "integer"},
+          "max": {"type": "integer"},
+          "whenTrue": {"type": "string", "pattern": "^[A-Za-z0-9_=.,:/@%+-]*$"},
+          "whenFalse": {"type": "string", "pattern": "^[A-Za-z0-9_=.,:/@%+-]*$"},
+          "pattern": {"type": "string", "maxLength": 512},
+          "maxLength": {"type": "integer", "minimum": 1, "maximum": 256},
+          "allowLeadingDash": {"type": "boolean", "default": false},
+          "default": {}
+        }
+      }
+    }
+  }
+}

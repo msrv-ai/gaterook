@@ -1,0 +1,452 @@
+// =============================================================
+// .gw-page · .gw-page-header · .gw-breadcrumb · .gw-section · .gw-toolbar
+// .gw-split · .gw-grid · .gw-divider · Page layout
+// -------------------------------------------------------------
+// Everything that arranges content inside .gw-shell__main. Layout only:
+// surfaces come from gw-card, controls from gw-btn and the form kit.
+//
+//   <main class="gw-shell__main" id="main" tabindex="-1">
+//     <div class="gw-page">
+//       <header class="gw-page-header">
+//         <nav class="gw-breadcrumb gw-page-header__breadcrumb" aria-label="Breadcrumb">
+//           <ol>
+//             <li><a href="endpoints.html">Endpoints</a></li>
+//             <li><i class="gw-icon" data-lucide="chevron-right"></i><span aria-current="page">dev</span></li>
+//           </ol>
+//         </nav>
+//         <div class="gw-page-header__row">
+//           <div class="gw-page-header__heading">
+//             <h1 class="gw-page-header__title">Endpoint dev</h1>
+//             <p class="gw-page-header__description">One sentence: what this page is for.</p>
+//             <div class="gw-page-header__meta">…status, URL, counts…</div>
+//           </div>
+//           <div class="gw-page-header__actions">…gw-btn…</div>
+//         </div>
+//         <div class="gw-page-header__tabs gw-tabs">…role=tablist…</div>
+//       </header>
+//       <section class="gw-section" aria-labelledby="s1">…</section>
+//     </div>
+//   </main>
+//
+// gw-page           the ONLY width cap. Gutter --gw-layout-page-gutter (16px below sm),
+//                   content max --gw-layout-content-max; children stack 32px apart.
+//   --narrow        content max --gw-layout-content-narrow (880): forms, settings
+//   --full          no cap, fills main's height: Activity, split views. A direct
+//                   .gw-split child then takes the remaining height: from lg the
+//                   page is exactly main's height (block-size 100%, min-height 0)
+//                   and the split may shrink to fit, so both panels scroll inside
+//                   the window and a sticky footer in the detail (Deny / Approve
+//                   and run) is on screen at 1440 x 900. Below lg the page grows
+//                   and main scrolls.
+// gw-page-header    breadcrumb → title row (heading left, actions right; actions wrap
+//                   under the heading when space runs out) → tabs slot.
+//   __breadcrumb __row __heading __title (the page h1) __description __meta __actions __tabs
+// gw-breadcrumb     nav[aria-label="Breadcrumb"] > ol > li. Separator: a chevron-right
+//                   gw-icon before the item (aria-hidden via kit.js). Current item:
+//                   aria-current="page" (a <span>, or a link to the page itself).
+// gw-section        section without a card: __header (__title h2, __description,
+//                   __actions on the right; actions drop under the text below sm)
+//                   + content. Gap 12 between header and content.
+// gw-toolbar        filters and actions above a table: __start (search, filters, wraps)
+//                   and __end (actions, kept at the end; wraps onto its own line when
+//                   space runs out). --sticky pins it to the top of main with a canvas
+//                   fill: only for toolbars that sit directly on the page canvas.
+//                   A gw-select in a toolbar is as wide as its value (a filter), not
+//                   the full row; search, selects and counts share one line.
+// gw-split          master-detail: __list + __detail, each scrolls on its own once the
+//                   split has a height: inside gw-page--full it takes the rest of main;
+//                   elsewhere set --gw-split-height (style="--gw-split-height: 480px").
+//                   Default 1 : 2, --40 = 2 : 3, --50 = 1 : 1. Below lg (a 1280px window,
+//                   where the list would get under ~320px) the panels stack, the
+//                   height is dropped and the page scrolls instead.
+// gw-grid           card grid, gap 16. --2 (2 cols from sm), --3 / --4 (2 cols from sm,
+//                   3 / 4 from lg), --auto (auto-fill, min --gw-grid-min = 280px;
+//                   override per use; the one to use inside narrow panels).
+//                   A <ul class="gw-grid"> of <li> > .gw-card: the card fills its
+//                   cell, so cards in a row share one height and their footers line up.
+// gw-divider        <hr class="gw-divider">; --vertical for rows (a <span> with
+//                   aria-hidden="true", or role="separator" aria-orientation="vertical").
+//
+// A11y   One h1 per page: gw-page-header__title. Breadcrumb links keep a 24px target.
+//        Scrolling split panels give focus rings room (inner padding, no clipping); a
+//        panel with nothing focusable inside gets tabindex="0" + role="region" +
+//        aria-label so the keyboard can scroll it (WCAG 2.1.1).
+// Raw    --gw-grid-min 280px; heading 18rem wrap threshold (see inline notes).
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+// ─────────────────── Page ───────────────────
+
+.gw-page {
+  --gw-page-max: var(--gw-layout-content-max);
+  --gw-page-gutter: var(--gw-layout-page-gutter);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gw-space-8);
+  width: 100%;
+  min-width: 0;
+  // The tokens name the content width; the box adds the gutters on both sides.
+  max-width: calc(var(--gw-page-max) + 2 * var(--gw-page-gutter));
+  margin-inline: auto;
+  padding: var(--gw-space-6) var(--gw-page-gutter) var(--gw-space-12);
+
+  @include gw-bp-down(sm) { --gw-page-gutter: var(--gw-layout-page-gutter-sm); }
+
+  &--narrow { --gw-page-max: var(--gw-layout-content-narrow); }
+
+  &--full {
+    max-width: none;
+    min-height: 100%;
+    padding-bottom: var(--gw-space-6);
+
+    > .gw-split {
+      flex: 1 1 0;
+      min-height: 0;
+    }
+
+    // A split view is exactly the window's height: the page never outgrows
+    // main, so the panels scroll instead of the page.
+    @include gw-bp-up(lg) {
+      &:has(> .gw-split) {
+        block-size: 100%;
+        min-height: 0;
+      }
+    }
+  }
+}
+
+// ─────────────────── Page header ───────────────────
+
+.gw-page-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gw-space-2);
+  min-width: 0;
+
+  // Breadcrumb links keep a 24px target; pull the title back up by the extra height.
+  &__breadcrumb { margin-bottom: calc(-1 * var(--gw-space-1)); }
+
+  &__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--gw-space-3) var(--gw-space-6);
+    min-width: 0;
+  }
+
+  &__heading {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-1);
+    flex: 1 1 0;
+    min-width: min(100%, 18rem); // raw: below ~288px of heading the actions wrap under it
+  }
+
+  &__title {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--gw-space-2);
+    margin: 0;
+    @include gw-type(h1);
+    color: var(--gw-color-text-primary);
+    overflow-wrap: anywhere;
+  }
+
+  &__description {
+    margin: 0;
+    max-width: var(--gw-layout-content-narrow);
+    @include gw-type(body);
+    color: var(--gw-color-text-secondary);
+  }
+
+  &__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gw-space-2) var(--gw-space-3);
+    margin-top: var(--gw-space-1);
+    @include gw-type(small);
+    color: var(--gw-color-text-muted);
+  }
+
+  // Keeps its natural width beside the heading; on its own line it may shrink
+  // and wrap its buttons instead of overflowing a narrow window.
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gw-space-2);
+    flex: 0 1 auto;
+  }
+
+  &__tabs {
+    margin-top: var(--gw-space-2);
+    min-width: 0;
+  }
+}
+
+// ─────────────────── Breadcrumb ───────────────────
+
+.gw-breadcrumb {
+  min-width: 0;
+  @include gw-type(small);
+  color: var(--gw-color-text-muted);
+
+  > ol {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gw-space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  li {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--gw-space-1);
+    min-width: 0;
+  }
+
+  .gw-icon {
+    --gw-icon-size: var(--gw-size-icon-sm);
+    color: var(--gw-color-text-muted);
+  }
+
+  a {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--gw-size-target-min);
+    color: var(--gw-color-text-muted);
+    text-decoration: none;
+    border-radius: var(--gw-radius-xs);
+    @include gw-focus-ring(var(--gw-space-0-5));
+
+    &:hover {
+      color: var(--gw-color-text-primary);
+      text-decoration: underline;
+      text-underline-offset: 0.2em;
+    }
+  }
+
+  [aria-current="page"] {
+    color: var(--gw-color-text-secondary);
+    font-weight: var(--gw-font-weight-medium);
+    @include gw-truncate;
+  }
+
+  a[aria-current="page"]:hover { color: var(--gw-color-text-primary); }
+}
+
+// ─────────────────── Section ───────────────────
+
+.gw-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gw-space-3);
+  min-width: 0;
+
+  // Title and description stack on the left, actions span both rows on the right.
+  &__header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: var(--gw-space-4);
+    align-items: start;
+  }
+
+  &__title {
+    grid-column: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--gw-space-2);
+    margin: 0;
+    @include gw-type(h2);
+    color: var(--gw-color-text-primary);
+  }
+
+  &__description {
+    grid-column: 1;
+    margin: var(--gw-space-1) 0 0;
+    @include gw-type(small);
+    color: var(--gw-color-text-muted);
+  }
+
+  &__actions {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gw-space-2);
+  }
+
+  // Narrow window: actions drop under the title and description.
+  @include gw-bp-down(sm) {
+    &__header { grid-template-columns: minmax(0, 1fr); }
+
+    &__actions {
+      grid-column: 1;
+      grid-row: auto;
+      margin-top: var(--gw-space-2);
+    }
+  }
+}
+
+// ─────────────────── Toolbar ───────────────────
+
+.gw-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gw-space-2);
+  min-width: 0;
+
+  &__start {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gw-space-2);
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  &__end {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gw-space-2);
+    flex: 0 1 auto;
+    margin-inline-start: auto;
+  }
+
+  // A filter select hugs its value instead of taking a row of its own.
+  .gw-select {
+    width: auto;
+    flex: 0 0 auto;
+    max-width: 100%;
+  }
+
+  // Pinned to the top of the scrolling main; the canvas fill hides rows sliding under
+  // (so it belongs on the page canvas, not inside a card).
+  &--sticky {
+    position: sticky;
+    top: 0;
+    z-index: var(--gw-z-sticky);
+    padding-block: var(--gw-space-2);
+    background: var(--gw-color-bg-canvas);
+  }
+}
+
+// ─────────────────── Split ───────────────────
+
+.gw-split {
+  --gw-split-list: 1fr;
+  --gw-split-detail: 2fr;
+  display: grid;
+  grid-template-columns: minmax(0, var(--gw-split-list)) minmax(0, var(--gw-split-detail));
+  grid-template-rows: minmax(0, 1fr);
+  gap: var(--gw-space-4);
+  min-width: 0;
+  block-size: var(--gw-split-height, auto);
+
+  &--40 { --gw-split-list: 2fr; --gw-split-detail: 3fr; }
+  &--50 { --gw-split-list: 1fr; --gw-split-detail: 1fr; }
+
+  &__list,
+  &__detail {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-4);
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    // Room for the focus rings of the cards inside, without moving the content.
+    padding: var(--gw-space-1);
+    margin: calc(-1 * var(--gw-space-1));
+    @include gw-scrollbar;
+  }
+
+  // Below lg the list column would drop under ~320px (cards overflow, titles
+  // crush): stack instead, and let the page scroll.
+  @include gw-bp-down(lg) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    block-size: auto;
+
+    &__list,
+    &__detail { overflow: visible; }
+  }
+}
+
+// gw-page--full stacks below lg too: the page scrolls instead of the panels.
+@include gw-bp-down(lg) {
+  .gw-page--full > .gw-split {
+    flex: none;
+    min-height: 0;
+  }
+}
+
+// ─────────────────── Grid ───────────────────
+
+.gw-grid {
+  --gw-grid-min: 280px; // raw: smallest card width for --auto (override per use)
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--gw-space-4);
+  min-width: 0;
+
+  &--2 {
+    @include gw-bp-up(sm) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
+  &--3 {
+    @include gw-bp-up(sm) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    @include gw-bp-up(lg) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+
+  &--4 {
+    @include gw-bp-up(sm) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    @include gw-bp-up(lg) { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  }
+
+  &--auto {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--gw-grid-min)), 1fr));
+  }
+
+  // List markup (<ul class="gw-grid"><li><article class="gw-card">): the item
+  // stretches with its row, the card stretches with the item.
+  > li:has(> .gw-card) {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+
+    > .gw-card { flex: 1 1 auto; }
+  }
+}
+
+// ─────────────────── Divider ───────────────────
+
+.gw-divider {
+  flex: none;
+  align-self: stretch;
+  height: 0;
+  margin: 0;
+  border: 0;
+  border-top: var(--gw-border-width-default) solid var(--gw-color-border-default);
+
+  &--vertical {
+    display: inline-block;
+    align-self: center;
+    width: 0;
+    height: var(--gw-space-5);
+    vertical-align: middle;
+    border-top: 0;
+    border-inline-start: var(--gw-border-width-default) solid var(--gw-color-border-default);
+  }
+}

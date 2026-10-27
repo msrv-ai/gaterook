@@ -1,0 +1,213 @@
+<header class="gw-section__header">
+  <h2 class="gw-section__title" id="st-auth-t">Authorization</h2>
+  <p class="gw-section__description">How clients prove who they are before they call an endpoint, and who can sign in to this app.</p>
+</header>
+<hr class="gw-divider">
+
+<section gwHowItWorks vertical heading="How authorization works" summary="Every client is tied to one endpoint and can be cut off at once." stepsLabel="How a client is authorized" persist="settings-authorization">
+  <li gwHowItWorksStep icon="log-in" heading="Client gets a token or signs in with OAuth">Claude Desktop and Codex get a 15-minute token on the fly; Cursor, Antigravity and MCP Inspector send a named token; claude.ai signs in with OAuth 2.1 through the tunnel.</li>
+  <li gwHowItWorksStep icon="waypoints" heading="Token is bound to one endpoint">@if (tokensEndpoint(); as ep) {A token for <code class="gw-code">{{ ep }}</code> can't call another endpoint.} @else {A token for one endpoint can't call another.} Only its hash is stored.</li>
+  <li gwHowItWorksStep icon="shield" heading="Policy decides: allow, approval or deny">Each call is checked against the tool's mode and the environment's limits.</li>
+  <li gwHowItWorksStep icon="ban" heading="Revoke any time">The next call with a revoked token is refused. Nothing to restart.</li>
+  @if (tokensEndpoint(); as ep) {<p class="gw-how-it-works__more" gwHowItWorksMore><a class="gw-link gw-text-small" [routerLink]="['/endpoints', ep]" [queryParams]="{ tab: 'tokens' }">See the tokens of endpoint {{ ep }}</a></p>}
+</section>
+
+<div class="gw-form gw-form--sticky-actions">
+  <section class="gw-form__section" aria-labelledby="st-mcp-t">
+    <header class="gw-form__section-header">
+      <h3 class="gw-form__legend" id="st-mcp-t">MCP access</h3>
+      <p class="gw-form__description">Defaults for the tokens Cursor, Antigravity and MCP Inspector send with every call. They apply to new tokens at once; issued tokens keep their own. Claude Desktop and Codex get 15-minute tokens on the fly and need none.</p>
+    </header>
+    <div class="gw-form__rows">
+      <div class="gw-field">
+        <label class="gw-field__label" for="st-ttl">Default token lifetime</label>
+        <select class="gw-select" id="st-ttl" aria-describedby="st-ttl-hint" [attr.aria-busy]="ttlBusy() ? 'true' : null" (change)="setTtl($event)">
+          @for (d of ttlOptions; track d) {
+            <option [value]="d" [selected]="d === ttl()">{{ daysText(d) }}</option>
+          }
+        </select>
+        <p class="gw-field__hint" id="st-ttl-hint">Cursor and Antigravity keep their token in plain text in their config file, so a short lifetime limits what a copied file gives away. You can pick another lifetime when you issue a token. Nothing is written to the configs of Claude Desktop and Codex: the <span class="gw-mono">.mcpb</span> bridge and the Codex headers helper ask the app for a token each time.</p>
+      </div>
+      <!-- Server mode only. Not a disabled switch: on the desktop there is nothing to set, so the row says why. -->
+      <dl class="gw-kv">
+        <div class="gw-kv__row"><dt class="gw-kv__key">IP allowlist</dt><dd class="gw-kv__value">Server mode only. On the desktop the core accepts calls from this computer alone, so an address list would have nothing to filter. claude.ai is limited to Anthropic's addresses in <a class="gw-link" routerLink="/settings/tunnel" fragment="settings-tunnel-callers">Tunnel</a>.</dd></div>
+      </dl>
+      @let exp = expiring();
+      @if (exp.length === 1) {
+        <div class="gw-alert gw-alert--warning gw-alert--compact">
+          <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content"><p class="gw-alert__body">Token <code class="gw-code">{{ exp[0].name }}</code> on endpoint <code class="gw-code">{{ exp[0].endpoint }}</code> {{ expiresText(exp[0].expiresAt) }}.</p></div>
+          <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" [routerLink]="['/endpoints', exp[0].endpoint]" [queryParams]="{ tab: 'tokens' }">Review tokens</a></div>
+        </div>
+      } @else if (exp.length > 1) {
+        <div class="gw-alert gw-alert--warning gw-alert--compact">
+          <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content"><p class="gw-alert__body">{{ exp.length }} tokens expire within 7 days: @for (x of exp; track x.endpoint + x.name; let last = $last; let first = $first) {@if (!first) {{{ last ? ' and ' : ', ' }}}<code class="gw-code">{{ x.name }}</code> on <code class="gw-code">{{ x.endpoint }}</code>}.</p></div>
+          <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" [routerLink]="['/endpoints', exp[0].endpoint]" [queryParams]="{ tab: 'tokens' }">Review tokens</a></div>
+        </div>
+      }
+    </div>
+  </section>
+
+  <!-- The saved value is the core's (CIMD by default); picking DCR shows its warning. -->
+  <form class="gw-form__section" id="st-oauth" method="dialog" novalidate aria-labelledby="st-oauth-t" (submit)="saveOauth($event)" (reset)="discardOauth($event)">
+    <header class="gw-form__section-header">
+      <h3 class="gw-form__legend" id="st-oauth-t">OAuth 2.1 for claude.ai</h3>
+      <p class="gw-form__description">claude.ai runs in the cloud, so instead of a pasted token it signs in with OAuth through the tunnel. @if (published(); as ep) {It reaches endpoint <span class="gw-mono">{{ ep }}</span> only.} @else {It reaches only the endpoint you publish for it.}</p>
+    </header>
+    <div class="gw-form__rows">
+      <div class="gw-field">
+        <span class="gw-field__label" id="st-issuer-l">Issuer URL</span>
+        @if (issuer(); as url) {
+          <div class="gw-copy-field" role="group" aria-labelledby="st-issuer-l" aria-describedby="st-issuer-hint">
+            <code class="gw-copy-field__value" id="st-issuer" [attr.title]="url">{{ url }}</code>
+            <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" gwCopyFrom="#st-issuer">
+              <span class="gw-copy-field__copy"><svg lucideIcon="copy" class="gw-icon gw-icon--sm"></svg> Copy<span class="gw-sr-only"> issuer URL</span></span>
+              <span class="gw-copy-field__copied"><svg lucideIcon="check" class="gw-icon gw-icon--sm"></svg> Copied</span>
+            </button>
+          </div>
+        } @else {
+          <p class="gw-text-small gw-fg-secondary" aria-describedby="st-issuer-hint">None yet: the issuer is the tunnel's public address, and the tunnel has none.</p>
+        }
+        <p class="gw-field__hint" id="st-issuer-hint">The tunnel's public address. claude.ai finds the metadata at <span class="gw-mono">/.well-known/oauth-protected-resource</span> from the endpoint URL.</p>
+      </div>
+      @if (!tunnelOn()) {
+        <div class="gw-alert gw-alert--warning gw-alert--compact" id="st-oauth-off">
+          <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content"><p class="gw-alert__body">@if (tunnelUnavailable()) {This version of the app has no tunnel yet, so claude.ai can't reach this issuer.} @else {The tunnel is off, so claude.ai can't reach this issuer.}</p></div>
+          <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" routerLink="/settings/tunnel">Set up tunnel</a></div>
+        </div>
+      }
+      <fieldset class="gw-field">
+        <legend class="gw-field__label">Client registration</legend>
+        <div class="gw-grid gw-grid--auto">
+          <label class="gw-choice-card">
+            <input class="gw-choice-card__input" type="radio" value="cimd" [formField]="oauthForm.registration" aria-labelledby="st-reg-cimd-t" aria-describedby="st-reg-cimd-d">
+            <span class="gw-choice-card__icon"><svg lucideIcon="file-key" class="gw-icon"></svg></span>
+            <span class="gw-choice-card__title" id="st-reg-cimd-t">CIMD <span class="gw-badge gw-badge--success gw-badge--sm">Recommended</span></span>
+            <span class="gw-choice-card__description" id="st-reg-cimd-d">The client identifies itself with a metadata document at its own URL. Nothing to register or clean up.</span>
+            <span class="gw-choice-card__meta">Client ID metadata document</span>
+          </label>
+          <label class="gw-choice-card">
+            <input class="gw-choice-card__input" type="radio" value="cimd+dcr" [formField]="oauthForm.registration" aria-labelledby="st-reg-dcr-t" aria-describedby="st-reg-dcr-d">
+            <span class="gw-choice-card__icon"><svg lucideIcon="list-plus" class="gw-icon"></svg></span>
+            <span class="gw-choice-card__title" id="st-reg-dcr-t">Dynamic client registration <span class="gw-badge gw-badge--warning gw-badge--sm">Deprecated</span></span>
+            <span class="gw-choice-card__description" id="st-reg-dcr-d">Each client registers itself and gets a client ID the gateway stores. While the tunnel is on, any client that reaches the public URL can register. Only for clients without CIMD.</span>
+            <span class="gw-choice-card__meta">Deprecated in MCP 2026-07-28</span>
+          </label>
+        </div>
+      </fieldset>
+      @if (dcr()) {
+        <div class="gw-alert gw-alert--warning gw-alert--compact" id="st-reg-dcr-warn">
+          <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content"><p class="gw-alert__body">With dynamic registration, any client that reaches the public URL can register while the tunnel is on. It still gets no token until you allow its sign-in on this computer.</p></div>
+        </div>
+      }
+      <dl class="gw-kv gw-kv--dense">
+        <div class="gw-kv__row"><dt class="gw-kv__key">PKCE</dt><dd class="gw-kv__value"><span class="gw-mono">S256</span>, always required</dd></div>
+        <div class="gw-kv__row"><dt class="gw-kv__key">Token audience</dt><dd class="gw-kv__value">The endpoint URL: @if (published(); as ep) {a token for <span class="gw-mono">{{ ep }}</span> works nowhere else} @else {a token for one endpoint works nowhere else}</dd></div>
+        <div class="gw-kv__row"><dt class="gw-kv__key">Callers</dt><dd class="gw-kv__value"><span id="st-oauth-callers">{{ anthropicOnly() ? 'Anthropic IP ranges only' : 'Any address; sign-in still waits for you' }}</span> · <a class="gw-link" routerLink="/settings/tunnel" fragment="settings-tunnel-callers">Change in Tunnel<span class="gw-sr-only"> › Callers</span></a></dd></div>
+        <div class="gw-kv__row"><dt class="gw-kv__key">Consent</dt><dd class="gw-kv__value">Each new sign-in waits until you allow it on this computer, with a code to match; no answer in 5 min denies</dd></div>
+      </dl>
+      @if (oauthError(); as err) {
+        <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+          <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content"><p class="gw-alert__title">The OAuth settings weren't saved</p><p class="gw-alert__body">{{ err }}</p></div>
+        </div>
+      }
+    </div>
+  </form>
+
+  <!-- Signed in: OAuth grants you allowed. Applies at once (Revoke confirms), so outside the Save form. -->
+  <section class="gw-form__section" id="settings-signed-in" aria-labelledby="st-grants-t">
+    <header class="gw-form__section-header">
+      @if (data.grants().value) {
+        <h3 class="gw-form__legend" id="st-grants-t">Signed in <span class="gw-counter" id="st-grants-count">{{ grants().length }}<span class="gw-sr-only"> {{ grants().length === 1 ? 'sign-in' : 'sign-ins' }}</span></span></h3>
+      } @else {
+        <h3 class="gw-form__legend" id="st-grants-t">Signed in</h3>
+      }
+      <p class="gw-form__description">OAuth sign-ins you allowed. They outlive the tunnel: revoke one to cut it off before the tunnel is on again.</p>
+    </header>
+    <div class="gw-form__rows">
+      @if (data.grants().unavailable) {
+        <p class="gw-text-small gw-fg-secondary">Sign-ins aren't listed in this build: it has no OAuth sign-in for claude.ai yet.</p>
+      } @else if (data.grants().error) {
+        <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+          <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content"><p class="gw-alert__title">The sign-ins didn't load</p><p class="gw-alert__body">Try again in a moment, or reload the page.</p></div>
+        </div>
+      } @else if (grants().length) {
+        <div class="gw-table-wrap" id="st-grants-wrap" role="region" aria-labelledby="st-grants-cap" tabindex="0">
+          <table class="gw-table gw-table--dense">
+            <caption class="gw-sr-only" id="st-grants-cap">OAuth sign-ins you allowed</caption>
+            <thead><tr><th scope="col">Client</th><th scope="col">Endpoint</th><th scope="col">Allowed</th><th scope="col">Last call</th><th scope="col">Expires</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th></tr></thead>
+            <tbody>
+              @for (g of grants(); track g.id) {
+                <tr>
+                  <th scope="row">{{ g.client }}@if (g.state === 'address-changed') { <span class="gw-text-caption gw-fg-muted">· the public address changed</span>}</th>
+                  <td class="gw-table__cell--mono">{{ g.endpoint ?? 'a removed endpoint' }}</td>
+                  <td><time [attr.datetime]="time.iso(g.createdAt)" [attr.title]="time.absolute(g.createdAt, false)">{{ allowedAt(g.createdAt) }}</time>, by you</td>
+                  <td>@if (g.lastUsedAt) {<time [attr.datetime]="time.iso(g.lastUsedAt)" [attr.title]="time.absolute(g.lastUsedAt)">{{ time.clock(g.lastUsedAt) }}</time>} @else {Never}</td>
+                  <td><time [attr.datetime]="time.iso(g.expiresAt)" [attr.title]="time.absolute(g.expiresAt, false)">{{ time.date(g.expiresAt) }}</time></td>
+                  <td class="gw-table__cell--actions"><button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askRevoke(g, $event)">Revoke<span class="gw-sr-only"> {{ g.client }} access to {{ g.endpoint ?? 'a removed endpoint' }}</span></button></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else if (data.grants().value) {
+        <p class="gw-text-small gw-fg-secondary" id="st-grants-empty" tabindex="-1">No sign-ins. claude.ai signs in again the next time you publish @if (published(); as ep) {<span class="gw-mono">{{ ep }}</span>} @else {an endpoint}, and you allow it here.</p>
+      }
+    </div>
+  </section>
+
+  <section class="gw-form__section" aria-labelledby="st-signin-t">
+    <header class="gw-form__section-header">
+      <h3 class="gw-form__legend" id="st-signin-t">Sign-in to the UI</h3>
+      <p class="gw-form__description">Who can open this app and decide on approval requests.</p>
+    </header>
+    <div class="gw-form__rows">
+      <div class="gw-alert gw-alert--neutral gw-alert--compact" id="st-signin-why">
+        <svg lucideIcon="circle-help" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content"><p class="gw-alert__title">Server mode only</p><p class="gw-alert__body">This desktop app has one local user and no sign-in. Run MCP Gateway in server mode to let a team sign in.</p></div>
+      </div>
+      <!-- A read-only preview, not disabled controls: nothing here can be set on the desktop. -->
+      <dl class="gw-kv">
+        <div class="gw-kv__row"><dt class="gw-kv__key">OIDC provider</dt><dd class="gw-kv__value">Google Workspace, Okta or Keycloak, chosen when you set up server mode</dd></div>
+        <div class="gw-kv__row"><dt class="gw-kv__key">Two-factor sign-in</dt><dd class="gw-kv__value">Required for owners and admins: a passkey or an authenticator app</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <div gwSaveBar formId="st-oauth" saveLabel="Save OAuth settings" what="OAuth 2.1 for claude.ai" [dirty]="oauthDirty()" [busy]="oauthBusy()"></div>
+</div>
+
+<!-- Revoke one OAuth sign-in (gw-dialog--sm --danger, Cancel autofocus). -->
+<dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" id="st-revoke-ai-dlg" gwDialog #revokeDialog="gwDialog" [attr.aria-labelledby]="revoking() ? 'st-revoke-ai-t' : null" [attr.aria-describedby]="revoking() ? 'st-revoke-ai-d' : null">
+  @if (revoking(); as g) {
+    <header class="gw-dialog__header">
+      <span class="gw-icon-tile"><svg lucideIcon="key-round" class="gw-icon"></svg></span>
+      <h2 class="gw-dialog__title" id="st-revoke-ai-t">Revoke {{ g.client }} access to {{ g.endpoint ?? 'a removed endpoint' }}?</h2>
+      <p class="gw-dialog__description" id="st-revoke-ai-d">The sign-in stops working at once, also when the tunnel is on again. To come back, {{ g.client }} signs in again and you allow it here.</p>
+      <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+    </header>
+    <div class="gw-dialog__body">
+      <div class="gw-stack">
+        <dl class="gw-kv gw-kv--dense">
+          <div class="gw-kv__row"><dt class="gw-kv__key">Allowed</dt><dd class="gw-kv__value"><time [attr.datetime]="time.iso(g.createdAt)" [attr.title]="time.absolute(g.createdAt, false)">{{ allowedAt(g.createdAt) }}</time>, by you</dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key">Last call</dt><dd class="gw-kv__value">@if (g.lastUsedAt) {<time [attr.datetime]="time.iso(g.lastUsedAt)" [attr.title]="time.absolute(g.lastUsedAt)">{{ time.clock(g.lastUsedAt) }}</time>} @else {Never}</dd></div>
+        </dl>
+        @if (revokeError(); as err) {
+          <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+            <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content"><p class="gw-alert__title">The sign-in wasn't revoked</p><p class="gw-alert__body">{{ err }}</p></div>
+          </div>
+        }
+      </div>
+    </div>
+    <footer class="gw-dialog__footer">
+      <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
+      <button class="gw-btn gw-btn--danger" type="button" [attr.aria-busy]="revokeBusy() ? 'true' : null" [attr.aria-disabled]="revokeBusy() ? 'true' : null" (click)="confirmRevoke()">Revoke {{ g.client }} access</button>
+    </footer>
+  }
+</dialog>

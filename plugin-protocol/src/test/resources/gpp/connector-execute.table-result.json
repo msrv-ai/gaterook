@@ -1,0 +1,22 @@
+{
+  "jsonrpc" : "2.0",
+  "id" : 42,
+  "result" : {
+    "content" : [ ],
+    "isError" : false,
+    "table" : {
+      "columns" : [ {
+        "name" : "key",
+        "type" : "string"
+      }, {
+        "name" : "summary",
+        "type" : "string"
+      } ],
+      "rows" : [ [ "SD-123", "Payments are slow" ] ],
+      "nextCursor" : "start=50"
+    },
+    "truncated" : true,
+    "truncatedReason" : "row_limit",
+    "maskPaths" : [ ]
+  }
+}

@@ -1,0 +1,68 @@
+// =============================================================
+// .gw-skeleton · Loading placeholder
+// -------------------------------------------------------------
+// Grey blocks in the shape of content that is about to arrive: the first
+// render of a list, a card, a chart, when the wait is longer than ~300 ms.
+// Not for in-place actions (gw-spinner in the button), not for long jobs
+// (gw-progress), never for content that failed (show gw-alert--danger).
+//
+//   <section class="gw-card" aria-labelledby="h" aria-busy="true">
+//     …<p class="gw-sr-only" role="status">Loading connection health</p>
+//     <span class="gw-skeleton gw-skeleton--circle" aria-hidden="true"></span>
+//     <span class="gw-skeleton gw-skeleton--text" aria-hidden="true"></span>
+//     <span class="gw-skeleton gw-skeleton--text" aria-hidden="true"></span>
+//   </section>
+//
+// Variants  (base)     16px bar, full width
+//           --text     one line of body text: 12px bar inside a 20px line box;
+//                      the last of several lines is shorter (64%)
+//           --block    64px panel (chart, code block, card body); set height inline
+//           --circle   32px disc (avatar, client mark, icon tile)
+// Width / height may be overridden inline with tokens (style="width: …").
+// Fill     bg.active: a translucent wash, so the block reads on surface, raised
+//          and canvas alike in every theme.
+// Motion   a calm opacity pulse, never a shimmer sweep; with reduced motion the
+//          pulse runs at half speed (no travel either way).
+// a11y   Blocks are aria-hidden. The loading region carries aria-busy="true" and
+//   an sr-only role=status naming what loads; remove both when content arrives.
+// Raw values: 1.6s / 3.2s pulse period, 64% last-line width.
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+.gw-skeleton {
+  display: block;
+  flex: none;
+  width: 100%;
+  height: var(--gw-space-4);
+  background: var(--gw-color-bg-active);
+  border-radius: var(--gw-radius-xs);
+  animation: gw-skeleton-pulse 3.2s ease-in-out infinite; // raw: half-speed pulse for reduced motion
+
+  @include gw-motion {
+    animation-duration: 1.6s; // raw: calm loading pulse period
+  }
+
+  &--text {
+    height: var(--gw-space-3);
+    margin-block: var(--gw-space-1);
+  }
+
+  &--text:last-child:not(:first-child) { width: 64%; } // raw: ragged last line
+
+  &--block {
+    height: var(--gw-space-16);
+    border-radius: var(--gw-radius-md);
+  }
+
+  &--circle {
+    width: var(--gw-size-icon-2xl);
+    height: var(--gw-size-icon-2xl);
+    border-radius: var(--gw-radius-full);
+  }
+}
+
+@keyframes gw-skeleton-pulse {
+  50% { opacity: 0.45; }
+}

@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  External MCP servers (report 11): McpServerConnector per connection, McpServerSupervisor (process tree, idle
+  stop, backoff), GatewayStdioTransport, GatewayHttpTransport over the egress guard, NpmInstaller, ToolNameMapper and
+  tool snapshots. MCP Java SDK 2.1.0 as a client only (reactor-core from the Boot BOM).
+  Spring only in the .boot subpackage. Built by step C10.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>ai.msrv.gaterook</groupId>
+    <artifactId>mcp-gateway</artifactId>
+    <version>0.4.0-SNAPSHOT</version>
+    <relativePath>../../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>connectors-mcp-server</artifactId>
+  <name>MCP Gateway · Connectors · External MCP servers</name>
+
+  <dependencies>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connector-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connectors-support</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>tools.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.modelcontextprotocol.sdk</groupId>
+      <artifactId>mcp-core</artifactId>
+    </dependency>
+    <!-- Explicit new JacksonMcpJsonMapper(…), no ServiceLoader lookup (report 15 §9 rule 7). -->
+    <dependency>
+      <groupId>io.modelcontextprotocol.sdk</groupId>
+      <artifactId>mcp-json-jackson3</artifactId>
+    </dependency>
+
+    <!-- Tool schemas of a server are checked against the 2020-12 meta-schema before they are published. -->
+    <dependency>
+      <groupId>com.networknt</groupId>
+      <artifactId>json-schema-validator</artifactId>
+    </dependency>
+
+    <!-- Registration of the built-in beans, .boot subpackage only (ARCHITECTURE.md §2.3). -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-autoconfigure</artifactId>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- The SDK's Streamable HTTP server (a servlet) for the HTTP transport's tests. -->
+    <dependency>
+      <groupId>org.apache.tomcat.embed</groupId>
+      <artifactId>tomcat-embed-core</artifactId>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>org.apache.tomcat</groupId>
+          <artifactId>tomcat-annotations-api</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+  </dependencies>
+</project>

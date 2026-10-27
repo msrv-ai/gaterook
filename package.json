@@ -1,0 +1,23 @@
+{
+  "name": "mcp-gateway",
+  "version": "0.4.0",
+  "private": true,
+  "description": "GateRook: a desktop MCP gateway with scoped access and human-reviewed infrastructure changes.",
+  "packageManager": "npm@11.19.1",
+  "engines": {
+    "node": ">=24.15.0"
+  },
+  "workspaces": [
+    "ui",
+    "desktop",
+    "bridge"
+  ],
+  "scripts": {
+    "test": "node --test \"scripts/*.test.mjs\"",
+    "verify:design": "npm --prefix design run verify",
+    "build:java": "mvn -B -ntp -DskipTests package",
+    "build": "npm run build --prefix design && npm run build:java && npm run build -w ui && npm run build -w desktop",
+    "start": "node desktop/scripts/dev.mjs",
+    "dev:ui": "npm run dev -w ui --"
+  }
+}

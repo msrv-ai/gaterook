@@ -1,0 +1,26 @@
+{
+  "manifestVersion": 1,
+  "id": "fixture-oom",
+  "version": "1.0.0",
+  "name": "OOM fixture",
+  "provider": "MCP Gateway tests",
+  "license": "Apache-2.0",
+  "description": "A plugin that exhausts its heap.",
+  "requires": {"gateway": ">=0.0.0", "connectorApi": ">=1.0.0 & <2.0.0"},
+  "connectorClass": "gaterook.plugins.fixtures.OomConnector",
+  "type": "fixture-oom",
+  "toolNamespace": "oom_",
+  "configSchema": {"type": "object", "properties": {}},
+  "tools": [
+    {"name": "oom_heap", "title": "Heap",
+     "inputSchema": {"type": "object", "properties": {}},
+     "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+     "nature": "READ", "resultShape": "TEXT"},
+    {"name": "oom_fill", "title": "Fill the heap",
+     "inputSchema": {"type": "object", "properties": {}},
+     "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+     "nature": "READ", "resultShape": "TEXT"}
+  ],
+  "access": {"hosts": [], "commands": [], "files": []},
+  "resources": {"maxHeapMb": 64}
+}

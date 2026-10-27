@@ -1,0 +1,75 @@
+{
+  "type": "object",
+  "required": [
+    "key",
+    "type",
+    "exists"
+  ],
+  "properties": {
+    "key": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string"
+    },
+    "exists": {
+      "type": "boolean"
+    },
+    "ttlMs": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "persistent": {
+      "type": "boolean"
+    },
+    "memoryBytes": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "length": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "value": {
+      "description": "String or {\"$base64\":…} for a string; object of fields for a hash (a field that isn't UTF-8 is \"base64:<b64>\"); array for a list or set; [{member, score}] for a sorted set; [{id, fields}] newest first for a stream; the document for RedisJSON."
+    },
+    "supported": {
+      "type": "boolean"
+    },
+    "returned": {
+      "type": "integer",
+      "description": "Elements in value (1 for a string)."
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "nextCursor": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "elapsedMs": {
+      "type": "integer"
+    },
+    "encoding": {
+      "type": "string",
+      "enum": [
+        "base64"
+      ],
+      "description": "The key was given as base64."
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

@@ -1,0 +1,149 @@
+// =============================================================
+// .gw-badge · .gw-counter
+// -------------------------------------------------------------
+// .gw-badge   Status pill: one word or a short phrase in sentence case,
+//             optionally led by an icon. The vocabularies (decision on a
+//             call, token lifetime, connector kind, MCP annotation) live in
+//             BLUEPRINT §7: same tone, same icon, same words everywhere.
+//
+//   <span class="gw-badge gw-badge--warning">
+//     <i class="gw-icon gw-badge__icon" data-lucide="hourglass"></i>Waiting for approval
+//   </span>
+//
+// Tones      --brand --success --warning --danger --info --neutral (default)
+//            --dev --stage --prod (environment tints, e.g. "Prod only"; the
+//            environment MARKER next to a connection is .gw-env, which
+//            differs by shape)
+// Variants   (default)  tone subtle fill + tone fg text + 1px tone border
+//            --solid    tone solid fill + tone on-solid text (warning gets dark
+//                       text from its token). Loud: one per row at most, for the
+//                       state that needs attention now. Env tones have no
+//                       text-safe solid, so --solid on them keeps the tint and
+//                       draws the edge in the env solid instead
+//            --outline  transparent fill, tone border + tone fg text (quiet
+//                       metadata: Built-in, Template, Destructive). Wins over
+//                       --solid if both are set, so text never lands on nothing
+// Sizes      md 20px (caption line 16 + 2 × space-px padding + 2 × 1px border)
+//            --sm 18px (no block padding, tighter inline padding)
+// Subparts   __icon   12px Lucide icon before the text (decorative: the words
+//                     carry the meaning, the icon is the second cue). A bare
+//                     .gw-icon child is sized the same way.
+// States     none: a badge is display only. Never put a click handler on it;
+//            a filter chip is .gw-tag, a toggle is .gw-btn[aria-pressed].
+//            A badge never wraps or truncates: keep the words short (the
+//            detail goes in the cell next to it).
+// A11y       Text is always present (colour is never the only cue). Icons are
+//            aria-hidden (kit.js adds it). Tone fg on tone subtle and tone
+//            on-solid on tone solid are verified 4.5:1 in all four modes
+//            (tokens/contrast-pairs.json). The 1px border keeps the shape in
+//            Windows forced-colors mode.
+//
+// .gw-counter  Number in navigation, tabs and buttons.
+//
+//   <a href="approvals.html">Approvals <span class="gw-counter gw-counter--attention">3<span class="gw-sr-only"> waiting</span></span></a>
+//
+//   (default)     neutral wash (bg.active, readable on sidebar, surface and
+//                 raised fills): a plain count (Installed 12)
+//   --attention   amber solid with dark text: something waits for a human
+//                 (pending approvals). Reserved for that meaning.
+//   --muted       no fill, muted text: a quiet count beside a label
+// Size        18px pill (caption line + 2 × 1px border); one digit is a circle.
+// A11y        The number alone is ambiguous to a screen reader: add sr-only
+//             context ("3 waiting") or name the parent control ("Approvals,
+//             3 waiting" + aria-hidden counter). The transparent 1px border
+//             becomes visible in Windows forced-colors mode so the shape
+//             survives.
+// Raw values  none (icon stroke width matches .gw-icon--xs).
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+.gw-badge {
+  @include gw-tone(neutral);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gw-space-1);
+  max-width: 100%;
+  padding: var(--gw-space-px) var(--gw-space-2);
+  @include gw-type(caption);
+  font-weight: var(--gw-font-weight-medium);
+  white-space: nowrap;
+  vertical-align: middle;
+  color: var(--gw-tone-fg);
+  background: var(--gw-tone-subtle);
+  border: var(--gw-border-width-default) solid var(--gw-tone-border);
+  border-radius: var(--gw-radius-full);
+
+  @include gw-tone-modifiers((brand, success, warning, danger, info, neutral, dev, stage, prod));
+
+  &__icon,
+  > .gw-icon {
+    --gw-icon-size: var(--gw-size-icon-xs);
+    stroke-width: 2.25;
+    margin-inline-start: calc(-1 * var(--gw-space-0-5));
+  }
+
+  // ─── Variants ───
+  &--solid {
+    color: var(--gw-tone-on-solid);
+    background: var(--gw-tone-solid);
+    border-color: var(--gw-tone-solid);
+  }
+
+  // Env solids are marker colours (bars), not verified under text: keep the
+  // readable tint and let the solid colour draw the edge instead.
+  &--solid:is(.gw-badge--dev, .gw-badge--stage, .gw-badge--prod) {
+    color: var(--gw-tone-fg);
+    background: var(--gw-tone-subtle);
+    border-color: var(--gw-tone-solid);
+  }
+
+  // Declared after --solid so a stray --solid --outline pair stays readable.
+  &--outline,
+  &--outline.gw-badge--solid {
+    color: var(--gw-tone-fg);
+    background: transparent;
+    border-color: var(--gw-tone-border);
+  }
+
+  // ─── Sizes ───
+  &--sm {
+    padding-block: 0;
+    padding-inline: var(--gw-space-1-5);
+  }
+}
+
+.gw-counter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  min-width: calc(var(--gw-font-line-height-xs) + 2 * var(--gw-border-width-default));
+  padding-inline: var(--gw-space-1);
+  @include gw-type(caption);
+  font-weight: var(--gw-font-weight-semibold);
+  @include gw-tabular;
+  white-space: nowrap;
+  vertical-align: middle;
+  color: var(--gw-color-text-secondary);
+  // Translucent wash, not a tint: counters sit on the sidebar, tabs, buttons
+  // and table headers, and must read as a pill on each of them.
+  background: var(--gw-color-bg-active);
+  border: var(--gw-border-width-default) solid transparent;
+  border-radius: var(--gw-radius-full);
+
+  &--attention {
+    @include gw-tone(warning);
+    color: var(--gw-tone-on-solid);
+    background: var(--gw-tone-solid);
+  }
+
+  &--muted {
+    min-width: 0;
+    padding-inline: 0;
+    font-weight: var(--gw-font-weight-medium);
+    color: var(--gw-color-text-muted);
+    background: transparent;
+  }
+}

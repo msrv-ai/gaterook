@@ -1,0 +1,372 @@
+<ng-template #lastCallTime let-at>
+  @if (at) {
+    <time [attr.datetime]="time.iso(at)" [title]="time.absolute(at)">{{ time.relative(at) }}</time>
+  } @else {
+    <span class="gw-fg-muted">No call yet</span>
+  }
+</ng-template>
+
+<ng-template #lastCallCaption let-at>@if (at) {last call <time [attr.datetime]="time.iso(at)" [title]="time.absolute(at, false)">{{ time.relative(at) }}</time>} @else {no call yet}</ng-template>
+
+<ng-template #authValue>
+  @for (p of auth(); track $index) {@if (p.code) {<code class="gw-code">{{ p.text }}</code>} @else {{{ p.text }}}}
+</ng-template>
+
+<ng-template #openConfigButton>
+  <button class="gw-btn gw-btn--ghost" [class.gw-btn--sm]="!alone()" type="button" [attr.aria-disabled]="canOpenConfig() ? null : 'true'" [attr.aria-describedby]="canOpenConfig() ? null : uid + '-oc-why'" (click)="onOpenConfig()">Open config<span class="gw-sr-only"> of {{ c().name }}</span></button>
+  @if (!canOpenConfig()) {
+    <span class="gw-sr-only" [id]="uid + '-oc-why'">Opens the file in the desktop app</span>
+  }
+</ng-template>
+
+@if (variant() === 'compact') {
+  <div class="gw-client-card__row">
+    <span [gwClientMark]="c().client"></span>
+    <div class="gw-client-card__main">
+      <span class="gw-text-ui">{{ c().name }}</span>
+      <!-- pages/endpoint-detail.html › Clients: how it reaches this endpoint, its other endpoints, how it gets a token. -->
+      @if (scoped(); as l) {
+        @let others = compactOthers();
+        @if (bridge()) {
+          <span class="gw-text-caption gw-fg-muted">Bridge extension (.mcpb)@if (others.length) {, also on @for (o of others; track o) {<span class="gw-mono">{{ o }}</span>@if (!$last) {{{ $index === others.length - 2 ? ' and ' : ', ' }}}}} · token issued on the fly · <ng-container [ngTemplateOutlet]="lastCallCaption" [ngTemplateOutletContext]="{ $implicit: l.lastCallAt }" /></span>
+        } @else {
+          <span class="gw-text-caption gw-fg-muted gw-client-card__via"><span class="gw-mono">{{ l.configDisplay ?? c().configDisplay }}</span>@if (l.grantLabel) { · access <span class="gw-mono">{{ l.grantLabel }}</span>, token issued on the fly} @else if (l.tokenName) { · token <span class="gw-mono">{{ l.tokenName }}</span>} · <ng-container [ngTemplateOutlet]="lastCallCaption" [ngTemplateOutletContext]="{ $implicit: l.lastCallAt }" /></span>
+        }
+      } @else if (bridge()) {
+        <span class="gw-text-caption gw-fg-muted">Bridge extension (.mcpb) · not connected to <span class="gw-mono">{{ endpoint() }}</span></span>
+      } @else {
+        <span class="gw-text-caption gw-fg-muted gw-client-card__via"><span class="gw-mono">{{ c().configDisplay }}</span> · installed, not connected to <span class="gw-mono">{{ endpoint() }}</span></span>
+      }
+    </div>
+    <span class="gw-status gw-status--{{ compactLook().tone }} gw-client-card__status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ compactLook().text }}</span></span>
+    <div class="gw-client-card__actions">
+      @if (scoped(); as l) {
+        <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/activity" [queryParams]="activity(c().client, l.endpoint)">View activity<span class="gw-sr-only"> of {{ c().name }}</span></a>
+        <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askDisconnect(l, $any($event.currentTarget))">Disconnect<span class="gw-sr-only"> {{ c().name }}{{ table() ? ' from ' + l.endpoint : '' }}</span></button>
+      } @else if (c().status === 'not-installed') {
+        <a class="gw-btn gw-btn--link gw-btn--sm" [href]="installUrl()" target="_blank" rel="noopener noreferrer">How to install<span class="gw-sr-only"> {{ c().name }} (opens in your browser)</span><svg lucideIcon="external-link" class="gw-icon gw-icon--sm"></svg></a>
+      } @else {
+        <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="dialog" (click)="openConnect($any($event.currentTarget))"><svg lucideIcon="plug-zap" class="gw-icon gw-icon--sm"></svg>Connect<span class="gw-sr-only"> {{ c().name }}</span></button>
+      }
+    </div>
+  </div>
+} @else {
+  <header class="gw-card__header gw-client-card__header">
+    <div class="gw-client-card__identity">
+      <span [gwClientMark]="c().client" size="lg"></span>
+      <div class="gw-card__heading">
+        @switch (level()) {
+          @case (2) { <h2 class="gw-card__title" [id]="uid + '-t'">{{ c().name }}</h2> }
+          @case (4) { <h4 class="gw-card__title" [id]="uid + '-t'">{{ c().name }}</h4> }
+          @default { <h3 class="gw-card__title" [id]="uid + '-t'">{{ c().name }}</h3> }
+        }
+        <p class="gw-card__description gw-client-card__via" [class.gw-mono]="via().mono">{{ via().text }}</p>
+      </div>
+    </div>
+    <span class="gw-status gw-status--{{ look().tone }} gw-client-card__status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ look().text }}</span></span>
+  </header>
+
+  <div class="gw-card__body gw-stack gw-client-card__body">
+    @switch (state()) {
+      @case ('error') {
+        @if (failure(); as f) {
+          <div class="gw-alert gw-alert--danger">
+            <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content">
+              <p class="gw-alert__title">@for (p of f.title; track $index) {@if (p.code) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</p>
+              <p class="gw-alert__body">@for (p of f.body; track $index) {@if (p.code) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</p>
+            </div>
+          </div>
+          @if (f.fix; as fix) {
+            <gw-code-block [text]="fix.text" [lang]="langLabel(fix.language)" [filename]="fix.title" [copyLabel]="fix.label" [regionLabel]="(fix.label === 'command' ? 'Command to ' : 'Entry to ') + fix.title.toLowerCase()" [id]="uid + '-fix'" />
+          }
+        } @else {
+          <div class="gw-alert gw-alert--danger">
+            <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content">
+              <p class="gw-alert__title">{{ c().statusText }}</p>
+              <p class="gw-alert__body">Connect again to write the entry back; the file is backed up first. Or disconnect to forget it.</p>
+            </div>
+          </div>
+        }
+      }
+      @case ('needs-restart') {
+        <div class="gw-alert gw-alert--warning">
+          <svg lucideIcon="rotate-cw" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content">
+            <p class="gw-alert__title">{{ restart().title }}</p>
+            <p class="gw-alert__body">{{ restart().body }}</p>
+          </div>
+        </div>
+      }
+      @case ('not-installed') {
+        <p class="gw-text-small gw-fg-secondary">{{ missing() }}</p>
+      }
+      @case ('detected') {
+        @if (alone()) {
+          <p class="gw-text-small gw-fg-secondary">@if (bridge()) {Found on this machine. Connect installs the bridge extension; nothing is written to its config.} @else {Found on this machine. Connect adds one server to its config; you see the exact change before anything is written.}</p>
+        }
+      }
+    }
+
+    @for (w of c().warnings; track $index) {
+      <div class="gw-alert gw-alert--warning gw-alert--compact">
+        <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content"><p class="gw-alert__title">{{ w }}</p></div>
+      </div>
+    }
+
+    @if (state() !== 'error' || !failure()) {
+      @if (table()) {
+        <dl class="gw-kv gw-kv--dense">
+          <div class="gw-kv__row"><dt class="gw-kv__key">Auth</dt><dd class="gw-kv__value"><ng-container [ngTemplateOutlet]="authValue" /></dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key">Last call</dt><dd class="gw-kv__value"><ng-container [ngTemplateOutlet]="lastCallTime" [ngTemplateOutletContext]="{ $implicit: lastCall() }" /></dd></div>
+        </dl>
+        <div class="gw-table-wrap" role="region" [attr.aria-labelledby]="uid + '-ep-cap'" tabindex="0">
+          <table class="gw-table gw-table--dense">
+            <caption class="gw-sr-only" [id]="uid + '-ep-cap'">Endpoints {{ c().name }} is connected to</caption>
+            <thead><tr><th scope="col">Endpoint</th><th scope="col">Tools</th><th scope="col">Last call</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th></tr></thead>
+            <tbody>
+              @for (r of rows(); track r.link.id) {
+                <tr>
+                  <th scope="row"><a class="gw-link gw-mono" [routerLink]="['/endpoints', r.link.endpoint]">{{ r.link.endpoint }}</a>@if (r.link.env === 'prod') { <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--prod">prod</span>}</th>
+                  <td>@if (r.tools; as t) {<span class="gw-tabular">{{ t.total }}</span> @if (t.modes) {<span class="gw-fg-muted">· {{ t.modes }}</span>}} @else {<span class="gw-fg-muted">Unknown</span>}</td>
+                  <td><ng-container [ngTemplateOutlet]="lastCallTime" [ngTemplateOutletContext]="{ $implicit: r.link.lastCallAt }" /></td>
+                  <td class="gw-table__cell--actions">
+                    <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/activity" [queryParams]="activity(c().client, r.link.endpoint)">View activity<span class="gw-sr-only"> of {{ c().name }} on {{ r.link.endpoint }}</span></a>
+                    <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askDisconnect(r.link, $any($event.currentTarget))">Disconnect<span class="gw-sr-only"> {{ c().name }} from {{ r.link.endpoint }}</span></button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <dl class="gw-kv gw-kv--dense">
+          @switch (state()) {
+            @case ('connected') {
+              <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><a class="gw-link gw-mono" [routerLink]="['/endpoints', link()!.endpoint]">{{ link()!.endpoint }}</a>@if (endpointInfo(); as e) { · {{ toolCount(e) }}}</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Auth</dt><dd class="gw-kv__value"><ng-container [ngTemplateOutlet]="authValue" /></dd></div>
+              @if (approvals(); as mode) {
+                <!-- Codex's own approval prompt, as its entry sets it (default_tools_approval_mode). -->
+                <div class="gw-kv__row"><dt class="gw-kv__key">Approvals</dt><dd class="gw-kv__value">{{ mode === 'writes' ? c().name + ' asks before write tools too:' : mode === 'prompt' ? c().name + ' asks before every tool:' : c().name + ' asks as its entry says:' }} <code class="gw-code">default_tools_approval_mode = "{{ mode }}"</code></dd></div>
+              }
+              <div class="gw-kv__row"><dt class="gw-kv__key">Last call</dt><dd class="gw-kv__value"><ng-container [ngTemplateOutlet]="lastCallTime" [ngTemplateOutletContext]="{ $implicit: lastCall() }" /></dd></div>
+            }
+            @case ('needs-restart') {
+              <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><a class="gw-link gw-mono" [routerLink]="['/endpoints', link()!.endpoint]">{{ endpointInfo()?.url ?? link()!.endpoint }}</a></dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Auth</dt><dd class="gw-kv__value"><ng-container [ngTemplateOutlet]="authValue" /></dd></div>
+              @if (backup()) {
+                <div class="gw-kv__row"><dt class="gw-kv__key">Backup</dt><dd class="gw-kv__value gw-mono">{{ backup() }}</dd></div>
+              }
+            }
+            @case ('error') {
+              @if (link(); as l) {
+                <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><a class="gw-link gw-mono" [routerLink]="['/endpoints', l.endpoint]">{{ l.endpoint }}</a></dd></div>
+              }
+              <div class="gw-kv__row"><dt class="gw-kv__key">Auth</dt><dd class="gw-kv__value"><ng-container [ngTemplateOutlet]="authValue" /></dd></div>
+            }
+            @case ('detected') {
+              @if (!alone()) {
+                <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value">None yet</dd></div>
+              }
+              <div class="gw-kv__row"><dt class="gw-kv__key">Auth</dt><dd class="gw-kv__value"><ng-container [ngTemplateOutlet]="authValue" /></dd></div>
+            }
+            @default {
+              <div class="gw-kv__row"><dt class="gw-kv__key">Auth</dt><dd class="gw-kv__value"><ng-container [ngTemplateOutlet]="authValue" /></dd></div>
+            }
+          }
+        </dl>
+        @if (entry(); as en) {
+          <!-- The entry MCP Gateway keeps in the file, exactly as it is there (folded; Copy copies it). -->
+          <div>
+            <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [attr.aria-controls]="uid + '-entry'"><svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg> Entry in {{ entryFile() }}<span class="gw-sr-only"> of {{ c().name }}</span></button>
+          </div>
+          <div [id]="uid + '-entry'" hidden>
+            <gw-code-block [text]="en.text" [language]="en.language" [lang]="en.language.toUpperCase()" [filename]="en.file" [copyLabel]="c().name + ' entry'" [regionLabel]="'Gateway entry in ' + en.file" [id]="uid + '-entry-pre'" />
+          </div>
+        }
+      }
+    }
+  </div>
+
+
+  @switch (state()) {
+    @case ('connected') {
+      <footer class="gw-card__footer gw-card__footer--split gw-client-card__footer">
+        <a class="gw-btn gw-btn--link gw-btn--sm" routerLink="/activity" [queryParams]="activity(c().client)">View activity<span class="gw-sr-only"> of {{ c().name }}{{ table() ? ' on every endpoint' : '' }}</span></a>
+        <div class="gw-client-card__actions">
+          @if (hasConfig()) {
+            <ng-container [ngTemplateOutlet]="openConfigButton" />
+          }
+          @if (table()) {
+            @if (free().length) {
+              <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="dialog" (click)="bridge() ? openAdd($any($event.currentTarget)) : openConnect($any($event.currentTarget))"><svg lucideIcon="plus" class="gw-icon gw-icon--sm"></svg>Add endpoint<span class="gw-sr-only"> to {{ c().name }}</span></button>
+            }
+            @if (bridge()) {
+              <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askRemoveBridge($any($event.currentTarget))">Remove bridge<span class="gw-sr-only"> from {{ c().name }}</span></button>
+            }
+          } @else {
+            <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askDisconnect(link()!, $any($event.currentTarget))">Disconnect<span class="gw-sr-only"> {{ c().name }}</span></button>
+          }
+        </div>
+      </footer>
+    }
+    @case ('detected') {
+      <footer class="gw-card__footer gw-client-card__footer">
+        <div class="gw-client-card__actions">
+          @if (hasConfig()) {
+            <ng-container [ngTemplateOutlet]="openConfigButton" />
+          }
+          <button class="gw-btn" [class.gw-btn--primary]="alone()" [class.gw-btn--sm]="!alone()" type="button" aria-haspopup="dialog" (click)="openConnect($any($event.currentTarget))"><svg lucideIcon="plug-zap" class="gw-icon" [class.gw-icon--sm]="!alone()"></svg>Connect<span class="gw-sr-only"> {{ c().name }}</span></button>
+        </div>
+      </footer>
+    }
+    @case ('not-installed') {
+      <footer class="gw-card__footer gw-card__footer--split gw-client-card__footer">
+        <a class="gw-btn gw-btn--link gw-btn--sm" [href]="installUrl()" target="_blank" rel="noopener noreferrer">How to install<span class="gw-sr-only"> {{ c().name }} (opens in your browser)</span><svg lucideIcon="external-link" class="gw-icon gw-icon--sm"></svg></a>
+        <div class="gw-client-card__actions">
+          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" [attr.aria-busy]="scanning() ? 'true' : null" [attr.aria-disabled]="scanning() ? 'true' : null" (click)="scanning() || scan.emit()">@if (scanning()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="refresh-cw" class="gw-icon gw-icon--sm"></svg>}Check again<span class="gw-sr-only"> for {{ c().name }}</span></button>
+        </div>
+      </footer>
+    }
+    @case ('needs-restart') {
+      <footer class="gw-card__footer gw-client-card__footer">
+        <div class="gw-client-card__actions">
+          @if (hasConfig()) {
+            <ng-container [ngTemplateOutlet]="openConfigButton" />
+          }
+          @if (link(); as l) {
+            <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askDisconnect(l, $any($event.currentTarget))">Disconnect<span class="gw-sr-only"> {{ c().name }}</span></button>
+          }
+        </div>
+      </footer>
+    }
+    @case ('error') {
+      <footer class="gw-card__footer gw-client-card__footer">
+        <div class="gw-client-card__actions">
+          @if (hasConfig()) {
+            <ng-container [ngTemplateOutlet]="openConfigButton" />
+          }
+          @if (!failure() && link(); as l) {
+            <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askDisconnect(l, $any($event.currentTarget))">Disconnect<span class="gw-sr-only"> {{ c().name }}</span></button>
+          }
+          <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="dialog" (click)="openConnect($any($event.currentTarget))"><svg lucideIcon="refresh-cw" class="gw-icon gw-icon--sm"></svg>{{ failure() ? 'Try again' : 'Connect again' }}<span class="gw-sr-only"> to connect {{ c().name }}</span></button>
+        </div>
+      </footer>
+    }
+  }
+
+}
+
+<!-- Connect: the exact change before anything is written. Initial focus: the endpoint select. -->
+<dialog class="gw-dialog gw-dialog--lg" gwDialog #connectDialog="gwDialog" gwDialogStatic [attr.aria-labelledby]="uid + '-cn-t'" [attr.aria-describedby]="uid + '-cn-d'">
+  <form method="dialog" (submit)="onConnectSubmit($event)">
+      <header class="gw-dialog__header">
+        <span class="gw-icon-tile"><svg lucideIcon="plug-zap" class="gw-icon"></svg></span>
+        <h2 class="gw-dialog__title" [id]="uid + '-cn-t'">Connect {{ c().name }}</h2>
+        <p class="gw-dialog__description" [id]="uid + '-cn-d'">@if (bridge()) {Installs the bridge extension in Claude Desktop. Nothing is written to its config, and no token is stored.} @else {Adds one server to <span class="gw-mono">{{ c().configDisplay }}</span>. Nothing else in the file changes, and a backup is kept.}</p>
+        <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+      </header>
+      <div class="gw-dialog__body">
+        <div gwClientConnectFlow #flow [card]="c()" [endpoints]="connectEndpoints()" [endpoint]="endpoint()" [preview]="connectPreview()" [loading]="connectLoading()" [failure]="connectFailure()" [idPrefix]="uid + '-cn'" autofocus wrap (requestChange)="onPreviewRequest($event)"></div>
+      </div>
+      <footer class="gw-dialog__footer">
+        @if (connectBlocked()) {
+          <p class="gw-sr-only" [id]="uid + '-cn-why'">{{ connectFailure() ? 'The change can’t be written' : 'Waiting for the exact change' }}</p>
+        }
+        <button class="gw-btn" type="button" gwDialogClose>Cancel</button>
+        <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-disabled]="connectBlocked() ? 'true' : null" [attr.aria-describedby]="connectBlocked() ? uid + '-cn-why' : null">Confirm and connect</button>
+      </footer>
+    </form>
+</dialog>
+
+<!-- Claude Desktop: one more endpoint through the bridge. Initial focus: the endpoint select. -->
+<dialog class="gw-dialog gw-dialog--sm" gwDialog #addDialog="gwDialog" gwDialogStatic [attr.aria-labelledby]="uid + '-add-t'" [attr.aria-describedby]="uid + '-add-d'">
+  <form method="dialog" (submit)="$event.preventDefault(); confirmAdd()">
+      <header class="gw-dialog__header">
+        <span class="gw-icon-tile"><svg lucideIcon="plug-zap" class="gw-icon"></svg></span>
+        <h2 class="gw-dialog__title" [id]="uid + '-add-t'">Add an endpoint to {{ c().name }}</h2>
+        <p class="gw-dialog__description" [id]="uid + '-add-d'">One more bridge extension, for this endpoint only: Claude Desktop opens its install dialog for it. Nothing is written to a config file, and no token is stored.</p>
+        <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+      </header>
+      <div class="gw-dialog__body">
+        <div class="gw-field">
+          <label class="gw-field__label" [for]="uid + '-add-ep'">Endpoint</label>
+          <select class="gw-select" [id]="uid + '-add-ep'" [attr.aria-describedby]="uid + '-add-ep-hint'" autofocus (change)="onAddChoice($event)">
+            @for (e of free(); track e.slug) {
+              <option [value]="e.slug" [selected]="e.slug === addSlug()">{{ endpointOption(e) }}</option>
+            }
+          </select>
+          <p class="gw-field__hint" [id]="uid + '-add-ep-hint'">Endpoints {{ c().name }} doesn't have yet. It already reaches @for (l of c().links; track l.id; let last = $last; let i = $index) {@if (i > 0) {{{ last ? ' and ' : ', ' }}}<span class="gw-mono">{{ l.endpoint }}</span>}.</p>
+        </div>
+      </div>
+      <footer class="gw-dialog__footer">
+        <button class="gw-btn" type="button" gwDialogClose>Cancel</button>
+        <button class="gw-btn gw-btn--primary" type="submit" value="add">Add {{ addSlug() }}</button>
+      </footer>
+    </form>
+</dialog>
+
+<!-- Disconnect (gw-dialog--sm --danger, Cancel autofocus) -->
+<dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" gwDialog #disconnectDialog="gwDialog" [attr.aria-labelledby]="leaving() ? uid + '-dc-t' : null" [attr.aria-describedby]="leaving() ? uid + '-dc-d' : null">
+  @if (leaving(); as l) {
+    @let w = leavingWords()!;
+    <header class="gw-dialog__header">
+      <span class="gw-icon-tile"><svg lucideIcon="unplug" class="gw-icon"></svg></span>
+      <h2 class="gw-dialog__title" [id]="uid + '-dc-t'">{{ w.title }}</h2>
+      <p class="gw-dialog__description" [id]="uid + '-dc-d'">@for (p of w.body; track $index) {@if (p.code) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</p>
+      <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+    </header>
+    <div class="gw-dialog__body gw-stack gw-stack--sm">
+      @if (leavingFacts(); as f) {
+        <dl class="gw-kv gw-kv--dense">
+          @if (f.removes) {
+            <div class="gw-kv__row"><dt class="gw-kv__key">Removes</dt><dd class="gw-kv__value">@for (p of f.removes; track $index) {@if (p.code) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</dd></div>
+          }
+          @if (f.revokes) {
+            <div class="gw-kv__row"><dt class="gw-kv__key">Revokes</dt><dd class="gw-kv__value">@for (p of f.revokes; track $index) {@if (p.code) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</dd></div>
+          }
+          @if (l.method !== 'mcpb') {
+            <!-- A config file is edited: its copy is kept first (the extension has no file to back up). -->
+            <div class="gw-kv__row"><dt class="gw-kv__key">Backup</dt>@if (matchingPreview()) {<dd class="gw-kv__value gw-mono">{{ f.backup ?? 'None: the file is gone' }}</dd>} @else {<dd class="gw-kv__value"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> Preparing…</dd>}</div>
+          }
+        </dl>
+      }
+      <!-- The core's notes: what stays (an extension Claude Desktop keeps until removed there, an entry changed outside). -->
+      @for (n of leavingNotes(); track $index) {
+        <p class="gw-text-small gw-fg-secondary">{{ n }}</p>
+      }
+    </div>
+    <footer class="gw-dialog__footer">
+      @if (!matchingPreview()) {
+        <p class="gw-sr-only" [id]="uid + '-dc-why'">Waiting for the exact change</p>
+      }
+      <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
+      <button class="gw-btn gw-btn--danger" type="button" [attr.aria-disabled]="matchingPreview() ? null : 'true'" [attr.aria-describedby]="matchingPreview() ? null : uid + '-dc-why'" (click)="confirmDisconnect()">{{ w.button }}</button>
+    </footer>
+  }
+</dialog>
+
+<!-- Remove bridge: every endpoint it reaches loses access -->
+<dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" gwDialog #bridgeDialog="gwDialog" [attr.aria-labelledby]="uid + '-rb-t'" [attr.aria-describedby]="uid + '-rb-d'">
+    <header class="gw-dialog__header">
+      <span class="gw-icon-tile"><svg lucideIcon="unplug" class="gw-icon"></svg></span>
+      <h2 class="gw-dialog__title" [id]="uid + '-rb-t'">Remove the bridge from {{ c().name }}?</h2>
+      <p class="gw-dialog__description" [id]="uid + '-rb-d'">{{ c().name }} loses access to every endpoint below at once. Connect again any time.</p>
+      <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+    </header>
+    <div class="gw-dialog__body">
+      <dl class="gw-kv gw-kv--dense">
+        <div class="gw-kv__row"><dt class="gw-kv__key">Loses access</dt><dd class="gw-kv__value">@for (l of c().links; track l.id; let last = $last; let i = $index) {@if (i > 0) {{{ last ? ' and ' : ', ' }}}<span class="gw-mono">{{ l.endpoint }}</span>@if (l.env === 'prod') { <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--prod gw-env--sm">prod</span>}}</dd></div>
+        @if (bridgeFiles().length) {
+          <div class="gw-kv__row"><dt class="gw-kv__key">Removes</dt><dd class="gw-kv__value">The bridge {{ bridgeFiles().length === 1 ? 'extension' : 'extensions' }} @for (f of bridgeFiles(); track f; let last = $last; let i = $index) {@if (i > 0) {{{ last ? ' and ' : ', ' }}}<span class="gw-mono">{{ f }}</span>} from {{ c().name }}</dd></div>
+        }
+        <div class="gw-kv__row"><dt class="gw-kv__key">Revokes</dt><dd class="gw-kv__value">The bridge's short-lived tokens; no new ones are issued to it</dd></div>
+      </dl>
+    </div>
+    <footer class="gw-dialog__footer">
+      <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
+      <button class="gw-btn gw-btn--danger" type="button" (click)="confirmRemoveBridge()">Remove bridge from {{ c().name }}</button>
+    </footer>
+</dialog>

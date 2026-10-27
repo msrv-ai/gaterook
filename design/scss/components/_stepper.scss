@@ -1,0 +1,217 @@
+// =============================================================
+// .gw-stepper · Wizard steps
+// -------------------------------------------------------------
+// Where the user is in a short linear flow (Add connection, first-run
+// onboarding): an ordered list of 3–5 steps (--guide: 2–3). It shows
+// progress; it is not navigation (go back with a Back button), not tabs, not
+// a checklist. The --guide steps link to the pages where the work is done.
+//
+//   <ol class="gw-stepper" aria-label="Add connection">
+//     <li class="gw-stepper__step" data-state="complete">
+//       <span class="gw-stepper__marker" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
+//       <span class="gw-stepper__label">Choose type<span class="gw-sr-only">, completed</span></span>
+//       <span class="gw-stepper__description">PostgreSQL</span>
+//     </li>
+//     <li class="gw-stepper__step" data-state="current" aria-current="step">
+//       <span class="gw-stepper__marker" aria-hidden="true">2</span>
+//       <span class="gw-stepper__label">Configure</span>
+//     </li>
+//     <li class="gw-stepper__step" data-state="upcoming">…</li>
+//   </ol>
+//
+// Orientation  horizontal from md (960px): marker, label, then a connector that
+//              fills the space to the next step. Vertical below md, or always
+//              with --vertical (side rail of a long form, onboarding).
+// --guide      a first-run guide on a page (Overview with nothing set up yet):
+//              always vertical; the label IS a heading one level below the
+//              card or section title (<h3 class="gw-stepper__label"> under an
+//              h2); the description is reading text; __content under them
+//              holds the step's own actions and cards. An upcoming step's
+//              actions are aria-disabled + aria-describedby → a visible reason.
+//              Two or three steps, never a wizard.
+// Subparts     __step         <li>, carries data-state
+//              __marker       24px circle, aria-hidden (the list gives the position)
+//              __label        step name, sentence case, a few words
+//              __description  optional caption: the choice made, or the error
+//              __content      --guide only: what you do in this step (buttons,
+//                             a row of choices, a grid of cards), under the text
+//              __actions      --guide only: a wrapping row of buttons inside
+//                             __content (<ul role="list"> of links / buttons)
+// data-state   complete  brand solid marker with a check icon; connector after it in brand
+//              current   brand 2px ring + brand number + semibold label; aria-current="step"
+//              upcoming  strong border + muted number, secondary label
+//              error     danger ring + tint + x icon; the description says what failed
+// a11y   The marker is decorative, so complete / error state is spoken by sr-only
+//   text in the label (", completed" / ", failed"); current by aria-current="step".
+//   Name the list (aria-label) after the flow.
+// Raw values: none. Connectors are decorative (1px border-strong).
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+.gw-stepper {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  &__step {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "marker label"
+      ". description";
+    align-items: start;
+    column-gap: var(--gw-space-3);
+    min-width: 0;
+    padding-bottom: var(--gw-space-5);
+
+    &:last-child { padding-bottom: 0; }
+
+    // Vertical connector: from under this marker to the next one.
+    &:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      top: calc(var(--gw-size-icon-xl) + var(--gw-space-1));
+      bottom: var(--gw-space-1);
+      inset-inline-start: calc((var(--gw-size-icon-xl) - var(--gw-border-width-default)) / 2);
+      width: var(--gw-border-width-default);
+      background: var(--gw-color-border-strong);
+    }
+  }
+
+  &__marker {
+    grid-area: marker;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--gw-size-icon-xl);
+    height: var(--gw-size-icon-xl);
+    @include gw-type(caption);
+    font-weight: var(--gw-font-weight-semibold);
+    @include gw-tabular;
+    color: var(--gw-color-text-muted);
+    background: transparent;
+    border: var(--gw-border-width-default) solid var(--gw-color-border-strong);
+    border-radius: var(--gw-radius-full);
+  }
+
+  &__label {
+    grid-area: label;
+    // 20px line centred on the 24px marker; still aligned when it wraps.
+    padding-block: var(--gw-space-0-5);
+    @include gw-type(ui);
+    color: var(--gw-color-text-secondary);
+  }
+
+  &__description {
+    grid-area: description;
+    @include gw-type(caption);
+    color: var(--gw-color-text-muted);
+    overflow-wrap: anywhere;
+  }
+
+  // ─── States ───
+  &__step[data-state="complete"] {
+    > .gw-stepper__marker {
+      color: var(--gw-color-brand-on-solid);
+      background: var(--gw-color-brand-solid);
+      border-color: var(--gw-color-brand-solid);
+    }
+    > .gw-stepper__label { color: var(--gw-color-text-primary); }
+    &:not(:last-child)::after { background: var(--gw-color-brand-fg); }
+  }
+
+  &__step[data-state="current"] {
+    > .gw-stepper__marker {
+      color: var(--gw-color-brand-fg);
+      background: var(--gw-color-brand-subtle);
+      border: var(--gw-border-width-strong) solid var(--gw-color-brand-fg);
+    }
+    > .gw-stepper__label {
+      color: var(--gw-color-text-primary);
+      font-weight: var(--gw-font-weight-semibold);
+    }
+  }
+
+  &__step[data-state="error"] {
+    > .gw-stepper__marker {
+      color: var(--gw-color-danger-fg);
+      background: var(--gw-color-danger-subtle);
+      border: var(--gw-border-width-strong) solid var(--gw-color-danger-fg);
+    }
+    > .gw-stepper__label { color: var(--gw-color-text-primary); }
+    > .gw-stepper__description { color: var(--gw-color-danger-fg); }
+  }
+}
+
+// ─── Guide: a short first-run guide with room for each step's actions ───
+.gw-stepper--guide > .gw-stepper__step {
+  padding-bottom: var(--gw-space-8);
+  row-gap: var(--gw-space-1);
+  &:last-child { padding-bottom: 0; }
+
+  > .gw-stepper__label {
+    margin: 0;
+    @include gw-type(h3);
+  }
+
+  > .gw-stepper__description {
+    @include gw-type(body-read);
+    color: var(--gw-color-text-secondary);
+    max-width: 72ch; // raw: comfortable reading measure
+  }
+
+  > .gw-stepper__content {
+    grid-column: 2;
+    min-width: 0;
+    margin-top: var(--gw-space-3);
+
+    .gw-stepper__actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--gw-space-2);
+    }
+  }
+}
+
+// ─── Horizontal from md, unless --vertical ───
+@include gw-bp-up(md) {
+  .gw-stepper:not(.gw-stepper--vertical):not(.gw-stepper--guide) {
+    flex-direction: row;
+    align-items: flex-start;
+
+    > .gw-stepper__step {
+      flex: 1 1 0;
+      grid-template-columns: auto minmax(0, max-content) minmax(var(--gw-space-6), 1fr);
+      grid-template-areas:
+        "marker label connector"
+        ". description description";
+      column-gap: var(--gw-space-2);
+      padding-bottom: 0;
+
+      &:last-child {
+        flex: 0 0 auto;
+        grid-template-columns: auto minmax(0, max-content);
+        grid-template-areas:
+          "marker label"
+          ". description";
+      }
+
+      // Connector fills the row to the next step, centred on the marker.
+      &:not(:last-child)::after {
+        position: static;
+        grid-area: connector;
+        align-self: center;
+        width: auto;
+        height: var(--gw-border-width-default);
+        margin-inline-end: var(--gw-space-2);
+      }
+    }
+  }
+}

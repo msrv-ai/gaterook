@@ -1,0 +1,198 @@
+// =============================================================
+// .gw-tabs · Tabs
+// -------------------------------------------------------------
+// Sibling views of ONE object on one page (endpoint: Tools & policies ·
+// Tokens · AI apps · Settings). Not for steps of a flow (gw-stepper), not
+// for moving between pages (gw-nav), not for a 2–3 value setting
+// (gw-segmented).
+//
+//   <div class="gw-tabs">
+//     <div class="gw-tabs__list" role="tablist" aria-label="Endpoint dev">
+//       <button class="gw-tabs__tab" type="button" role="tab" id="t-tools"
+//               aria-selected="true" aria-controls="p-tools">
+//         Tools &amp; policies <span class="gw-tabs__count">14<span class="gw-sr-only"> tools</span></span>
+//       </button>
+//       <button class="gw-tabs__tab" type="button" role="tab" id="t-tokens"
+//               aria-selected="false" aria-controls="p-tokens" tabindex="-1">Tokens</button>
+//     </div>
+//     <div class="gw-tabs__panel" role="tabpanel" id="p-tools" aria-labelledby="t-tools" tabindex="0">…</div>
+//     <div class="gw-tabs__panel" role="tabpanel" id="p-tokens" aria-labelledby="t-tokens" tabindex="0" hidden>…</div>
+//   </div>
+//
+//   In a page header the wrapper is the header slot:
+//   <div class="gw-page-header__tabs gw-tabs"><div class="gw-tabs__list" role="tablist" …>…</div></div>
+//
+// Variants
+//   (default)     underline tabs: 40px strip on a 1px rule. Selected = 2px brand
+//                 bar + primary text + semibold (three cues, never colour alone).
+//   --contained   segmented-style tabs in a bordered raised container, 32px tall
+//                 so it sits in a toolbar row: switching the VIEW of the same data
+//                 (Activity: Events / Traces). The list hugs its content.
+//                 Selected = overlay pill + strong border + primary text + semibold.
+// Subparts
+//   __list    role=tablist; scrolls horizontally when tabs overflow (never wraps)
+//   __tab     role=tab <button>; may start with a .gw-icon; label in sentence case
+//   __count   gw-counter metrics inside a tab (18px pill, tabular); brand tint
+//             when its tab is selected
+//   __panel   role=tabpanel; tabindex="0" so the panel itself is reachable when
+//             it starts with text (drop it when the first child is focusable)
+// States  [aria-selected="true"] · :disabled · :hover · :focus-visible (inset
+//         ring: the list scrolls and would clip an outer one) · panel [hidden].
+//         An unavailable tab with a reason: aria-disabled="true" +
+//         aria-describedby → the reason next to the tabs (kit.js skips it in the
+//         arrow keys and ignores a click on it, like a native `disabled` tab,
+//         which stays for a tab with nothing to explain).
+// Behaviour (assets/kit.js): click selects; ←/→, Home, End move AND select
+//   (automatic activation); roving tabindex; panel [hidden] follows
+//   aria-selected. Horizontal only: vertical section lists are gw-nav /
+//   settings-layout, not tabs.
+// a11y   The count is part of the tab name: add sr-only words ("14 tools").
+//   Name the tablist after its object (aria-label="Endpoint dev").
+// Forced colours: the selected bar is a border (author fills are dropped in
+//   Windows forced-colours mode, borders stay); the pill count keeps a
+//   transparent border for its shape.
+// Raw values: none. The 1px rule under the list is an inset shadow (not a
+//   border) so the 2px bar sits on it without being clipped by the scroller.
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+.gw-tabs {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+
+  &__list {
+    display: flex;
+    align-items: stretch;
+    gap: var(--gw-space-1);
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    box-shadow: inset 0 calc(-1 * var(--gw-border-width-default)) 0 var(--gw-color-border-default);
+    @include gw-scrollbar;
+  }
+
+  &__tab {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    gap: var(--gw-space-2);
+    height: var(--gw-size-control-lg);
+    margin: 0;
+    padding-inline: var(--gw-space-3);
+    font-family: var(--gw-font-family-sans);
+    @include gw-type(ui);
+    color: var(--gw-color-text-secondary);
+    white-space: nowrap;
+    text-decoration: none;
+    background: none;
+    border: 0;
+    border-radius: var(--gw-radius-sm) var(--gw-radius-sm) 0 0;
+    cursor: pointer;
+    user-select: none;
+    transition: color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard);
+    @include gw-focus-ring-inset;
+
+    // Bar slot on the list rule. Painted as a bottom border only when needed:
+    // a border survives forced-colours mode, a background does not.
+    &::after {
+      content: "";
+      position: absolute;
+      inset-inline: 0;
+      bottom: 0;
+    }
+
+    &:hover:not(:disabled):not([aria-disabled="true"]):not([aria-selected="true"]) {
+      color: var(--gw-color-text-primary);
+      &::after { border-bottom: var(--gw-border-width-strong) solid var(--gw-color-border-strong); }
+    }
+
+    &[aria-selected="true"] {
+      color: var(--gw-color-text-primary);
+      font-weight: var(--gw-font-weight-semibold);
+      &::after { border-bottom: var(--gw-border-width-strong) solid var(--gw-color-brand-fg); }
+    }
+
+    &:disabled,
+    &[aria-disabled="true"] {
+      color: var(--gw-color-text-disabled);
+      cursor: not-allowed;
+    }
+  }
+
+  // Same metrics as .gw-counter (18px pill, caption semibold, bg.active wash
+  // that reads on surface, canvas and raised); the transparent border keeps
+  // the pill's shape in Windows forced colours.
+  &__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    min-width: calc(var(--gw-font-line-height-xs) + 2 * var(--gw-border-width-default));
+    padding-inline: var(--gw-space-1);
+    @include gw-type(caption);
+    font-weight: var(--gw-font-weight-semibold);
+    @include gw-tabular;
+    color: var(--gw-color-text-secondary);
+    background: var(--gw-color-bg-active);
+    border: var(--gw-border-width-default) solid transparent;
+    border-radius: var(--gw-radius-full);
+  }
+
+  &__tab[aria-selected="true"] > &__count {
+    color: var(--gw-color-brand-fg);
+    background: var(--gw-color-brand-subtle);
+  }
+
+  &__tab:disabled > &__count,
+  &__tab[aria-disabled="true"] > &__count { color: inherit; }
+
+  &__panel {
+    min-width: 0;
+    padding-top: var(--gw-space-4);
+    border-radius: var(--gw-radius-xs);
+    @include gw-focus-ring;
+  }
+
+  // ─── Contained: view switcher in a toolbar ───
+  &--contained {
+    align-items: flex-start;
+
+    > .gw-tabs__panel { align-self: stretch; }
+
+    > .gw-tabs__list {
+      display: inline-flex;
+      gap: var(--gw-space-0-5);
+      max-width: 100%;
+      padding: var(--gw-space-0-5);
+      background: var(--gw-color-bg-raised);
+      border: var(--gw-border-width-default) solid var(--gw-color-border-default);
+      border-radius: var(--gw-radius-sm);
+      box-shadow: none;
+    }
+
+    > .gw-tabs__list > .gw-tabs__tab {
+      // 32px overall: the container's padding and border are inside the control
+      // height, so each tab is 26px (still above the 24px target minimum).
+      height: calc(var(--gw-size-control-md) - 2 * var(--gw-space-0-5) - 2 * var(--gw-border-width-default));
+      padding-inline: var(--gw-space-3);
+      border: var(--gw-border-width-default) solid transparent;
+      border-radius: var(--gw-radius-xs);
+
+      &::after { content: none; }
+
+      &:hover:not(:disabled):not([aria-disabled="true"]):not([aria-selected="true"]) {
+        background: var(--gw-color-bg-hover);
+      }
+
+      &[aria-selected="true"] {
+        background: var(--gw-color-bg-overlay);
+        border-color: var(--gw-color-border-strong);
+        box-shadow: var(--gw-shadow-sm);
+      }
+    }
+  }
+}

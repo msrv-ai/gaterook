@@ -1,0 +1,2012 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tool policy list · Element · GateRook kit</title>
+<link rel="icon" href="../assets/logo-mark.svg" type="image/svg+xml">
+<script src="../assets/theme-boot.js"></script>
+<link rel="stylesheet" href="../dist/gw-kit.css">
+</head>
+<body>
+<a class="gw-skip-link" href="#main">Skip to content</a>
+<main class="gw-page" id="main" tabindex="-1">
+  <header class="gw-page-header">
+    <div class="gw-page-header__row">
+      <div class="gw-page-header__heading">
+        <h1 class="gw-page-header__title">Tool policy list</h1>
+        <p class="gw-page-header__description">What agents may call on one endpoint, and how: every tool grouped by its connection, with its MCP annotations, the mode picker Off · Read only · Approval and per-tool limits over the environment policy. There is no mode that lets an agent change data without you. Used on endpoint detail (Tools &amp; policies), Policies and Playground.</p>
+      </div>
+      <div class="gw-page-header__actions">
+        <fieldset class="gw-segmented gw-segmented--sm">
+          <legend class="gw-sr-only">Theme</legend>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i>System</span></label>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i>Light</span></label>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i>Dark</span></label>
+        </fieldset>
+      </div>
+    </div>
+  </header>
+
+  <section class="gw-section" aria-labelledby="tpl-a-title">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="tpl-a-title">Endpoint dev: all tools</h2>
+      <p class="gw-section__description">Default state: the 14 tools of five of the eight dev connections (orders-mongo, cache-redis and aws-stage are collapsed out of the demo), grouped by the connection they run on. Destructive tools offer only Off or Approval, and the reason sits under the picker. The limits of <code class="gw-code">sql_query</code> are open: the row limit overrides the dev policy, the other two are inherited. <code class="gw-code">http_request</code> has one override while closed. “Set all to…” changes a whole connection.</p>
+    </header>
+    <div class="gw-tool-policy-list">
+      <div class="gw-toolbar">
+        <div class="gw-toolbar__start">
+          <div class="gw-search gw-search--sm">
+            <i class="gw-icon gw-search__icon" data-lucide="search"></i>
+            <input class="gw-search__input" type="search" id="tpl-a-q" placeholder="Search tools" aria-label="Search tools on dev">
+            <button class="gw-search__clear" type="button" aria-label="Clear search"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+          </div>
+          <div class="gw-menu-host">
+            <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="tpl-a-filter-mode"><i class="gw-icon gw-icon--sm" data-lucide="list-filter"></i>Mode: <span data-gw-menu-value>All</span><i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+            <div class="gw-menu" id="tpl-a-filter-mode" role="listbox" aria-label="Filter tools by mode" hidden>
+              <button class="gw-menu__item" type="button" role="option" aria-selected="true" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">All</span></button>
+              <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off</span></button>
+              <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only</span></button>
+              <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval</span></button>
+            </div>
+          </div>
+        </div>
+        <div class="gw-toolbar__end">
+          <p class="gw-tool-policy-list__summary" id="tpl-a-summary" role="status"><span class="gw-text-small gw-fg-secondary">14 tools<span class="gw-sr-only">:</span></span>
+            <span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>6 read only</span>
+            <span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>3 approval</span>
+            <span class="gw-mode gw-mode--off"><i class="gw-icon" data-lucide="circle-off"></i>5 off</span></p>
+        </div>
+      </div>
+      <section class="gw-card gw-card--flush" aria-labelledby="tpl-a-g-dev-db">
+        <header class="gw-card__header">
+          <div class="gw-tool-policy-list__group-heading">
+            <span class="gw-icon-tile"><i class="gw-icon" data-lucide="database"></i></span>
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="tpl-a-g-dev-db"><span class="gw-mono">dev-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></h3>
+              <p class="gw-card__description">PostgreSQL 16 · 4 tools · 3 read only · 1 approval</p>
+            </div>
+          </div>
+          <div class="gw-card__actions">
+            <div class="gw-menu-host">
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="tpl-a-bulk-dev-db">Set all to…<span class="gw-sr-only"> for dev-db tools</span><i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+              <div class="gw-menu gw-menu--right gw-menu--wide" id="tpl-a-bulk-dev-db" role="menu" aria-label="Set the mode of all 4 dev-db tools" hidden>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off<span class="gw-menu__hint">Agents can't call any dev-db tool</span></span></button>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only<span class="gw-menu__hint">sql_execute stays as it is: it changes data</span></span></button>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval<span class="gw-menu__hint">Every call waits for your decision</span></span></button>
+              </div>
+            </div>
+          </div>
+        </header>
+        <div class="gw-card__body">
+          <div class="gw-table-wrap" role="region" aria-labelledby="tpl-a-g-dev-db-cap" tabindex="0">
+            <table class="gw-table">
+              <caption class="gw-sr-only" id="tpl-a-g-dev-db-cap">Tools on dev-db</caption>
+              <thead><tr><th scope="col">Tool</th><th scope="col">Mode</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Limits</span></th></tr></thead>
+              <tbody>
+                <tr class="gw-tool-policy-list__row" data-mode="read">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <code class="gw-code">sql_list_schemas</code>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of sql_list_schemas"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">List the schemas the connection user can see.</p>
+                  </th>
+                  <td>
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm">
+                        <legend class="gw-sr-only">Mode for sql_list_schemas</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-sql_list_schemas" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-sql_list_schemas" value="read" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-sql_list_schemas" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      </fieldset>
+                    </div>
+                  </td>
+                  <td class="gw-table__cell--actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm gw-tool-policy-list__limits-toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="tpl-a-lim-sql_list_schemas">Limits<span class="gw-sr-only"> for sql_list_schemas</span><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--open" data-lucide="chevron-up"></i></button>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__limits" id="tpl-a-lim-sql_list_schemas" hidden>
+                  <td colspan="3">
+                    <div class="gw-card gw-card--muted" role="group" aria-label="Limits for sql_list_schemas">
+                      <div class="gw-card__body">
+                        <div class="gw-tool-policy-list__limits-fields">
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-sql_list_schemas-rows">Row limit</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-sql_list_schemas-rows" type="text" inputmode="numeric" autocomplete="off" placeholder="1,000" aria-describedby="tpl-a-lim-sql_list_schemas-rows-hint">
+                              <span class="gw-input-group__affix">rows</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-sql_list_schemas-rows-hint">Inherited from dev policy: 1,000 rows</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-sql_list_schemas-timeout">Timeout</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-sql_list_schemas-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="5" aria-describedby="tpl-a-lim-sql_list_schemas-timeout-hint">
+                              <span class="gw-input-group__affix">s</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-sql_list_schemas-timeout-hint">Inherited from dev policy: 5 s</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-sql_list_schemas-size">Max response size</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-sql_list_schemas-size" type="text" inputmode="numeric" autocomplete="off" placeholder="512" aria-describedby="tpl-a-lim-sql_list_schemas-size-hint">
+                              <span class="gw-input-group__affix">KB</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-sql_list_schemas-size-hint">Inherited from dev policy: 512 KB</p>
+                          </div>
+                        </div>
+                        <div class="gw-tool-policy-list__limits-footer">
+                          <p class="gw-text-caption gw-fg-muted">Empty fields follow the <a class="gw-link" href="../pages/policies.html#dev">dev policy</a>. An override can only be stricter.</p>
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" disabled><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i>Reset to dev policy<span class="gw-sr-only"> for sql_list_schemas</span></button>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__row" data-mode="read">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <code class="gw-code">sql_describe_table</code>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of sql_describe_table"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Columns, types, indexes and foreign keys of one table.</p>
+                  </th>
+                  <td>
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm">
+                        <legend class="gw-sr-only">Mode for sql_describe_table</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-sql_describe_table" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-sql_describe_table" value="read" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-sql_describe_table" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      </fieldset>
+                    </div>
+                  </td>
+                  <td class="gw-table__cell--actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm gw-tool-policy-list__limits-toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="tpl-a-lim-sql_describe_table">Limits<span class="gw-sr-only"> for sql_describe_table</span><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--open" data-lucide="chevron-up"></i></button>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__limits" id="tpl-a-lim-sql_describe_table" hidden>
+                  <td colspan="3">
+                    <div class="gw-card gw-card--muted" role="group" aria-label="Limits for sql_describe_table">
+                      <div class="gw-card__body">
+                        <div class="gw-tool-policy-list__limits-fields">
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-sql_describe_table-rows">Row limit</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-sql_describe_table-rows" type="text" inputmode="numeric" autocomplete="off" placeholder="1,000" aria-describedby="tpl-a-lim-sql_describe_table-rows-hint">
+                              <span class="gw-input-group__affix">rows</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-sql_describe_table-rows-hint">Inherited from dev policy: 1,000 rows</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-sql_describe_table-timeout">Timeout</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-sql_describe_table-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="5" aria-describedby="tpl-a-lim-sql_describe_table-timeout-hint">
+                              <span class="gw-input-group__affix">s</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-sql_describe_table-timeout-hint">Inherited from dev policy: 5 s</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-sql_describe_table-size">Max response size</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-sql_describe_table-size" type="text" inputmode="numeric" autocomplete="off" placeholder="512" aria-describedby="tpl-a-lim-sql_describe_table-size-hint">
+                              <span class="gw-input-group__affix">KB</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-sql_describe_table-size-hint">Inherited from dev policy: 512 KB</p>
+                          </div>
+                        </div>
+                        <div class="gw-tool-policy-list__limits-footer">
+                          <p class="gw-text-caption gw-fg-muted">Empty fields follow the <a class="gw-link" href="../pages/policies.html#dev">dev policy</a>. An override can only be stricter.</p>
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" disabled><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i>Reset to dev policy<span class="gw-sr-only"> for sql_describe_table</span></button>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__row" data-mode="read">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <code class="gw-code">sql_query</code>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of sql_query"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Run one SELECT in a read-only transaction. PII columns come back masked.</p>
+                  </th>
+                  <td>
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm">
+                        <legend class="gw-sr-only">Mode for sql_query</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-sql_query" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-sql_query" value="read" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-sql_query" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      </fieldset>
+                    </div>
+                  </td>
+                  <td class="gw-table__cell--actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm gw-tool-policy-list__limits-toggle" type="button" data-gw-toggle aria-expanded="true" aria-controls="tpl-a-lim-sql_query">Limits<span class="gw-sr-only"> for sql_query</span> <span class="gw-counter">1<span class="gw-sr-only"> override</span></span><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--open" data-lucide="chevron-up"></i></button>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__limits" id="tpl-a-lim-sql_query">
+                  <td colspan="3">
+                    <div class="gw-card gw-card--muted" role="group" aria-label="Limits for sql_query">
+                      <div class="gw-card__body">
+                        <div class="gw-tool-policy-list__limits-fields">
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-sql_query-rows">Row limit</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-sql_query-rows" type="text" inputmode="numeric" autocomplete="off" placeholder="1,000" value="200" aria-describedby="tpl-a-lim-sql_query-rows-hint">
+                              <span class="gw-input-group__affix">rows</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-sql_query-rows-hint">Overrides dev policy: 1,000 rows</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-sql_query-timeout">Timeout</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-sql_query-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="5" aria-describedby="tpl-a-lim-sql_query-timeout-hint">
+                              <span class="gw-input-group__affix">s</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-sql_query-timeout-hint">Inherited from dev policy: 5 s</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-sql_query-size">Max response size</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-sql_query-size" type="text" inputmode="numeric" autocomplete="off" placeholder="512" aria-describedby="tpl-a-lim-sql_query-size-hint">
+                              <span class="gw-input-group__affix">KB</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-sql_query-size-hint">Inherited from dev policy: 512 KB</p>
+                          </div>
+                        </div>
+                        <div class="gw-tool-policy-list__limits-footer">
+                          <p class="gw-text-caption gw-fg-muted">Empty fields follow the <a class="gw-link" href="../pages/policies.html#dev">dev policy</a>. An override can only be stricter.</p>
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button"><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i>Reset to dev policy<span class="gw-sr-only"> for sql_query</span></button>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__row" data-mode="approval">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <code class="gw-code">sql_execute</code>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of sql_execute"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--danger" title="destructiveHint">Destructive</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">INSERT, UPDATE or DELETE. You approve the exact statement.</p>
+                  </th>
+                  <td>
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm" aria-describedby="tpl-a-why-sql_execute">
+                        <legend class="gw-sr-only">Mode for sql_execute</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-sql_execute" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-sql_execute" value="read" disabled aria-describedby="tpl-a-why-sql_execute"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-sql_execute" value="approval" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      </fieldset>
+                      <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="tpl-a-why-sql_execute"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Mutates data: approval or off</p>
+                    </div>
+                  </td>
+                  <td class="gw-table__cell--actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm gw-tool-policy-list__limits-toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="tpl-a-lim-sql_execute">Limits<span class="gw-sr-only"> for sql_execute</span><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--open" data-lucide="chevron-up"></i></button>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__limits" id="tpl-a-lim-sql_execute" hidden>
+                  <td colspan="3">
+                    <div class="gw-card gw-card--muted" role="group" aria-label="Limits for sql_execute">
+                      <div class="gw-card__body">
+                        <div class="gw-tool-policy-list__limits-fields">
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-sql_execute-rows">Row limit</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-sql_execute-rows" type="text" inputmode="numeric" autocomplete="off" placeholder="1,000" aria-describedby="tpl-a-lim-sql_execute-rows-hint">
+                              <span class="gw-input-group__affix">rows</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-sql_execute-rows-hint">Inherited from dev policy: 1,000 rows</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-sql_execute-timeout">Timeout</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-sql_execute-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="5" aria-describedby="tpl-a-lim-sql_execute-timeout-hint">
+                              <span class="gw-input-group__affix">s</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-sql_execute-timeout-hint">Inherited from dev policy: 5 s</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-sql_execute-size">Max response size</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-sql_execute-size" type="text" inputmode="numeric" autocomplete="off" placeholder="512" aria-describedby="tpl-a-lim-sql_execute-size-hint">
+                              <span class="gw-input-group__affix">KB</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-sql_execute-size-hint">Inherited from dev policy: 512 KB</p>
+                          </div>
+                        </div>
+                        <div class="gw-tool-policy-list__limits-footer">
+                          <p class="gw-text-caption gw-fg-muted">Empty fields follow the <a class="gw-link" href="../pages/policies.html#dev">dev policy</a>. An override can only be stricter.</p>
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" disabled><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i>Reset to dev policy<span class="gw-sr-only"> for sql_execute</span></button>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+      <section class="gw-card gw-card--flush" aria-labelledby="tpl-a-g-dev-vm">
+        <header class="gw-card__header">
+          <div class="gw-tool-policy-list__group-heading">
+            <span class="gw-icon-tile"><i class="gw-icon" data-lucide="terminal"></i></span>
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="tpl-a-g-dev-vm"><span class="gw-mono">dev-vm</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></h3>
+              <p class="gw-card__description">SSH · 10.20.0.14 · 2 tools · 1 read only · 1 off</p>
+            </div>
+          </div>
+          <div class="gw-card__actions">
+            <div class="gw-menu-host">
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="tpl-a-bulk-dev-vm">Set all to…<span class="gw-sr-only"> for dev-vm tools</span><i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+              <div class="gw-menu gw-menu--right gw-menu--wide" id="tpl-a-bulk-dev-vm" role="menu" aria-label="Set the mode of all 2 dev-vm tools" hidden>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off<span class="gw-menu__hint">Agents can't call any dev-vm tool</span></span></button>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only<span class="gw-menu__hint">ssh_exec stays as it is: it changes data</span></span></button>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval<span class="gw-menu__hint">Every call waits for your decision</span></span></button>
+              </div>
+            </div>
+          </div>
+        </header>
+        <div class="gw-card__body">
+          <div class="gw-table-wrap" role="region" aria-labelledby="tpl-a-g-dev-vm-cap" tabindex="0">
+            <table class="gw-table">
+              <caption class="gw-sr-only" id="tpl-a-g-dev-vm-cap">Tools on dev-vm</caption>
+              <thead><tr><th scope="col">Tool</th><th scope="col">Mode</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Limits</span></th></tr></thead>
+              <tbody>
+                <tr class="gw-tool-policy-list__row" data-mode="read">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <code class="gw-code">ssh_run</code>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Run a saved runbook with typed parameters, such as compose-ps.</p>
+                  </th>
+                  <td>
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm" aria-describedby="tpl-a-why-ssh_run">
+                        <legend class="gw-sr-only">Mode for ssh_run</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-ssh_run" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-ssh_run" value="read" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-ssh_run" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      </fieldset>
+                      <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="tpl-a-why-ssh_run"><i class="gw-icon gw-icon--xs" data-lucide="info"></i>Read only runs runbooks marked read only</p>
+                    </div>
+                  </td>
+                  <td class="gw-table__cell--actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm gw-tool-policy-list__limits-toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="tpl-a-lim-ssh_run">Limits<span class="gw-sr-only"> for ssh_run</span><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--open" data-lucide="chevron-up"></i></button>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__limits" id="tpl-a-lim-ssh_run" hidden>
+                  <td colspan="3">
+                    <div class="gw-card gw-card--muted" role="group" aria-label="Limits for ssh_run">
+                      <div class="gw-card__body">
+                        <div class="gw-tool-policy-list__limits-fields">
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-ssh_run-timeout">Timeout</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-ssh_run-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="30" aria-describedby="tpl-a-lim-ssh_run-timeout-hint">
+                              <span class="gw-input-group__affix">s</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-ssh_run-timeout-hint">Inherited from dev policy: 30 s</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-ssh_run-output">Max output size</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-ssh_run-output" type="text" inputmode="numeric" autocomplete="off" placeholder="256" aria-describedby="tpl-a-lim-ssh_run-output-hint">
+                              <span class="gw-input-group__affix">KB</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-ssh_run-output-hint">Inherited from dev policy: 256 KB</p>
+                          </div>
+                        </div>
+                        <div class="gw-tool-policy-list__limits-footer">
+                          <p class="gw-text-caption gw-fg-muted">Empty fields follow the <a class="gw-link" href="../pages/policies.html#dev">dev policy</a>. An override can only be stricter.</p>
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" disabled><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i>Reset to dev policy<span class="gw-sr-only"> for ssh_run</span></button>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__row" data-mode="off">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <code class="gw-code">ssh_exec</code>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of ssh_exec"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--danger" title="destructiveHint">Destructive</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Run any shell command on the host.</p>
+                  </th>
+                  <td>
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm" aria-describedby="tpl-a-why-ssh_exec">
+                        <legend class="gw-sr-only">Mode for ssh_exec</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-ssh_exec" value="off" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-ssh_exec" value="read" disabled aria-describedby="tpl-a-why-ssh_exec"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-ssh_exec" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      </fieldset>
+                      <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="tpl-a-why-ssh_exec"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Mutates data: approval or off</p>
+                    </div>
+                  </td>
+                  <td class="gw-table__cell--actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm gw-tool-policy-list__limits-toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="tpl-a-lim-ssh_exec">Limits<span class="gw-sr-only"> for ssh_exec</span><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--open" data-lucide="chevron-up"></i></button>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__limits" id="tpl-a-lim-ssh_exec" hidden>
+                  <td colspan="3">
+                    <div class="gw-card gw-card--muted" role="group" aria-label="Limits for ssh_exec">
+                      <div class="gw-card__body">
+                        <div class="gw-tool-policy-list__limits-fields">
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-ssh_exec-timeout">Timeout</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-ssh_exec-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="30" aria-describedby="tpl-a-lim-ssh_exec-timeout-hint">
+                              <span class="gw-input-group__affix">s</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-ssh_exec-timeout-hint">Inherited from dev policy: 30 s</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-ssh_exec-output">Max output size</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-ssh_exec-output" type="text" inputmode="numeric" autocomplete="off" placeholder="256" aria-describedby="tpl-a-lim-ssh_exec-output-hint">
+                              <span class="gw-input-group__affix">KB</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-ssh_exec-output-hint">Inherited from dev policy: 256 KB</p>
+                          </div>
+                        </div>
+                        <div class="gw-tool-policy-list__limits-footer">
+                          <p class="gw-text-caption gw-fg-muted">Empty fields follow the <a class="gw-link" href="../pages/policies.html#dev">dev policy</a>. An override can only be stricter.</p>
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" disabled><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i>Reset to dev policy<span class="gw-sr-only"> for ssh_exec</span></button>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+      <section class="gw-card gw-card--flush" aria-labelledby="tpl-a-g-dev-cluster">
+        <header class="gw-card__header">
+          <div class="gw-tool-policy-list__group-heading">
+            <span class="gw-icon-tile"><i class="gw-icon" data-lucide="ship-wheel"></i></span>
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="tpl-a-g-dev-cluster"><span class="gw-mono">dev-cluster</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></h3>
+              <p class="gw-card__description">Kubernetes · namespace app-dev · 4 tools · 1 read only · 1 approval · 2 off</p>
+            </div>
+          </div>
+          <div class="gw-card__actions">
+            <div class="gw-menu-host">
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="tpl-a-bulk-dev-cluster">Set all to…<span class="gw-sr-only"> for dev-cluster tools</span><i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+              <div class="gw-menu gw-menu--right gw-menu--wide" id="tpl-a-bulk-dev-cluster" role="menu" aria-label="Set the mode of all 4 dev-cluster tools" hidden>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off<span class="gw-menu__hint">Agents can't call any dev-cluster tool</span></span></button>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only<span class="gw-menu__hint">k8s_rollout_restart and k8s_apply stay as they are: they change data</span></span></button>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval<span class="gw-menu__hint">Every call waits for your decision</span></span></button>
+              </div>
+            </div>
+          </div>
+        </header>
+        <div class="gw-card__body">
+          <div class="gw-table-wrap" role="region" aria-labelledby="tpl-a-g-dev-cluster-cap" tabindex="0">
+            <table class="gw-table">
+              <caption class="gw-sr-only" id="tpl-a-g-dev-cluster-cap">Tools on dev-cluster</caption>
+              <thead><tr><th scope="col">Tool</th><th scope="col">Mode</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Limits</span></th></tr></thead>
+              <tbody>
+                <tr class="gw-tool-policy-list__row" data-mode="read">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <code class="gw-code">k8s_get</code>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of k8s_get"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Get or list resources in namespace app-dev.</p>
+                  </th>
+                  <td>
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm">
+                        <legend class="gw-sr-only">Mode for k8s_get</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-k8s_get" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-k8s_get" value="read" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-k8s_get" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      </fieldset>
+                    </div>
+                  </td>
+                  <td class="gw-table__cell--actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm gw-tool-policy-list__limits-toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="tpl-a-lim-k8s_get">Limits<span class="gw-sr-only"> for k8s_get</span><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--open" data-lucide="chevron-up"></i></button>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__limits" id="tpl-a-lim-k8s_get" hidden>
+                  <td colspan="3">
+                    <div class="gw-card gw-card--muted" role="group" aria-label="Limits for k8s_get">
+                      <div class="gw-card__body">
+                        <div class="gw-tool-policy-list__limits-fields">
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-k8s_get-timeout">Timeout</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-k8s_get-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="10" aria-describedby="tpl-a-lim-k8s_get-timeout-hint">
+                              <span class="gw-input-group__affix">s</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-k8s_get-timeout-hint">Inherited from dev policy: 10 s</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-k8s_get-size">Max response size</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-k8s_get-size" type="text" inputmode="numeric" autocomplete="off" placeholder="512" aria-describedby="tpl-a-lim-k8s_get-size-hint">
+                              <span class="gw-input-group__affix">KB</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-k8s_get-size-hint">Inherited from dev policy: 512 KB</p>
+                          </div>
+                        </div>
+                        <div class="gw-tool-policy-list__limits-footer">
+                          <p class="gw-text-caption gw-fg-muted">Empty fields follow the <a class="gw-link" href="../pages/policies.html#dev">dev policy</a>. An override can only be stricter.</p>
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" disabled><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i>Reset to dev policy<span class="gw-sr-only"> for k8s_get</span></button>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__row" data-mode="off">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <code class="gw-code">k8s_logs</code>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of k8s_logs"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Read the logs of one container.</p>
+                  </th>
+                  <td>
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm">
+                        <legend class="gw-sr-only">Mode for k8s_logs</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-k8s_logs" value="off" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-k8s_logs" value="read"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-k8s_logs" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      </fieldset>
+                    </div>
+                  </td>
+                  <td class="gw-table__cell--actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm gw-tool-policy-list__limits-toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="tpl-a-lim-k8s_logs">Limits<span class="gw-sr-only"> for k8s_logs</span><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--open" data-lucide="chevron-up"></i></button>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__limits" id="tpl-a-lim-k8s_logs" hidden>
+                  <td colspan="3">
+                    <div class="gw-card gw-card--muted" role="group" aria-label="Limits for k8s_logs">
+                      <div class="gw-card__body">
+                        <div class="gw-tool-policy-list__limits-fields">
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-k8s_logs-timeout">Timeout</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-k8s_logs-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="10" aria-describedby="tpl-a-lim-k8s_logs-timeout-hint">
+                              <span class="gw-input-group__affix">s</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-k8s_logs-timeout-hint">Inherited from dev policy: 10 s</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-k8s_logs-size">Max response size</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-k8s_logs-size" type="text" inputmode="numeric" autocomplete="off" placeholder="512" aria-describedby="tpl-a-lim-k8s_logs-size-hint">
+                              <span class="gw-input-group__affix">KB</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-k8s_logs-size-hint">Inherited from dev policy: 512 KB</p>
+                          </div>
+                        </div>
+                        <div class="gw-tool-policy-list__limits-footer">
+                          <p class="gw-text-caption gw-fg-muted">Empty fields follow the <a class="gw-link" href="../pages/policies.html#dev">dev policy</a>. An override can only be stricter.</p>
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" disabled><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i>Reset to dev policy<span class="gw-sr-only"> for k8s_logs</span></button>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__row" data-mode="approval">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <code class="gw-code">k8s_rollout_restart</code>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of k8s_rollout_restart"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--danger" title="destructiveHint">Destructive</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Restart a deployment, one pod at a time.</p>
+                  </th>
+                  <td>
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm" aria-describedby="tpl-a-why-k8s_rollout_restart">
+                        <legend class="gw-sr-only">Mode for k8s_rollout_restart</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-k8s_rollout_restart" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-k8s_rollout_restart" value="read" disabled aria-describedby="tpl-a-why-k8s_rollout_restart"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-k8s_rollout_restart" value="approval" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      </fieldset>
+                      <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="tpl-a-why-k8s_rollout_restart"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Mutates data: approval or off</p>
+                    </div>
+                  </td>
+                  <td class="gw-table__cell--actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm gw-tool-policy-list__limits-toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="tpl-a-lim-k8s_rollout_restart">Limits<span class="gw-sr-only"> for k8s_rollout_restart</span><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--open" data-lucide="chevron-up"></i></button>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__limits" id="tpl-a-lim-k8s_rollout_restart" hidden>
+                  <td colspan="3">
+                    <div class="gw-card gw-card--muted" role="group" aria-label="Limits for k8s_rollout_restart">
+                      <div class="gw-card__body">
+                        <div class="gw-tool-policy-list__limits-fields">
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-k8s_rollout_restart-timeout">Timeout</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-k8s_rollout_restart-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="10" aria-describedby="tpl-a-lim-k8s_rollout_restart-timeout-hint">
+                              <span class="gw-input-group__affix">s</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-k8s_rollout_restart-timeout-hint">Inherited from dev policy: 10 s</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-k8s_rollout_restart-size">Max response size</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-k8s_rollout_restart-size" type="text" inputmode="numeric" autocomplete="off" placeholder="512" aria-describedby="tpl-a-lim-k8s_rollout_restart-size-hint">
+                              <span class="gw-input-group__affix">KB</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-k8s_rollout_restart-size-hint">Inherited from dev policy: 512 KB</p>
+                          </div>
+                        </div>
+                        <div class="gw-tool-policy-list__limits-footer">
+                          <p class="gw-text-caption gw-fg-muted">Empty fields follow the <a class="gw-link" href="../pages/policies.html#dev">dev policy</a>. An override can only be stricter.</p>
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" disabled><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i>Reset to dev policy<span class="gw-sr-only"> for k8s_rollout_restart</span></button>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__row" data-mode="off">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <code class="gw-code">k8s_apply</code>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of k8s_apply"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--danger" title="destructiveHint">Destructive</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Apply a manifest. You approve the diff.</p>
+                  </th>
+                  <td>
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm" aria-describedby="tpl-a-why-k8s_apply">
+                        <legend class="gw-sr-only">Mode for k8s_apply</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-k8s_apply" value="off" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-k8s_apply" value="read" disabled aria-describedby="tpl-a-why-k8s_apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-k8s_apply" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      </fieldset>
+                      <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="tpl-a-why-k8s_apply"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Mutates data: approval or off</p>
+                    </div>
+                  </td>
+                  <td class="gw-table__cell--actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm gw-tool-policy-list__limits-toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="tpl-a-lim-k8s_apply">Limits<span class="gw-sr-only"> for k8s_apply</span><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--open" data-lucide="chevron-up"></i></button>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__limits" id="tpl-a-lim-k8s_apply" hidden>
+                  <td colspan="3">
+                    <div class="gw-card gw-card--muted" role="group" aria-label="Limits for k8s_apply">
+                      <div class="gw-card__body">
+                        <div class="gw-tool-policy-list__limits-fields">
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-k8s_apply-timeout">Timeout</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-k8s_apply-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="10" aria-describedby="tpl-a-lim-k8s_apply-timeout-hint">
+                              <span class="gw-input-group__affix">s</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-k8s_apply-timeout-hint">Inherited from dev policy: 10 s</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-k8s_apply-size">Max response size</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-k8s_apply-size" type="text" inputmode="numeric" autocomplete="off" placeholder="512" aria-describedby="tpl-a-lim-k8s_apply-size-hint">
+                              <span class="gw-input-group__affix">KB</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-k8s_apply-size-hint">Inherited from dev policy: 512 KB</p>
+                          </div>
+                        </div>
+                        <div class="gw-tool-policy-list__limits-footer">
+                          <p class="gw-text-caption gw-fg-muted">Empty fields follow the <a class="gw-link" href="../pages/policies.html#dev">dev policy</a>. An override can only be stricter.</p>
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" disabled><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i>Reset to dev policy<span class="gw-sr-only"> for k8s_apply</span></button>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+      <section class="gw-card gw-card--flush" aria-labelledby="tpl-a-g-app-logs">
+        <header class="gw-card__header">
+          <div class="gw-tool-policy-list__group-heading">
+            <span class="gw-icon-tile"><i class="gw-icon" data-lucide="scroll-text"></i></span>
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="tpl-a-g-app-logs"><span class="gw-mono">app-logs</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></h3>
+              <p class="gw-card__description">Loki · 2 tools · 1 read only · 1 off</p>
+            </div>
+          </div>
+          <div class="gw-card__actions">
+            <div class="gw-menu-host">
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="tpl-a-bulk-app-logs">Set all to…<span class="gw-sr-only"> for app-logs tools</span><i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+              <div class="gw-menu gw-menu--right gw-menu--wide" id="tpl-a-bulk-app-logs" role="menu" aria-label="Set the mode of all 2 app-logs tools" hidden>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off<span class="gw-menu__hint">Agents can't call any app-logs tool</span></span></button>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only<span class="gw-menu__hint">Calls run at once and can't change data</span></span></button>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval<span class="gw-menu__hint">Every call waits for your decision</span></span></button>
+              </div>
+            </div>
+          </div>
+        </header>
+        <div class="gw-card__body">
+          <div class="gw-table-wrap" role="region" aria-labelledby="tpl-a-g-app-logs-cap" tabindex="0">
+            <table class="gw-table">
+              <caption class="gw-sr-only" id="tpl-a-g-app-logs-cap">Tools on app-logs</caption>
+              <thead><tr><th scope="col">Tool</th><th scope="col">Mode</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Limits</span></th></tr></thead>
+              <tbody>
+                <tr class="gw-tool-policy-list__row" data-mode="read">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <code class="gw-code">logs_search</code>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of logs_search"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Search log lines with a LogQL query.</p>
+                  </th>
+                  <td>
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm">
+                        <legend class="gw-sr-only">Mode for logs_search</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-logs_search" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-logs_search" value="read" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-logs_search" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      </fieldset>
+                    </div>
+                  </td>
+                  <td class="gw-table__cell--actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm gw-tool-policy-list__limits-toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="tpl-a-lim-logs_search">Limits<span class="gw-sr-only"> for logs_search</span><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--open" data-lucide="chevron-up"></i></button>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__limits" id="tpl-a-lim-logs_search" hidden>
+                  <td colspan="3">
+                    <div class="gw-card gw-card--muted" role="group" aria-label="Limits for logs_search">
+                      <div class="gw-card__body">
+                        <div class="gw-tool-policy-list__limits-fields">
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-logs_search-lines">Line limit</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-logs_search-lines" type="text" inputmode="numeric" autocomplete="off" placeholder="1,000" aria-describedby="tpl-a-lim-logs_search-lines-hint">
+                              <span class="gw-input-group__affix">lines</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-logs_search-lines-hint">Inherited from dev policy: 1,000 lines</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-logs_search-timeout">Timeout</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-logs_search-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="10" aria-describedby="tpl-a-lim-logs_search-timeout-hint">
+                              <span class="gw-input-group__affix">s</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-logs_search-timeout-hint">Inherited from dev policy: 10 s</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-logs_search-size">Max response size</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-logs_search-size" type="text" inputmode="numeric" autocomplete="off" placeholder="512" aria-describedby="tpl-a-lim-logs_search-size-hint">
+                              <span class="gw-input-group__affix">KB</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-logs_search-size-hint">Inherited from dev policy: 512 KB</p>
+                          </div>
+                        </div>
+                        <div class="gw-tool-policy-list__limits-footer">
+                          <p class="gw-text-caption gw-fg-muted">Empty fields follow the <a class="gw-link" href="../pages/policies.html#dev">dev policy</a>. An override can only be stricter.</p>
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" disabled><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i>Reset to dev policy<span class="gw-sr-only"> for logs_search</span></button>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__row" data-mode="off">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <code class="gw-code">logs_tail</code>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of logs_tail"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Stream new log lines for up to 5 minutes.</p>
+                  </th>
+                  <td>
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm">
+                        <legend class="gw-sr-only">Mode for logs_tail</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-logs_tail" value="off" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-logs_tail" value="read"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-logs_tail" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      </fieldset>
+                    </div>
+                  </td>
+                  <td class="gw-table__cell--actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm gw-tool-policy-list__limits-toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="tpl-a-lim-logs_tail">Limits<span class="gw-sr-only"> for logs_tail</span><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--open" data-lucide="chevron-up"></i></button>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__limits" id="tpl-a-lim-logs_tail" hidden>
+                  <td colspan="3">
+                    <div class="gw-card gw-card--muted" role="group" aria-label="Limits for logs_tail">
+                      <div class="gw-card__body">
+                        <div class="gw-tool-policy-list__limits-fields">
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-logs_tail-lines">Line limit</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-logs_tail-lines" type="text" inputmode="numeric" autocomplete="off" placeholder="1,000" aria-describedby="tpl-a-lim-logs_tail-lines-hint">
+                              <span class="gw-input-group__affix">lines</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-logs_tail-lines-hint">Inherited from dev policy: 1,000 lines</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-logs_tail-timeout">Timeout</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-logs_tail-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="10" aria-describedby="tpl-a-lim-logs_tail-timeout-hint">
+                              <span class="gw-input-group__affix">s</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-logs_tail-timeout-hint">Inherited from dev policy: 10 s</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-logs_tail-size">Max response size</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-logs_tail-size" type="text" inputmode="numeric" autocomplete="off" placeholder="512" aria-describedby="tpl-a-lim-logs_tail-size-hint">
+                              <span class="gw-input-group__affix">KB</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-logs_tail-size-hint">Inherited from dev policy: 512 KB</p>
+                          </div>
+                        </div>
+                        <div class="gw-tool-policy-list__limits-footer">
+                          <p class="gw-text-caption gw-fg-muted">Empty fields follow the <a class="gw-link" href="../pages/policies.html#dev">dev policy</a>. An override can only be stricter.</p>
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" disabled><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i>Reset to dev policy<span class="gw-sr-only"> for logs_tail</span></button>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+      <section class="gw-card gw-card--flush" aria-labelledby="tpl-a-g-billing-api">
+        <header class="gw-card__header">
+          <div class="gw-tool-policy-list__group-heading">
+            <span class="gw-icon-tile"><i class="gw-icon" data-lucide="globe"></i></span>
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="tpl-a-g-billing-api"><span class="gw-mono">billing-api</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--stage">stage</span></h3>
+              <p class="gw-card__description">HTTP API · billing.stage.acme.dev · 2 tools · 1 approval · 1 off</p>
+            </div>
+          </div>
+          <div class="gw-card__actions">
+            <div class="gw-menu-host">
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="tpl-a-bulk-billing-api">Set all to…<span class="gw-sr-only"> for billing-api tools</span><i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+              <div class="gw-menu gw-menu--right gw-menu--wide" id="tpl-a-bulk-billing-api" role="menu" aria-label="Set the mode of all 2 billing-api tools" hidden>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off<span class="gw-menu__hint">Agents can't call any billing-api tool</span></span></button>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only<span class="gw-menu__hint">http_request stays as it is: it changes data</span></span></button>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval<span class="gw-menu__hint">Every call waits for your decision</span></span></button>
+              </div>
+            </div>
+          </div>
+        </header>
+        <div class="gw-card__body">
+          <div class="gw-table-wrap" role="region" aria-labelledby="tpl-a-g-billing-api-cap" tabindex="0">
+            <table class="gw-table">
+              <caption class="gw-sr-only" id="tpl-a-g-billing-api-cap">Tools on billing-api</caption>
+              <thead><tr><th scope="col">Tool</th><th scope="col">Mode</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Limits</span></th></tr></thead>
+              <tbody>
+                <tr class="gw-tool-policy-list__row" data-mode="off">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <code class="gw-code">http_get</code>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of http_get"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">GET or HEAD on the allowed paths of the API.</p>
+                  </th>
+                  <td>
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm">
+                        <legend class="gw-sr-only">Mode for http_get</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-http_get" value="off" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-http_get" value="read"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-http_get" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      </fieldset>
+                    </div>
+                  </td>
+                  <td class="gw-table__cell--actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm gw-tool-policy-list__limits-toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="tpl-a-lim-http_get">Limits<span class="gw-sr-only"> for http_get</span><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--open" data-lucide="chevron-up"></i></button>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__limits" id="tpl-a-lim-http_get" hidden>
+                  <td colspan="3">
+                    <div class="gw-card gw-card--muted" role="group" aria-label="Limits for http_get">
+                      <div class="gw-card__body">
+                        <div class="gw-tool-policy-list__limits-fields">
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-http_get-timeout">Timeout</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-http_get-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="10" aria-describedby="tpl-a-lim-http_get-timeout-hint">
+                              <span class="gw-input-group__affix">s</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-http_get-timeout-hint">Inherited from stage policy: 10 s</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-http_get-size">Max response size</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-http_get-size" type="text" inputmode="numeric" autocomplete="off" placeholder="256" aria-describedby="tpl-a-lim-http_get-size-hint">
+                              <span class="gw-input-group__affix">KB</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-http_get-size-hint">Inherited from stage policy: 256 KB</p>
+                          </div>
+                        </div>
+                        <div class="gw-tool-policy-list__limits-footer">
+                          <p class="gw-text-caption gw-fg-muted">Empty fields follow the <a class="gw-link" href="../pages/policies.html#stage">stage policy</a>. An override can only be stricter.</p>
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" disabled><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i>Reset to stage policy<span class="gw-sr-only"> for http_get</span></button>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__row" data-mode="approval">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <code class="gw-code">http_request</code>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of http_request"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--danger" title="destructiveHint">Destructive</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">POST, PUT, PATCH or DELETE on the allowed paths. You approve the exact request.</p>
+                  </th>
+                  <td>
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm" aria-describedby="tpl-a-why-http_request">
+                        <legend class="gw-sr-only">Mode for http_request</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-http_request" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-http_request" value="read" disabled aria-describedby="tpl-a-why-http_request"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-a-mode-http_request" value="approval" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      </fieldset>
+                      <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="tpl-a-why-http_request"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Mutates data: approval or off</p>
+                    </div>
+                  </td>
+                  <td class="gw-table__cell--actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm gw-tool-policy-list__limits-toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="tpl-a-lim-http_request">Limits<span class="gw-sr-only"> for http_request</span> <span class="gw-counter">1<span class="gw-sr-only"> override</span></span><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--open" data-lucide="chevron-up"></i></button>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__limits" id="tpl-a-lim-http_request" hidden>
+                  <td colspan="3">
+                    <div class="gw-card gw-card--muted" role="group" aria-label="Limits for http_request">
+                      <div class="gw-card__body">
+                        <div class="gw-tool-policy-list__limits-fields">
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-http_request-timeout">Timeout</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-http_request-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="10" aria-describedby="tpl-a-lim-http_request-timeout-hint">
+                              <span class="gw-input-group__affix">s</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-http_request-timeout-hint">Inherited from stage policy: 10 s</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-a-lim-http_request-size">Max response size</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-a-lim-http_request-size" type="text" inputmode="numeric" autocomplete="off" placeholder="256" value="64" aria-describedby="tpl-a-lim-http_request-size-hint">
+                              <span class="gw-input-group__affix">KB</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-a-lim-http_request-size-hint">Overrides stage policy: 256 KB</p>
+                          </div>
+                        </div>
+                        <div class="gw-tool-policy-list__limits-footer">
+                          <p class="gw-text-caption gw-fg-muted">Empty fields follow the <a class="gw-link" href="../pages/policies.html#stage">stage policy</a>. An override can only be stricter.</p>
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button"><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i>Reset to stage policy<span class="gw-sr-only"> for http_request</span></button>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+  </section>
+
+  <section class="gw-section" aria-labelledby="tpl-b-title">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="tpl-b-title">Filtered by mode</h2>
+      <p class="gw-section__description">Mode: Approval keeps only the tools that wait for a person. The summary says how many of the 14 match, and each group says how many of its tools are shown; groups with no match are left out.</p>
+    </header>
+    <div class="gw-tool-policy-list">
+      <div class="gw-toolbar">
+        <div class="gw-toolbar__start">
+          <div class="gw-search gw-search--sm">
+            <i class="gw-icon gw-search__icon" data-lucide="search"></i>
+            <input class="gw-search__input" type="search" id="tpl-b-q" placeholder="Search tools" aria-label="Search tools on dev">
+            <button class="gw-search__clear" type="button" aria-label="Clear search"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+          </div>
+          <div class="gw-menu-host">
+            <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="tpl-b-filter-mode"><i class="gw-icon gw-icon--sm" data-lucide="list-filter"></i>Mode: <span data-gw-menu-value>Approval</span><i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+            <div class="gw-menu" id="tpl-b-filter-mode" role="listbox" aria-label="Filter tools by mode" hidden>
+              <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">All</span></button>
+              <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off</span></button>
+              <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only</span></button>
+              <button class="gw-menu__item" type="button" role="option" aria-selected="true" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval</span></button>
+            </div>
+          </div>
+        </div>
+        <div class="gw-toolbar__end">
+          <p class="gw-tool-policy-list__summary" id="tpl-b-summary" role="status"><span class="gw-text-small gw-fg-secondary">3 of 14 tools match<span class="gw-sr-only">:</span></span>
+            <span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>3 approval</span></p>
+        </div>
+      </div>
+      <section class="gw-card gw-card--flush" aria-labelledby="tpl-b-g-dev-db">
+        <header class="gw-card__header">
+          <div class="gw-tool-policy-list__group-heading">
+            <span class="gw-icon-tile"><i class="gw-icon" data-lucide="database"></i></span>
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="tpl-b-g-dev-db"><span class="gw-mono">dev-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></h3>
+              <p class="gw-card__description">PostgreSQL 16 · 1 of 4 tools shown</p>
+            </div>
+          </div>
+          <div class="gw-card__actions">
+            <div class="gw-menu-host">
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="tpl-b-bulk-dev-db">Set all to…<span class="gw-sr-only"> for dev-db tools</span><i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+              <div class="gw-menu gw-menu--right gw-menu--wide" id="tpl-b-bulk-dev-db" role="menu" aria-label="Set the mode of all 4 dev-db tools" hidden>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off<span class="gw-menu__hint">Agents can't call any dev-db tool</span></span></button>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only<span class="gw-menu__hint">sql_execute stays as it is: it changes data</span></span></button>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval<span class="gw-menu__hint">Every call waits for your decision</span></span></button>
+              </div>
+            </div>
+          </div>
+        </header>
+        <div class="gw-card__body">
+          <div class="gw-table-wrap" role="region" aria-labelledby="tpl-b-g-dev-db-cap" tabindex="0">
+            <table class="gw-table">
+              <caption class="gw-sr-only" id="tpl-b-g-dev-db-cap">Tools on dev-db, mode filter approval</caption>
+              <thead><tr><th scope="col">Tool</th><th scope="col">Mode</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Limits</span></th></tr></thead>
+              <tbody>
+                <tr class="gw-tool-policy-list__row" data-mode="approval">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <code class="gw-code">sql_execute</code>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of sql_execute"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--danger" title="destructiveHint">Destructive</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">INSERT, UPDATE or DELETE. You approve the exact statement.</p>
+                  </th>
+                  <td>
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm" aria-describedby="tpl-b-why-sql_execute">
+                        <legend class="gw-sr-only">Mode for sql_execute</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-b-mode-sql_execute" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-b-mode-sql_execute" value="read" disabled aria-describedby="tpl-b-why-sql_execute"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-b-mode-sql_execute" value="approval" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      </fieldset>
+                      <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="tpl-b-why-sql_execute"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Mutates data: approval or off</p>
+                    </div>
+                  </td>
+                  <td class="gw-table__cell--actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm gw-tool-policy-list__limits-toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="tpl-b-lim-sql_execute">Limits<span class="gw-sr-only"> for sql_execute</span><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--open" data-lucide="chevron-up"></i></button>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__limits" id="tpl-b-lim-sql_execute" hidden>
+                  <td colspan="3">
+                    <div class="gw-card gw-card--muted" role="group" aria-label="Limits for sql_execute">
+                      <div class="gw-card__body">
+                        <div class="gw-tool-policy-list__limits-fields">
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-b-lim-sql_execute-rows">Row limit</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-b-lim-sql_execute-rows" type="text" inputmode="numeric" autocomplete="off" placeholder="1,000" aria-describedby="tpl-b-lim-sql_execute-rows-hint">
+                              <span class="gw-input-group__affix">rows</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-b-lim-sql_execute-rows-hint">Inherited from dev policy: 1,000 rows</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-b-lim-sql_execute-timeout">Timeout</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-b-lim-sql_execute-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="5" aria-describedby="tpl-b-lim-sql_execute-timeout-hint">
+                              <span class="gw-input-group__affix">s</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-b-lim-sql_execute-timeout-hint">Inherited from dev policy: 5 s</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-b-lim-sql_execute-size">Max response size</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-b-lim-sql_execute-size" type="text" inputmode="numeric" autocomplete="off" placeholder="512" aria-describedby="tpl-b-lim-sql_execute-size-hint">
+                              <span class="gw-input-group__affix">KB</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-b-lim-sql_execute-size-hint">Inherited from dev policy: 512 KB</p>
+                          </div>
+                        </div>
+                        <div class="gw-tool-policy-list__limits-footer">
+                          <p class="gw-text-caption gw-fg-muted">Empty fields follow the <a class="gw-link" href="../pages/policies.html#dev">dev policy</a>. An override can only be stricter.</p>
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" disabled><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i>Reset to dev policy<span class="gw-sr-only"> for sql_execute</span></button>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+      <section class="gw-card gw-card--flush" aria-labelledby="tpl-b-g-dev-cluster">
+        <header class="gw-card__header">
+          <div class="gw-tool-policy-list__group-heading">
+            <span class="gw-icon-tile"><i class="gw-icon" data-lucide="ship-wheel"></i></span>
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="tpl-b-g-dev-cluster"><span class="gw-mono">dev-cluster</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></h3>
+              <p class="gw-card__description">Kubernetes · namespace app-dev · 1 of 4 tools shown</p>
+            </div>
+          </div>
+          <div class="gw-card__actions">
+            <div class="gw-menu-host">
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="tpl-b-bulk-dev-cluster">Set all to…<span class="gw-sr-only"> for dev-cluster tools</span><i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+              <div class="gw-menu gw-menu--right gw-menu--wide" id="tpl-b-bulk-dev-cluster" role="menu" aria-label="Set the mode of all 4 dev-cluster tools" hidden>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off<span class="gw-menu__hint">Agents can't call any dev-cluster tool</span></span></button>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only<span class="gw-menu__hint">k8s_rollout_restart and k8s_apply stay as they are: they change data</span></span></button>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval<span class="gw-menu__hint">Every call waits for your decision</span></span></button>
+              </div>
+            </div>
+          </div>
+        </header>
+        <div class="gw-card__body">
+          <div class="gw-table-wrap" role="region" aria-labelledby="tpl-b-g-dev-cluster-cap" tabindex="0">
+            <table class="gw-table">
+              <caption class="gw-sr-only" id="tpl-b-g-dev-cluster-cap">Tools on dev-cluster, mode filter approval</caption>
+              <thead><tr><th scope="col">Tool</th><th scope="col">Mode</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Limits</span></th></tr></thead>
+              <tbody>
+                <tr class="gw-tool-policy-list__row" data-mode="approval">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <code class="gw-code">k8s_rollout_restart</code>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of k8s_rollout_restart"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--danger" title="destructiveHint">Destructive</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Restart a deployment, one pod at a time.</p>
+                  </th>
+                  <td>
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm" aria-describedby="tpl-b-why-k8s_rollout_restart">
+                        <legend class="gw-sr-only">Mode for k8s_rollout_restart</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-b-mode-k8s_rollout_restart" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-b-mode-k8s_rollout_restart" value="read" disabled aria-describedby="tpl-b-why-k8s_rollout_restart"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-b-mode-k8s_rollout_restart" value="approval" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      </fieldset>
+                      <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="tpl-b-why-k8s_rollout_restart"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Mutates data: approval or off</p>
+                    </div>
+                  </td>
+                  <td class="gw-table__cell--actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm gw-tool-policy-list__limits-toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="tpl-b-lim-k8s_rollout_restart">Limits<span class="gw-sr-only"> for k8s_rollout_restart</span><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--open" data-lucide="chevron-up"></i></button>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__limits" id="tpl-b-lim-k8s_rollout_restart" hidden>
+                  <td colspan="3">
+                    <div class="gw-card gw-card--muted" role="group" aria-label="Limits for k8s_rollout_restart">
+                      <div class="gw-card__body">
+                        <div class="gw-tool-policy-list__limits-fields">
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-b-lim-k8s_rollout_restart-timeout">Timeout</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-b-lim-k8s_rollout_restart-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="10" aria-describedby="tpl-b-lim-k8s_rollout_restart-timeout-hint">
+                              <span class="gw-input-group__affix">s</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-b-lim-k8s_rollout_restart-timeout-hint">Inherited from dev policy: 10 s</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-b-lim-k8s_rollout_restart-size">Max response size</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-b-lim-k8s_rollout_restart-size" type="text" inputmode="numeric" autocomplete="off" placeholder="512" aria-describedby="tpl-b-lim-k8s_rollout_restart-size-hint">
+                              <span class="gw-input-group__affix">KB</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-b-lim-k8s_rollout_restart-size-hint">Inherited from dev policy: 512 KB</p>
+                          </div>
+                        </div>
+                        <div class="gw-tool-policy-list__limits-footer">
+                          <p class="gw-text-caption gw-fg-muted">Empty fields follow the <a class="gw-link" href="../pages/policies.html#dev">dev policy</a>. An override can only be stricter.</p>
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" disabled><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i>Reset to dev policy<span class="gw-sr-only"> for k8s_rollout_restart</span></button>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+      <section class="gw-card gw-card--flush" aria-labelledby="tpl-b-g-billing-api">
+        <header class="gw-card__header">
+          <div class="gw-tool-policy-list__group-heading">
+            <span class="gw-icon-tile"><i class="gw-icon" data-lucide="globe"></i></span>
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="tpl-b-g-billing-api"><span class="gw-mono">billing-api</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--stage">stage</span></h3>
+              <p class="gw-card__description">HTTP API · billing.stage.acme.dev · 1 of 2 tools shown</p>
+            </div>
+          </div>
+          <div class="gw-card__actions">
+            <div class="gw-menu-host">
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="tpl-b-bulk-billing-api">Set all to…<span class="gw-sr-only"> for billing-api tools</span><i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+              <div class="gw-menu gw-menu--right gw-menu--wide" id="tpl-b-bulk-billing-api" role="menu" aria-label="Set the mode of all 2 billing-api tools" hidden>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off<span class="gw-menu__hint">Agents can't call any billing-api tool</span></span></button>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only<span class="gw-menu__hint">http_request stays as it is: it changes data</span></span></button>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval<span class="gw-menu__hint">Every call waits for your decision</span></span></button>
+              </div>
+            </div>
+          </div>
+        </header>
+        <div class="gw-card__body">
+          <div class="gw-table-wrap" role="region" aria-labelledby="tpl-b-g-billing-api-cap" tabindex="0">
+            <table class="gw-table">
+              <caption class="gw-sr-only" id="tpl-b-g-billing-api-cap">Tools on billing-api, mode filter approval</caption>
+              <thead><tr><th scope="col">Tool</th><th scope="col">Mode</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Limits</span></th></tr></thead>
+              <tbody>
+                <tr class="gw-tool-policy-list__row" data-mode="approval">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <code class="gw-code">http_request</code>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of http_request"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--danger" title="destructiveHint">Destructive</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">POST, PUT, PATCH or DELETE on the allowed paths. You approve the exact request.</p>
+                  </th>
+                  <td>
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm" aria-describedby="tpl-b-why-http_request">
+                        <legend class="gw-sr-only">Mode for http_request</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-b-mode-http_request" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-b-mode-http_request" value="read" disabled aria-describedby="tpl-b-why-http_request"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-b-mode-http_request" value="approval" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      </fieldset>
+                      <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="tpl-b-why-http_request"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Mutates data: approval or off</p>
+                    </div>
+                  </td>
+                  <td class="gw-table__cell--actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm gw-tool-policy-list__limits-toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="tpl-b-lim-http_request">Limits<span class="gw-sr-only"> for http_request</span> <span class="gw-counter">1<span class="gw-sr-only"> override</span></span><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--open" data-lucide="chevron-up"></i></button>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__limits" id="tpl-b-lim-http_request" hidden>
+                  <td colspan="3">
+                    <div class="gw-card gw-card--muted" role="group" aria-label="Limits for http_request">
+                      <div class="gw-card__body">
+                        <div class="gw-tool-policy-list__limits-fields">
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-b-lim-http_request-timeout">Timeout</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-b-lim-http_request-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="10" aria-describedby="tpl-b-lim-http_request-timeout-hint">
+                              <span class="gw-input-group__affix">s</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-b-lim-http_request-timeout-hint">Inherited from stage policy: 10 s</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-b-lim-http_request-size">Max response size</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-b-lim-http_request-size" type="text" inputmode="numeric" autocomplete="off" placeholder="256" value="64" aria-describedby="tpl-b-lim-http_request-size-hint">
+                              <span class="gw-input-group__affix">KB</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-b-lim-http_request-size-hint">Overrides stage policy: 256 KB</p>
+                          </div>
+                        </div>
+                        <div class="gw-tool-policy-list__limits-footer">
+                          <p class="gw-text-caption gw-fg-muted">Empty fields follow the <a class="gw-link" href="../pages/policies.html#stage">stage policy</a>. An override can only be stricter.</p>
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button"><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i>Reset to stage policy<span class="gw-sr-only"> for http_request</span></button>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+  </section>
+
+  <section class="gw-section" aria-labelledby="tpl-c-title">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="tpl-c-title">Locked by the endpoint</h2>
+      <p class="gw-section__description">Endpoint <code class="gw-code">incident-prod</code> is read only. The whole picker of <code class="gw-code">sql_execute</code> is disabled and the note under it names the reason. Both connections are prod, so the inherited limits come from the stricter prod policy.</p>
+    </header>
+    <div class="gw-tool-policy-list">
+      <div class="gw-toolbar">
+        <div class="gw-toolbar__start">
+          <div class="gw-search gw-search--sm">
+            <i class="gw-icon gw-search__icon" data-lucide="search"></i>
+            <input class="gw-search__input" type="search" id="tpl-c-q" placeholder="Search tools" aria-label="Search tools on incident-prod">
+            <button class="gw-search__clear" type="button" aria-label="Clear search"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+          </div>
+          <div class="gw-menu-host">
+            <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="tpl-c-filter-mode"><i class="gw-icon gw-icon--sm" data-lucide="list-filter"></i>Mode: <span data-gw-menu-value>All</span><i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+            <div class="gw-menu" id="tpl-c-filter-mode" role="listbox" aria-label="Filter tools by mode" hidden>
+              <button class="gw-menu__item" type="button" role="option" aria-selected="true" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">All</span></button>
+              <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off</span></button>
+              <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only</span></button>
+              <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval</span></button>
+            </div>
+          </div>
+        </div>
+        <div class="gw-toolbar__end">
+          <p class="gw-tool-policy-list__summary" id="tpl-c-summary" role="status"><span class="gw-text-small gw-fg-secondary">4 tools<span class="gw-sr-only">:</span></span>
+            <span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>3 read only</span>
+            <span class="gw-mode gw-mode--off"><i class="gw-icon" data-lucide="circle-off"></i>1 off</span></p>
+        </div>
+      </div>
+      <section class="gw-card gw-card--flush" aria-labelledby="tpl-c-g-prod-replica">
+        <header class="gw-card__header">
+          <div class="gw-tool-policy-list__group-heading">
+            <span class="gw-icon-tile"><i class="gw-icon" data-lucide="database"></i></span>
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="tpl-c-g-prod-replica"><span class="gw-mono">prod-replica</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--prod">prod</span></h3>
+              <p class="gw-card__description">PostgreSQL read replica · Vault dynamic credentials · 3 tools · 2 read only · 1 off</p>
+            </div>
+          </div>
+          <div class="gw-card__actions">
+            <div class="gw-menu-host">
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="tpl-c-bulk-prod-replica">Set all to…<span class="gw-sr-only"> for prod-replica tools</span><i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+              <div class="gw-menu gw-menu--right gw-menu--wide" id="tpl-c-bulk-prod-replica" role="menu" aria-label="Set the mode of all 3 prod-replica tools" hidden>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off<span class="gw-menu__hint">Agents can't call any prod-replica tool</span></span></button>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only<span class="gw-menu__hint">sql_execute stays off: the endpoint is read only</span></span></button>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval<span class="gw-menu__hint">Every call waits for you; sql_execute stays off</span></span></button>
+              </div>
+            </div>
+          </div>
+        </header>
+        <div class="gw-card__body">
+          <div class="gw-table-wrap" role="region" aria-labelledby="tpl-c-g-prod-replica-cap" tabindex="0">
+            <table class="gw-table">
+              <caption class="gw-sr-only" id="tpl-c-g-prod-replica-cap">Tools on prod-replica</caption>
+              <thead><tr><th scope="col">Tool</th><th scope="col">Mode</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Limits</span></th></tr></thead>
+              <tbody>
+                <tr class="gw-tool-policy-list__row" data-mode="read">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <code class="gw-code">sql_describe_table</code>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of sql_describe_table"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Columns, types, indexes and foreign keys of one table.</p>
+                  </th>
+                  <td>
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm">
+                        <legend class="gw-sr-only">Mode for sql_describe_table</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-c-mode-sql_describe_table" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-c-mode-sql_describe_table" value="read" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-c-mode-sql_describe_table" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      </fieldset>
+                    </div>
+                  </td>
+                  <td class="gw-table__cell--actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm gw-tool-policy-list__limits-toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="tpl-c-lim-sql_describe_table">Limits<span class="gw-sr-only"> for sql_describe_table</span><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--open" data-lucide="chevron-up"></i></button>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__limits" id="tpl-c-lim-sql_describe_table" hidden>
+                  <td colspan="3">
+                    <div class="gw-card gw-card--muted" role="group" aria-label="Limits for sql_describe_table">
+                      <div class="gw-card__body">
+                        <div class="gw-tool-policy-list__limits-fields">
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-c-lim-sql_describe_table-rows">Row limit</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-c-lim-sql_describe_table-rows" type="text" inputmode="numeric" autocomplete="off" placeholder="100" aria-describedby="tpl-c-lim-sql_describe_table-rows-hint">
+                              <span class="gw-input-group__affix">rows</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-c-lim-sql_describe_table-rows-hint">Inherited from prod policy: 100 rows</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-c-lim-sql_describe_table-timeout">Timeout</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-c-lim-sql_describe_table-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="3" aria-describedby="tpl-c-lim-sql_describe_table-timeout-hint">
+                              <span class="gw-input-group__affix">s</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-c-lim-sql_describe_table-timeout-hint">Inherited from prod policy: 3 s</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-c-lim-sql_describe_table-size">Max response size</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-c-lim-sql_describe_table-size" type="text" inputmode="numeric" autocomplete="off" placeholder="256" aria-describedby="tpl-c-lim-sql_describe_table-size-hint">
+                              <span class="gw-input-group__affix">KB</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-c-lim-sql_describe_table-size-hint">Inherited from prod policy: 256 KB</p>
+                          </div>
+                        </div>
+                        <div class="gw-tool-policy-list__limits-footer">
+                          <p class="gw-text-caption gw-fg-muted">Empty fields follow the <a class="gw-link" href="../pages/policies.html#prod">prod policy</a>. An override can only be stricter.</p>
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" disabled><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i>Reset to prod policy<span class="gw-sr-only"> for sql_describe_table</span></button>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__row" data-mode="read">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <code class="gw-code">sql_query</code>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of sql_query"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Run one SELECT in a read-only transaction. PII columns come back masked.</p>
+                  </th>
+                  <td>
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm">
+                        <legend class="gw-sr-only">Mode for sql_query</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-c-mode-sql_query" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-c-mode-sql_query" value="read" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-c-mode-sql_query" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      </fieldset>
+                    </div>
+                  </td>
+                  <td class="gw-table__cell--actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm gw-tool-policy-list__limits-toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="tpl-c-lim-sql_query">Limits<span class="gw-sr-only"> for sql_query</span><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--open" data-lucide="chevron-up"></i></button>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__limits" id="tpl-c-lim-sql_query" hidden>
+                  <td colspan="3">
+                    <div class="gw-card gw-card--muted" role="group" aria-label="Limits for sql_query">
+                      <div class="gw-card__body">
+                        <div class="gw-tool-policy-list__limits-fields">
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-c-lim-sql_query-rows">Row limit</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-c-lim-sql_query-rows" type="text" inputmode="numeric" autocomplete="off" placeholder="100" aria-describedby="tpl-c-lim-sql_query-rows-hint">
+                              <span class="gw-input-group__affix">rows</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-c-lim-sql_query-rows-hint">Inherited from prod policy: 100 rows</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-c-lim-sql_query-timeout">Timeout</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-c-lim-sql_query-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="3" aria-describedby="tpl-c-lim-sql_query-timeout-hint">
+                              <span class="gw-input-group__affix">s</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-c-lim-sql_query-timeout-hint">Inherited from prod policy: 3 s</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-c-lim-sql_query-size">Max response size</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-c-lim-sql_query-size" type="text" inputmode="numeric" autocomplete="off" placeholder="256" aria-describedby="tpl-c-lim-sql_query-size-hint">
+                              <span class="gw-input-group__affix">KB</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-c-lim-sql_query-size-hint">Inherited from prod policy: 256 KB</p>
+                          </div>
+                        </div>
+                        <div class="gw-tool-policy-list__limits-footer">
+                          <p class="gw-text-caption gw-fg-muted">Empty fields follow the <a class="gw-link" href="../pages/policies.html#prod">prod policy</a>. An override can only be stricter.</p>
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" disabled><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i>Reset to prod policy<span class="gw-sr-only"> for sql_query</span></button>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__row" data-mode="off">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <code class="gw-code">sql_execute</code>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of sql_execute"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--danger" title="destructiveHint">Destructive</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">INSERT, UPDATE or DELETE. You approve the exact statement.</p>
+                  </th>
+                  <td>
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm" disabled aria-describedby="tpl-c-why-sql_execute">
+                        <legend class="gw-sr-only">Mode for sql_execute</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-c-mode-sql_execute" value="off" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-c-mode-sql_execute" value="read"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-c-mode-sql_execute" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      </fieldset>
+                      <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="tpl-c-why-sql_execute"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Locked: endpoint incident-prod is read only, so tools that change data stay off</p>
+                    </div>
+                  </td>
+                  <td class="gw-table__cell--actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm gw-tool-policy-list__limits-toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="tpl-c-lim-sql_execute">Limits<span class="gw-sr-only"> for sql_execute</span><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--open" data-lucide="chevron-up"></i></button>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__limits" id="tpl-c-lim-sql_execute" hidden>
+                  <td colspan="3">
+                    <div class="gw-card gw-card--muted" role="group" aria-label="Limits for sql_execute">
+                      <div class="gw-card__body">
+                        <div class="gw-tool-policy-list__limits-fields">
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-c-lim-sql_execute-rows">Row limit</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-c-lim-sql_execute-rows" type="text" inputmode="numeric" autocomplete="off" placeholder="100" aria-describedby="tpl-c-lim-sql_execute-rows-hint">
+                              <span class="gw-input-group__affix">rows</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-c-lim-sql_execute-rows-hint">Inherited from prod policy: 100 rows</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-c-lim-sql_execute-timeout">Timeout</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-c-lim-sql_execute-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="3" aria-describedby="tpl-c-lim-sql_execute-timeout-hint">
+                              <span class="gw-input-group__affix">s</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-c-lim-sql_execute-timeout-hint">Inherited from prod policy: 3 s</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-c-lim-sql_execute-size">Max response size</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-c-lim-sql_execute-size" type="text" inputmode="numeric" autocomplete="off" placeholder="256" aria-describedby="tpl-c-lim-sql_execute-size-hint">
+                              <span class="gw-input-group__affix">KB</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-c-lim-sql_execute-size-hint">Inherited from prod policy: 256 KB</p>
+                          </div>
+                        </div>
+                        <div class="gw-tool-policy-list__limits-footer">
+                          <p class="gw-text-caption gw-fg-muted">Empty fields follow the <a class="gw-link" href="../pages/policies.html#prod">prod policy</a>. An override can only be stricter.</p>
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" disabled><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i>Reset to prod policy<span class="gw-sr-only"> for sql_execute</span></button>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+      <section class="gw-card gw-card--flush" aria-labelledby="tpl-c-g-prod-logs">
+        <header class="gw-card__header">
+          <div class="gw-tool-policy-list__group-heading">
+            <span class="gw-icon-tile"><i class="gw-icon" data-lucide="scroll-text"></i></span>
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="tpl-c-g-prod-logs"><span class="gw-mono">prod-logs</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--prod">prod</span></h3>
+              <p class="gw-card__description">GCP Cloud Logging · impersonation · 1 tool · 1 read only</p>
+            </div>
+          </div>
+          <div class="gw-card__actions">
+            <div class="gw-menu-host">
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="tpl-c-bulk-prod-logs">Set all to…<span class="gw-sr-only"> for prod-logs tools</span><i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+              <div class="gw-menu gw-menu--right gw-menu--wide" id="tpl-c-bulk-prod-logs" role="menu" aria-label="Set the mode of all 1 prod-logs tools" hidden>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off<span class="gw-menu__hint">Agents can't call any prod-logs tool</span></span></button>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only<span class="gw-menu__hint">Calls run at once and can't change data</span></span></button>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval<span class="gw-menu__hint">Every call waits for your decision</span></span></button>
+              </div>
+            </div>
+          </div>
+        </header>
+        <div class="gw-card__body">
+          <div class="gw-table-wrap" role="region" aria-labelledby="tpl-c-g-prod-logs-cap" tabindex="0">
+            <table class="gw-table">
+              <caption class="gw-sr-only" id="tpl-c-g-prod-logs-cap">Tools on prod-logs</caption>
+              <thead><tr><th scope="col">Tool</th><th scope="col">Mode</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Limits</span></th></tr></thead>
+              <tbody>
+                <tr class="gw-tool-policy-list__row" data-mode="read">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <code class="gw-code">logs_search</code>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of logs_search"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Search log entries with a Logging query.</p>
+                  </th>
+                  <td>
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm">
+                        <legend class="gw-sr-only">Mode for logs_search</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-c-mode-logs_search" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-c-mode-logs_search" value="read" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-c-mode-logs_search" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      </fieldset>
+                    </div>
+                  </td>
+                  <td class="gw-table__cell--actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm gw-tool-policy-list__limits-toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="tpl-c-lim-logs_search">Limits<span class="gw-sr-only"> for logs_search</span><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--open" data-lucide="chevron-up"></i></button>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__limits" id="tpl-c-lim-logs_search" hidden>
+                  <td colspan="3">
+                    <div class="gw-card gw-card--muted" role="group" aria-label="Limits for logs_search">
+                      <div class="gw-card__body">
+                        <div class="gw-tool-policy-list__limits-fields">
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-c-lim-logs_search-lines">Line limit</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-c-lim-logs_search-lines" type="text" inputmode="numeric" autocomplete="off" placeholder="200" aria-describedby="tpl-c-lim-logs_search-lines-hint">
+                              <span class="gw-input-group__affix">lines</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-c-lim-logs_search-lines-hint">Inherited from prod policy: 200 lines</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-c-lim-logs_search-timeout">Timeout</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-c-lim-logs_search-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="5" aria-describedby="tpl-c-lim-logs_search-timeout-hint">
+                              <span class="gw-input-group__affix">s</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-c-lim-logs_search-timeout-hint">Inherited from prod policy: 5 s</p>
+                          </div>
+                          <div class="gw-field">
+                            <label class="gw-field__label" for="tpl-c-lim-logs_search-size">Max response size</label>
+                            <div class="gw-input-group">
+                              <input class="gw-input" id="tpl-c-lim-logs_search-size" type="text" inputmode="numeric" autocomplete="off" placeholder="256" aria-describedby="tpl-c-lim-logs_search-size-hint">
+                              <span class="gw-input-group__affix">KB</span>
+                            </div>
+                            <p class="gw-field__hint" id="tpl-c-lim-logs_search-size-hint">Inherited from prod policy: 256 KB</p>
+                          </div>
+                        </div>
+                        <div class="gw-tool-policy-list__limits-footer">
+                          <p class="gw-text-caption gw-fg-muted">Empty fields follow the <a class="gw-link" href="../pages/policies.html#prod">prod policy</a>. An override can only be stricter.</p>
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" disabled><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i>Reset to prod policy<span class="gw-sr-only"> for logs_search</span></button>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+  </section>
+
+  <section class="gw-section" aria-labelledby="tpl-f-title">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="tpl-f-title">Tools of an external MCP server or plugin</h2>
+      <p class="gw-section__description">The 26 tools of <code class="gw-code">github-mcp</code> just added to endpoint <code class="gw-code">dev</code> (4 shown, under the names agents see). Annotations of an external tool come from the server, not from the gateway, so each row says “Declared by github-mcp, not verified”. <code class="gw-code">github-mcp</code> declares none, so no tool is declared read only: all 26 start in Approval and stay approval or off, and Read only is unavailable with its reason (native <code class="gw-code">disabled</code>: the option would remove the approval). A tool that a server or plugin does declare read only, and not destructive, can go to Read only, but only after you confirm it for that one tool: the option is unavailable with its reason and a Confirm button beside it. The plugin Jira Service Desk below shows it, as if added to <code class="gw-code">dev</code>.</p>
+    </header>
+    <div class="gw-tool-policy-list">
+      <div class="gw-toolbar">
+        <div class="gw-toolbar__start">
+          <div class="gw-search gw-search--sm">
+            <i class="gw-icon gw-search__icon" data-lucide="search"></i>
+            <input class="gw-search__input" type="search" id="tpl-f-q" placeholder="Search tools" aria-label="Search tools on dev">
+            <button class="gw-search__clear" type="button" aria-label="Clear search"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+          </div>
+        </div>
+        <div class="gw-toolbar__end">
+          <p class="gw-tool-policy-list__summary" id="tpl-f-summary" role="status"><span class="gw-text-small gw-fg-secondary">31 new tools<span class="gw-sr-only">:</span></span>
+            <span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>31 approval</span></p>
+        </div>
+      </div>
+      <section class="gw-card gw-card--flush" aria-labelledby="tpl-f-g-gh">
+        <header class="gw-card__header">
+          <div class="gw-tool-policy-list__group-heading">
+            <span class="gw-icon-tile"><i class="gw-icon" data-lucide="plug"></i></span>
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="tpl-f-g-gh"><span class="gw-mono">github-mcp</span></h3>
+              <p class="gw-card__description">MCP server · signed catalog entry <span class="gw-mono">v0.6.2</span> · 26 tools, 0 declare annotations, all approval · 4 shown</p>
+            </div>
+          </div>
+        </header>
+        <div class="gw-card__body">
+          <div class="gw-table-wrap" role="region" aria-labelledby="tpl-f-g-gh-cap" tabindex="0">
+            <table class="gw-table">
+              <caption class="gw-sr-only" id="tpl-f-g-gh-cap">Tools of github-mcp on endpoint dev</caption>
+              <thead><tr><th scope="col">Tool</th><th scope="col">Mode</th></tr></thead>
+              <tbody>
+                <tr class="gw-tool-policy-list__row" data-mode="approval">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <code class="gw-code">github_list_issues</code>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of github_list_issues"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--warning" title="The server declares no read-only annotation; the gateway can't check what the tool does"><i class="gw-icon gw-badge__icon" data-lucide="shield-question-mark"></i>Declared by github-mcp, not verified</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">List issues of a repository, with filters.</p>
+                  </th>
+                  <td>
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm" aria-describedby="tpl-f-why-github_list_issues">
+                        <legend class="gw-sr-only">Mode for github_list_issues</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-f-mode-github_list_issues" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-f-mode-github_list_issues" value="read" disabled aria-describedby="tpl-f-why-github_list_issues"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-f-mode-github_list_issues" value="approval" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      </fieldset>
+                      <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="tpl-f-why-github_list_issues"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Not declared read only: approval or off</p>
+                    </div>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__row" data-mode="approval">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <code class="gw-code">github_search_code</code>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of github_search_code"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--warning" title="The server declares no read-only annotation; the gateway can't check what the tool does"><i class="gw-icon gw-badge__icon" data-lucide="shield-question-mark"></i>Declared by github-mcp, not verified</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Search code across the repositories the GitHub token can see.</p>
+                  </th>
+                  <td>
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm" aria-describedby="tpl-f-why-github_search_code">
+                        <legend class="gw-sr-only">Mode for github_search_code</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-f-mode-github_search_code" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-f-mode-github_search_code" value="read" disabled aria-describedby="tpl-f-why-github_search_code"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-f-mode-github_search_code" value="approval" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      </fieldset>
+                      <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="tpl-f-why-github_search_code"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Not declared read only: approval or off</p>
+                    </div>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__row" data-mode="approval">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <code class="gw-code">github_create_issue</code>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of github_create_issue"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--warning" title="The server declares no read-only annotation; the gateway can't check what the tool does"><i class="gw-icon gw-badge__icon" data-lucide="shield-question-mark"></i>Declared by github-mcp, not verified</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Open an issue in a repository.</p>
+                  </th>
+                  <td>
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm" aria-describedby="tpl-f-why-github_create_issue">
+                        <legend class="gw-sr-only">Mode for github_create_issue</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-f-mode-github_create_issue" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-f-mode-github_create_issue" value="read" disabled aria-describedby="tpl-f-why-github_create_issue"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-f-mode-github_create_issue" value="approval" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      </fieldset>
+                      <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="tpl-f-why-github_create_issue"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Not declared read only: approval or off</p>
+                    </div>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__row" data-mode="approval">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <code class="gw-code">github_merge_pull_request</code>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of github_merge_pull_request"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--warning" title="The server declares no read-only annotation; the gateway can't check what the tool does"><i class="gw-icon gw-badge__icon" data-lucide="shield-question-mark"></i>Declared by github-mcp, not verified</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Merge a pull request into its base branch.</p>
+                  </th>
+                  <td>
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm" aria-describedby="tpl-f-why-github_merge_pull_request">
+                        <legend class="gw-sr-only">Mode for github_merge_pull_request</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-f-mode-github_merge_pull_request" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-f-mode-github_merge_pull_request" value="read" disabled aria-describedby="tpl-f-why-github_merge_pull_request"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-f-mode-github_merge_pull_request" value="approval" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      </fieldset>
+                      <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="tpl-f-why-github_merge_pull_request"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Not declared read only: approval or off</p>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+      <!-- A plugin's tools follow the same rule; its manifest declares read only for some of them. Shown as if the
+           plugin were on dev (in the demo world its 5 tools are on no endpoint, pages/connectors.html). -->
+      <section class="gw-card gw-card--flush" aria-labelledby="tpl-f-g-jira">
+        <header class="gw-card__header">
+          <div class="gw-tool-policy-list__group-heading">
+            <span class="gw-icon-tile"><i class="gw-icon" data-lucide="puzzle"></i></span>
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="tpl-f-g-jira">Jira Service Desk</h3>
+              <p class="gw-card__description">Plugin · signed catalog entry <span class="gw-mono">v1.2.0</span> · 5 tools, all approval · 2 shown</p>
+            </div>
+          </div>
+        </header>
+        <div class="gw-card__body">
+          <div class="gw-table-wrap" role="region" aria-labelledby="tpl-f-g-jira-cap" tabindex="0">
+            <table class="gw-table">
+              <caption class="gw-sr-only" id="tpl-f-g-jira-cap">Tools of the plugin Jira Service Desk on endpoint dev</caption>
+              <thead><tr><th scope="col">Tool</th><th scope="col">Mode</th></tr></thead>
+              <tbody>
+                <tr class="gw-tool-policy-list__row" data-mode="approval">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <code class="gw-code">jira_search_requests</code>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of jira_search_requests"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--warning" title="The plugin declares these annotations; the gateway can't check what the tool does"><i class="gw-icon gw-badge__icon" data-lucide="shield-question-mark"></i>Declared by jira-service-desk, not verified</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Search the requests of a service desk.</p>
+                  </th>
+                  <td>
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm" aria-describedby="tpl-f-why-jira_search_requests">
+                        <legend class="gw-sr-only">Mode for jira_search_requests</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-f-mode-jira_search_requests" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-f-mode-jira_search_requests" value="read" aria-disabled="true" aria-describedby="tpl-f-why-jira_search_requests"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-f-mode-jira_search_requests" value="approval" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      </fieldset>
+                      <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="tpl-f-why-jira_search_requests"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Read only needs your confirmation for this tool</p>
+                      <button class="gw-btn gw-btn--link gw-btn--sm" type="button" data-gw-dialog-open="tpl-f-dlg-ro">Confirm read only<span class="gw-sr-only"> for jira_search_requests</span></button>
+                    </div>
+                  </td>
+                </tr>
+                <tr class="gw-tool-policy-list__row" data-mode="approval">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <code class="gw-code">jira_add_comment</code>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of jira_add_comment"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--warning" title="The plugin declares no read-only annotation; the gateway can't check what the tool does"><i class="gw-icon gw-badge__icon" data-lucide="shield-question-mark"></i>Declared by jira-service-desk, not verified</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Add a comment to a request.</p>
+                  </th>
+                  <td>
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm" aria-describedby="tpl-f-why-jira_add_comment">
+                        <legend class="gw-sr-only">Mode for jira_add_comment</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="tpl-f-mode-jira_add_comment" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="tpl-f-mode-jira_add_comment" value="read" disabled aria-describedby="tpl-f-why-jira_add_comment"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="tpl-f-mode-jira_add_comment" value="approval" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      </fieldset>
+                      <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="tpl-f-why-jira_add_comment"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Not declared read only: approval or off</p>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Per-tool confirmation before an external tool may run without approval: only for a tool its server or plugin
+         declares read only. gw-dialog--warning (risky, reversible: the mode can go back to Approval any time),
+         Cancel autofocus, the primary is aria-disabled until the acknowledgement is checked (kit.js
+         data-gw-enable-when). -->
+    <dialog class="gw-dialog gw-dialog--md gw-dialog--warning" id="tpl-f-dlg-ro" aria-labelledby="tpl-f-dlg-ro-t" aria-describedby="tpl-f-dlg-ro-d" data-gw-static>
+      <header class="gw-dialog__header">
+        <span class="gw-icon-tile"><i class="gw-icon" data-lucide="shield-question-mark"></i></span>
+        <h2 class="gw-dialog__title" id="tpl-f-dlg-ro-t">Let <span class="gw-mono">jira_search_requests</span> run without approval?</h2>
+        <p class="gw-dialog__description" id="tpl-f-dlg-ro-d"><span class="gw-mono">jira-service-desk</span> declares that <span class="gw-mono">jira_search_requests</span> only reads (<span class="gw-mono">readOnlyHint</span>). The gateway can't check what an external server does: in Read only every call runs at once and is only logged.</p>
+        <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+      </header>
+      <div class="gw-dialog__body">
+        <div class="gw-stack">
+          <dl class="gw-kv gw-kv--dense">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><span class="gw-mono">dev</span>, this tool only</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Server</dt><dd class="gw-kv__value"><span class="gw-mono">jira-service-desk</span> <span class="gw-mono">v1.2.0</span>; an update asks again</dd></div>
+          </dl>
+          <label class="gw-checkbox">
+            <input class="gw-checkbox__input" type="checkbox" id="tpl-f-ack" required>
+            <span class="gw-checkbox__control" aria-hidden="true"></span>
+            <span class="gw-checkbox__label" id="tpl-f-ack-label">I checked that jira_search_requests only reads</span>
+          </label>
+        </div>
+      </div>
+      <footer class="gw-dialog__footer">
+        <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
+        <button class="gw-btn gw-btn--primary" type="button" aria-disabled="true" aria-describedby="tpl-f-ack-label" data-gw-enable-when="#tpl-f-ack" data-gw-dialog-close data-gw-toast="Calls run at once and are logged. Switch back to Approval any time." data-gw-toast-title="jira_search_requests is read only on dev" data-gw-toast-tone="success">Allow read only for jira_search_requests</button>
+      </footer>
+    </dialog>
+  </section>
+
+  <section class="gw-section" aria-labelledby="tpl-d-title">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="tpl-d-title">No tools match</h2>
+      <p class="gw-section__description">The search found nothing: the summary says so, the groups give way to one empty state, and one action clears the search.</p>
+    </header>
+    <div class="gw-tool-policy-list">
+      <div class="gw-toolbar">
+        <div class="gw-toolbar__start">
+          <div class="gw-search gw-search--sm">
+            <i class="gw-icon gw-search__icon" data-lucide="search"></i>
+            <input class="gw-search__input" type="search" id="tpl-d-q" placeholder="Search tools" aria-label="Search tools on dev" value="s3">
+            <button class="gw-search__clear" type="button" aria-label="Clear search"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+          </div>
+          <div class="gw-menu-host">
+            <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="tpl-d-filter-mode"><i class="gw-icon gw-icon--sm" data-lucide="list-filter"></i>Mode: <span data-gw-menu-value>All</span><i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+            <div class="gw-menu" id="tpl-d-filter-mode" role="listbox" aria-label="Filter tools by mode" hidden>
+              <button class="gw-menu__item" type="button" role="option" aria-selected="true" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">All</span></button>
+              <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="circle-off"></i><span class="gw-menu__label">Off</span></button>
+              <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="eye"></i><span class="gw-menu__label">Read only</span></button>
+              <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approval</span></button>
+            </div>
+          </div>
+        </div>
+        <div class="gw-toolbar__end">
+          <p class="gw-tool-policy-list__summary" id="tpl-d-summary" role="status"><span class="gw-text-small gw-fg-secondary">0 of 14 tools match</span></p>
+        </div>
+      </div>
+      <div class="gw-card gw-card--flush">
+        <div class="gw-card__body">
+          <div class="gw-empty gw-empty--compact">
+            <span class="gw-empty__icon"><i class="gw-icon" data-lucide="search-x"></i></span>
+            <h3 class="gw-empty__title">No tools match “s3”</h3>
+            <p class="gw-empty__text">Search looks at tool names and descriptions on endpoint <span class="gw-mono">dev</span>. Try another word, or add a connection to the endpoint to give agents more tools.</p>
+            <div class="gw-empty__actions">
+              <button class="gw-btn gw-btn--sm" type="button"><i class="gw-icon gw-icon--sm" data-lucide="x"></i>Clear search</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="gw-section" aria-labelledby="tpl-e-title">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="tpl-e-title">Tool picker in Playground</h2>
+      <p class="gw-section__description">Same groups, annotations and environment markers; the mode is read only here (<code class="gw-code">gw-mode</code>) and each row opens the tool in the playground. The current tool, <code class="gw-code">sql_query</code>, is the selected row. Two of the five groups are shown.</p>
+    </header>
+    <div class="gw-tool-policy-list">
+      <div class="gw-toolbar">
+        <div class="gw-toolbar__start">
+          <div class="gw-search gw-search--sm">
+            <i class="gw-icon gw-search__icon" data-lucide="search"></i>
+            <input class="gw-search__input" type="search" id="tpl-e-q" placeholder="Search tools" aria-label="Search tools on dev">
+            <button class="gw-search__clear" type="button" aria-label="Clear search"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+          </div>
+        </div>
+        <div class="gw-toolbar__end">
+          <p class="gw-tool-policy-list__summary" id="tpl-e-summary" role="status"><span class="gw-text-small gw-fg-secondary">14 tools on endpoint dev</span></p>
+        </div>
+      </div>
+      <section class="gw-card gw-card--flush" aria-labelledby="tpl-e-g-dev-db">
+        <header class="gw-card__header">
+          <div class="gw-tool-policy-list__group-heading">
+            <span class="gw-icon-tile"><i class="gw-icon" data-lucide="database"></i></span>
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="tpl-e-g-dev-db"><span class="gw-mono">dev-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></h3>
+              <p class="gw-card__description">PostgreSQL 16 · 4 tools · 3 read only · 1 approval</p>
+            </div>
+          </div>
+        </header>
+        <div class="gw-card__body">
+          <div class="gw-table-wrap" role="region" aria-labelledby="tpl-e-g-dev-db-cap" tabindex="0">
+            <table class="gw-table gw-table--interactive">
+              <caption class="gw-sr-only" id="tpl-e-g-dev-db-cap">Tools on dev-db</caption>
+              <thead><tr><th scope="col">Tool</th><th scope="col">Mode on dev</th></tr></thead>
+              <tbody>
+                <tr class="gw-tool-policy-list__row" data-mode="read">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <a class="gw-table__row-link gw-mono" href="../pages/playground.html?tool=sql_list_schemas">sql_list_schemas</a>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of sql_list_schemas"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">List the schemas the connection user can see.</p>
+                  </th>
+                  <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                </tr>
+                <tr class="gw-tool-policy-list__row" data-mode="read">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <a class="gw-table__row-link gw-mono" href="../pages/playground.html?tool=sql_describe_table">sql_describe_table</a>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of sql_describe_table"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Columns, types, indexes and foreign keys of one table.</p>
+                  </th>
+                  <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                </tr>
+                <tr class="gw-tool-policy-list__row" data-mode="read" aria-selected="true">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <a class="gw-table__row-link gw-mono" href="../pages/playground.html?tool=sql_query" aria-current="true">sql_query</a>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of sql_query"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Run one SELECT in a read-only transaction. PII columns come back masked.</p>
+                  </th>
+                  <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                </tr>
+                <tr class="gw-tool-policy-list__row" data-mode="approval">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <a class="gw-table__row-link gw-mono" href="../pages/playground.html?tool=sql_execute">sql_execute</a>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of sql_execute"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--danger" title="destructiveHint">Destructive</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">INSERT, UPDATE or DELETE. You approve the exact statement.</p>
+                  </th>
+                  <td><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+      <section class="gw-card gw-card--flush" aria-labelledby="tpl-e-g-billing-api">
+        <header class="gw-card__header">
+          <div class="gw-tool-policy-list__group-heading">
+            <span class="gw-icon-tile"><i class="gw-icon" data-lucide="globe"></i></span>
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="tpl-e-g-billing-api"><span class="gw-mono">billing-api</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--stage">stage</span></h3>
+              <p class="gw-card__description">HTTP API · billing.stage.acme.dev · 2 tools · 1 approval · 1 off</p>
+            </div>
+          </div>
+        </header>
+        <div class="gw-card__body">
+          <div class="gw-table-wrap" role="region" aria-labelledby="tpl-e-g-billing-api-cap" tabindex="0">
+            <table class="gw-table gw-table--interactive">
+              <caption class="gw-sr-only" id="tpl-e-g-billing-api-cap">Tools on billing-api</caption>
+              <thead><tr><th scope="col">Tool</th><th scope="col">Mode on dev</th></tr></thead>
+              <tbody>
+                <tr class="gw-tool-policy-list__row" data-mode="off">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <a class="gw-table__row-link gw-mono" href="../pages/playground.html?tool=http_get">http_get</a>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of http_get"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">GET or HEAD on the allowed paths of the API.</p>
+                  </th>
+                  <td><span class="gw-mode gw-mode--off"><i class="gw-icon" data-lucide="circle-off"></i>Off</span></td>
+                </tr>
+                <tr class="gw-tool-policy-list__row" data-mode="approval">
+                  <th scope="row" class="gw-tool-policy-list__tool">
+                    <div class="gw-tool-policy-list__name">
+                      <a class="gw-table__row-link gw-mono" href="../pages/playground.html?tool=http_request">http_request</a>
+                      <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of http_request"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--danger" title="destructiveHint">Destructive</li></ul>
+                    </div>
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">POST, PUT, PATCH or DELETE on the allowed paths. You approve the exact request.</p>
+                  </th>
+                  <td><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+  </section>
+
+</main>
+<script src="../vendor/lucide/lucide.min.js"></script>
+<script src="../assets/kit.js"></script>
+</body>
+</html>

@@ -1,0 +1,242 @@
+@let s = state();
+@let p = idPrefix();
+
+<!-- The connection's Name: first in the first section (kit: Name, then Host · Port · Database). -->
+<ng-template #nameField>
+  @let name = common().name;
+  @let error = nameError();
+  <div class="gw-field">
+    <label class="gw-field__label" [for]="p + '-name'">Name</label>
+    <input
+      class="gw-input gw-input--mono"
+      [id]="p + '-name'"
+      [formField]="commonForm.name"
+      autocomplete="off"
+      spellcheck="false"
+      [attr.aria-invalid]="error ? 'true' : null"
+      [attr.aria-describedby]="(error ? p + '-name-err ' : '') + p + '-name-hint'"
+    />
+    @if (error) {
+      <p class="gw-field__error" [id]="p + '-name-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>@for (part of nameErrorParts(error); track $index) {@if (part.code) {<span class="gw-mono">{{ part.text }}</span>} @else {<ng-container>{{ part.text }}</ng-container>}}</p>
+      <p class="gw-field__hint" [id]="p + '-name-hint'">Agents and Activity see it as <span class="gw-mono">connection:&lt;name&gt;</span>.</p>
+    } @else if (pageCopy()) {
+      <!-- Add connection's own words (pages/connection-new.html); the edit view says the name stays. -->
+      <p class="gw-field__hint" [id]="p + '-name-hint'">A slug: lowercase letters, digits and dashes. Agents call tools with it and Activity filters by <span class="gw-mono">connection:{{ name && nameValid() ? name : placeholderName }}</span>.@if (mode() === 'edit') { It can't be renamed: agents, policies and past calls refer to it.}</p>
+    } @else {
+      <p class="gw-field__hint" [id]="p + '-name-hint'">A slug: lowercase letters, digits and dashes. Agents and Activity see it as <span class="gw-mono">connection:{{ name && nameValid() ? name : placeholderName }}</span>.</p>
+    }
+  </div>
+</ng-template>
+
+<!-- A page's credentials copy that starts with the connection's name: the name in mono with its env marker. -->
+<ng-template #namedDescription>
+  @let env = common().env;
+  <span class="gw-mono">{{ common().name }}</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm" [class]="'gw-env--' + env">{{ env }}</span>{{ credentialsText().slice(common().name.length) }}
+</ng-template>
+
+<!-- The secret source: where the core gets the secret at call time. -->
+<ng-template #sources>
+  @if (showSources()) {
+    <fieldset class="gw-field">
+      <legend class="gw-field__label">Secret source</legend>
+      <div class="gw-grid gw-grid--auto gw-connection-form__sources">
+        @for (src of spec().secretSources; track src.id) {
+          @let copy = sourceCopy(src.id, src.label);
+          @let base = p + '-src-' + copy.kit;
+          <label class="gw-choice-card gw-choice-card--compact">
+            <input
+              class="gw-choice-card__input"
+              type="radio"
+              [name]="p + '-src'"
+              [value]="copy.kit"
+              [checked]="s.source() === src.id"
+              [attr.aria-disabled]="src.available ? null : 'true'"
+              [attr.aria-labelledby]="base + '-t'"
+              [attr.aria-describedby]="base + '-d' + (src.available ? '' : ' ' + base + '-r')"
+              (change)="setSource(src.id, src.available, $event)"
+            />
+            <span class="gw-choice-card__icon"><svg [lucideIcon]="copy.icon" class="gw-icon"></svg></span>
+            <span class="gw-choice-card__title" [id]="base + '-t'">{{ copy.title }}</span>
+            <span class="gw-choice-card__description" [id]="base + '-d'">@for (part of literalParts(copy.description, [copy.scheme]); track $index) {@if (part.code) {<span class="gw-mono">{{ part.text }}</span>} @else {<ng-container>{{ part.text }}</ng-container>}}</span>
+            @if (!src.available && src.reason) {
+              <span class="gw-choice-card__meta" [id]="base + '-r'">{{ src.reason }}</span>
+            } @else if (copy.meta) {
+              <span class="gw-choice-card__meta">{{ copy.meta }}</span>
+            }
+          </label>
+        }
+      </div>
+    </fieldset>
+  }
+</ng-template>
+
+<!-- A flat schema's root section: the Name, then where its secrets come from. -->
+<ng-template #rootLead>
+  @if (showName()) {
+    <ng-container [ngTemplateOutlet]="nameField" />
+  }
+  <ng-container [ngTemplateOutlet]="sources" />
+</ng-template>
+
+<!-- What the page puts first inside the form (a duplicate's "Copied from dev-db" alert). -->
+<ng-content select="[gwFormLead]" />
+
+@for (section of sectionsBefore(); track section; let first = $first) {
+  @let part = partOf(section);
+  @if (show(part)) {
+    @if (section === rootSection() && rootHoldsSecrets()) {
+      <gw-schema-section [form]="s" [node]="section" [lead]="rootLead" />
+    } @else if (part === 'credentials') {
+      <gw-schema-section
+        [form]="s"
+        [node]="section"
+        [lead]="showSources() ? sources : null"
+        [description]="credentialsText()"
+        [descriptionTemplate]="namedCredentials() ? namedDescription : null"
+        sectionClass="gw-connection-form__credentials"
+      />
+    } @else {
+      <gw-schema-section [form]="s" [node]="section" [lead]="first && showName() ? nameField : null" [nested]="false" />
+    }
+  }
+}
+
+@if (show('safety')) {
+  @let env = common().env;
+  <section class="gw-form__section gw-connection-form__safety" [attr.aria-labelledby]="p + '-env-t'">
+    <header class="gw-form__section-header">
+      <h3 class="gw-form__legend" [id]="p + '-env-t'">Environment and safety</h3>
+      <p class="gw-form__description">Sets the policy defaults and the marker approvers and agents see next to this connection. Prod is always red and always stricter.</p>
+    </header>
+    <div class="gw-form__rows">
+      <fieldset class="gw-field">
+        <legend class="gw-field__label">Environment</legend>
+        <div class="gw-form__row">
+          @for (card of envCards; track card.env) {
+            @let base = p + '-env-' + card.env;
+            <label class="gw-choice-card gw-choice-card--compact">
+              <input
+                class="gw-choice-card__input"
+                type="radio"
+                [name]="p + '-env'"
+                [value]="card.env"
+                [checked]="env === card.env"
+                [attr.aria-labelledby]="base + '-t'"
+                [attr.aria-describedby]="base + '-d' + (card.meta ? ' ' + base + '-m' : '')"
+                (change)="setEnv(card.env)"
+              />
+              <span class="gw-choice-card__title" [id]="base + '-t'"><span class="gw-env" [class]="'gw-env--' + card.env">{{ card.env }}</span> {{ card.title }}</span>
+              <span class="gw-choice-card__description" [id]="base + '-d'">{{ card.description }}</span>
+              @if (card.meta) {
+                <span class="gw-choice-card__meta" [id]="base + '-m'">{{ card.meta }}</span>
+              }
+            </label>
+          }
+        </div>
+      </fieldset>
+      @if (env === 'prod') {
+        <div class="gw-alert gw-alert--info gw-connection-form__prod-defaults" [id]="p + '-prod'">
+          <svg lucideIcon="shield" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content">
+            <p class="gw-alert__title">Prod turns on stricter defaults</p>
+            @if (prodDefaults().length) {
+              <!-- The prod policy's values (envDefaults of the form spec): never hard-coded here. -->
+              <ul class="gw-alert__body gw-connection-form__defaults">
+                @for (d of prodDefaults(); track $index) {
+                  <li><svg [lucideIcon]="d.icon" class="gw-icon gw-icon--sm"></svg>@for (part of literalParts(d.text, d.literals ?? []); track $index) {@if (part.code) {<span class="gw-mono">{{ part.text }}</span>} @else {<ng-container>{{ part.text }}</ng-container>}}</li>
+                }
+              </ul>
+            } @else {
+              <p class="gw-alert__body">The prod policy applies to this connection: its limits and approvals are stricter than dev's.</p>
+            }
+            <div class="gw-alert__actions"><a class="gw-btn gw-btn--link gw-btn--sm" routerLink="/policies/prod">Review the prod policy</a></div>
+          </div>
+        </div>
+      }
+    </div>
+  </section>
+}
+
+@for (section of sectionsAfter(); track section) {
+  @let part = partOf(section);
+  @if (show(part)) {
+    @if (part === 'credentials') {
+      <gw-schema-section
+        [form]="s"
+        [node]="section"
+        [lead]="showSources() ? sources : null"
+        [description]="credentialsText()"
+        [descriptionTemplate]="namedCredentials() ? namedDescription : null"
+        sectionClass="gw-connection-form__credentials"
+      />
+    } @else {
+      <gw-schema-section [form]="s" [node]="section" [nested]="false" />
+    }
+  }
+}
+
+@if (show('test')) {
+  <section
+    gwConnectionTest
+    [idPrefix]="p"
+    [state]="testState()"
+    [outcome]="testOutcome()"
+    [target]="target()"
+    [testedAt]="testedAt()"
+    [userFieldId]="userFieldId()"
+    [detailsOpen]="detailsOpen()"
+    (run)="test()"
+  ></section>
+}
+
+@if (show('actions')) {
+  <div class="gw-form__actions">
+    @if (backLabel()) {
+      <button class="gw-btn gw-btn--ghost" type="button" (click)="back.emit()">{{ backLabel() }}</button>
+    }
+    <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="busy() ? 'true' : null">
+      @if (busy()) {
+        <span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>
+      }
+      {{ saveLabel() }}
+    </button>
+  </div>
+}
+
+<!-- The page's own actions bar (a wizard's Back / Continue, the edit view's Discard / Save changes). -->
+<ng-content select="[gwFormActions]" />
+
+<!--
+  x-confirm: a changed setting that asks first (Run the credential command from kubeconfig). Risky but reversible
+  (gw-dialog--warning), or --danger when the schema says so; Cancel autofocus, the confirm saves.
+-->
+<dialog
+  class="gw-dialog gw-dialog--md"
+  [class.gw-dialog--warning]="confirmTone() === 'warning'"
+  [class.gw-dialog--danger]="confirmTone() === 'danger'"
+  gwDialog
+  #confirmDialog="gwDialog"
+  gwDialogStatic
+  [attr.aria-labelledby]="p + '-confirm-t'"
+  [attr.aria-describedby]="p + '-confirm-d'"
+>
+  @if (confirming().length) {
+    <header class="gw-dialog__header">
+      <span class="gw-icon-tile"><svg lucideIcon="triangle-alert" class="gw-icon"></svg></span>
+      <h2 class="gw-dialog__title" [id]="p + '-confirm-t'">{{ confirmTitle() }}</h2>
+      <p class="gw-dialog__description" [id]="p + '-confirm-d'">{{ confirmDescription() }}</p>
+      <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+    </header>
+    <div class="gw-dialog__body">
+      <dl class="gw-kv gw-kv--dense">
+        @for (c of confirming(); track c.node.pointer) {
+          <div class="gw-kv__row"><dt class="gw-kv__key">{{ c.node.title }}</dt><dd class="gw-kv__value">{{ changeText(c) }}</dd></div>
+        }
+      </dl>
+    </div>
+    <footer class="gw-dialog__footer">
+      <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
+      <button class="gw-btn" [class.gw-btn--primary]="confirmTone() === 'warning'" [class.gw-btn--danger]="confirmTone() === 'danger'" type="button" (click)="confirmSave()">{{ saveLabel() }}</button>
+    </footer>
+  }
+</dialog>

@@ -1,0 +1,2284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings · GateRook</title>
+<link rel="icon" href="../assets/logo-mark.svg" type="image/svg+xml">
+<script src="../assets/theme-boot.js"></script>
+<link rel="stylesheet" href="../dist/gw-kit.css">
+</head>
+<body>
+<!--
+  CANONICAL APP SHELL · copy this file verbatim for every page in pages/.
+  Change only:
+    1. <title>                      "<Section> · GateRook"
+    2. .gw-titlebar__title          the current section name
+    3. aria-current="page"          move it to the current nav item (exactly one)
+    4. the content of .gw-page      page header (one h1) + page content;
+                                    gw-page--narrow for forms, gw-page--full for Activity / split views
+  npm run check fails when a page's <nav data-gw-nav> differs from overview.html
+  (aria-current excluded). Add gw-titlebar--mac on macOS (Electron: process.platform === "darwin").
+-->
+<a class="gw-skip-link" href="#main">Skip to content</a>
+<div class="gw-shell">
+
+  <header class="gw-titlebar">
+    <span class="gw-titlebar__title">Settings</span>
+    <div class="gw-titlebar__drag"></div>
+    <div class="gw-titlebar__actions">
+      <!-- Opens the command palette (#cmdk at the end of <main>, elements/command-palette.html) -->
+      <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Search and commands" aria-haspopup="dialog" aria-keyshortcuts="Meta+K Control+K" data-gw-dialog-open="cmdk"><i class="gw-icon" data-lucide="search"></i> Search <kbd class="gw-btn__kbd" aria-hidden="true">⌘K</kbd></button>
+      <a class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" href="approvals.html" aria-label="Approvals, 3 waiting"><i class="gw-icon" data-lucide="bell"></i><span class="gw-counter gw-counter--attention" aria-hidden="true">3</span></a>
+      <!--
+        Appearance popover. gw-popover belongs to component group D, gw-segmented to group C.
+        The <form method="dialog"> scopes the radio groups (Settings › Appearance has its own
+        gw-theme radios) and never submits outside a <dialog>. kit.js binds name="gw-theme" /
+        name="gw-contrast" to window.gwTheme.
+      -->
+      <div class="gw-menu-host">
+        <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="gw-appearance" aria-label="Appearance"><i class="gw-icon" data-lucide="sun-moon"></i></button>
+        <div class="gw-popover gw-popover--right" id="gw-appearance" role="dialog" aria-labelledby="gw-appearance-title" hidden>
+          <div class="gw-popover__header">
+            <p class="gw-popover__title" id="gw-appearance-title">Appearance</p>
+          </div>
+          <form class="gw-popover__body" method="dialog">
+            <div class="gw-stack gw-stack--sm">
+              <p class="gw-text-caption gw-fg-muted" id="gw-appearance-theme">Theme</p>
+              <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="gw-appearance-theme">
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i> System</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i> Light</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i> Dark</span></label>
+              </div>
+              <p class="gw-text-caption gw-fg-muted" id="gw-appearance-contrast">Contrast</p>
+              <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="gw-appearance-contrast">
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="system"><span class="gw-segmented__label">System</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="normal"><span class="gw-segmented__label">Normal</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="more"><span class="gw-segmented__label">High</span></label>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="gw-sidebar" id="gw-sidebar">
+    <div class="gw-sidebar__header">
+      <a class="gw-logo" href="overview.html" aria-label="GateRook, overview">
+        <img class="gw-logo__mark" src="../assets/logo-mark.svg" alt="">
+        <span class="gw-logo__name">GateRook</span>
+      </a>
+      <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-sidebar__toggle" type="button" data-gw-sidebar-toggle aria-controls="gw-sidebar" aria-expanded="true" aria-label="Collapse sidebar"><i class="gw-icon" data-lucide="panel-left"></i></button>
+    </div>
+
+    <nav class="gw-sidebar__body gw-nav" data-gw-nav aria-label="Main">
+      <div class="gw-nav__group">
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="overview.html"><i class="gw-icon gw-nav__icon" data-lucide="layout-dashboard"></i><span class="gw-nav__label">Overview</span></a></li>
+          <li><a class="gw-nav__item" href="approvals.html"><i class="gw-icon gw-nav__icon" data-lucide="user-check"></i><span class="gw-nav__label">Approvals</span><span class="gw-nav__counter gw-counter gw-counter--attention"><span class="gw-sr-only">, </span>3<span class="gw-sr-only"> waiting</span></span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-resources">
+        <p class="gw-nav__group-label" id="gw-nav-resources">Resources</p>
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="connections.html"><i class="gw-icon gw-nav__icon" data-lucide="database"></i><span class="gw-nav__label">Connections</span></a></li>
+          <li><a class="gw-nav__item" href="connectors.html"><i class="gw-icon gw-nav__icon" data-lucide="puzzle"></i><span class="gw-nav__label">Connectors</span></a></li>
+          <li><a class="gw-nav__item" href="secrets.html"><i class="gw-icon gw-nav__icon" data-lucide="key-round"></i><span class="gw-nav__label">Secrets</span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-access">
+        <p class="gw-nav__group-label" id="gw-nav-access">Access</p>
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="endpoints.html"><i class="gw-icon gw-nav__icon" data-lucide="waypoints"></i><span class="gw-nav__label">Endpoints</span></a></li>
+          <li><a class="gw-nav__item" href="clients.html"><i class="gw-icon gw-nav__icon" data-lucide="app-window"></i><span class="gw-nav__label">AI apps</span></a></li>
+          <li><a class="gw-nav__item" href="policies.html"><i class="gw-icon gw-nav__icon" data-lucide="shield"></i><span class="gw-nav__label">Policies</span></a></li>
+          <li><a class="gw-nav__item" href="playground.html"><i class="gw-icon gw-nav__icon" data-lucide="flask-conical"></i><span class="gw-nav__label">Playground</span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-observe">
+        <p class="gw-nav__group-label" id="gw-nav-observe">Observe</p>
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="activity.html"><i class="gw-icon gw-nav__icon" data-lucide="activity"></i><span class="gw-nav__label">Activity</span></a></li>
+          <li><a class="gw-nav__item" href="insights.html"><i class="gw-icon gw-nav__icon" data-lucide="chart-column"></i><span class="gw-nav__label">Insights</span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group gw-nav__group--end">
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="settings.html" aria-current="page"><i class="gw-icon gw-nav__icon" data-lucide="settings"></i><span class="gw-nav__label">Settings</span></a></li>
+        </ul>
+      </div>
+    </nav>
+
+    <!-- gw-status belongs to component group B. Static on purpose: no gw-status--live in the shell (WCAG 2.2.2).
+         The tunnel status has two faces: gw-status--neutral "Tunnel off" (the demo's state, BLUEPRINT §9) and, while an
+         endpoint is published, gw-status--warning "Tunnel on", together with the app-wide gw-alert--banner --warning
+         "Tunnel is public" (clients.html and settings.html switch both at runtime):
+         <span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel on</span></span> -->
+    <div class="gw-sidebar__footer">
+      <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Core running</span></span>
+      <span class="gw-sidebar__meta">127.0.0.1:7465 · v0.4.0</span>
+      <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off</span></span>
+    </div>
+  </div>
+
+  <main class="gw-shell__main" id="main" tabindex="-1">
+    <!-- App-wide gw-alert--banner (Core stopped, Tunnel is public) goes here, before gw-page.
+         Demo: hidden while the tunnel is off (BLUEPRINT §9); Turn on tunnel in Tunnel shows it. -->
+    <div class="gw-alert gw-alert--warning gw-alert--banner" id="st-tunnel-banner" role="status" hidden>
+      <i class="gw-icon gw-alert__icon" data-lucide="globe"></i>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">Tunnel is public</p>
+        <p class="gw-alert__body">Endpoint <span class="gw-mono">stage-readonly</span> is reachable from the internet for claude.ai.</p>
+      </div>
+      <div class="gw-alert__actions">
+        <button class="gw-btn gw-btn--sm" type="button" data-st-tunnel-off>Turn off tunnel</button>
+      </div>
+    </div>
+    <div class="gw-page">
+      <header class="gw-page-header">
+        <div class="gw-page-header__row">
+          <div class="gw-page-header__heading">
+            <h1 class="gw-page-header__title">Settings</h1>
+            <p class="gw-page-header__description">How the app runs, how AI apps prove who they are, where approval requests reach you, what the network can see and how long the audit is kept.</p>
+            <div class="gw-page-header__meta">
+              <span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="monitor"></i>Desktop mode</span>
+              <span class="gw-text-small gw-fg-muted">One local user, no sign-in. Team settings show how server mode works.</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!--
+        settings-layout (elements/settings-layout.html). Save model:
+        - a topic that applies at once is a <section class="gw-form__section"> outside any <form>; a toast confirms it;
+        - a topic with values to save is a <form class="gw-form__section" id>; it owns the item's sticky
+          gw-form__actions bar (form="id"), rendered only while it has unsaved changes.
+        The settings nav marks the section in view with aria-current="location" (scroll-spy).
+        Demo state: everything saved (BLUEPRINT §9); change a Save topic to see its bar.
+      -->
+      <div class="gw-settings-layout">
+
+        <nav class="gw-settings-layout__nav gw-nav" aria-label="Settings">
+          <div class="gw-nav__group" role="group" aria-labelledby="st-g-workspace">
+            <p class="gw-nav__group-label" id="st-g-workspace">Workspace</p>
+            <ul class="gw-nav__list">
+              <li><a class="gw-nav__item" href="#settings-general" aria-current="location"><i class="gw-icon gw-nav__icon" data-lucide="sliders-horizontal"></i><span class="gw-nav__label">General</span></a></li>
+              <li><a class="gw-nav__item" href="#settings-appearance"><i class="gw-icon gw-nav__icon" data-lucide="sun-moon"></i><span class="gw-nav__label">Appearance</span></a></li>
+            </ul>
+          </div>
+          <div class="gw-nav__group" role="group" aria-labelledby="st-g-security">
+            <p class="gw-nav__group-label" id="st-g-security">Security</p>
+            <ul class="gw-nav__list">
+              <li><a class="gw-nav__item" href="#settings-authorization"><i class="gw-icon gw-nav__icon" data-lucide="shield-check"></i><span class="gw-nav__label">Authorization</span></a></li>
+              <li><a class="gw-nav__item" href="#settings-users"><i class="gw-icon gw-nav__icon" data-lucide="users"></i><span class="gw-nav__label">Users &amp; roles</span></a></li>
+            </ul>
+          </div>
+          <div class="gw-nav__group" role="group" aria-labelledby="st-g-approvals">
+            <p class="gw-nav__group-label" id="st-g-approvals">Approvals</p>
+            <ul class="gw-nav__list">
+              <li><a class="gw-nav__item" href="#settings-notifications"><i class="gw-icon gw-nav__icon" data-lucide="bell"></i><span class="gw-nav__label">Notifications</span></a></li>
+              <li><a class="gw-nav__item" href="#settings-approval-rules"><i class="gw-icon gw-nav__icon" data-lucide="list-checks"></i><span class="gw-nav__label">Approval rules</span></a></li>
+            </ul>
+          </div>
+          <div class="gw-nav__group" role="group" aria-labelledby="st-g-network">
+            <p class="gw-nav__group-label" id="st-g-network">Network</p>
+            <ul class="gw-nav__list">
+              <li><a class="gw-nav__item" href="#settings-tunnel"><i class="gw-icon gw-nav__icon" data-lucide="globe"></i><span class="gw-nav__label">Tunnel</span></a></li>
+              <li><a class="gw-nav__item" href="#settings-local-api"><i class="gw-icon gw-nav__icon" data-lucide="server"></i><span class="gw-nav__label">Local API</span></a></li>
+            </ul>
+          </div>
+          <div class="gw-nav__group" role="group" aria-labelledby="st-g-data">
+            <p class="gw-nav__group-label" id="st-g-data">Data</p>
+            <ul class="gw-nav__list">
+              <li><a class="gw-nav__item" href="#settings-audit"><i class="gw-icon gw-nav__icon" data-lucide="scroll-text"></i><span class="gw-nav__label">Audit &amp; retention</span></a></li>
+              <li><a class="gw-nav__item" href="#settings-backup"><i class="gw-icon gw-nav__icon" data-lucide="archive"></i><span class="gw-nav__label">Backup</span></a></li>
+            </ul>
+          </div>
+        </nav>
+
+        <nav class="gw-settings-layout__jump" aria-label="Settings">
+          <div class="gw-field">
+            <label class="gw-field__label" for="st-jump">Jump to section</label>
+            <select class="gw-select" id="st-jump">
+              <optgroup label="Workspace">
+                <option value="#settings-general" selected>General</option>
+                <option value="#settings-appearance">Appearance</option>
+              </optgroup>
+              <optgroup label="Security">
+                <option value="#settings-authorization">Authorization</option>
+                <option value="#settings-users">Users &amp; roles</option>
+              </optgroup>
+              <optgroup label="Approvals">
+                <option value="#settings-notifications">Notifications</option>
+                <option value="#settings-approval-rules">Approval rules</option>
+              </optgroup>
+              <optgroup label="Network">
+                <option value="#settings-tunnel">Tunnel</option>
+                <option value="#settings-local-api">Local API</option>
+              </optgroup>
+              <optgroup label="Data">
+                <option value="#settings-audit">Audit &amp; retention</option>
+                <option value="#settings-backup">Backup</option>
+              </optgroup>
+            </select>
+          </div>
+        </nav>
+
+        <div class="gw-settings-layout__content">
+
+          <!-- ═════════════ Workspace · General: applies at once ═════════════ -->
+          <section class="gw-settings-layout__section" id="settings-general" aria-labelledby="st-general-t">
+            <header class="gw-section__header">
+              <h2 class="gw-section__title" id="st-general-t">General</h2>
+              <p class="gw-section__description">How the app starts, stays up to date, answers the keyboard and where its core listens. Changes apply at once.</p>
+            </header>
+            <hr class="gw-divider">
+            <div class="gw-form">
+              <section class="gw-form__section" aria-labelledby="st-startup-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-startup-t">Startup</h3>
+                  <p class="gw-form__description">The core runs only while the app runs, so agents reach your endpoints only then.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-switch">
+                    <input class="gw-switch__input" type="checkbox" role="switch" id="st-login" checked aria-describedby="st-login-hint">
+                    <span class="gw-switch__control" aria-hidden="true"></span>
+                    <label class="gw-switch__label" for="st-login">Start GateRook when you sign in</label>
+                    <p class="gw-switch__hint" id="st-login-hint">Claude Desktop and Codex can call your endpoints as soon as you sign in to this computer.</p>
+                  </div>
+                  <div class="gw-switch">
+                    <input class="gw-switch__input" type="checkbox" role="switch" id="st-minimized" checked aria-describedby="st-minimized-hint">
+                    <span class="gw-switch__control" aria-hidden="true"></span>
+                    <label class="gw-switch__label" for="st-minimized">Start minimized</label>
+                    <p class="gw-switch__hint" id="st-minimized-hint">Opens in the menu bar on macOS and in the system tray on Windows and Linux. The icon shows how many requests wait for you.</p>
+                  </div>
+                </div>
+              </section>
+
+              <section class="gw-form__section" aria-labelledby="st-updates-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-updates-t">Updates</h3>
+                  <p class="gw-form__description">Signed releases from GitHub. An update installs when you restart the app, never in the middle of a call.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-switch">
+                    <input class="gw-switch__input" type="checkbox" role="switch" id="st-updates" checked aria-describedby="st-updates-hint">
+                    <span class="gw-switch__control" aria-hidden="true"></span>
+                    <label class="gw-switch__label" for="st-updates">Check for updates automatically</label>
+                    <p class="gw-switch__hint" id="st-updates-hint">Once a day. You choose when to restart.</p>
+                  </div>
+                  <div class="gw-settings-layout__inline">
+                    <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Up to date · version <span class="gw-mono">0.4.0</span></span></span>
+                    <button class="gw-btn gw-btn--sm" type="button" id="st-update-check" aria-describedby="st-update-checked"><i class="gw-icon gw-icon--sm" data-lucide="refresh-cw"></i> Check now</button>
+                    <p class="gw-text-caption gw-fg-muted" id="st-update-checked">Last checked <time datetime="2026-10-22T12:03:00+02:00" title="2026-10-22 12:03:00 +02:00">2 h ago</time></p>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Single-key shortcuts (WCAG 2.1.4): kit.js reads data-gw-single-keys-toggle, sets
+                   data-gw-single-keys="off" on the root element and remembers the choice; it also sets this switch to the saved state. -->
+              <section class="gw-form__section" aria-labelledby="st-keys-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-keys-t">Keyboard</h3>
+                  <p class="gw-form__description">Shortcuts with <kbd class="gw-kbd">⌘</kbd> or <kbd class="gw-kbd">Ctrl</kbd>, such as <kbd class="gw-kbd">⌘</kbd><kbd class="gw-kbd">K</kbd> for the command palette, always work.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-switch">
+                    <input class="gw-switch__input" type="checkbox" role="switch" id="st-single-keys" checked data-gw-single-keys-toggle aria-describedby="st-single-keys-hint">
+                    <span class="gw-switch__control" aria-hidden="true"></span>
+                    <label class="gw-switch__label" for="st-single-keys">Single-key shortcuts</label>
+                    <p class="gw-switch__hint" id="st-single-keys-hint"><kbd class="gw-kbd">/</kbd> jumps to the search or filter field of a page when you aren't typing in a field. Turn this off if you use speech input or a screen reader whose keys clash with it.</p>
+                  </div>
+                </div>
+              </section>
+
+              <section class="gw-form__section" aria-labelledby="st-core-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-core-t">Core</h3>
+                  <p class="gw-form__description">The local process that serves every endpoint. It listens only on this computer.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="st-port">Port</label>
+                    <input class="gw-input gw-input--mono" id="st-port" type="text" value="7465" readonly aria-describedby="st-port-hint">
+                    <p class="gw-field__hint" id="st-port-hint">Part of every endpoint URL, for example <span class="gw-mono">http://127.0.0.1:7465/mcp/dev</span>.</p>
+                  </div>
+                  <div class="gw-settings-layout__inline">
+                    <button class="gw-btn" type="button" data-gw-dialog-open="st-port-dlg" aria-describedby="st-port-change-hint"><i class="gw-icon" data-lucide="ethernet-port"></i> Change port</button>
+                    <p class="gw-text-caption gw-fg-muted" id="st-port-change-hint">Restarts the core. AI apps set up with the old port need to be connected again.</p>
+                  </div>
+                  <dl class="gw-kv">
+                    <!-- What runs the core and its plugins (decision 2, ARCHITECTURE §8.6.1, /api/core/info): the core is a native
+                         binary; a bundled JRE starts only for Java plugins (the plugin host). -->
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Core</dt><dd class="gw-kv__value">Native core</dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Plugin runtime</dt><dd class="gw-kv__value">Bundled JRE 25, started only for Java plugins</dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Data folder</dt><dd class="gw-kv__value gw-mono">~/.gaterook/</dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Log file</dt><dd class="gw-kv__value gw-mono">~/.gaterook/logs/core.log</dd></div>
+                  </dl>
+                  <div class="gw-settings-layout__inline">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button"><i class="gw-icon gw-icon--sm" data-lucide="folder-open"></i> Open logs folder</button>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <!-- ═════════════ Workspace · Appearance: applies at once, no Save ═════════════ -->
+          <section class="gw-settings-layout__section" id="settings-appearance" aria-labelledby="st-appearance-t">
+            <header class="gw-section__header">
+              <h2 class="gw-section__title" id="st-appearance-t">Appearance</h2>
+              <p class="gw-section__description">How GateRook looks on this computer. Changes apply at once; the titlebar has the same controls.</p>
+            </header>
+            <hr class="gw-divider">
+            <!-- A <form> only to scope the gw-theme / gw-contrast radio groups apart from the titlebar
+                 popover's: nothing to submit, unnamed so it adds no landmark. kit.js keeps both in sync. -->
+            <form class="gw-form" method="dialog">
+              <section class="gw-form__section" aria-labelledby="st-theme-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-theme-t">Theme</h3>
+                  <p class="gw-form__description" id="st-theme-d">System follows your operating system and switches with it.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-segmented" role="radiogroup" aria-labelledby="st-theme-t" aria-describedby="st-theme-d">
+                    <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i>System</span></label>
+                    <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i>Light</span></label>
+                    <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i>Dark</span></label>
+                  </div>
+                </div>
+              </section>
+
+              <section class="gw-form__section" aria-labelledby="st-contrast-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-contrast-t">Contrast</h3>
+                  <p class="gw-form__description">High contrast strengthens text, borders and focus rings. Backgrounds and the brand colour stay the same.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <fieldset class="gw-field" aria-labelledby="st-contrast-t">
+                    <div class="gw-radio">
+                      <input class="gw-radio__input" type="radio" name="gw-contrast" id="st-contrast-system" value="system" checked aria-describedby="st-contrast-system-hint">
+                      <span class="gw-radio__control" aria-hidden="true"></span>
+                      <label class="gw-radio__label" for="st-contrast-system">System</label>
+                      <p class="gw-radio__hint" id="st-contrast-system-hint">Follows Increase contrast on macOS and contrast themes on Windows.</p>
+                    </div>
+                    <div class="gw-radio">
+                      <input class="gw-radio__input" type="radio" name="gw-contrast" id="st-contrast-normal" value="normal">
+                      <span class="gw-radio__control" aria-hidden="true"></span>
+                      <label class="gw-radio__label" for="st-contrast-normal">Normal</label>
+                    </div>
+                    <div class="gw-radio">
+                      <input class="gw-radio__input" type="radio" name="gw-contrast" id="st-contrast-more" value="more" aria-describedby="st-contrast-more-hint">
+                      <span class="gw-radio__control" aria-hidden="true"></span>
+                      <label class="gw-radio__label" for="st-contrast-more">High</label>
+                      <p class="gw-radio__hint" id="st-contrast-more-hint">Darker secondary text, stronger borders, a heavier focus ring.</p>
+                    </div>
+                  </fieldset>
+                </div>
+              </section>
+
+              <section class="gw-form__section" aria-labelledby="st-density-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-density-t">Density</h3>
+                  <p class="gw-form__description">One compact density, tuned for long sessions: 32px controls and 40px table rows.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-alert gw-alert--info gw-alert--compact">
+                    <i class="gw-icon gw-alert__icon" data-lucide="info"></i>
+                    <div class="gw-alert__content"><p class="gw-alert__body">To make everything larger, zoom the window: View, then Zoom in, or <kbd class="gw-kbd">⌘</kbd><kbd class="gw-kbd">+</kbd> (<kbd class="gw-kbd">Ctrl</kbd><kbd class="gw-kbd">+</kbd> on Windows and Linux). The zoom level is remembered.</p></div>
+                  </div>
+                </div>
+              </section>
+            </form>
+          </section>
+
+          <!-- ═════════════ Security · Authorization: MCP access at once, OAuth needs Save ═════════════ -->
+          <section class="gw-settings-layout__section" id="settings-authorization" aria-labelledby="st-auth-t">
+            <header class="gw-section__header">
+              <h2 class="gw-section__title" id="st-auth-t">Authorization</h2>
+              <p class="gw-section__description">How AI apps prove who they are before they call an endpoint, and who can sign in to this app.</p>
+            </header>
+            <hr class="gw-divider">
+
+            <section class="gw-card gw-card--muted gw-how-it-works gw-how-it-works--vertical" aria-labelledby="st-hiw-auth-t">
+              <div class="gw-card__body gw-how-it-works__body">
+                <div class="gw-how-it-works__header">
+                  <div class="gw-card__heading">
+                    <h3 class="gw-card__title" id="st-hiw-auth-t">How authorization works</h3>
+                    <p class="gw-card__description">Every AI app is tied to one endpoint and can be cut off at once.</p>
+                  </div>
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-how-it-works__toggle" type="button" data-gw-toggle data-gw-toggle-persist="settings-authorization" aria-expanded="true" aria-controls="st-hiw-auth-p" aria-labelledby="st-hiw-auth-t">
+                    <i class="gw-icon gw-how-it-works__toggle-icon gw-how-it-works__toggle-icon--collapse" data-lucide="chevron-up"></i>
+                    <i class="gw-icon gw-how-it-works__toggle-icon gw-how-it-works__toggle-icon--expand" data-lucide="chevron-down"></i>
+                  </button>
+                </div>
+                <div class="gw-how-it-works__panel" id="st-hiw-auth-p">
+                  <ol class="gw-how-it-works__steps" aria-label="How an AI app is authorized">
+                    <li class="gw-how-it-works__step">
+                      <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="log-in"></i></span>
+                      <span class="gw-how-it-works__arrow gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="chevron-right"></i></span>
+                      <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">1</span>AI app gets a token or signs in with OAuth</p>
+                      <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">Claude Desktop and Codex get a 15-minute token on the fly; Cursor, Antigravity and MCP Inspector send a named token; claude.ai signs in with OAuth 2.1 through the tunnel.</p>
+                    </li>
+                    <li class="gw-how-it-works__step">
+                      <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="waypoints"></i></span>
+                      <span class="gw-how-it-works__arrow gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="chevron-right"></i></span>
+                      <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">2</span>Token is bound to one endpoint</p>
+                      <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">A token for <code class="gw-code">dev</code> can't call <code class="gw-code">stage-readonly</code>. Only its hash is stored.</p>
+                    </li>
+                    <li class="gw-how-it-works__step">
+                      <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="shield"></i></span>
+                      <span class="gw-how-it-works__arrow gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="chevron-right"></i></span>
+                      <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">3</span>Policy decides: allow, approval or deny</p>
+                      <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">Each call is checked against the tool's mode and the environment's limits.</p>
+                    </li>
+                    <li class="gw-how-it-works__step">
+                      <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="ban"></i></span>
+                      <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">4</span>Revoke any time</p>
+                      <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">The next call with a revoked token is refused. Nothing to restart.</p>
+                    </li>
+                  </ol>
+                  <p class="gw-how-it-works__more"><a class="gw-link gw-text-small" href="endpoint-detail.html">See the tokens of endpoint dev</a></p>
+                </div>
+              </div>
+            </section>
+
+            <div class="gw-form gw-form--sticky-actions">
+              <section class="gw-form__section" aria-labelledby="st-mcp-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-mcp-t">MCP access</h3>
+                  <p class="gw-form__description">Defaults for the tokens Cursor, Antigravity and MCP Inspector send with every call. They apply to new tokens at once; issued tokens keep their own. Claude Desktop and Codex get 15-minute tokens on the fly and need none.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="st-ttl">Default token lifetime</label>
+                    <select class="gw-select" id="st-ttl" aria-describedby="st-ttl-hint">
+                      <option>1 day</option>
+                      <option selected>7 days</option>
+                      <option>30 days</option>
+                      <option>90 days</option>
+                    </select>
+                    <p class="gw-field__hint" id="st-ttl-hint">Cursor and Antigravity keep their token in plain text in their config file, so a short lifetime limits what a copied file gives away. You can pick another lifetime when you issue a token. Nothing is written to the configs of Claude Desktop and Codex: the <span class="gw-mono">.mcpb</span> bridge and the Codex headers helper ask the app for a token each time.</p>
+                  </div>
+                  <!-- Server mode only. Not a disabled switch: on the desktop there is nothing to set,
+                       so the row says why instead of showing a control nobody can reach with Tab. -->
+                  <dl class="gw-kv">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">IP allowlist</dt><dd class="gw-kv__value">Server mode only. On the desktop the core accepts calls from this computer alone, so an address list would have nothing to filter. claude.ai is limited to Anthropic's addresses in <a class="gw-link" href="#settings-tunnel-callers">Tunnel</a>.</dd></div>
+                  </dl>
+                  <div class="gw-alert gw-alert--warning gw-alert--compact">
+                    <i class="gw-icon gw-alert__icon" data-lucide="triangle-alert"></i>
+                    <div class="gw-alert__content"><p class="gw-alert__body">Token <code class="gw-code">inspector-debug</code> on endpoint <code class="gw-code">dev</code> expires in 3 days.</p></div>
+                    <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" href="endpoint-detail.html">Review tokens</a></div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Saved value: CIMD (the checked attribute, so Discard = reset brings it back). Picking DCR shows
+                   #st-reg-dcr-warn (page script): with the tunnel on, any client that reaches the public URL could register. -->
+              <form class="gw-form__section" id="st-oauth" method="dialog" aria-labelledby="st-oauth-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-oauth-t">OAuth 2.1 for claude.ai</h3>
+                  <p class="gw-form__description">claude.ai runs in the cloud, so instead of a pasted token it signs in with OAuth through the tunnel. It reaches endpoint <span class="gw-mono">stage-readonly</span> only.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <!-- A quick tunnel gets its address when it starts (ARCHITECTURE §8.6.9): while it is off there is no issuer
+                       yet. The page script swaps in the copy field once the demo tunnel is on. -->
+                  <div class="gw-field">
+                    <span class="gw-field__label" id="st-issuer-l">Issuer URL</span>
+                    <p class="gw-text-small gw-fg-secondary" id="st-issuer-none" aria-describedby="st-issuer-hint">None yet: the issuer is the tunnel's public address, and the tunnel has none.</p>
+                    <div class="gw-copy-field" id="st-issuer-field" role="group" aria-labelledby="st-issuer-l" aria-describedby="st-issuer-hint" hidden>
+                      <code class="gw-copy-field__value" id="st-issuer" title="https://gw-acme-9q4m.trycloudflare.com">https://gw-acme-9q4m.trycloudflare.com</code>
+                      <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" data-gw-copy-from="#st-issuer">
+                        <span class="gw-copy-field__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> issuer URL</span></span>
+                        <span class="gw-copy-field__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                      </button>
+                    </div>
+                    <p class="gw-field__hint" id="st-issuer-hint">The tunnel's public address. claude.ai finds the metadata at <span class="gw-mono">/.well-known/oauth-protected-resource</span> from the endpoint URL.</p>
+                  </div>
+                  <div class="gw-alert gw-alert--warning gw-alert--compact" id="st-oauth-off">
+                    <i class="gw-icon gw-alert__icon" data-lucide="triangle-alert"></i>
+                    <div class="gw-alert__content"><p class="gw-alert__body">The tunnel is off, so claude.ai can't reach this issuer.</p></div>
+                    <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" href="#settings-tunnel">Set up tunnel</a></div>
+                  </div>
+                  <fieldset class="gw-field">
+                    <legend class="gw-field__label">Client registration</legend>
+                    <div class="gw-grid gw-grid--auto">
+                      <label class="gw-choice-card">
+                        <input class="gw-choice-card__input" type="radio" name="st-registration" value="cimd" checked aria-labelledby="st-reg-cimd-t" aria-describedby="st-reg-cimd-d">
+                        <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="file-key"></i></span>
+                        <span class="gw-choice-card__title" id="st-reg-cimd-t">CIMD <span class="gw-badge gw-badge--success gw-badge--sm">Recommended</span></span>
+                        <span class="gw-choice-card__description" id="st-reg-cimd-d">The client identifies itself with a metadata document at its own URL. Nothing to register or clean up.</span>
+                        <span class="gw-choice-card__meta">Client ID metadata document</span>
+                      </label>
+                      <label class="gw-choice-card">
+                        <input class="gw-choice-card__input" type="radio" name="st-registration" value="dcr" aria-labelledby="st-reg-dcr-t" aria-describedby="st-reg-dcr-d">
+                        <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="list-plus"></i></span>
+                        <span class="gw-choice-card__title" id="st-reg-dcr-t">Dynamic client registration <span class="gw-badge gw-badge--warning gw-badge--sm">Deprecated</span></span>
+                        <span class="gw-choice-card__description" id="st-reg-dcr-d">Each client registers itself and gets a client ID the gateway stores. While the tunnel is on, any client that reaches the public URL can register. Only for clients without CIMD.</span>
+                        <span class="gw-choice-card__meta">Deprecated in MCP 2026-07-28</span>
+                      </label>
+                    </div>
+                  </fieldset>
+                  <div class="gw-alert gw-alert--warning gw-alert--compact" id="st-reg-dcr-warn" hidden>
+                    <i class="gw-icon gw-alert__icon" data-lucide="triangle-alert"></i>
+                    <div class="gw-alert__content"><p class="gw-alert__body">With dynamic registration, any client that reaches the public URL can register while the tunnel is on. It still gets no token until you allow its sign-in on this computer.</p></div>
+                  </div>
+                  <dl class="gw-kv gw-kv--dense">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">PKCE</dt><dd class="gw-kv__value"><span class="gw-mono">S256</span>, always required</dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Token audience</dt><dd class="gw-kv__value">The endpoint URL: a token for <span class="gw-mono">stage-readonly</span> works nowhere else</dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Callers</dt><dd class="gw-kv__value"><span id="st-oauth-callers">Anthropic IP ranges only</span> · <a class="gw-link" href="#settings-tunnel-callers">Change in Tunnel<span class="gw-sr-only"> › Callers</span></a></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Consent</dt><dd class="gw-kv__value">Each new sign-in waits until you allow it on this computer, with a code to match; no answer in 5 min denies</dd></div>
+                  </dl>
+                </div>
+              </form>
+
+              <!-- Signed in: OAuth grants you allowed. Applies at once (Revoke confirms), so outside the Save form. -->
+              <section class="gw-form__section" id="settings-signed-in" aria-labelledby="st-grants-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-grants-t">Signed in <span class="gw-counter" id="st-grants-count">1<span class="gw-sr-only"> sign-in</span></span></h3>
+                  <p class="gw-form__description">OAuth sign-ins you allowed. They outlive the tunnel: revoke one to cut it off before the tunnel is on again.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-table-wrap" id="st-grants-wrap" role="region" aria-labelledby="st-grants-cap" tabindex="0">
+                    <table class="gw-table gw-table--dense">
+                      <caption class="gw-sr-only" id="st-grants-cap">OAuth sign-ins you allowed</caption>
+                      <thead><tr><th scope="col">AI app</th><th scope="col">Endpoint</th><th scope="col">Allowed</th><th scope="col">Last call</th><th scope="col">Expires</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th></tr></thead>
+                      <tbody>
+                        <tr>
+                          <th scope="row">claude.ai</th>
+                          <td class="gw-table__cell--mono">stage-readonly</td>
+                          <td><time datetime="2026-10-22T08:52:00+02:00" title="2026-10-22 08:52 +02:00">Today 08:52</time>, by you</td>
+                          <td><time datetime="2026-10-22T12:08:14+02:00" title="2026-10-22 12:08:14 +02:00">12:08</time></td>
+                          <td><time datetime="2026-10-29T08:52:00+01:00" title="2026-10-29 08:52 +01:00">Oct 29</time></td>
+                          <td class="gw-table__cell--actions"><button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" data-gw-dialog-open="st-revoke-ai-dlg">Revoke<span class="gw-sr-only"> claude.ai access to stage-readonly</span></button></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <p class="gw-text-small gw-fg-secondary" id="st-grants-empty" tabindex="-1" hidden>No sign-ins. claude.ai signs in again the next time you publish <span class="gw-mono">stage-readonly</span>, and you allow it here.</p>
+                </div>
+              </section>
+
+              <section class="gw-form__section" aria-labelledby="st-signin-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-signin-t">Sign-in to the UI</h3>
+                  <p class="gw-form__description">Who can open this app and decide on approval requests.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-alert gw-alert--neutral gw-alert--compact" id="st-signin-why">
+                    <i class="gw-icon gw-alert__icon" data-lucide="circle-help"></i>
+                    <div class="gw-alert__content"><p class="gw-alert__title">Server mode only</p><p class="gw-alert__body">This desktop app has one local user and no sign-in. Run GateRook in server mode to let a team sign in.</p></div>
+                  </div>
+                  <!-- A read-only preview, not disabled controls: nothing here can be set on the desktop,
+                       and natively disabled fields would drop out of the Tab order with their reason. -->
+                  <dl class="gw-kv">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">OIDC provider</dt><dd class="gw-kv__value">Google Workspace, Okta or Keycloak, chosen when you set up server mode</dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Two-factor sign-in</dt><dd class="gw-kv__value">Required for owners and admins: a passkey or an authenticator app</dd></div>
+                  </dl>
+                </div>
+              </section>
+
+              <div class="gw-form__actions" hidden>
+                <p class="gw-form__note" role="status"><i class="gw-icon" data-lucide="circle-dot"></i>Unsaved changes</p>
+                <button class="gw-btn" type="reset" form="st-oauth">Discard</button>
+                <button class="gw-btn gw-btn--primary" type="submit" form="st-oauth">Save OAuth settings</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- ═════════════ Security · Users & roles: server mode preview, read only ═════════════ -->
+          <section class="gw-settings-layout__section" id="settings-users" aria-labelledby="st-users-t">
+            <header class="gw-section__header">
+              <h2 class="gw-section__title" id="st-users-t">Users &amp; roles</h2>
+              <p class="gw-section__description">Who can sign in to a shared gateway and what each role may do.</p>
+              <div class="gw-section__actions">
+                <a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?view=changes"><i class="gw-icon gw-icon--sm" data-lucide="history"></i> View setup changes</a>
+                <button class="gw-btn gw-btn--sm" type="button" aria-disabled="true" aria-describedby="st-users-why"><i class="gw-icon gw-icon--sm" data-lucide="user-plus"></i> Invite people</button>
+              </div>
+            </header>
+            <hr class="gw-divider">
+            <div class="gw-alert gw-alert--neutral gw-alert--compact" id="st-users-why">
+              <i class="gw-icon gw-alert__icon" data-lucide="circle-help"></i>
+              <div class="gw-alert__content"><p class="gw-alert__title">Server mode only</p><p class="gw-alert__body">On this desktop you are the only user and hold every permission: decisions and changes are signed "by you", and Activity › Setup changes lists each one with You in By. In server mode people sign in with OIDC and get one of these roles; the people below are a preview.</p></div>
+            </div>
+            <div class="gw-form">
+              <section class="gw-form__section" aria-labelledby="st-people-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-people-t">People <span class="gw-badge gw-badge--neutral gw-badge--sm">Server mode preview</span></h3>
+                  <p class="gw-form__description">In server mode every decision and every change is recorded with the person who made it. <a class="gw-link" href="activity.html?view=changes">Setup changes in Activity</a></p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-table-wrap" role="region" aria-labelledby="st-people-cap" tabindex="0">
+                    <table class="gw-table">
+                      <caption class="gw-sr-only" id="st-people-cap">People and roles in server mode, preview</caption>
+                      <thead>
+                        <tr>
+                          <th scope="col">Person</th>
+                          <th scope="col">Role</th>
+                          <th scope="col">Approves</th>
+                          <th scope="col">Two-factor</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <th scope="row"><span class="gw-avatar gw-avatar--sm" aria-hidden="true">AM</span> Alex Morgan</th>
+                          <td>Owner</td>
+                          <td>Yes</td>
+                          <td><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">On</span></span></td>
+                        </tr>
+                        <tr>
+                          <th scope="row"><span class="gw-avatar gw-avatar--sm" aria-hidden="true">PN</span> Priya Nair</th>
+                          <td>Admin · Approver</td>
+                          <td>Yes</td>
+                          <td><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">On</span></span></td>
+                        </tr>
+                        <tr>
+                          <th scope="row"><span class="gw-avatar gw-avatar--sm" aria-hidden="true">SL</span> Sam Lee</th>
+                          <td>Developer</td>
+                          <td>No</td>
+                          <td><span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Off</span></span></td>
+                        </tr>
+                        <tr>
+                          <th scope="row"><span class="gw-avatar gw-avatar--sm" aria-hidden="true">JW</span> Jonas Weber</th>
+                          <td>Viewer</td>
+                          <td>No</td>
+                          <td><span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Off</span></span></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
+
+              <section class="gw-form__section" aria-labelledby="st-roles-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-roles-t">Roles</h3>
+                  <p class="gw-form__description">One role per person; Approver can be added to any role. Owners and admins sign in with two-factor. Nobody, in any role, can read a stored secret.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <dl class="gw-kv">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Owner</dt><dd class="gw-kv__value">Everything, including people, the master key and audit export. Decides on approval requests.</dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Admin</dt><dd class="gw-kv__value">Connections, endpoints, policies and settings. Can't manage owners or the master key.</dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Developer</dt><dd class="gw-kv__value">Uses endpoints and Playground and issues tokens for their own apps. Can't change policies or secrets.</dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Approver</dt><dd class="gw-kv__value">Decides on approval requests, from the app, Slack or Telegram. Added on top of another role.</dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Viewer</dt><dd class="gw-kv__value">Reads Activity and Insights. Can't change anything.</dd></div>
+                  </dl>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <!-- ═════════════ Approvals · Notifications: every channel applies at once (Telegram connects through a dialog) ═════════════
+               Demo state (BLUEPRINT §9): desktop on, Slack connected to #deploy-approvals, Telegram not set up. -->
+          <section class="gw-settings-layout__section" id="settings-notifications" aria-labelledby="st-notif-t">
+            <header class="gw-section__header">
+              <h2 class="gw-section__title" id="st-notif-t">Notifications</h2>
+              <p class="gw-section__description">Where approval requests reach you. Each message shows the exact action with its connection and environment; the agent's note is never sent.</p>
+              <div class="gw-section__actions">
+                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-dialog-open="st-preview-dlg"><i class="gw-icon gw-icon--sm" data-lucide="message-square"></i> Preview messages</button>
+                <button class="gw-btn gw-btn--sm" type="button" data-gw-toast="Sent to the desktop and to #deploy-approvals in Slack. Telegram is not set up." data-gw-toast-title="Test notification sent" data-gw-toast-tone="success"><i class="gw-icon gw-icon--sm" data-lucide="send"></i> Send test notification</button>
+              </div>
+            </header>
+            <hr class="gw-divider">
+            <div class="gw-form">
+              <section class="gw-form__section" aria-labelledby="st-desktop-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-desktop-t">Desktop</h3>
+                  <p class="gw-form__description">System notifications on this computer. They apply at once.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-switch">
+                    <input class="gw-switch__input" type="checkbox" role="switch" id="st-desktop" checked aria-describedby="st-desktop-hint">
+                    <span class="gw-switch__control" aria-hidden="true"></span>
+                    <label class="gw-switch__label" for="st-desktop">Desktop notifications</label>
+                    <p class="gw-switch__hint" id="st-desktop-hint">A notification for every request, with Review and Deny. It shows one line of the action, so approving happens in the app.</p>
+                  </div>
+                  <div class="gw-switch">
+                    <input class="gw-switch__input" type="checkbox" role="switch" id="st-sound" checked>
+                    <span class="gw-switch__control" aria-hidden="true"></span>
+                    <label class="gw-switch__label" for="st-sound">Play a sound for prod requests</label>
+                  </div>
+                </div>
+              </section>
+
+              <section class="gw-form__section" aria-labelledby="st-slack-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-slack-t">Slack</h3>
+                  <p class="gw-form__description">Sends each request to linked approvers or to a channel; a linked approver decides with the buttons on the message. Changes apply at once.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <!-- Not connected: shown after Disconnect Slack (page script). Connect Slack asks for the app's two tokens. -->
+                  <div class="gw-settings-layout__inline" id="st-slack-off" hidden>
+                    <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Not set up</span></span>
+                    <button class="gw-btn" type="button" id="st-slack-connect-btn" data-gw-dialog-open="st-slack-connect-dlg" aria-describedby="st-slack-connect-hint"><i class="gw-icon" data-lucide="plug"></i> Connect Slack</button>
+                    <p class="gw-text-caption gw-fg-muted" id="st-slack-connect-hint">You need the bot token and the app-level token of the GateRook app in your workspace.</p>
+                  </div>
+                  <div class="gw-settings-layout__inline" id="st-slack-status">
+                    <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Connected · workspace <span class="gw-mono">acme</span></span></span>
+                    <p class="gw-text-caption gw-fg-muted">Last request delivered <time datetime="2026-10-22T14:29:31+02:00" title="2026-10-22 14:29:31 +02:00">1 min ago</time></p>
+                  </div>
+                  <fieldset class="gw-field" id="st-slack-to-group">
+                    <legend class="gw-field__label">Send requests to</legend>
+                    <div class="gw-radio">
+                      <input class="gw-radio__input" type="radio" name="st-slack-to" id="st-slack-to-dm" value="dm" aria-describedby="st-slack-to-dm-hint">
+                      <span class="gw-radio__control" aria-hidden="true"></span>
+                      <label class="gw-radio__label" for="st-slack-to-dm">Direct messages to linked approvers <span class="gw-badge gw-badge--success gw-badge--sm">Recommended</span></label>
+                      <p class="gw-radio__hint" id="st-slack-to-dm-hint">Only the people who can decide see the exact action.</p>
+                    </div>
+                    <div class="gw-radio">
+                      <input class="gw-radio__input" type="radio" name="st-slack-to" id="st-slack-to-channel" value="channel" checked aria-describedby="st-slack-to-channel-hint">
+                      <span class="gw-radio__control" aria-hidden="true"></span>
+                      <label class="gw-radio__label" for="st-slack-to-channel">Post to a channel</label>
+                      <p class="gw-radio__hint" id="st-slack-to-channel-hint">Anyone who isn't a linked approver gets Open in app instead of the buttons.</p>
+                    </div>
+                  </fieldset>
+                  <div class="gw-field gw-field--nested" id="st-slack-channel-group" role="group" aria-label="Slack channel">
+                    <label class="gw-field__label" for="st-slack-channel">Channel</label>
+                    <select class="gw-select" id="st-slack-channel" aria-describedby="st-slack-channel-hint">
+                      <option selected>#deploy-approvals</option>
+                      <option>#platform-oncall</option>
+                      <option>#dev-ops</option>
+                    </select>
+                    <p class="gw-field__hint" id="st-slack-channel-hint">Everyone in the channel sees the exact action. Channels the GateRook app was added to.</p>
+                  </div>
+                  <div class="gw-settings-layout__inline" id="st-slack-disconnect-row">
+                    <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" data-gw-dialog-open="st-slack-disconnect-dlg"><i class="gw-icon gw-icon--sm" data-lucide="unplug"></i> Disconnect Slack</button>
+                  </div>
+                </div>
+              </section>
+
+              <section class="gw-form__section" aria-labelledby="st-telegram-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-telegram-t">Telegram</h3>
+                  <p class="gw-form__description">A bot posts each request to a chat. Linked approvers get Deny, and Approve when the request isn't on prod, the whole action fits and no comment is required.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-settings-layout__inline" id="st-tg-off">
+                    <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Not set up</span></span>
+                    <button class="gw-btn" type="button" id="st-tg-connect-btn" data-gw-dialog-open="st-tg-connect-dlg" aria-describedby="st-tg-connect-hint"><i class="gw-icon" data-lucide="send"></i> Connect Telegram bot</button>
+                    <p class="gw-text-caption gw-fg-muted" id="st-tg-connect-hint">You need a bot token from <span class="gw-mono">@BotFather</span> and the chat the bot was added to.</p>
+                  </div>
+                  <!-- Connected: shown after the demo's connect (page script), with the chat it posts to. -->
+                  <div class="gw-settings-layout__inline" id="st-tg-on" hidden>
+                    <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Connected · chat <span class="gw-mono" id="st-tg-chat-shown">-1001234567890</span></span></span>
+                    <button class="gw-btn gw-btn--sm" type="button" id="st-tg-change-btn" data-gw-dialog-open="st-tg-connect-dlg"><i class="gw-icon gw-icon--sm" data-lucide="send"></i> Change bot or chat</button>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </section>
+
+          <!-- ═════════════ Approvals · Approval rules: where decisions are made (Save) + per-environment summary (set in Policies) ═════════════ -->
+          <section class="gw-settings-layout__section" id="settings-approval-rules" aria-labelledby="st-rules-t">
+            <header class="gw-section__header">
+              <h2 class="gw-section__title" id="st-rules-t">Approval rules</h2>
+              <p class="gw-section__description">Where decisions can be made and what a prod decision needs. Timeouts and limits are set per environment in Policies.</p>
+              <div class="gw-section__actions">
+                <a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?q=decision:expired"><i class="gw-icon gw-icon--sm" data-lucide="activity"></i> View expired requests</a>
+              </div>
+            </header>
+            <hr class="gw-divider">
+            <div class="gw-alert gw-alert--info">
+              <i class="gw-icon gw-alert__icon" data-lucide="info"></i>
+              <div class="gw-alert__content">
+                <p class="gw-alert__title">Every mutation waits for a person</p>
+                <p class="gw-alert__body">This has no switch: no endpoint, environment or policy can skip it. The rules below only decide where a request is answered, how long it waits and what the answer needs. On this desktop you answer every request.</p>
+              </div>
+            </div>
+            <div class="gw-form gw-form--sticky-actions">
+              <form class="gw-form__section" id="st-rules" method="dialog" aria-labelledby="st-decisions-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-decisions-t">Decisions</h3>
+                  <p class="gw-form__description">Applies to every endpoint and environment.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <fieldset class="gw-field">
+                    <legend class="gw-field__label">Where decisions can be made</legend>
+                    <div class="gw-radio">
+                      <input class="gw-radio__input" type="radio" name="st-approvers" id="st-approvers-app" value="app" aria-describedby="st-approvers-app-hint">
+                      <span class="gw-radio__control" aria-hidden="true"></span>
+                      <label class="gw-radio__label" for="st-approvers-app">Only in this app</label>
+                      <p class="gw-radio__hint" id="st-approvers-app-hint">Slack and Telegram messages show Open in app instead of Approve and Deny. Desktop notifications keep Deny.</p>
+                    </div>
+                    <div class="gw-radio">
+                      <input class="gw-radio__input" type="radio" name="st-approvers" id="st-approvers-linked" value="linked" checked aria-describedby="st-approvers-linked-hint">
+                      <span class="gw-radio__control" aria-hidden="true"></span>
+                      <label class="gw-radio__label" for="st-approvers-linked">In this app and from linked Slack or Telegram accounts</label>
+                      <p class="gw-radio__hint" id="st-approvers-linked-hint">Approve is still dropped from every prod request, from a message that can't show the whole action, and when a comment is required. In server mode only people allowed by the policy can link an account.</p>
+                    </div>
+                  </fieldset>
+                  <div class="gw-checkbox">
+                    <input class="gw-checkbox__input" type="checkbox" id="st-comment-prod" checked aria-describedby="st-comment-prod-hint">
+                    <span class="gw-checkbox__control" aria-hidden="true"></span>
+                    <label class="gw-checkbox__label" for="st-comment-prod">Require a comment on prod</label>
+                    <p class="gw-checkbox__hint" id="st-comment-prod-hint">Approve and run stays unavailable until you write why. Slack and Telegram offer only Deny and Open in app for prod either way; desktop notifications always offer Review and Deny.</p>
+                  </div>
+                </div>
+              </form>
+
+              <section class="gw-form__section" aria-labelledby="st-per-env-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-per-env-t">Per environment</h3>
+                  <p class="gw-form__description">Timeouts are set in each environment's policy; the prod comment follows the rule above. No answer in time counts as a denial: the request is marked Expired and the agent is told.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-table-wrap" role="region" aria-labelledby="st-per-env-cap" tabindex="0">
+                    <table class="gw-table">
+                      <caption class="gw-sr-only" id="st-per-env-cap">Approval rules per environment, set in Policies</caption>
+                      <thead>
+                        <tr>
+                          <th scope="col">Environment</th>
+                          <th scope="col">Timeout</th>
+                          <th scope="col">Who can approve</th>
+                          <th scope="col">Comment</th>
+                          <th scope="col"><span class="gw-sr-only">Edit</span></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <th scope="row"><span class="gw-env gw-env--dev">dev</span></th>
+                          <td class="gw-tabular">5 min</td>
+                          <td>You (local user)</td>
+                          <td>Optional</td>
+                          <td><a class="gw-link" href="policies.html#dev-approvals">Edit in Policies<span class="gw-sr-only">: dev approval rules</span></a></td>
+                        </tr>
+                        <tr>
+                          <th scope="row"><span class="gw-env gw-env--stage">stage</span></th>
+                          <td class="gw-tabular">10 min</td>
+                          <td>You (local user)</td>
+                          <td>Optional</td>
+                          <td><a class="gw-link" href="policies.html#stage-approvals">Edit in Policies<span class="gw-sr-only">: stage approval rules</span></a></td>
+                        </tr>
+                        <tr>
+                          <th scope="row"><span class="gw-env gw-env--prod">prod</span></th>
+                          <td class="gw-tabular">10 min</td>
+                          <td>You (local user)</td>
+                          <td id="st-prod-comment">Required</td>
+                          <td><a class="gw-link" href="policies.html#prod-approvals">Edit in Policies<span class="gw-sr-only">: prod approval rules</span></a></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <p class="gw-text-small gw-fg-secondary">All three announce requests in desktop notifications and Slack <span class="gw-mono">#deploy-approvals</span>. One approval is enough everywhere: on this desktop, yours. Named approvers and two-person approval are server mode only.</p>
+                </div>
+              </section>
+
+              <div class="gw-form__actions" hidden>
+                <p class="gw-form__note" role="status"><i class="gw-icon" data-lucide="circle-dot"></i>Unsaved changes</p>
+                <button class="gw-btn" type="reset" form="st-rules">Discard</button>
+                <button class="gw-btn gw-btn--primary" type="submit" form="st-rules">Save approval rules</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- ═════════════ Network · Tunnel: status at once, provider needs Save ═════════════ -->
+          <section class="gw-settings-layout__section" id="settings-tunnel" aria-labelledby="st-tunnel-t">
+            <header class="gw-section__header">
+              <h2 class="gw-section__title" id="st-tunnel-t">Tunnel</h2>
+              <p class="gw-section__description">A public HTTPS address for claude.ai, which runs in Anthropic's cloud and can't reach <span class="gw-mono">127.0.0.1</span>.</p>
+              <div class="gw-section__actions">
+                <a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?q=client:claude-ai"><i class="gw-icon gw-icon--sm" data-lucide="activity"></i> View calls from claude.ai</a>
+              </div>
+            </header>
+            <hr class="gw-divider">
+
+            <section class="gw-card gw-card--muted gw-how-it-works gw-how-it-works--vertical" aria-labelledby="st-hiw-tunnel-t">
+              <div class="gw-card__body gw-how-it-works__body">
+                <div class="gw-how-it-works__header">
+                  <div class="gw-card__heading">
+                    <h3 class="gw-card__title" id="st-hiw-tunnel-t">How the tunnel works</h3>
+                    <p class="gw-card__description">Nothing opens on your network: the app dials out, claude.ai comes in through it.</p>
+                  </div>
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-how-it-works__toggle" type="button" data-gw-toggle data-gw-toggle-persist="settings-tunnel" aria-expanded="true" aria-controls="st-hiw-tunnel-p" aria-labelledby="st-hiw-tunnel-t">
+                    <i class="gw-icon gw-how-it-works__toggle-icon gw-how-it-works__toggle-icon--collapse" data-lucide="chevron-up"></i>
+                    <i class="gw-icon gw-how-it-works__toggle-icon gw-how-it-works__toggle-icon--expand" data-lucide="chevron-down"></i>
+                  </button>
+                </div>
+                <div class="gw-how-it-works__panel" id="st-hiw-tunnel-p">
+                  <ol class="gw-how-it-works__steps" aria-label="How claude.ai reaches this computer">
+                    <li class="gw-how-it-works__step">
+                      <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="cable"></i></span>
+                      <span class="gw-how-it-works__arrow gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="chevron-right"></i></span>
+                      <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">1</span>The app opens an outbound connection</p>
+                      <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">Cloudflare Tunnel or ngrok connects out from this computer: no open ports, works behind a VPN.</p>
+                    </li>
+                    <li class="gw-how-it-works__step">
+                      <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="log-in"></i></span>
+                      <span class="gw-how-it-works__arrow gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="chevron-right"></i></span>
+                      <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">2</span>claude.ai signs in with OAuth 2.1</p>
+                      <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">You allow the sign-in on this computer, and the token works for <code class="gw-code">stage-readonly</code> only.</p>
+                    </li>
+                    <li class="gw-how-it-works__step">
+                      <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="shield-check"></i></span>
+                      <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">3</span>Same policy, approvals and audit</p>
+                      <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">Calls through the tunnel are checked, approved and logged like local ones.</p>
+                    </li>
+                  </ol>
+                </div>
+              </div>
+            </section>
+
+            <div class="gw-form gw-form--sticky-actions">
+              <section class="gw-form__section" aria-labelledby="st-tunnel-status-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-tunnel-status-t">Status</h3>
+                  <p class="gw-form__description">Turn it on only while claude.ai needs it. Desktop AI apps never use it.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <!-- Off (the demo's live state, BLUEPRINT §9: public today 08:40–12:10, off since 12:10) -->
+                  <div class="gw-stack gw-stack--sm" id="st-tunnel-off">
+                    <div class="gw-settings-layout__inline">
+                      <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Off since <time datetime="2026-10-22T12:10:00+02:00" title="2026-10-22 12:10 +02:00">12:10</time></span></span>
+                      <button class="gw-btn" type="button" id="st-tunnel-on-btn" data-gw-dialog-open="st-tunnel-dlg" aria-describedby="st-tunnel-off-hint"><i class="gw-icon" data-lucide="globe"></i> Turn on tunnel</button>
+                      <p class="gw-text-caption gw-fg-muted" id="st-tunnel-off-hint">claude.ai can't reach <span class="gw-mono">stage-readonly</span> while the tunnel is off. Turning it on asks you to confirm what is published.</p>
+                    </div>
+                    <dl class="gw-kv gw-kv--dense">
+                      <div class="gw-kv__row"><dt class="gw-kv__key">Today</dt><dd class="gw-kv__value">Public <time datetime="2026-10-22T08:40:00+02:00" title="2026-10-22 08:40 +02:00">08:40</time> to <time datetime="2026-10-22T12:10:00+02:00" title="2026-10-22 12:10 +02:00">12:10</time>, turned on and off by you · <a class="gw-link" href="activity.html?view=changes">Setup changes<span class="gw-sr-only"> in Activity</span></a></dd></div>
+                      <div class="gw-kv__row"><dt class="gw-kv__key">Calls from claude.ai</dt><dd class="gw-kv__value"><span class="gw-tabular">19</span> while public, last at <time datetime="2026-10-22T12:08:14+02:00" title="2026-10-22 12:08:14 +02:00">12:08</time> · <a class="gw-link" href="activity.html?q=client:claude-ai">View calls<span class="gw-sr-only"> from claude.ai</span></a></dd></div>
+                    </dl>
+                  </div>
+                  <!-- On: shown after Turn on tunnel is confirmed (page script). Warning tone while public, with the
+                       app-wide banner and the sidebar's gw-status--warning "Tunnel on". A quick tunnel gets a new address
+                       each time it starts (ARCHITECTURE §8.6.9): not the morning's gw-acme-7f3k, so claude.ai is pointed
+                       at the new URL. -->
+                  <div class="gw-stack gw-stack--sm" id="st-tunnel-on" hidden>
+                    <div class="gw-settings-layout__inline">
+                      <span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Public · <span class="gw-mono">stage-readonly</span> · Cloudflare Tunnel</span></span>
+                      <button class="gw-btn" type="button" id="st-tunnel-off-btn" data-st-tunnel-off><i class="gw-icon" data-lucide="power"></i> Turn off tunnel</button>
+                    </div>
+                    <div class="gw-field">
+                      <span class="gw-field__label" id="st-public-url-l">Public URL of <span class="gw-mono">stage-readonly</span></span>
+                      <div class="gw-copy-field" role="group" aria-labelledby="st-public-url-l" aria-describedby="st-public-url-hint">
+                        <code class="gw-copy-field__value" id="st-public-url" title="https://gw-acme-9q4m.trycloudflare.com/mcp/stage-readonly">https://gw-acme-9q4m.trycloudflare.com/mcp/stage-readonly</code>
+                        <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" data-gw-copy-from="#st-public-url">
+                          <span class="gw-copy-field__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> public URL</span></span>
+                          <span class="gw-copy-field__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                        </button>
+                      </div>
+                      <p class="gw-field__hint" id="st-public-url-hint">Add it in claude.ai as a custom connector. Hostname <span class="gw-mono">gw-acme-9q4m.trycloudflare.com</span>.</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- The three gates of the public URL (BLUEPRINT §9), as on AI apps › claude.ai. Gate 1 per ARCHITECTURE §8.6.4:
+                   the IP allowlist covers /mcp/stage-readonly, not the sign-in page, which the person's own browser opens. -->
+              <section class="gw-form__section" aria-labelledby="st-gates-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-gates-t">Who gets in</h3>
+                  <p class="gw-form__description">Three gates stand in front of the public URL. A call that passes them still goes through policy, approvals and the audit log.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <ol class="gw-stack gw-stack--sm" aria-labelledby="st-gates-t">
+                    <li class="gw-text-small"><span class="gw-counter" aria-hidden="true">1</span> <span id="st-gate-ips">Only Anthropic IP ranges reach <span class="gw-mono">/mcp/stage-readonly</span>; the sign-in page opens in your own browser</span> · <a class="gw-link" href="#settings-tunnel-callers">Callers</a></li>
+                    <li class="gw-text-small"><span class="gw-counter" aria-hidden="true">2</span> Each new OAuth sign-in waits until you allow it on this computer, with a code to match. No answer in 5 min denies.</li>
+                    <li class="gw-text-small"><span class="gw-counter" aria-hidden="true">3</span> The endpoint's own modes: <span class="gw-mono">stage-readonly</span> is read only, and its token works for no other endpoint. <a class="gw-link" href="endpoint-detail.html?endpoint=stage-readonly">Tools of stage-readonly</a></li>
+                  </ol>
+                  <div class="gw-settings-layout__inline">
+                    <a class="gw-btn gw-btn--link" href="#settings-signed-in">Manage sign-ins<span class="gw-sr-only"> you allowed</span></a>
+                  </div>
+                </div>
+              </section>
+
+              <!-- The one home of the Anthropic IP allowlist: AI apps › claude.ai and Authorization › OAuth show it read-only
+                   and link here. Turning it off asks first (#st-any-address-dlg, gw-dialog--warning); turning it on applies at once. -->
+              <section class="gw-form__section" id="settings-tunnel-callers" aria-labelledby="st-callers-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-callers-t">Callers</h3>
+                  <p class="gw-form__description">Who may knock on the public URL before OAuth sign-in. Applies at once, also while the tunnel is off.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-switch">
+                    <input class="gw-switch__input" type="checkbox" role="switch" id="st-anthropic-ips" checked aria-describedby="st-anthropic-ips-hint">
+                    <span class="gw-switch__control" aria-hidden="true"></span>
+                    <label class="gw-switch__label" for="st-anthropic-ips">Only accept Anthropic IP ranges</label>
+                    <p class="gw-switch__hint" id="st-anthropic-ips-hint">The addresses Anthropic publishes for claude.ai. Calls from any other address get 403 before they reach an endpoint. Turning this off asks you first.</p>
+                  </div>
+                </div>
+              </section>
+
+              <form class="gw-form__section" id="st-tunnel" method="dialog" aria-labelledby="st-provider-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-provider-t">Provider</h3>
+                  <p class="gw-form__description">Who carries the traffic. Both give a public HTTPS address without opening a port.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <fieldset class="gw-field" aria-labelledby="st-provider-t">
+                    <div class="gw-grid gw-grid--auto">
+                      <label class="gw-choice-card">
+                        <input class="gw-choice-card__input" type="radio" name="st-provider" value="cloudflare" checked aria-labelledby="st-prov-cf-t" aria-describedby="st-prov-cf-d">
+                        <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
+                        <span class="gw-choice-card__title" id="st-prov-cf-t">Cloudflare Tunnel</span>
+                        <span class="gw-choice-card__description" id="st-prov-cf-d">No account needed. A quick tunnel gets a new address each time it starts; claude.ai must be pointed at the new URL. Use a named tunnel for a stable hostname.</span>
+                        <span class="gw-choice-card__meta">cloudflared, bundled</span>
+                      </label>
+                      <label class="gw-choice-card">
+                        <input class="gw-choice-card__input" type="radio" name="st-provider" value="ngrok" aria-labelledby="st-prov-ngrok-t" aria-describedby="st-prov-ngrok-d">
+                        <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="radio-tower"></i></span>
+                        <span class="gw-choice-card__title" id="st-prov-ngrok-t">ngrok</span>
+                        <span class="gw-choice-card__description" id="st-prov-ngrok-d">Uses your ngrok account. You paste its authtoken once; it's stored encrypted.</span>
+                        <span class="gw-choice-card__meta">Needs an ngrok account</span>
+                      </label>
+                    </div>
+                  </fieldset>
+                </div>
+              </form>
+
+              <section class="gw-form__section" aria-labelledby="st-published-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-published-t">What is published</h3>
+                  <p class="gw-form__description">Only the MCP path of <span class="gw-mono">stage-readonly</span> and the OAuth paths go through the tunnel, and only while it is on.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-stack gw-stack--sm">
+                    <p class="gw-text-ui" id="st-published-yes">Reachable from the internet while the tunnel is on</p>
+                    <ul class="gw-tag-list" aria-labelledby="st-published-yes">
+                      <li class="gw-tag gw-tag--mono"><span class="gw-tag__label" title="/mcp/stage-readonly">/mcp/stage-readonly</span></li>
+                      <li class="gw-tag gw-tag--mono"><span class="gw-tag__label" title="/oauth/*">/oauth/*</span></li>
+                      <li class="gw-tag gw-tag--mono"><span class="gw-tag__label" title="/.well-known/oauth-* (protected resource and authorization server metadata)">/.well-known/oauth-*</span></li>
+                    </ul>
+                  </div>
+                  <div class="gw-stack gw-stack--sm">
+                    <p class="gw-text-ui" id="st-published-no">Stays local</p>
+                    <ul class="gw-tag-list" aria-labelledby="st-published-no">
+                      <li class="gw-tag"><span class="gw-tag__label">This app's UI</span></li>
+                      <li class="gw-tag gw-tag--mono"><span class="gw-tag__label" title="/api/* (admin API)">/api/*</span></li>
+                      <li class="gw-tag gw-tag--mono"><span class="gw-tag__label" title="/mcp/dev">/mcp/dev</span></li>
+                      <li class="gw-tag gw-tag--mono"><span class="gw-tag__label" title="/mcp/incident-prod">/mcp/incident-prod</span></li>
+                    </ul>
+                  </div>
+                  <!-- Shown only while the published endpoint's risk is present (risk.state = present): stage-readonly has 3 of 3. -->
+                  <div class="gw-alert gw-alert--warning gw-alert--compact">
+                    <i class="gw-icon gw-alert__icon" data-lucide="shield-alert"></i>
+                    <div class="gw-alert__content"><p class="gw-alert__title">Risky combination, 3 of 3</p><p class="gw-alert__body"><span class="gw-mono">stage-readonly</span> holds private data + untrusted content + an external channel, and the tunnel publishes it to the internet.</p></div>
+                    <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" href="endpoint-detail.html?endpoint=stage-readonly#ep-risk">Review<span class="gw-sr-only"> the risk in endpoint stage-readonly</span></a></div>
+                  </div>
+                  <p class="gw-text-small gw-fg-secondary"><a class="gw-link" href="endpoints.html">Choose endpoints for claude.ai in Endpoints</a></p>
+                </div>
+              </section>
+
+              <div class="gw-form__actions" hidden>
+                <p class="gw-form__note" role="status"><i class="gw-icon" data-lucide="circle-dot"></i>Unsaved changes</p>
+                <button class="gw-btn" type="reset" form="st-tunnel">Discard</button>
+                <button class="gw-btn gw-btn--primary" type="submit" form="st-tunnel">Save tunnel provider</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- ═════════════ Network · Local API: checks always on, allowed origins need Save ═════════════ -->
+          <section class="gw-settings-layout__section" id="settings-local-api" aria-labelledby="st-local-t">
+            <header class="gw-section__header">
+              <h2 class="gw-section__title" id="st-local-t">Local API</h2>
+              <p class="gw-section__description">How the core accepts calls on this computer. Protection against other software and web pages is always on.</p>
+            </header>
+            <hr class="gw-divider">
+            <div class="gw-form gw-form--sticky-actions">
+              <section class="gw-form__section" aria-labelledby="st-listen-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-listen-t">Listen address</h3>
+                  <p class="gw-form__description">Fixed on the desktop. The port is set in <a class="gw-link" href="#settings-general">General</a>.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="st-listen">Address</label>
+                    <input class="gw-input gw-input--mono" id="st-listen" type="text" value="127.0.0.1" readonly aria-describedby="st-listen-hint">
+                    <p class="gw-field__hint" id="st-listen-hint">Loopback only: nothing else on your network can reach the core, and claude.ai comes in only through the tunnel.</p>
+                  </div>
+                </div>
+              </section>
+
+              <section class="gw-form__section" aria-labelledby="st-checks-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-checks-t">Request checks</h3>
+                  <p class="gw-form__description">Web pages can't reach the core (DNS rebinding check); other programs on this computer still need a token. Always on.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <dl class="gw-kv">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Host header</dt><dd class="gw-kv__value"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Checked · only <span class="gw-mono">127.0.0.1:7465</span> and <span class="gw-mono">localhost:7465</span></span></span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Origin header</dt><dd class="gw-kv__value"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Checked · browsers only from the allowed origins below</span></span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Token</dt><dd class="gw-kv__value"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Required for every call, also from this computer</span></span></dd></div>
+                  </dl>
+                </div>
+              </section>
+
+              <form class="gw-form__section" id="st-origins" method="dialog" aria-labelledby="st-origins-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-origins-t">Allowed origins</h3>
+                  <p class="gw-form__description">Browser-based apps that may call the local API. Desktop apps and command-line tools send no Origin and don't need an entry.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <ul class="gw-tag-list" id="st-origins-list" aria-label="Allowed origins">
+                    <li class="gw-tag gw-tag--mono">
+                      <span class="gw-tag__label" title="http://localhost:6274">http://localhost:6274</span>
+                      <button class="gw-tag__remove" type="button" aria-label="Remove http://localhost:6274"><i class="gw-icon" data-lucide="x"></i></button>
+                    </li>
+                  </ul>
+                  <div class="gw-empty gw-empty--compact" id="st-origins-empty" hidden>
+                    <span class="gw-empty__icon"><i class="gw-icon" data-lucide="globe-lock"></i></span>
+                    <p class="gw-empty__title">No browser origins allowed</p>
+                    <p class="gw-empty__text">Only desktop apps and command-line tools can call the core. That is the safest setting.</p>
+                  </div>
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="st-origin-new">Add an origin</label>
+                    <div class="gw-input-group">
+                      <input class="gw-input gw-input--mono" id="st-origin-new" type="text" placeholder="http://localhost:3000" autocomplete="off" spellcheck="false" aria-describedby="st-origin-hint">
+                      <button class="gw-input-group__addon" type="button" id="st-origin-add" aria-label="Add origin"><i class="gw-icon" data-lucide="plus"></i></button>
+                    </div>
+                    <p class="gw-field__error" id="st-origin-err" hidden><i class="gw-icon" data-lucide="circle-alert"></i>Enter a scheme, host and port, for example http://localhost:3000. Paths aren't allowed.</p>
+                    <p class="gw-field__hint" id="st-origin-hint">MCP Inspector runs at <span class="gw-mono">http://localhost:6274</span>. Any other origin gets 403 Forbidden.</p>
+                  </div>
+                </div>
+              </form>
+
+              <div class="gw-form__actions" hidden>
+                <p class="gw-form__note" role="status"><i class="gw-icon" data-lucide="circle-dot"></i>Unsaved changes</p>
+                <button class="gw-btn" type="reset" form="st-origins">Discard</button>
+                <button class="gw-btn gw-btn--primary" type="submit" form="st-origins">Save allowed origins</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- ═════════════ Data · Audit & retention: retention needs Save, export acts at once ═════════════ -->
+          <section class="gw-settings-layout__section" id="settings-audit" aria-labelledby="st-audit-t">
+            <header class="gw-section__header">
+              <h2 class="gw-section__title" id="st-audit-t">Audit &amp; retention</h2>
+              <p class="gw-section__description">Every call is written to the audit log before it runs. Choose how long to keep it and where to copy it.</p>
+              <div class="gw-section__actions">
+                <a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html"><i class="gw-icon gw-icon--sm" data-lucide="activity"></i> Open Activity</a>
+              </div>
+            </header>
+            <hr class="gw-divider">
+            <div class="gw-alert gw-alert--info gw-alert--compact">
+              <i class="gw-icon gw-alert__icon" data-lucide="info"></i>
+              <div class="gw-alert__content"><p class="gw-alert__title">Append-only</p><p class="gw-alert__body">Records can't be edited, and are removed only after the retention period and every export. A call that can't be written to the log doesn't run.</p></div>
+            </div>
+            <div class="gw-form gw-form--sticky-actions">
+              <form class="gw-form__section" id="st-retention" method="dialog" aria-labelledby="st-retention-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-retention-t">Retention</h3>
+                  <p class="gw-form__description">Older records are removed only after every export destination has received them.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="st-keep">Keep records for</label>
+                    <select class="gw-select" id="st-keep" aria-describedby="st-keep-hint">
+                      <option selected>1 year</option>
+                      <option>2 years</option>
+                      <option>3 years</option>
+                      <option>5 years</option>
+                    </select>
+                    <p class="gw-field__hint" id="st-keep-hint">A year at least, so the audit always covers the last twelve months. At today's rate, 1,284 calls in the last 24 hours, a year holds about 470,000 records.</p>
+                  </div>
+                </div>
+              </form>
+
+              <section class="gw-form__section" aria-labelledby="st-export-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-export-t">Export</h3>
+                  <p class="gw-form__description">Copies of the log for your SIEM and data warehouse. Masked fields stay masked.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-stack">
+                    <section class="gw-card" aria-labelledby="st-exp-siem-t">
+                      <header class="gw-card__header">
+                        <div class="gw-card__heading">
+                          <h4 class="gw-card__title" id="st-exp-siem-t">SIEM · syslog</h4>
+                          <p class="gw-card__description gw-mono">siem.acme.internal:6514</p>
+                        </div>
+                        <div class="gw-card__actions"><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Edit export to SIEM">Edit</button></div>
+                      </header>
+                      <div class="gw-card__body">
+                        <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Streaming · last event <time datetime="2026-10-22T14:29:30+02:00" title="2026-10-22 14:29:30 +02:00">1 min ago</time></span></span>
+                      </div>
+                    </section>
+                    <section class="gw-card" aria-labelledby="st-exp-s3-t">
+                      <header class="gw-card__header">
+                        <div class="gw-card__heading">
+                          <h4 class="gw-card__title" id="st-exp-s3-t">Amazon S3</h4>
+                          <p class="gw-card__description gw-mono">s3://acme-audit/gaterook/</p>
+                        </div>
+                        <div class="gw-card__actions"><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Edit export to Amazon S3">Edit</button></div>
+                      </header>
+                      <div class="gw-card__body">
+                        <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Daily at 02:00 · last run <time datetime="2026-10-22T02:00:00+02:00" title="2026-10-22 02:00:00 +02:00">12 h ago</time></span></span>
+                      </div>
+                    </section>
+                    <section class="gw-card" aria-labelledby="st-exp-bq-t">
+                      <header class="gw-card__header">
+                        <div class="gw-card__heading">
+                          <h4 class="gw-card__title" id="st-exp-bq-t">BigQuery</h4>
+                          <p class="gw-card__description gw-mono">acme-prod.audit.mcp_calls</p>
+                        </div>
+                        <div class="gw-card__actions"><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Edit export to BigQuery">Edit</button></div>
+                      </header>
+                      <div class="gw-card__body">
+                        <div class="gw-stack gw-stack--sm">
+                          <span class="gw-status gw-status--danger"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Hourly · failing since 12:00 · last try <time datetime="2026-10-22T14:00:04+02:00" title="2026-10-22 14:00:04 +02:00">30 min ago</time></span></span>
+                          <div class="gw-alert gw-alert--danger">
+                            <i class="gw-icon gw-alert__icon" data-lucide="circle-alert"></i>
+                            <div class="gw-alert__content">
+                              <p class="gw-alert__title">Export to BigQuery is failing</p>
+                              <p class="gw-alert__body">Records wait in the local log until an export succeeds. Fix what the error names, then retry.</p>
+                              <div class="gw-alert__actions">
+                                <button class="gw-btn gw-btn--sm" type="button" data-gw-toast="Records since 12:00 are on their way to acme-prod.audit.mcp_calls." data-gw-toast-title="Retrying export to BigQuery" data-gw-toast-tone="info"><i class="gw-icon gw-icon--sm" data-lucide="rotate-cw"></i> Retry export to BigQuery</button>
+                                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="st-bq-details">Show error details</button>
+                              </div>
+                              <div class="gw-code-block gw-code-block--wrap" id="st-bq-details" hidden>
+                                <div class="gw-code-block__header">
+                                  <span class="gw-code-block__lang">Error</span>
+                                  <span class="gw-code-block__filename">BigQuery · 2026-10-22 14:00:04</span>
+                                  <div class="gw-code-block__actions">
+                                    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#st-bq-error">
+                                      <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> error details</span></span>
+                                      <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                                    </button>
+                                  </div>
+                                </div>
+                                <div class="gw-code-block__body" tabindex="0" role="region" aria-label="BigQuery error details">
+<pre class="gw-code-block__pre" id="st-bq-error"><code>403 Forbidden: Access Denied: Table acme-prod:audit.mcp_calls: Permission bigquery.tables.updateData denied for gw-audit@acme-prod.iam.gserviceaccount.com</code></pre>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                  <div class="gw-settings-layout__inline">
+                    <button class="gw-btn" type="button" data-gw-toast="Sending records since the last run to SIEM, Amazon S3 and BigQuery." data-gw-toast-title="Export started" data-gw-toast-tone="info"><i class="gw-icon" data-lucide="cloud-upload"></i> Export now</button>
+                    <button class="gw-btn gw-btn--ghost" type="button"><i class="gw-icon" data-lucide="plus"></i> Add destination</button>
+                  </div>
+                </div>
+              </section>
+
+              <div class="gw-form__actions" hidden>
+                <p class="gw-form__note" role="status"><i class="gw-icon" data-lucide="circle-dot"></i>Unsaved changes</p>
+                <button class="gw-btn" type="reset" form="st-retention">Discard</button>
+                <button class="gw-btn gw-btn--primary" type="submit" form="st-retention">Save retention</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- ═════════════ Data · Backup: applies at once ═════════════ -->
+          <section class="gw-settings-layout__section" id="settings-backup" aria-labelledby="st-backup-t">
+            <header class="gw-section__header">
+              <h2 class="gw-section__title" id="st-backup-t">Backup</h2>
+              <p class="gw-section__description">What you need to restore this gateway on another computer: the database, and the master key kept apart from it.</p>
+            </header>
+            <hr class="gw-divider">
+            <div class="gw-form">
+              <section class="gw-form__section" aria-labelledby="st-db-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-db-t">Database</h3>
+                  <p class="gw-form__description">Connections, endpoints, policies and the audit log. Secrets are inside only in encrypted form.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-switch">
+                    <input class="gw-switch__input" type="checkbox" role="switch" id="st-daily-backup" checked aria-describedby="st-daily-backup-hint">
+                    <span class="gw-switch__control" aria-hidden="true"></span>
+                    <label class="gw-switch__label" for="st-daily-backup">Back up the database every day</label>
+                    <p class="gw-switch__hint" id="st-daily-backup-hint">At 03:00, or at the next start if the computer was off. The last 7 copies are kept.</p>
+                  </div>
+                  <dl class="gw-kv">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Database file</dt><dd class="gw-kv__value gw-mono">~/.gaterook/gateway.db</dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Last backup</dt><dd class="gw-kv__value">Today at <time datetime="2026-10-22T03:00:00+02:00" title="2026-10-22 03:00:00 +02:00">03:00</time> · <span class="gw-mono">gateway-2026-10-22.db</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Backup folder</dt><dd class="gw-kv__value gw-mono">~/.gaterook/backups/</dd></div>
+                  </dl>
+                  <div class="gw-settings-layout__inline">
+                    <button class="gw-btn" type="button" data-gw-toast="Saved as gateway-2026-10-22-1430.db in ~/.gaterook/backups/." data-gw-toast-title="Database backed up" data-gw-toast-tone="success"><i class="gw-icon" data-lucide="database-backup"></i> Back up now</button>
+                    <button class="gw-btn gw-btn--ghost" type="button"><i class="gw-icon" data-lucide="folder-open"></i> Open backup folder</button>
+                  </div>
+                </div>
+              </section>
+
+              <section class="gw-form__section" aria-labelledby="st-key-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-key-t">Master key</h3>
+                  <p class="gw-form__description">Never stored inside the database or its backups. Keep a copy apart from them.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <dl class="gw-kv">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Key file</dt><dd class="gw-kv__value gw-mono">~/.gaterook/master.keyset</dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Protects</dt><dd class="gw-kv__value">8 secrets stored here · 3 secret references don't need it</dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Last copy</dt><dd class="gw-kv__value"><span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label"><time datetime="2026-10-10T18:20:00+02:00" title="2026-10-10 18:20 +02:00">12 days ago</time></span></span></dd></div>
+                  </dl>
+                  <!-- Per platform: Time Machine on macOS (this demo), File History on Windows, "folder backups" elsewhere. -->
+                  <div class="gw-alert gw-alert--info gw-alert--compact">
+                    <i class="gw-icon gw-alert__icon" data-lucide="folder-lock"></i>
+                    <div class="gw-alert__content"><p class="gw-alert__body">Copies of <span class="gw-mono">~/.gaterook/</span> include <span class="gw-mono">master.keyset</span>: exclude it from Time Machine and other folder backups, so a copy of the database never travels with its key.</p></div>
+                  </div>
+                  <div class="gw-settings-layout__inline">
+                    <button class="gw-btn" type="button" data-gw-dialog-open="st-backup-key-dlg"><i class="gw-icon" data-lucide="archive"></i> Back up master key</button>
+                    <a class="gw-btn gw-btn--ghost" href="secrets.html#master-key"><i class="gw-icon" data-lucide="key-round"></i> Manage master key in Secrets</a>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </section>
+
+        </div>
+      </div>
+
+      <!-- ═════════════ Dialogs ═════════════ -->
+
+      <!-- Change port: risky but reversible, so gw-dialog--warning with a primary confirm -->
+      <dialog class="gw-dialog gw-dialog--md gw-dialog--warning" id="st-port-dlg" aria-labelledby="st-port-dlg-t" aria-describedby="st-port-dlg-d" data-gw-static>
+        <form method="dialog">
+          <header class="gw-dialog__header">
+            <span class="gw-icon-tile"><i class="gw-icon" data-lucide="ethernet-port"></i></span>
+            <h2 class="gw-dialog__title" id="st-port-dlg-t">Change the core port?</h2>
+            <p class="gw-dialog__description" id="st-port-dlg-d">The core restarts on the new port and every endpoint URL changes. AI apps set up with the old URL stop reaching it until you connect them again.</p>
+            <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+          </header>
+          <div class="gw-dialog__body">
+            <div class="gw-stack">
+              <div class="gw-field">
+                <label class="gw-field__label" for="st-port-new">New port</label>
+                <input class="gw-input gw-input--mono" id="st-port-new" type="text" inputmode="numeric" value="7475" required pattern="[0-9]{4,5}" autocomplete="off" autofocus aria-describedby="st-port-new-hint">
+                <p class="gw-field__hint" id="st-port-new-hint">1024 to 65535, free on this computer.</p>
+              </div>
+              <!-- Connect again: the clients whose config file holds the URL (Codex's headers helper; a token or a browser
+                   sign-in in Cursor or Antigravity). Claude Desktop's bridge asks the app for the address on every token,
+                   so it follows the new port. No claude.ai row: the tunnel's public address doesn't depend on this port. -->
+              <dl class="gw-kv gw-kv--dense">
+                <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint URLs</dt><dd class="gw-kv__value"><span class="gw-mono">http://127.0.0.1:7475/mcp/dev</span>, <span class="gw-mono">/mcp/stage-readonly</span> and <span class="gw-mono">/mcp/incident-prod</span></dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Connect again</dt><dd class="gw-kv__value">Codex, from <a class="gw-link" href="clients.html">AI apps</a></dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Unchanged</dt><dd class="gw-kv__value">Claude Desktop: its bridge asks GateRook for the address</dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">During the restart</dt><dd class="gw-kv__value">Calls in flight fail and agents retry. The 3 pending approval requests are kept.</dd></div>
+              </dl>
+            </div>
+          </div>
+          <footer class="gw-dialog__footer">
+            <button class="gw-btn" type="button" data-gw-dialog-close>Cancel</button>
+            <button class="gw-btn gw-btn--primary" type="submit" data-gw-toast="Endpoint URLs now use port 7475. Connect Codex again in AI apps." data-gw-toast-title="Core restarting on port 7475" data-gw-toast-tone="success">Change port and restart core</button>
+          </footer>
+        </form>
+      </dialog>
+
+      <!-- Turn on tunnel: makes an endpoint public, so the user confirms exactly what goes out and who can get in.
+           The same three gates as AI apps › claude.ai (#cl-dlg-publish); risky but reversible, so --warning, Cancel autofocus.
+           Every way to publish goes through here: Undo never re-publishes. -->
+      <dialog class="gw-dialog gw-dialog--md gw-dialog--warning" id="st-tunnel-dlg" aria-labelledby="st-tunnel-dlg-t" aria-describedby="st-tunnel-dlg-d">
+        <header class="gw-dialog__header">
+          <span class="gw-icon-tile"><i class="gw-icon" data-lucide="globe-lock"></i></span>
+          <h2 class="gw-dialog__title" id="st-tunnel-dlg-t">Publish <span class="gw-mono">stage-readonly</span> to the internet?</h2>
+          <p class="gw-dialog__description" id="st-tunnel-dlg-d">The tunnel gives it a public URL with three gates in front: only Anthropic IP ranges get through, each new sign-in waits for you to allow it on this computer, and the endpoint's own modes still apply (read only, with a token for <span class="gw-mono">stage-readonly</span> alone). Every call still goes through policy, approvals and the audit log.</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <div class="gw-dialog__body">
+          <dl class="gw-kv gw-kv--dense">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Becomes public</dt><dd class="gw-kv__value"><span class="gw-mono">/mcp/stage-readonly</span>, <span class="gw-mono">/oauth/*</span> and <span class="gw-mono">/.well-known/oauth-*</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Public URL</dt><dd class="gw-kv__value">A new address each time the tunnel starts; claude.ai must be pointed at it</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Provider</dt><dd class="gw-kv__value">Cloudflare Tunnel</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Connections</dt><dd class="gw-kv__value"><span class="gw-mono">stage-db</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span>, <span class="gw-mono">aws-stage</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span>, <span class="gw-mono">billing-api</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span>, read only</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Risk</dt><dd class="gw-kv__value">Risky combination, 3 of 3: private data + untrusted content + external channel · <a class="gw-link" href="endpoint-detail.html?endpoint=stage-readonly#ep-risk">Review<span class="gw-sr-only"> the risk in endpoint stage-readonly</span></a></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">IP allowlist</dt><dd class="gw-kv__value"><span id="st-tunnel-dlg-ips">Anthropic IP ranges only</span> · <a class="gw-link" href="#settings-tunnel-callers" data-gw-dialog-close>Change in Callers</a></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Sign-in</dt><dd class="gw-kv__value">You allow each new one here; 1 earlier sign-in is still valid</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Stays local</dt><dd class="gw-kv__value">This app's UI, the admin API, endpoints <span class="gw-mono">dev</span> and <span class="gw-mono">incident-prod</span></dd></div>
+          </dl>
+        </div>
+        <footer class="gw-dialog__footer">
+          <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
+          <button class="gw-btn gw-btn--primary" type="button" id="st-tunnel-confirm" data-gw-dialog-close value="publish">Publish stage-readonly</button>
+        </footer>
+      </dialog>
+
+      <!-- Accept calls from any address: turning gate 1 off. Risky but reversible: --warning, Cancel autofocus. -->
+      <dialog class="gw-dialog gw-dialog--md gw-dialog--warning" id="st-any-address-dlg" aria-labelledby="st-any-address-t" aria-describedby="st-any-address-d">
+        <header class="gw-dialog__header">
+          <span class="gw-icon-tile"><i class="gw-icon" data-lucide="shield-off"></i></span>
+          <h2 class="gw-dialog__title" id="st-any-address-t">Accept calls from any address to <span class="gw-mono">stage-readonly</span>?</h2>
+          <p class="gw-dialog__description" id="st-any-address-d">Anyone on the internet who finds the public URL can reach the endpoint while the tunnel is on. Two gates remain: you allow each new sign-in on this computer, and the endpoint keeps its own modes (read only).</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <div class="gw-dialog__body">
+          <dl class="gw-kv gw-kv--dense">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Callers</dt><dd class="gw-kv__value">Any address, instead of Anthropic IP ranges only</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Tunnel</dt><dd class="gw-kv__value" id="st-any-address-tunnel">Off since <time datetime="2026-10-22T12:10:00+02:00" title="2026-10-22 12:10 +02:00">12:10</time>: this applies the next time you publish</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Recorded</dt><dd class="gw-kv__value">In Activity › Setup changes, by you</dd></div>
+          </dl>
+        </div>
+        <footer class="gw-dialog__footer">
+          <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
+          <button class="gw-btn gw-btn--primary" type="button" id="st-any-address-confirm" data-gw-dialog-close value="accept">Accept calls from any address</button>
+        </footer>
+      </dialog>
+
+      <!-- Revoke one OAuth sign-in (gw-dialog--sm --danger, Cancel autofocus) -->
+      <dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" id="st-revoke-ai-dlg" aria-labelledby="st-revoke-ai-t" aria-describedby="st-revoke-ai-d">
+        <header class="gw-dialog__header">
+          <span class="gw-icon-tile"><i class="gw-icon" data-lucide="key-round"></i></span>
+          <h2 class="gw-dialog__title" id="st-revoke-ai-t">Revoke claude.ai access to stage-readonly?</h2>
+          <p class="gw-dialog__description" id="st-revoke-ai-d">The sign-in stops working at once, also when the tunnel is on again. To come back, claude.ai signs in again and you allow it here.</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <div class="gw-dialog__body">
+          <dl class="gw-kv gw-kv--dense">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Allowed</dt><dd class="gw-kv__value"><time datetime="2026-10-22T08:52:00+02:00" title="2026-10-22 08:52 +02:00">Today 08:52</time>, by you</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Last call</dt><dd class="gw-kv__value"><time datetime="2026-10-22T12:08:14+02:00" title="2026-10-22 12:08:14 +02:00">12:08</time></dd></div>
+          </dl>
+        </div>
+        <footer class="gw-dialog__footer">
+          <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
+          <button class="gw-btn gw-btn--danger" type="button" id="st-revoke-ai-confirm" data-gw-dialog-close value="revoke">Revoke claude.ai access</button>
+        </footer>
+      </dialog>
+
+      <!-- Back up master key: the same optional passphrase and system save dialog as secrets.html #dlg-backup-key -->
+      <dialog class="gw-dialog gw-dialog--md" id="st-backup-key-dlg" aria-labelledby="st-backup-key-t" aria-describedby="st-backup-key-d" data-gw-static>
+        <form method="dialog" id="st-backup-key-form">
+          <header class="gw-dialog__header">
+            <span class="gw-icon-tile"><i class="gw-icon" data-lucide="archive"></i></span>
+            <h2 class="gw-dialog__title" id="st-backup-key-t">Back up master key</h2>
+            <p class="gw-dialog__description" id="st-backup-key-d">Without a copy, the 8 secrets stored here can't be recovered if this computer is lost.</p>
+            <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+          </header>
+          <div class="gw-dialog__body">
+            <div class="gw-stack">
+              <dl class="gw-kv gw-kv--dense">
+                <div class="gw-kv__row"><dt class="gw-kv__key">Key file</dt><dd class="gw-kv__value gw-mono">~/.gaterook/master.keyset</dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Primary key ID</dt><dd class="gw-kv__value gw-mono">2146530891</dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">File name</dt><dd class="gw-kv__value gw-mono">master-keyset-2026-10-22.json</dd></div>
+              </dl>
+              <div class="gw-field">
+                <label class="gw-field__label" for="st-backup-pass">Encrypt the copy with a passphrase <span class="gw-field__optional">Optional</span></label>
+                <div class="gw-input-group">
+                  <input class="gw-input" id="st-backup-pass" type="password" autocomplete="new-password" aria-describedby="st-backup-pass-hint">
+                  <button class="gw-input-group__addon" type="button" data-gw-reveal aria-pressed="false" aria-label="Show passphrase" aria-controls="st-backup-pass"><i class="gw-icon" data-lucide="eye"></i><i class="gw-icon" data-lucide="eye-off"></i></button>
+                </div>
+                <p class="gw-field__hint" id="st-backup-pass-hint">Without one, the copy is the plain key: whoever has it and a copy of the database can read every secret. You need the passphrase to restore.</p>
+              </div>
+              <div class="gw-alert gw-alert--info gw-alert--compact">
+                <i class="gw-icon gw-alert__icon" data-lucide="info"></i>
+                <div class="gw-alert__content"><p class="gw-alert__body">A save dialog asks where the copy goes. Pick a place off this computer, such as your password manager or an encrypted drive, never next to database backups. macOS asks for your password before the copy is written.</p></div>
+              </div>
+            </div>
+          </div>
+          <footer class="gw-dialog__footer">
+            <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
+            <button class="gw-btn gw-btn--primary" type="submit"><i class="gw-icon" data-lucide="save"></i> Choose where to save</button>
+          </footer>
+        </form>
+      </dialog>
+
+      <!-- Disconnect Slack: deletes the stored workspace token, so a danger confirm that names the object -->
+      <dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" id="st-slack-disconnect-dlg" aria-labelledby="st-slack-disconnect-t" aria-describedby="st-slack-disconnect-d">
+        <header class="gw-dialog__header">
+          <span class="gw-icon-tile"><i class="gw-icon" data-lucide="unplug"></i></span>
+          <h2 class="gw-dialog__title" id="st-slack-disconnect-t">Disconnect Slack workspace acme?</h2>
+          <p class="gw-dialog__description" id="st-slack-disconnect-d">Requests stop going to <span class="gw-mono">#deploy-approvals</span> and the workspace token is deleted from the gateway. You can't decide from Slack until you connect it again.</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <div class="gw-dialog__body">
+          <dl class="gw-kv gw-kv--dense">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Still notified by</dt><dd class="gw-kv__value">Desktop notifications</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Policies</dt><dd class="gw-kv__value">dev, stage and prod announce in desktop notifications only</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Pending requests</dt><dd class="gw-kv__value">3, still waiting in <a class="gw-link" href="approvals.html">Approvals</a>. Their Slack messages lose the buttons.</dd></div>
+          </dl>
+        </div>
+        <footer class="gw-dialog__footer">
+          <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
+          <button class="gw-btn gw-btn--danger" type="button" data-gw-dialog-close value="disconnect" data-gw-toast="Approval requests now reach you on the desktop only." data-gw-toast-title="Slack disconnected" data-gw-toast-tone="success">Disconnect Slack</button>
+        </footer>
+      </dialog>
+
+      <!-- Connect Slack: composed like Connect a Telegram bot. Two new secrets, typed once: the bot token and the app-level
+           token of the GateRook app (Socket Mode, so nothing from Slack reaches this computer from outside). The gateway
+           checks them with Slack before it saves anything. Initial focus: the bot token. -->
+      <dialog class="gw-dialog gw-dialog--md" id="st-slack-connect-dlg" aria-labelledby="st-slack-connect-t" aria-describedby="st-slack-connect-d">
+        <form method="dialog" id="st-slack-connect-form">
+          <header class="gw-dialog__header">
+            <span class="gw-icon-tile"><i class="gw-icon" data-lucide="plug"></i></span>
+            <h2 class="gw-dialog__title" id="st-slack-connect-t">Connect Slack</h2>
+            <p class="gw-dialog__description" id="st-slack-connect-d">Add the GateRook app to your workspace, then paste its two tokens. The gateway checks them with Slack before it saves anything.</p>
+            <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+          </header>
+          <div class="gw-dialog__body">
+            <div class="gw-stack">
+              <div class="gw-field">
+                <label class="gw-field__label" for="st-slack-bot">Bot token</label>
+                <div class="gw-secret" data-state="empty">
+                  <div class="gw-input-group">
+                    <input class="gw-input gw-input--mono" type="password" id="st-slack-bot" required autocomplete="off" spellcheck="false" autofocus aria-describedby="st-slack-bot-hint">
+                    <button class="gw-input-group__addon" type="button" data-gw-reveal aria-pressed="false" aria-label="Show bot token" aria-controls="st-slack-bot"><i class="gw-icon" data-lucide="eye"></i><i class="gw-icon" data-lucide="eye-off"></i></button>
+                  </div>
+                </div>
+                <p class="gw-field__hint" id="st-slack-bot-hint">Starts with <span class="gw-mono">xoxb-</span>. Encrypted with the master key when you connect. Nobody can view it afterwards: Replace only.</p>
+              </div>
+              <div class="gw-field">
+                <label class="gw-field__label" for="st-slack-app">App-level token</label>
+                <div class="gw-secret" data-state="empty">
+                  <div class="gw-input-group">
+                    <input class="gw-input gw-input--mono" type="password" id="st-slack-app" required autocomplete="off" spellcheck="false" aria-describedby="st-slack-app-hint">
+                    <button class="gw-input-group__addon" type="button" data-gw-reveal aria-pressed="false" aria-label="Show app-level token" aria-controls="st-slack-app"><i class="gw-icon" data-lucide="eye"></i><i class="gw-icon" data-lucide="eye-off"></i></button>
+                  </div>
+                </div>
+                <p class="gw-field__hint" id="st-slack-app-hint">Starts with <span class="gw-mono">xapp-</span>. The gateway listens over Socket Mode, so nothing from Slack reaches this computer from outside.</p>
+              </div>
+            </div>
+          </div>
+          <footer class="gw-dialog__footer">
+            <button class="gw-btn" type="button" data-gw-dialog-close>Cancel</button>
+            <button class="gw-btn gw-btn--primary" type="submit">Check tokens and connect</button>
+          </footer>
+        </form>
+      </dialog>
+
+      <!-- Connect Telegram bot: a new secret, typed once. Submitting sends a test message and stores the token encrypted. -->
+      <dialog class="gw-dialog gw-dialog--md" id="st-tg-connect-dlg" aria-labelledby="st-tg-connect-t" aria-describedby="st-tg-connect-d">
+        <form method="dialog" id="st-tg-connect-form">
+          <header class="gw-dialog__header">
+            <span class="gw-icon-tile"><i class="gw-icon" data-lucide="send"></i></span>
+            <h2 class="gw-dialog__title" id="st-tg-connect-t">Connect a Telegram bot</h2>
+            <p class="gw-dialog__description" id="st-tg-connect-d">Create a bot with <span class="gw-mono">@BotFather</span> and add it to the chat your approvers are in. The gateway sends a test message there before it saves anything.</p>
+            <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+          </header>
+          <div class="gw-dialog__body">
+            <div class="gw-stack">
+              <div class="gw-field">
+                <label class="gw-field__label" for="st-tg-token">Bot token</label>
+                <div class="gw-secret" data-state="empty">
+                  <div class="gw-input-group">
+                    <input class="gw-input gw-input--mono" type="password" id="st-tg-token" required autocomplete="off" spellcheck="false" autofocus aria-describedby="st-tg-token-hint">
+                    <button class="gw-input-group__addon" type="button" data-gw-reveal aria-pressed="false" aria-label="Show bot token" aria-controls="st-tg-token"><i class="gw-icon" data-lucide="eye"></i><i class="gw-icon" data-lucide="eye-off"></i></button>
+                  </div>
+                </div>
+                <p class="gw-field__hint" id="st-tg-token-hint">Encrypted with the master key when you connect. Nobody can view it afterwards: Replace only.</p>
+              </div>
+              <div class="gw-field">
+                <label class="gw-field__label" for="st-tg-chat">Chat ID</label>
+                <input class="gw-input gw-input--mono" type="text" id="st-tg-chat" required pattern="-?[0-9]{5,20}" autocomplete="off" spellcheck="false" aria-describedby="st-tg-chat-hint">
+                <p class="gw-field__hint" id="st-tg-chat-hint">A group chat ID starts with <span class="gw-mono">-100</span>. Only approvers who link their Telegram account can press Approve or Deny.</p>
+              </div>
+            </div>
+          </div>
+          <footer class="gw-dialog__footer">
+            <button class="gw-btn" type="button" data-gw-dialog-close>Cancel</button>
+            <button class="gw-btn gw-btn--primary" type="submit">Send test message and connect</button>
+          </footer>
+        </form>
+      </dialog>
+
+      <!-- Preview messages: approval-notification (elements/approval-notification.html) for the pending sql_execute request
+           (requested 14:29:12, auto-deny 14:34:12, BLUEPRINT §9). Initial focus: the first tab (autofocus). -->
+      <dialog class="gw-dialog gw-dialog--lg" id="st-preview-dlg" aria-labelledby="st-preview-t" aria-describedby="st-preview-d">
+        <header class="gw-dialog__header">
+          <span class="gw-icon-tile gw-icon-tile--neutral"><i class="gw-icon" data-lucide="message-square"></i></span>
+          <h2 class="gw-dialog__title" id="st-preview-t">What approvers see</h2>
+          <p class="gw-dialog__description" id="st-preview-d">The pending <span class="gw-mono">sql_execute</span> request on <span class="gw-mono">dev-db</span>, as each channel shows it. Slack and Telegram carry the exact statement, the desktop its first line; none carries the agent's note.</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <div class="gw-dialog__body">
+          <div class="gw-tabs">
+            <div class="gw-tabs__list" role="tablist" aria-label="Notification channels">
+              <button class="gw-tabs__tab" type="button" role="tab" id="st-an-tab-desktop" aria-selected="true" aria-controls="st-an-p-desktop" autofocus>Desktop</button>
+              <button class="gw-tabs__tab" type="button" role="tab" id="st-an-tab-slack" aria-selected="false" aria-controls="st-an-p-slack" tabindex="-1">Slack</button>
+              <button class="gw-tabs__tab" type="button" role="tab" id="st-an-tab-telegram" aria-selected="false" aria-controls="st-an-p-telegram" tabindex="-1">Telegram</button>
+            </div>
+
+            <div class="gw-tabs__panel" role="tabpanel" id="st-an-p-desktop" aria-labelledby="st-an-tab-desktop">
+              <section class="gw-card gw-approval-notification" aria-labelledby="st-an-desktop">
+                <header class="gw-card__header">
+                  <div class="gw-card__heading">
+                    <h3 class="gw-card__title" id="st-an-desktop"><span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--neutral"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i></span>Desktop notification</h3>
+                    <p class="gw-card__description">macOS Notification Center and the Windows notification area.</p>
+                  </div>
+                </header>
+                <div class="gw-card__body gw-approval-notification__stage">
+                  <div class="gw-grid gw-grid--2">
+                    <figure class="gw-approval-notification__preview">
+                      <div class="gw-card gw-approval-notification__surface gw-approval-notification__os gw-approval-notification__os--mac" inert>
+                        <span class="gw-logo gw-logo--lg gw-logo--mark-only"><img class="gw-logo__mark" src="../assets/logo-mark.svg" alt=""><span class="gw-logo__name">GateRook</span></span>
+                        <div class="gw-approval-notification__text">
+                          <p class="gw-text-caption gw-fg-muted">GateRook · now</p>
+                          <p class="gw-text-h3">Approval needed · sql_execute on dev-db</p>
+                          <p class="gw-text-small gw-truncate">dev environment · from Codex</p>
+                          <p class="gw-text-code-sm gw-fg-secondary gw-truncate">UPDATE orders SET status = 'cancelled' WHERE id = 48213;</p>
+                        </div>
+                        <div class="gw-approval-notification__os-actions">
+                          <button class="gw-btn gw-btn--sm" type="button">Review</button>
+                          <button class="gw-btn gw-btn--sm" type="button">Deny</button>
+                        </div>
+                      </div>
+                      <figcaption class="gw-approval-notification__caption gw-text-caption gw-fg-muted">macOS<span class="gw-sr-only">: notification from GateRook, "Approval needed · sql_execute on dev-db", subtitle "dev environment · from Codex", body "UPDATE orders SET status = 'cancelled' WHERE id = 48213;", buttons Review and Deny.</span></figcaption>
+                    </figure>
+                    <figure class="gw-approval-notification__preview">
+                      <div class="gw-card gw-approval-notification__surface gw-approval-notification__os gw-approval-notification__os--win" inert>
+                        <p class="gw-approval-notification__app gw-text-caption gw-fg-muted"><span class="gw-logo gw-logo--sm"><img class="gw-logo__mark" src="../assets/logo-mark.svg" alt=""><span class="gw-logo__name">GateRook</span></span> now</p>
+                        <div class="gw-approval-notification__text">
+                          <p class="gw-text-h3">Approval needed · sql_execute on dev-db</p>
+                          <p class="gw-text-code-sm gw-fg-secondary gw-truncate">UPDATE orders SET status = 'cancelled' WHERE id = 48213;</p>
+                          <p class="gw-text-caption gw-fg-muted">dev environment · Codex · auto-deny at 14:34:12</p>
+                        </div>
+                        <div class="gw-approval-notification__os-actions">
+                          <button class="gw-btn gw-btn--sm gw-btn--block" type="button">Review</button>
+                          <button class="gw-btn gw-btn--sm gw-btn--block" type="button">Deny</button>
+                        </div>
+                      </div>
+                      <figcaption class="gw-approval-notification__caption gw-text-caption gw-fg-muted">Windows<span class="gw-sr-only">: notification from GateRook, "Approval needed · sql_execute on dev-db", body "UPDATE orders SET status = 'cancelled' WHERE id = 48213;", "dev environment · Codex · auto-deny at 14:34:12", buttons Review and Deny.</span></figcaption>
+                    </figure>
+                  </div>
+                  <div class="gw-alert gw-alert--info gw-alert--compact">
+                    <i class="gw-icon gw-alert__icon" data-lucide="info"></i>
+                    <div class="gw-alert__content">
+                      <p class="gw-alert__title">Review opens the request in the app</p>
+                      <p class="gw-alert__body">A system notification always has Review and Deny only: it shows one line of the action, so approving happens in the app, after you see all of it.</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <div class="gw-tabs__panel" role="tabpanel" id="st-an-p-slack" aria-labelledby="st-an-tab-slack" hidden>
+              <section class="gw-card gw-approval-notification" aria-labelledby="st-an-slack">
+                <header class="gw-card__header">
+                  <div class="gw-card__heading">
+                    <h3 class="gw-card__title" id="st-an-slack"><span class="gw-client-mark gw-client-mark--generic gw-client-mark--sm" aria-hidden="true">S</span>Slack</h3>
+                    <p class="gw-card__description">Posted by the GateRook app to <span class="gw-mono">#deploy-approvals</span> in workspace <span class="gw-mono">acme</span>.</p>
+                  </div>
+                </header>
+                <div class="gw-card__body gw-approval-notification__stage">
+                  <figure class="gw-approval-notification__preview">
+                    <div class="gw-approval-notification__message" inert>
+                      <span class="gw-logo gw-logo--lg gw-logo--mark-only"><img class="gw-logo__mark" src="../assets/logo-mark.svg" alt=""><span class="gw-logo__name">GateRook</span></span>
+                      <div>
+                        <p class="gw-approval-notification__byline"><span class="gw-text-h3">GateRook</span><span class="gw-badge gw-badge--sm">App</span><span class="gw-text-caption gw-fg-muted">14:29</span></p>
+                        <div class="gw-approval-notification__blocks">
+                          <p class="gw-text-h2">Approval needed: <span class="gw-mono">sql_execute</span> on <span class="gw-mono">dev-db</span></p>
+                          <dl class="gw-kv gw-kv--inline">
+                            <div class="gw-kv__row"><dt class="gw-kv__key">Connection</dt><dd class="gw-kv__value"><code class="gw-code">dev-db</code> <span class="gw-env gw-env--dev gw-env--sm">dev</span></dd></div>
+                            <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">dev</code></dd></div>
+                            <div class="gw-kv__row"><dt class="gw-kv__key">AI app</dt><dd class="gw-kv__value">Codex · <code class="gw-code">codex-laptop</code></dd></div>
+                            <div class="gw-kv__row"><dt class="gw-kv__key">Auto-deny</dt><dd class="gw-kv__value gw-tabular">At 14:34:12</dd></div>
+                          </dl>
+                          <div class="gw-code-block gw-code-block--wrap">
+                            <div class="gw-code-block__body">
+<pre class="gw-code-block__pre"><code><span class="gw-tok-keyword">UPDATE</span> orders <span class="gw-tok-keyword">SET</span> status <span class="gw-tok-punctuation">=</span> <span class="gw-tok-string">'cancelled'</span> <span class="gw-tok-keyword">WHERE</span> id <span class="gw-tok-punctuation">=</span> <span class="gw-tok-number">48213</span><span class="gw-tok-punctuation">;</span></code></pre>
+                            </div>
+                          </div>
+                          <p class="gw-text-caption gw-fg-muted">Rule <span class="gw-mono">dev.sql.write-approval</span> · estimated rows 1</p>
+                          <div class="gw-approval-notification__actions">
+                            <button class="gw-btn gw-btn--approve gw-btn--sm" type="button">Approve</button>
+                            <button class="gw-btn gw-btn--danger gw-btn--sm" type="button">Deny</button>
+                            <button class="gw-btn gw-btn--sm" type="button"><i class="gw-icon gw-icon--sm" data-lucide="external-link"></i>Open in app</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <figcaption class="gw-sr-only">Slack message from the GateRook app at 14:29: "Approval needed: sql_execute on dev-db". Fields: connection dev-db, dev; endpoint dev; AI app Codex, access codex-laptop; auto-deny at 14:34:12. Statement: UPDATE orders SET status = 'cancelled' WHERE id = 48213; Rule dev.sql.write-approval. Buttons Approve, Deny and Open in app.</figcaption>
+                  </figure>
+                  <div class="gw-alert gw-alert--info gw-alert--compact">
+                    <i class="gw-icon gw-alert__icon" data-lucide="info"></i>
+                    <div class="gw-alert__content">
+                      <p class="gw-alert__title">Approve and Deny need a linked approver</p>
+                      <p class="gw-alert__body">Anyone else gets a private reply with Open in app. Approve is dropped, and Deny and Open in app remain, for every prod request, when the statement is over 3,000 characters, and when a comment is required (a button can't carry one). A prod request starts with "PROD ·".</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <div class="gw-tabs__panel" role="tabpanel" id="st-an-p-telegram" aria-labelledby="st-an-tab-telegram" hidden>
+              <section class="gw-card gw-approval-notification" aria-labelledby="st-an-telegram">
+                <header class="gw-card__header">
+                  <div class="gw-card__heading">
+                    <h3 class="gw-card__title" id="st-an-telegram"><span class="gw-client-mark gw-client-mark--generic gw-client-mark--sm" aria-hidden="true">T</span>Telegram</h3>
+                    <p class="gw-card__description">Not set up yet. Once you connect a bot, it sends each request to your chat like this.</p>
+                  </div>
+                </header>
+                <div class="gw-card__body gw-approval-notification__stage">
+                  <figure class="gw-approval-notification__preview">
+                    <div class="gw-approval-notification__chat" inert>
+                      <div class="gw-card gw-approval-notification__surface gw-approval-notification__surface--bubble">
+                        <p class="gw-text-ui gw-fg-muted">GateRook bot</p>
+                        <p class="gw-text-h3">Approval needed</p>
+                        <p class="gw-text-small"><span class="gw-mono">sql_execute</span> on <span class="gw-mono">dev-db</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span> from Codex · endpoint <span class="gw-mono">dev</span></p>
+                        <div class="gw-code-block gw-code-block--wrap">
+                          <div class="gw-code-block__body">
+<pre class="gw-code-block__pre"><code><span class="gw-tok-keyword">UPDATE</span> orders <span class="gw-tok-keyword">SET</span> status <span class="gw-tok-punctuation">=</span> <span class="gw-tok-string">'cancelled'</span> <span class="gw-tok-keyword">WHERE</span> id <span class="gw-tok-punctuation">=</span> <span class="gw-tok-number">48213</span><span class="gw-tok-punctuation">;</span></code></pre>
+                          </div>
+                        </div>
+                        <p class="gw-text-caption gw-fg-muted">Auto-deny at 14:34:12 · rule <span class="gw-mono">dev.sql.write-approval</span></p>
+                        <p class="gw-approval-notification__time gw-text-caption gw-fg-muted">14:29</p>
+                      </div>
+                      <div class="gw-approval-notification__keyboard">
+                        <button class="gw-btn gw-btn--approve gw-btn--sm gw-btn--block gw-approval-notification__key" type="button">Approve</button>
+                        <button class="gw-btn gw-btn--danger gw-btn--sm gw-btn--block gw-approval-notification__key" type="button">Deny</button>
+                        <button class="gw-btn gw-btn--sm gw-btn--block gw-approval-notification__key gw-approval-notification__key--wide" type="button"><i class="gw-icon gw-icon--sm" data-lucide="external-link"></i>Open in app</button>
+                      </div>
+                    </div>
+                    <figcaption class="gw-sr-only">Telegram message from the GateRook bot at 14:29: "Approval needed. sql_execute on dev-db, dev, from Codex, endpoint dev." Statement: UPDATE orders SET status = 'cancelled' WHERE id = 48213; Auto-deny at 14:34:12, rule dev.sql.write-approval. Buttons Approve, Deny and Open in app.</figcaption>
+                  </figure>
+                  <div class="gw-alert gw-alert--info gw-alert--compact">
+                    <i class="gw-icon gw-alert__icon" data-lucide="info"></i>
+                    <div class="gw-alert__content">
+                      <p class="gw-alert__title">Only linked approvers can decide here</p>
+                      <p class="gw-alert__body">Approve is dropped, and Deny and Open in app remain, for every prod request, when the statement is over 4,096 characters, and when a comment is required.</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+        <footer class="gw-dialog__footer">
+          <button class="gw-btn" type="button" data-gw-dialog-close>Close</button>
+        </footer>
+      </dialog>
+    </div>
+    <!--
+      Command palette (elements/command-palette.html), opened by the titlebar Search button and ⌘K / Ctrl+K.
+      Part of the shell: copy it with the titlebar into every page, at the end of main. kit.js drives it, no page
+      script: data-gw-dialog-open="cmdk" opens it, the .gw-command-palette hook filters the options, moves the
+      active one (arrows, Home / End, pointer), runs it on Enter and resets on close, and the global ⌘K / Ctrl+K
+      listener toggles #cmdk (COMPONENTS.md › command-palette).
+    -->
+    <dialog class="gw-dialog gw-dialog--md gw-command-palette" id="cmdk" aria-labelledby="cmdk-title" aria-describedby="cmdk-keys">
+      <h2 class="gw-sr-only" id="cmdk-title">Command palette</h2>
+      <div class="gw-command-palette__search">
+        <div class="gw-search">
+          <i class="gw-icon gw-search__icon" data-lucide="search"></i>
+          <input class="gw-search__input" type="search" id="cmdk-q" role="combobox" aria-expanded="true" aria-controls="cmdk-list" aria-autocomplete="list" aria-activedescendant="cmdk-o-overview" aria-label="Search pages, connections, endpoints, actions" placeholder="Search pages, connections, endpoints, actions" autocomplete="off" spellcheck="false" autofocus>
+          <button class="gw-search__clear" type="button" aria-label="Clear search"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+        </div>
+      </div>
+      <div class="gw-command-palette__results">
+        <div class="gw-command-palette__list" role="listbox" id="cmdk-list" aria-label="Results">
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-goto">
+            <p class="gw-menu__note" id="cmdk-g-goto" aria-hidden="true">Go to</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-overview" href="overview.html" aria-selected="true" tabindex="-1" data-keywords="home dashboard setup map health">
+              <i class="gw-icon gw-menu__icon" data-lucide="layout-dashboard"></i><span class="gw-menu__label">Overview</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-approvals" href="approvals.html" aria-selected="false" tabindex="-1" data-keywords="requests pending queue decide">
+              <i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approvals <span class="gw-counter gw-counter--attention">3<span class="gw-sr-only"> waiting</span></span></span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-connections" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="databases servers logs clusters">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label">Connections</span><span class="gw-menu__hint">Resources</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-connectors" href="connectors.html" aria-selected="false" tabindex="-1" data-keywords="plugins templates mcp servers catalog">
+              <i class="gw-icon gw-menu__icon" data-lucide="puzzle"></i><span class="gw-menu__label">Connectors</span><span class="gw-menu__hint">Resources</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-secrets" href="secrets.html" aria-selected="false" tabindex="-1" data-keywords="master key vault encryption">
+              <i class="gw-icon gw-menu__icon" data-lucide="key-round"></i><span class="gw-menu__label">Secrets</span><span class="gw-menu__hint">Resources</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-endpoints" href="endpoints.html" aria-selected="false" tabindex="-1" data-keywords="mcp url tools tokens">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label">Endpoints</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-clients" href="clients.html" aria-selected="false" tabindex="-1" data-keywords="clients mcp claude desktop codex cursor antigravity">
+              <i class="gw-icon gw-menu__icon" data-lucide="app-window"></i><span class="gw-menu__label">AI apps</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-policies" href="policies.html" aria-selected="false" tabindex="-1" data-keywords="limits allowlist environments">
+              <i class="gw-icon gw-menu__icon" data-lucide="shield"></i><span class="gw-menu__label">Policies</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-playground" href="playground.html" aria-selected="false" tabindex="-1" data-keywords="try call tool">
+              <i class="gw-icon gw-menu__icon" data-lucide="flask-conical"></i><span class="gw-menu__label">Playground</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-activity" href="activity.html" aria-selected="false" tabindex="-1" data-keywords="log audit calls events traces">
+              <i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">Activity</span><span class="gw-menu__hint">Observe</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-insights" href="insights.html" aria-selected="false" tabindex="-1" data-keywords="analytics charts latency errors">
+              <i class="gw-icon gw-menu__icon" data-lucide="chart-column"></i><span class="gw-menu__label">Insights</span><span class="gw-menu__hint">Observe</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-settings" href="settings.html" aria-selected="false" tabindex="-1" aria-keyshortcuts="Meta+Comma Control+Comma" data-keywords="preferences notifications tunnel authorization appearance">
+              <i class="gw-icon gw-menu__icon" data-lucide="settings"></i><span class="gw-menu__label">Settings</span><kbd class="gw-menu__kbd" aria-hidden="true">⌘ ,</kbd><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+          </div>
+
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-actions">
+            <p class="gw-menu__note" id="cmdk-g-actions" aria-hidden="true">Actions</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-add-connection" href="connection-new.html" aria-selected="false" tabindex="-1" data-keywords="new resource postgres mongodb redis kubernetes">
+              <i class="gw-icon gw-menu__icon" data-lucide="plus"></i><span class="gw-menu__label">Add connection</span><span class="gw-menu__hint">Database, SSH, logs, cluster</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-create-endpoint" href="endpoints.html" aria-selected="false" tabindex="-1" data-keywords="new mcp url">
+              <i class="gw-icon gw-menu__icon" data-lucide="square-plus"></i><span class="gw-menu__label">Create endpoint</span><span class="gw-menu__hint">New MCP URL</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-issue-token" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="new token access key client">
+              <i class="gw-icon gw-menu__icon" data-lucide="key-round"></i><span class="gw-menu__label">Issue token</span><span class="gw-menu__hint">Shown once</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <button class="gw-menu__item" type="button" role="option" id="cmdk-o-copy-dev" aria-selected="false" tabindex="-1" data-gw-copy="http://127.0.0.1:7465/mcp/dev" data-gw-dialog-close data-keywords="clipboard link">
+              <i class="gw-icon gw-menu__icon" data-lucide="copy"></i><span class="gw-menu__label">Copy URL of endpoint <span class="gw-mono">dev</span></span><span class="gw-menu__hint gw-mono">/mcp/dev</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </button>
+            <button class="gw-menu__item" type="button" role="option" id="cmdk-o-theme" aria-selected="false" tabindex="-1" data-cmdk-theme data-gw-dialog-close data-keywords="dark light appearance">
+              <i class="gw-icon gw-menu__icon" data-lucide="sun-moon"></i><span class="gw-menu__label">Toggle theme</span><span class="gw-menu__hint">Light or dark</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </button>
+          </div>
+
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-connections">
+            <p class="gw-menu__note" id="cmdk-g-connections" aria-hidden="true">Connections</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-dev-db" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="postgres sql db.dev.internal">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label"><span class="gw-mono">dev-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></span><span class="gw-menu__hint">PostgreSQL 16</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-stage-db" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="postgres sql vault">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label"><span class="gw-mono">stage-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--stage">stage</span></span><span class="gw-menu__hint">PostgreSQL</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-prod-replica" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="postgres sql replica">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label"><span class="gw-mono">prod-replica</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--prod">prod</span></span><span class="gw-menu__hint">PostgreSQL read replica</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-dev-vm" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="ssh server runbook">
+              <i class="gw-icon gw-menu__icon" data-lucide="terminal"></i><span class="gw-menu__label"><span class="gw-mono">dev-vm</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></span><span class="gw-menu__hint">SSH · <span class="gw-mono">10.20.0.14</span></span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+          </div>
+
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-endpoints">
+            <p class="gw-menu__note" id="cmdk-g-endpoints" aria-hidden="true">Endpoints</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-ep-dev" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="endpoint tools tokens">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label gw-mono">dev</span><span class="gw-menu__hint gw-mono">/mcp/dev</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-ep-stage-readonly" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="endpoint claude.ai tunnel read only">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label gw-mono">stage-readonly</span><span class="gw-menu__hint gw-mono">/mcp/stage-readonly</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-ep-incident-prod" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="endpoint prod logs read only incident">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label gw-mono">incident-prod</span><span class="gw-menu__hint gw-mono">/mcp/incident-prod</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+          </div>
+        </div>
+
+        <div class="gw-empty gw-empty--compact" hidden data-cmdk-empty>
+          <span class="gw-empty__icon"><i class="gw-icon" data-lucide="search-x"></i></span>
+          <p class="gw-empty__title">No results for “<span data-cmdk-query></span>”</p>
+          <p class="gw-empty__text">Search covers pages, actions, connections and endpoints. A resource that isn't here yet starts with a new connection.</p>
+          <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" href="connection-new.html">Add connection</a></div>
+        </div>
+      </div>
+      <footer class="gw-dialog__footer gw-command-palette__footer" id="cmdk-keys">
+        <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd"><i class="gw-icon" data-lucide="arrow-up"></i><span class="gw-sr-only">Up arrow</span></kbd><kbd class="gw-kbd"><i class="gw-icon" data-lucide="arrow-down"></i><span class="gw-sr-only">Down arrow</span></kbd> to move</p>
+        <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd"><i class="gw-icon" data-lucide="corner-down-left"></i><span class="gw-sr-only">Enter</span></kbd> to open</p>
+        <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd">Esc</kbd> to close</p>
+      </footer>
+      <p class="gw-sr-only" role="status" data-cmdk-status></p>
+    </dialog>
+  </main>
+
+</div>
+<script src="../vendor/lucide/lucide.min.js"></script>
+<script src="../assets/kit.js"></script>
+<script>
+/* Demo-only reference behaviour of this page (the Angular app implements the same):
+   - settings-layout: Jump to section scrolls and keeps focus on the select; the current nav item
+     follows the section in view; a Save form shows its sticky bar while it has unsaved changes;
+     a setting that applies at once confirms with a toast (elements/settings-layout.html).
+   - Check now: aria-busy + spinner while the update check runs.
+   - OAuth: picking DCR shows its warning; the saved value is CIMD.
+   - Signed in: Revoke confirms in a --danger dialog, then the list is empty.
+   - Slack: the channel picker shows only while "Post to a channel" is chosen. Disconnect Slack confirms, then the
+     section shows Not set up with Connect Slack (bot token xoxb-, app-level token xapp-); connecting brings it back.
+   - Approval rules: the prod Comment cell of the per-environment table follows the unsaved "Require a comment on
+     prod" checkbox; Discard brings back the saved value.
+   - Tunnel: Turn on only through the confirm dialog (publishing); while public the section, the sidebar
+     footer (gw-status--warning "Tunnel on") and the app-wide banner say so. Turn off at once, without Undo
+     (Undo never re-publishes anything), keeping focus on the live button.
+   - Callers: turning the Anthropic IP allowlist off asks first (gw-dialog--warning); turning it on applies
+     at once. The read-only copies in Authorization, Who gets in and the publish dialog follow it.
+   - Back up master key: the system save dialog runs in the app; the demo confirms with a toast.
+   - Telegram: the connect dialog's form closes only when valid, then confirms with a toast, and the section shows
+     the chat it posts to with Change bot or chat.
+   - Tunnel: a quick tunnel gets a new address each time it starts, so publishing again shows a new hostname, and
+     the Issuer URL in Authorization exists only while the tunnel is on.
+   - Allowed origins: remove / add with validation; the empty state when the list is empty. */
+(function () {
+  "use strict";
+  var layout = document.querySelector(".gw-settings-layout");
+  if (!layout) return;
+  var links = Array.prototype.slice.call(layout.querySelectorAll('.gw-settings-layout__nav a[href^="#"]'));
+  var jump = layout.querySelector(".gw-settings-layout__jump select");
+  var toast = function (o) { if (window.gwToast) window.gwToast(o); };
+  var announce = function (t) { if (window.gwAnnounce) window.gwAnnounce(t); };
+
+  // ── settings nav: current item and jump select ──
+  // aria-current="location": the item marks the section in view on this page (the sidebar's Settings
+  // item keeps aria-current="page").
+  var main = layout.closest(".gw-shell__main");
+  var sections = Array.prototype.slice.call(layout.querySelectorAll(".gw-settings-layout__section[id]"));
+  var pinned = null; // the item the user just picked keeps the highlight while it is at the top
+  function setCurrent(id) {
+    links.forEach(function (a) {
+      if (a.getAttribute("href") === "#" + id) a.setAttribute("aria-current", "location");
+      else a.removeAttribute("aria-current");
+    });
+    if (jump) jump.value = "#" + id;
+  }
+  // The current section is the last one whose top has passed 40% of the scroll area. At the very
+  // top that is always the first section; at the very bottom, the last one (it may be too short
+  // to ever reach the line).
+  function spy() {
+    if (!main || !sections.length) return;
+    var top = main.getBoundingClientRect().top;
+    var line = top + main.clientHeight * 0.4;
+    var current = sections[0];
+    if (main.scrollTop > 0) {
+      sections.forEach(function (sec) { if (sec.getBoundingClientRect().top <= line) current = sec; });
+      if (main.scrollTop + main.clientHeight >= main.scrollHeight - 2) current = sections[sections.length - 1];
+    }
+    if (pinned) {
+      var p = document.getElementById(pinned);
+      var pTop = p ? p.getBoundingClientRect().top : Infinity;
+      if (p && pTop >= top - 4 && pTop <= line) current = p; else pinned = null;
+    }
+    setCurrent(current.id);
+  }
+  var queued = false;
+  if (main) {
+    main.addEventListener("scroll", function () {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(function () { queued = false; spy(); });
+    }, { passive: true });
+  }
+  links.forEach(function (a) {
+    a.addEventListener("click", function () { pinned = a.getAttribute("href").slice(1); setCurrent(pinned); });
+  });
+  if (jump) {
+    jump.addEventListener("change", function () {
+      var section = document.getElementById(jump.value.slice(1));
+      if (!section) return;
+      pinned = section.id;
+      section.scrollIntoView({ block: "start" });
+    });
+  }
+  // A deep link (settings.html#settings-tunnel, or an id inside a section) marks its section
+  // at once: the scroll that brings it into view may run before this script listens.
+  function fromHash() {
+    var target = location.hash && document.getElementById(decodeURIComponent(location.hash.slice(1)));
+    var section = target && target.closest(".gw-settings-layout__section[id]");
+    if (section) { pinned = section.id; setCurrent(section.id); }
+  }
+  window.addEventListener("hashchange", fromHash);
+  spy();
+  fromHash();
+
+  // ── Save forms own their sticky bar ──
+  var markDirty = {};
+  layout.querySelectorAll("form.gw-form__section[id]").forEach(function (form) {
+    var save = layout.querySelector('.gw-form__actions [type="submit"][form="' + form.id + '"]');
+    var bar = save && save.closest(".gw-form__actions");
+    if (!bar) return;
+    var name = (form.querySelector(".gw-form__legend") || {}).textContent || "Settings";
+    function dirty() {
+      if (!bar.hidden) return;
+      bar.hidden = false;
+      announce("Unsaved changes in " + name);
+    }
+    markDirty[form.id] = dirty;
+    form.addEventListener("input", dirty);
+    form.addEventListener("change", dirty);
+    form.addEventListener("reset", function () { bar.hidden = true; });
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      bar.hidden = true;
+      toast({ title: name + " saved", tone: "success" });
+    });
+  });
+
+  // ── Applies at once: a toast names the setting and its new value ──
+  // A label's text without its badges ("Direct messages to linked approvers", not "… Recommended").
+  function labelText(el) {
+    if (!el.labels || !el.labels[0]) return "Setting";
+    var copy = el.labels[0].cloneNode(true);
+    copy.querySelectorAll(".gw-badge").forEach(function (b) { b.remove(); });
+    return copy.textContent.trim();
+  }
+  layout.addEventListener("change", function (e) {
+    var el = e.target;
+    if (el.form || el.closest(".gw-settings-layout__jump")) return;
+    var label = labelText(el);
+    var value;
+    if (el.type === "radio") {
+      var legend = el.closest("fieldset") && el.closest("fieldset").querySelector("legend");
+      value = label;
+      label = legend ? legend.textContent.trim() : "Setting";
+    } else {
+      value = el.type === "checkbox" ? (el.checked ? "on" : "off") : (el.options ? el.options[el.selectedIndex].text : el.value);
+    }
+    toast({ title: "Saved", body: label + ": " + value + ".", tone: "success" });
+  });
+
+  // ── OAuth: DCR warning (saved value: CIMD) ──
+  var oauthForm = document.getElementById("st-oauth");
+  var dcrWarn = document.getElementById("st-reg-dcr-warn");
+  if (oauthForm && dcrWarn) {
+    var syncDcr = function () {
+      var dcr = oauthForm.querySelector('input[name="st-registration"][value="dcr"]');
+      dcrWarn.hidden = !(dcr && dcr.checked);
+    };
+    oauthForm.addEventListener("change", syncDcr);
+    oauthForm.addEventListener("reset", function () { setTimeout(syncDcr, 0); }); // reset fires before the values change
+    syncDcr();
+  }
+
+  // ── Slack: the channel picker belongs to "Post to a channel" ──
+  var slackGroup = document.getElementById("st-slack-channel-group");
+  var slackRadios = Array.prototype.slice.call(document.querySelectorAll('input[name="st-slack-to"]'));
+  if (slackGroup && slackRadios.length) {
+    var syncSlack = function () {
+      var channel = document.getElementById("st-slack-to-channel");
+      slackGroup.hidden = !(channel && channel.checked);
+    };
+    slackRadios.forEach(function (r) { r.addEventListener("change", syncSlack); });
+    syncSlack();
+  }
+
+  // ── Approval rules: the per-environment table shows the saved prod comment rule ──
+  var rulesForm = document.getElementById("st-rules");
+  var commentProd = document.getElementById("st-comment-prod");
+  var prodComment = document.getElementById("st-prod-comment");
+  if (rulesForm && commentProd && prodComment) {
+    var syncComment = function () { prodComment.textContent = commentProd.checked ? "Required" : "Optional"; };
+    commentProd.addEventListener("change", syncComment);
+    rulesForm.addEventListener("reset", function () { setTimeout(syncComment, 0); }); // reset fires before the values change
+  }
+
+  // ── Check for updates now ──
+  var check = document.getElementById("st-update-check");
+  if (check) {
+    check.addEventListener("click", function () {
+      if (check.getAttribute("aria-busy") === "true") return;
+      var icon = check.querySelector("svg, .gw-icon");
+      var spinner = document.createElement("span");
+      spinner.className = "gw-spinner gw-spinner--sm";
+      spinner.setAttribute("aria-hidden", "true");
+      check.setAttribute("aria-busy", "true");
+      if (icon) icon.hidden = true;
+      check.insertBefore(spinner, check.firstChild);
+      announce("Checking for updates");
+      setTimeout(function () {
+        spinner.remove();
+        if (icon) icon.hidden = false;
+        check.removeAttribute("aria-busy");
+        toast({ title: "You're on the latest version", body: "GateRook 0.4.0", tone: "success" });
+      }, 1200);
+    });
+  }
+
+  // ── Tunnel on / off ──
+  // Publishing goes only through #st-tunnel-dlg. While public: warning tone here, in the sidebar footer
+  // ("Tunnel on") and in the app-wide banner. Turning off applies at once; there is no Undo, because
+  // turning it on again publishes an endpoint and always asks first.
+  var offBlock = document.getElementById("st-tunnel-off");
+  var onBlock = document.getElementById("st-tunnel-on");
+  var onBtn = document.getElementById("st-tunnel-on-btn");
+  var offBtn = document.getElementById("st-tunnel-off-btn");
+  var banner = document.getElementById("st-tunnel-banner");
+  var oauthOff = document.getElementById("st-oauth-off");
+  var footerTunnel = document.querySelector(".gw-sidebar__footer > .gw-status:last-child");
+  var tunnelDlg = document.getElementById("st-tunnel-dlg");
+  var anyTunnel = document.getElementById("st-any-address-tunnel");
+  var anyTunnelOff = anyTunnel ? anyTunnel.innerHTML : "";
+  var issuerNone = document.getElementById("st-issuer-none");
+  var issuerField = document.getElementById("st-issuer-field");
+  function setTunnel(on) {
+    if (anyTunnel) anyTunnel.innerHTML = on ? "Public now: this applies at once" : anyTunnelOff;
+    if (issuerNone && issuerField) { issuerNone.hidden = on; issuerField.hidden = !on; }
+    offBlock.hidden = on;
+    onBlock.hidden = !on;
+    if (banner) banner.hidden = !on;
+    if (oauthOff) oauthOff.hidden = on;
+    if (footerTunnel) {
+      footerTunnel.classList.toggle("gw-status--warning", on);
+      footerTunnel.classList.toggle("gw-status--neutral", !on);
+      footerTunnel.querySelector(".gw-status__label").textContent = on ? "Tunnel on" : "Tunnel off";
+    }
+  }
+  if (offBlock && onBlock && onBtn && offBtn && tunnelDlg) {
+    tunnelDlg.addEventListener("close", function () {
+      if (tunnelDlg.returnValue === "publish") {
+        setTunnel(true);
+        offBtn.focus(); // the opener (Turn on tunnel) is hidden now
+        toast({ title: "stage-readonly is public", body: "Anthropic IP ranges can reach https://gw-acme-9q4m.trycloudflare.com/mcp/stage-readonly. Add it in claude.ai under Settings, Connectors.", tone: "warning", icon: "globe" });
+      }
+      tunnelDlg.returnValue = "";
+    });
+    document.addEventListener("click", function (e) {
+      if (!e.target.closest("[data-st-tunnel-off]")) return;
+      setTunnel(false);
+      onBtn.focus(); // the button that was pressed is gone
+      toast({ title: "Tunnel off", body: "claude.ai can't reach stage-readonly. Its sign-in stays valid; revoke it under Signed in. Turning the tunnel on again asks you to confirm what is published.", tone: "neutral", icon: "globe-lock" });
+    });
+  }
+
+  // ── Callers: one switch; off asks first, on applies at once. The read-only copies follow it. ──
+  var callers = document.getElementById("st-anthropic-ips");
+  var anyDlg = document.getElementById("st-any-address-dlg");
+  var copies = [
+    [document.getElementById("st-oauth-callers"), "Anthropic IP ranges only", "Any address; sign-in still waits for you"],
+    [document.getElementById("st-gate-ips"), 'Only Anthropic IP ranges reach <span class="gw-mono">/mcp/stage-readonly</span>; the sign-in page opens in your own browser', "Any address reaches the URL: the IP allowlist is off"],
+    [document.getElementById("st-tunnel-dlg-ips"), "Anthropic IP ranges only", "Any address"]
+  ];
+  function syncCallers() {
+    copies.forEach(function (c) { if (c[0]) c[0].innerHTML = callers.checked ? c[1] : c[2]; });
+  }
+  if (callers && anyDlg) {
+    callers.addEventListener("click", function (e) {
+      if (callers.checked) return; // turning it on: applies at once (change → toast)
+      e.preventDefault(); // keeps it on until the dialog is confirmed
+      anyDlg.showModal();
+    });
+    callers.addEventListener("change", syncCallers);
+    anyDlg.addEventListener("close", function () {
+      if (anyDlg.returnValue === "accept") {
+        callers.checked = false;
+        syncCallers();
+        toast({ title: "Calls from any address accepted", body: "Sign-in still waits for you on this computer, and stage-readonly stays read only. Recorded in Setup changes.", tone: "warning", icon: "shield-off" });
+      }
+      anyDlg.returnValue = "";
+      callers.focus();
+    });
+  }
+
+  // ── Signed in: Revoke ──
+  var revokeDlg = document.getElementById("st-revoke-ai-dlg");
+  var grantsWrap = document.getElementById("st-grants-wrap");
+  var grantsEmpty = document.getElementById("st-grants-empty");
+  var grantsCount = document.getElementById("st-grants-count");
+  if (revokeDlg && grantsWrap && grantsEmpty) {
+    revokeDlg.addEventListener("close", function () {
+      if (revokeDlg.returnValue !== "revoke") { revokeDlg.returnValue = ""; return; }
+      revokeDlg.returnValue = "";
+      grantsWrap.hidden = true;
+      grantsEmpty.hidden = false;
+      if (grantsCount) grantsCount.innerHTML = '0<span class="gw-sr-only"> sign-ins</span>';
+      grantsEmpty.focus(); // the Revoke button is gone
+      toast({ title: "claude.ai access to stage-readonly revoked", body: "claude.ai has to sign in again, and you allow it here.", tone: "success" });
+    });
+  }
+
+  // ── Back up master key: in the app the system save dialog runs here; the demo assumes ~/Downloads ──
+  var backupForm = document.getElementById("st-backup-key-form");
+  if (backupForm) {
+    backupForm.addEventListener("submit", function () {
+      var pass = document.getElementById("st-backup-pass");
+      var encrypted = pass && pass.value !== "";
+      if (pass) pass.value = "";
+      setTimeout(function () {
+        toast({
+          tone: "success",
+          title: "Master key backed up" + (encrypted ? ", encrypted with your passphrase" : ""),
+          body: "Saved to ~/Downloads/master-keyset-2026-10-22.json. Move it to your password manager or an encrypted drive, then delete it from this computer.",
+          timeout: 0
+        });
+      }, 0);
+    });
+  }
+
+  // ── Slack: disconnect and connect ──
+  var slackOff = document.getElementById("st-slack-off");
+  var slackOnParts = ["st-slack-status", "st-slack-to-group", "st-slack-channel-group", "st-slack-disconnect-row"]
+    .map(function (id) { return document.getElementById(id); });
+  var slackDisconnectDlg = document.getElementById("st-slack-disconnect-dlg");
+  var slackForm = document.getElementById("st-slack-connect-form");
+  function setSlack(on) {
+    slackOff.hidden = on;
+    slackOnParts.forEach(function (el) { if (el) el.hidden = !on; });
+    if (on && typeof syncSlack === "function") syncSlack();
+  }
+  if (slackOff && slackDisconnectDlg) {
+    slackDisconnectDlg.addEventListener("close", function () {
+      if (slackDisconnectDlg.returnValue !== "disconnect") { slackDisconnectDlg.returnValue = ""; return; }
+      slackDisconnectDlg.returnValue = "";
+      setSlack(false);
+      document.getElementById("st-slack-connect-btn").focus(); // Disconnect Slack is gone
+    });
+  }
+  if (slackOff && slackForm) {
+    slackForm.addEventListener("submit", function () {
+      // method="dialog": submit fires only when both tokens are there, then the browser closes the dialog.
+      setTimeout(function () {
+        slackForm.reset();
+        var dm = document.getElementById("st-slack-to-dm");
+        if (dm) dm.checked = true; // a new connection sends direct messages to linked approvers
+        setSlack(true);
+        var first = document.getElementById("st-slack-to-dm");
+        if (first) first.focus(); // Connect Slack is gone
+        toast({ title: "Slack connected", body: "Requests go to linked approvers as direct messages. Approvers link their Slack account from the app's message.", tone: "success" });
+      }, 0);
+    });
+  }
+
+  // ── Telegram: connect, then the chat it posts to with Change bot or chat ──
+  var tgForm = document.getElementById("st-tg-connect-form");
+  var tgOff = document.getElementById("st-tg-off");
+  var tgOn = document.getElementById("st-tg-on");
+  var tgChatShown = document.getElementById("st-tg-chat-shown");
+  if (tgForm) {
+    tgForm.addEventListener("submit", function () {
+      // method="dialog": submit fires only when the form is valid, then the browser closes the
+      // dialog. The toast waits for that, or it would land in the closing modal.
+      var chat = document.getElementById("st-tg-chat");
+      var chatId = chat ? chat.value.trim() : "";
+      setTimeout(function () {
+        tgForm.reset();
+        if (tgOff && tgOn) {
+          if (tgChatShown && chatId) tgChatShown.textContent = chatId;
+          var wasOff = !tgOff.hidden;
+          tgOff.hidden = true;
+          tgOn.hidden = false;
+          if (wasOff) document.getElementById("st-tg-change-btn").focus(); // Connect Telegram bot is gone
+        }
+        toast({ title: "Test message sent", body: "Check the Telegram chat, then link your account from the bot's message to approve there.", tone: "success" });
+      }, 0);
+    });
+  }
+
+  // ── Allowed origins ──
+  var list = document.getElementById("st-origins-list");
+  var empty = document.getElementById("st-origins-empty");
+  var input = document.getElementById("st-origin-new");
+  var add = document.getElementById("st-origin-add");
+  var error = document.getElementById("st-origin-err");
+  var originsForm = document.getElementById("st-origins");
+  if (list && input && add && originsForm) {
+    var saved = list.innerHTML;
+    var syncEmpty = function () {
+      var none = !list.children.length;
+      list.hidden = none;
+      empty.hidden = !none;
+    };
+    var showError = function (on) {
+      error.hidden = !on;
+      if (on) { input.setAttribute("aria-invalid", "true"); input.setAttribute("aria-describedby", "st-origin-err st-origin-hint"); }
+      else { input.removeAttribute("aria-invalid"); input.setAttribute("aria-describedby", "st-origin-hint"); }
+    };
+    list.addEventListener("click", function (e) {
+      var remove = e.target.closest(".gw-tag__remove");
+      if (!remove) return;
+      var item = remove.closest("li");
+      var next = item.nextElementSibling || item.previousElementSibling;
+      var value = item.querySelector(".gw-tag__label").textContent;
+      item.remove();
+      syncEmpty();
+      markDirty["st-origins"]();
+      announce(value + " removed");
+      (next ? next.querySelector(".gw-tag__remove") : input).focus();
+    });
+    var addOrigin = function () {
+      var v = input.value.trim().replace(/\/$/, "");
+      if (!/^https?:\/\/[^\/\s:]+(:\d{1,5})?$/.test(v)) { showError(true); input.focus(); return; }
+      showError(false);
+      var li = document.createElement("li");
+      li.className = "gw-tag gw-tag--mono";
+      li.innerHTML = '<span class="gw-tag__label"></span><button class="gw-tag__remove" type="button"><i class="gw-icon" data-lucide="x"></i></button>';
+      li.querySelector(".gw-tag__label").textContent = v;
+      li.querySelector(".gw-tag__label").title = v;
+      li.querySelector("button").setAttribute("aria-label", "Remove " + v);
+      list.appendChild(li);
+      if (window.gwIcons) window.gwIcons(li);
+      input.value = "";
+      syncEmpty();
+      markDirty["st-origins"]();
+      announce(v + " added");
+      input.focus();
+    };
+    add.addEventListener("click", addOrigin);
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); addOrigin(); }
+    });
+    input.addEventListener("input", function () { if (!error.hidden) showError(false); });
+    originsForm.addEventListener("reset", function () {
+      list.innerHTML = saved;
+      if (window.gwIcons) window.gwIcons(list);
+      showError(false);
+      syncEmpty();
+    });
+  }
+})();
+</script>
+</body>
+</html>

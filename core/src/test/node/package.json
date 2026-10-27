@@ -1,0 +1,11 @@
+{
+  "name": "mcp-gateway-test-clients",
+  "private": true,
+  "description": "Reference MCP clients for the mcp-clients profile (ARCHITECTURE.md M1.5): installed into ~/.cache/mcp-gateway-test/node-clients, never into the repository.",
+  "type": "module",
+  "dependencies": {
+    "@modelcontextprotocol/client": "2.3.1",
+    "@modelcontextprotocol/conformance": "0.1.16",
+    "@modelcontextprotocol/inspector": "2.12.0"
+  }
+}

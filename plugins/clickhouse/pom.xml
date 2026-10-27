@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ClickHouse, a plugin of the signed catalog (ARCHITECTURE.md §7.5, step K6): six read-only tools over ClickHouse's
+  HTTP interface. connector-api and Jackson are provided by the host (parent-first); HTTP goes through the host's
+  guarded ExecContext.egress(). No other library.
+
+  The JAR is the catalog's package gw-clickhouse-0.6.1.jar: the manifest (src/main/resources/mcp-gateway-plugin.json)
+  says 0.6.1, and the fixed outputTimestamp makes the build reproducible, so anyone can rebuild it and compare the
+  SHA-256 the catalog signs. Built by step K6.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>ai.msrv.gaterook</groupId>
+    <artifactId>mcp-gateway</artifactId>
+    <version>0.4.0-SNAPSHOT</version>
+    <relativePath>../../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>plugins-clickhouse</artifactId>
+  <name>MCP Gateway · Plugins · ClickHouse</name>
+
+  <properties>
+    <maven.deploy.skip>true</maven.deploy.skip>
+    <!-- Reproducible JAR: the catalog signs its SHA-256. -->
+    <project.build.outputTimestamp>2026-10-26T00:00:00Z</project.build.outputTimestamp>
+  </properties>
+
+  <dependencies>
+    <!-- The host serves both parent-first: a plugin never ships its own copy (the installer refuses one). -->
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connector-api</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>tools.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.platform</groupId>
+      <artifactId>junit-platform-launcher</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.squareup.okhttp3</groupId>
+      <artifactId>mockwebserver3</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- The manifest must parse as the core and the host parse it, and match what the code serves. -->
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>plugin-protocol</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>gw-clickhouse-0.6.1</finalName>
+  </build>
+</project>

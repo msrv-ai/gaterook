@@ -1,0 +1,34 @@
+{
+  "jsonrpc" : "2.0",
+  "id" : 57,
+  "method" : "connector/describeAction",
+  "params" : {
+    "generation" : "jira-service-desk@1.3.0",
+    "call" : {
+      "callId" : "tc_01JBA7R5",
+      "tool" : "jira_add_comment",
+      "connection" : "acme-jsm",
+      "arguments" : {
+        "issueKey" : "SD-123",
+        "body" : "Restarted the payment worker",
+        "public" : false
+      }
+    },
+    "connection" : {
+      "id" : "c7b1",
+      "name" : "acme-jsm",
+      "type" : "jira-service-desk",
+      "env" : "dev",
+      "version" : 4,
+      "configHash" : "sha256:02d3313231bc8c3c3102ca041f30125bb273a3708080d662c548d1424dc7c8b3",
+      "config" : {
+        "baseUrl" : "https://acme.atlassian.net",
+        "deployment" : "cloud",
+        "email" : "svc-gateway@acme.com",
+        "serviceDeskIds" : [ ],
+        "timeoutMs" : 10000
+      },
+      "secretFields" : [ "/apiToken" ]
+    }
+  }
+}

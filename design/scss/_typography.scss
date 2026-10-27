@@ -1,0 +1,67 @@
+// =============================================================
+// GateRook · Typography utilities
+// -------------------------------------------------------------
+// Utilities for type roles that do not already belong to a component.
+// Component-internal type lives in the component partial.
+//   .gw-text-<role>   display h1 h2 h3 body body-read ui small caption overline code code-sm stat
+//   .gw-fg-<colour>   primary secondary muted link + tone fgs
+//   .gw-mono .gw-tabular .gw-truncate .gw-sr-only .gw-skip-link
+// =============================================================
+
+@use "sass:map";
+@use "tokens" as *;
+@use "mixins" as *;
+
+@each $role, $_ in $gw-type {
+  .gw-text-#{$role} { @include gw-type($role); }
+}
+.gw-text-body-read { color: var(--gw-color-text-secondary); }
+.gw-text-overline { color: var(--gw-color-text-muted); }
+.gw-text-stat { @include gw-tabular; }
+
+.gw-fg-primary   { color: var(--gw-color-text-primary); }
+.gw-fg-secondary { color: var(--gw-color-text-secondary); }
+.gw-fg-muted     { color: var(--gw-color-text-muted); }
+.gw-fg-link      { color: var(--gw-color-text-link); }
+.gw-fg-brand     { color: var(--gw-color-brand-fg); }
+.gw-fg-success   { color: var(--gw-color-success-fg); }
+.gw-fg-warning   { color: var(--gw-color-warning-fg); }
+.gw-fg-danger    { color: var(--gw-color-danger-fg); }
+.gw-fg-info      { color: var(--gw-color-info-fg); }
+
+.gw-mono     { @include gw-mono; }
+.gw-tabular  { @include gw-tabular; }
+.gw-truncate { @include gw-truncate; max-width: var(--gw-truncate-max, 100%); } // --gw-truncate-max caps it inline (tokens only)
+.gw-sr-only  { @include gw-sr-only; }
+
+// Skip link: first focusable element of every page, visible on focus.
+.gw-skip-link {
+  @include gw-sr-only;
+  &:focus-visible {
+    position: fixed;
+    top: var(--gw-space-2);
+    left: var(--gw-space-2);
+    z-index: var(--gw-z-status-screen);
+    width: auto;
+    height: auto;
+    margin: 0;
+    padding: var(--gw-space-2) var(--gw-space-3);
+    clip-path: none;
+    color: var(--gw-color-text-inverse);
+    background: var(--gw-color-bg-inverse);
+    border-radius: var(--gw-radius-sm);
+    outline: var(--gw-focus-width) solid var(--gw-color-border-focus);
+    outline-offset: var(--gw-focus-offset);
+  }
+}
+
+// Running-text link inside reading copy.
+.gw-link {
+  color: var(--gw-color-text-link);
+  text-decoration: underline;
+  text-decoration-thickness: from-font;
+  text-underline-offset: 0.2em;
+  border-radius: var(--gw-radius-xs);
+  @include gw-focus-ring(var(--gw-space-0-5));
+  &:hover { text-decoration-thickness: var(--gw-border-width-strong); }
+}

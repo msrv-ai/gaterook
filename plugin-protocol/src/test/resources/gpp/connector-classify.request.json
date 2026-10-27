@@ -1,0 +1,52 @@
+{
+  "jsonrpc" : "2.0",
+  "id" : 60,
+  "method" : "connector/classify",
+  "params" : {
+    "generation" : "jira-service-desk@1.3.0",
+    "call" : {
+      "callId" : "tc_01JBA7R5",
+      "tool" : "jira_add_comment",
+      "connection" : "acme-jsm",
+      "arguments" : {
+        "issueKey" : "SD-123",
+        "body" : "Restarted the payment worker",
+        "public" : false
+      }
+    },
+    "connection" : {
+      "id" : "c7b1",
+      "name" : "acme-jsm",
+      "type" : "jira-service-desk",
+      "env" : "dev",
+      "version" : 4,
+      "configHash" : "sha256:02d3313231bc8c3c3102ca041f30125bb273a3708080d662c548d1424dc7c8b3",
+      "config" : {
+        "baseUrl" : "https://acme.atlassian.net",
+        "deployment" : "cloud",
+        "email" : "svc-gateway@acme.com",
+        "serviceDeskIds" : [ ],
+        "timeoutMs" : 10000
+      },
+      "secretFields" : [ "/apiToken" ]
+    },
+    "policy" : {
+      "env" : "dev",
+      "rulePrefix" : "dev.plugin",
+      "section" : { },
+      "limits" : {
+        "maxRows" : 1000,
+        "maxLines" : 1000,
+        "maxResponseBytes" : 524288,
+        "maxRequestBytes" : 1048576,
+        "maxOutputBytes" : 262144,
+        "maxStderrBytes" : 65536,
+        "maxCellChars" : 8192,
+        "statementTimeoutMs" : 5000,
+        "commandTimeoutMs" : 30000,
+        "toolTimeoutMs" : 10000,
+        "maxRangeMs" : 604800000
+      }
+    }
+  }
+}

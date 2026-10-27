@@ -1,0 +1,291 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "x-card": {
+    "description": "Runbooks with typed parameters, through an SSH CA or a key."
+  },
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "credentials"
+  ],
+  "properties": {
+    "connection": {
+      "type": "object",
+      "title": "Connection",
+      "additionalProperties": false,
+      "description": "The core connects from this machine, so your VPN and hosts file apply.",
+      "required": [
+        "host",
+        "username"
+      ],
+      "properties": {
+        "host": {
+          "type": "string",
+          "title": "Host",
+          "maxLength": 253
+        },
+        "port": {
+          "type": "integer",
+          "title": "Port",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 22
+        },
+        "username": {
+          "type": "string",
+          "title": "User",
+          "pattern": "^[a-z_][a-z0-9_.-]{0,31}$",
+          "description": "A dedicated user. The test shows whether it can use sudo or docker."
+        }
+      }
+    },
+    "hostKeys": {
+      "type": "object",
+      "title": "Host key",
+      "x-gateway-hostkey": true,
+      "additionalProperties": false,
+      "properties": {
+        "pinned": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "string",
+            "maxLength": 16000
+          },
+          "description": "Filled by Test connection after you confirm the fingerprint."
+        },
+        "knownHosts": {
+          "type": "string",
+          "x-widget": "textarea",
+          "maxLength": 64000,
+          "description": "Optional known_hosts lines, hashed lines too."
+        }
+      }
+    },
+    "credentials": {
+      "type": "object",
+      "title": "Credentials",
+      "additionalProperties": false,
+      "required": [
+        "method"
+      ],
+      "properties": {
+        "method": {
+          "enum": [
+            "vaultSshCa",
+            "privateKey",
+            "password"
+          ],
+          "default": "vaultSshCa",
+          "x-enumTitles": [
+            "Vault SSH CA: a fresh certificate per call",
+            "Private key",
+            "Password"
+          ]
+        },
+        "vault": true,
+        "privateKey": true,
+        "passphrase": true,
+        "certificate": true,
+        "password": true
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "method": {
+                "const": "vaultSshCa"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "vault"
+            ],
+            "properties": {
+              "vault": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "store": {
+                    "type": "string",
+                    "description": "A Vault from Secrets › External stores"
+                  },
+                  "mount": {
+                    "type": "string",
+                    "default": "ssh-client-signer"
+                  },
+                  "role": {
+                    "type": "string",
+                    "default": "gw-runbooks"
+                  },
+                  "ttl": {
+                    "enum": [
+                      "1m",
+                      "2m",
+                      "5m",
+                      "10m"
+                    ],
+                    "default": "5m"
+                  },
+                  "principal": {
+                    "type": "string",
+                    "description": "Empty: the user name"
+                  }
+                },
+                "required": [
+                  "store"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "method": {
+                "const": "privateKey"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "privateKey"
+            ],
+            "properties": {
+              "privateKey": {
+                "type": "string",
+                "writeOnly": true,
+                "x-gateway-secret": "pem",
+                "x-widget": "textarea",
+                "maxLength": 20000,
+                "description": "OpenSSH or PEM (PKCS#1, PKCS#8): ed25519, ECDSA or RSA ≥ 2048."
+              },
+              "passphrase": {
+                "type": "string",
+                "writeOnly": true,
+                "x-gateway-secret": "value",
+                "format": "password"
+              },
+              "certificate": {
+                "type": "string",
+                "maxLength": 20000,
+                "description": "Optional user certificate for this key (…-cert.pub)."
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "method": {
+                "const": "password"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "password"
+            ],
+            "properties": {
+              "password": {
+                "type": "string",
+                "writeOnly": true,
+                "x-gateway-secret": "value",
+                "format": "password"
+              }
+            }
+          }
+        }
+      ],
+      "$comment": "Each method declares its own fields in its then branch (the form shows them only for that method); the properties above name them with true, so additionalProperties still refuses other keys."
+    },
+    "runbooksOnly": {
+      "type": "boolean",
+      "title": "Runbooks only",
+      "default": false,
+      "x-env-default": {
+        "prod": true
+      },
+      "description": "Agents run only saved runbooks here: ssh_exec is refused whatever the policy allows.",
+      "x-badge": "Runbooks only"
+    },
+    "jump": {
+      "type": "object",
+      "title": "Bastion",
+      "x-collapsed": true,
+      "additionalProperties": false,
+      "description": "Optional jump host. It needs AllowTcpForwarding; a Vault certificate for it gets permit-port-forwarding.",
+      "properties": {
+        "host": {
+          "type": "string",
+          "maxLength": 253
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 22
+        },
+        "username": {
+          "type": "string",
+          "pattern": "^[a-z_][a-z0-9_.-]{0,31}$"
+        },
+        "credentials": {
+          "$ref": "#/properties/credentials"
+        },
+        "hostKeys": {
+          "$ref": "#/properties/hostKeys"
+        }
+      }
+    },
+    "advanced": {
+      "type": "object",
+      "title": "Advanced",
+      "x-collapsed": true,
+      "additionalProperties": false,
+      "properties": {
+        "connectTimeoutSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60,
+          "default": 10,
+          "x-unit": "s"
+        },
+        "keepaliveSeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 300,
+          "default": 15,
+          "x-unit": "s"
+        },
+        "reuseSessions": {
+          "type": "boolean",
+          "default": true
+        },
+        "maxChannelsPerSession": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 8
+        },
+        "remoteDeadline": {
+          "type": "boolean",
+          "default": false,
+          "description": "Wrap commands in timeout -k 5 <limit> sh -c '…' so they stop even if this computer goes offline. Approvers see the wrapped text."
+        },
+        "legacyAlgorithms": {
+          "type": "boolean",
+          "default": false,
+          "description": "Allow ssh-rsa (SHA-1), CBC ciphers and hmac-sha1 for old servers."
+        },
+        "probeSudo": {
+          "type": "boolean",
+          "default": true,
+          "description": "Test connection runs sudo -n true; some hosts log it as a failed sudo."
+        }
+      }
+    }
+  }
+}

@@ -1,27 +1,76 @@
 # GateRook
 
-GateRook is a desktop MCP gateway for connecting AI to databases, logs, APIs, and cloud services, with scoped access and human-reviewed changes.
+GateRook is a desktop MCP gateway that gives AI clients scoped access to databases, logs, APIs, and cloud services. Credentials stay in the gateway; changes require a person to review the exact action before the gateway executes it.
 
-[Website](https://msrv.dev) · [Documentation](https://msrv.dev/docs/) · [Issues](https://github.com/msrv-ai/gaterook/issues)
+[Website](https://msrv.dev) · [Issues](https://github.com/msrv-ai/gaterook/issues) · [Architecture](docs/ARCHITECTURE.md) · [Research](docs/research/README.md) · [Design kit](design/README.md)
 
-**Status: in development.** This repository currently contains preparatory documentation. Application sources and the design kit have not been added yet. Installers are not available yet.
+This repository contains the complete application, its tests, the canonical design kit, and everything needed for a local development build. The application is in development; a source build is not a signed release installer.
 
-## Repository contents
+## Build and run locally
 
-This repository is intended to contain application runtime source, canonical design-kit tokens and components, reusable assets, test sources and fixtures, and source-facing documentation.
+Install **JDK 25**, **Maven 3.9 or newer**, and **Node.js 24.22.1** (pinned in `.nvmrc`, with npm 11.19.1). Set `JAVA_HOME` to your JDK and ensure `java`, `mvn`, `node`, and `npm` are on `PATH`. A graphical desktop session is required for Electron. GraalVM and Docker are not needed for this development build.
 
-The planned application uses Electron, Angular, Java/Spring Boot, and a GraalVM native core. These describe the implementation being prepared, not code already present here.
+```bash
+git clone https://github.com/msrv-ai/gaterook.git
+cd gaterook
+# If you use nvm: nvm install && nvm use
+npm ci
+npm ci --prefix design
+npm run build
+npm start
+```
 
-## Working on GateRook
+`npm run build` builds the design kit, all Java modules, the Angular UI, and the Electron main/preload bundle. It compiles tests but skips running them. `npm start` opens the desktop application and starts its JVM core automatically. Development data is stored in `desktop/.dev/home/`; stop the application with **Ctrl+C** in the terminal.
 
-Start with [AGENTS.md](AGENTS.md). All AI-authored repository content, including documentation, comments, descriptions, and commit messages, must be in English.
+To open a separate demo instance without OS key-store prompts:
 
-| Document | Purpose |
+```bash
+npm start -- --demo --home ./desktop/.dev/demo --protection off
+```
+
+Demo data is seeded only into a new home. Add `--fresh` only when you intend to delete that selected development home. Rebuild after source changes with `npm run build`.
+
+For browser UI development with a signed local API proxy:
+
+```bash
+npm run dev:ui
+```
+
+Use the URL printed by the dev server. See [the development guide](docs/development.md) for component builds, tests, native binaries, and troubleshooting.
+
+To build and launch from IntelliJ IDEA, follow [the IDEA setup](docs/development.md#intellij-idea) and use **GateRook: Build**, **GateRook: Run**, or **GateRook: Demo**.
+
+## Checks
+
+```bash
+npm test                          # Build and staging helper tests
+npm test -w bridge                # Token broker and stdio bridge
+npm test -w desktop               # Electron type checking and unit tests
+npm test -w ui                    # Angular component and behavior tests
+npm --prefix design run verify   # Design generation and validation
+mvn -B -ntp verify                # Java tests; some integration tests need local services
+```
+
+For the full connector integration suite, follow [the Docker test-services guide](test-services/README.md). Native image and installer verification are separate from the JVM development build.
+
+## Documentation
+
+| Document | Contents |
 | --- | --- |
-| [AGENTS.md](AGENTS.md) | Instructions for contributors and AI agents |
-| [Repository layout](docs/repository-layout.md) | Current contents and planned source layout |
-| [Source migration](docs/migration.md) | Application and design-kit migration checklist |
+| [Architecture](docs/ARCHITECTURE.md) | Processes, modules, call flow, persistence, security, and extension contracts |
+| [Product decisions](docs/DECISIONS.md) | Accepted product and engineering decisions, with implementation caveats |
+| [Research](docs/research/README.md) | Protocol, client, connector, security, native-image, and plugin-host investigations |
+| [Development](docs/development.md) | Toolchains, build/run commands, tests, native builds, and troubleshooting |
+| [Repository layout](docs/repository-layout.md) | Source directories and their responsibilities |
+| [Migration scope](docs/migration.md) | Source inclusion, compatibility, and publication boundaries |
+| [Design kit](design/README.md) | Tokens, styles, assets, reference pages, and verification |
+| [Design rules](design/DESIGN.md) | Visual language and interaction rules |
+| [Components](design/COMPONENTS.md) | Component and element APIs |
+| [UI blueprint](design/BLUEPRINT.md) | Screens, states, and the shared demo world |
+| [Contributor and AI rules](AGENTS.md) | English-only content and handling of internal AI files |
 
-There are no application build or runtime verification commands in this documentation scaffold. Update the documentation as source becomes available and report only checks that have actually run.
+The stack is Electron 45, Angular 22, Java 25, and Spring Boot 4.1. The core can also be built as a GraalVM native executable. Java plugins run in a separate JVM host. See the manifests and lockfiles for exact dependency versions.
 
-The application's license will be established during source migration. Preserve third-party asset licenses and notices; repository visibility alone does not grant a license.
+All documentation is in English. Internal AI scratch files, temporary research, and progress logs belong in the ignored root `ai/` directory and must never be committed. The curated research linked above is intentional product documentation.
+
+The application license has not been selected. Preserve the bundled third-party licenses and notices; public repository visibility alone does not grant a license.

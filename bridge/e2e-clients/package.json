@@ -1,0 +1,9 @@
+{
+  "name": "mcp-gateway-k1-clients",
+  "private": true,
+  "description": "Real clients for the K1 E2E (app, profile mcp-clients): Codex app-server and the MCPB CLI, installed into ~/.cache/mcp-gateway-test/k1-clients by npm ci, never into the repository.",
+  "dependencies": {
+    "@anthropic-ai/mcpb": "2.1.2",
+    "@openai/codex": "0.162.1"
+  }
+}

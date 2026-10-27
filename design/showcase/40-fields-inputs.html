@@ -1,0 +1,186 @@
+<section class="sc-section" id="fields-inputs" data-title="Fields and inputs" data-group="Forms">
+  <h2>Fields and inputs <code class="gw-code">gw-field</code> <code class="gw-code">gw-input</code> <code class="gw-code">gw-textarea</code> <code class="gw-code">gw-select</code> <code class="gw-code">gw-input-group</code></h2>
+  <p>Every value a person types sits in a <code class="gw-code">gw-field</code>: a visible label above the control, a hint under it, and after a failed save an error with an icon, tied to the control with <code class="gw-code">aria-describedby</code>. Controls are native and 32px tall; literal values (hosts, ports, paths) use <code class="gw-code">gw-input--mono</code>. Mark the few optional fields "Optional" instead of starring every required one. Not for values people only read and copy (<code class="gw-code">gw-copy-field</code>) or for secrets (<code class="gw-code">gw-secret</code>); for two to four options that change behaviour use <code class="gw-code">gw-segmented</code>.</p>
+
+  <h3>Text field states</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-form__row">
+      <div class="gw-field">
+        <label class="gw-field__label" for="sc-c-f-host">Host</label>
+        <input class="gw-input gw-input--mono" id="sc-c-f-host" value="db.dev.internal" aria-describedby="sc-c-f-host-hint" required autocomplete="off" spellcheck="false">
+        <p class="gw-field__hint" id="sc-c-f-host-hint">Hostname or IP the core can reach.</p>
+      </div>
+      <div class="gw-field">
+        <label class="gw-field__label" for="sc-c-f-port">Port</label>
+        <input class="gw-input gw-input--mono" id="sc-c-f-port" value="5432" inputmode="numeric" required autocomplete="off">
+      </div>
+      <div class="gw-field">
+        <label class="gw-field__label" for="sc-c-f-db">Database</label>
+        <input class="gw-input gw-input--mono" id="sc-c-f-db" value="" placeholder="app" aria-invalid="true" aria-describedby="sc-c-f-db-err" required autocomplete="off" spellcheck="false">
+        <p class="gw-field__error" id="sc-c-f-db-err"><i class="gw-icon" data-lucide="circle-alert"></i>Enter a database name. The core opens it for every call.</p>
+      </div>
+    </div>
+    <div class="gw-form__row">
+      <div class="gw-field">
+        <label class="gw-field__label" for="sc-c-f-desc">Description <span class="gw-field__optional">Optional</span></label>
+        <input class="gw-input" id="sc-c-f-desc" placeholder="Orders and billing tables for local work" aria-describedby="sc-c-f-desc-hint">
+        <p class="gw-field__hint" id="sc-c-f-desc-hint">Agents see it in the tool list.</p>
+      </div>
+      <div class="gw-field">
+        <label class="gw-field__label" for="sc-c-f-user">User <span class="gw-field__required">Required</span></label>
+        <input class="gw-input gw-input--mono" id="sc-c-f-user" value="gw_reader" required autocomplete="off" spellcheck="false">
+      </div>
+      <div class="gw-field">
+        <label class="gw-field__label" for="sc-c-f-driver">Driver</label>
+        <input class="gw-input" id="sc-c-f-driver" value="PostgreSQL JDBC 42.7 (bundled)" disabled aria-describedby="sc-c-f-driver-hint">
+        <p class="gw-field__hint" id="sc-c-f-driver-hint">Ships with the PostgreSQL connector.</p>
+      </div>
+      <div class="gw-field">
+        <label class="gw-field__label" for="sc-c-f-id">Connection ID</label>
+        <input class="gw-input gw-input--mono" id="sc-c-f-id" value="dev-db" readonly aria-describedby="sc-c-f-id-hint">
+        <p class="gw-field__hint" id="sc-c-f-id-hint">Read only. Audit events refer to it.</p>
+      </div>
+    </div>
+  </div>
+
+  <h3>Sizes</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-form__row">
+      <div class="gw-field">
+        <label class="gw-field__label" for="sc-c-f-sm">Small, 28px</label>
+        <input class="gw-input gw-input--sm" id="sc-c-f-sm" placeholder="Filter tools">
+      </div>
+      <div class="gw-field">
+        <label class="gw-field__label" for="sc-c-f-md">Medium, 32px (default)</label>
+        <input class="gw-input" id="sc-c-f-md" placeholder="Connection name">
+      </div>
+      <div class="gw-field">
+        <label class="gw-field__label" for="sc-c-f-lg">Large, 40px</label>
+        <input class="gw-input gw-input--lg" id="sc-c-f-lg" placeholder="Endpoint name">
+      </div>
+    </div>
+    <div class="gw-form__row">
+      <div class="gw-field">
+        <label class="gw-field__label" for="sc-c-sel-sm">Small select</label>
+        <select class="gw-select gw-select--sm" id="sc-c-sel-sm"><option>Last 24 hours</option><option>Last 7 days</option></select>
+      </div>
+      <div class="gw-field">
+        <label class="gw-field__label" for="sc-c-sel-md">Medium select</label>
+        <select class="gw-select" id="sc-c-sel-md"><option>Last 24 hours</option><option>Last 7 days</option></select>
+      </div>
+      <div class="gw-field">
+        <label class="gw-field__label" for="sc-c-sel-lg">Large select</label>
+        <select class="gw-select gw-select--lg" id="sc-c-sel-lg"><option>Last 24 hours</option><option>Last 7 days</option></select>
+      </div>
+    </div>
+  </div>
+
+  <h3>Textarea, code and counter</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-field">
+      <label class="gw-field__label" for="sc-c-f-sql">SQL template</label>
+      <textarea class="gw-textarea gw-textarea--code" id="sc-c-f-sql" rows="5" spellcheck="false" autocapitalize="off" aria-describedby="sc-c-f-sql-hint">
+SELECT id, status, created_at
+FROM orders
+WHERE created_at > now() - interval '1 hour'
+  AND status = :status
+LIMIT :limit</textarea>
+      <p class="gw-field__hint" id="sc-c-f-sql-hint">Parameters such as <code class="gw-code">:status</code> become typed tool arguments.</p>
+    </div>
+    <div class="gw-field">
+      <label class="gw-field__label" for="sc-c-f-instr">Instructions for agents <span class="gw-field__optional">Optional</span></label>
+      <textarea class="gw-textarea gw-textarea--wrap" id="sc-c-f-instr" rows="3" maxlength="2000" aria-describedby="sc-c-f-instr-hint sc-c-f-instr-count">Use dev-db for order data. Prefer sql_query for reads. Before any UPDATE, say which rows it touches and wait for the approval.</textarea>
+      <p class="gw-field__hint" id="sc-c-f-instr-hint">Sent to the AI app as the server instructions of endpoint <code class="gw-code">dev</code>. Prose: <code class="gw-code">gw-textarea--wrap</code>, never a sideways scroll.</p>
+      <p class="gw-field__counter" id="sc-c-f-instr-count">126 / 2,000</p>
+    </div>
+    <div class="gw-field">
+      <label class="gw-field__label" for="sc-c-f-note">Approval note</label>
+      <textarea class="gw-textarea" id="sc-c-f-note" rows="2" aria-invalid="true" aria-describedby="sc-c-f-note-err sc-c-f-note-count">Cancelling order 48213: the customer asked twice in the support thread. Refund goes through billing-api, see the ticket for the full order history.</textarea>
+      <p class="gw-field__error" id="sc-c-f-note-err"><i class="gw-icon" data-lucide="circle-alert"></i>Shorten the note to 140 characters so it fits the Slack and Telegram previews.</p>
+      <p class="gw-field__counter" id="sc-c-f-note-count" data-over>147 / 140 · 7 over</p>
+    </div>
+  </div>
+
+  <h3>Select</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-form__row">
+      <div class="gw-field">
+        <label class="gw-field__label" for="sc-c-f-ssl">SSL mode</label>
+        <select class="gw-select" id="sc-c-f-ssl" aria-describedby="sc-c-f-ssl-hint">
+          <option value="disable">Disable</option>
+          <option value="require">Require</option>
+          <option value="verify-ca">Verify CA</option>
+          <option value="verify-full" selected>Verify CA and host name</option>
+        </select>
+        <p class="gw-field__hint" id="sc-c-f-ssl-hint">Prod connections need verify-full.</p>
+      </div>
+      <div class="gw-field">
+        <label class="gw-field__label" for="sc-c-f-ns">Namespace</label>
+        <select class="gw-select" id="sc-c-f-ns" disabled aria-describedby="sc-c-f-ns-hint">
+          <option>app-dev</option>
+        </select>
+        <p class="gw-field__hint" id="sc-c-f-ns-hint">dev-cluster has one namespace for this service account.</p>
+      </div>
+    </div>
+  </div>
+
+  <h3>Input group: prefix, suffix, addon</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-form__row">
+      <div class="gw-field">
+        <label class="gw-field__label" for="sc-c-f-url">Base URL</label>
+        <div class="gw-input-group">
+          <span class="gw-input-group__affix">https://</span>
+          <input class="gw-input gw-input--mono" id="sc-c-f-url" value="billing.stage.acme.dev" spellcheck="false" autocomplete="off">
+          <button class="gw-input-group__addon" type="button" aria-label="Copy base URL" data-gw-copy="https://billing.stage.acme.dev"><i class="gw-icon" data-lucide="copy"></i><i class="gw-icon" data-lucide="check"></i></button>
+        </div>
+      </div>
+      <div class="gw-field">
+        <label class="gw-field__label" for="sc-c-f-timeout">Statement timeout</label>
+        <div class="gw-input-group">
+          <input class="gw-input gw-input--mono" id="sc-c-f-timeout" value="5000" inputmode="numeric" aria-describedby="sc-c-f-timeout-hint">
+          <span class="gw-input-group__affix">ms</span>
+        </div>
+        <p class="gw-field__hint" id="sc-c-f-timeout-hint">The database cancels slower statements.</p>
+      </div>
+      <div class="gw-field">
+        <label class="gw-field__label" for="sc-c-f-rows">Row limit</label>
+        <div class="gw-input-group">
+          <input class="gw-input gw-input--mono" id="sc-c-f-rows" value="90000" inputmode="numeric" aria-invalid="true" aria-describedby="sc-c-f-rows-err">
+          <span class="gw-input-group__affix">rows</span>
+        </div>
+        <p class="gw-field__error" id="sc-c-f-rows-err"><i class="gw-icon" data-lucide="circle-alert"></i>Use 10,000 rows or fewer. Larger results exceed the response size limit.</p>
+      </div>
+      <div class="gw-field">
+        <label class="gw-field__label" for="sc-c-f-port2">Core port</label>
+        <div class="gw-input-group">
+          <span class="gw-input-group__affix">127.0.0.1:</span>
+          <input class="gw-input gw-input--mono" id="sc-c-f-port2" value="7465" disabled aria-describedby="sc-c-f-port2-hint">
+        </div>
+        <p class="gw-field__hint" id="sc-c-f-port2-hint">Stop the core to change the port.</p>
+      </div>
+    </div>
+  </div>
+
+  <h3>Inline label (settings rows)</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-field gw-field--inline">
+      <label class="gw-field__label" for="sc-c-f-retention">Keep audit events for</label>
+      <div class="gw-field__control">
+        <select class="gw-select" id="sc-c-f-retention" aria-describedby="sc-c-f-retention-hint">
+          <option selected>1 year</option>
+          <option>2 years</option>
+          <option>3 years</option>
+          <option>5 years</option>
+        </select>
+        <p class="gw-field__hint" id="sc-c-f-retention-hint">Never less than a year. Older events are deleted after export; append-only until then.</p>
+      </div>
+    </div>
+    <div class="gw-field gw-field--inline">
+      <label class="gw-field__label" for="sc-c-f-origin">Allowed origin</label>
+      <div class="gw-field__control">
+        <input class="gw-input gw-input--mono" id="sc-c-f-origin" value="http://127.0.0.1:7465" spellcheck="false">
+      </div>
+    </div>
+  </div>
+</section>

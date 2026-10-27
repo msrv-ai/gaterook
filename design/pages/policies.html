@@ -1,0 +1,2007 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Policies · GateRook</title>
+<link rel="icon" href="../assets/logo-mark.svg" type="image/svg+xml">
+<script src="../assets/theme-boot.js"></script>
+<link rel="stylesheet" href="../dist/gw-kit.css">
+</head>
+<body>
+<!--
+  CANONICAL APP SHELL · copy this file verbatim for every page in pages/.
+  Change only:
+    1. <title>                      "<Section> · GateRook"
+    2. .gw-titlebar__title          the current section name
+    3. aria-current="page"          move it to the current nav item (exactly one)
+    4. the content of .gw-page      page header (one h1) + page content;
+                                    gw-page--narrow for forms, gw-page--full for Activity / split views
+  npm run check fails when a page's <nav data-gw-nav> differs from overview.html
+  (aria-current excluded). Add gw-titlebar--mac on macOS (Electron: process.platform === "darwin").
+-->
+<a class="gw-skip-link" href="#main">Skip to content</a>
+<div class="gw-shell">
+
+  <header class="gw-titlebar">
+    <span class="gw-titlebar__title">Policies</span>
+    <div class="gw-titlebar__drag"></div>
+    <div class="gw-titlebar__actions">
+      <!-- Opens the command palette (#cmdk at the end of <main>, elements/command-palette.html) -->
+      <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Search and commands" aria-haspopup="dialog" aria-keyshortcuts="Meta+K Control+K" data-gw-dialog-open="cmdk"><i class="gw-icon" data-lucide="search"></i> Search <kbd class="gw-btn__kbd" aria-hidden="true">⌘K</kbd></button>
+      <a class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" href="approvals.html" aria-label="Approvals, 3 waiting"><i class="gw-icon" data-lucide="bell"></i><span class="gw-counter gw-counter--attention" aria-hidden="true">3</span></a>
+      <!--
+        Appearance popover. gw-popover belongs to component group D, gw-segmented to group C.
+        The <form method="dialog"> scopes the radio groups (Settings › Appearance has its own
+        gw-theme radios) and never submits outside a <dialog>. kit.js binds name="gw-theme" /
+        name="gw-contrast" to window.gwTheme.
+      -->
+      <div class="gw-menu-host">
+        <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="gw-appearance" aria-label="Appearance"><i class="gw-icon" data-lucide="sun-moon"></i></button>
+        <div class="gw-popover gw-popover--right" id="gw-appearance" role="dialog" aria-labelledby="gw-appearance-title" hidden>
+          <div class="gw-popover__header">
+            <p class="gw-popover__title" id="gw-appearance-title">Appearance</p>
+          </div>
+          <form class="gw-popover__body" method="dialog">
+            <div class="gw-stack gw-stack--sm">
+              <p class="gw-text-caption gw-fg-muted" id="gw-appearance-theme">Theme</p>
+              <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="gw-appearance-theme">
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i> System</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i> Light</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i> Dark</span></label>
+              </div>
+              <p class="gw-text-caption gw-fg-muted" id="gw-appearance-contrast">Contrast</p>
+              <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="gw-appearance-contrast">
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="system"><span class="gw-segmented__label">System</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="normal"><span class="gw-segmented__label">Normal</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="more"><span class="gw-segmented__label">High</span></label>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="gw-sidebar" id="gw-sidebar">
+    <div class="gw-sidebar__header">
+      <a class="gw-logo" href="overview.html" aria-label="GateRook, overview">
+        <img class="gw-logo__mark" src="../assets/logo-mark.svg" alt="">
+        <span class="gw-logo__name">GateRook</span>
+      </a>
+      <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-sidebar__toggle" type="button" data-gw-sidebar-toggle aria-controls="gw-sidebar" aria-expanded="true" aria-label="Collapse sidebar"><i class="gw-icon" data-lucide="panel-left"></i></button>
+    </div>
+
+    <nav class="gw-sidebar__body gw-nav" data-gw-nav aria-label="Main">
+      <div class="gw-nav__group">
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="overview.html"><i class="gw-icon gw-nav__icon" data-lucide="layout-dashboard"></i><span class="gw-nav__label">Overview</span></a></li>
+          <li><a class="gw-nav__item" href="approvals.html"><i class="gw-icon gw-nav__icon" data-lucide="user-check"></i><span class="gw-nav__label">Approvals</span><span class="gw-nav__counter gw-counter gw-counter--attention"><span class="gw-sr-only">, </span>3<span class="gw-sr-only"> waiting</span></span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-resources">
+        <p class="gw-nav__group-label" id="gw-nav-resources">Resources</p>
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="connections.html"><i class="gw-icon gw-nav__icon" data-lucide="database"></i><span class="gw-nav__label">Connections</span></a></li>
+          <li><a class="gw-nav__item" href="connectors.html"><i class="gw-icon gw-nav__icon" data-lucide="puzzle"></i><span class="gw-nav__label">Connectors</span></a></li>
+          <li><a class="gw-nav__item" href="secrets.html"><i class="gw-icon gw-nav__icon" data-lucide="key-round"></i><span class="gw-nav__label">Secrets</span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-access">
+        <p class="gw-nav__group-label" id="gw-nav-access">Access</p>
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="endpoints.html"><i class="gw-icon gw-nav__icon" data-lucide="waypoints"></i><span class="gw-nav__label">Endpoints</span></a></li>
+          <li><a class="gw-nav__item" href="clients.html"><i class="gw-icon gw-nav__icon" data-lucide="app-window"></i><span class="gw-nav__label">AI apps</span></a></li>
+          <li><a class="gw-nav__item" href="policies.html" aria-current="page"><i class="gw-icon gw-nav__icon" data-lucide="shield"></i><span class="gw-nav__label">Policies</span></a></li>
+          <li><a class="gw-nav__item" href="playground.html"><i class="gw-icon gw-nav__icon" data-lucide="flask-conical"></i><span class="gw-nav__label">Playground</span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-observe">
+        <p class="gw-nav__group-label" id="gw-nav-observe">Observe</p>
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="activity.html"><i class="gw-icon gw-nav__icon" data-lucide="activity"></i><span class="gw-nav__label">Activity</span></a></li>
+          <li><a class="gw-nav__item" href="insights.html"><i class="gw-icon gw-nav__icon" data-lucide="chart-column"></i><span class="gw-nav__label">Insights</span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group gw-nav__group--end">
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="settings.html"><i class="gw-icon gw-nav__icon" data-lucide="settings"></i><span class="gw-nav__label">Settings</span></a></li>
+        </ul>
+      </div>
+    </nav>
+
+    <!-- gw-status belongs to component group B. Static on purpose: no gw-status--live in the shell (WCAG 2.2.2).
+         The tunnel status has two faces: gw-status--neutral "Tunnel off" (the demo's state, BLUEPRINT §9) and, while an
+         endpoint is published, gw-status--warning "Tunnel on", together with the app-wide gw-alert--banner --warning
+         "Tunnel is public" (clients.html and settings.html switch both at runtime):
+         <span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel on</span></span> -->
+    <div class="gw-sidebar__footer">
+      <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Core running</span></span>
+      <span class="gw-sidebar__meta">127.0.0.1:7465 · v0.4.0</span>
+      <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off</span></span>
+    </div>
+  </div>
+
+  <main class="gw-shell__main" id="main" tabindex="-1">
+    <!-- App-wide gw-alert--banner (Core stopped, Tunnel is public) goes here, before gw-page -->
+    <div class="gw-page gw-page--narrow">
+      <header class="gw-page-header">
+        <div class="gw-page-header__row">
+          <div class="gw-page-header__heading">
+            <h1 class="gw-page-header__title">Policies</h1>
+            <p class="gw-page-header__description">Guardrails for every connection, per environment: what agents may read, how much and how fast, and who approves changes. Stage inherits each value it doesn't set from dev; prod has its own, stricter defaults.</p>
+          </div>
+          <div class="gw-page-header__actions">
+            <a class="gw-btn" href="activity.html?q=decision:denied"><i class="gw-icon" data-lucide="shield-x"></i> View denied calls<span class="gw-sr-only"> in Activity</span></a>
+          </div>
+        </div>
+      </header>
+
+      <!-- The product invariant. Informational only: there is no switch for it anywhere. -->
+      <div class="gw-alert gw-alert--info">
+        <i class="gw-icon gw-alert__icon" data-lucide="user-check"></i>
+        <div class="gw-alert__content">
+          <p class="gw-alert__title">Every mutation needs a human approval</p>
+          <p class="gw-alert__body">This can't be turned off on any environment. Database writes, restarts, runbooks that change state and HTTP requests other than GET always wait for a person. Policies only add limits on top; each tool's mode (Off, Read only or Approval) is set per endpoint.</p>
+          <div class="gw-alert__actions"><a class="gw-btn gw-btn--link gw-btn--sm" href="endpoints.html">Set tool modes in Endpoints</a></div>
+        </div>
+      </div>
+
+      <div class="gw-tabs">
+        <div class="gw-tabs__list" role="tablist" aria-label="Policy by environment">
+          <button class="gw-tabs__tab" type="button" role="tab" id="pol-tab-dev" aria-selected="false" aria-controls="dev" tabindex="-1"><span class="gw-env gw-env--dev gw-env--sm" aria-hidden="true">dev</span> Development <span class="gw-tabs__count">6<span class="gw-sr-only"> connections</span></span></button>
+          <button class="gw-tabs__tab" type="button" role="tab" id="pol-tab-stage" aria-selected="false" aria-controls="stage" tabindex="-1"><span class="gw-env gw-env--stage gw-env--sm" aria-hidden="true">stage</span> Staging <span class="gw-tabs__count">3<span class="gw-sr-only"> connections</span></span></button>
+          <button class="gw-tabs__tab" type="button" role="tab" id="pol-tab-prod" aria-selected="true" aria-controls="prod"><span class="gw-env gw-env--prod gw-env--sm" aria-hidden="true">prod</span> Production <span class="gw-tabs__count">3<span class="gw-sr-only"> connections</span></span></button>
+        </div>
+
+        <!-- ═══════════════════════════ dev: the base policy ═══════════════════════════ -->
+        <div class="gw-tabs__panel" role="tabpanel" id="dev" aria-labelledby="pol-tab-dev" tabindex="0" hidden>
+          <div class="gw-stack gw-stack--lg">
+            <div class="gw-toolbar">
+              <div class="gw-toolbar__start">
+                <dl class="gw-kv gw-kv--inline">
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Applies to</dt><dd class="gw-kv__value"><code class="gw-code">dev-db</code> <code class="gw-code">orders-mongo</code> <code class="gw-code">cache-redis</code> <code class="gw-code">dev-vm</code> <code class="gw-code">app-logs</code> <code class="gw-code">dev-cluster</code></dd></div>
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Values</dt><dd class="gw-kv__value">4 set on dev · base for stage</dd></div>
+                </dl>
+              </div>
+              <!-- Reset is offered only while the environment stores a value of its own (dev stores 4). -->
+              <div class="gw-toolbar__end">
+                <a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?q=env:dev"><i class="gw-icon gw-icon--sm" data-lucide="activity"></i> View dev activity</a>
+                <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" data-gw-dialog-open="pol-dlg-reset-dev"><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i> Reset to dev defaults</button>
+              </div>
+            </div>
+
+            <form class="gw-form" method="dialog" aria-label="Policy for dev">
+
+              <!-- SQL -->
+              <section class="gw-form__section" id="dev-sql" aria-labelledby="pd-sql-t">
+                <header class="gw-form__section-header">
+                  <h2 class="gw-form__legend" id="pd-sql-t">SQL</h2>
+                  <p class="gw-form__description">Applies to <span class="gw-mono">dev-db</span>. The gateway parses every statement: SELECT is a read, anything else is a mutation.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <dl class="gw-kv gw-kv--dense">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">INSERT, UPDATE, DELETE, DDL</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always · rule <code class="gw-code">dev.sql.write-approval</code></span></dd></div>
+                    <!-- A lock, not a checkbox: reads always run READ ONLY and end with ROLLBACK, on every environment. -->
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Run queries in a read-only transaction</dt><dd class="gw-kv__value"><span class="gw-badge"><i class="gw-icon gw-badge__icon" data-lucide="lock"></i>Always on</span> <span class="gw-text-caption gw-fg-muted"><span class="gw-mono">sql_query</span> opens READ ONLY transactions, so the database refuses a SELECT that calls a function that writes</span></dd></div>
+                  </dl>
+                  <div class="gw-form__row">
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="pd-sql-timeout">Statement timeout</label>
+                      <div class="gw-input-group">
+                        <input class="gw-input" id="pd-sql-timeout" type="text" inputmode="numeric" autocomplete="off" value="5" aria-describedby="pd-sql-timeout-hint">
+                        <span class="gw-input-group__affix">s</span>
+                      </div>
+                      <p class="gw-field__hint" id="pd-sql-timeout-hint">The database cancels slower statements.</p>
+                    </div>
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="pd-sql-rows">Row limit</label>
+                      <div class="gw-input-group">
+                        <input class="gw-input" id="pd-sql-rows" type="text" inputmode="numeric" autocomplete="off" value="1,000" aria-describedby="pd-sql-rows-hint">
+                        <span class="gw-input-group__affix">rows</span>
+                      </div>
+                      <p class="gw-field__hint" id="pd-sql-rows-hint">Longer results are cut and marked truncated for the agent.</p>
+                    </div>
+                  </div>
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="pd-sql-allow">Schema and table allowlist</label>
+                    <div class="gw-stack gw-stack--sm">
+                      <ul class="gw-tag-list" aria-label="Allowed schemas and tables on dev">
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">public.*</span><button class="gw-tag__remove" type="button" aria-label="Remove public.* from the dev allowlist"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">reporting.*</span><button class="gw-tag__remove" type="button" aria-label="Remove reporting.* from the dev allowlist"><i class="gw-icon" data-lucide="x"></i></button></li>
+                      </ul>
+                      <div class="gw-input-group">
+                        <input class="gw-input gw-input--mono" id="pd-sql-allow" autocomplete="off" spellcheck="false" placeholder="Add a schema or table, for example billing.invoices" aria-describedby="pd-sql-allow-hint">
+                        <button class="gw-input-group__addon" type="button" aria-label="Add to the dev allowlist"><i class="gw-icon" data-lucide="plus"></i></button>
+                      </div>
+                    </div>
+                    <p class="gw-field__hint" id="pd-sql-allow-hint">Agents see and query only these. <span class="gw-mono">schema.*</span> allows a whole schema.</p>
+                  </div>
+                  <div class="gw-checkbox">
+                    <input class="gw-checkbox__input" type="checkbox" id="pd-sql-ddl" aria-describedby="pd-sql-ddl-hint">
+                    <span class="gw-checkbox__control" aria-hidden="true"></span>
+                    <label class="gw-checkbox__label" for="pd-sql-ddl">Refuse DDL: CREATE, ALTER, DROP, TRUNCATE</label>
+                    <p class="gw-checkbox__hint" id="pd-sql-ddl-hint">Off on dev: DDL waits for approval like any other mutation. When on, it is denied before anyone is asked.</p>
+                  </div>
+                  <!-- Settings the core has beyond this layout (its policy schema), out of the way until asked for. -->
+                  <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="dev-sql-more">More SQL settings <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i></button></div>
+                  <div class="gw-form__rows" id="dev-sql-more" hidden>
+                    <div class="gw-form__row">
+                      <div class="gw-field">
+                        <label class="gw-field__label" for="pd-sql-maxresp">Max response size</label>
+                        <div class="gw-input-group">
+                          <input class="gw-input" id="pd-sql-maxresp" type="text" inputmode="numeric" autocomplete="off" value="512">
+                          <span class="gw-input-group__affix">KB</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="pd-sql-denyfn">More denied functions</label>
+                      <div class="gw-stack gw-stack--sm">
+                        <p class="gw-text-small gw-fg-muted">None beyond the built-in denylist.</p>
+                        <div class="gw-input-group">
+                          <input class="gw-input gw-input--mono" id="pd-sql-denyfn" autocomplete="off" spellcheck="false" placeholder="Add a function, for example pg_sleep">
+                          <button class="gw-input-group__addon" type="button" aria-label="Add denied function on dev"><i class="gw-icon" data-lucide="plus"></i></button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- SSH -->
+              <section class="gw-form__section" id="dev-ssh" aria-labelledby="pd-ssh-t">
+                <header class="gw-form__section-header">
+                  <h2 class="gw-form__legend" id="pd-ssh-t">SSH</h2>
+                  <p class="gw-form__description">Applies to <span class="gw-mono">dev-vm</span>. Agents run runbooks: saved commands with typed parameters, so nothing is glued into a shell string.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <dl class="gw-kv gw-kv--dense">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Runbooks that change state</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always · rule <code class="gw-code">dev.ssh.write-approval</code></span></dd></div>
+                  </dl>
+                  <div class="gw-checkbox">
+                    <input class="gw-checkbox__input" type="checkbox" id="pd-ssh-exec" aria-describedby="pd-ssh-exec-hint">
+                    <span class="gw-checkbox__control" aria-hidden="true"></span>
+                    <label class="gw-checkbox__label" for="pd-ssh-exec">Allow arbitrary commands with <span class="gw-mono">ssh_exec</span></label>
+                    <p class="gw-checkbox__hint" id="pd-ssh-exec-hint">A separate permission, off by default and never inherited. Even when allowed, every command waits for approval.</p>
+                  </div>
+                  <!-- A runbook marked Read only runs at once in a Read only tool mode; every other runbook waits for approval. -->
+                  <ul class="gw-stack gw-stack--sm" aria-label="Runbooks on dev">
+                    <li class="gw-card gw-card--muted">
+                      <div class="gw-card__header">
+                        <div class="gw-card__heading">
+                          <h3 class="gw-card__title"><code class="gw-code">compose-logs</code></h3>
+                          <p class="gw-card__description">Show the last log lines of one service</p>
+                        </div>
+                        <div class="gw-card__actions"><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span> <a class="gw-btn gw-btn--ghost gw-btn--sm" href="connectors.html#template-compose-logs"><i class="gw-icon gw-icon--sm" data-lucide="pencil"></i>Edit<span class="gw-sr-only"> runbook compose-logs</span> in Connectors</a></div>
+                      </div>
+                      <div class="gw-card__body">
+                        <dl class="gw-kv gw-kv--dense">
+                          <div class="gw-kv__row"><dt class="gw-kv__key">Command</dt><dd class="gw-kv__value"><code class="gw-code">docker compose logs --tail {lines} {service}</code></dd></div>
+                          <div class="gw-kv__row"><dt class="gw-kv__key">Parameters</dt><dd class="gw-kv__value"><code class="gw-code">service</code> one of <span class="gw-mono">api</span>, <span class="gw-mono">worker</span>, <span class="gw-mono">order-sync</span> · <code class="gw-code">lines</code> integer 1 to 500, default 100</dd></div>
+                          <div class="gw-kv__row"><dt class="gw-kv__key">Last run</dt><dd class="gw-kv__value"><time datetime="2026-10-22T11:40:15+02:00" title="2026-10-22 11:40:15 CEST">3 h ago</time> · <a class="gw-link" href="activity.html?q=tool:ssh_run%20connection:dev-vm">View runbook activity<span class="gw-sr-only"> on dev-vm</span></a></dd></div>
+                        </dl>
+                      </div>
+                    </li>
+                    <li class="gw-card gw-card--muted">
+                      <div class="gw-card__header">
+                        <div class="gw-card__heading">
+                          <h3 class="gw-card__title"><code class="gw-code">compose-ps</code></h3>
+                          <p class="gw-card__description">List the containers and their state</p>
+                        </div>
+                        <div class="gw-card__actions"><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span> <a class="gw-btn gw-btn--ghost gw-btn--sm" href="connectors.html#template-compose-ps"><i class="gw-icon gw-icon--sm" data-lucide="pencil"></i>Edit<span class="gw-sr-only"> runbook compose-ps</span> in Connectors</a></div>
+                      </div>
+                      <div class="gw-card__body">
+                        <dl class="gw-kv gw-kv--dense">
+                          <div class="gw-kv__row"><dt class="gw-kv__key">Command</dt><dd class="gw-kv__value"><code class="gw-code">docker compose ps {service}</code></dd></div>
+                          <div class="gw-kv__row"><dt class="gw-kv__key">Parameters</dt><dd class="gw-kv__value"><code class="gw-code">service</code> optional, one of <span class="gw-mono">api</span>, <span class="gw-mono">worker</span>, <span class="gw-mono">order-sync</span></dd></div>
+                          <div class="gw-kv__row"><dt class="gw-kv__key">Last run</dt><dd class="gw-kv__value"><time datetime="2026-10-22T14:27:40+02:00" title="2026-10-22 14:27:40 CEST">2 min ago</time> · <a class="gw-link" href="activity.html?q=tool:ssh_run%20connection:dev-vm">View runbook activity<span class="gw-sr-only"> on dev-vm</span></a></dd></div>
+                        </dl>
+                      </div>
+                    </li>
+                    <li class="gw-card gw-card--muted">
+                      <div class="gw-card__header">
+                        <div class="gw-card__heading">
+                          <h3 class="gw-card__title"><code class="gw-code">compose-restart</code></h3>
+                          <p class="gw-card__description">Restart one service</p>
+                        </div>
+                        <div class="gw-card__actions"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <a class="gw-btn gw-btn--ghost gw-btn--sm" href="connectors.html#template-compose-restart"><i class="gw-icon gw-icon--sm" data-lucide="pencil"></i>Edit<span class="gw-sr-only"> runbook compose-restart</span> in Connectors</a></div>
+                      </div>
+                      <div class="gw-card__body">
+                        <dl class="gw-kv gw-kv--dense">
+                          <div class="gw-kv__row"><dt class="gw-kv__key">Command</dt><dd class="gw-kv__value"><code class="gw-code">docker compose restart {service}</code></dd></div>
+                          <div class="gw-kv__row"><dt class="gw-kv__key">Parameters</dt><dd class="gw-kv__value"><code class="gw-code">service</code> one of <span class="gw-mono">api</span>, <span class="gw-mono">worker</span>, <span class="gw-mono">order-sync</span></dd></div>
+                          <div class="gw-kv__row"><dt class="gw-kv__key">Last run</dt><dd class="gw-kv__value">Never</dd></div>
+                        </dl>
+                      </div>
+                    </li>
+                  </ul>
+                  <div><a class="gw-btn gw-btn--sm" href="connectors.html#templates"><i class="gw-icon gw-icon--sm" data-lucide="plus"></i> New runbook<span class="gw-sr-only"> for dev-vm</span></a></div>
+                  <div class="gw-form__row">
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="pd-ssh-timeout">Command timeout</label>
+                      <div class="gw-input-group">
+                        <input class="gw-input" id="pd-ssh-timeout" type="text" inputmode="numeric" autocomplete="off" value="30" aria-describedby="pd-ssh-timeout-hint">
+                        <span class="gw-input-group__affix">s</span>
+                      </div>
+                      <p class="gw-field__hint" id="pd-ssh-timeout-hint">The session is closed after this.</p>
+                    </div>
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="pd-ssh-output">Max output</label>
+                      <div class="gw-input-group">
+                        <input class="gw-input" id="pd-ssh-output" type="text" inputmode="numeric" autocomplete="off" value="256" aria-describedby="pd-ssh-output-hint">
+                        <span class="gw-input-group__affix">KB</span>
+                      </div>
+                      <p class="gw-field__hint" id="pd-ssh-output-hint">Longer output is cut from the start.</p>
+                    </div>
+                  </div>
+                  <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="dev-ssh-more">More SSH settings <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i></button></div>
+                  <div class="gw-form__rows" id="dev-ssh-more" hidden>
+                    <div class="gw-form__row">
+                      <div class="gw-field">
+                        <label class="gw-field__label" for="pd-ssh-stderr">Max stderr</label>
+                        <div class="gw-input-group">
+                          <input class="gw-input" id="pd-ssh-stderr" type="text" inputmode="numeric" autocomplete="off" value="64" aria-describedby="pd-ssh-stderr-hint">
+                          <span class="gw-input-group__affix">KB</span>
+                        </div>
+                        <p class="gw-field__hint" id="pd-ssh-stderr-hint">Longer error output is cut from the start.</p>
+                      </div>
+                      <div class="gw-field">
+                        <label class="gw-field__label" for="pd-ssh-parallel">Parallel calls per connection</label>
+                        <input class="gw-input" id="pd-ssh-parallel" type="text" inputmode="numeric" autocomplete="off" value="4" aria-describedby="pd-ssh-parallel-hint">
+                        <p class="gw-field__hint" id="pd-ssh-parallel-hint">More calls on one host wait for a free session.</p>
+                      </div>
+                    </div>
+                    <fieldset class="gw-field" aria-describedby="pd-ssh-signin-hint">
+                      <legend class="gw-field__label">Sign-in methods</legend>
+                      <label class="gw-checkbox">
+                        <input class="gw-checkbox__input" type="checkbox" name="pd-ssh-signin" value="vaultSshCa" checked>
+                        <span class="gw-checkbox__control" aria-hidden="true"></span>
+                        <span class="gw-checkbox__label">Certificate from Vault SSH CA</span>
+                      </label>
+                      <label class="gw-checkbox">
+                        <input class="gw-checkbox__input" type="checkbox" name="pd-ssh-signin" value="privateKey" checked>
+                        <span class="gw-checkbox__control" aria-hidden="true"></span>
+                        <span class="gw-checkbox__label">Private key</span>
+                      </label>
+                      <label class="gw-checkbox">
+                        <input class="gw-checkbox__input" type="checkbox" name="pd-ssh-signin" value="password" checked>
+                        <span class="gw-checkbox__control" aria-hidden="true"></span>
+                        <span class="gw-checkbox__label">Password</span>
+                      </label>
+                      <p class="gw-field__hint" id="pd-ssh-signin-hint">A connection that signs in another way is refused on this environment.</p>
+                    </fieldset>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Kubernetes -->
+              <section class="gw-form__section" id="dev-k8s" aria-labelledby="pd-k8s-t">
+                <header class="gw-form__section-header">
+                  <h2 class="gw-form__legend" id="pd-k8s-t">Kubernetes</h2>
+                  <p class="gw-form__description">Applies to <span class="gw-mono">dev-cluster</span>. Anything outside these lists is denied by policy.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <dl class="gw-kv gw-kv--dense">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">rollout restart, apply</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always · rule <code class="gw-code">dev.k8s.write-approval</code></span></dd></div>
+                  </dl>
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="pd-k8s-verbs">Allowed verbs</label>
+                    <div class="gw-stack gw-stack--sm">
+                      <ul class="gw-tag-list" aria-label="Allowed verbs on dev">
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">get</span><button class="gw-tag__remove" type="button" aria-label="Remove verb get on dev"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">list</span><button class="gw-tag__remove" type="button" aria-label="Remove verb list on dev"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">describe</span><button class="gw-tag__remove" type="button" aria-label="Remove verb describe on dev"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">logs</span><button class="gw-tag__remove" type="button" aria-label="Remove verb logs on dev"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono gw-tag--warning"><i class="gw-icon" data-lucide="user-check"></i><span class="gw-tag__label">rollout restart<span class="gw-sr-only">, needs approval</span></span><button class="gw-tag__remove" type="button" aria-label="Remove verb rollout restart on dev"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono gw-tag--warning"><i class="gw-icon" data-lucide="user-check"></i><span class="gw-tag__label">apply<span class="gw-sr-only">, needs approval</span></span><button class="gw-tag__remove" type="button" aria-label="Remove verb apply on dev"><i class="gw-icon" data-lucide="x"></i></button></li>
+                      </ul>
+                      <div class="gw-input-group">
+                        <input class="gw-input gw-input--mono" id="pd-k8s-verbs" autocomplete="off" spellcheck="false" placeholder="Add a verb, for example describe" aria-describedby="pd-k8s-verbs-hint">
+                        <button class="gw-input-group__addon" type="button" aria-label="Add verb on dev"><i class="gw-icon" data-lucide="plus"></i></button>
+                      </div>
+                    </div>
+                    <p class="gw-field__hint" id="pd-k8s-verbs-hint"><span class="gw-mono">rollout restart</span> and <span class="gw-mono">apply</span> change the cluster and always need approval. <span class="gw-mono">delete</span>, <span class="gw-mono">scale</span> and <span class="gw-mono">exec</span> are denied.</p>
+                  </div>
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="pd-k8s-res">Allowed resources</label>
+                    <div class="gw-stack gw-stack--sm">
+                      <ul class="gw-tag-list" aria-label="Allowed resources on dev">
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">deployments</span><button class="gw-tag__remove" type="button" aria-label="Remove resource deployments on dev"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">pods</span><button class="gw-tag__remove" type="button" aria-label="Remove resource pods on dev"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">services</span><button class="gw-tag__remove" type="button" aria-label="Remove resource services on dev"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">configmaps</span><button class="gw-tag__remove" type="button" aria-label="Remove resource configmaps on dev"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">events</span><button class="gw-tag__remove" type="button" aria-label="Remove resource events on dev"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">jobs</span><button class="gw-tag__remove" type="button" aria-label="Remove resource jobs on dev"><i class="gw-icon" data-lucide="x"></i></button></li>
+                      </ul>
+                      <div class="gw-input-group">
+                        <input class="gw-input gw-input--mono" id="pd-k8s-res" autocomplete="off" spellcheck="false" placeholder="Add a resource, for example cronjobs" aria-describedby="pd-k8s-res-hint">
+                        <button class="gw-input-group__addon" type="button" aria-label="Add resource on dev"><i class="gw-icon" data-lucide="plus"></i></button>
+                      </div>
+                    </div>
+                    <p class="gw-field__hint" id="pd-k8s-res-hint"><span class="gw-mono">secrets</span> is not on the list, so agents can't read Kubernetes Secrets.</p>
+                  </div>
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="pd-k8s-ns">Namespaces</label>
+                    <div class="gw-stack gw-stack--sm">
+                      <ul class="gw-tag-list" aria-label="Namespaces on dev">
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">app-dev</span><button class="gw-tag__remove" type="button" aria-label="Remove namespace app-dev"><i class="gw-icon" data-lucide="x"></i></button></li>
+                      </ul>
+                      <div class="gw-input-group">
+                        <input class="gw-input gw-input--mono" id="pd-k8s-ns" autocomplete="off" spellcheck="false" placeholder="Add a namespace" aria-describedby="pd-k8s-ns-hint">
+                        <button class="gw-input-group__addon" type="button" aria-label="Add namespace on dev"><i class="gw-icon" data-lucide="plus"></i></button>
+                      </div>
+                    </div>
+                    <p class="gw-field__hint" id="pd-k8s-ns-hint">Per environment, never inherited. Agents see nothing outside these namespaces.</p>
+                  </div>
+                  <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="dev-k8s-more">More Kubernetes settings <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i></button></div>
+                  <div class="gw-form__rows" id="dev-k8s-more" hidden>
+                    <div class="gw-form__row">
+                      <div class="gw-field">
+                        <label class="gw-field__label" for="pd-k8s-apply-max">Objects per apply</label>
+                        <input class="gw-input" id="pd-k8s-apply-max" type="text" inputmode="numeric" autocomplete="off" value="20" aria-describedby="pd-k8s-apply-max-hint">
+                        <p class="gw-field__hint" id="pd-k8s-apply-max-hint">A larger manifest is denied.</p>
+                      </div>
+                      <div class="gw-field">
+                        <label class="gw-field__label" for="pd-k8s-logs-max">Log lines per k8s_logs call</label>
+                        <input class="gw-input" id="pd-k8s-logs-max" type="text" inputmode="numeric" autocomplete="off" value="5,000" aria-describedby="pd-k8s-logs-max-hint">
+                        <p class="gw-field__hint" id="pd-k8s-logs-max-hint">A larger tail is denied.</p>
+                      </div>
+                      <div class="gw-field">
+                        <label class="gw-field__label" for="pd-k8s-list-max">Objects per list</label>
+                        <input class="gw-input" id="pd-k8s-list-max" type="text" inputmode="numeric" autocomplete="off" value="500" aria-describedby="pd-k8s-list-max-hint">
+                        <p class="gw-field__hint" id="pd-k8s-list-max-hint">A larger page is denied.</p>
+                      </div>
+                    </div>
+                    <div class="gw-checkbox">
+                      <input class="gw-checkbox__input" type="checkbox" id="pd-k8s-privileged" aria-describedby="pd-k8s-privileged-hint">
+                      <span class="gw-checkbox__control" aria-hidden="true"></span>
+                      <label class="gw-checkbox__label" for="pd-k8s-privileged">Deny privileged pods in <span class="gw-mono">k8s_apply</span></label>
+                      <p class="gw-checkbox__hint" id="pd-k8s-privileged-hint">Privileged containers, host network and host paths in a manifest are denied before anyone is asked.</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Cloud: no dev cloud connection yet -->
+              <section class="gw-form__section" id="dev-cloud" aria-labelledby="pd-cloud-t">
+                <header class="gw-form__section-header">
+                  <h2 class="gw-form__legend" id="pd-cloud-t">Cloud</h2>
+                  <p class="gw-form__description">Which AWS and GCP services, regions and resources agents may describe. The IAM role or service account still limits what the gateway itself can read.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-card gw-card--muted">
+                    <div class="gw-empty gw-empty--compact">
+                      <span class="gw-empty__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
+                      <p class="gw-empty__title">No cloud connection on dev</p>
+                      <p class="gw-empty__text"><span class="gw-mono">aws-stage</span> is a stage connection, so its rules are in the stage list. These rules apply as soon as you add a dev account.</p>
+                      <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" href="connection-new.html?type=aws"><i class="gw-icon gw-icon--sm" data-lucide="plus"></i> Add connection<span class="gw-sr-only">: cloud account on dev</span></a></div>
+                    </div>
+                  </div>
+                  <dl class="gw-kv">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Changes to cloud resources</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always, if a tool can make one</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Services, regions, resources</dt><dd class="gw-kv__value">None yet <span class="gw-fg-muted">· per environment</span></dd></div>
+                  </dl>
+                </div>
+              </section>
+
+              <!-- HTTP egress: no dev HTTP connection (billing-api is stage), so the rules it will have, read only -->
+              <section class="gw-form__section" id="dev-http" aria-labelledby="pd-http-t">
+                <header class="gw-form__section-header">
+                  <h2 class="gw-form__legend" id="pd-http-t">HTTP egress</h2>
+                  <p class="gw-form__description">Where HTTP tools may send requests from dev. This stops SSRF: an agent steered into using the gateway, which sits inside your network, to reach internal addresses.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-card gw-card--muted">
+                    <div class="gw-empty gw-empty--compact">
+                      <span class="gw-empty__icon"><i class="gw-icon" data-lucide="globe"></i></span>
+                      <p class="gw-empty__title">No HTTP connection on dev</p>
+                      <p class="gw-empty__text"><span class="gw-mono">billing-api</span> is a stage connection, so its rules are in the stage list. HTTP tools can't reach anything from dev until you add a connection and its base URL.</p>
+                      <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" href="connection-new.html?type=http"><i class="gw-icon gw-icon--sm" data-lucide="plus"></i> Add connection<span class="gw-sr-only">: HTTP API on dev</span></a></div>
+                    </div>
+                  </div>
+                  <dl class="gw-kv">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">POST, PUT, PATCH or DELETE</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always · rule <code class="gw-code">dev.http.write-approval</code></span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Allowed base URLs</dt><dd class="gw-kv__value">None <span class="gw-fg-muted">· per environment</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Cloud metadata</dt><dd class="gw-kv__value">Always blocked: <span class="gw-mono">169.254.169.254</span>, <span class="gw-mono">fd00:ec2::254</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Private networks</dt><dd class="gw-kv__value">Blocked <span class="gw-fg-muted">· unless allowed below, per environment</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Allowed private ranges</dt><dd class="gw-kv__value">None <span class="gw-fg-muted">· per environment</span></dd></div>
+                  </dl>
+                </div>
+              </section>
+
+              <!-- Logs (after HTTP egress): how far back and how much the log tools read on dev -->
+              <section class="gw-form__section" id="dev-logs" aria-labelledby="pd-logs-t">
+                <header class="gw-form__section-header">
+                  <h2 class="gw-form__legend" id="pd-logs-t">Logs</h2>
+                  <p class="gw-form__description">Applies to <span class="gw-mono">app-logs</span>. How far back and how much <span class="gw-mono">logs_search</span> and <span class="gw-mono">logs_tail</span> read; Log lines per call in Limits caps every call.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-form__row">
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="pd-logs-range">Longest time range</label>
+                      <div class="gw-input-group">
+                        <input class="gw-input" id="pd-logs-range" type="text" inputmode="numeric" autocomplete="off" value="168" aria-describedby="pd-logs-range-hint">
+                        <span class="gw-input-group__affix">h</span>
+                      </div>
+                      <p class="gw-field__hint" id="pd-logs-range-hint">A search further back is cut to this range.</p>
+                    </div>
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="pd-logs-limit">Entries per call by default</label>
+                      <input class="gw-input" id="pd-logs-limit" type="text" inputmode="numeric" autocomplete="off" value="100" aria-describedby="pd-logs-limit-hint">
+                      <p class="gw-field__hint" id="pd-logs-limit-hint">When the agent asks for no limit. Log lines per call in Limits caps every call.</p>
+                    </div>
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="pd-logs-wait">Longest wait of logs_tail</label>
+                      <div class="gw-input-group">
+                        <input class="gw-input" id="pd-logs-wait" type="text" inputmode="numeric" autocomplete="off" value="8" aria-describedby="pd-logs-wait-hint">
+                        <span class="gw-input-group__affix">s</span>
+                      </div>
+                      <p class="gw-field__hint" id="pd-logs-wait-hint">How long one call waits for new lines.</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Masking: what never reaches the agent, Playground or the audit log -->
+              <section class="gw-form__section" id="dev-masking" aria-labelledby="pd-mask-t">
+                <header class="gw-form__section-header">
+                  <h2 class="gw-form__legend" id="pd-mask-t">Masking</h2>
+                  <p class="gw-form__description">What the gateway replaces with <code class="gw-code gw-code--secret">‹masked›</code> in every result, before the agent, Playground or the audit log sees it. Applies to every dev connection.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <dl class="gw-kv gw-kv--dense">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Secrets</dt><dd class="gw-kv__value"><span class="gw-badge"><i class="gw-icon gw-badge__icon" data-lucide="lock"></i>Always masked</span> <span class="gw-text-caption gw-fg-muted">tokens, private keys and passwords in connection strings, on every environment</span></dd></div>
+                  </dl>
+                  <fieldset class="gw-field" aria-describedby="pd-mask-pii-hint">
+                    <legend class="gw-field__label">Personal data, found by pattern</legend>
+                    <label class="gw-checkbox">
+                      <input class="gw-checkbox__input" type="checkbox" name="pd-mask-pii" value="email" checked>
+                      <span class="gw-checkbox__control" aria-hidden="true"></span>
+                      <span class="gw-checkbox__label">Email addresses</span>
+                    </label>
+                    <label class="gw-checkbox">
+                      <input class="gw-checkbox__input" type="checkbox" name="pd-mask-pii" value="phone" checked>
+                      <span class="gw-checkbox__control" aria-hidden="true"></span>
+                      <span class="gw-checkbox__label">Phone numbers</span>
+                    </label>
+                    <label class="gw-checkbox">
+                      <input class="gw-checkbox__input" type="checkbox" name="pd-mask-pii" value="card" checked>
+                      <span class="gw-checkbox__control" aria-hidden="true"></span>
+                      <span class="gw-checkbox__label">Card numbers</span>
+                    </label>
+                    <label class="gw-checkbox">
+                      <input class="gw-checkbox__input" type="checkbox" name="pd-mask-pii" value="iban" checked>
+                      <span class="gw-checkbox__control" aria-hidden="true"></span>
+                      <span class="gw-checkbox__label">IBANs</span>
+                    </label>
+                    <p class="gw-field__hint" id="pd-mask-pii-hint">Checked in every value of every column and field, whatever its name.</p>
+                  </fieldset>
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="pd-mask-fields">Always mask these fields</label>
+                    <div class="gw-stack gw-stack--sm">
+                      <ul class="gw-tag-list" aria-label="Masked fields on dev">
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">orders.customer_email</span><button class="gw-tag__remove" type="button" aria-label="Remove orders.customer_email from masked fields on dev"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">orders.customer_phone</span><button class="gw-tag__remove" type="button" aria-label="Remove orders.customer_phone from masked fields on dev"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">*.password</span><button class="gw-tag__remove" type="button" aria-label="Remove *.password from masked fields on dev"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">*.api_key</span><button class="gw-tag__remove" type="button" aria-label="Remove *.api_key from masked fields on dev"><i class="gw-icon" data-lucide="x"></i></button></li>
+                      </ul>
+                      <div class="gw-input-group">
+                        <input class="gw-input gw-input--mono" id="pd-mask-fields" autocomplete="off" spellcheck="false" placeholder="Add a field, for example customers.birth_date" aria-describedby="pd-mask-fields-hint">
+                        <button class="gw-input-group__addon" type="button" aria-label="Add masked field on dev"><i class="gw-icon" data-lucide="plus"></i></button>
+                      </div>
+                    </div>
+                    <p class="gw-field__hint" id="pd-mask-fields-hint"><span class="gw-mono">table.column</span> for SQL, <span class="gw-mono">collection.field</span> for MongoDB; <span class="gw-mono">*</span> matches any table. Masked even when the value looks harmless.</p>
+                  </div>
+                  <p class="gw-text-caption gw-fg-muted">Last 24 h on dev: <span class="gw-mono">customer_email</span> and <span class="gw-mono">customer_phone</span> masked in 12 calls of <span class="gw-mono">sql_query</span> on <span class="gw-mono">dev-db</span>. <a class="gw-link" href="activity.html?q=tool:sql_query%20connection:dev-db">View <span class="gw-mono">sql_query</span> calls on <span class="gw-mono">dev-db</span></a></p>
+                  <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="dev-masking-more">More Masking settings <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i></button></div>
+                  <div class="gw-form__rows" id="dev-masking-more" hidden>
+                    <div class="gw-checkbox">
+                      <input class="gw-checkbox__input" type="checkbox" id="pd-mask-entropy" checked aria-describedby="pd-mask-entropy-hint">
+                      <span class="gw-checkbox__control" aria-hidden="true"></span>
+                      <label class="gw-checkbox__label" for="pd-mask-entropy">Strings that look random</label>
+                      <p class="gw-checkbox__hint" id="pd-mask-entropy-hint">Long random-looking strings are masked as unknown secrets.</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Limits -->
+              <section class="gw-form__section" id="dev-limits" aria-labelledby="pd-lim-t">
+                <header class="gw-form__section-header">
+                  <h2 class="gw-form__legend" id="pd-lim-t">Limits</h2>
+                  <p class="gw-form__description">Caps per minute and per call, so a looping agent can't flood a resource or its own context. These are the source: an endpoint cap or a tool's own limit can only be stricter, and the strictest value wins. The bars show use in the last minute.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-form__row">
+                    <div class="gw-stack gw-stack--sm">
+                      <div class="gw-field">
+                        <label class="gw-field__label" for="pd-lim-token">Rate limit per token</label>
+                        <div class="gw-input-group">
+                          <input class="gw-input" id="pd-lim-token" type="text" inputmode="numeric" autocomplete="off" value="120" aria-describedby="pd-lim-token-hint">
+                          <span class="gw-input-group__affix">calls per min</span>
+                        </div>
+                        <p class="gw-field__hint" id="pd-lim-token-hint">Across all dev connections.</p>
+                      </div>
+                      <div class="gw-meter" role="meter" aria-labelledby="pd-lim-token-use" aria-valuemin="0" aria-valuemax="120" aria-valuenow="14" aria-valuetext="14 of 120 calls in the last minute" data-level="ok" style="--gw-meter: 0.117">
+                        <span class="gw-meter__label" id="pd-lim-token-use">Busiest token <span class="gw-mono">codex-laptop</span></span>
+                        <span class="gw-meter__value">14 / 120</span>
+                        <span class="gw-meter__track"><span class="gw-meter__fill"></span></span>
+                      </div>
+                    </div>
+                    <div class="gw-stack gw-stack--sm">
+                      <div class="gw-field">
+                        <label class="gw-field__label" for="pd-lim-tool">Rate limit per tool</label>
+                        <div class="gw-input-group">
+                          <input class="gw-input" id="pd-lim-tool" type="text" inputmode="numeric" autocomplete="off" value="30" aria-describedby="pd-lim-tool-hint">
+                          <span class="gw-input-group__affix">calls per min</span>
+                        </div>
+                        <p class="gw-field__hint" id="pd-lim-tool-hint">Each tool on each connection.</p>
+                      </div>
+                      <div class="gw-meter" role="meter" aria-labelledby="pd-lim-tool-use" aria-valuemin="0" aria-valuemax="30" aria-valuenow="24" aria-valuetext="24 of 30 calls in the last minute, near the limit" data-level="warn" style="--gw-meter: 0.8">
+                        <span class="gw-meter__label" id="pd-lim-tool-use">Busiest tool <span class="gw-mono">sql_query</span></span>
+                        <span class="gw-meter__value"><i class="gw-icon" data-lucide="triangle-alert"></i>24 / 30</span>
+                        <span class="gw-meter__track"><span class="gw-meter__fill"></span></span>
+                      </div>
+                      <p class="gw-text-caption"><a class="gw-link" href="activity.html?q=tool:sql_query%20env:dev">View <span class="gw-mono">sql_query</span> activity<span class="gw-sr-only"> on dev</span></a></p>
+                    </div>
+                  </div>
+                  <div class="gw-form__row">
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="pd-lim-size">Max response size</label>
+                      <div class="gw-input-group">
+                        <input class="gw-input" id="pd-lim-size" type="text" inputmode="numeric" autocomplete="off" value="512" aria-describedby="pd-lim-size-hint">
+                        <span class="gw-input-group__affix">KB</span>
+                      </div>
+                      <p class="gw-field__hint" id="pd-lim-size-hint">Bigger results are cut and marked truncated.</p>
+                    </div>
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="pd-lim-timeout">Tool timeout</label>
+                      <div class="gw-input-group">
+                        <input class="gw-input" id="pd-lim-timeout" type="text" inputmode="numeric" autocomplete="off" value="10" aria-describedby="pd-lim-timeout-hint">
+                        <span class="gw-input-group__affix">s</span>
+                      </div>
+                      <p class="gw-field__hint" id="pd-lim-timeout-hint">Kubernetes, logs, NoSQL and HTTP. SQL and SSH use theirs above.</p>
+                    </div>
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="pd-lim-lines">Log lines per call</label>
+                      <div class="gw-input-group">
+                        <input class="gw-input" id="pd-lim-lines" type="text" inputmode="numeric" autocomplete="off" value="1,000" aria-describedby="pd-lim-lines-hint">
+                        <span class="gw-input-group__affix">lines</span>
+                      </div>
+                      <p class="gw-field__hint" id="pd-lim-lines-hint"><span class="gw-mono">logs_search</span> and <span class="gw-mono">logs_tail</span>.</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Approvals -->
+              <section class="gw-form__section" id="dev-approvals" aria-labelledby="pd-apr-t">
+                <header class="gw-form__section-header">
+                  <h2 class="gw-form__legend" id="pd-apr-t">Approvals</h2>
+                  <p class="gw-form__description">How long a request waits, who decides and where it is announced.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-form__row">
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="pd-apr-timeout">Approval timeout</label>
+                      <select class="gw-select" id="pd-apr-timeout" aria-describedby="pd-apr-timeout-hint">
+                        <option>2 min</option>
+                        <option selected>5 min</option>
+                        <option>10 min</option>
+                        <option>15 min</option>
+                        <option>30 min</option>
+                      </select>
+                      <p class="gw-field__hint" id="pd-apr-timeout-hint">The countdown approvers see on a request.</p>
+                    </div>
+                    <div class="gw-field">
+                      <p class="gw-field__label" id="pd-apr-count-l">Approvals needed</p>
+                      <div class="gw-segmented" role="radiogroup" aria-labelledby="pd-apr-count-l" aria-describedby="pd-apr-count-hint">
+                        <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="pd-apr-count" value="1" checked><span class="gw-segmented__label">1 person</span></label>
+                        <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="pd-apr-count" value="2" aria-disabled="true" aria-describedby="pd-apr-count-hint"><span class="gw-segmented__label">2 people</span></label>
+                      </div>
+                      <p class="gw-field__hint" id="pd-apr-count-hint">2 people is server mode only: on this desktop you are the one approver.</p>
+                    </div>
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="pd-apr-comment">Comment on a decision</label>
+                      <select class="gw-select" id="pd-apr-comment" aria-describedby="pd-apr-comment-hint">
+                        <option selected>Optional</option>
+                        <option>Recommended</option>
+                        <option>Required</option>
+                      </select>
+                      <p class="gw-field__hint" id="pd-apr-comment-hint">Sent to the agent and kept in the audit log. Required means Approve and run waits for a comment, and Slack and Telegram offer only Deny and Open in app.</p>
+                    </div>
+                  </div>
+                  <dl class="gw-kv gw-kv--dense">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">When the time runs out</dt><dd class="gw-kv__value"><span class="gw-badge"><i class="gw-icon gw-badge__icon" data-lucide="timer-off"></i>Denied</span> <span class="gw-text-caption gw-fg-muted">always · recorded as Expired, nothing runs</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Who can approve</dt><dd class="gw-kv__value">You (local user) <span class="gw-badge gw-badge--neutral gw-badge--sm">Server mode only</span> <span class="gw-text-caption gw-fg-muted">named approvers and roles; on this desktop every decision is signed “by you”</span></dd></div>
+                  </dl>
+                  <fieldset class="gw-field" aria-describedby="pd-apr-ch-hint">
+                    <legend class="gw-field__label">Announce requests in</legend>
+                    <label class="gw-checkbox">
+                      <input class="gw-checkbox__input" type="checkbox" checked>
+                      <span class="gw-checkbox__control" aria-hidden="true"></span>
+                      <span class="gw-checkbox__label">Desktop notification</span>
+                    </label>
+                    <label class="gw-checkbox">
+                      <input class="gw-checkbox__input" type="checkbox" checked>
+                      <span class="gw-checkbox__control" aria-hidden="true"></span>
+                      <span class="gw-checkbox__label">Slack <span class="gw-mono">#deploy-approvals</span></span>
+                    </label>
+                    <p class="gw-text-small gw-fg-muted">Telegram is not set up. <a class="gw-link" href="settings.html#settings-notifications">Set it up in Settings</a></p>
+                    <p class="gw-field__hint" id="pd-apr-ch-hint">Channels are connected in Settings. The agent's note is never sent to a channel.</p>
+                  </fieldset>
+                                  </div>
+              </section>
+            </form>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════ stage: inherits from dev ═══════════════════════════ -->
+        <div class="gw-tabs__panel" role="tabpanel" id="stage" aria-labelledby="pol-tab-stage" tabindex="0" hidden>
+          <div class="gw-stack gw-stack--lg">
+            <div class="gw-toolbar">
+              <div class="gw-toolbar__start">
+                <dl class="gw-kv gw-kv--inline">
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Applies to</dt><dd class="gw-kv__value"><code class="gw-code">stage-db</code> <code class="gw-code">aws-stage</code> <code class="gw-code">billing-api</code></dd></div>
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Values</dt><dd class="gw-kv__value">3 stage defaults · 6 set on stage · 32 inherited from dev</dd></div>
+                </dl>
+              </div>
+              <div class="gw-toolbar__end">
+                <a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?q=env:stage"><i class="gw-icon gw-icon--sm" data-lucide="activity"></i> View stage activity</a>
+                <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" data-gw-dialog-open="pol-dlg-reset-stage"><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i> Reset to dev</button>
+              </div>
+            </div>
+
+            <form class="gw-form" method="dialog" aria-label="Policy for stage">
+
+              <!-- SQL -->
+              <section class="gw-form__section" id="stage-sql" aria-labelledby="ps-sql-t">
+                <header class="gw-form__section-header">
+                  <h2 class="gw-form__legend" id="ps-sql-t">SQL</h2>
+                  <p class="gw-form__description">Applies to <span class="gw-mono">stage-db</span>. An empty field follows the dev value shown in it.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <dl class="gw-kv gw-kv--dense">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">INSERT, UPDATE, DELETE</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always · rule <code class="gw-code">stage.sql.write-approval</code></span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Run queries in a read-only transaction</dt><dd class="gw-kv__value"><span class="gw-badge"><i class="gw-icon gw-badge__icon" data-lucide="lock"></i>Always on</span> <span class="gw-text-caption gw-fg-muted"><span class="gw-mono">sql_query</span> opens READ ONLY transactions, so the database refuses a SELECT that calls a function that writes</span></dd></div>
+                  </dl>
+                  <div class="gw-form__row">
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="ps-sql-timeout">Statement timeout</label>
+                      <div class="gw-input-group">
+                        <input class="gw-input" id="ps-sql-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="5" aria-describedby="ps-sql-timeout-hint">
+                        <span class="gw-input-group__affix">s</span>
+                      </div>
+                      <p class="gw-field__hint" id="ps-sql-timeout-hint">Inherited from dev: 5 s</p>
+                    </div>
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="ps-sql-rows">Row limit</label>
+                      <div class="gw-input-group">
+                        <input class="gw-input" id="ps-sql-rows" type="text" inputmode="numeric" autocomplete="off" placeholder="1,000" value="500" aria-describedby="ps-sql-rows-hint">
+                        <span class="gw-input-group__affix">rows</span>
+                      </div>
+                      <p class="gw-field__hint" id="ps-sql-rows-hint">Set on stage · dev: 1,000 rows</p>
+                    </div>
+                  </div>
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="ps-sql-allow">Schema and table allowlist</label>
+                    <div class="gw-stack gw-stack--sm">
+                      <ul class="gw-tag-list" aria-label="Allowed schemas and tables on stage">
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">public.*</span><button class="gw-tag__remove" type="button" aria-label="Remove public.* from the stage allowlist"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">reporting.*</span><button class="gw-tag__remove" type="button" aria-label="Remove reporting.* from the stage allowlist"><i class="gw-icon" data-lucide="x"></i></button></li>
+                      </ul>
+                      <div class="gw-input-group">
+                        <input class="gw-input gw-input--mono" id="ps-sql-allow" autocomplete="off" spellcheck="false" placeholder="Add a schema or table" aria-describedby="ps-sql-allow-hint">
+                        <button class="gw-input-group__addon" type="button" aria-label="Add to the stage allowlist"><i class="gw-icon" data-lucide="plus"></i></button>
+                      </div>
+                    </div>
+                    <p class="gw-field__hint" id="ps-sql-allow-hint">Inherited from dev. Add or remove a value to set the list for stage.</p>
+                  </div>
+                  <div class="gw-checkbox">
+                    <input class="gw-checkbox__input" type="checkbox" id="ps-sql-ddl" checked aria-describedby="ps-sql-ddl-hint">
+                    <span class="gw-checkbox__control" aria-hidden="true"></span>
+                    <label class="gw-checkbox__label" for="ps-sql-ddl">Refuse DDL: CREATE, ALTER, DROP, TRUNCATE</label>
+                    <p class="gw-checkbox__hint" id="ps-sql-ddl-hint">Stage default · dev: off. A DROP TABLE on stage is denied before anyone is asked.</p>
+                  </div>
+                  <p class="gw-text-caption"><a class="gw-link" href="activity.html?q=tool:sql_execute%20decision:denied%20env:stage">View statements denied on stage</a></p>
+                  <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="stage-sql-more">More SQL settings <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i></button></div>
+                  <div class="gw-form__rows" id="stage-sql-more" hidden>
+                    <div class="gw-form__row">
+                      <div class="gw-field">
+                        <label class="gw-field__label" for="ps-sql-maxresp">Max response size</label>
+                        <div class="gw-input-group">
+                          <input class="gw-input" id="ps-sql-maxresp" type="text" inputmode="numeric" autocomplete="off" placeholder="512" aria-describedby="ps-sql-maxresp-hint">
+                          <span class="gw-input-group__affix">KB</span>
+                        </div>
+                        <p class="gw-field__hint" id="ps-sql-maxresp-hint">Inherited from dev: 512 KB</p>
+                      </div>
+                    </div>
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="ps-sql-denyfn">More denied functions</label>
+                      <div class="gw-stack gw-stack--sm">
+                        <p class="gw-text-small gw-fg-muted">None beyond the built-in denylist.</p>
+                        <div class="gw-input-group">
+                          <input class="gw-input gw-input--mono" id="ps-sql-denyfn" autocomplete="off" spellcheck="false" placeholder="Add a function, for example pg_sleep" aria-describedby="ps-sql-denyfn-hint">
+                          <button class="gw-input-group__addon" type="button" aria-label="Add denied function on stage"><i class="gw-icon" data-lucide="plus"></i></button>
+                        </div>
+                      </div>
+                      <p class="gw-field__hint" id="ps-sql-denyfn-hint">Inherited from dev. Add or remove a value to set the list for stage.</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- SSH: no stage host yet -->
+              <section class="gw-form__section" id="stage-ssh" aria-labelledby="ps-ssh-t">
+                <header class="gw-form__section-header">
+                  <h2 class="gw-form__legend" id="ps-ssh-t">SSH</h2>
+                  <p class="gw-form__description">Runbooks and limits for stage hosts.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-card gw-card--muted">
+                    <div class="gw-empty gw-empty--compact">
+                      <span class="gw-empty__icon"><i class="gw-icon" data-lucide="terminal"></i></span>
+                      <p class="gw-empty__title">No SSH connection on stage</p>
+                      <p class="gw-empty__text">These rules apply as soon as you add one. Runbooks are listed here per host.</p>
+                      <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" href="connection-new.html?type=ssh"><i class="gw-icon gw-icon--sm" data-lucide="plus"></i> Add connection<span class="gw-sr-only">: SSH host on stage</span></a></div>
+                    </div>
+                  </div>
+                  <dl class="gw-kv">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Runbooks that change state</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Arbitrary commands</dt><dd class="gw-kv__value">Not allowed <span class="gw-fg-muted">· per environment, never inherited</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Command timeout</dt><dd class="gw-kv__value gw-tabular">30 s <span class="gw-fg-muted">· inherited from dev</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Max output</dt><dd class="gw-kv__value gw-tabular">256 KB <span class="gw-fg-muted">· inherited from dev</span></dd></div>
+                  </dl>
+                </div>
+              </section>
+
+              <!-- Kubernetes: no stage cluster yet -->
+              <section class="gw-form__section" id="stage-k8s" aria-labelledby="ps-k8s-t">
+                <header class="gw-form__section-header">
+                  <h2 class="gw-form__legend" id="ps-k8s-t">Kubernetes</h2>
+                  <p class="gw-form__description">Verbs, resources and namespaces for stage clusters.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-card gw-card--muted">
+                    <div class="gw-empty gw-empty--compact">
+                      <span class="gw-empty__icon"><i class="gw-icon" data-lucide="ship-wheel"></i></span>
+                      <p class="gw-empty__title">No Kubernetes connection on stage</p>
+                      <p class="gw-empty__text"><span class="gw-mono">dev-cluster</span> is a dev connection, so its rules are in the dev list. These rules apply as soon as you add one.</p>
+                      <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" href="connection-new.html?type=kubernetes"><i class="gw-icon gw-icon--sm" data-lucide="plus"></i> Add connection<span class="gw-sr-only">: Kubernetes cluster on stage</span></a></div>
+                    </div>
+                  </div>
+                  <dl class="gw-kv">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">rollout restart, apply</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Allowed verbs</dt><dd class="gw-kv__value"><span class="gw-mono">get, list, describe, logs, rollout restart, apply</span> <span class="gw-fg-muted">· inherited from dev</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Allowed resources</dt><dd class="gw-kv__value"><span class="gw-mono">deployments, pods, services, configmaps, events, jobs</span> <span class="gw-fg-muted">· inherited from dev</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Namespaces</dt><dd class="gw-kv__value">None yet <span class="gw-fg-muted">· per environment</span></dd></div>
+                  </dl>
+                </div>
+              </section>
+
+              <!-- Cloud -->
+              <section class="gw-form__section" id="stage-cloud" aria-labelledby="ps-cloud-t">
+                <header class="gw-form__section-header">
+                  <h2 class="gw-form__legend" id="ps-cloud-t">Cloud</h2>
+                  <p class="gw-form__description">Applies to <span class="gw-mono">aws-stage</span>, account <span class="gw-mono">acme-stage</span>. What <span class="gw-mono">aws_describe</span> and <span class="gw-mono">aws_metrics</span> may read; anything else is denied by policy. The AssumeRole role still limits what the gateway itself can read.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <dl class="gw-kv gw-kv--dense">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Changes to cloud resources</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always · rule <code class="gw-code">stage.cloud.write-approval</code></span></dd></div>
+                  </dl>
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="ps-cloud-services">Allowed services</label>
+                    <div class="gw-stack gw-stack--sm">
+                      <ul class="gw-tag-list" aria-label="Allowed services on stage">
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">ec2</span><button class="gw-tag__remove" type="button" aria-label="Remove service ec2 on stage"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">ecs</span><button class="gw-tag__remove" type="button" aria-label="Remove service ecs on stage"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">rds</span><button class="gw-tag__remove" type="button" aria-label="Remove service rds on stage"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">sqs</span><button class="gw-tag__remove" type="button" aria-label="Remove service sqs on stage"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">cloudwatch</span><button class="gw-tag__remove" type="button" aria-label="Remove service cloudwatch on stage"><i class="gw-icon" data-lucide="x"></i></button></li>
+                      </ul>
+                      <div class="gw-input-group">
+                        <input class="gw-input gw-input--mono" id="ps-cloud-services" autocomplete="off" spellcheck="false" placeholder="Add a service, for example s3" aria-describedby="ps-cloud-services-hint">
+                        <button class="gw-input-group__addon" type="button" aria-label="Add service on stage"><i class="gw-icon" data-lucide="plus"></i></button>
+                      </div>
+                    </div>
+                    <p class="gw-field__hint" id="ps-cloud-services-hint">Per environment, never inherited. <span class="gw-mono">secretsmanager</span>, <span class="gw-mono">iam</span> and <span class="gw-mono">kms</span> are not on the list, so agents can't read secrets, roles or keys.</p>
+                  </div>
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="ps-cloud-regions">Regions</label>
+                    <div class="gw-stack gw-stack--sm">
+                      <ul class="gw-tag-list" aria-label="Regions on stage">
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">eu-central-1</span><button class="gw-tag__remove" type="button" aria-label="Remove region eu-central-1 on stage"><i class="gw-icon" data-lucide="x"></i></button></li>
+                      </ul>
+                      <div class="gw-input-group">
+                        <input class="gw-input gw-input--mono" id="ps-cloud-regions" autocomplete="off" spellcheck="false" placeholder="Add a region, for example eu-west-1" aria-describedby="ps-cloud-regions-hint">
+                        <button class="gw-input-group__addon" type="button" aria-label="Add region on stage"><i class="gw-icon" data-lucide="plus"></i></button>
+                      </div>
+                    </div>
+                    <p class="gw-field__hint" id="ps-cloud-regions-hint">Per environment, never inherited.</p>
+                  </div>
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="ps-cloud-resources">Resources</label>
+                    <div class="gw-stack gw-stack--sm">
+                      <ul class="gw-tag-list" aria-label="Resources on stage">
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">arn:aws:ecs:eu-central-1:*:service/stage/*</span><button class="gw-tag__remove" type="button" aria-label="Remove resource pattern arn:aws:ecs:eu-central-1:*:service/stage/* on stage"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">arn:aws:rds:eu-central-1:*:db:stage-*</span><button class="gw-tag__remove" type="button" aria-label="Remove resource pattern arn:aws:rds:eu-central-1:*:db:stage-* on stage"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">arn:aws:sqs:eu-central-1:*:stage-*</span><button class="gw-tag__remove" type="button" aria-label="Remove resource pattern arn:aws:sqs:eu-central-1:*:stage-* on stage"><i class="gw-icon" data-lucide="x"></i></button></li>
+                      </ul>
+                      <div class="gw-input-group">
+                        <input class="gw-input gw-input--mono" id="ps-cloud-resources" autocomplete="off" spellcheck="false" placeholder="Add an ARN pattern" aria-describedby="ps-cloud-resources-hint">
+                        <button class="gw-input-group__addon" type="button" aria-label="Add resource pattern on stage"><i class="gw-icon" data-lucide="plus"></i></button>
+                      </div>
+                    </div>
+                    <p class="gw-field__hint" id="ps-cloud-resources-hint">ARN patterns; <span class="gw-mono">*</span> matches any text. Agents see nothing outside them.</p>
+                  </div>
+                  <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="stage-cloud-more">More Cloud settings <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i></button></div>
+                  <div class="gw-form__rows" id="stage-cloud-more" hidden>
+                    <div class="gw-form__row">
+                      <div class="gw-field">
+                        <label class="gw-field__label" for="ps-cloud-range">Longest time range</label>
+                        <div class="gw-input-group">
+                          <input class="gw-input" id="ps-cloud-range" type="text" inputmode="numeric" autocomplete="off" placeholder="14" aria-describedby="ps-cloud-range-hint">
+                          <span class="gw-input-group__affix">days</span>
+                        </div>
+                        <p class="gw-field__hint" id="ps-cloud-range-hint">Inherited from dev: 14 days</p>
+                      </div>
+                      <div class="gw-field">
+                        <label class="gw-field__label" for="ps-cloud-points">Data points per call</label>
+                        <input class="gw-input" id="ps-cloud-points" type="text" inputmode="numeric" autocomplete="off" placeholder="2,000" aria-describedby="ps-cloud-points-hint">
+                        <p class="gw-field__hint" id="ps-cloud-points-hint">Inherited from dev: 2,000</p>
+                      </div>
+                      <div class="gw-field">
+                        <label class="gw-field__label" for="ps-cloud-items">Items per call</label>
+                        <input class="gw-input" id="ps-cloud-items" type="text" inputmode="numeric" autocomplete="off" placeholder="100" aria-describedby="ps-cloud-items-hint">
+                        <p class="gw-field__hint" id="ps-cloud-items-hint">Inherited from dev: 100</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- HTTP egress -->
+              <section class="gw-form__section" id="stage-http" aria-labelledby="ps-http-t">
+                <header class="gw-form__section-header">
+                  <h2 class="gw-form__legend" id="ps-http-t">HTTP egress</h2>
+                  <p class="gw-form__description">Applies to <span class="gw-mono">billing-api</span>. This stops SSRF: an agent steered into using the gateway, which sits inside your network, to reach internal addresses.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <dl class="gw-kv gw-kv--dense">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">POST, PUT, PATCH or DELETE</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always · rule <code class="gw-code">stage.http.write-approval</code></span></dd></div>
+                  </dl>
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="ps-http-urls">Allowed base URLs</label>
+                    <div class="gw-stack gw-stack--sm">
+                      <ul class="gw-tag-list" aria-label="Allowed base URLs on stage">
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">https://billing.stage.acme.dev</span><button class="gw-tag__remove" type="button" aria-label="Remove https://billing.stage.acme.dev from stage"><i class="gw-icon" data-lucide="x"></i></button></li>
+                      </ul>
+                      <!-- Validation on Add: a metadata address can never be allowed. -->
+                      <div class="gw-input-group">
+                        <input class="gw-input gw-input--mono" id="ps-http-urls" type="url" autocomplete="off" spellcheck="false" placeholder="https://api.example.com" value="http://169.254.169.254/latest/meta-data/" aria-invalid="true" aria-describedby="ps-http-urls-error ps-http-urls-hint">
+                        <button class="gw-input-group__addon" type="button" aria-label="Add base URL on stage"><i class="gw-icon" data-lucide="plus"></i></button>
+                      </div>
+                    </div>
+                    <p class="gw-field__error" id="ps-http-urls-error"><i class="gw-icon" data-lucide="circle-alert"></i>169.254.169.254 is a cloud metadata address and is always blocked. Add the public base URL of the API instead.</p>
+                    <p class="gw-field__hint" id="ps-http-urls-hint">Per environment, never inherited. A request must start with one of these.</p>
+                  </div>
+                  <div class="gw-alert gw-alert--warning gw-alert--compact gw-risk-callout gw-risk-callout--compact" data-state="present">
+                    <i class="gw-icon gw-alert__icon" data-lucide="shield-alert"></i>
+                    <div class="gw-alert__content"><p class="gw-alert__title">Risky combination:</p><p class="gw-alert__body">endpoints <span class="gw-mono">dev</span> (private data + untrusted content + external channel) and <span class="gw-mono">stage-readonly</span> (private data + untrusted content + external channel, published to the internet) can send data to <span class="gw-mono">billing.stage.acme.dev</span> through this allowlist.</p></div>
+                    <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" href="endpoints.html">Review endpoints<span class="gw-sr-only"> dev and stage-readonly</span></a></div>
+                  </div>
+                  <fieldset class="gw-field">
+                    <legend class="gw-field__label">Blocked addresses</legend>
+                    <dl class="gw-kv gw-kv--dense">
+                      <div class="gw-kv__row"><dt class="gw-kv__key">Cloud metadata</dt><dd class="gw-kv__value"><span class="gw-badge"><i class="gw-icon gw-badge__icon" data-lucide="lock"></i>Always blocked</span> <span class="gw-mono">169.254.169.254</span>, <span class="gw-mono">fd00:ec2::254</span> <span class="gw-text-caption gw-fg-muted">· on every environment: these addresses hand out cloud credentials</span></dd></div>
+                      <!-- No switch for private networks: they are blocked unless a range below allows them. -->
+                      <div class="gw-kv__row"><dt class="gw-kv__key">Private networks</dt><dd class="gw-kv__value"><span class="gw-badge"><i class="gw-icon gw-badge__icon" data-lucide="lock"></i>Blocked</span> unless allowed below <span class="gw-text-caption gw-fg-muted">· <span class="gw-mono">10.0.0.0/8</span>, <span class="gw-mono">172.16.0.0/12</span>, <span class="gw-mono">192.168.0.0/16</span> and <span class="gw-mono">127.0.0.0/8</span>, checked after DNS resolution so a public name can't point inside</span></dd></div>
+                    </dl>
+                  </fieldset>
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="ps-http-ranges">Allowed private ranges <span class="gw-field__optional">Optional</span></label>
+                    <div class="gw-stack gw-stack--sm">
+                      <p class="gw-text-small gw-fg-muted">None: every private address is blocked.</p>
+                      <div class="gw-input-group">
+                        <input class="gw-input gw-input--mono" id="ps-http-ranges" autocomplete="off" spellcheck="false" placeholder="10.30.0.0/16" aria-describedby="ps-http-ranges-hint">
+                        <button class="gw-input-group__addon" type="button" aria-label="Add private range on stage"><i class="gw-icon" data-lucide="plus"></i></button>
+                      </div>
+                    </div>
+                    <p class="gw-field__hint" id="ps-http-ranges-hint">Per environment, never inherited. Add a range only for an internal API you trust.</p>
+                  </div>
+                  <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="stage-http-more">More HTTP settings <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i></button></div>
+                  <div class="gw-form__rows" id="stage-http-more" hidden>
+                    <div class="gw-form__row">
+                      <div class="gw-field">
+                        <label class="gw-field__label" for="ps-http-maxresp">Max response size</label>
+                        <div class="gw-input-group">
+                          <input class="gw-input" id="ps-http-maxresp" type="text" inputmode="numeric" autocomplete="off" placeholder="256" value="256" aria-describedby="ps-http-maxresp-hint">
+                          <span class="gw-input-group__affix">KB</span>
+                        </div>
+                        <p class="gw-field__hint" id="ps-http-maxresp-hint">Stage default · dev: 512 KB</p>
+                      </div>
+                      <div class="gw-field">
+                        <label class="gw-field__label" for="ps-http-timeout">Request timeout</label>
+                        <div class="gw-input-group">
+                          <input class="gw-input" id="ps-http-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="10" aria-describedby="ps-http-timeout-hint">
+                          <span class="gw-input-group__affix">s</span>
+                        </div>
+                        <p class="gw-field__hint" id="ps-http-timeout-hint">Inherited from dev: 10 s</p>
+                      </div>
+                      <div class="gw-field">
+                        <label class="gw-field__label" for="ps-http-maxreq">Max request body</label>
+                        <div class="gw-input-group">
+                          <input class="gw-input" id="ps-http-maxreq" type="text" inputmode="numeric" autocomplete="off" placeholder="256" aria-describedby="ps-http-maxreq-hint">
+                          <span class="gw-input-group__affix">KB</span>
+                        </div>
+                        <p class="gw-field__hint" id="ps-http-maxreq-hint">Inherited from dev: 256 KB</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Logs: no stage log source yet, so the rules it will have, read only -->
+              <section class="gw-form__section" id="stage-logs" aria-labelledby="ps-logs-t">
+                <header class="gw-form__section-header">
+                  <h2 class="gw-form__legend" id="ps-logs-t">Logs</h2>
+                  <p class="gw-form__description">How far back and how much <span class="gw-mono">logs_search</span> and <span class="gw-mono">logs_tail</span> read on stage.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-card gw-card--muted">
+                    <div class="gw-empty gw-empty--compact">
+                      <span class="gw-empty__icon"><i class="gw-icon" data-lucide="scroll-text"></i></span>
+                      <p class="gw-empty__title">No logs connection on stage</p>
+                      <p class="gw-empty__text">These rules apply as soon as you add one.</p>
+                      <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" href="connection-new.html?type=logs"><i class="gw-icon gw-icon--sm" data-lucide="plus"></i> Add connection<span class="gw-sr-only">: log source on stage</span></a></div>
+                    </div>
+                  </div>
+                  <dl class="gw-kv">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Longest time range</dt><dd class="gw-kv__value gw-tabular">168 h <span class="gw-fg-muted">· inherited from dev</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Entries per call by default</dt><dd class="gw-kv__value gw-tabular">100 <span class="gw-fg-muted">· inherited from dev</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Longest wait of logs_tail</dt><dd class="gw-kv__value gw-tabular">8 s <span class="gw-fg-muted">· inherited from dev</span></dd></div>
+                  </dl>
+                </div>
+              </section>
+
+              <!-- Masking: what never reaches the agent, Playground or the audit log -->
+              <section class="gw-form__section" id="stage-masking" aria-labelledby="ps-mask-t">
+                <header class="gw-form__section-header">
+                  <h2 class="gw-form__legend" id="ps-mask-t">Masking</h2>
+                  <p class="gw-form__description">What the gateway replaces with <code class="gw-code gw-code--secret">‹masked›</code> in every result from stage connections.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <dl class="gw-kv gw-kv--dense">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Secrets</dt><dd class="gw-kv__value"><span class="gw-badge"><i class="gw-icon gw-badge__icon" data-lucide="lock"></i>Always masked</span> <span class="gw-text-caption gw-fg-muted">tokens, private keys and passwords in connection strings, on every environment</span></dd></div>
+                  </dl>
+                  <fieldset class="gw-field" aria-describedby="ps-mask-pii-hint">
+                    <legend class="gw-field__label">Personal data, found by pattern</legend>
+                    <label class="gw-checkbox">
+                      <input class="gw-checkbox__input" type="checkbox" name="ps-mask-pii" value="email" checked>
+                      <span class="gw-checkbox__control" aria-hidden="true"></span>
+                      <span class="gw-checkbox__label">Email addresses</span>
+                    </label>
+                    <label class="gw-checkbox">
+                      <input class="gw-checkbox__input" type="checkbox" name="ps-mask-pii" value="phone" checked>
+                      <span class="gw-checkbox__control" aria-hidden="true"></span>
+                      <span class="gw-checkbox__label">Phone numbers</span>
+                    </label>
+                    <label class="gw-checkbox">
+                      <input class="gw-checkbox__input" type="checkbox" name="ps-mask-pii" value="card" checked>
+                      <span class="gw-checkbox__control" aria-hidden="true"></span>
+                      <span class="gw-checkbox__label">Card numbers</span>
+                    </label>
+                    <label class="gw-checkbox">
+                      <input class="gw-checkbox__input" type="checkbox" name="ps-mask-pii" value="iban" checked>
+                      <span class="gw-checkbox__control" aria-hidden="true"></span>
+                      <span class="gw-checkbox__label">IBANs</span>
+                    </label>
+                    <p class="gw-field__hint" id="ps-mask-pii-hint">Inherited from dev</p>
+                  </fieldset>
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="ps-mask-fields">Always mask these fields</label>
+                    <div class="gw-stack gw-stack--sm">
+                      <ul class="gw-tag-list" aria-label="Masked fields on stage">
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">orders.customer_email</span><button class="gw-tag__remove" type="button" aria-label="Remove orders.customer_email from masked fields on stage"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">orders.customer_phone</span><button class="gw-tag__remove" type="button" aria-label="Remove orders.customer_phone from masked fields on stage"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">*.password</span><button class="gw-tag__remove" type="button" aria-label="Remove *.password from masked fields on stage"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">*.api_key</span><button class="gw-tag__remove" type="button" aria-label="Remove *.api_key from masked fields on stage"><i class="gw-icon" data-lucide="x"></i></button></li>
+                      </ul>
+                      <div class="gw-input-group">
+                        <input class="gw-input gw-input--mono" id="ps-mask-fields" autocomplete="off" spellcheck="false" placeholder="Add a field" aria-describedby="ps-mask-fields-hint">
+                        <button class="gw-input-group__addon" type="button" aria-label="Add masked field on stage"><i class="gw-icon" data-lucide="plus"></i></button>
+                      </div>
+                    </div>
+                    <p class="gw-field__hint" id="ps-mask-fields-hint">Inherited from dev. Add or remove a value to set the list for stage.</p>
+                  </div>
+                  <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="stage-masking-more">More Masking settings <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i></button></div>
+                  <div class="gw-form__rows" id="stage-masking-more" hidden>
+                    <div class="gw-checkbox">
+                      <input class="gw-checkbox__input" type="checkbox" id="ps-mask-entropy" checked aria-describedby="ps-mask-entropy-hint">
+                      <span class="gw-checkbox__control" aria-hidden="true"></span>
+                      <label class="gw-checkbox__label" for="ps-mask-entropy">Strings that look random</label>
+                      <p class="gw-checkbox__hint" id="ps-mask-entropy-hint">Inherited from dev</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Limits -->
+              <section class="gw-form__section" id="stage-limits" aria-labelledby="ps-lim-t">
+                <header class="gw-form__section-header">
+                  <h2 class="gw-form__legend" id="ps-lim-t">Limits</h2>
+                  <p class="gw-form__description">Caps per minute and per call. An endpoint cap or a tool's own limit can only be stricter; the strictest value wins. The bars show use in the last minute.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-form__row">
+                    <div class="gw-stack gw-stack--sm">
+                      <div class="gw-field">
+                        <label class="gw-field__label" for="ps-lim-token">Rate limit per token</label>
+                        <div class="gw-input-group">
+                          <input class="gw-input" id="ps-lim-token" type="text" inputmode="numeric" autocomplete="off" placeholder="120" aria-describedby="ps-lim-token-hint">
+                          <span class="gw-input-group__affix">calls per min</span>
+                        </div>
+                        <p class="gw-field__hint" id="ps-lim-token-hint">Inherited from dev: 120 calls per min</p>
+                      </div>
+                      <div class="gw-meter" role="meter" aria-labelledby="ps-lim-token-use" aria-valuemin="0" aria-valuemax="120" aria-valuenow="2" aria-valuetext="2 of 120 calls in the last minute" data-level="ok" style="--gw-meter: 0.017">
+                        <span class="gw-meter__label" id="ps-lim-token-use">Busiest token <span class="gw-mono">codex-laptop</span></span>
+                        <span class="gw-meter__value">2 / 120</span>
+                        <span class="gw-meter__track"><span class="gw-meter__fill"></span></span>
+                      </div>
+                    </div>
+                    <div class="gw-stack gw-stack--sm">
+                      <div class="gw-field">
+                        <label class="gw-field__label" for="ps-lim-tool">Rate limit per tool</label>
+                        <div class="gw-input-group">
+                          <input class="gw-input" id="ps-lim-tool" type="text" inputmode="numeric" autocomplete="off" placeholder="30" aria-describedby="ps-lim-tool-hint">
+                          <span class="gw-input-group__affix">calls per min</span>
+                        </div>
+                        <p class="gw-field__hint" id="ps-lim-tool-hint">Inherited from dev: 30 calls per min</p>
+                      </div>
+                      <div class="gw-meter" role="meter" aria-labelledby="ps-lim-tool-use" aria-valuemin="0" aria-valuemax="30" aria-valuenow="3" aria-valuetext="3 of 30 calls in the last minute" data-level="ok" style="--gw-meter: 0.1">
+                        <span class="gw-meter__label" id="ps-lim-tool-use">Busiest tool <span class="gw-mono">aws_describe</span></span>
+                        <span class="gw-meter__value">3 / 30</span>
+                        <span class="gw-meter__track"><span class="gw-meter__fill"></span></span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="gw-form__row">
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="ps-lim-size">Max response size</label>
+                      <div class="gw-input-group">
+                        <input class="gw-input" id="ps-lim-size" type="text" inputmode="numeric" autocomplete="off" placeholder="512" value="256" aria-describedby="ps-lim-size-hint">
+                        <span class="gw-input-group__affix">KB</span>
+                      </div>
+                      <p class="gw-field__hint" id="ps-lim-size-hint">Set on stage · dev: 512 KB</p>
+                    </div>
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="ps-lim-timeout">Tool timeout</label>
+                      <div class="gw-input-group">
+                        <input class="gw-input" id="ps-lim-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="10" aria-describedby="ps-lim-timeout-hint">
+                        <span class="gw-input-group__affix">s</span>
+                      </div>
+                      <p class="gw-field__hint" id="ps-lim-timeout-hint">Inherited from dev: 10 s</p>
+                    </div>
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="ps-lim-lines">Log lines per call</label>
+                      <div class="gw-input-group">
+                        <input class="gw-input" id="ps-lim-lines" type="text" inputmode="numeric" autocomplete="off" placeholder="1,000" aria-describedby="ps-lim-lines-hint">
+                        <span class="gw-input-group__affix">lines</span>
+                      </div>
+                      <p class="gw-field__hint" id="ps-lim-lines-hint">Inherited from dev: 1,000 lines</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Approvals -->
+              <section class="gw-form__section" id="stage-approvals" aria-labelledby="ps-apr-t">
+                <header class="gw-form__section-header">
+                  <h2 class="gw-form__legend" id="ps-apr-t">Approvals</h2>
+                  <p class="gw-form__description">How long a request waits, who decides and where it is announced.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-form__row">
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="ps-apr-timeout">Approval timeout</label>
+                      <select class="gw-select" id="ps-apr-timeout" aria-describedby="ps-apr-timeout-hint">
+                        <option value="">Stage default: 10 min</option>
+                        <option>2 min</option>
+                        <option>5 min</option>
+                        <option selected>10 min</option>
+                        <option>15 min</option>
+                        <option>30 min</option>
+                      </select>
+                      <p class="gw-field__hint" id="ps-apr-timeout-hint">Stage default · dev: 5 min</p>
+                    </div>
+                    <div class="gw-field">
+                      <p class="gw-field__label" id="ps-apr-count-l">Approvals needed</p>
+                      <div class="gw-segmented" role="radiogroup" aria-labelledby="ps-apr-count-l" aria-describedby="ps-apr-count-hint">
+                        <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="ps-apr-count" value="1" checked><span class="gw-segmented__label">1 person</span></label>
+                        <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="ps-apr-count" value="2" aria-disabled="true" aria-describedby="ps-apr-count-hint"><span class="gw-segmented__label">2 people</span></label>
+                      </div>
+                      <p class="gw-field__hint" id="ps-apr-count-hint">Inherited from dev. 2 people is server mode only.</p>
+                    </div>
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="ps-apr-comment">Comment on a decision</label>
+                      <select class="gw-select" id="ps-apr-comment" aria-describedby="ps-apr-comment-hint">
+                        <option value="" selected>Same as dev: optional</option>
+                        <option>Optional</option>
+                        <option>Recommended</option>
+                        <option>Required</option>
+                      </select>
+                      <p class="gw-field__hint" id="ps-apr-comment-hint">Inherited from dev: optional</p>
+                    </div>
+                  </div>
+                  <dl class="gw-kv gw-kv--dense">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">When the time runs out</dt><dd class="gw-kv__value"><span class="gw-badge"><i class="gw-icon gw-badge__icon" data-lucide="timer-off"></i>Denied</span> <span class="gw-text-caption gw-fg-muted">always · recorded as Expired, nothing runs</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Who can approve</dt><dd class="gw-kv__value">You (local user) <span class="gw-badge gw-badge--neutral gw-badge--sm">Server mode only</span> <span class="gw-text-caption gw-fg-muted">named approvers and roles; on this desktop every decision is signed “by you”</span></dd></div>
+                  </dl>
+                  <fieldset class="gw-field" aria-describedby="ps-apr-ch-hint">
+                    <legend class="gw-field__label">Announce requests in</legend>
+                    <label class="gw-checkbox">
+                      <input class="gw-checkbox__input" type="checkbox" checked>
+                      <span class="gw-checkbox__control" aria-hidden="true"></span>
+                      <span class="gw-checkbox__label">Desktop notification</span>
+                    </label>
+                    <label class="gw-checkbox">
+                      <input class="gw-checkbox__input" type="checkbox" checked>
+                      <span class="gw-checkbox__control" aria-hidden="true"></span>
+                      <span class="gw-checkbox__label">Slack <span class="gw-mono">#deploy-approvals</span></span>
+                    </label>
+                    <p class="gw-text-small gw-fg-muted">Telegram is not set up. <a class="gw-link" href="settings.html#settings-notifications">Set it up in Settings</a></p>
+                    <p class="gw-field__hint" id="ps-apr-ch-hint">Inherited from dev</p>
+                  </fieldset>
+                </div>
+              </section>
+            </form>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════ prod: its own, stricter defaults, inherits nothing (selected) ═══════════════════════════ -->
+        <div class="gw-tabs__panel" role="tabpanel" id="prod" aria-labelledby="pol-tab-prod" tabindex="0">
+          <div class="gw-stack gw-stack--lg">
+            <div class="gw-toolbar">
+              <div class="gw-toolbar__start">
+                <dl class="gw-kv gw-kv--inline">
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Applies to</dt><dd class="gw-kv__value"><code class="gw-code">prod-replica</code> <code class="gw-code">prod-vm</code> <code class="gw-code">prod-logs</code></dd></div>
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Values</dt><dd class="gw-kv__value">24 prod defaults · 2 set on prod</dd></div>
+                </dl>
+              </div>
+              <div class="gw-toolbar__end">
+                <a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?q=env:prod"><i class="gw-icon gw-icon--sm" data-lucide="activity"></i> View prod activity</a>
+                <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" data-gw-dialog-open="pol-dlg-reset-prod"><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i> Reset to prod defaults</button>
+              </div>
+            </div>
+
+            <form class="gw-form gw-form--sticky-actions" id="pp-form" method="dialog" aria-label="Policy for prod">
+
+              <!-- SQL -->
+              <section class="gw-form__section" id="prod-sql" aria-labelledby="pp-sql-t">
+                <header class="gw-form__section-header">
+                  <h2 class="gw-form__legend" id="pp-sql-t">SQL</h2>
+                  <p class="gw-form__description">Applies to <span class="gw-mono">prod-replica</span>, a read replica. The gateway parses every statement: SELECT is a read, anything else is a mutation.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <dl class="gw-kv gw-kv--dense">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">INSERT, UPDATE, DELETE</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always · rule <code class="gw-code">prod.sql.write-approval</code></span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Run queries in a read-only transaction</dt><dd class="gw-kv__value"><span class="gw-badge"><i class="gw-icon gw-badge__icon" data-lucide="lock"></i>Always on</span> <span class="gw-text-caption gw-fg-muted"><span class="gw-mono">sql_query</span> opens READ ONLY transactions, so the database refuses a SELECT that calls a function that writes</span></dd></div>
+                  </dl>
+                  <div class="gw-form__row">
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="pp-sql-timeout">Statement timeout</label>
+                      <div class="gw-input-group">
+                        <input class="gw-input" id="pp-sql-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="3" value="3" aria-describedby="pp-sql-timeout-hint">
+                        <span class="gw-input-group__affix">s</span>
+                      </div>
+                      <p class="gw-field__hint" id="pp-sql-timeout-hint">Prod default · dev: 5 s</p>
+                    </div>
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="pp-sql-rows">Row limit</label>
+                      <div class="gw-input-group">
+                        <input class="gw-input" id="pp-sql-rows" type="text" inputmode="numeric" autocomplete="off" placeholder="100" value="100" aria-describedby="pp-sql-rows-hint">
+                        <span class="gw-input-group__affix">rows</span>
+                      </div>
+                      <p class="gw-field__hint" id="pp-sql-rows-hint">Prod default · dev: 1,000 rows</p>
+                    </div>
+                  </div>
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="pp-sql-allow">Schema and table allowlist</label>
+                    <div class="gw-stack gw-stack--sm">
+                      <ul class="gw-tag-list" aria-label="Allowed schemas and tables on prod">
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">public.orders</span><button class="gw-tag__remove" type="button" aria-label="Remove public.orders from the prod allowlist"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">public.order_items</span><button class="gw-tag__remove" type="button" aria-label="Remove public.order_items from the prod allowlist"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">public.payments</span><button class="gw-tag__remove" type="button" aria-label="Remove public.payments from the prod allowlist"><i class="gw-icon" data-lucide="x"></i></button></li>
+                      </ul>
+                      <div class="gw-input-group">
+                        <input class="gw-input gw-input--mono" id="pp-sql-allow" autocomplete="off" spellcheck="false" placeholder="Add a table, for example public.refunds" aria-describedby="pp-sql-allow-hint">
+                        <button class="gw-input-group__addon" type="button" aria-label="Add to the prod allowlist"><i class="gw-icon" data-lucide="plus"></i></button>
+                      </div>
+                    </div>
+                    <p class="gw-field__hint" id="pp-sql-allow-hint">Set on prod · dev: <span class="gw-mono">public.*</span>, <span class="gw-mono">reporting.*</span>. Only these are readable on <span class="gw-mono">prod-replica</span>.</p>
+                  </div>
+                  <div class="gw-checkbox">
+                    <input class="gw-checkbox__input" type="checkbox" id="pp-sql-ddl" checked aria-describedby="pp-sql-ddl-hint">
+                    <span class="gw-checkbox__control" aria-hidden="true"></span>
+                    <label class="gw-checkbox__label" for="pp-sql-ddl">Refuse DDL: CREATE, ALTER, DROP, TRUNCATE</label>
+                    <p class="gw-checkbox__hint" id="pp-sql-ddl-hint">Prod default · dev: off. A DROP TABLE on prod is denied before anyone is asked.</p>
+                  </div>
+                  <p class="gw-text-caption"><a class="gw-link" href="activity.html?q=tool:sql_execute%20decision:denied%20env:prod">View statements denied on prod</a></p>
+                  <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="prod-sql-more">More SQL settings <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i></button></div>
+                  <div class="gw-form__rows" id="prod-sql-more" hidden>
+                    <div class="gw-form__row">
+                      <div class="gw-field">
+                        <label class="gw-field__label" for="pp-sql-maxresp">Max response size</label>
+                        <div class="gw-input-group">
+                          <input class="gw-input" id="pp-sql-maxresp" type="text" inputmode="numeric" autocomplete="off" placeholder="512" value="512">
+                          <span class="gw-input-group__affix">KB</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="pp-sql-denyfn">More denied functions</label>
+                      <div class="gw-stack gw-stack--sm">
+                        <p class="gw-text-small gw-fg-muted">None beyond the built-in denylist.</p>
+                        <div class="gw-input-group">
+                          <input class="gw-input gw-input--mono" id="pp-sql-denyfn" autocomplete="off" spellcheck="false" placeholder="Add a function, for example pg_sleep">
+                          <button class="gw-input-group__addon" type="button" aria-label="Add denied function on prod"><i class="gw-icon" data-lucide="plus"></i></button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- SSH -->
+              <section class="gw-form__section" id="prod-ssh" aria-labelledby="pp-ssh-t">
+                <header class="gw-form__section-header">
+                  <h2 class="gw-form__legend" id="pp-ssh-t">SSH</h2>
+                  <p class="gw-form__description">Applies to <span class="gw-mono">prod-vm</span>. Agents run runbooks: saved commands with typed parameters, so nothing is glued into a shell string.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <dl class="gw-kv gw-kv--dense">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Runbooks that change state</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always · rule <code class="gw-code">prod.ssh.write-approval</code></span></dd></div>
+                  </dl>
+                  <div class="gw-checkbox">
+                    <input class="gw-checkbox__input" type="checkbox" id="pp-ssh-exec" aria-describedby="pp-ssh-exec-hint">
+                    <span class="gw-checkbox__control" aria-hidden="true"></span>
+                    <label class="gw-checkbox__label" for="pp-ssh-exec">Allow arbitrary commands with <span class="gw-mono">ssh_exec</span></label>
+                    <p class="gw-checkbox__hint" id="pp-ssh-exec-hint">Set on prod only, never inherited; off by default on prod. Allowing it asks you to confirm, and every command still waits for approval.</p>
+                  </div>
+                  <ul class="gw-stack gw-stack--sm" aria-label="Runbooks on prod">
+                    <!-- A runbook marked Read only runs at once in a Read only tool mode; restart-api, not marked, waits for approval with a comment. -->
+                    <li class="gw-card gw-card--muted">
+                      <div class="gw-card__header">
+                        <div class="gw-card__heading">
+                          <h3 class="gw-card__title"><code class="gw-code">restart-api</code></h3>
+                          <p class="gw-card__description">Restart the api service</p>
+                        </div>
+                        <div class="gw-card__actions"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <a class="gw-btn gw-btn--ghost gw-btn--sm" href="connectors.html#template-restart-api"><i class="gw-icon gw-icon--sm" data-lucide="pencil"></i>Edit<span class="gw-sr-only"> runbook restart-api</span> in Connectors</a></div>
+                      </div>
+                      <div class="gw-card__body">
+                        <dl class="gw-kv gw-kv--dense">
+                          <div class="gw-kv__row"><dt class="gw-kv__key">Command</dt><dd class="gw-kv__value"><code class="gw-code">sudo systemctl restart api.service</code></dd></div>
+                          <div class="gw-kv__row"><dt class="gw-kv__key">Parameters</dt><dd class="gw-kv__value">None</dd></div>
+                          <div class="gw-kv__row"><dt class="gw-kv__key">Last run</dt><dd class="gw-kv__value"><time datetime="2026-10-22T09:47:05+02:00" title="2026-10-22 09:47:05 CEST">5 h ago</time>, approved by you from Slack, with the required comment in the app · <a class="gw-link" href="activity.html?q=tool:ssh_run%20connection:prod-vm">View runbook activity<span class="gw-sr-only"> on prod-vm</span></a></dd></div>
+                        </dl>
+                      </div>
+                    </li>
+                    <li class="gw-card gw-card--muted">
+                      <div class="gw-card__header">
+                        <div class="gw-card__heading">
+                          <h3 class="gw-card__title"><code class="gw-code">service-status</code></h3>
+                          <p class="gw-card__description">Show whether a service is running</p>
+                        </div>
+                        <div class="gw-card__actions"><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span> <a class="gw-btn gw-btn--ghost gw-btn--sm" href="connectors.html#template-service-status"><i class="gw-icon gw-icon--sm" data-lucide="pencil"></i>Edit<span class="gw-sr-only"> runbook service-status</span> in Connectors</a></div>
+                      </div>
+                      <div class="gw-card__body">
+                        <dl class="gw-kv gw-kv--dense">
+                          <div class="gw-kv__row"><dt class="gw-kv__key">Command</dt><dd class="gw-kv__value"><code class="gw-code">systemctl status {service}</code></dd></div>
+                          <div class="gw-kv__row"><dt class="gw-kv__key">Parameters</dt><dd class="gw-kv__value"><code class="gw-code">service</code> one of <span class="gw-mono">api</span>, <span class="gw-mono">order-sync</span></dd></div>
+                          <div class="gw-kv__row"><dt class="gw-kv__key">Last run</dt><dd class="gw-kv__value"><time datetime="2026-10-22T09:44:30+02:00" title="2026-10-22 09:44:30 CEST">5 h ago</time> · <a class="gw-link" href="activity.html?q=tool:ssh_run%20connection:prod-vm">View runbook activity<span class="gw-sr-only"> on prod-vm</span></a></dd></div>
+                        </dl>
+                      </div>
+                    </li>
+                  </ul>
+                  <div><a class="gw-btn gw-btn--sm" href="connectors.html#templates"><i class="gw-icon gw-icon--sm" data-lucide="plus"></i> New runbook<span class="gw-sr-only"> for prod-vm</span></a></div>
+                  <div class="gw-form__row">
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="pp-ssh-timeout">Command timeout</label>
+                      <div class="gw-input-group">
+                        <input class="gw-input" id="pp-ssh-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="30" value="30" aria-describedby="pp-ssh-timeout-hint">
+                        <span class="gw-input-group__affix">s</span>
+                      </div>
+                      <p class="gw-field__hint" id="pp-ssh-timeout-hint">The session is closed after this.</p>
+                    </div>
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="pp-ssh-output">Max output</label>
+                      <div class="gw-input-group">
+                        <input class="gw-input" id="pp-ssh-output" type="text" inputmode="numeric" autocomplete="off" placeholder="256" value="256" aria-describedby="pp-ssh-output-hint">
+                        <span class="gw-input-group__affix">KB</span>
+                      </div>
+                      <p class="gw-field__hint" id="pp-ssh-output-hint">Longer output is cut from the start.</p>
+                    </div>
+                  </div>
+                  <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="prod-ssh-more">More SSH settings <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i></button></div>
+                  <div class="gw-form__rows" id="prod-ssh-more" hidden>
+                    <div class="gw-form__row">
+                      <div class="gw-field">
+                        <label class="gw-field__label" for="pp-ssh-stderr">Max stderr</label>
+                        <div class="gw-input-group">
+                          <input class="gw-input" id="pp-ssh-stderr" type="text" inputmode="numeric" autocomplete="off" placeholder="64" value="64" aria-describedby="pp-ssh-stderr-hint">
+                          <span class="gw-input-group__affix">KB</span>
+                        </div>
+                        <p class="gw-field__hint" id="pp-ssh-stderr-hint">Longer error output is cut from the start.</p>
+                      </div>
+                      <div class="gw-field">
+                        <label class="gw-field__label" for="pp-ssh-parallel">Parallel calls per connection</label>
+                        <input class="gw-input" id="pp-ssh-parallel" type="text" inputmode="numeric" autocomplete="off" placeholder="2" value="2" aria-describedby="pp-ssh-parallel-hint">
+                        <p class="gw-field__hint" id="pp-ssh-parallel-hint">Prod default · dev: 4</p>
+                      </div>
+                    </div>
+                    <fieldset class="gw-field" aria-describedby="pp-ssh-signin-hint">
+                      <legend class="gw-field__label">Sign-in methods</legend>
+                      <label class="gw-checkbox">
+                        <input class="gw-checkbox__input" type="checkbox" name="pp-ssh-signin" value="vaultSshCa" checked>
+                        <span class="gw-checkbox__control" aria-hidden="true"></span>
+                        <span class="gw-checkbox__label">Certificate from Vault SSH CA</span>
+                      </label>
+                      <label class="gw-checkbox">
+                        <input class="gw-checkbox__input" type="checkbox" name="pp-ssh-signin" value="privateKey" checked>
+                        <span class="gw-checkbox__control" aria-hidden="true"></span>
+                        <span class="gw-checkbox__label">Private key</span>
+                      </label>
+                      <label class="gw-checkbox">
+                        <input class="gw-checkbox__input" type="checkbox" name="pp-ssh-signin" value="password">
+                        <span class="gw-checkbox__control" aria-hidden="true"></span>
+                        <span class="gw-checkbox__label">Password</span>
+                      </label>
+                      <p class="gw-field__hint" id="pp-ssh-signin-hint">Prod default · dev: certificate from Vault SSH CA, private key and password</p>
+                    </fieldset>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Kubernetes: no prod cluster yet -->
+              <section class="gw-form__section" id="prod-k8s" aria-labelledby="pp-k8s-t">
+                <header class="gw-form__section-header">
+                  <h2 class="gw-form__legend" id="pp-k8s-t">Kubernetes</h2>
+                  <p class="gw-form__description">Verbs, resources and namespaces for prod clusters. Prod starts read only.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-card gw-card--muted">
+                    <div class="gw-empty gw-empty--compact">
+                      <span class="gw-empty__icon"><i class="gw-icon" data-lucide="ship-wheel"></i></span>
+                      <p class="gw-empty__title">No Kubernetes connection on prod</p>
+                      <p class="gw-empty__text"><span class="gw-mono">dev-cluster</span> is a dev connection, so its rules are in the dev list. These rules apply as soon as you add one.</p>
+                      <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" href="connection-new.html?type=kubernetes"><i class="gw-icon gw-icon--sm" data-lucide="plus"></i> Add connection<span class="gw-sr-only">: Kubernetes cluster on prod</span></a></div>
+                    </div>
+                  </div>
+                  <dl class="gw-kv">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Mutating verbs</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always, if you allow one</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Allowed verbs</dt><dd class="gw-kv__value"><span class="gw-mono">get, list, describe, logs</span> <span class="gw-fg-muted">· prod default, dev also allows rollout restart and apply</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Allowed resources</dt><dd class="gw-kv__value"><span class="gw-mono">deployments, pods, events</span> <span class="gw-fg-muted">· prod default, dev also allows services, configmaps and jobs</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Namespaces</dt><dd class="gw-kv__value">None yet <span class="gw-fg-muted">· per environment</span></dd></div>
+                  </dl>
+                </div>
+              </section>
+
+              <!-- Cloud: no prod cloud connection yet -->
+              <section class="gw-form__section" id="prod-cloud" aria-labelledby="pp-cloud-t">
+                <header class="gw-form__section-header">
+                  <h2 class="gw-form__legend" id="pp-cloud-t">Cloud</h2>
+                  <p class="gw-form__description">Which AWS and GCP services, regions and resources agents may describe. The IAM role or service account still limits what the gateway itself can read.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-card gw-card--muted">
+                    <div class="gw-empty gw-empty--compact">
+                      <span class="gw-empty__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
+                      <p class="gw-empty__title">No cloud connection on prod</p>
+                      <p class="gw-empty__text"><span class="gw-mono">aws-stage</span> is a stage connection, so its rules are in the stage list. These rules apply as soon as you add a prod account.</p>
+                      <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" href="connection-new.html?type=aws"><i class="gw-icon gw-icon--sm" data-lucide="plus"></i> Add connection<span class="gw-sr-only">: cloud account on prod</span></a></div>
+                    </div>
+                  </div>
+                  <dl class="gw-kv">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Changes to cloud resources</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always, if a tool can make one</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Services, regions, resources</dt><dd class="gw-kv__value">None yet <span class="gw-fg-muted">· per environment</span></dd></div>
+                  </dl>
+                </div>
+              </section>
+
+              <!-- HTTP egress: no prod HTTP connection -->
+              <section class="gw-form__section" id="prod-http" aria-labelledby="pp-http-t">
+                <header class="gw-form__section-header">
+                  <h2 class="gw-form__legend" id="pp-http-t">HTTP egress</h2>
+                  <p class="gw-form__description">Where HTTP tools may send requests from prod. This stops SSRF: an agent steered into using the gateway, which sits inside your network, to reach internal addresses.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-card gw-card--muted">
+                    <div class="gw-empty gw-empty--compact">
+                      <span class="gw-empty__icon"><i class="gw-icon" data-lucide="globe"></i></span>
+                      <p class="gw-empty__title">No HTTP connection on prod</p>
+                      <p class="gw-empty__text"><span class="gw-mono">billing-api</span> is a stage connection, so its rules are in the stage list. HTTP tools can't reach anything from prod until you add a connection and its base URL.</p>
+                      <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" href="connection-new.html?type=http"><i class="gw-icon gw-icon--sm" data-lucide="plus"></i> Add connection<span class="gw-sr-only">: HTTP API on prod</span></a></div>
+                    </div>
+                  </div>
+                  <dl class="gw-kv">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">POST, PUT, PATCH or DELETE</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">always · rule <code class="gw-code">prod.http.write-approval</code></span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Allowed base URLs</dt><dd class="gw-kv__value">None <span class="gw-fg-muted">· per environment</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Cloud metadata</dt><dd class="gw-kv__value">Always blocked: <span class="gw-mono">169.254.169.254</span>, <span class="gw-mono">fd00:ec2::254</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Private networks</dt><dd class="gw-kv__value">Blocked <span class="gw-fg-muted">· unless allowed below, per environment</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Allowed private ranges</dt><dd class="gw-kv__value">None <span class="gw-fg-muted">· per environment</span></dd></div>
+                  </dl>
+                </div>
+              </section>
+
+              <!-- Logs (after HTTP egress): prod defaults, stricter than dev -->
+              <section class="gw-form__section" id="prod-logs" aria-labelledby="pp-logs-t">
+                <header class="gw-form__section-header">
+                  <h2 class="gw-form__legend" id="pp-logs-t">Logs</h2>
+                  <p class="gw-form__description">Applies to <span class="gw-mono">prod-logs</span>. How far back and how much <span class="gw-mono">logs_search</span> and <span class="gw-mono">logs_tail</span> read; Log lines per call in Limits caps every call.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-form__row">
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="pp-logs-range">Longest time range</label>
+                      <div class="gw-input-group">
+                        <input class="gw-input" id="pp-logs-range" type="text" inputmode="numeric" autocomplete="off" placeholder="24" value="24" aria-describedby="pp-logs-range-hint">
+                        <span class="gw-input-group__affix">h</span>
+                      </div>
+                      <p class="gw-field__hint" id="pp-logs-range-hint">Prod default · dev: 168 h</p>
+                    </div>
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="pp-logs-limit">Entries per call by default</label>
+                      <input class="gw-input" id="pp-logs-limit" type="text" inputmode="numeric" autocomplete="off" placeholder="50" value="50" aria-describedby="pp-logs-limit-hint">
+                      <p class="gw-field__hint" id="pp-logs-limit-hint">Prod default · dev: 100</p>
+                    </div>
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="pp-logs-wait">Longest wait of logs_tail</label>
+                      <div class="gw-input-group">
+                        <input class="gw-input" id="pp-logs-wait" type="text" inputmode="numeric" autocomplete="off" placeholder="3" value="3" aria-describedby="pp-logs-wait-hint">
+                        <span class="gw-input-group__affix">s</span>
+                      </div>
+                      <p class="gw-field__hint" id="pp-logs-wait-hint">Prod default · dev: 8 s</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Masking: what never reaches the agent, Playground or the audit log -->
+              <section class="gw-form__section" id="prod-masking" aria-labelledby="pp-mask-t">
+                <header class="gw-form__section-header">
+                  <h2 class="gw-form__legend" id="pp-mask-t">Masking</h2>
+                  <p class="gw-form__description">What the gateway replaces with <code class="gw-code gw-code--secret">‹masked›</code> in every result from prod connections.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <dl class="gw-kv gw-kv--dense">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Secrets</dt><dd class="gw-kv__value"><span class="gw-badge"><i class="gw-icon gw-badge__icon" data-lucide="lock"></i>Always masked</span> <span class="gw-text-caption gw-fg-muted">tokens, private keys and passwords in connection strings, on every environment</span></dd></div>
+                  </dl>
+                  <fieldset class="gw-field" aria-describedby="pp-mask-pii-hint">
+                    <legend class="gw-field__label">Personal data, found by pattern</legend>
+                    <label class="gw-checkbox">
+                      <input class="gw-checkbox__input" type="checkbox" name="pp-mask-pii" value="email" checked>
+                      <span class="gw-checkbox__control" aria-hidden="true"></span>
+                      <span class="gw-checkbox__label">Email addresses</span>
+                    </label>
+                    <label class="gw-checkbox">
+                      <input class="gw-checkbox__input" type="checkbox" name="pp-mask-pii" value="phone" checked>
+                      <span class="gw-checkbox__control" aria-hidden="true"></span>
+                      <span class="gw-checkbox__label">Phone numbers</span>
+                    </label>
+                    <label class="gw-checkbox">
+                      <input class="gw-checkbox__input" type="checkbox" name="pp-mask-pii" value="card" checked>
+                      <span class="gw-checkbox__control" aria-hidden="true"></span>
+                      <span class="gw-checkbox__label">Card numbers</span>
+                    </label>
+                    <label class="gw-checkbox">
+                      <input class="gw-checkbox__input" type="checkbox" name="pp-mask-pii" value="iban" checked>
+                      <span class="gw-checkbox__control" aria-hidden="true"></span>
+                      <span class="gw-checkbox__label">IBANs</span>
+                    </label>
+                    <p class="gw-field__hint" id="pp-mask-pii-hint">Prod default · dev: email addresses, phone numbers, card numbers and IBANs</p>
+                  </fieldset>
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="pp-mask-fields">Always mask these fields</label>
+                    <div class="gw-stack gw-stack--sm">
+                      <ul class="gw-tag-list" aria-label="Masked fields on prod">
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">orders.customer_email</span><button class="gw-tag__remove" type="button" aria-label="Remove orders.customer_email from masked fields on prod"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">orders.customer_phone</span><button class="gw-tag__remove" type="button" aria-label="Remove orders.customer_phone from masked fields on prod"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">*.password</span><button class="gw-tag__remove" type="button" aria-label="Remove *.password from masked fields on prod"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">*.api_key</span><button class="gw-tag__remove" type="button" aria-label="Remove *.api_key from masked fields on prod"><i class="gw-icon" data-lucide="x"></i></button></li>
+                        <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">public.payments.card_holder</span><button class="gw-tag__remove" type="button" aria-label="Remove public.payments.card_holder from masked fields on prod"><i class="gw-icon" data-lucide="x"></i></button></li>
+                      </ul>
+                      <div class="gw-input-group">
+                        <input class="gw-input gw-input--mono" id="pp-mask-fields" autocomplete="off" spellcheck="false" placeholder="Add a field" aria-describedby="pp-mask-fields-hint">
+                        <button class="gw-input-group__addon" type="button" aria-label="Add masked field on prod"><i class="gw-icon" data-lucide="plus"></i></button>
+                      </div>
+                    </div>
+                    <p class="gw-field__hint" id="pp-mask-fields-hint">Set on prod · dev: <span class="gw-mono">orders.customer_email</span>, <span class="gw-mono">orders.customer_phone</span>, <span class="gw-mono">*.password</span>, <span class="gw-mono">*.api_key</span></p>
+                  </div>
+                  <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="prod-masking-more">More Masking settings <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i></button></div>
+                  <div class="gw-form__rows" id="prod-masking-more" hidden>
+                    <div class="gw-checkbox">
+                      <input class="gw-checkbox__input" type="checkbox" id="pp-mask-entropy" checked aria-describedby="pp-mask-entropy-hint">
+                      <span class="gw-checkbox__control" aria-hidden="true"></span>
+                      <label class="gw-checkbox__label" for="pp-mask-entropy">Strings that look random</label>
+                      <p class="gw-checkbox__hint" id="pp-mask-entropy-hint">Long random-looking strings are masked as unknown secrets.</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Limits -->
+              <section class="gw-form__section" id="prod-limits" aria-labelledby="pp-lim-t">
+                <header class="gw-form__section-header">
+                  <h2 class="gw-form__legend" id="pp-lim-t">Limits</h2>
+                  <p class="gw-form__description">Caps per minute and per call. An endpoint cap or a tool's own limit can only be stricter; the strictest value wins. The bars show use in the last minute.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-form__row">
+                    <div class="gw-stack gw-stack--sm">
+                      <div class="gw-field">
+                        <label class="gw-field__label" for="pp-lim-token">Rate limit per token</label>
+                        <div class="gw-input-group">
+                          <input class="gw-input" id="pp-lim-token" type="text" inputmode="numeric" autocomplete="off" placeholder="60" value="60" aria-describedby="pp-lim-token-hint">
+                          <span class="gw-input-group__affix">calls per min</span>
+                        </div>
+                        <p class="gw-field__hint" id="pp-lim-token-hint">Prod default · dev: 120 calls per min</p>
+                      </div>
+                      <div class="gw-meter" role="meter" aria-labelledby="pp-lim-token-use" aria-valuemin="0" aria-valuemax="60" aria-valuenow="4" aria-valuetext="4 of 60 calls in the last minute" data-level="ok" style="--gw-meter: 0.067">
+                        <span class="gw-meter__label" id="pp-lim-token-use">Busiest token on <span class="gw-mono">incident-prod</span></span>
+                        <span class="gw-meter__value">4 / 60</span>
+                        <span class="gw-meter__track"><span class="gw-meter__fill"></span></span>
+                      </div>
+                    </div>
+                    <div class="gw-stack gw-stack--sm">
+                      <div class="gw-field">
+                        <label class="gw-field__label" for="pp-lim-tool">Rate limit per tool</label>
+                        <div class="gw-input-group">
+                          <input class="gw-input" id="pp-lim-tool" type="text" inputmode="numeric" autocomplete="off" placeholder="20" value="20" aria-describedby="pp-lim-tool-hint">
+                          <span class="gw-input-group__affix">calls per min</span>
+                        </div>
+                        <p class="gw-field__hint" id="pp-lim-tool-hint">Prod default · dev: 30 calls per min</p>
+                      </div>
+                      <div class="gw-meter" role="meter" aria-labelledby="pp-lim-tool-use" aria-valuemin="0" aria-valuemax="20" aria-valuenow="4" aria-valuetext="4 of 20 calls in the last minute" data-level="ok" style="--gw-meter: 0.2">
+                        <span class="gw-meter__label" id="pp-lim-tool-use">Busiest tool <span class="gw-mono">logs_search</span> on <span class="gw-mono">prod-logs</span></span>
+                        <span class="gw-meter__value">4 / 20</span>
+                        <span class="gw-meter__track"><span class="gw-meter__fill"></span></span>
+                      </div>
+                      <p class="gw-text-caption"><a class="gw-link" href="activity.html?q=tool:logs_search%20env:prod">View <span class="gw-mono">logs_search</span> activity on prod</a></p>
+                    </div>
+                  </div>
+                  <div class="gw-form__row">
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="pp-lim-size">Max response size</label>
+                      <div class="gw-input-group">
+                        <input class="gw-input" id="pp-lim-size" type="text" inputmode="numeric" autocomplete="off" placeholder="256" value="256" aria-describedby="pp-lim-size-hint">
+                        <span class="gw-input-group__affix">KB</span>
+                      </div>
+                      <p class="gw-field__hint" id="pp-lim-size-hint">Prod default · dev: 512 KB</p>
+                    </div>
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="pp-lim-timeout">Tool timeout</label>
+                      <div class="gw-input-group">
+                        <input class="gw-input" id="pp-lim-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="5" value="5" aria-describedby="pp-lim-timeout-hint">
+                        <span class="gw-input-group__affix">s</span>
+                      </div>
+                      <p class="gw-field__hint" id="pp-lim-timeout-hint">Prod default · dev: 10 s</p>
+                    </div>
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="pp-lim-lines">Log lines per call</label>
+                      <div class="gw-input-group">
+                        <input class="gw-input" id="pp-lim-lines" type="text" inputmode="numeric" autocomplete="off" placeholder="200" value="200" aria-describedby="pp-lim-lines-hint">
+                        <span class="gw-input-group__affix">lines</span>
+                      </div>
+                      <p class="gw-field__hint" id="pp-lim-lines-hint">Prod default · dev: 1,000 lines</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Approvals -->
+              <section class="gw-form__section" id="prod-approvals" aria-labelledby="pp-apr-t">
+                <header class="gw-form__section-header">
+                  <h2 class="gw-form__legend" id="pp-apr-t">Approvals</h2>
+                  <p class="gw-form__description">How long a request waits, who decides and where it is announced. Prod gives you more time and asks for a comment with every approval.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-form__row">
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="pp-apr-timeout">Approval timeout</label>
+                      <select class="gw-select" id="pp-apr-timeout" aria-describedby="pp-apr-timeout-hint">
+                        <option>2 min</option>
+                        <option>5 min</option>
+                        <option>10 min</option>
+                        <option selected>15 min</option>
+                        <option>30 min</option>
+                      </select>
+                      <p class="gw-field__hint" id="pp-apr-timeout-hint">Unsaved · prod default: 10 min</p>
+                    </div>
+                    <div class="gw-field">
+                      <p class="gw-field__label" id="pp-apr-count-l">Approvals needed</p>
+                      <div class="gw-segmented" role="radiogroup" aria-labelledby="pp-apr-count-l" aria-describedby="pp-apr-count-hint">
+                        <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="pp-apr-count" value="1" checked><span class="gw-segmented__label">1 person</span></label>
+                        <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="pp-apr-count" value="2" aria-disabled="true" aria-describedby="pp-apr-count-hint"><span class="gw-segmented__label">2 people</span></label>
+                      </div>
+                      <p class="gw-field__hint" id="pp-apr-count-hint">2 people is server mode only.</p>
+                    </div>
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="pp-apr-comment">Comment on a decision</label>
+                      <select class="gw-select" id="pp-apr-comment" aria-describedby="pp-apr-comment-hint">
+                        <option>Optional</option>
+                        <option>Recommended</option>
+                        <option selected>Required</option>
+                      </select>
+                      <p class="gw-field__hint" id="pp-apr-comment-hint">Prod default · dev: optional. Approve and run waits for a comment. Slack and Telegram never offer Approve on prod, with or without a comment: they show Deny and Open in app. <a class="gw-link" href="settings.html#settings-approval-rules">Require a comment on prod</a> in Settings</p>
+                    </div>
+                  </div>
+                  <dl class="gw-kv gw-kv--dense">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">When the time runs out</dt><dd class="gw-kv__value"><span class="gw-badge"><i class="gw-icon gw-badge__icon" data-lucide="timer-off"></i>Denied</span> <span class="gw-text-caption gw-fg-muted">always · recorded as Expired, nothing runs</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Who can approve</dt><dd class="gw-kv__value">You (local user) <span class="gw-badge gw-badge--neutral gw-badge--sm">Server mode only</span> <span class="gw-text-caption gw-fg-muted">named approvers and roles; on this desktop every decision is signed “by you”</span></dd></div>
+                  </dl>
+                  <fieldset class="gw-field" aria-describedby="pp-apr-ch-hint">
+                    <legend class="gw-field__label">Announce requests in</legend>
+                    <label class="gw-checkbox">
+                      <input class="gw-checkbox__input" type="checkbox" checked>
+                      <span class="gw-checkbox__control" aria-hidden="true"></span>
+                      <span class="gw-checkbox__label">Desktop notification</span>
+                    </label>
+                    <label class="gw-checkbox">
+                      <input class="gw-checkbox__input" type="checkbox" checked>
+                      <span class="gw-checkbox__control" aria-hidden="true"></span>
+                      <span class="gw-checkbox__label">Slack <span class="gw-mono">#deploy-approvals</span></span>
+                    </label>
+                    <p class="gw-text-small gw-fg-muted">Telegram is not set up. <a class="gw-link" href="settings.html#settings-notifications">Set it up in Settings</a></p>
+                    <p class="gw-field__hint" id="pp-apr-ch-hint">Channels are connected in Settings. The agent's note is never sent to a channel.</p>
+                  </fieldset>
+                </div>
+              </section>
+
+              <!-- Rendered only while this form has unsaved changes. -->
+              <div class="gw-form__actions">
+                <p class="gw-form__note" role="status"><i class="gw-icon" data-lucide="circle-dot"></i>Unsaved changes · approval timeout on prod, 10 to 15 min</p>
+                <button class="gw-btn" type="reset">Discard</button>
+                <button class="gw-btn gw-btn--primary" type="submit" data-gw-toast="Approval timeout on prod: 15 min. Requests already waiting keep their timer." data-gw-toast-title="Prod policy saved" data-gw-toast-tone="success">Save prod policy</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- Server mode preview: no permission. On the desktop you hold every permission, so this never shows here;
+           in server mode a Developer or Viewer opens Policies read only, and the alert says what is needed and who
+           can grant it (DESIGN §8 Screen states). Named people appear only inside this labelled preview. -->
+      <section class="gw-section" aria-labelledby="pol-denied-t">
+        <header class="gw-section__header">
+          <h2 class="gw-section__title" id="pol-denied-t">No permission <span class="gw-badge gw-badge--neutral gw-badge--sm">Server mode preview</span></h2>
+          <p class="gw-section__description">Reference for server mode: what a person without the Admin role sees above the policy. On this desktop you are the only user and can change every policy.</p>
+          <div class="gw-section__actions">
+            <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="pol-denied-p">Show state <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i></button>
+          </div>
+        </header>
+        <div id="pol-denied-p" hidden>
+          <div class="gw-alert gw-alert--neutral">
+            <i class="gw-icon gw-alert__icon" data-lucide="lock"></i>
+            <div class="gw-alert__content">
+              <p class="gw-alert__title">You need the Admin role to change policies</p>
+              <p class="gw-alert__body">You can read every value here and see what each one blocks. Ask Alex Morgan (Owner) for the Admin role; the change is recorded in Activity › Setup changes.</p>
+              <div class="gw-alert__actions"><a class="gw-btn gw-btn--link gw-btn--sm" href="settings.html#settings-users">Users and roles<span class="gw-sr-only">, server mode preview</span></a></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Prod: allowing arbitrary shell is the most dangerous permission, so turning it on asks first.
+           Cancel keeps it off (autofocus); the danger button names the object. -->
+      <dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" id="pol-dlg-prod-exec" aria-labelledby="pol-dlg-prod-exec-title" aria-describedby="pol-dlg-prod-exec-desc">
+        <header class="gw-dialog__header">
+          <span class="gw-icon-tile"><i class="gw-icon" data-lucide="terminal"></i></span>
+          <h2 class="gw-dialog__title" id="pol-dlg-prod-exec-title">Allow any shell command on prod-vm?</h2>
+          <p class="gw-dialog__description" id="pol-dlg-prod-exec-desc">Agents could ask to run anything on <span class="gw-mono">prod-vm</span>, not only its two runbooks. Every command still waits for your approval with a comment, but a long command is easy to approve by mistake.</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <footer class="gw-dialog__footer">
+          <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Keep it off</button>
+          <button class="gw-btn gw-btn--danger" type="button" data-gw-dialog-close value="allow">Allow ssh_exec on prod</button>
+        </footer>
+      </dialog>
+
+      <!-- Destructive: reset an environment. Danger-ghost trigger in the panel toolbar, danger confirm naming the object.
+           Reset takes away every value the environment stores, the never-inherited ones too (namespaces, cloud lists,
+           base URLs, private ranges, ssh_exec), and the dialog names each one. -->
+      <dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" id="pol-dlg-reset-dev" aria-labelledby="pol-dlg-reset-dev-title" aria-describedby="pol-dlg-reset-dev-desc">
+        <header class="gw-dialog__header">
+          <span class="gw-icon-tile"><i class="gw-icon" data-lucide="rotate-ccw"></i></span>
+          <h2 class="gw-dialog__title" id="pol-dlg-reset-dev-title">Reset the dev policy to its defaults?</h2>
+          <p class="gw-dialog__description" id="pol-dlg-reset-dev-desc">The 4 values set on dev go back to dev defaults: table allowlist to none, namespaces to none, personal data masking to none, masked fields to none. Stage follows wherever it sets nothing itself.</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <footer class="gw-dialog__footer">
+          <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
+          <button class="gw-btn gw-btn--danger" type="button" data-gw-dialog-close data-gw-toast="Dev follows its defaults again." data-gw-toast-title="Dev policy reset" data-gw-toast-tone="neutral">Reset dev policy</button>
+        </footer>
+      </dialog>
+
+      <dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" id="pol-dlg-reset-stage" aria-labelledby="pol-dlg-reset-stage-title" aria-describedby="pol-dlg-reset-stage-desc">
+        <header class="gw-dialog__header">
+          <span class="gw-icon-tile"><i class="gw-icon" data-lucide="rotate-ccw"></i></span>
+          <h2 class="gw-dialog__title" id="pol-dlg-reset-stage-title">Reset the stage policy to dev?</h2>
+          <p class="gw-dialog__description" id="pol-dlg-reset-stage-desc">The 6 values set on stage go back to dev: row limit 500 to 1,000 rows, max response 256 to 512 KB, allowed services to none, regions to none, resource patterns to none, allowed base URLs to none.</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <footer class="gw-dialog__footer">
+          <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
+          <button class="gw-btn gw-btn--danger" type="button" data-gw-dialog-close data-gw-toast="6 values on stage now follow dev." data-gw-toast-title="Stage policy reset" data-gw-toast-tone="neutral">Reset stage policy</button>
+        </footer>
+      </dialog>
+
+      <dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" id="pol-dlg-reset-prod" aria-labelledby="pol-dlg-reset-prod-title" aria-describedby="pol-dlg-reset-prod-desc">
+        <header class="gw-dialog__header">
+          <span class="gw-icon-tile"><i class="gw-icon" data-lucide="rotate-ccw"></i></span>
+          <h2 class="gw-dialog__title" id="pol-dlg-reset-prod-title">Reset the prod policy to its defaults?</h2>
+          <p class="gw-dialog__description" id="pol-dlg-reset-prod-desc">The 2 values set on prod go back to prod defaults: table allowlist to none, masked fields to none. Your unsaved approval timeout is discarded.</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <footer class="gw-dialog__footer">
+          <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
+          <button class="gw-btn gw-btn--danger" type="button" data-gw-dialog-close data-gw-toast="Prod follows its defaults again." data-gw-toast-title="Prod policy reset" data-gw-toast-tone="neutral">Reset prod policy</button>
+        </footer>
+      </dialog>
+    </div>
+    <!--
+      Command palette (elements/command-palette.html), opened by the titlebar Search button and ⌘K / Ctrl+K.
+      Part of the shell: copy it with the titlebar into every page, at the end of main. kit.js drives it, no page
+      script: data-gw-dialog-open="cmdk" opens it, the .gw-command-palette hook filters the options, moves the
+      active one (arrows, Home / End, pointer), runs it on Enter and resets on close, and the global ⌘K / Ctrl+K
+      listener toggles #cmdk (COMPONENTS.md › command-palette).
+    -->
+    <dialog class="gw-dialog gw-dialog--md gw-command-palette" id="cmdk" aria-labelledby="cmdk-title" aria-describedby="cmdk-keys">
+      <h2 class="gw-sr-only" id="cmdk-title">Command palette</h2>
+      <div class="gw-command-palette__search">
+        <div class="gw-search">
+          <i class="gw-icon gw-search__icon" data-lucide="search"></i>
+          <input class="gw-search__input" type="search" id="cmdk-q" role="combobox" aria-expanded="true" aria-controls="cmdk-list" aria-autocomplete="list" aria-activedescendant="cmdk-o-overview" aria-label="Search pages, connections, endpoints, actions" placeholder="Search pages, connections, endpoints, actions" autocomplete="off" spellcheck="false" autofocus>
+          <button class="gw-search__clear" type="button" aria-label="Clear search"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+        </div>
+      </div>
+      <div class="gw-command-palette__results">
+        <div class="gw-command-palette__list" role="listbox" id="cmdk-list" aria-label="Results">
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-goto">
+            <p class="gw-menu__note" id="cmdk-g-goto" aria-hidden="true">Go to</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-overview" href="overview.html" aria-selected="true" tabindex="-1" data-keywords="home dashboard setup map health">
+              <i class="gw-icon gw-menu__icon" data-lucide="layout-dashboard"></i><span class="gw-menu__label">Overview</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-approvals" href="approvals.html" aria-selected="false" tabindex="-1" data-keywords="requests pending queue decide">
+              <i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approvals <span class="gw-counter gw-counter--attention">3<span class="gw-sr-only"> waiting</span></span></span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-connections" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="databases servers logs clusters">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label">Connections</span><span class="gw-menu__hint">Resources</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-connectors" href="connectors.html" aria-selected="false" tabindex="-1" data-keywords="plugins templates mcp servers catalog">
+              <i class="gw-icon gw-menu__icon" data-lucide="puzzle"></i><span class="gw-menu__label">Connectors</span><span class="gw-menu__hint">Resources</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-secrets" href="secrets.html" aria-selected="false" tabindex="-1" data-keywords="master key vault encryption">
+              <i class="gw-icon gw-menu__icon" data-lucide="key-round"></i><span class="gw-menu__label">Secrets</span><span class="gw-menu__hint">Resources</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-endpoints" href="endpoints.html" aria-selected="false" tabindex="-1" data-keywords="mcp url tools tokens">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label">Endpoints</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-clients" href="clients.html" aria-selected="false" tabindex="-1" data-keywords="clients mcp claude desktop codex cursor antigravity">
+              <i class="gw-icon gw-menu__icon" data-lucide="app-window"></i><span class="gw-menu__label">AI apps</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-policies" href="policies.html" aria-selected="false" tabindex="-1" data-keywords="limits allowlist environments">
+              <i class="gw-icon gw-menu__icon" data-lucide="shield"></i><span class="gw-menu__label">Policies</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-playground" href="playground.html" aria-selected="false" tabindex="-1" data-keywords="try call tool">
+              <i class="gw-icon gw-menu__icon" data-lucide="flask-conical"></i><span class="gw-menu__label">Playground</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-activity" href="activity.html" aria-selected="false" tabindex="-1" data-keywords="log audit calls events traces">
+              <i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">Activity</span><span class="gw-menu__hint">Observe</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-insights" href="insights.html" aria-selected="false" tabindex="-1" data-keywords="analytics charts latency errors">
+              <i class="gw-icon gw-menu__icon" data-lucide="chart-column"></i><span class="gw-menu__label">Insights</span><span class="gw-menu__hint">Observe</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-settings" href="settings.html" aria-selected="false" tabindex="-1" aria-keyshortcuts="Meta+Comma Control+Comma" data-keywords="preferences notifications tunnel authorization appearance">
+              <i class="gw-icon gw-menu__icon" data-lucide="settings"></i><span class="gw-menu__label">Settings</span><kbd class="gw-menu__kbd" aria-hidden="true">⌘ ,</kbd><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+          </div>
+
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-actions">
+            <p class="gw-menu__note" id="cmdk-g-actions" aria-hidden="true">Actions</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-add-connection" href="connection-new.html" aria-selected="false" tabindex="-1" data-keywords="new resource postgres mongodb redis kubernetes">
+              <i class="gw-icon gw-menu__icon" data-lucide="plus"></i><span class="gw-menu__label">Add connection</span><span class="gw-menu__hint">Database, SSH, logs, cluster</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-create-endpoint" href="endpoints.html" aria-selected="false" tabindex="-1" data-keywords="new mcp url">
+              <i class="gw-icon gw-menu__icon" data-lucide="square-plus"></i><span class="gw-menu__label">Create endpoint</span><span class="gw-menu__hint">New MCP URL</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-issue-token" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="new token access key client">
+              <i class="gw-icon gw-menu__icon" data-lucide="key-round"></i><span class="gw-menu__label">Issue token</span><span class="gw-menu__hint">Shown once</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <button class="gw-menu__item" type="button" role="option" id="cmdk-o-copy-dev" aria-selected="false" tabindex="-1" data-gw-copy="http://127.0.0.1:7465/mcp/dev" data-gw-dialog-close data-keywords="clipboard link">
+              <i class="gw-icon gw-menu__icon" data-lucide="copy"></i><span class="gw-menu__label">Copy URL of endpoint <span class="gw-mono">dev</span></span><span class="gw-menu__hint gw-mono">/mcp/dev</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </button>
+            <button class="gw-menu__item" type="button" role="option" id="cmdk-o-theme" aria-selected="false" tabindex="-1" data-cmdk-theme data-gw-dialog-close data-keywords="dark light appearance">
+              <i class="gw-icon gw-menu__icon" data-lucide="sun-moon"></i><span class="gw-menu__label">Toggle theme</span><span class="gw-menu__hint">Light or dark</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </button>
+          </div>
+
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-connections">
+            <p class="gw-menu__note" id="cmdk-g-connections" aria-hidden="true">Connections</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-dev-db" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="postgres sql db.dev.internal">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label"><span class="gw-mono">dev-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></span><span class="gw-menu__hint">PostgreSQL 16</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-stage-db" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="postgres sql vault">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label"><span class="gw-mono">stage-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--stage">stage</span></span><span class="gw-menu__hint">PostgreSQL</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-prod-replica" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="postgres sql replica">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label"><span class="gw-mono">prod-replica</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--prod">prod</span></span><span class="gw-menu__hint">PostgreSQL read replica</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-dev-vm" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="ssh server runbook">
+              <i class="gw-icon gw-menu__icon" data-lucide="terminal"></i><span class="gw-menu__label"><span class="gw-mono">dev-vm</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></span><span class="gw-menu__hint">SSH · <span class="gw-mono">10.20.0.14</span></span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+          </div>
+
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-endpoints">
+            <p class="gw-menu__note" id="cmdk-g-endpoints" aria-hidden="true">Endpoints</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-ep-dev" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="endpoint tools tokens">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label gw-mono">dev</span><span class="gw-menu__hint gw-mono">/mcp/dev</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-ep-stage-readonly" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="endpoint claude.ai tunnel read only">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label gw-mono">stage-readonly</span><span class="gw-menu__hint gw-mono">/mcp/stage-readonly</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-ep-incident-prod" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="endpoint prod logs read only incident">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label gw-mono">incident-prod</span><span class="gw-menu__hint gw-mono">/mcp/incident-prod</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+          </div>
+        </div>
+
+        <div class="gw-empty gw-empty--compact" hidden data-cmdk-empty>
+          <span class="gw-empty__icon"><i class="gw-icon" data-lucide="search-x"></i></span>
+          <p class="gw-empty__title">No results for “<span data-cmdk-query></span>”</p>
+          <p class="gw-empty__text">Search covers pages, actions, connections and endpoints. A resource that isn't here yet starts with a new connection.</p>
+          <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" href="connection-new.html">Add connection</a></div>
+        </div>
+      </div>
+      <footer class="gw-dialog__footer gw-command-palette__footer" id="cmdk-keys">
+        <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd"><i class="gw-icon" data-lucide="arrow-up"></i><span class="gw-sr-only">Up arrow</span></kbd><kbd class="gw-kbd"><i class="gw-icon" data-lucide="arrow-down"></i><span class="gw-sr-only">Down arrow</span></kbd> to move</p>
+        <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd"><i class="gw-icon" data-lucide="corner-down-left"></i><span class="gw-sr-only">Enter</span></kbd> to open</p>
+        <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd">Esc</kbd> to close</p>
+      </footer>
+      <p class="gw-sr-only" role="status" data-cmdk-status></p>
+    </dialog>
+  </main>
+
+</div>
+<script src="../vendor/lucide/lucide.min.js"></script>
+<script src="../assets/kit.js"></script>
+<script>
+/* Page-local demo behaviour (policies.html). Deep links (#stage, #dev-masking) are kit.js: a hash that names
+   a tab panel or anything inside one selects that environment's tab. Approval requests link here with
+   "Open in Policies" (policies.html#dev-sql), Activity's masking alert with policies.html#dev-masking.
+   Here only: allowing ssh_exec on prod asks first; Cancel, Esc or the close button keep it off. */
+(function () {
+  "use strict";
+  var doc = document;
+  var exec = doc.getElementById("pp-ssh-exec");
+  var dlg = doc.getElementById("pol-dlg-prod-exec");
+  if (!exec || !dlg) return;
+  exec.addEventListener("change", function () {
+    if (!exec.checked) return;
+    exec.checked = false;
+    dlg.showModal();
+    if (window.gwIcons) window.gwIcons(dlg);
+  });
+  dlg.addEventListener("close", function () {
+    if (dlg.returnValue === "allow") {
+      exec.checked = true;
+      exec.dispatchEvent(new Event("input", { bubbles: true }));
+      if (window.gwAnnounce) window.gwAnnounce("ssh_exec allowed on prod in the form. Save the prod policy to apply it.");
+    }
+    dlg.returnValue = "";
+    exec.focus();
+  });
+})();
+</script>
+</body>
+</html>

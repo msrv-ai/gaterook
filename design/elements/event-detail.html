@@ -1,0 +1,1848 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Event detail · Element · GateRook kit</title>
+<link rel="icon" href="../assets/logo-mark.svg" type="image/svg+xml">
+<script src="../assets/theme-boot.js"></script>
+<link rel="stylesheet" href="../dist/gw-kit.css">
+</head>
+<body>
+<a class="gw-skip-link" href="#main">Skip to content</a>
+<main class="gw-page" id="main" tabindex="-1">
+
+  <header class="gw-page-header">
+    <div class="gw-page-header__row">
+      <div class="gw-page-header__heading">
+        <h1 class="gw-page-header__title">Event detail</h1>
+        <p class="gw-page-header__description">Everything about one logged call, in the order you ask about it: what happened, who asked, why the policy decided so, what came back and where the time went. Opens in a drawer from an Activity row; also the history detail in Approvals and the last call in Playground.</p>
+      </div>
+      <div class="gw-page-header__actions">
+        <fieldset class="gw-segmented gw-segmented--sm">
+          <legend class="gw-sr-only">Theme</legend>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i> System</span></label>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i> Light</span></label>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i> Dark</span></label>
+        </fieldset>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═══════════════ 1 · Approved mutation, every section ═══════════════ -->
+  <section class="gw-section" aria-labelledby="s-approved">
+    <div class="gw-section__header">
+      <h2 class="gw-section__title" id="s-approved">Approved mutation, every section</h2>
+      <p class="gw-section__description">A <code class="gw-code">sql_execute</code> that waited for a human: the rule that asked for approval, the approval path and the 47 s wait in the timing.</p>
+    </div>
+    <div class="gw-card">
+      <div class="gw-card__body">
+        <article class="gw-event-detail" aria-labelledby="ed-ap-decision ed-ap-title">
+          <header class="gw-event-detail__summary">
+            <div class="gw-event-detail__headline">
+              <span class="gw-badge gw-badge--success" id="ed-ap-decision"><i class="gw-icon gw-badge__icon" data-lucide="user-check"></i>Approved</span>
+              <h3 class="gw-event-detail__title gw-text-h3" id="ed-ap-title"><code class="gw-code">sql_execute</code> on <code class="gw-code">dev-db</code> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev">dev</span></h3>
+            </div>
+            <dl class="gw-kv gw-kv--inline">
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key">Time</dt>
+                <dd class="gw-kv__value"><time datetime="2026-10-22T13:52:04+02:00" title="2026-10-22T13:52:04+02:00">2026-10-22 13:52:04</time> · 38 min ago</dd>
+              </div>
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key">Duration</dt>
+                <dd class="gw-kv__value gw-tabular">47.0 s · 47 s waiting for approval</dd>
+              </div>
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key">Event</dt>
+                <dd class="gw-kv__value gw-mono">ev_7c41e2d0</dd>
+              </div>
+            </dl>
+            <div class="gw-event-detail__actions">
+              <button class="gw-btn gw-btn--sm" type="button" data-gw-copy="gaterook://activity/events/ev_7c41e2d0" data-gw-toast="Link to event ev_7c41e2d0 copied" data-gw-toast-tone="success"><i class="gw-icon gw-icon--sm" data-lucide="link"></i> Copy link</button>
+              <a class="gw-btn gw-btn--sm" href="#s-trace"><i class="gw-icon gw-icon--sm" data-lucide="list-tree"></i> Open trace</a>
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-expand="#ed-ap-raw-body"><i class="gw-icon gw-icon--sm" data-lucide="braces"></i> View raw<span class="gw-sr-only"> event JSON</span></button>
+            </div>
+          </header>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-ap-request">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-ap-request">Request</h4>
+            </div>
+            <dl class="gw-kv">
+              <div class="gw-kv__row"><dt class="gw-kv__key">AI app</dt><dd class="gw-kv__value"><span class="gw-client-mark gw-client-mark--codex gw-client-mark--sm" aria-hidden="true">Cx</span> Codex</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Token</dt><dd class="gw-kv__value"><code class="gw-code">codex-laptop</code> · short-lived, issued on the fly</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">dev</code> · <span class="gw-mono">/mcp/dev</span></dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Protocol</dt><dd class="gw-kv__value">MCP revision <span class="gw-mono">2026-07-28</span> · Streamable HTTP</dd></div>
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key" id="ed-ap-trace-key">Trace id</dt>
+                <dd class="gw-kv__value">
+                  <div class="gw-copy-field" role="group" aria-labelledby="ed-ap-trace-key">
+                    <code class="gw-copy-field__value" id="ed-ap-trace">4f2a9c71e8d04b5a9c3e2b1f0a6d8e81</code>
+                    <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" data-gw-copy-from="#ed-ap-trace">
+                      <span class="gw-copy-field__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> trace id</span></span>
+                      <span class="gw-copy-field__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                    </button>
+                  </div>
+                </dd>
+              </div>
+            </dl>
+          </section>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-ap-args">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-ap-args">Arguments</h4>
+            </div>
+            <div class="gw-code-block gw-code-block--wrap">
+              <div class="gw-code-block__header">
+                <span class="gw-code-block__lang">JSON</span>
+                <span class="gw-code-block__filename">arguments · sql_execute</span>
+                <div class="gw-code-block__actions">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ed-ap-args-json">
+                    <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> arguments</span></span>
+                    <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                  </button>
+                </div>
+              </div>
+              <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Arguments of sql_execute">
+<pre class="gw-code-block__pre" id="ed-ap-args-json"><code>{
+  <span class="gw-tok-property">"connection"</span>: <span class="gw-tok-string">"dev-db"</span>,
+  <span class="gw-tok-property">"sql"</span>: <span class="gw-tok-string">"UPDATE order_sync_jobs SET state = 'queued' WHERE id = 9172;"</span>,
+  <span class="gw-tok-property">"context"</span>: {
+    <span class="gw-tok-property">"ticket"</span>: <span class="gw-tok-string">"SUP-4471"</span>,
+    <span class="gw-tok-property">"customer_email"</span>: <span class="gw-tok-secret">"‹masked›"</span>,
+    <span class="gw-tok-property">"customer_phone"</span>: <span class="gw-tok-secret">"‹masked›"</span>
+  }
+}</code></pre>
+              </div>
+            </div>
+            <p class="gw-text-caption gw-fg-muted">2 values masked by policy (personal data). The originals never reach the audit log.</p>
+          </section>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-ap-policy">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-ap-policy">Policy decision</h4>
+              <a class="gw-btn gw-btn--link gw-btn--sm" href="../pages/policies.html">Open policies</a>
+            </div>
+            <ol class="gw-timeline" aria-label="Rules evaluated for sql_execute on dev-db, in order">
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--info"><i class="gw-icon gw-icon--sm" data-lucide="scan-search"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title"><code class="gw-code">sql</code>: classified as DML</p>
+                  <p class="gw-timeline__meta">UPDATE on 1 table, WHERE on the primary key, at most 1 row</p>
+                </div>
+              </li>
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--warning"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title"><code class="gw-code">dev.sql.write-approval</code> <span class="gw-badge gw-badge--brand gw-badge--sm">Matched rule</span></p>
+                  <p class="gw-timeline__meta">Changes data: every change waits for a person on dev.</p>
+                </div>
+              </li>
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--success"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title"><code class="gw-code">limits</code>: within rate limit</p>
+                  <p class="gw-timeline__meta">14 of 120 calls per minute on endpoint <code class="gw-code">dev</code></p>
+                </div>
+              </li>
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--warning"><i class="gw-icon gw-icon--sm" data-lucide="hourglass"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title">Decision: ask for approval</p>
+                  <p class="gw-timeline__meta">Approval request <span class="gw-mono">ap_5d21q8m2k7xc</span> sent to you</p>
+                </div>
+              </li>
+            </ol>
+          </section>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-ap-approval">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-ap-approval">Approval</h4>
+              <a class="gw-btn gw-btn--link gw-btn--sm" href="../pages/approvals.html">Open in Approvals</a>
+            </div>
+            <ol class="gw-timeline" aria-label="Approval history of sql_execute on dev-db">
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--neutral"><i class="gw-icon gw-icon--sm" data-lucide="send"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title">Requested by Codex</p>
+                  <p class="gw-timeline__meta">Token <code class="gw-code">codex-laptop</code> · auto-deny after 5 min</p>
+                </div>
+                <time class="gw-timeline__time" datetime="2026-10-22T13:52:04+02:00" title="2026-10-22T13:52:04+02:00">13:52:04</time>
+              </li>
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--info"><i class="gw-icon gw-icon--sm" data-lucide="bell"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title">Notified on the desktop and in Slack</p>
+                  <p class="gw-timeline__meta">Sent to you · <span class="gw-mono">#deploy-approvals</span></p>
+                </div>
+                <time class="gw-timeline__time" datetime="2026-10-22T13:52:04+02:00" title="2026-10-22T13:52:04+02:00">13:52:04</time>
+              </li>
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--success"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title">Approved by you</p>
+                  <p class="gw-timeline__meta">In the app, opened from the desktop notification · after 47 s</p>
+                  <blockquote class="gw-timeline__comment"><p>Re-queue the stuck job. Payload checked against SUP-4471.</p></blockquote>
+                </div>
+                <time class="gw-timeline__time" datetime="2026-10-22T13:52:51+02:00" title="2026-10-22T13:52:51+02:00">13:52:51</time>
+              </li>
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--success"><i class="gw-icon gw-icon--sm" data-lucide="circle-check"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title">Executed in 38 ms</p>
+                  <p class="gw-timeline__meta">1 row updated · result returned to Codex</p>
+                </div>
+                <time class="gw-timeline__time" datetime="2026-10-22T13:52:51+02:00" title="2026-10-22T13:52:51+02:00">13:52:51</time>
+              </li>
+            </ol>
+            <dl class="gw-kv gw-kv--dense">
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key" id="ed-ap-act-sha-key">Approved action SHA-256</dt>
+                <dd class="gw-kv__value">
+                  <div class="gw-copy-field" role="group" aria-labelledby="ed-ap-act-sha-key">
+                    <code class="gw-copy-field__value" id="ed-ap-act-sha" title="551fc479fedf19b8cdc4880d0432359a2a2c2833fc2b32d05a5143eff65e9407">551fc479fedf19b8cdc4880d0432359a2a2c2833fc2b32d05a5143eff65e9407</code>
+                    <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" data-gw-copy-from="#ed-ap-act-sha">
+                      <span class="gw-copy-field__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> SHA-256 of the approved action</span></span>
+                      <span class="gw-copy-field__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                    </button>
+                  </div>
+                </dd>
+              </div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Executed action</dt><dd class="gw-kv__value"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Matches the approved action, byte for byte</span></span></dd></div>
+            </dl>
+          </section>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-ap-result">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-ap-result">Result</h4>
+            </div>
+            <dl class="gw-kv">
+              <div class="gw-kv__row"><dt class="gw-kv__key">Status</dt><dd class="gw-kv__value">Executed, 1 row updated</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Rows</dt><dd class="gw-kv__value gw-tabular">1</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Size</dt><dd class="gw-kv__value gw-tabular">312 B</dd></div>
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key" id="ed-ap-sha-key">SHA-256</dt>
+                <dd class="gw-kv__value">
+                  <div class="gw-copy-field" role="group" aria-labelledby="ed-ap-sha-key">
+                    <code class="gw-copy-field__value" id="ed-ap-sha" title="7fc28077c9c9e3d925aa47db169d1cbdc7f730f5459f424157e7773578699118">7fc28077c9c9e3d925aa47db169d1cbdc7f730f5459f424157e7773578699118</code>
+                    <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" data-gw-copy-from="#ed-ap-sha">
+                      <span class="gw-copy-field__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> SHA-256 of the result</span></span>
+                      <span class="gw-copy-field__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                    </button>
+                  </div>
+                </dd>
+              </div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Masked fields</dt><dd class="gw-kv__value gw-tabular">0</dd></div>
+            </dl>
+            <div class="gw-code-block gw-code-block--wrap">
+              <div class="gw-code-block__header">
+                <span class="gw-code-block__lang">JSON</span>
+                <span class="gw-code-block__filename">structuredContent</span>
+                <div class="gw-code-block__actions">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ed-ap-result-json">
+                    <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> result</span></span>
+                    <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                  </button>
+                </div>
+              </div>
+              <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Result returned to Codex">
+<pre class="gw-code-block__pre" id="ed-ap-result-json"><code>{
+  <span class="gw-tok-property">"command"</span>: <span class="gw-tok-string">"UPDATE"</span>,
+  <span class="gw-tok-property">"rowCount"</span>: <span class="gw-tok-number">1</span>
+}</code></pre>
+              </div>
+            </div>
+            <p class="gw-text-caption gw-fg-muted">What Codex received, verbatim.</p>
+          </section>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-ap-timing">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-ap-timing">Timing</h4>
+            </div>
+            <p class="gw-text-small gw-fg-secondary" id="ed-ap-timing-label">47.0 s in total: 47 s waiting for you, 38 ms in <code class="gw-code">dev-db</code>, 8 ms in the gateway</p>
+            <ol class="gw-waterfall" aria-labelledby="ed-ap-timing-label">
+              <li class="gw-waterfall__row">
+                <span class="gw-waterfall__label">Authenticate token and check policy</span>
+                <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--gateway" style="--start: 0; --len: 0.0001"></span></span>
+                <span class="gw-waterfall__value">6 ms</span>
+              </li>
+              <li class="gw-waterfall__row">
+                <span class="gw-waterfall__label">Waiting for approval</span>
+                <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--approval" style="--start: 0.0001; --len: 0.999"></span></span>
+                <span class="gw-waterfall__value">47 s</span>
+              </li>
+              <li class="gw-waterfall__row">
+                <span class="gw-waterfall__label">Execute on <code class="gw-code">dev-db</code></span>
+                <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--resource" style="--start: 0.9991; --len: 0.0008"></span></span>
+                <span class="gw-waterfall__value">38 ms</span>
+              </li>
+              <li class="gw-waterfall__row">
+                <span class="gw-waterfall__label">Mask result and write audit</span>
+                <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--gateway" style="--start: 0.9999; --len: 0.0001"></span></span>
+                <span class="gw-waterfall__value">2 ms</span>
+              </li>
+            </ol>
+            <ul class="gw-legend" aria-label="Timing phases">
+              <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--neutral"></span>Gateway</li>
+              <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--brand"></span>Resource</li>
+              <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--warning gw-legend__swatch--hatch"></span>Waiting for approval</li>
+            </ul>
+          </section>
+
+          <section class="gw-event-detail__section" id="ed-ap-raw" aria-labelledby="ed-ap-raw-title">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-ap-raw-title">Raw event</h4>
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="ed-ap-raw-body">
+                <span class="gw-event-detail__when-collapsed"><i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i> Show JSON</span>
+                <span class="gw-event-detail__when-expanded"><i class="gw-icon gw-icon--sm" data-lucide="chevron-up"></i> Hide JSON</span>
+              </button>
+            </div>
+            <p class="gw-text-caption gw-fg-muted">The record as stored in the append-only audit log, 2.4 KB, masked values included.</p>
+            <div id="ed-ap-raw-body" hidden>
+              <div class="gw-code-block gw-code-block--scroll">
+                <div class="gw-code-block__header">
+                  <span class="gw-code-block__lang">JSON</span>
+                  <span class="gw-code-block__filename">ev_7c41e2d0.json</span>
+                  <div class="gw-code-block__actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ed-ap-raw-json">
+                      <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> raw event</span></span>
+                      <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Raw event ev_7c41e2d0">
+<pre class="gw-code-block__pre" id="ed-ap-raw-json"><code>{
+  "id": "ev_7c41e2d0",
+  "time": "2026-10-22T13:52:04.218+02:00",
+  "trace_id": "4f2a9c71e8d04b5a9c3e2b1f0a6d8e81",
+  "client": { "name": "Codex", "token": "codex-laptop", "token_prefix": null, "issued_by": "http_headers_helper" },
+  "endpoint": "dev",
+  "protocol": "2026-07-28",
+  "tool": "sql_execute",
+  "connection": { "name": "dev-db", "type": "postgresql", "env": "dev" },
+  "arguments": {
+    "connection": "dev-db",
+    "sql": "UPDATE order_sync_jobs SET state = 'queued' WHERE id = 9172;",
+    "context": { "ticket": "SUP-4471", "customer_email": "‹masked›", "customer_phone": "‹masked›" }
+  },
+  "policy": {
+    "rules": [
+      { "rule": "sql", "class": "dml", "tables": 1, "rows": 1 },
+      { "rule": "dev.sql.write-approval", "matched": true, "effect": "approval" },
+      { "rule": "limits", "rate_per_min": { "used": 14, "limit": 120 } }
+    ],
+    "decision": "approval_required"
+  },
+  "approval": {
+    "id": "ap_5d21q8m2k7xc",
+    "notified": ["desktop", "slack"],
+    "decided_by": "local user",
+    "decision": "approved",
+    "decided_at": "2026-10-22T13:52:51.044+02:00",
+    "comment": "Re-queue the stuck job. Payload checked against SUP-4471.",
+    "action_sha256": "551fc479fedf19b8cdc4880d0432359a2a2c2833fc2b32d05a5143eff65e9407",
+    "executed_action_sha256": "551fc479fedf19b8cdc4880d0432359a2a2c2833fc2b32d05a5143eff65e9407",
+    "action_match": true
+  },
+  "decision": "approved",
+  "result": { "status": "ok", "rows": 1, "bytes": 312, "masked_fields": 0,
+              "sha256": "7fc28077c9c9e3d925aa47db169d1cbdc7f730f5459f424157e7773578699118" },
+  "timing_ms": { "gateway": 6, "approval_wait": 47000, "resource": 38, "mask_and_audit": 2, "total": 47046 },
+  "masked_values": 2
+}</code></pre>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <hr class="gw-divider">
+          <footer class="gw-event-detail__footer">
+            <a class="gw-btn gw-btn--ghost gw-btn--sm" href="../pages/activity.html?q=token:codex-laptop"><i class="gw-icon gw-icon--sm" data-lucide="filter"></i> Filter by this token<span class="gw-sr-only"> codex-laptop</span></a>
+            <a class="gw-btn gw-btn--ghost gw-btn--sm" href="../pages/activity.html?q=tool:sql_execute"><i class="gw-icon gw-icon--sm" data-lucide="filter"></i> Filter by this tool<span class="gw-sr-only"> sql_execute</span></a>
+            <a class="gw-btn gw-btn--ghost gw-btn--sm" href="../pages/insights.html?q=tool:sql_execute"><i class="gw-icon gw-icon--sm" data-lucide="chart-column"></i> View in Insights</a>
+          </footer>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ 2 · In the drawer ═══════════════ -->
+  <section class="gw-section" aria-labelledby="s-drawer">
+    <div class="gw-section__header">
+      <h2 class="gw-section__title" id="s-drawer">In the Activity drawer</h2>
+      <p class="gw-section__description">The same element in a <code class="gw-code">gw-drawer--lg</code>, the way Activity opens it from an event row. The drawer title names the event; Esc or Close returns focus to the button.</p>
+    </div>
+    <div>
+      <button class="gw-btn" type="button" data-gw-dialog-open="ed-drawer"><i class="gw-icon" data-lucide="panel-right-open"></i> Open event 7c41e2d0</button>
+    </div>
+    <dialog class="gw-drawer gw-drawer--lg" id="ed-drawer" aria-labelledby="ed-drawer-title" aria-describedby="ed-drawer-desc">
+      <header class="gw-drawer__header">
+        <h2 class="gw-drawer__title" id="ed-drawer-title">Event <span class="gw-mono">7c41e2d0</span></h2>
+        <p class="gw-drawer__description" id="ed-drawer-desc">Call 12 of 23 in trace 4f2a9c</p>
+        <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-drawer__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+      </header>
+      <div class="gw-drawer__body">
+        <article class="gw-event-detail" aria-labelledby="ed-dr-decision ed-dr-title">
+          <header class="gw-event-detail__summary">
+            <div class="gw-event-detail__headline">
+              <span class="gw-badge gw-badge--success" id="ed-dr-decision"><i class="gw-icon gw-badge__icon" data-lucide="user-check"></i>Approved</span>
+              <h3 class="gw-event-detail__title gw-text-h3" id="ed-dr-title"><code class="gw-code">sql_execute</code> on <code class="gw-code">dev-db</code> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev">dev</span></h3>
+            </div>
+            <dl class="gw-kv gw-kv--inline">
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key">Time</dt>
+                <dd class="gw-kv__value"><time datetime="2026-10-22T13:52:04+02:00" title="2026-10-22T13:52:04+02:00">2026-10-22 13:52:04</time> · 38 min ago</dd>
+              </div>
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key">Duration</dt>
+                <dd class="gw-kv__value gw-tabular">47.0 s · 47 s waiting for approval</dd>
+              </div>
+            </dl>
+            <div class="gw-event-detail__actions">
+              <button class="gw-btn gw-btn--sm" type="button" data-gw-copy="gaterook://activity/events/ev_7c41e2d0" data-gw-toast="Link to event ev_7c41e2d0 copied" data-gw-toast-tone="success"><i class="gw-icon gw-icon--sm" data-lucide="link"></i> Copy link</button>
+              <a class="gw-btn gw-btn--sm" href="../pages/activity.html?view=traces&amp;q=trace:4f2a9c"><i class="gw-icon gw-icon--sm" data-lucide="list-tree"></i> Open trace</a>
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-expand="#ed-dr-raw-body"><i class="gw-icon gw-icon--sm" data-lucide="braces"></i> View raw<span class="gw-sr-only"> event JSON</span></button>
+            </div>
+          </header>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-dr-request">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-dr-request">Request</h4>
+            </div>
+            <dl class="gw-kv">
+              <div class="gw-kv__row"><dt class="gw-kv__key">AI app</dt><dd class="gw-kv__value"><span class="gw-client-mark gw-client-mark--codex gw-client-mark--sm" aria-hidden="true">Cx</span> Codex</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Token</dt><dd class="gw-kv__value"><code class="gw-code">codex-laptop</code> · short-lived, issued on the fly</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">dev</code> · <span class="gw-mono">/mcp/dev</span></dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Protocol</dt><dd class="gw-kv__value">MCP revision <span class="gw-mono">2026-07-28</span> · Streamable HTTP</dd></div>
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key" id="ed-dr-trace-key">Trace id</dt>
+                <dd class="gw-kv__value">
+                  <div class="gw-copy-field" role="group" aria-labelledby="ed-dr-trace-key">
+                    <code class="gw-copy-field__value" id="ed-dr-trace">4f2a9c71e8d04b5a9c3e2b1f0a6d8e81</code>
+                    <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" data-gw-copy-from="#ed-dr-trace">
+                      <span class="gw-copy-field__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> trace id</span></span>
+                      <span class="gw-copy-field__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                    </button>
+                  </div>
+                </dd>
+              </div>
+            </dl>
+          </section>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-dr-args">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-dr-args">Arguments</h4>
+            </div>
+            <div class="gw-code-block gw-code-block--wrap">
+              <div class="gw-code-block__header">
+                <span class="gw-code-block__lang">JSON</span>
+                <span class="gw-code-block__filename">arguments · sql_execute</span>
+                <div class="gw-code-block__actions">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ed-dr-args-json">
+                    <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> arguments</span></span>
+                    <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                  </button>
+                </div>
+              </div>
+              <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Arguments of sql_execute in the drawer">
+<pre class="gw-code-block__pre" id="ed-dr-args-json"><code>{
+  <span class="gw-tok-property">"connection"</span>: <span class="gw-tok-string">"dev-db"</span>,
+  <span class="gw-tok-property">"sql"</span>: <span class="gw-tok-string">"UPDATE order_sync_jobs SET state = 'queued' WHERE id = 9172;"</span>,
+  <span class="gw-tok-property">"context"</span>: {
+    <span class="gw-tok-property">"ticket"</span>: <span class="gw-tok-string">"SUP-4471"</span>,
+    <span class="gw-tok-property">"customer_email"</span>: <span class="gw-tok-secret">"‹masked›"</span>,
+    <span class="gw-tok-property">"customer_phone"</span>: <span class="gw-tok-secret">"‹masked›"</span>
+  }
+}</code></pre>
+              </div>
+            </div>
+            <p class="gw-text-caption gw-fg-muted">2 values masked by policy (personal data). The originals never reach the audit log.</p>
+          </section>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-dr-policy">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-dr-policy">Policy decision</h4>
+              <a class="gw-btn gw-btn--link gw-btn--sm" href="../pages/policies.html">Open policies</a>
+            </div>
+            <ol class="gw-timeline" aria-label="Rules evaluated for sql_execute on dev-db, in order, in the drawer">
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--info"><i class="gw-icon gw-icon--sm" data-lucide="scan-search"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title"><code class="gw-code">sql</code>: classified as DML</p>
+                  <p class="gw-timeline__meta">UPDATE on 1 table, WHERE on the primary key, at most 1 row</p>
+                </div>
+              </li>
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--warning"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title"><code class="gw-code">dev.sql.write-approval</code> <span class="gw-badge gw-badge--brand gw-badge--sm">Matched rule</span></p>
+                  <p class="gw-timeline__meta">Changes data: every change waits for a person on dev.</p>
+                </div>
+              </li>
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--success"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title"><code class="gw-code">limits</code>: within rate limit</p>
+                  <p class="gw-timeline__meta">14 of 120 calls per minute on endpoint <code class="gw-code">dev</code></p>
+                </div>
+              </li>
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--warning"><i class="gw-icon gw-icon--sm" data-lucide="hourglass"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title">Decision: ask for approval</p>
+                  <p class="gw-timeline__meta">Approval request <span class="gw-mono">ap_5d21q8m2k7xc</span> sent to you</p>
+                </div>
+              </li>
+            </ol>
+          </section>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-dr-approval">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-dr-approval">Approval</h4>
+              <a class="gw-btn gw-btn--link gw-btn--sm" href="../pages/approvals.html">Open in Approvals</a>
+            </div>
+            <ol class="gw-timeline" aria-label="Approval history of sql_execute on dev-db, in the drawer">
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--neutral"><i class="gw-icon gw-icon--sm" data-lucide="send"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title">Requested by Codex</p>
+                  <p class="gw-timeline__meta">Token <code class="gw-code">codex-laptop</code> · auto-deny after 5 min</p>
+                </div>
+                <time class="gw-timeline__time" datetime="2026-10-22T13:52:04+02:00" title="2026-10-22T13:52:04+02:00">13:52:04</time>
+              </li>
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--info"><i class="gw-icon gw-icon--sm" data-lucide="bell"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title">Notified on the desktop and in Slack</p>
+                  <p class="gw-timeline__meta">Sent to you · <span class="gw-mono">#deploy-approvals</span></p>
+                </div>
+                <time class="gw-timeline__time" datetime="2026-10-22T13:52:04+02:00" title="2026-10-22T13:52:04+02:00">13:52:04</time>
+              </li>
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--success"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title">Approved by you</p>
+                  <p class="gw-timeline__meta">In the app, opened from the desktop notification · after 47 s</p>
+                  <blockquote class="gw-timeline__comment"><p>Re-queue the stuck job. Payload checked against SUP-4471.</p></blockquote>
+                </div>
+                <time class="gw-timeline__time" datetime="2026-10-22T13:52:51+02:00" title="2026-10-22T13:52:51+02:00">13:52:51</time>
+              </li>
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--success"><i class="gw-icon gw-icon--sm" data-lucide="circle-check"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title">Executed in 38 ms</p>
+                  <p class="gw-timeline__meta">1 row updated · result returned to Codex</p>
+                </div>
+                <time class="gw-timeline__time" datetime="2026-10-22T13:52:51+02:00" title="2026-10-22T13:52:51+02:00">13:52:51</time>
+              </li>
+            </ol>
+            <dl class="gw-kv gw-kv--dense">
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key" id="ed-dr-act-sha-key">Approved action SHA-256</dt>
+                <dd class="gw-kv__value">
+                  <div class="gw-copy-field" role="group" aria-labelledby="ed-dr-act-sha-key">
+                    <code class="gw-copy-field__value" id="ed-dr-act-sha" title="551fc479fedf19b8cdc4880d0432359a2a2c2833fc2b32d05a5143eff65e9407">551fc479fedf19b8cdc4880d0432359a2a2c2833fc2b32d05a5143eff65e9407</code>
+                    <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" data-gw-copy-from="#ed-dr-act-sha">
+                      <span class="gw-copy-field__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> SHA-256 of the approved action</span></span>
+                      <span class="gw-copy-field__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                    </button>
+                  </div>
+                </dd>
+              </div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Executed action</dt><dd class="gw-kv__value"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Matches the approved action, byte for byte</span></span></dd></div>
+            </dl>
+          </section>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-dr-result">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-dr-result">Result</h4>
+            </div>
+            <dl class="gw-kv">
+              <div class="gw-kv__row"><dt class="gw-kv__key">Status</dt><dd class="gw-kv__value">Executed, 1 row updated</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Rows</dt><dd class="gw-kv__value gw-tabular">1</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Size</dt><dd class="gw-kv__value gw-tabular">312 B</dd></div>
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key" id="ed-dr-sha-key">SHA-256</dt>
+                <dd class="gw-kv__value">
+                  <div class="gw-copy-field" role="group" aria-labelledby="ed-dr-sha-key">
+                    <code class="gw-copy-field__value" id="ed-dr-sha" title="7fc28077c9c9e3d925aa47db169d1cbdc7f730f5459f424157e7773578699118">7fc28077c9c9e3d925aa47db169d1cbdc7f730f5459f424157e7773578699118</code>
+                    <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" data-gw-copy-from="#ed-dr-sha">
+                      <span class="gw-copy-field__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> SHA-256 of the result</span></span>
+                      <span class="gw-copy-field__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                    </button>
+                  </div>
+                </dd>
+              </div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Masked fields</dt><dd class="gw-kv__value gw-tabular">0</dd></div>
+            </dl>
+            <div class="gw-code-block gw-code-block--wrap">
+              <div class="gw-code-block__header">
+                <span class="gw-code-block__lang">JSON</span>
+                <span class="gw-code-block__filename">structuredContent</span>
+                <div class="gw-code-block__actions">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ed-dr-result-json">
+                    <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> result</span></span>
+                    <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                  </button>
+                </div>
+              </div>
+              <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Result returned to Codex, in the drawer">
+<pre class="gw-code-block__pre" id="ed-dr-result-json"><code>{
+  <span class="gw-tok-property">"command"</span>: <span class="gw-tok-string">"UPDATE"</span>,
+  <span class="gw-tok-property">"rowCount"</span>: <span class="gw-tok-number">1</span>
+}</code></pre>
+              </div>
+            </div>
+            <p class="gw-text-caption gw-fg-muted">What Codex received, verbatim.</p>
+          </section>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-dr-timing">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-dr-timing">Timing</h4>
+            </div>
+            <p class="gw-text-small gw-fg-secondary" id="ed-dr-timing-label">47.0 s in total: 47 s waiting for you, 38 ms in <code class="gw-code">dev-db</code>, 8 ms in the gateway</p>
+            <ol class="gw-waterfall" aria-labelledby="ed-dr-timing-label">
+              <li class="gw-waterfall__row">
+                <span class="gw-waterfall__label">Authenticate token and check policy</span>
+                <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--gateway" style="--start: 0; --len: 0.0001"></span></span>
+                <span class="gw-waterfall__value">6 ms</span>
+              </li>
+              <li class="gw-waterfall__row">
+                <span class="gw-waterfall__label">Waiting for approval</span>
+                <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--approval" style="--start: 0.0001; --len: 0.999"></span></span>
+                <span class="gw-waterfall__value">47 s</span>
+              </li>
+              <li class="gw-waterfall__row">
+                <span class="gw-waterfall__label">Execute on <code class="gw-code">dev-db</code></span>
+                <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--resource" style="--start: 0.9991; --len: 0.0008"></span></span>
+                <span class="gw-waterfall__value">38 ms</span>
+              </li>
+              <li class="gw-waterfall__row">
+                <span class="gw-waterfall__label">Mask result and write audit</span>
+                <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--gateway" style="--start: 0.9999; --len: 0.0001"></span></span>
+                <span class="gw-waterfall__value">2 ms</span>
+              </li>
+            </ol>
+            <ul class="gw-legend" aria-label="Timing phases, in the drawer">
+              <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--neutral"></span>Gateway</li>
+              <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--brand"></span>Resource</li>
+              <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--warning gw-legend__swatch--hatch"></span>Waiting for approval</li>
+            </ul>
+          </section>
+
+          <section class="gw-event-detail__section" id="ed-dr-raw" aria-labelledby="ed-dr-raw-title">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-dr-raw-title">Raw event</h4>
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="ed-dr-raw-body">
+                <span class="gw-event-detail__when-collapsed"><i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i> Show JSON</span>
+                <span class="gw-event-detail__when-expanded"><i class="gw-icon gw-icon--sm" data-lucide="chevron-up"></i> Hide JSON</span>
+              </button>
+            </div>
+            <p class="gw-text-caption gw-fg-muted">The record as stored in the append-only audit log, 2.4 KB, masked values included.</p>
+            <div id="ed-dr-raw-body" hidden>
+              <div class="gw-code-block gw-code-block--scroll">
+                <div class="gw-code-block__header">
+                  <span class="gw-code-block__lang">JSON</span>
+                  <span class="gw-code-block__filename">ev_7c41e2d0.json</span>
+                  <div class="gw-code-block__actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ed-dr-raw-json">
+                      <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> raw event</span></span>
+                      <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Raw event ev_7c41e2d0, in the drawer">
+<pre class="gw-code-block__pre" id="ed-dr-raw-json"><code>{
+  "id": "ev_7c41e2d0",
+  "time": "2026-10-22T13:52:04.218+02:00",
+  "trace_id": "4f2a9c71e8d04b5a9c3e2b1f0a6d8e81",
+  "client": { "name": "Codex", "token": "codex-laptop", "token_prefix": null, "issued_by": "http_headers_helper" },
+  "endpoint": "dev",
+  "protocol": "2026-07-28",
+  "tool": "sql_execute",
+  "connection": { "name": "dev-db", "type": "postgresql", "env": "dev" },
+  "arguments": {
+    "connection": "dev-db",
+    "sql": "UPDATE order_sync_jobs SET state = 'queued' WHERE id = 9172;",
+    "context": { "ticket": "SUP-4471", "customer_email": "‹masked›", "customer_phone": "‹masked›" }
+  },
+  "policy": {
+    "rules": [
+      { "rule": "sql", "class": "dml", "tables": 1, "rows": 1 },
+      { "rule": "dev.sql.write-approval", "matched": true, "effect": "approval" },
+      { "rule": "limits", "rate_per_min": { "used": 14, "limit": 120 } }
+    ],
+    "decision": "approval_required"
+  },
+  "approval": {
+    "id": "ap_5d21q8m2k7xc",
+    "notified": ["desktop", "slack"],
+    "decided_by": "local user",
+    "decision": "approved",
+    "decided_at": "2026-10-22T13:52:51.044+02:00",
+    "comment": "Re-queue the stuck job. Payload checked against SUP-4471.",
+    "action_sha256": "551fc479fedf19b8cdc4880d0432359a2a2c2833fc2b32d05a5143eff65e9407",
+    "executed_action_sha256": "551fc479fedf19b8cdc4880d0432359a2a2c2833fc2b32d05a5143eff65e9407",
+    "action_match": true
+  },
+  "decision": "approved",
+  "result": { "status": "ok", "rows": 1, "bytes": 312, "masked_fields": 0,
+              "sha256": "7fc28077c9c9e3d925aa47db169d1cbdc7f730f5459f424157e7773578699118" },
+  "timing_ms": { "gateway": 6, "approval_wait": 47000, "resource": 38, "mask_and_audit": 2, "total": 47046 },
+  "masked_values": 2
+}</code></pre>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <hr class="gw-divider">
+          <footer class="gw-event-detail__footer">
+            <a class="gw-btn gw-btn--ghost gw-btn--sm" href="../pages/activity.html?q=token:codex-laptop"><i class="gw-icon gw-icon--sm" data-lucide="filter"></i> Filter by this token<span class="gw-sr-only"> codex-laptop</span></a>
+            <a class="gw-btn gw-btn--ghost gw-btn--sm" href="../pages/activity.html?q=tool:sql_execute"><i class="gw-icon gw-icon--sm" data-lucide="filter"></i> Filter by this tool<span class="gw-sr-only"> sql_execute</span></a>
+            <a class="gw-btn gw-btn--ghost gw-btn--sm" href="../pages/insights.html?q=tool:sql_execute"><i class="gw-icon gw-icon--sm" data-lucide="chart-column"></i> View in Insights</a>
+          </footer>
+        </article>
+      </div>
+    </dialog>
+  </section>
+
+  <!-- ═══════════════ 3 · Allowed read ═══════════════ -->
+  <section class="gw-section" aria-labelledby="s-allowed">
+    <div class="gw-section__header">
+      <h2 class="gw-section__title" id="s-allowed">Allowed read</h2>
+      <p class="gw-section__description">A read only <code class="gw-code">sql_query</code>: no approval section, 38 ms split between the gateway and the database.</p>
+    </div>
+    <div class="gw-card">
+      <div class="gw-card__body">
+        <article class="gw-event-detail" aria-labelledby="ed-ok-decision ed-ok-title">
+          <header class="gw-event-detail__summary">
+            <div class="gw-event-detail__headline">
+              <span class="gw-badge gw-badge--success" id="ed-ok-decision"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>Allowed</span>
+              <h3 class="gw-event-detail__title gw-text-h3" id="ed-ok-title"><code class="gw-code">sql_query</code> on <code class="gw-code">dev-db</code> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev">dev</span></h3>
+            </div>
+            <dl class="gw-kv gw-kv--inline">
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key">Time</dt>
+                <dd class="gw-kv__value"><time datetime="2026-10-22T13:46:40+02:00" title="2026-10-22T13:46:40+02:00">2026-10-22 13:46:40</time> · 43 min ago</dd>
+              </div>
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key">Duration</dt>
+                <dd class="gw-kv__value gw-tabular">38 ms</dd>
+              </div>
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key">Event</dt>
+                <dd class="gw-kv__value gw-mono">ev_2b9f0c14</dd>
+              </div>
+            </dl>
+            <div class="gw-event-detail__actions">
+              <button class="gw-btn gw-btn--sm" type="button" data-gw-copy="gaterook://activity/events/ev_2b9f0c14" data-gw-toast="Link to event ev_2b9f0c14 copied" data-gw-toast-tone="success"><i class="gw-icon gw-icon--sm" data-lucide="link"></i> Copy link</button>
+              <a class="gw-btn gw-btn--sm" href="#s-trace"><i class="gw-icon gw-icon--sm" data-lucide="list-tree"></i> Open trace</a>
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-expand="#ed-ok-raw-body"><i class="gw-icon gw-icon--sm" data-lucide="braces"></i> View raw<span class="gw-sr-only"> event JSON</span></button>
+            </div>
+          </header>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-ok-request">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-ok-request">Request</h4>
+            </div>
+            <dl class="gw-kv">
+              <div class="gw-kv__row"><dt class="gw-kv__key">AI app</dt><dd class="gw-kv__value"><span class="gw-client-mark gw-client-mark--codex gw-client-mark--sm" aria-hidden="true">Cx</span> Codex</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Token</dt><dd class="gw-kv__value"><code class="gw-code">codex-laptop</code> · short-lived, issued on the fly</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">dev</code> · <span class="gw-mono">/mcp/dev</span></dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Protocol</dt><dd class="gw-kv__value">MCP revision <span class="gw-mono">2026-07-28</span> · Streamable HTTP</dd></div>
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key" id="ed-ok-trace-key">Trace id</dt>
+                <dd class="gw-kv__value">
+                  <div class="gw-copy-field" role="group" aria-labelledby="ed-ok-trace-key">
+                    <code class="gw-copy-field__value" id="ed-ok-trace">4f2a9c71e8d04b5a9c3e2b1f0a6d8e81</code>
+                    <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" data-gw-copy-from="#ed-ok-trace">
+                      <span class="gw-copy-field__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> trace id</span></span>
+                      <span class="gw-copy-field__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                    </button>
+                  </div>
+                </dd>
+              </div>
+            </dl>
+          </section>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-ok-args">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-ok-args">Arguments</h4>
+            </div>
+            <div class="gw-code-block gw-code-block--wrap">
+              <div class="gw-code-block__header">
+                <span class="gw-code-block__lang">JSON</span>
+                <span class="gw-code-block__filename">arguments · sql_query</span>
+                <div class="gw-code-block__actions">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ed-ok-args-json">
+                    <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> arguments</span></span>
+                    <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                  </button>
+                </div>
+              </div>
+              <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Arguments of sql_query">
+<pre class="gw-code-block__pre" id="ed-ok-args-json"><code>{
+  <span class="gw-tok-property">"connection"</span>: <span class="gw-tok-string">"dev-db"</span>,
+  <span class="gw-tok-property">"sql"</span>: <span class="gw-tok-string">"SELECT id, status FROM orders WHERE created_at &gt; now() - interval '1 hour' LIMIT 50"</span>,
+  <span class="gw-tok-property">"limit"</span>: <span class="gw-tok-number">50</span>
+}</code></pre>
+              </div>
+            </div>
+            <p class="gw-text-caption gw-fg-muted">No values masked.</p>
+          </section>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-ok-policy">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-ok-policy">Policy decision</h4>
+              <a class="gw-btn gw-btn--link gw-btn--sm" href="../pages/policies.html">Open policies</a>
+            </div>
+            <ol class="gw-timeline" aria-label="Rules evaluated for sql_query on dev-db, in order">
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--info"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title"><code class="gw-code">mode</code>: read only <span class="gw-badge gw-badge--brand gw-badge--sm">Matched rule</span></p>
+                  <p class="gw-timeline__meta">Endpoint <code class="gw-code">dev</code>, tool <code class="gw-code">sql_query</code>. Reads run without asking.</p>
+                </div>
+              </li>
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--info"><i class="gw-icon gw-icon--sm" data-lucide="scan-search"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title"><code class="gw-code">sql</code>: classified as read</p>
+                  <p class="gw-timeline__meta">One SELECT on <code class="gw-code">orders</code>, LIMIT 50 within the dev row limit of 1,000, in a read-only transaction</p>
+                </div>
+              </li>
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--success"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title"><code class="gw-code">limits</code>: within rate limit</p>
+                  <p class="gw-timeline__meta">9 of 120 calls per minute on endpoint <code class="gw-code">dev</code></p>
+                </div>
+              </li>
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--success"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title">Decision: allowed</p>
+                  <p class="gw-timeline__meta">No approval needed</p>
+                </div>
+              </li>
+            </ol>
+          </section>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-ok-result">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-ok-result">Result</h4>
+            </div>
+            <dl class="gw-kv">
+              <div class="gw-kv__row"><dt class="gw-kv__key">Status</dt><dd class="gw-kv__value">Returned 50 rows</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Rows</dt><dd class="gw-kv__value gw-tabular">50</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Size</dt><dd class="gw-kv__value gw-tabular">4.1 KB</dd></div>
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key" id="ed-ok-sha-key">SHA-256</dt>
+                <dd class="gw-kv__value">
+                  <div class="gw-copy-field" role="group" aria-labelledby="ed-ok-sha-key">
+                    <code class="gw-copy-field__value" id="ed-ok-sha" title="30988a0ea4e49c65e6e71101e09799ae4d57e39b00849f02a0b5c524256c77cd">30988a0ea4e49c65e6e71101e09799ae4d57e39b00849f02a0b5c524256c77cd</code>
+                    <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" data-gw-copy-from="#ed-ok-sha">
+                      <span class="gw-copy-field__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> SHA-256 of the result</span></span>
+                      <span class="gw-copy-field__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                    </button>
+                  </div>
+                </dd>
+              </div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Masked fields</dt><dd class="gw-kv__value gw-tabular">0</dd></div>
+            </dl>
+            <div class="gw-code-block gw-code-block--wrap">
+              <div class="gw-code-block__header">
+                <span class="gw-code-block__lang">JSON</span>
+                <span class="gw-code-block__filename">structuredContent · first 3 of 50 rows</span>
+                <div class="gw-code-block__actions">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ed-ok-result-json">
+                    <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> result preview</span></span>
+                    <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                  </button>
+                </div>
+              </div>
+              <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Result preview of sql_query">
+<pre class="gw-code-block__pre" id="ed-ok-result-json"><code>{
+  <span class="gw-tok-property">"columns"</span>: [<span class="gw-tok-string">"id"</span>, <span class="gw-tok-string">"status"</span>],
+  <span class="gw-tok-property">"rows"</span>: [
+    [<span class="gw-tok-number">48213</span>, <span class="gw-tok-string">"pending"</span>],
+    [<span class="gw-tok-number">48214</span>, <span class="gw-tok-string">"synced"</span>],
+    [<span class="gw-tok-number">48217</span>, <span class="gw-tok-string">"failed"</span>]
+  ],
+  <span class="gw-tok-property">"rowCount"</span>: <span class="gw-tok-number">50</span>,
+  <span class="gw-tok-property">"truncated"</span>: <span class="gw-tok-keyword">false</span>
+}</code></pre>
+              </div>
+            </div>
+            <p class="gw-text-caption gw-fg-muted">A preview: Codex received all 50 rows.</p>
+          </section>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-ok-timing">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-ok-timing">Timing</h4>
+            </div>
+            <p class="gw-text-small gw-fg-secondary" id="ed-ok-timing-label">38 ms in total: 31 ms in <code class="gw-code">dev-db</code>, 7 ms in the gateway</p>
+            <ol class="gw-waterfall" aria-labelledby="ed-ok-timing-label">
+              <li class="gw-waterfall__row">
+                <span class="gw-waterfall__label">Authenticate token and check policy</span>
+                <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--gateway" style="--start: 0; --len: 0.053"></span></span>
+                <span class="gw-waterfall__value">2 ms</span>
+              </li>
+              <li class="gw-waterfall__row">
+                <span class="gw-waterfall__label">Decrypt secret for <code class="gw-code">dev-db</code></span>
+                <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--gateway" style="--start: 0.053; --len: 0.026"></span></span>
+                <span class="gw-waterfall__value">1 ms</span>
+              </li>
+              <li class="gw-waterfall__row">
+                <span class="gw-waterfall__label">Query on <code class="gw-code">dev-db</code></span>
+                <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--resource" style="--start: 0.079; --len: 0.816"></span></span>
+                <span class="gw-waterfall__value">31 ms</span>
+              </li>
+              <li class="gw-waterfall__row">
+                <span class="gw-waterfall__label">Mask result and write audit</span>
+                <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--gateway" style="--start: 0.895; --len: 0.105"></span></span>
+                <span class="gw-waterfall__value">4 ms</span>
+              </li>
+            </ol>
+            <ul class="gw-legend" aria-label="Timing phases of sql_query">
+              <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--neutral"></span>Gateway</li>
+              <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--brand"></span>Resource</li>
+            </ul>
+          </section>
+
+          <section class="gw-event-detail__section" id="ed-ok-raw" aria-labelledby="ed-ok-raw-title">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-ok-raw-title">Raw event</h4>
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="ed-ok-raw-body">
+                <span class="gw-event-detail__when-collapsed"><i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i> Show JSON</span>
+                <span class="gw-event-detail__when-expanded"><i class="gw-icon gw-icon--sm" data-lucide="chevron-up"></i> Hide JSON</span>
+              </button>
+            </div>
+            <p class="gw-text-caption gw-fg-muted">The record as stored in the append-only audit log, 1.3 KB.</p>
+            <div id="ed-ok-raw-body" hidden>
+              <div class="gw-code-block gw-code-block--scroll">
+                <div class="gw-code-block__header">
+                  <span class="gw-code-block__lang">JSON</span>
+                  <span class="gw-code-block__filename">ev_2b9f0c14.json</span>
+                  <div class="gw-code-block__actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ed-ok-raw-json">
+                      <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> raw event</span></span>
+                      <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Raw event ev_2b9f0c14">
+<pre class="gw-code-block__pre" id="ed-ok-raw-json"><code>{
+  "id": "ev_2b9f0c14",
+  "time": "2026-10-22T13:46:40.512+02:00",
+  "trace_id": "4f2a9c71e8d04b5a9c3e2b1f0a6d8e81",
+  "client": { "name": "Codex", "token": "codex-laptop", "token_prefix": null, "issued_by": "http_headers_helper" },
+  "endpoint": "dev",
+  "protocol": "2026-07-28",
+  "tool": "sql_query",
+  "connection": { "name": "dev-db", "type": "postgresql", "env": "dev" },
+  "arguments": {
+    "connection": "dev-db",
+    "sql": "SELECT id, status FROM orders WHERE created_at &gt; now() - interval '1 hour' LIMIT 50",
+    "limit": 50
+  },
+  "policy": { "rules": [{ "rule": "mode", "value": "read_only", "matched": true }, { "rule": "sql", "class": "read" }, { "rule": "limits", "rate_per_min": { "used": 9, "limit": 120 } }], "decision": "allowed" },
+  "decision": "allowed",
+  "result": { "status": "ok", "rows": 50, "bytes": 4198, "masked_fields": 0,
+              "sha256": "30988a0ea4e49c65e6e71101e09799ae4d57e39b00849f02a0b5c524256c77cd" },
+  "timing_ms": { "gateway": 7, "resource": 31, "total": 38 }
+}</code></pre>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <hr class="gw-divider">
+          <footer class="gw-event-detail__footer">
+            <a class="gw-btn gw-btn--ghost gw-btn--sm" href="../pages/activity.html?q=token:codex-laptop"><i class="gw-icon gw-icon--sm" data-lucide="filter"></i> Filter by this token<span class="gw-sr-only"> codex-laptop</span></a>
+            <a class="gw-btn gw-btn--ghost gw-btn--sm" href="../pages/activity.html?q=tool:sql_query"><i class="gw-icon gw-icon--sm" data-lucide="filter"></i> Filter by this tool<span class="gw-sr-only"> sql_query</span></a>
+            <a class="gw-btn gw-btn--ghost gw-btn--sm" href="../pages/insights.html?q=tool:sql_query"><i class="gw-icon gw-icon--sm" data-lucide="chart-column"></i> View in Insights</a>
+          </footer>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ 4 · Denied by policy ═══════════════ -->
+  <section class="gw-section" aria-labelledby="s-denied">
+    <div class="gw-section__header">
+      <h2 class="gw-section__title" id="s-denied">Denied by policy</h2>
+      <p class="gw-section__description"><code class="gw-code">DROP TABLE</code> on a prod connection, through the prod endpoint (a prod connection is never on any other): the rule that denied it is marked, nothing was executed and nobody was asked. The call didn't run, so Duration says so; the timing shows the gateway's own work.</p>
+    </div>
+    <div class="gw-card">
+      <div class="gw-card__body">
+        <article class="gw-event-detail" aria-labelledby="ed-dn-decision ed-dn-title">
+          <header class="gw-event-detail__summary">
+            <div class="gw-event-detail__headline">
+              <span class="gw-badge gw-badge--danger" id="ed-dn-decision"><i class="gw-icon gw-badge__icon" data-lucide="shield-x"></i>Denied by policy</span>
+              <h3 class="gw-event-detail__title gw-text-h3" id="ed-dn-title"><code class="gw-code">sql_execute</code> on <code class="gw-code">prod-replica</code> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--prod">prod</span></h3>
+            </div>
+            <dl class="gw-kv gw-kv--inline">
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key">Time</dt>
+                <dd class="gw-kv__value"><time datetime="2026-10-22T14:12:52+02:00" title="2026-10-22T14:12:52+02:00">2026-10-22 14:12:52</time> · 17 min ago</dd>
+              </div>
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key">Duration</dt>
+                <dd class="gw-kv__value gw-tabular">Not run: denied in the gateway</dd>
+              </div>
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key">Event</dt>
+                <dd class="gw-kv__value gw-mono">ev_d40e7a93</dd>
+              </div>
+            </dl>
+            <div class="gw-event-detail__actions">
+              <button class="gw-btn gw-btn--sm" type="button" data-gw-copy="gaterook://activity/events/ev_d40e7a93" data-gw-toast="Link to event ev_d40e7a93 copied" data-gw-toast-tone="success"><i class="gw-icon gw-icon--sm" data-lucide="link"></i> Copy link</button>
+              <a class="gw-btn gw-btn--sm" href="../pages/activity.html?view=traces&amp;q=trace:b81e44"><i class="gw-icon gw-icon--sm" data-lucide="list-tree"></i> Open trace</a>
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-expand="#ed-dn-raw-body"><i class="gw-icon gw-icon--sm" data-lucide="braces"></i> View raw<span class="gw-sr-only"> event JSON</span></button>
+            </div>
+          </header>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-dn-request">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-dn-request">Request</h4>
+            </div>
+            <dl class="gw-kv">
+              <div class="gw-kv__row"><dt class="gw-kv__key">AI app</dt><dd class="gw-kv__value"><span class="gw-client-mark gw-client-mark--claude gw-client-mark--sm" aria-hidden="true">CD</span> Claude Desktop</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Token</dt><dd class="gw-kv__value">Bridge (<span class="gw-mono">.mcpb</span>), short-lived token issued on the fly</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">incident-prod</code> · <span class="gw-mono">/mcp/incident-prod</span></dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Protocol</dt><dd class="gw-kv__value">MCP revision <span class="gw-mono">2025-11-25</span> · stdio bridge to Streamable HTTP</dd></div>
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key" id="ed-dn-trace-key">Trace id</dt>
+                <dd class="gw-kv__value">
+                  <div class="gw-copy-field" role="group" aria-labelledby="ed-dn-trace-key">
+                    <code class="gw-copy-field__value" id="ed-dn-trace">b81e44d0920a4203e4b733f52954db89</code>
+                    <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" data-gw-copy-from="#ed-dn-trace">
+                      <span class="gw-copy-field__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> trace id</span></span>
+                      <span class="gw-copy-field__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                    </button>
+                  </div>
+                </dd>
+              </div>
+            </dl>
+          </section>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-dn-args">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-dn-args">Arguments</h4>
+            </div>
+            <div class="gw-code-block gw-code-block--wrap">
+              <div class="gw-code-block__header">
+                <span class="gw-code-block__lang">JSON</span>
+                <span class="gw-code-block__filename">arguments · sql_execute</span>
+                <div class="gw-code-block__actions">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ed-dn-args-json">
+                    <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> arguments</span></span>
+                    <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                  </button>
+                </div>
+              </div>
+              <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Arguments of the denied sql_execute">
+<pre class="gw-code-block__pre" id="ed-dn-args-json"><code>{
+  <span class="gw-tok-property">"connection"</span>: <span class="gw-tok-string">"prod-replica"</span>,
+  <span class="gw-tok-property">"sql"</span>: <span class="gw-tok-string">"DROP TABLE order_sync_failures;"</span>
+}</code></pre>
+              </div>
+            </div>
+            <p class="gw-text-caption gw-fg-muted">No values masked.</p>
+          </section>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-dn-policy">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-dn-policy">Policy decision</h4>
+              <a class="gw-btn gw-btn--link gw-btn--sm" href="../pages/policies.html#prod">Open prod policy</a>
+            </div>
+            <ol class="gw-timeline" aria-label="Rules evaluated for sql_execute on prod-replica, in order">
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--info"><i class="gw-icon gw-icon--sm" data-lucide="scan-search"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title"><code class="gw-code">sql</code>: classified as DDL</p>
+                  <p class="gw-timeline__meta"><code class="gw-code">DROP TABLE</code> on <code class="gw-code">order_sync_failures</code></p>
+                </div>
+              </li>
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--danger"><i class="gw-icon gw-icon--sm" data-lucide="shield-x"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title"><code class="gw-code">prod.sql.block_ddl</code>: DDL is blocked on prod <span class="gw-badge gw-badge--brand gw-badge--sm">Matched rule</span></p>
+                  <p class="gw-timeline__meta">Set in Policies for prod, SQL section. Prod rules are checked first; no approval can override them.</p>
+                </div>
+              </li>
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker"></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title"><code class="gw-code">mode</code>: not checked</p>
+                  <p class="gw-timeline__meta">Skipped: an earlier rule denied the call. <code class="gw-code">sql_execute</code> is off on <code class="gw-code">incident-prod</code> anyway.</p>
+                </div>
+              </li>
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker"></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title"><code class="gw-code">limits</code>: not checked</p>
+                  <p class="gw-timeline__meta">Skipped: an earlier rule denied the call</p>
+                </div>
+              </li>
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--danger"><i class="gw-icon gw-icon--sm" data-lucide="shield-x"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title">Decision: denied by policy</p>
+                  <p class="gw-timeline__meta">No approval request was created. Claude Desktop got an error naming the rule.</p>
+                </div>
+              </li>
+            </ol>
+          </section>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-dn-result">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-dn-result">Result</h4>
+            </div>
+            <dl class="gw-kv">
+              <div class="gw-kv__row"><dt class="gw-kv__key">Status</dt><dd class="gw-kv__value">Not executed: nothing reached <code class="gw-code">prod-replica</code></dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Rows</dt><dd class="gw-kv__value">None</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Size</dt><dd class="gw-kv__value gw-tabular">164 B (the error returned to Claude Desktop)</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Masked fields</dt><dd class="gw-kv__value gw-tabular">0</dd></div>
+            </dl>
+            <div class="gw-code-block gw-code-block--wrap">
+              <div class="gw-code-block__header">
+                <span class="gw-code-block__lang">JSON</span>
+                <span class="gw-code-block__filename">tool result · isError</span>
+                <div class="gw-code-block__actions">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ed-dn-result-json">
+                    <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> error returned to Claude Desktop</span></span>
+                    <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                  </button>
+                </div>
+              </div>
+              <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Error returned to Claude Desktop">
+<pre class="gw-code-block__pre" id="ed-dn-result-json"><code>{
+  <span class="gw-tok-property">"isError"</span>: <span class="gw-tok-keyword">true</span>,
+  <span class="gw-tok-property">"content"</span>: [
+    { <span class="gw-tok-property">"type"</span>: <span class="gw-tok-string">"text"</span>, <span class="gw-tok-property">"text"</span>: <span class="gw-tok-string">"Denied by policy prod.sql.block_ddl: DDL statements are blocked on prod connections."</span> }
+  ]
+}</code></pre>
+              </div>
+            </div>
+          </section>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-dn-timing">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-dn-timing">Timing</h4>
+            </div>
+            <p class="gw-text-small gw-fg-secondary" id="ed-dn-timing-label">3 ms in total, all in the gateway</p>
+            <ol class="gw-waterfall" aria-labelledby="ed-dn-timing-label">
+              <li class="gw-waterfall__row">
+                <span class="gw-waterfall__label">Authenticate token</span>
+                <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--gateway" style="--start: 0; --len: 0.333"></span></span>
+                <span class="gw-waterfall__value">1 ms</span>
+              </li>
+              <li class="gw-waterfall__row">
+                <span class="gw-waterfall__label">Check policy and deny</span>
+                <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--gateway" style="--start: 0.333; --len: 0.334"></span></span>
+                <span class="gw-waterfall__value">1 ms</span>
+              </li>
+              <li class="gw-waterfall__row">
+                <span class="gw-waterfall__label">Write audit</span>
+                <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--gateway" style="--start: 0.667; --len: 0.333"></span></span>
+                <span class="gw-waterfall__value">1 ms</span>
+              </li>
+            </ol>
+            <ul class="gw-legend" aria-label="Timing phases of the denied call">
+              <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--neutral"></span>Gateway</li>
+            </ul>
+          </section>
+
+          <section class="gw-event-detail__section" id="ed-dn-raw" aria-labelledby="ed-dn-raw-title">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-dn-raw-title">Raw event</h4>
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="ed-dn-raw-body">
+                <span class="gw-event-detail__when-collapsed"><i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i> Show JSON</span>
+                <span class="gw-event-detail__when-expanded"><i class="gw-icon gw-icon--sm" data-lucide="chevron-up"></i> Hide JSON</span>
+              </button>
+            </div>
+            <p class="gw-text-caption gw-fg-muted">The record as stored in the append-only audit log, 1.1 KB.</p>
+            <div id="ed-dn-raw-body" hidden>
+              <div class="gw-code-block gw-code-block--scroll">
+                <div class="gw-code-block__header">
+                  <span class="gw-code-block__lang">JSON</span>
+                  <span class="gw-code-block__filename">ev_d40e7a93.json</span>
+                  <div class="gw-code-block__actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ed-dn-raw-json">
+                      <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> raw event</span></span>
+                      <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Raw event ev_d40e7a93">
+<pre class="gw-code-block__pre" id="ed-dn-raw-json"><code>{
+  "id": "ev_d40e7a93",
+  "time": "2026-10-22T14:12:52.730+02:00",
+  "trace_id": "b81e44d0920a4203e4b733f52954db89",
+  "client": { "name": "Claude Desktop", "token": "bridge", "token_prefix": null },
+  "endpoint": "incident-prod",
+  "protocol": "2025-11-25",
+  "tool": "sql_execute",
+  "connection": { "name": "prod-replica", "type": "postgresql", "env": "prod" },
+  "arguments": { "connection": "prod-replica", "sql": "DROP TABLE order_sync_failures;" },
+  "policy": {
+    "rules": [
+      { "rule": "sql", "class": "ddl", "statement": "DROP TABLE" },
+      { "rule": "prod.sql.block_ddl", "matched": true, "effect": "deny" },
+      { "rule": "mode", "skipped": true },
+      { "rule": "limits", "skipped": true }
+    ],
+    "decision": "denied"
+  },
+  "decision": "denied",
+  "result": { "status": "not_executed", "bytes": 164, "masked_fields": 0 },
+  "timing_ms": { "gateway": 3, "total": 3 }
+}</code></pre>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <hr class="gw-divider">
+          <footer class="gw-event-detail__footer">
+            <a class="gw-btn gw-btn--ghost gw-btn--sm" href="../pages/activity.html?q=client:claude-desktop"><i class="gw-icon gw-icon--sm" data-lucide="filter"></i> Filter by this client<span class="gw-sr-only"> Claude Desktop</span></a>
+            <a class="gw-btn gw-btn--ghost gw-btn--sm" href="../pages/activity.html?q=decision%3Adenied%20rule%3Aprod.sql.block_ddl"><i class="gw-icon gw-icon--sm" data-lucide="filter"></i> Filter by this rule<span class="gw-sr-only"> prod.sql.block_ddl</span></a>
+            <a class="gw-btn gw-btn--ghost gw-btn--sm" href="../pages/insights.html?q=decision:denied"><i class="gw-icon gw-icon--sm" data-lucide="chart-column"></i> View in Insights<span class="gw-sr-only"> for denied calls</span></a>
+          </footer>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ 5 · Expired ═══════════════ -->
+  <section class="gw-section" aria-labelledby="s-expired">
+    <div class="gw-section__header">
+      <h2 class="gw-section__title" id="s-expired">Expired</h2>
+      <p class="gw-section__description">An <code class="gw-code">http_request</code> on stage nobody answered within 10 minutes (the stage window): the approval path ends in Expired and the timing is one long wait.</p>
+    </div>
+    <div class="gw-card">
+      <div class="gw-card__body">
+        <article class="gw-event-detail" aria-labelledby="ed-ex-decision ed-ex-title">
+          <header class="gw-event-detail__summary">
+            <div class="gw-event-detail__headline">
+              <span class="gw-badge gw-badge--neutral" id="ed-ex-decision"><i class="gw-icon gw-badge__icon" data-lucide="timer-off"></i>Expired</span>
+              <h3 class="gw-event-detail__title gw-text-h3" id="ed-ex-title"><code class="gw-code">http_request</code> on <code class="gw-code">billing-api</code> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--stage">stage</span></h3>
+            </div>
+            <dl class="gw-kv gw-kv--inline">
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key">Time</dt>
+                <dd class="gw-kv__value"><time datetime="2026-10-22T13:35:12+02:00" title="2026-10-22T13:35:12+02:00">2026-10-22 13:35:12</time> · 55 min ago</dd>
+              </div>
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key">Duration</dt>
+                <dd class="gw-kv__value gw-tabular">10 min waiting for approval, then expired</dd>
+              </div>
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key">Event</dt>
+                <dd class="gw-kv__value gw-mono">ev_5a1c86f2</dd>
+              </div>
+            </dl>
+            <div class="gw-event-detail__actions">
+              <button class="gw-btn gw-btn--sm" type="button" data-gw-copy="gaterook://activity/events/ev_5a1c86f2" data-gw-toast="Link to event ev_5a1c86f2 copied" data-gw-toast-tone="success"><i class="gw-icon gw-icon--sm" data-lucide="link"></i> Copy link</button>
+              <a class="gw-btn gw-btn--sm" href="../pages/activity.html?view=traces&amp;q=trace:9b07d3"><i class="gw-icon gw-icon--sm" data-lucide="list-tree"></i> Open trace</a>
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-expand="#ed-ex-raw-body"><i class="gw-icon gw-icon--sm" data-lucide="braces"></i> View raw<span class="gw-sr-only"> event JSON</span></button>
+            </div>
+          </header>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-ex-request">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-ex-request">Request</h4>
+            </div>
+            <dl class="gw-kv">
+              <div class="gw-kv__row"><dt class="gw-kv__key">AI app</dt><dd class="gw-kv__value"><span class="gw-client-mark gw-client-mark--codex gw-client-mark--sm" aria-hidden="true">Cx</span> Codex</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Token</dt><dd class="gw-kv__value"><code class="gw-code">codex-laptop</code> · short-lived, issued on the fly</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">dev</code> · <span class="gw-mono">/mcp/dev</span></dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Protocol</dt><dd class="gw-kv__value">MCP revision <span class="gw-mono">2026-07-28</span> · Streamable HTTP</dd></div>
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key" id="ed-ex-trace-key">Trace id</dt>
+                <dd class="gw-kv__value">
+                  <div class="gw-copy-field" role="group" aria-labelledby="ed-ex-trace-key">
+                    <code class="gw-copy-field__value" id="ed-ex-trace">9b07d3a448bd1358836f8759960136d7</code>
+                    <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" data-gw-copy-from="#ed-ex-trace">
+                      <span class="gw-copy-field__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> trace id</span></span>
+                      <span class="gw-copy-field__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                    </button>
+                  </div>
+                </dd>
+              </div>
+            </dl>
+          </section>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-ex-args">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-ex-args">Arguments</h4>
+            </div>
+            <div class="gw-code-block gw-code-block--wrap">
+              <div class="gw-code-block__header">
+                <span class="gw-code-block__lang">JSON</span>
+                <span class="gw-code-block__filename">arguments · http_request</span>
+                <div class="gw-code-block__actions">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ed-ex-args-json">
+                    <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> arguments</span></span>
+                    <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                  </button>
+                </div>
+              </div>
+              <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Arguments of http_request">
+<pre class="gw-code-block__pre" id="ed-ex-args-json"><code>{
+  <span class="gw-tok-property">"connection"</span>: <span class="gw-tok-string">"billing-api"</span>,
+  <span class="gw-tok-property">"method"</span>: <span class="gw-tok-string">"POST"</span>,
+  <span class="gw-tok-property">"path"</span>: <span class="gw-tok-string">"/v1/refunds"</span>,
+  <span class="gw-tok-property">"headers"</span>: {
+    <span class="gw-tok-property">"Idempotency-Key"</span>: <span class="gw-tok-secret">"‹masked›"</span>
+  },
+  <span class="gw-tok-property">"json"</span>: { <span class="gw-tok-property">"order_id"</span>: <span class="gw-tok-number">48213</span>, <span class="gw-tok-property">"amount"</span>: <span class="gw-tok-number">129.00</span>, <span class="gw-tok-property">"currency"</span>: <span class="gw-tok-string">"EUR"</span> }
+}</code></pre>
+              </div>
+            </div>
+            <p class="gw-text-caption gw-fg-muted">1 value masked by policy (request header). The gateway adds the billing-api credentials itself; Codex never sees them.</p>
+          </section>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-ex-policy">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-ex-policy">Policy decision</h4>
+              <a class="gw-btn gw-btn--link gw-btn--sm" href="../pages/policies.html">Open policies</a>
+            </div>
+            <ol class="gw-timeline" aria-label="Rules evaluated for http_request on billing-api, in order">
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--success"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title"><code class="gw-code">http</code>: host on the allowlist</p>
+                  <p class="gw-timeline__meta"><code class="gw-code">billing.stage.acme.dev</code> resolves to a private address allowed for stage</p>
+                </div>
+              </li>
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--warning"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title"><code class="gw-code">stage.http.write-approval</code> <span class="gw-badge gw-badge--brand gw-badge--sm">Matched rule</span></p>
+                  <p class="gw-timeline__meta">Changes data: every change waits for a person on stage.</p>
+                </div>
+              </li>
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--success"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title"><code class="gw-code">limits</code>: within rate limit</p>
+                  <p class="gw-timeline__meta">3 of 120 calls per minute on endpoint <code class="gw-code">dev</code></p>
+                </div>
+              </li>
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--warning"><i class="gw-icon gw-icon--sm" data-lucide="hourglass"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title">Decision: ask for approval</p>
+                  <p class="gw-timeline__meta">Approval request <span class="gw-mono">ap_4b90t3n6w1fz</span> sent to you</p>
+                </div>
+              </li>
+            </ol>
+          </section>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-ex-approval">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-ex-approval">Approval</h4>
+              <a class="gw-btn gw-btn--link gw-btn--sm" href="../pages/approvals.html">Open in Approvals</a>
+            </div>
+            <ol class="gw-timeline" aria-label="Approval history of http_request on billing-api">
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--neutral"><i class="gw-icon gw-icon--sm" data-lucide="send"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title">Requested by Codex</p>
+                  <p class="gw-timeline__meta"><code class="gw-code">POST /v1/refunds</code> · auto-deny after 10 min (stage)</p>
+                </div>
+                <time class="gw-timeline__time" datetime="2026-10-22T13:35:12+02:00" title="2026-10-22T13:35:12+02:00">13:35:12</time>
+              </li>
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--info"><i class="gw-icon gw-icon--sm" data-lucide="bell"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title">Notified on the desktop and in Slack</p>
+                  <p class="gw-timeline__meta">Sent to you · <span class="gw-mono">#deploy-approvals</span></p>
+                </div>
+                <time class="gw-timeline__time" datetime="2026-10-22T13:35:12+02:00" title="2026-10-22T13:35:12+02:00">13:35:12</time>
+              </li>
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--neutral"><i class="gw-icon gw-icon--sm" data-lucide="timer-off"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title">Expired, denied automatically</p>
+                  <p class="gw-timeline__meta">No decision within 10 min · nothing was sent to <code class="gw-code">billing-api</code></p>
+                </div>
+                <time class="gw-timeline__time" datetime="2026-10-22T13:45:12+02:00" title="2026-10-22T13:45:12+02:00">13:45:12</time>
+              </li>
+            </ol>
+          </section>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-ex-result">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-ex-result">Result</h4>
+            </div>
+            <dl class="gw-kv">
+              <div class="gw-kv__row"><dt class="gw-kv__key">Status</dt><dd class="gw-kv__value">Not executed: the request expired</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Response</dt><dd class="gw-kv__value">None from <code class="gw-code">billing-api</code></dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Size</dt><dd class="gw-kv__value gw-tabular">141 B (the error returned to Codex)</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Masked fields</dt><dd class="gw-kv__value gw-tabular">0</dd></div>
+            </dl>
+            <div class="gw-code-block gw-code-block--wrap">
+              <div class="gw-code-block__header">
+                <span class="gw-code-block__lang">JSON</span>
+                <span class="gw-code-block__filename">tool result · isError</span>
+                <div class="gw-code-block__actions">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ed-ex-result-json">
+                    <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> error returned to Codex</span></span>
+                    <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                  </button>
+                </div>
+              </div>
+              <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Expiry error returned to Codex">
+<pre class="gw-code-block__pre" id="ed-ex-result-json"><code>{
+  <span class="gw-tok-property">"isError"</span>: <span class="gw-tok-keyword">true</span>,
+  <span class="gw-tok-property">"content"</span>: [
+    { <span class="gw-tok-property">"type"</span>: <span class="gw-tok-string">"text"</span>, <span class="gw-tok-property">"text"</span>: <span class="gw-tok-string">"Approval request expired after 10 min. Nothing was sent to billing-api."</span> }
+  ]
+}</code></pre>
+              </div>
+            </div>
+          </section>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-ex-timing">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-ex-timing">Timing</h4>
+            </div>
+            <p class="gw-text-small gw-fg-secondary" id="ed-ex-timing-label">10 min 0 s in total: 10 min waiting for a decision, 6 ms in the gateway, nothing in <code class="gw-code">billing-api</code></p>
+            <ol class="gw-waterfall" aria-labelledby="ed-ex-timing-label">
+              <li class="gw-waterfall__row">
+                <span class="gw-waterfall__label">Authenticate token and check policy</span>
+                <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--gateway" style="--start: 0; --len: 0.0001"></span></span>
+                <span class="gw-waterfall__value">5 ms</span>
+              </li>
+              <li class="gw-waterfall__row">
+                <span class="gw-waterfall__label">Waiting for approval</span>
+                <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--approval" style="--start: 0.0001; --len: 0.9998"></span></span>
+                <span class="gw-waterfall__value">10 min</span>
+              </li>
+              <li class="gw-waterfall__row">
+                <span class="gw-waterfall__label">Deny and write audit</span>
+                <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--gateway" style="--start: 0.9999; --len: 0.0001"></span></span>
+                <span class="gw-waterfall__value">1 ms</span>
+              </li>
+            </ol>
+            <ul class="gw-legend" aria-label="Timing phases of the expired call">
+              <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--neutral"></span>Gateway</li>
+              <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--warning gw-legend__swatch--hatch"></span>Waiting for approval</li>
+            </ul>
+          </section>
+
+          <section class="gw-event-detail__section" id="ed-ex-raw" aria-labelledby="ed-ex-raw-title">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-ex-raw-title">Raw event</h4>
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="ed-ex-raw-body">
+                <span class="gw-event-detail__when-collapsed"><i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i> Show JSON</span>
+                <span class="gw-event-detail__when-expanded"><i class="gw-icon gw-icon--sm" data-lucide="chevron-up"></i> Hide JSON</span>
+              </button>
+            </div>
+            <p class="gw-text-caption gw-fg-muted">The record as stored in the append-only audit log, 1.6 KB, masked values included.</p>
+            <div id="ed-ex-raw-body" hidden>
+              <div class="gw-code-block gw-code-block--scroll">
+                <div class="gw-code-block__header">
+                  <span class="gw-code-block__lang">JSON</span>
+                  <span class="gw-code-block__filename">ev_5a1c86f2.json</span>
+                  <div class="gw-code-block__actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ed-ex-raw-json">
+                      <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> raw event</span></span>
+                      <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Raw event ev_5a1c86f2">
+<pre class="gw-code-block__pre" id="ed-ex-raw-json"><code>{
+  "id": "ev_5a1c86f2",
+  "time": "2026-10-22T13:35:12.006+02:00",
+  "trace_id": "9b07d3a448bd1358836f8759960136d7",
+  "client": { "name": "Codex", "token": "codex-laptop", "token_prefix": null, "issued_by": "http_headers_helper" },
+  "endpoint": "dev",
+  "protocol": "2026-07-28",
+  "tool": "http_request",
+  "connection": { "name": "billing-api", "type": "http", "env": "stage" },
+  "arguments": {
+    "connection": "billing-api",
+    "method": "POST",
+    "path": "/v1/refunds",
+    "headers": { "Idempotency-Key": "‹masked›" },
+    "json": { "order_id": 48213, "amount": 129.00, "currency": "EUR" }
+  },
+  "policy": { "rules": [{ "rule": "http", "host_allowed": true }, { "rule": "stage.http.write-approval", "matched": true, "effect": "approval" }, { "rule": "limits", "rate_per_min": { "used": 3, "limit": 120 } }], "decision": "approval_required" },
+  "approval": { "id": "ap_4b90t3n6w1fz", "notified": ["desktop", "slack"], "decision": "expired", "expired_at": "2026-10-22T13:45:12.006+02:00" },
+  "decision": "expired",
+  "result": { "status": "not_executed", "bytes": 141, "masked_fields": 0 },
+  "timing_ms": { "gateway": 6, "approval_wait": 600000, "total": 600006 },
+  "masked_values": 1
+}</code></pre>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <hr class="gw-divider">
+          <footer class="gw-event-detail__footer">
+            <a class="gw-btn gw-btn--ghost gw-btn--sm" href="../pages/activity.html?q=token:codex-laptop"><i class="gw-icon gw-icon--sm" data-lucide="filter"></i> Filter by this token<span class="gw-sr-only"> codex-laptop</span></a>
+            <a class="gw-btn gw-btn--ghost gw-btn--sm" href="../pages/activity.html?q=tool:http_request"><i class="gw-icon gw-icon--sm" data-lucide="filter"></i> Filter by this tool<span class="gw-sr-only"> http_request</span></a>
+            <a class="gw-btn gw-btn--ghost gw-btn--sm" href="../pages/insights.html?q=tool:http_request"><i class="gw-icon gw-icon--sm" data-lucide="chart-column"></i> View in Insights</a>
+          </footer>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ 6 · Error ═══════════════ -->
+  <section class="gw-section" aria-labelledby="s-error">
+    <div class="gw-section__header">
+      <h2 class="gw-section__title" id="s-error">Error</h2>
+      <p class="gw-section__description">The policy allowed the call but <code class="gw-code">cache-redis</code> timed out: an alert under the summary says what happened and what to do; the timing shows the time went into the resource.</p>
+    </div>
+    <div class="gw-card">
+      <div class="gw-card__body">
+        <article class="gw-event-detail" aria-labelledby="ed-er-decision ed-er-title">
+          <header class="gw-event-detail__summary">
+            <div class="gw-event-detail__headline">
+              <span class="gw-badge gw-badge--danger" id="ed-er-decision"><i class="gw-icon gw-badge__icon" data-lucide="circle-alert"></i>Error</span>
+              <h3 class="gw-event-detail__title gw-text-h3" id="ed-er-title"><code class="gw-code">redis_get</code> on <code class="gw-code">cache-redis</code> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev">dev</span></h3>
+            </div>
+            <dl class="gw-kv gw-kv--inline">
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key">Time</dt>
+                <dd class="gw-kv__value"><time datetime="2026-10-22T13:47:05+02:00" title="2026-10-22T13:47:05+02:00">2026-10-22 13:47:05</time> · 43 min ago</dd>
+              </div>
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key">Duration</dt>
+                <dd class="gw-kv__value gw-tabular">2.0 s, timed out</dd>
+              </div>
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key">Event</dt>
+                <dd class="gw-kv__value gw-mono">ev_e3f9b257</dd>
+              </div>
+            </dl>
+            <div class="gw-event-detail__actions">
+              <button class="gw-btn gw-btn--sm" type="button" data-gw-copy="gaterook://activity/events/ev_e3f9b257" data-gw-toast="Link to event ev_e3f9b257 copied" data-gw-toast-tone="success"><i class="gw-icon gw-icon--sm" data-lucide="link"></i> Copy link</button>
+              <a class="gw-btn gw-btn--sm" href="#s-trace"><i class="gw-icon gw-icon--sm" data-lucide="list-tree"></i> Open trace</a>
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-expand="#ed-er-raw-body"><i class="gw-icon gw-icon--sm" data-lucide="braces"></i> View raw<span class="gw-sr-only"> event JSON</span></button>
+            </div>
+          </header>
+
+          <div class="gw-alert gw-alert--danger">
+            <i class="gw-icon gw-alert__icon" data-lucide="circle-alert"></i>
+            <div class="gw-alert__content">
+              <p class="gw-alert__title"><code class="gw-code">cache-redis</code> did not answer within 2.0 s</p>
+              <p class="gw-alert__body">The connection has been slow today (1.8 s on average). Check <code class="gw-code">cache.dev.internal:6379</code>, or raise the timeout of <code class="gw-code">cache-redis</code>. Codex got the error and moved on.</p>
+              <div class="gw-alert__actions"><a class="gw-btn gw-btn--sm" href="../pages/connections.html">Open connection cache-redis</a></div>
+            </div>
+          </div>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-er-request">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-er-request">Request</h4>
+            </div>
+            <dl class="gw-kv">
+              <div class="gw-kv__row"><dt class="gw-kv__key">AI app</dt><dd class="gw-kv__value"><span class="gw-client-mark gw-client-mark--codex gw-client-mark--sm" aria-hidden="true">Cx</span> Codex</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Token</dt><dd class="gw-kv__value"><code class="gw-code">codex-laptop</code> · short-lived, issued on the fly</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">dev</code> · <span class="gw-mono">/mcp/dev</span></dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Protocol</dt><dd class="gw-kv__value">MCP revision <span class="gw-mono">2026-07-28</span> · Streamable HTTP</dd></div>
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key" id="ed-er-trace-key">Trace id</dt>
+                <dd class="gw-kv__value">
+                  <div class="gw-copy-field" role="group" aria-labelledby="ed-er-trace-key">
+                    <code class="gw-copy-field__value" id="ed-er-trace">4f2a9c71e8d04b5a9c3e2b1f0a6d8e81</code>
+                    <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" data-gw-copy-from="#ed-er-trace">
+                      <span class="gw-copy-field__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> trace id</span></span>
+                      <span class="gw-copy-field__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                    </button>
+                  </div>
+                </dd>
+              </div>
+            </dl>
+          </section>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-er-args">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-er-args">Arguments</h4>
+            </div>
+            <div class="gw-code-block gw-code-block--wrap">
+              <div class="gw-code-block__header">
+                <span class="gw-code-block__lang">JSON</span>
+                <span class="gw-code-block__filename">arguments · redis_get</span>
+                <div class="gw-code-block__actions">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ed-er-args-json">
+                    <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> arguments</span></span>
+                    <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                  </button>
+                </div>
+              </div>
+              <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Arguments of redis_get">
+<pre class="gw-code-block__pre" id="ed-er-args-json"><code>{
+  <span class="gw-tok-property">"key"</span>: <span class="gw-tok-string">"order:sync:cursor"</span>
+}</code></pre>
+              </div>
+            </div>
+            <p class="gw-text-caption gw-fg-muted">No values masked.</p>
+          </section>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-er-policy">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-er-policy">Policy decision</h4>
+              <a class="gw-btn gw-btn--link gw-btn--sm" href="../pages/policies.html">Open policies</a>
+            </div>
+            <ol class="gw-timeline" aria-label="Rules evaluated for redis_get on cache-redis, in order">
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--info"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title"><code class="gw-code">mode</code>: read only <span class="gw-badge gw-badge--brand gw-badge--sm">Matched rule</span></p>
+                  <p class="gw-timeline__meta">Endpoint <code class="gw-code">dev</code>, tool <code class="gw-code">redis_get</code></p>
+                </div>
+              </li>
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--success"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title"><code class="gw-code">limits</code>: within rate limit</p>
+                  <p class="gw-timeline__meta">11 of 120 calls per minute on endpoint <code class="gw-code">dev</code></p>
+                </div>
+              </li>
+              <li class="gw-timeline__item">
+                <span class="gw-timeline__marker gw-timeline__marker--success"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
+                <div class="gw-timeline__content">
+                  <p class="gw-timeline__title">Decision: allowed</p>
+                  <p class="gw-timeline__meta">The failure came later, from the resource</p>
+                </div>
+              </li>
+            </ol>
+          </section>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-er-result">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-er-result">Result</h4>
+            </div>
+            <dl class="gw-kv">
+              <div class="gw-kv__row"><dt class="gw-kv__key">Status</dt><dd class="gw-kv__value">Failed: timeout after 2.0 s</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Error</dt><dd class="gw-kv__value gw-mono">ETIMEDOUT</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Size</dt><dd class="gw-kv__value gw-tabular">118 B (the error returned to Codex)</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Masked fields</dt><dd class="gw-kv__value gw-tabular">0</dd></div>
+            </dl>
+            <div class="gw-code-block gw-code-block--wrap">
+              <div class="gw-code-block__header">
+                <span class="gw-code-block__lang">Log</span>
+                <span class="gw-code-block__filename">connector · cache-redis</span>
+                <div class="gw-code-block__actions">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ed-er-log">
+                    <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> error details</span></span>
+                    <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                  </button>
+                </div>
+              </div>
+              <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Error details from the cache-redis connector">
+<pre class="gw-code-block__pre" id="ed-er-log"><code>ETIMEDOUT redis://cache.dev.internal:6379
+GET order:sync:cursor
+socket timeout after 2000 ms (connect 3 ms, waiting for reply 1997 ms)
+not retried: retries are off for cache-redis</code></pre>
+              </div>
+            </div>
+            <div class="gw-code-block gw-code-block--wrap">
+              <div class="gw-code-block__header">
+                <span class="gw-code-block__lang">JSON</span>
+                <span class="gw-code-block__filename">tool result · isError</span>
+              </div>
+              <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Error returned to Codex for redis_get">
+<pre class="gw-code-block__pre"><code>{
+  <span class="gw-tok-property">"isError"</span>: <span class="gw-tok-keyword">true</span>,
+  <span class="gw-tok-property">"content"</span>: [
+    { <span class="gw-tok-property">"type"</span>: <span class="gw-tok-string">"text"</span>, <span class="gw-tok-property">"text"</span>: <span class="gw-tok-string">"cache-redis did not answer within 2.0 s (ETIMEDOUT)."</span> }
+  ]
+}</code></pre>
+              </div>
+            </div>
+          </section>
+
+          <section class="gw-event-detail__section" aria-labelledby="ed-er-timing">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-er-timing">Timing</h4>
+            </div>
+            <p class="gw-text-small gw-fg-secondary" id="ed-er-timing-label">2.0 s in total: 2.0 s waiting on <code class="gw-code">cache-redis</code> until the timeout, 4 ms in the gateway</p>
+            <ol class="gw-waterfall" aria-labelledby="ed-er-timing-label">
+              <li class="gw-waterfall__row">
+                <span class="gw-waterfall__label">Authenticate token and check policy</span>
+                <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--gateway" style="--start: 0; --len: 0.001"></span></span>
+                <span class="gw-waterfall__value">2 ms</span>
+              </li>
+              <li class="gw-waterfall__row">
+                <span class="gw-waterfall__label">Decrypt secret for <code class="gw-code">cache-redis</code></span>
+                <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--gateway" style="--start: 0.001; --len: 0.0005"></span></span>
+                <span class="gw-waterfall__value">1 ms</span>
+              </li>
+              <li class="gw-waterfall__row">
+                <span class="gw-waterfall__label">GET on <code class="gw-code">cache-redis</code>, timed out</span>
+                <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--resource" style="--start: 0.0015; --len: 0.998"></span></span>
+                <span class="gw-waterfall__value">2.0 s</span>
+              </li>
+              <li class="gw-waterfall__row">
+                <span class="gw-waterfall__label">Write audit</span>
+                <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--gateway" style="--start: 0.9995; --len: 0.0005"></span></span>
+                <span class="gw-waterfall__value">1 ms</span>
+              </li>
+            </ol>
+            <ul class="gw-legend" aria-label="Timing phases of the failed call">
+              <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--neutral"></span>Gateway</li>
+              <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--brand"></span>Resource</li>
+            </ul>
+          </section>
+
+          <section class="gw-event-detail__section" id="ed-er-raw" aria-labelledby="ed-er-raw-title">
+            <div class="gw-event-detail__section-header">
+              <h4 class="gw-text-overline" id="ed-er-raw-title">Raw event</h4>
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="ed-er-raw-body">
+                <span class="gw-event-detail__when-collapsed"><i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i> Show JSON</span>
+                <span class="gw-event-detail__when-expanded"><i class="gw-icon gw-icon--sm" data-lucide="chevron-up"></i> Hide JSON</span>
+              </button>
+            </div>
+            <p class="gw-text-caption gw-fg-muted">The record as stored in the append-only audit log, 1.2 KB.</p>
+            <div id="ed-er-raw-body" hidden>
+              <div class="gw-code-block gw-code-block--scroll">
+                <div class="gw-code-block__header">
+                  <span class="gw-code-block__lang">JSON</span>
+                  <span class="gw-code-block__filename">ev_e3f9b257.json</span>
+                  <div class="gw-code-block__actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ed-er-raw-json">
+                      <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> raw event</span></span>
+                      <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Raw event ev_e3f9b257">
+<pre class="gw-code-block__pre" id="ed-er-raw-json"><code>{
+  "id": "ev_e3f9b257",
+  "time": "2026-10-22T13:47:05.140+02:00",
+  "trace_id": "4f2a9c71e8d04b5a9c3e2b1f0a6d8e81",
+  "client": { "name": "Codex", "token": "codex-laptop", "token_prefix": null, "issued_by": "http_headers_helper" },
+  "endpoint": "dev",
+  "protocol": "2026-07-28",
+  "tool": "redis_get",
+  "connection": { "name": "cache-redis", "type": "redis", "env": "dev" },
+  "arguments": { "key": "order:sync:cursor" },
+  "policy": { "rules": [{ "rule": "mode", "value": "read_only", "matched": true }, { "rule": "limits", "rate_per_min": { "used": 11, "limit": 120 } }], "decision": "allowed" },
+  "decision": "error",
+  "error": { "code": "ETIMEDOUT", "message": "socket timeout after 2000 ms", "retried": false },
+  "result": { "status": "error", "bytes": 118, "masked_fields": 0 },
+  "timing_ms": { "gateway": 4, "resource": 2000, "total": 2004 }
+}</code></pre>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <hr class="gw-divider">
+          <footer class="gw-event-detail__footer">
+            <a class="gw-btn gw-btn--ghost gw-btn--sm" href="../pages/activity.html?q=token:codex-laptop"><i class="gw-icon gw-icon--sm" data-lucide="filter"></i> Filter by this token<span class="gw-sr-only"> codex-laptop</span></a>
+            <a class="gw-btn gw-btn--ghost gw-btn--sm" href="../pages/activity.html?q=tool:redis_get"><i class="gw-icon gw-icon--sm" data-lucide="filter"></i> Filter by this tool<span class="gw-sr-only"> redis_get</span></a>
+            <a class="gw-btn gw-btn--ghost gw-btn--sm" href="../pages/insights.html?q=tool:redis_get"><i class="gw-icon gw-icon--sm" data-lucide="chart-column"></i> View in Insights</a>
+          </footer>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ 7 · Trace view ═══════════════ -->
+  <section class="gw-section" aria-labelledby="s-trace">
+    <div class="gw-section__header">
+      <h2 class="gw-section__title" id="s-trace">Trace view</h2>
+      <p class="gw-section__description">One agent task: its 23 calls grouped into phases, with the decisions in each. Activity's Traces tab shows one block per trace; Open trace in an event leads here.</p>
+    </div>
+    <div class="gw-card">
+      <div class="gw-card__body">
+        <section class="gw-event-detail__trace" aria-labelledby="ed-tr-title">
+          <div class="gw-event-detail__trace-header">
+            <div class="gw-event-detail__trace-heading">
+              <h3 class="gw-text-h3" id="ed-tr-title">Fix failing order sync</h3>
+              <p class="gw-text-small gw-fg-muted">Trace <span class="gw-mono" title="4f2a9c71e8d04b5a9c3e2b1f0a6d8e81">4f2a9c…</span> · 23 calls · 18 min · Codex on endpoint <code class="gw-code">dev</code></p>
+              <p class="gw-text-caption gw-fg-muted">Task name as reported by Codex, unverified</p>
+            </div>
+            <div class="gw-event-detail__actions">
+              <button class="gw-btn gw-btn--sm" type="button" data-gw-copy="4f2a9c71e8d04b5a9c3e2b1f0a6d8e81" data-gw-toast="Trace id copied" data-gw-toast-tone="success"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy trace id</button>
+              <a class="gw-btn gw-btn--sm" href="../pages/activity.html?q=trace:4f2a9c"><i class="gw-icon gw-icon--sm" data-lucide="filter"></i> Show 23 calls</a>
+            </div>
+          </div>
+          <dl class="gw-kv gw-kv--inline">
+            <div class="gw-kv__row">
+              <dt class="gw-kv__key">Started</dt>
+              <dd class="gw-kv__value"><time datetime="2026-10-22T13:44:02+02:00" title="2026-10-22T13:44:02+02:00">13:44:02</time></dd>
+            </div>
+            <div class="gw-kv__row">
+              <dt class="gw-kv__key">Ended</dt>
+              <dd class="gw-kv__value"><time datetime="2026-10-22T14:02:10+02:00" title="2026-10-22T14:02:10+02:00">14:02:10</time></dd>
+            </div>
+            <div class="gw-kv__row">
+              <dt class="gw-kv__key">Decisions</dt>
+              <dd class="gw-kv__value gw-tabular">21 allowed, 1 approved, 1 error</dd>
+            </div>
+            <div class="gw-kv__row">
+              <dt class="gw-kv__key">Waited for people</dt>
+              <dd class="gw-kv__value gw-tabular">47 s</dd>
+            </div>
+          </dl>
+          <ol class="gw-timeline" aria-label="Phases of trace 4f2a9c, Fix failing order sync">
+            <li class="gw-timeline__item">
+              <span class="gw-timeline__marker gw-timeline__marker--info"><i class="gw-icon gw-icon--sm" data-lucide="compass"></i></span>
+              <div class="gw-timeline__content">
+                <p class="gw-timeline__title">Explore · 9 calls</p>
+                <p class="gw-timeline__meta"><code class="gw-code">logs_search</code> on <code class="gw-code">app-logs</code>, <code class="gw-code">sql_query</code> on <code class="gw-code">dev-db</code>, <code class="gw-code">redis_get</code> on <code class="gw-code">cache-redis</code></p>
+                <ul class="gw-event-detail__trace-decisions" aria-label="Decisions in Explore">
+                  <li><span class="gw-badge gw-badge--success gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>8 allowed</span></li>
+                  <li><span class="gw-badge gw-badge--danger gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="circle-alert"></i>1 error</span></li>
+                </ul>
+              </div>
+              <time class="gw-timeline__time" datetime="2026-10-22T13:44:02+02:00" title="2026-10-22T13:44:02+02:00, until 13:51:10">13:44–13:51</time>
+            </li>
+            <li class="gw-timeline__item">
+              <span class="gw-timeline__marker gw-timeline__marker--warning"><i class="gw-icon gw-icon--sm" data-lucide="pencil"></i></span>
+              <div class="gw-timeline__content">
+                <p class="gw-timeline__title">Change · 3 calls</p>
+                <p class="gw-timeline__meta"><code class="gw-code">sql_query</code> twice, then <code class="gw-code">sql_execute</code> approved by you after 47 s · <a class="gw-link" href="#s-approved">Open event 7c41e2d0</a></p>
+                <ul class="gw-event-detail__trace-decisions" aria-label="Decisions in Change">
+                  <li><span class="gw-badge gw-badge--success gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>2 allowed</span></li>
+                  <li><span class="gw-badge gw-badge--success gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="user-check"></i>1 approved</span></li>
+                </ul>
+              </div>
+              <time class="gw-timeline__time" datetime="2026-10-22T13:51:10+02:00" title="2026-10-22T13:51:10+02:00, until 13:52:51">13:51–13:52</time>
+            </li>
+            <li class="gw-timeline__item">
+              <span class="gw-timeline__marker gw-timeline__marker--neutral"><i class="gw-icon gw-icon--sm" data-lucide="clock"></i></span>
+              <div class="gw-timeline__content">
+                <p class="gw-timeline__title">Wait for deploy · 6 calls</p>
+                <p class="gw-timeline__meta"><code class="gw-code">k8s_get</code> on <code class="gw-code">dev-cluster</code>, polling the rollout of <code class="gw-code">deployment/api</code></p>
+                <ul class="gw-event-detail__trace-decisions" aria-label="Decisions in Wait for deploy">
+                  <li><span class="gw-badge gw-badge--success gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>6 allowed</span></li>
+                </ul>
+              </div>
+              <time class="gw-timeline__time" datetime="2026-10-22T13:53:20+02:00" title="2026-10-22T13:53:20+02:00, until 13:58:05">13:53–13:58</time>
+            </li>
+            <li class="gw-timeline__item">
+              <span class="gw-timeline__marker gw-timeline__marker--success"><i class="gw-icon gw-icon--sm" data-lucide="circle-check"></i></span>
+              <div class="gw-timeline__content">
+                <p class="gw-timeline__title">Verify · 5 calls</p>
+                <p class="gw-timeline__meta"><code class="gw-code">logs_search</code> and <code class="gw-code">sql_query</code>: no sync errors since 13:58</p>
+                <ul class="gw-event-detail__trace-decisions" aria-label="Decisions in Verify">
+                  <li><span class="gw-badge gw-badge--success gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>5 allowed</span></li>
+                </ul>
+              </div>
+              <time class="gw-timeline__time" datetime="2026-10-22T13:58:05+02:00" title="2026-10-22T13:58:05+02:00, until 14:02:10">13:58–14:02</time>
+            </li>
+          </ol>
+        </section>
+      </div>
+    </div>
+  </section>
+
+</main>
+<script src="../vendor/lucide/lucide.min.js"></script>
+<script src="../assets/kit.js"></script>
+</body>
+</html>

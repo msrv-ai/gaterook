@@ -1,0 +1,218 @@
+@let ep = slug();
+@let s = settings();
+<div gwSettingsLayout [groups]="groups" [(current)]="current" idPrefix="ep-st-" fragments [label]="'Settings of endpoint ' + ep">
+
+  <section gwSettingsSection name="instructions" idPrefix="ep-st-" heading="Instructions for agents" [description]="'What ' + ep + ' tells every client before its first call.'">
+    <div class="gw-form gw-form--sticky-actions">
+      <form class="gw-form__section" id="ep-st-instr-form" aria-labelledby="ep-st-instr-legend" (submit)="saveInstructions($event)" (reset)="discardInstructions($event)">
+        <header class="gw-form__section-header">
+          <h3 class="gw-form__legend" id="ep-st-instr-legend">Server instructions</h3>
+          <p class="gw-form__description">Sent in the <code class="gw-code">instructions</code> field when a client connects; Codex reads it as a general instruction for this server. Keep the approval rules in it: an agent that knows them waits instead of retrying.</p>
+        </header>
+        <div class="gw-form__rows">
+          @let instrError = instructionsForm.text().touched() ? (instructionsForm.text().errors()[0]?.message ?? null) : null;
+          <div class="gw-field">
+            <label class="gw-field__label" for="ep-st-instr">Instructions</label>
+            <textarea class="gw-textarea gw-textarea--wrap" id="ep-st-instr" rows="18" spellcheck="false" autocapitalize="off" [formField]="instructionsForm.text" [attr.placeholder]="'Empty: MCP Gateway writes them from the tools of ' + ep + ' and how approvals work.'" [attr.aria-invalid]="instrError ? 'true' : null" [attr.aria-describedby]="(instrError ? 'ep-st-instr-err ' : '') + 'ep-st-instr-hint ep-st-instr-count'"></textarea>
+            @if (instrError) {
+              <p class="gw-field__error" id="ep-st-instr-err"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ instrError }}</p>
+            }
+            <p class="gw-field__hint" id="ep-st-instr-hint">Plain text. Never put secrets here: every agent on {{ ep }} reads it.@if (showsDefault()) { MCP Gateway writes this text from the tools of {{ ep }} and the approval rules until you change it.} @else if (defaultChars(); as n) { Empty, so agents get the {{ n.toLocaleString('en-US') }} characters MCP Gateway writes: the tools and the approval rules.}</p>
+            <p class="gw-field__counter" id="ep-st-instr-count">{{ instructionsCounter() }}</p>
+          </div>
+          @if (instructionsError(); as err) {
+            <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+              <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+              <div class="gw-alert__content"><p class="gw-alert__title">The instructions weren't saved</p><p class="gw-alert__body">{{ err }}</p></div>
+            </div>
+          }
+        </div>
+      </form>
+      <div gwSaveBar formId="ep-st-instr-form" saveLabel="Save instructions" what="Server instructions" [dirty]="instructionsDirty()" [busy]="instructionsBusy()"></div>
+    </div>
+  </section>
+
+  <section gwSettingsSection name="limits" idPrefix="ep-st-" heading="Limits" [description]="'The ' + env() + ' policy sets the limits. Set a value here only to make ' + ep + ' stricter than its policy.'">
+    <div class="gw-form gw-form--sticky-actions">
+      <form class="gw-form__section" id="ep-st-limits-form" aria-labelledby="ep-st-limits-legend" (submit)="saveLimits($event)" (reset)="discardLimits($event)">
+        <header class="gw-form__section-header">
+          <h3 class="gw-form__legend" id="ep-st-limits-legend">Response size and rate limits</h3>
+          <p class="gw-form__description">Environment policy, then this endpoint's cap, then a tool's own limit: the strictest value wins. A larger result is cut and the agent is told to fetch the next page; a call over a rate limit gets an error that says when to retry.</p>
+        </header>
+        <div class="gw-form__rows">
+          @let e = effective();
+          <dl class="gw-kv gw-kv--dense">
+            <div class="gw-kv__row">
+              <dt class="gw-kv__key">Effective on {{ ep }}</dt>
+              <dd class="gw-kv__value">@if (e.perToken !== null) {<span class="gw-tabular">{{ e.perToken.toLocaleString('en-US') }}</span> calls per min per token · }@if (e.perTool !== null) {<span class="gw-tabular">{{ e.perTool.toLocaleString('en-US') }}</span> calls per min per tool · }@if (e.maxResponseKb !== null) {<span class="gw-tabular">{{ e.maxResponseKb.toLocaleString('en-US') }}</span> KB per result }<span class="gw-fg-muted">· from the <a class="gw-link" [routerLink]="['/policies', env()]" [fragment]="env() + '-limits'">{{ env() }} policy</a>@for (o of otherEnvs(); track o; let first = $first) {{{ first ? '; tools on ' : ', ' }}{{ o }} connections follow the <a class="gw-link" [routerLink]="['/policies', o]" [fragment]="o + '-limits'">{{ o }} policy</a>}</span></dd>
+            </div>
+          </dl>
+          @let h = hints();
+          @let p = policyLimits();
+          @let sizeErr = limitError('size');
+          <div class="gw-field">
+            <label class="gw-field__label" for="ep-st-size">Max response size <span class="gw-field__optional">Optional</span></label>
+            <div class="gw-input-group">
+              <input class="gw-input" id="ep-st-size" type="text" inputmode="numeric" autocomplete="off" [formField]="limitsForm.size" [attr.placeholder]="p.maxResponseKb" [attr.aria-invalid]="sizeErr ? 'true' : null" [attr.aria-describedby]="(sizeErr ? 'ep-st-size-err ' : '') + 'ep-st-size-hint'">
+              <span class="gw-input-group__affix">KB</span>
+            </div>
+            @if (sizeErr) {
+              <p class="gw-field__error" id="ep-st-size-err"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ sizeErr }}</p>
+            }
+            <p class="gw-field__hint" id="ep-st-size-hint">{{ h.size }}</p>
+          </div>
+          <div class="gw-form__row">
+            @let tokErr = limitError('perToken');
+            <div class="gw-field">
+              <label class="gw-field__label" for="ep-st-rate-token">Per token <span class="gw-field__optional">Optional</span></label>
+              <div class="gw-input-group">
+                <input class="gw-input" id="ep-st-rate-token" type="text" inputmode="numeric" autocomplete="off" [formField]="limitsForm.perToken" [attr.placeholder]="p.perToken" [attr.aria-invalid]="tokErr ? 'true' : null" [attr.aria-describedby]="(tokErr ? 'ep-st-rate-token-err ' : '') + 'ep-st-rate-token-hint'">
+                <span class="gw-input-group__affix">calls per min</span>
+              </div>
+              @if (tokErr) {
+                <p class="gw-field__error" id="ep-st-rate-token-err"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ tokErr }}</p>
+              }
+              <p class="gw-field__hint" id="ep-st-rate-token-hint">{{ h.perToken }}</p>
+            </div>
+            @let toolErr = limitError('perTool');
+            <div class="gw-field">
+              <label class="gw-field__label" for="ep-st-rate-tool">Per tool <span class="gw-field__optional">Optional</span></label>
+              <div class="gw-input-group">
+                <input class="gw-input" id="ep-st-rate-tool" type="text" inputmode="numeric" autocomplete="off" [formField]="limitsForm.perTool" [attr.placeholder]="p.perTool" [attr.aria-invalid]="toolErr ? 'true' : null" [attr.aria-describedby]="(toolErr ? 'ep-st-rate-tool-err ' : '') + 'ep-st-rate-tool-hint'">
+                <span class="gw-input-group__affix">calls per min</span>
+              </div>
+              @if (toolErr) {
+                <p class="gw-field__error" id="ep-st-rate-tool-err"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ toolErr }}</p>
+              }
+              <p class="gw-field__hint" id="ep-st-rate-tool-hint">{{ h.perTool }}</p>
+            </div>
+          </div>
+          @if (meter(); as m) {
+            <!-- The fill is a CSS custom property set through CSSOM (style="" is blocked by the CSP). -->
+            <div class="gw-meter" role="meter" aria-labelledby="ep-st-meter-l" aria-valuemin="0" [attr.aria-valuemax]="m.limit" [attr.aria-valuenow]="m.calls" [attr.aria-valuetext]="m.valueText" [attr.data-level]="m.level" [style.--gw-meter]="m.ratio">
+              <span class="gw-meter__label" id="ep-st-meter-l">{{ m.label }}</span>
+              <span class="gw-meter__value">@if (m.level === 'warn') {<svg lucideIcon="triangle-alert" class="gw-icon"></svg>} @else if (m.level === 'critical') {<svg lucideIcon="circle-alert" class="gw-icon"></svg>}{{ m.value }}</span>
+              <span class="gw-meter__track"><span class="gw-meter__fill"></span></span>
+            </div>
+          }
+          @if (limitsError(); as err) {
+            <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+              <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+              <div class="gw-alert__content"><p class="gw-alert__title">The limits weren't saved</p><p class="gw-alert__body">{{ err }}</p></div>
+            </div>
+          }
+        </div>
+      </form>
+      <div gwSaveBar formId="ep-st-limits-form" saveLabel="Save limits" what="Response size and rate limits" [dirty]="limitsDirty()" [busy]="limitsBusy()"></div>
+    </div>
+  </section>
+
+  <section gwSettingsSection name="auth" idPrefix="ep-st-" heading="Authorization" [description]="'How clients prove who they are when they call ' + ep + '.'">
+    <div class="gw-form">
+      <section class="gw-form__section" aria-labelledby="ep-st-tokens-legend">
+        <header class="gw-form__section-header">
+          <h3 class="gw-form__legend" id="ep-st-tokens-legend">Tokens</h3>
+          <p class="gw-form__description">Local clients send a token with every call. The token works only for this URL.</p>
+        </header>
+        <div class="gw-form__rows">
+          <p class="gw-text-small">Always on for local clients: {{ plural(activeTokenCount(), 'active token') }}. <a class="gw-link" [routerLink]="[]" [queryParams]="{ tab: 'tokens' }" queryParamsHandling="merge">Manage tokens</a></p>
+        </div>
+      </section>
+      <section class="gw-form__section" aria-labelledby="ep-st-oauth-legend">
+        <header class="gw-form__section-header">
+          <h3 class="gw-form__legend" id="ep-st-oauth-legend">OAuth 2.1</h3>
+          <p class="gw-form__description">Lets a client sign in through the browser instead of a pasted token. claude.ai needs it; tokens keep working.</p>
+        </header>
+        <div class="gw-form__rows">
+          <div class="gw-switch">
+            <input class="gw-switch__input" type="checkbox" role="switch" id="ep-st-oauth" aria-describedby="ep-st-oauth-hint" [checked]="s?.oauthEnabled ?? false" [attr.aria-busy]="oauthBusy() ? 'true' : null" [attr.aria-disabled]="oauthBusy() ? 'true' : null" (change)="setOauth($event)">
+            <span class="gw-switch__control" aria-hidden="true"></span>
+            <label class="gw-switch__label" for="ep-st-oauth">OAuth 2.1 sign-in for {{ ep }}</label>
+            <p class="gw-switch__hint" id="ep-st-oauth-hint">Applies at once. Each new sign-in waits until you allow it in this app; the client then gets a token bound to the values below.</p>
+          </div>
+          <dl class="gw-kv gw-kv--dense">
+            <div class="gw-kv__row">
+              <dt class="gw-kv__key" id="ep-st-aud-k">Audience</dt>
+              <dd class="gw-kv__value">
+                <div class="gw-copy-field" role="group" aria-labelledby="ep-st-aud-k">
+                  <code class="gw-copy-field__value" id="ep-st-aud" [attr.title]="url()">{{ url() }}</code>
+                  <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" gwCopyFrom="#ep-st-aud">
+                    <span class="gw-copy-field__copy"><svg lucideIcon="copy" class="gw-icon gw-icon--sm"></svg> Copy<span class="gw-sr-only"> audience</span></span>
+                    <span class="gw-copy-field__copied"><svg lucideIcon="check" class="gw-icon gw-icon--sm"></svg> Copied</span>
+                  </button>
+                </div>
+              </dd>
+            </div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Resource metadata</dt><dd class="gw-kv__value gw-mono">{{ metadataUrl() }}</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">PKCE</dt><dd class="gw-kv__value">S256, required</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Client registration</dt><dd class="gw-kv__value">{{ registration() }}, from <a class="gw-link" routerLink="/settings/authorization">Settings › Authorization</a></dd></div>
+          </dl>
+          <div class="gw-alert gw-alert--info gw-alert--compact">
+            <svg lucideIcon="globe-lock" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content">
+              @if (published()) {
+                <p class="gw-alert__body">{{ ep }} is published through the tunnel: claude.ai signs in at its public URL. Local clients keep using <span class="gw-mono">127.0.0.1</span>.</p>
+              } @else {
+                <p class="gw-alert__body">claude.ai can't reach <span class="gw-mono">127.0.0.1</span>. It signs in only to endpoints you publish through the tunnel@if (publishedExample(); as ex) {, like <a class="gw-link gw-mono" [routerLink]="['/endpoints', ex]">{{ ex }}</a>}.</p>
+              }
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </section>
+
+  <section gwSettingsSection name="protocol" idPrefix="ep-st-" heading="Protocol" [description]="'MCP revisions ' + ep + ' answers. Clients move to new revisions at different times.'">
+    <div class="gw-form gw-form--sticky-actions">
+      <form class="gw-form__section" id="ep-st-proto-form" aria-labelledby="ep-st-proto-legend" (submit)="saveProtocol($event)" (reset)="discardProtocol($event)">
+        <header class="gw-form__section-header">
+          <h3 class="gw-form__legend" id="ep-st-proto-legend">Supported revisions</h3>
+          <p class="gw-form__description">Keep both until every client on {{ ep }} uses {{ newest }}. Turning one off breaks the clients that still use it.</p>
+        </header>
+        <div class="gw-form__rows">
+          @let protoErr = protocolErrorText();
+          <fieldset class="gw-field" aria-labelledby="ep-st-proto-legend" [attr.aria-describedby]="protoErr ? 'ep-st-proto-err' : null">
+            @for (r of protocolForm.revisions; track $index) {
+              @let rev = r.rev().value();
+              <div class="gw-checkbox">
+                <input class="gw-checkbox__input" type="checkbox" [id]="'ep-st-rev-' + rev" [formField]="r.on" [attr.aria-describedby]="revisionHints.has(rev) ? 'ep-st-rev-' + rev + '-hint' : null">
+                <span class="gw-checkbox__control" aria-hidden="true"></span>
+                <label class="gw-checkbox__label" [for]="'ep-st-rev-' + rev"><span class="gw-mono">{{ rev }}</span></label>
+                @if (revisionHints.get(rev); as hint) {
+                  <p class="gw-checkbox__hint" [id]="'ep-st-rev-' + rev + '-hint'">@if (hint.includes('initialize')) {Starts with <code class="gw-code">initialize</code>. Approvals return a handle the agent polls with <code class="gw-code">approval_status</code>.} @else {{{ hint }}}</p>
+                }
+              </div>
+            }
+            @if (protoErr) {
+              <p class="gw-field__error" id="ep-st-proto-err"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ protoErr }}</p>
+            }
+          </fieldset>
+          @for (b of breaking(); track b.rev) {
+            <div class="gw-alert gw-alert--warning gw-alert--compact">
+              <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+              <div class="gw-alert__content"><p class="gw-alert__body">{{ b.clients.join(', ') }} used <span class="gw-mono">{{ b.rev }}</span> lately: {{ b.clients.length === 1 ? 'it stops' : 'they stop' }} working on {{ ep }} when you save.</p></div>
+            </div>
+          }
+          <!-- The core counts revisions per client over 7 days (kit: "in the last 24 hours"; ARCHITECTURE §8.6). -->
+          <p class="gw-text-caption gw-fg-muted" id="ep-st-seen-l">Revision each client used on {{ ep }} in the last 7 days</p>
+          @if (seen().length) {
+            <dl class="gw-kv gw-kv--dense" aria-labelledby="ep-st-seen-l">
+              @for (c of seen(); track c.client) {
+                <div class="gw-kv__row"><dt class="gw-kv__key">{{ c.client }}</dt><dd class="gw-kv__value gw-mono">{{ c.revisions }}</dd></div>
+              }
+            </dl>
+          } @else {
+            <p class="gw-text-small gw-fg-secondary">No client called {{ ep }} in the last 7 days.</p>
+          }
+          @if (protocolError(); as err) {
+            <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+              <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+              <div class="gw-alert__content"><p class="gw-alert__title">The protocol settings weren't saved</p><p class="gw-alert__body">{{ err }}</p></div>
+            </div>
+          }
+        </div>
+      </form>
+      <div gwSaveBar formId="ep-st-proto-form" saveLabel="Save protocol settings" what="Supported revisions" [dirty]="protocolDirty()" [busy]="protocolBusy()"></div>
+    </div>
+  </section>
+</div>

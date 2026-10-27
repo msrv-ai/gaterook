@@ -1,0 +1,16 @@
+{
+  "rules": [
+    {"excludeClasses": "**"},
+    {"includeClasses": "org.apache.sshd.**"},
+    {"includeClasses": "io.fabric8.**"},
+    {"includeClasses": "redis.clients.**"},
+    {"includeClasses": "org.bouncycastle.**"},
+    {"includeClasses": "com.mongodb.**"},
+    {"includeClasses": "org.bson.**"},
+    {"includeClasses": "org.postgresql.**"},
+    {"includeClasses": "com.mysql.**"},
+    {"includeClasses": "org.mariadb.**"},
+    {"includeClasses": "com.google.auth.**"},
+    {"includeClasses": "software.amazon.awssdk.**"}
+  ]
+}

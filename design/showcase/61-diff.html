@@ -1,0 +1,121 @@
+<section class="sc-section" id="diff" data-title="Diff" data-group="Code and data">
+  <h2>Diff <code class="gw-code">gw-diff</code></h2>
+  <p>A unified diff of the exact change a human confirms: what "Connect" writes into an AI app's config, what <code class="gw-code">k8s_apply</code> changes in a manifest. Every changed line carries a <strong>+</strong> or <strong>−</strong> marker as text and a spoken "Added" / "Removed" prefix, so the change survives greyscale, high contrast and screen readers; the washes are the second cue. Line text keeps the code colour. Use it for changes, not for showing a whole file (that is a <code class="gw-code">gw-code-block</code>).</p>
+
+  <h3>AI app config: what Connect will write</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-diff">
+      <div class="gw-diff__header">
+        <span class="gw-diff__filename">~/.codex/config.toml</span>
+        <span class="gw-diff__summary">6 lines added · backup kept</span>
+      </div>
+      <div class="gw-diff__body" tabindex="0" role="region" aria-label="Changes to ~/.codex/config.toml">
+        <div class="gw-diff__line gw-diff__line--hunk"><span class="gw-diff__text">@@ -1,6 +1,12 @@</span></div>
+        <div class="gw-diff__line gw-diff__line--context">
+          <span class="gw-diff__gutter" aria-hidden="true">1</span><span class="gw-diff__gutter" aria-hidden="true">1</span><span class="gw-diff__marker" aria-hidden="true"></span>
+          <span class="gw-diff__text">approval_policy = "on-request"</span>
+        </div>
+        <div class="gw-diff__line gw-diff__line--context">
+          <span class="gw-diff__gutter" aria-hidden="true">2</span><span class="gw-diff__gutter" aria-hidden="true">2</span><span class="gw-diff__marker" aria-hidden="true"></span>
+          <span class="gw-diff__text">sandbox_mode = "workspace-write"</span>
+        </div>
+        <div class="gw-diff__line gw-diff__line--context">
+          <span class="gw-diff__gutter" aria-hidden="true">3</span><span class="gw-diff__gutter" aria-hidden="true">3</span><span class="gw-diff__marker" aria-hidden="true"></span>
+          <span class="gw-diff__text"></span>
+        </div>
+        <div class="gw-diff__line gw-diff__line--context">
+          <span class="gw-diff__gutter" aria-hidden="true">4</span><span class="gw-diff__gutter" aria-hidden="true">4</span><span class="gw-diff__marker" aria-hidden="true"></span>
+          <span class="gw-diff__text">[mcp_servers.github]</span>
+        </div>
+        <div class="gw-diff__line gw-diff__line--context">
+          <span class="gw-diff__gutter" aria-hidden="true">5</span><span class="gw-diff__gutter" aria-hidden="true">5</span><span class="gw-diff__marker" aria-hidden="true"></span>
+          <span class="gw-diff__text">command = "npx"</span>
+        </div>
+        <div class="gw-diff__line gw-diff__line--context">
+          <span class="gw-diff__gutter" aria-hidden="true">6</span><span class="gw-diff__gutter" aria-hidden="true">6</span><span class="gw-diff__marker" aria-hidden="true"></span>
+          <span class="gw-diff__text">args = ["-y", "@modelcontextprotocol/server-github"]</span>
+        </div>
+        <div class="gw-diff__line gw-diff__line--add">
+          <span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">7</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span>
+          <span class="gw-diff__text"></span>
+        </div>
+        <div class="gw-diff__line gw-diff__line--add">
+          <span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">8</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span>
+          <span class="gw-diff__text">[mcp_servers.gateway-dev]</span>
+        </div>
+        <div class="gw-diff__line gw-diff__line--add">
+          <span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">9</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span>
+          <span class="gw-diff__text">url = "http://127.0.0.1:7465/mcp/dev"</span>
+        </div>
+        <div class="gw-diff__line gw-diff__line--add">
+          <span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">10</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span>
+          <span class="gw-diff__text">bearer_token_env_var = "GATEWAY_DEV_TOKEN"</span>
+        </div>
+        <div class="gw-diff__line gw-diff__line--add">
+          <span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">11</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span>
+          <span class="gw-diff__text">startup_timeout_sec = 20</span>
+        </div>
+        <div class="gw-diff__line gw-diff__line--add">
+          <span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">12</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span>
+          <span class="gw-diff__text">tool_timeout_sec = 120</span>
+        </div>
+      </div>
+    </div>
+    <p class="gw-text-caption gw-fg-muted">Backup: <code class="gw-code">~/.codex/config.toml.bak-20261022-1402</code></p>
+  </div>
+
+  <h3>Manifest change in an approval request</h3>
+  <p class="sc-lead">Removed and added lines, two hunks. The old and new line numbers stay in their own gutters, so a changed line reads as one removal followed by one addition. <code class="gw-code">--wrap</code> soft-wraps long lines (a wrapped line hangs 2ch under its text); inside an approval request every diff wraps.</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-diff gw-diff--wrap">
+      <div class="gw-diff__header">
+        <span class="gw-diff__filename">k8s_apply · deployment/api · app-dev</span>
+        <span class="gw-diff__summary">2 lines changed</span>
+      </div>
+      <div class="gw-diff__body" tabindex="0" role="region" aria-label="Changes to deployment/api">
+        <div class="gw-diff__line gw-diff__line--hunk"><span class="gw-diff__text">@@ -12,4 +12,4 @@ metadata:</span></div>
+        <div class="gw-diff__line gw-diff__line--context">
+          <span class="gw-diff__gutter" aria-hidden="true">12</span><span class="gw-diff__gutter" aria-hidden="true">12</span><span class="gw-diff__marker" aria-hidden="true"></span>
+          <span class="gw-diff__text">spec:</span>
+        </div>
+        <div class="gw-diff__line gw-diff__line--del">
+          <span class="gw-diff__gutter" aria-hidden="true">13</span><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__marker" aria-hidden="true">−</span><span class="gw-sr-only">Removed: </span>
+          <span class="gw-diff__text">  replicas: 2</span>
+        </div>
+        <div class="gw-diff__line gw-diff__line--add">
+          <span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">13</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span>
+          <span class="gw-diff__text">  replicas: 3</span>
+        </div>
+        <div class="gw-diff__line gw-diff__line--context">
+          <span class="gw-diff__gutter" aria-hidden="true">14</span><span class="gw-diff__gutter" aria-hidden="true">14</span><span class="gw-diff__marker" aria-hidden="true"></span>
+          <span class="gw-diff__text">  selector:</span>
+        </div>
+        <div class="gw-diff__line gw-diff__line--context">
+          <span class="gw-diff__gutter" aria-hidden="true">15</span><span class="gw-diff__gutter" aria-hidden="true">15</span><span class="gw-diff__marker" aria-hidden="true"></span>
+          <span class="gw-diff__text">    matchLabels: { app: api }</span>
+        </div>
+        <div class="gw-diff__line gw-diff__line--hunk"><span class="gw-diff__text">@@ -21,4 +21,4 @@ spec:</span></div>
+        <div class="gw-diff__line gw-diff__line--context">
+          <span class="gw-diff__gutter" aria-hidden="true">21</span><span class="gw-diff__gutter" aria-hidden="true">21</span><span class="gw-diff__marker" aria-hidden="true"></span>
+          <span class="gw-diff__text">      containers:</span>
+        </div>
+        <div class="gw-diff__line gw-diff__line--context">
+          <span class="gw-diff__gutter" aria-hidden="true">22</span><span class="gw-diff__gutter" aria-hidden="true">22</span><span class="gw-diff__marker" aria-hidden="true"></span>
+          <span class="gw-diff__text">        - name: api</span>
+        </div>
+        <div class="gw-diff__line gw-diff__line--del">
+          <span class="gw-diff__gutter" aria-hidden="true">23</span><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__marker" aria-hidden="true">−</span><span class="gw-sr-only">Removed: </span>
+          <span class="gw-diff__text">          image: registry.acme.dev/api:1.42.0</span>
+        </div>
+        <div class="gw-diff__line gw-diff__line--add">
+          <span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">23</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span>
+          <span class="gw-diff__text">          image: registry.acme.dev/api:1.43.1</span>
+        </div>
+        <div class="gw-diff__line gw-diff__line--context">
+          <span class="gw-diff__gutter" aria-hidden="true">24</span><span class="gw-diff__gutter" aria-hidden="true">24</span><span class="gw-diff__marker" aria-hidden="true"></span>
+          <span class="gw-diff__text">          ports: [{ containerPort: 8080 }]</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,150 @@
+<div class="gw-stack gw-stack--lg">
+  <h2 class="gw-sr-only">Templates</h2>
+  <div class="gw-stack">
+    <div class="gw-toolbar">
+      <div class="gw-toolbar__start">
+        <p class="gw-text-small gw-fg-secondary">A template turns a query, a runbook or an API description into tools with typed parameters. No code runs in the core.</p>
+      </div>
+      <div class="gw-toolbar__end">
+        <div class="gw-menu-host">
+          <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="menu" [gwMenuTrigger]="newMenu"><svg lucideIcon="plus" class="gw-icon gw-icon--sm"></svg> New template <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
+          <div class="gw-menu gw-menu--right gw-menu--wide" gwMenu #newMenu="gwMenu" id="menu-new-template" role="menu" aria-label="New template" hidden>
+            @let r = kindReasons();
+            <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" [gwAriaDisabled]="!!r.sql" (click)="newSqlQuery()"><svg lucideIcon="database" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">SQL query<span class="gw-menu__hint">{{ r.sql ?? 'A named SELECT or statement with :parameters' }}</span></span></button>
+            <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" [gwAriaDisabled]="!!r.ssh"><svg lucideIcon="terminal" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">SSH runbook<span class="gw-menu__hint">{{ r.ssh ?? 'A fixed command with validated parameters' }}</span></span></button>
+            <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" [gwAriaDisabled]="!!r.openapi"><svg lucideIcon="globe" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">OpenAPI import<span class="gw-menu__hint">{{ r.openapi ?? 'One tool per operation of an HTTP API' }}</span></span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    @if (data.templates.error(); as e) {
+      <div class="gw-alert gw-alert--danger" role="alert">
+        <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content">
+          <p class="gw-alert__title">The templates didn't load</p>
+          <p class="gw-alert__body">{{ errorText(e) }}</p>
+          <div class="gw-alert__actions">
+            <button class="gw-btn gw-btn--sm" type="button" (click)="retry()" [attr.aria-busy]="data.templates.loading() ? 'true' : null" [attr.aria-disabled]="data.templates.loading() ? 'true' : null">@if (data.templates.loading()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Try again</button>
+            <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle aria-controls="templates-error-details">Details <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
+          </div>
+        </div>
+      </div>
+      <gw-code-block [attr.id]="'templates-error-details'" hidden wrap lang="Error" [text]="errorDetails(e)" copyLabel="error details" regionLabel="Error details" />
+    } @else if (!rows()) {
+      @if (slow()) {
+        <div class="gw-table-wrap" role="region" aria-labelledby="tpl-skel-cap" tabindex="0" aria-busy="true">
+          <table class="gw-table">
+            <caption class="gw-sr-only" id="tpl-skel-cap">Your templates, loading</caption>
+            <thead><tr><th scope="col">Template</th><th scope="col">Runs on</th><th scope="col">Tools and default mode</th></tr></thead>
+            <tbody>
+              @for (i of [1, 2, 3]; track i) {
+                <tr aria-hidden="true"><td><span class="gw-skeleton gw-skeleton--text"></span></td><td><span class="gw-skeleton gw-skeleton--text"></span></td><td><span class="gw-skeleton gw-skeleton--text"></span></td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <p class="gw-sr-only" role="status">Loading templates</p>
+      }
+    } @else if (!rows()!.length) {
+      <!-- With the editor open on a new template, its card is the next step: the empty state steps aside. -->
+      <div class="gw-card" [hidden]="!!target()">
+        <div class="gw-empty">
+          <span class="gw-empty__icon"><svg lucideIcon="file-code" class="gw-icon gw-icon--lg"></svg></span>
+          <h3 class="gw-empty__title">No templates yet</h3>
+          <p class="gw-empty__text">Give agents a named query instead of free SQL: the tool takes typed arguments and never shows the SQL or the secret.</p>
+          @if (!kindReasons().sql) {
+            <div class="gw-empty__actions"><button class="gw-btn" type="button" (click)="newSqlQuery()"><svg lucideIcon="plus" class="gw-icon"></svg> New SQL query</button></div>
+          } @else {
+            <p class="gw-empty__text">{{ kindReasons().sql }}</p>
+          }
+        </div>
+      </div>
+    } @else {
+      @if (data.templates.stale(); as e) {
+        <div class="gw-alert gw-alert--warning gw-alert--compact" role="status">
+          <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content">
+            <p class="gw-alert__title">This list may be out of date.</p>
+            <p class="gw-alert__body">{{ errorText(e) }}</p>
+          </div>
+          <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retry()">Try again</button></div>
+        </div>
+      }
+      <!-- The template name opens its editor; the menu holds the rest. Kind and update time sit under the name, so the
+           table fits a 1440 window without scrolling sideways (kit). -->
+      <div class="gw-table-wrap" role="region" aria-labelledby="tpl-list-cap" tabindex="0">
+        <table class="gw-table">
+          <caption class="gw-sr-only" id="tpl-list-cap">Your templates</caption>
+          <thead>
+            <tr>
+              <th scope="col">Template</th>
+              <th scope="col">Runs on</th>
+              <th scope="col">Tools and default mode</th>
+              <th scope="col">On endpoints</th>
+              <th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track row.template.id) {
+              @let t = row.template;
+              <tr [id]="'template-' + t.id">
+                <th scope="row">
+                  @if (row.editable) {
+                    <a class="gw-link gw-mono" href="/connectors#template-editor" [attr.aria-busy]="opening() === t.id ? 'true' : null" (click)="edit(row, $event)">{{ row.label }}<span class="gw-sr-only">, edit {{ row.kind.noun }} {{ t.name }}</span></a>
+                  } @else {
+                    <span class="gw-mono">{{ row.label }}</span>
+                  }
+                  <div class="gw-text-caption gw-fg-muted"><svg [lucideIcon]="row.kind.icon" class="gw-icon gw-icon--xs"></svg> {{ row.kind.label }} · updated <time [attr.datetime]="time.iso(t.updatedAt)" [attr.title]="time.absolute(t.updatedAt, false)">{{ time.relative(t.updatedAt) }}</time></div>
+                  @if (!t.verified) {
+                    <span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Changed outside MCP Gateway</span></span>
+                  }
+                </th>
+                <td>
+                  @if (t.connection) {
+                    <span class="gw-mono">{{ t.connection }}</span>@if (row.runsOn; as c) { <span class="gw-sr-only">environment</span> <span [class]="'gw-env gw-env--sm gw-env--' + c.env">{{ c.env }}</span>}
+                  } @else {
+                    <span class="gw-fg-muted">Connection deleted</span>
+                  }
+                </td>
+                <td class="gw-table__cell--wrap">@for (m of row.modes.chips; track m.text) {<span [class]="'gw-mode gw-mode--' + m.mode"><svg [lucideIcon]="m.icon" class="gw-icon"></svg>{{ m.text }}</span> }· @for (part of row.modes.note.split('ssh_run'); track $index; let last = $last) {{{ part }}@if (!last) {<code class="gw-code">ssh_run</code>}}</td>
+                <td>@for (slug of row.endpoints; track slug; let last = $last) {<span class="gw-mono">{{ slug }}</span>@if (!last) {, }} @empty {None yet}</td>
+                <td class="gw-table__cell--actions">
+                  <div class="gw-menu-host">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" [attr.aria-label]="'More actions for ' + row.kind.noun + ' ' + t.name" aria-haspopup="menu" [gwMenuTrigger]="rowMenu"><svg lucideIcon="ellipsis" class="gw-icon"></svg></button>
+                    <div class="gw-menu gw-menu--right" gwMenu #rowMenu="gwMenu" [id]="menuId(t)" role="menu" [attr.aria-label]="'More actions for ' + row.kind.noun + ' ' + t.name" hidden>
+                      @if (row.endpoints.length) {
+                        <a class="gw-menu__item" role="menuitem" tabindex="-1" routerLink="/activity" [queryParams]="{ q: row.activityQuery }"><svg lucideIcon="activity" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">View activity<span class="gw-menu__hint gw-mono">{{ row.activityQuery }}</span></span></a>
+                      }
+                      @if (row.playground; as p) {
+                        <a class="gw-menu__item" role="menuitem" tabindex="-1" routerLink="/playground" [queryParams]="{ endpoint: p.endpoint, tool: p.tool }"><svg lucideIcon="flask-conical" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Try in Playground</span></a>
+                      } @else {
+                        <a class="gw-menu__item" role="menuitem" tabindex="-1" routerLink="/playground"><svg lucideIcon="flask-conical" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Try in Playground</span></a>
+                      }
+                      @if (!row.endpoints.length) {
+                        @if (row.addTo) {
+                          <a class="gw-menu__item" role="menuitem" tabindex="-1" [routerLink]="['/endpoints', row.addTo]" [queryParams]="{ tab: 'tools' }"><svg lucideIcon="waypoints" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Add to an endpoint</span></a>
+                        } @else {
+                          <a class="gw-menu__item" role="menuitem" tabindex="-1" routerLink="/endpoints"><svg lucideIcon="waypoints" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Add to an endpoint</span></a>
+                        }
+                      }
+                      @if (!t.verified) {
+                        <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" (click)="act('keep', t, $event)"><svg lucideIcon="shield-alert" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Review the change<span class="gw-menu__hint">It serves nothing until you keep or delete it.</span></span></button>
+                      }
+                      <div class="gw-menu__divider" role="separator"></div>
+                      <button class="gw-menu__item gw-menu__item--danger" type="button" role="menuitem" tabindex="-1" (click)="act('delete', t, $event)"><svg lucideIcon="trash-2" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Delete {{ row.kind.noun }}</span></button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+
+  @if (target(); as t) {
+    <section gwTemplateEditor [target]="t" [connections]="sqlConnections()" (saved)="onSaved($event)"></section>
+  }
+</div>

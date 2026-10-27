@@ -1,0 +1,174 @@
+// =============================================================
+// .gw-settings-layout · Grouped settings with a section nav (element)
+// -------------------------------------------------------------
+// Purpose   A long settings surface split into logical groups the user can
+//           scan and jump through: a settings nav on the left (groups with
+//           overline labels, the current item marked) and, on the right, one
+//           section per nav item, each a gw-form of topics with its own Save bar
+//           when it holds values that need saving. Below lg the nav becomes a
+//           native "Jump to section" select above the sections.
+// Used in   pages/settings.html (Workspace · Security · Approvals · Network ·
+//           Data, BLUEPRINT §2) and the Settings tab of pages/endpoint-detail.html.
+// Composes  gw-nav (__group __group-label __list __item __icon __label: the app's
+//           nav-list look, NOT gw-sidebar / data-gw-nav) · gw-field + gw-select
+//           (Jump to section) · gw-section__header (__title __description
+//           __actions) · gw-divider · gw-form (--sticky-actions, __section
+//           __section-header __legend __description __rows __row __actions __note)
+//           · any form control inside (gw-segmented, gw-radio, gw-switch,
+//           gw-select, gw-grid --auto of gw-choice-card, gw-copy-field, gw-secret,
+//           gw-alert --compact, gw-status, gw-kbd, gw-btn) · gw-toast (applies at once)
+//
+//   <div class="gw-settings-layout">
+//     <nav class="gw-settings-layout__nav gw-nav" aria-label="Settings">
+//       <div class="gw-nav__group" role="group" aria-labelledby="st-g-security">
+//         <p class="gw-nav__group-label" id="st-g-security">Security</p>
+//         <ul class="gw-nav__list">
+//           <li><a class="gw-nav__item" href="#settings-authorization" aria-current="location">
+//             <i class="gw-icon gw-nav__icon" data-lucide="shield-check"></i>
+//             <span class="gw-nav__label">Authorization</span></a></li>
+//         </ul>
+//       </div>
+//     </nav>
+//     <nav class="gw-settings-layout__jump" aria-label="Settings">
+//       <div class="gw-field">
+//         <label class="gw-field__label" for="st-jump">Jump to section</label>
+//         <select class="gw-select" id="st-jump"><optgroup label="Security">…</optgroup></select>
+//       </div>
+//     </nav>
+//     <div class="gw-settings-layout__content">
+//       <section class="gw-settings-layout__section" id="settings-authorization" aria-labelledby="st-auth-t">
+//         <header class="gw-section__header">
+//           <h2 class="gw-section__title" id="st-auth-t">Authorization</h2>
+//           <p class="gw-section__description">How AI apps prove who they are.</p>
+//         </header>
+//         <hr class="gw-divider">
+//         <div class="gw-form gw-form--sticky-actions">
+//           <section class="gw-form__section" aria-labelledby="…">…applies at once…</section>
+//           <form class="gw-form__section" id="st-oauth" aria-labelledby="…">…needs Save…</form>
+//           <div class="gw-form__actions">
+//             <p class="gw-form__note" role="status"><i class="gw-icon" data-lucide="circle-dot"></i>Unsaved changes</p>
+//             <button class="gw-btn" type="reset" form="st-oauth">Discard</button>
+//             <button class="gw-btn gw-btn--primary" type="submit" form="st-oauth">Save OAuth settings</button>
+//           </div>
+//         </div>
+//       </section>
+//     </div>
+//   </div>
+//
+// Parts
+//   __nav      the settings nav (≥ lg): sticky at the top of the scrolling main,
+//              scrolls itself when the window is short. Items are <a href="#id">.
+//   __jump     the same destinations as a native <select> with <optgroup> per
+//              group (< lg). Changing it scrolls to the section; focus stays on
+//              the select (on Windows the arrow keys change a closed select's
+//              value, so moving focus on change would strand the keyboard).
+//              Only one of __nav / __jump renders.
+//   __content  the sections, 48px apart, capped at the form width (880).
+//   __section  one nav item: header (h2 + description [+ actions]) → divider →
+//              its gw-form. Anchor target: scroll-margin keeps the heading clear
+//              of the top edge.
+//   __inline   a row of inline things inside gw-form__rows (status + Connect
+//              button + caption, Send test message): buttons keep their width.
+// Save model (DESIGN §8 Forms, gw-switch rule)
+//   A topic that applies at once (switches, the theme, a default picked in a
+//   select) is a <section class="gw-form__section"> outside any <form>; the app
+//   confirms it with a gw-toast. A topic with values to save is a
+//   <form class="gw-form__section" id> and owns the item's sticky gw-form__actions
+//   through form="id" on Discard (type="reset") / Save (type="submit", names the
+//   object: "Save OAuth settings"). One gw-form per item, so the topic rules stay
+//   the form's own. Render __actions only while that form has unsaved changes.
+//   Appearance has no Save at all: its gw-form is an unnamed <form> only to scope
+//   the name="gw-theme" / "gw-contrast" radio groups (kit.js binds them to gwTheme).
+// States
+//   current item  aria-current="location" (not "page": the items are sections of
+//                 one page) on the nav link of the section in view, the same look as
+//                 the sidebar's current page (the app keeps /settings/<item> in the
+//                 URL while scrolling); the select shows the same item
+//   unsaved       gw-form__actions visible + note "Unsaved changes" (role=status);
+//                 Discard restores the saved values
+//   applies at once  no bar; a success toast names the setting and its new value
+//   unavailable   a topic that does not apply here (server mode only on desktop):
+//                 a gw-alert--neutral --compact (circle-help) that says why and what
+//                 would enable it, then a READ-ONLY PREVIEW of the settings (gw-kv
+//                 --dense, aria-describedby → the alert), never a row of disabled
+//                 controls. A single control unavailable for a reason is
+//                 aria-disabled + aria-describedby (kit.js keeps it inert).
+// Layout     one column below lg (jump select on top, at most 320 wide); from lg:
+//            240px nav + content (max 880), 32px apart; gw-form turns two-column
+//            (topic text 1/3, controls 2/3) on its own from lg. Put the element in
+//            a default-width gw-page (not --narrow): the nav takes part of the
+//            width. Long literals: gw-copy-field truncates, gw-mono hints wrap.
+// Known issue  gw-shell's collapsed-sidebar rules (.gw-shell[data-collapsed] and
+//            below md) target every .gw-nav__label / __group-label inside the
+//            shell, not only the sidebar's: collapsing the sidebar at >= lg also
+//            hides this nav's labels. Needs the shell to scope them to
+//            .gw-sidebar (reported to the kit lead); nothing to do here.
+// A11y       <nav aria-label="Settings"> (either form); groups role="group" +
+//            aria-labelledby → the overline label; the current link carries
+//            aria-current; section headings h2 (topics h3) so the outline mirrors
+//            the nav; focus rings in the nav are inset (it scrolls). A choice
+//            group whose topic heading already names it is a fieldset.gw-field
+//            with aria-labelledby → that heading (no duplicate legend).
+// Raw values: none.
+// =============================================================
+
+@use "../scss/tokens" as *;
+@use "../scss/mixins" as *;
+
+.gw-settings-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  row-gap: var(--gw-space-6);
+  column-gap: var(--gw-space-8);
+  min-width: 0;
+
+  &__nav { display: none; }
+
+  &__jump {
+    display: block;
+    min-width: 0;
+    max-inline-size: calc(var(--gw-size-control-lg) * 8); // 320px: a picker, not a banner across the page
+  }
+
+  &__content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-12);
+    min-width: 0;
+  }
+
+  &__section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-6);
+    min-width: 0;
+    scroll-margin-block-start: var(--gw-space-6);
+  }
+
+  &__inline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gw-space-2) var(--gw-space-3);
+    min-width: 0;
+  }
+
+  // ─── From lg: nav column + content column ───
+  @include gw-bp-up(lg) {
+    grid-template-columns: var(--gw-layout-sidebar-width) minmax(0, var(--gw-layout-content-narrow));
+
+    &__nav {
+      display: flex;
+      position: sticky;
+      inset-block-start: var(--gw-space-6);
+      // Short window: the nav scrolls on its own instead of running off-screen.
+      max-block-size: calc(100dvh - var(--gw-layout-titlebar-height) - 2 * var(--gw-space-6));
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      @include gw-scrollbar;
+    }
+
+    &__jump { display: none; }
+  }
+}

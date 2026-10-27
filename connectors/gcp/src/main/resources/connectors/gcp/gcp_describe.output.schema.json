@@ -1,0 +1,100 @@
+{
+  "type": "object",
+  "required": [
+    "provider",
+    "mode",
+    "truncated"
+  ],
+  "properties": {
+    "provider": {
+      "const": "gcp"
+    },
+    "scope": {
+      "type": "string"
+    },
+    "mode": {
+      "enum": [
+        "search",
+        "get"
+      ]
+    },
+    "resources": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "assetType"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "assetType": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "labels": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "resource": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "assetType": {
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "live",
+            "inventory"
+          ]
+        },
+        "data": {}
+      }
+    },
+    "count": {
+      "type": "integer"
+    },
+    "hiddenByPolicy": {
+      "type": "integer"
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "nextCursor": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "masked": {
+      "type": "integer"
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "truncatedReason": {
+      "type": "string"
+    }
+  }
+}

@@ -1,0 +1,183 @@
+// =============================================================
+// .gw-diff · Unified diff
+// -------------------------------------------------------------
+// The exact change a human confirms: what "Connect" writes into a
+// client config, what k8s_apply changes in a manifest. Read-only.
+//
+//   <div class="gw-diff">
+//     <div class="gw-diff__header">
+//       <span class="gw-diff__filename">~/.codex/config.toml</span>
+//       <span class="gw-diff__summary">6 additions</span>
+//     </div>
+//     <div class="gw-diff__body" tabindex="0" role="region" aria-label="Changes to ~/.codex/config.toml">
+//       <div class="gw-diff__line gw-diff__line--hunk"><span class="gw-diff__text">@@ -1,6 +1,12 @@</span></div>
+//       <div class="gw-diff__line gw-diff__line--context">
+//         <span class="gw-diff__gutter" aria-hidden="true">1</span>
+//         <span class="gw-diff__gutter" aria-hidden="true">1</span>
+//         <span class="gw-diff__marker" aria-hidden="true"></span>
+//         <span class="gw-diff__text">approval_policy = "on-request"</span>
+//       </div>
+//       <div class="gw-diff__line gw-diff__line--add">
+//         <span class="gw-diff__gutter" aria-hidden="true"></span>
+//         <span class="gw-diff__gutter" aria-hidden="true">8</span>
+//         <span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span>
+//         <span class="gw-diff__text">[mcp_servers.gateway-dev]</span>
+//       </div>
+//     </div>
+//   </div>
+//
+// Subparts
+//   __header    optional: __filename (mono) + __summary ("6 additions", end)
+//   __body      the scroller; all rows share one column grid (subgrid), so
+//               gutters line up and add/del washes run the full width.
+//               tabindex="0" + role="region" + aria-label: keyboard scrolling.
+//   __line      one row. Every row except --hunk has four cells in order:
+//               old-line __gutter, new-line __gutter, __marker, __text.
+//     --add      added line: add wash, + marker and gutter in diff add fg
+//     --del      removed line: del wash, − marker (U+2212) in diff del fg
+//     --context  unchanged line, muted gutter
+//     --hunk     "@@ -1,6 +1,12 @@" header: only a __text, spans the row
+//   __gutter    line number, muted, never selected; aria-hidden
+//   __marker    "+" / "−" as TEXT, so the change survives greyscale and
+//               high contrast. aria-hidden, followed by a gw-sr-only
+//               "Added: " / "Removed: " so screen readers hear words.
+//   __text      the line, verbatim (white-space: pre), always code text colour
+// Variants
+//   --wrap      soft-wraps long lines instead of scrolling sideways; a wrapped
+//               line hangs 2ch under its own text (gutters and marker stay on
+//               the first row). Always on inside approval-request (forced there).
+// States     __body:focus-visible (inset ring: the diff clips its corners)
+// A11y       Markers are text (+ and U+2212), so the change reads in
+//            greyscale, high contrast and forced colours, where the washes
+//            disappear. The spoken prefix and the gutters are never selected,
+//            so copying lines gives the code only. Gutter and marker use the
+//            diff fg on their wash (4.5:1); line text stays code text.
+// Raw values 2ch hanging indent of a wrapped line (--wrap).
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+.gw-diff {
+  @include gw-well;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--gw-color-code-text);
+  background: var(--gw-color-code-bg);
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: var(--gw-space-3);
+    min-height: calc(var(--gw-size-control-sm) + var(--gw-space-2));
+    padding: var(--gw-space-1) var(--gw-space-4);
+    border-bottom: var(--gw-border-width-default) solid var(--gw-color-border-subtle);
+  }
+
+  &__filename {
+    @include gw-type(code-sm);
+    @include gw-truncate;
+    color: var(--gw-color-text-primary);
+  }
+
+  &__summary {
+    flex: none;
+    margin-inline-start: auto;
+    @include gw-type(caption);
+    @include gw-tabular;
+    color: var(--gw-color-text-muted);
+  }
+
+  &__body {
+    position: relative;
+    display: grid;
+    grid-template-columns: max-content max-content max-content minmax(max-content, 1fr);
+    align-content: start;
+    min-width: 0;
+    padding-block: var(--gw-space-2);
+    overflow: auto;
+    @include gw-scrollbar;
+    @include gw-focus-ring-inset;
+  }
+
+  &__line {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    align-items: baseline;
+    @include gw-type(code);
+    --gw-diff-mark: var(--gw-color-text-muted); // context lines: muted gutter, no wash
+
+    &--context { /* the base look, named for explicit markup */ }
+
+    &--add {
+      --gw-diff-mark: var(--gw-color-diff-add-fg);
+      background: var(--gw-color-diff-add-bg);
+    }
+
+    &--del {
+      --gw-diff-mark: var(--gw-color-diff-del-fg);
+      background: var(--gw-color-diff-del-bg);
+    }
+
+    &--hunk {
+      margin-block: var(--gw-space-1);
+      color: var(--gw-color-diff-hunk-fg);
+      background: var(--gw-color-diff-hunk-bg);
+
+      &:first-child { margin-block-start: 0; }
+
+      > .gw-diff__text {
+        grid-column: 1 / -1;
+        padding-inline-start: var(--gw-space-4);
+        color: inherit;
+      }
+    }
+  }
+
+  &__gutter {
+    min-width: var(--gw-space-8);
+    padding-inline: var(--gw-space-2);
+    @include gw-type(code-sm);
+    @include gw-tabular;
+    line-height: var(--gw-type-code-line);
+    color: var(--gw-diff-mark);
+    text-align: end;
+    user-select: none;
+  }
+
+  &__marker {
+    min-width: var(--gw-space-4);
+    padding-inline: var(--gw-space-1);
+    font-weight: var(--gw-font-weight-semibold);
+    color: var(--gw-diff-mark);
+    text-align: center;
+    user-select: none;
+  }
+
+  &__text {
+    padding-inline-end: var(--gw-space-4);
+    color: var(--gw-color-code-text);
+    white-space: pre;
+  }
+
+  // ─── Variants ───
+  &--wrap {
+    .gw-diff__body { grid-template-columns: max-content max-content max-content minmax(0, 1fr); }
+
+    .gw-diff__text {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .gw-diff__line:not(.gw-diff__line--hunk) > .gw-diff__text {
+      padding-inline-start: 2ch; // raw: hanging indent in code columns
+      text-indent: -2ch; // raw: hanging indent in code columns
+    }
+  }
+
+  // The spoken "Added: " / "Removed: " prefix stays out of a copied selection.
+  &__line > .gw-sr-only { user-select: none; }
+}

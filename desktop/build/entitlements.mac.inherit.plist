@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Helpers and child processes (Electron's renderer and GPU helpers; the plugin host's java). JIT for V8 and the
+     JVM. Step R1 reviews these with real signing (UNVERIFIED). -->
+<plist version="1.0">
+  <dict>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.inherit</key>
+    <true/>
+  </dict>
+</plist>

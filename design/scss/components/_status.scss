@@ -1,0 +1,199 @@
+// =============================================================
+// .gw-status · .gw-env · .gw-mode
+// -------------------------------------------------------------
+// .gw-status  Dot + label: health of a connection, the core, the tunnel, a
+//             client. The label always says the state in words; the dot is
+//             the second cue. Vocabulary: BLUEPRINT §7 (Health).
+//
+//   <span class="gw-status gw-status--success">
+//     <span class="gw-status__dot" aria-hidden="true"></span>
+//     <span class="gw-status__label">Healthy · 12 ms</span>
+//   </span>
+//
+//   <span class="gw-status gw-status--checking" role="status">
+//     <span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>
+//     <span class="gw-status__label">Checking connection</span>
+//   </span>
+//
+// Tones      --success (healthy, connected, running) --warning (degraded,
+//            expiring, needs restart) --danger (unreachable, failed, revoked)
+//            --neutral (default: unknown, not checked, not installed, off)
+//            --info (informational, e.g. update available) --brand (Live
+//            follow in Activity). No env tones: an environment is not a
+//            health state, use .gw-env.
+// Modifiers  --live      the dot pulses: a value that updates by itself (Core
+//                        running, Live tail). One per view. Reduced motion: a
+//                        static ring around the dot.
+//            --checking  in-flight check or start (checking, starting): a
+//                        .gw-spinner--sm child replaces the dot, info tone; a
+//                        __dot left in the markup is hidden
+// Subparts   __dot    8px tone-fg dot with a 1px tone-border ring (drawn as an
+//                     outline so Windows forced-colors keeps it); the slot is
+//                     12px wide for both dot and spinner, so the label never
+//                     shifts when a check finishes
+//            __label  the words, neutral secondary text, tabular figures so
+//                     latencies line up in a column; long labels wrap
+// States     the tone is the state; --checking is the transient one.
+// A11y       Decorative dot (aria-hidden). Put role="status" on the root only
+//            where the value changes while the user watches (Test connection);
+//            never on every row of a table. Non-text marks paint with the tone
+//            FG (3:1 or more on surface, raised, overlay, canvas).
+//
+// .gw-env  Environment marker. Reads differently from a badge by SHAPE:
+//          straight 2px bar in the env solid at the start (square start
+//          corners, radius xs at the end), uppercase mono label in env fg on
+//          env subtle. Write the slug in lower case in the markup (it is a
+//          literal: copy-paste and screen readers get "prod").
+//
+//   <span class="gw-env gw-env--prod">prod</span>
+//
+//   --dev (teal) | --stage (orange) | --prod (red)
+//   Sizes  20px (code-sm) | --sm 16px (overline size, mono) for dense rows
+// A11y  Put it right after the connection name. Where the column or the
+//       sentence does not say "environment", put <span class="gw-sr-only">environment</span>
+//       right before the marker (outside it, separated by a space).
+//       Env fg on env subtle 4.5:1, env bar 3:1 on surface and overlay (verified).
+//
+// .gw-mode  Tool mode, display only (choosing it is .gw-segmented). Icon +
+//           words, BLUEPRINT §7: Off circle-off · Read only eye · Approval user-check.
+//
+//   <span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span>
+//
+//   --off (neutral) | --read (info) | --approval (warning)      20px, radius xs
+//   There is no "write" mode anywhere: mutations always need an approval.
+// A11y  The icon is decorative, the words carry the mode; the transparent
+//       border keeps the shape in Windows forced-colors mode.
+//
+// Raw values  the pulse loop (2s), its start opacity and scale factor; the
+//             static ring opacity; 12px icon stroke width (as .gw-icon--xs).
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+.gw-status {
+  @include gw-tone(neutral);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gw-space-1-5);
+  min-width: 0;
+  max-width: 100%;
+  @include gw-type(small);
+  color: var(--gw-color-text-secondary);
+  vertical-align: middle;
+
+  @include gw-tone-modifiers((brand, success, warning, danger, info, neutral));
+
+  &__dot {
+    position: relative;
+    flex: none;
+    width: var(--gw-space-2);
+    height: var(--gw-space-2);
+    margin-inline: var(--gw-space-0-5);
+    background: var(--gw-tone-fg);
+    border-radius: var(--gw-radius-full);
+    outline: var(--gw-border-width-default) solid var(--gw-tone-border);
+    outline-offset: 0;
+  }
+
+  &__label {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    @include gw-tabular;
+  }
+
+  // ─── Live: a ring that breathes out of the dot ───
+  // Reduced motion (and the base state) shows a calm static ring instead.
+  &--live .gw-status__dot::after {
+    content: "";
+    position: absolute;
+    inset: calc(-1 * var(--gw-space-1));
+    border: var(--gw-border-width-default) solid var(--gw-tone-fg);
+    border-radius: var(--gw-radius-full);
+    opacity: 0.45; // raw: quiet static ring, the dot stays the stronger mark
+  }
+
+  @include gw-motion {
+    &--live .gw-status__dot::after {
+      inset: 0;
+      border: 0;
+      background: var(--gw-tone-fg);
+      animation: gw-status-pulse 2s var(--gw-motion-ease-exit) infinite; // raw: calm breathing loop, slower than any UI transition
+    }
+  }
+
+  // ─── Checking: spinner in the dot's slot ───
+  &--checking {
+    @include gw-tone(info);
+
+    .gw-status__dot { display: none; }
+
+    .gw-spinner {
+      --gw-spinner-size: var(--gw-size-icon-xs);
+      color: var(--gw-tone-fg);
+    }
+  }
+}
+
+@keyframes gw-status-pulse {
+  from { transform: scale(1); opacity: 0.55; } // raw: ring starts softer than the dot
+  to { transform: scale(2.6); opacity: 0; } // raw: ring grows to roughly the label's x-height band
+}
+
+.gw-env {
+  @include gw-tone(neutral);
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  padding-block: var(--gw-space-0-5);
+  padding-inline: var(--gw-space-1-5);
+  @include gw-type(code-sm);
+  font-weight: var(--gw-font-weight-semibold);
+  letter-spacing: var(--gw-font-tracking-overline);
+  text-transform: uppercase;
+  white-space: nowrap;
+  vertical-align: middle;
+  color: var(--gw-tone-fg);
+  background: var(--gw-tone-subtle);
+  border-inline-start: var(--gw-border-width-strong) solid var(--gw-tone-solid);
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  border-start-end-radius: var(--gw-radius-xs);
+  border-end-end-radius: var(--gw-radius-xs);
+
+  @include gw-tone-modifiers((dev, stage, prod));
+
+  &--sm {
+    padding-block: 0;
+    padding-inline: var(--gw-space-1);
+    @include gw-type(overline);
+    @include gw-mono;
+  }
+}
+
+.gw-mode {
+  @include gw-tone(neutral);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gw-space-1);
+  flex: none;
+  padding-block: var(--gw-space-px);
+  padding-inline: var(--gw-space-1-5);
+  @include gw-type(caption);
+  font-weight: var(--gw-font-weight-medium);
+  white-space: nowrap;
+  vertical-align: middle;
+  color: var(--gw-tone-fg);
+  background: var(--gw-tone-subtle);
+  border: var(--gw-border-width-default) solid transparent;
+  border-radius: var(--gw-radius-xs);
+
+  > .gw-icon {
+    --gw-icon-size: var(--gw-size-icon-xs);
+    stroke-width: 2.25;
+  }
+
+  &--off { @include gw-tone(neutral); }
+  &--read { @include gw-tone(info); }
+  &--approval { @include gw-tone(warning); }
+}

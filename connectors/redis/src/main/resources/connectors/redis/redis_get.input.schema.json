@@ -1,0 +1,39 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "key"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024
+    },
+    "encoding": {
+      "type": "string",
+      "enum": [
+        "utf8",
+        "base64"
+      ],
+      "default": "utf8",
+      "description": "base64: key is the base64 of a key that isn't UTF-8, as redis_scan lists it."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "default": 100,
+      "description": "Max elements of a hash, list, set, sorted set or stream."
+    },
+    "cursor": {
+      "type": "string",
+      "maxLength": 512,
+      "description": "nextCursor from the previous call for the same key."
+    }
+  }
+}

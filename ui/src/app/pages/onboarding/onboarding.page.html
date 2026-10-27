@@ -1,0 +1,319 @@
+<!-- ─────────────── Welcome ─────────────── -->
+<!-- The lockup is decorative here: the h1 already names the product. -->
+<span class="gw-logo gw-logo--xl" aria-hidden="true">
+  <img class="gw-logo__mark" src="assets/logo-mark.svg" alt="">
+  <span class="gw-logo__name">MCP Gateway</span>
+</span>
+
+<header class="gw-page-header">
+  <div class="gw-page-header__row">
+    <div class="gw-page-header__heading">
+      <h1 class="gw-page-header__title">Welcome to MCP Gateway</h1>
+      <p class="gw-page-header__description">Give your AI agents one MCP URL to your databases, servers, logs and clusters, without handing them a single password.</p>
+    </div>
+    <!-- Nothing is left to skip once every step is done: the last step's card leads to Overview. -->
+    @if (!complete()) {
+      <div class="gw-page-header__actions">
+        <a class="gw-btn gw-btn--ghost" routerLink="/overview" (click)="skip()">Skip setup</a>
+      </div>
+    }
+  </div>
+</header>
+
+<ul class="gw-grid gw-grid--auto" aria-label="What MCP Gateway guarantees">
+  <li class="gw-card gw-card--muted">
+    <div class="gw-card__body">
+      <div class="gw-stack gw-stack--sm">
+        <span class="gw-icon-tile gw-icon-tile--brand"><svg lucideIcon="eye-off" class="gw-icon"></svg></span>
+        <p class="gw-text-h3">Your agent never sees secrets</p>
+        <p class="gw-text-small gw-fg-secondary">Passwords and keys stay encrypted on this computer. The gateway adds them to each call and masks them in results.</p>
+      </div>
+    </div>
+  </li>
+  <li class="gw-card gw-card--muted">
+    <div class="gw-card__body">
+      <div class="gw-stack gw-stack--sm">
+        <span class="gw-icon-tile gw-icon-tile--brand"><svg lucideIcon="user-check" class="gw-icon"></svg></span>
+        <p class="gw-text-h3">You approve every change</p>
+        <p class="gw-text-small gw-fg-secondary">Writes, restarts, deploys and SSH commands wait for you, shown exactly as they will run. No answer means no.</p>
+      </div>
+    </div>
+  </li>
+  <li class="gw-card gw-card--muted">
+    <div class="gw-card__body">
+      <div class="gw-stack gw-stack--sm">
+        <span class="gw-icon-tile gw-icon-tile--brand"><svg lucideIcon="scroll-text" class="gw-icon"></svg></span>
+        <p class="gw-text-h3">Every call is logged</p>
+        <p class="gw-text-small gw-fg-secondary">Who called which tool, with which arguments, what was decided and how long it took. The log is append-only.</p>
+      </div>
+    </div>
+  </li>
+</ul>
+
+<!-- ─────────────── Set up · stepper + current step + where it leads ─────────────── -->
+<section class="gw-section" aria-labelledby="setup-title" [attr.aria-busy]="loading() && slow() ? 'true' : null">
+  <header class="gw-section__header">
+    <h2 class="gw-section__title" id="setup-title">Set up in four steps</h2>
+    <p class="gw-section__description">About 5 minutes. Everything can be changed later.</p>
+  </header>
+
+  @if (data.error(); as e) {
+    <!-- Nothing loaded: what happened, what to do, Try again, and the technical details under a disclosure. -->
+    <div class="gw-alert gw-alert--danger" role="alert">
+      <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">Your setup didn't load</p>
+        <p class="gw-alert__body">{{ errorText(e) }}</p>
+        <div class="gw-alert__actions">
+          <button class="gw-btn gw-btn--sm" type="button" (click)="retry()" [attr.aria-busy]="data.refreshing() ? 'true' : null" [attr.aria-disabled]="data.refreshing() ? 'true' : null">@if (data.refreshing()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Try again</button>
+          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle aria-controls="ob-error-details">Details <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
+        </div>
+      </div>
+    </div>
+    <gw-code-block [attr.id]="'ob-error-details'" [id]="'ob-error-pre'" hidden wrap lang="Error" [text]="errorDetails(e, 'GET /api/onboarding')" copyLabel="error details" regionLabel="Error details" />
+  } @else if (facts()) {
+    @if (data.stale(); as e) {
+      <!-- A refresh failed: the steps below are the last ones that loaded. -->
+      <div class="gw-alert gw-alert--warning gw-alert--compact" role="status">
+        <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content">
+          <p class="gw-alert__title">This page may be out of date.</p>
+          <p class="gw-alert__body">{{ errorText(e) }}</p>
+        </div>
+        <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retry()" [attr.aria-busy]="data.refreshing() ? 'true' : null" [attr.aria-disabled]="data.refreshing() ? 'true' : null">Try again</button></div>
+      </div>
+    }
+
+    <div class="gw-stack gw-stack--lg">
+      <!-- Progress, not navigation: moving between steps uses the buttons in the step card. -->
+      <ol class="gw-stepper" aria-label="Set up MCP Gateway" id="ob-stepper">
+        @for (s of steps(); track s.id) {
+          <li class="gw-stepper__step" [attr.data-state]="s.state" [attr.aria-current]="s.state === 'current' ? 'step' : null">
+            <span class="gw-stepper__marker" aria-hidden="true">@if (s.state === 'complete') {<svg lucideIcon="check" class="gw-icon gw-icon--sm"></svg>} @else {{{ s.index + 1 }}}</span>
+            <span class="gw-stepper__label">{{ s.label }}@if (s.state === 'complete') {<span class="gw-sr-only">, completed</span>}</span>
+            <span class="gw-stepper__description">@for (p of s.description; track $index) {@if (p.mono) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</span>
+          </li>
+        }
+      </ol>
+
+      <div class="gw-grid gw-grid--2">
+
+        <!-- Current step. One panel visible at a time; the others wait with hidden. -->
+        <div>
+          <!-- Step 1 · Protect master key -->
+          <section class="gw-card" id="ob-panel-1" aria-labelledby="ob-panel-1-title" [hidden]="viewing() !== 0">
+            <header class="gw-card__header">
+              <div class="gw-card__heading">
+                <h3 class="gw-card__title" id="ob-panel-1-title" tabindex="-1"><span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--brand"><svg lucideIcon="key-round" class="gw-icon gw-icon--sm"></svg></span>Protect your master key</h3>
+                <p class="gw-card__description">It encrypts every secret you store here.</p>
+              </div>
+            </header>
+            <div class="gw-card__body">
+              <div class="gw-stack">
+                <!-- The trust boundary of decision 5 (ARCHITECTURE §8.6.11) closes the explanation. -->
+                <p class="gw-text-body-read">MCP Gateway created this key when it first started. Each secret gets its own data key, sealed with this one, and the file lives apart from the database and its backups: a copied database alone reveals nothing. It protects against other users and copied files, not against programs you run, including AI agents with a terminal.</p>
+                @if (key(); as k) {
+                  <!-- Full card width for the path: inside a kv value column it would truncate at a 960 px window. -->
+                  <div class="gw-field">
+                    <p class="gw-field__label" id="ob-key-file">Key file</p>
+                    <div class="gw-copy-field" role="group" aria-labelledby="ob-key-file">
+                      <code class="gw-copy-field__value" id="ob-key-path">{{ k.path }}</code>
+                      <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" gwCopyFrom="#ob-key-path">
+                        <span class="gw-copy-field__copy"><svg lucideIcon="copy" class="gw-icon gw-icon--sm"></svg> Copy<span class="gw-sr-only"> key file path</span></span>
+                        <span class="gw-copy-field__copied"><svg lucideIcon="check" class="gw-icon gw-icon--sm"></svg> Copied</span>
+                      </button>
+                    </div>
+                  </div>
+                  @let perm = permissions()!;
+                  <dl class="gw-kv gw-kv--dense">
+                    <div class="gw-kv__row">
+                      <dt class="gw-kv__key">Permissions</dt>
+                      <dd class="gw-kv__value" [class.gw-fg-danger]="perm.wrong">@if (perm.mode) {<code class="gw-code">{{ perm.mode }}</code> · {{ perm.text }}} @else {{{ perm.wrong ? 'Other users can read it' : 'Only your user can read it' }}}</dd>
+                    </div>
+                    <div class="gw-kv__row">
+                      <dt class="gw-kv__key">Format</dt>
+                      <dd class="gw-kv__value">{{ format() }}</dd>
+                    </div>
+                  </dl>
+                } @else if (data.keyError(); as e) {
+                  <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+                    <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+                    <div class="gw-alert__content">
+                      <p class="gw-alert__title">The key's status didn't load</p>
+                      <p class="gw-alert__body">{{ errorText(e) }}</p>
+                    </div>
+                    <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retry()" [attr.aria-busy]="data.refreshing() ? 'true' : null" [attr.aria-disabled]="data.refreshing() ? 'true' : null">Try again</button></div>
+                  </div>
+                } @else {
+                  <div class="gw-stack gw-stack--sm" aria-hidden="true"><span class="gw-skeleton"></span><span class="gw-skeleton gw-skeleton--text"></span><span class="gw-skeleton gw-skeleton--text"></span></div>
+                }
+                <!-- The same optional passphrase as Secrets › Back up master key (pages/secrets.html #dlg-backup-key). -->
+                <div class="gw-field">
+                  <label class="gw-field__label" for="ob-backup-pass">Encrypt the copy with a passphrase <span class="gw-field__optional">Optional</span></label>
+                  <div class="gw-input-group">
+                    <input class="gw-input" id="ob-backup-pass" #passphrase type="password" autocomplete="new-password" spellcheck="false" aria-describedby="ob-backup-pass-hint">
+                    <button class="gw-input-group__addon" type="button" gwReveal aria-label="Show passphrase" aria-controls="ob-backup-pass"><svg lucideIcon="eye" class="gw-icon"></svg><svg lucideIcon="eye-off" class="gw-icon"></svg></button>
+                  </div>
+                  <p class="gw-field__hint" id="ob-backup-pass-hint">Without one, the copy is the plain key: whoever has it and a copy of the database can read every secret. You need the passphrase to restore.</p>
+                </div>
+                <p class="gw-text-small gw-fg-secondary" id="ob-backup-hint">A save dialog asks where the copy goes. Pick a place off this computer, such as your password manager or an encrypted drive. Together with the database the copy unlocks your secrets, so guard it like a password.</p>
+                @if (!desktop.available) {
+                  <!-- The core writes the copy only where the desktop's save dialog points (a one-time token, never a path). -->
+                  <p class="gw-text-small gw-fg-muted" id="ob-backup-why">Saving a file needs the MCP Gateway desktop app: it opens the save dialog. Back up the key from there.</p>
+                }
+                @if (isDone(0)) {
+                  <div class="gw-alert gw-alert--success">
+                    <svg lucideIcon="circle-check" class="gw-icon gw-alert__icon"></svg>
+                    <div class="gw-alert__content">
+                      <p class="gw-alert__title">@if (backedUpAt(); as at) {Backed up {{ at }}} @else {Backed up}</p>
+                      <p class="gw-alert__body">A lost or wiped disk no longer takes your secrets with it. Back up again after you rotate the key: older copies don't open a new one.</p>
+                    </div>
+                  </div>
+                } @else {
+                  <!-- The consequence of skipping, right before the choice. "I'll do it later" points here with aria-describedby. -->
+                  <div class="gw-alert gw-alert--warning">
+                    <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+                    <div class="gw-alert__content">
+                      <p class="gw-alert__title">Not backed up yet</p>
+                      <p class="gw-alert__body" id="ob-later-why">Without a copy, a lost or wiped disk takes every stored secret with it: they can't be decrypted, only entered again. You can back up later from Secrets.</p>
+                    </div>
+                  </div>
+                }
+                @if (backupError(); as err) {
+                  <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+                    <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+                    <div class="gw-alert__content">
+                      <p class="gw-alert__title">The key wasn't backed up</p>
+                      <p class="gw-alert__body">{{ err }}</p>
+                    </div>
+                  </div>
+                }
+                <!-- Shown while Back up key runs; the busy button points its aria-describedby here. -->
+                <p class="gw-text-small gw-fg-secondary" id="ob-backup-status" [hidden]="!backupBusy()">@if (backupPhase() === 'writing') {Writing the copy of <span class="gw-mono">{{ keyFile() }}</span> to the place you picked.} @else {Waiting for the save dialog: pick where the copy of <span class="gw-mono">{{ keyFile() }}</span> goes.}</p>
+              </div>
+            </div>
+            <footer class="gw-card__footer gw-card__footer--split">
+              @if (isDone(0)) {
+                <button class="gw-btn" type="button" (click)="backUp()" [attr.aria-busy]="backupBusy() ? 'true' : null" [attr.aria-disabled]="backupBusy() || !desktop.available ? 'true' : null" [attr.aria-describedby]="backupDescribedBy()">@if (backupBusy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Back up again</button>
+                <button class="gw-btn gw-btn--primary" type="button" (click)="go(1)">Continue<span class="gw-sr-only"> to add a connection</span> <svg lucideIcon="arrow-right" class="gw-icon"></svg></button>
+              } @else {
+                <button class="gw-btn gw-btn--link" type="button" id="ob-later" aria-describedby="ob-later-why" (click)="later()">I'll do it later</button>
+                <button class="gw-btn gw-btn--primary" type="button" id="ob-backup" (click)="backUp()" [attr.aria-busy]="backupBusy() ? 'true' : null" [attr.aria-disabled]="backupBusy() || !desktop.available ? 'true' : null" [attr.aria-describedby]="backupDescribedBy()">@if (backupBusy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Back up key</button>
+              }
+            </footer>
+          </section>
+
+          <!-- Step 2 · Add a connection -->
+          <section class="gw-card" id="ob-panel-2" aria-labelledby="ob-panel-2-title" [hidden]="viewing() !== 1">
+            <header class="gw-card__header">
+              <div class="gw-card__heading">
+                <h3 class="gw-card__title" id="ob-panel-2-title" tabindex="-1"><span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--brand"><svg lucideIcon="database" class="gw-icon gw-icon--sm"></svg></span>Add a connection</h3>
+                <p class="gw-card__description">Something your agent may use: a database, server, log store, cluster, cloud account or HTTP API.</p>
+              </div>
+            </header>
+            <div class="gw-card__body">
+              <div class="gw-stack">
+                @if (isDone(1)) {
+                  <ng-container *ngTemplateOutlet="doneAlert; context: { $implicit: doneLines()[1], action: 'Add another connection', route: '/connections/new', fragment: null }" />
+                }
+                <p class="gw-text-body-read">PostgreSQL, MySQL, MongoDB, Redis, SSH, logs, Kubernetes, GCP, AWS or any HTTP API. You test it before it is saved, and its password or key is encrypted here and never sent to the agent.</p>
+              </div>
+            </div>
+            <footer class="gw-card__footer gw-card__footer--split">
+              <button class="gw-btn gw-btn--ghost" type="button" (click)="go(0)"><svg lucideIcon="arrow-left" class="gw-icon"></svg> Back</button>
+              @if (isDone(1)) {
+                <button class="gw-btn gw-btn--primary" type="button" (click)="go(2)">Continue<span class="gw-sr-only"> to create an endpoint</span> <svg lucideIcon="arrow-right" class="gw-icon"></svg></button>
+              } @else {
+                <a class="gw-btn gw-btn--primary" routerLink="/connections/new">Choose a connection type</a>
+              }
+            </footer>
+          </section>
+
+          <!-- Step 3 · Create an endpoint -->
+          <section class="gw-card" id="ob-panel-3" aria-labelledby="ob-panel-3-title" [hidden]="viewing() !== 2">
+            <header class="gw-card__header">
+              <div class="gw-card__heading">
+                <h3 class="gw-card__title" id="ob-panel-3-title" tabindex="-1"><span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--brand"><svg lucideIcon="waypoints" class="gw-icon gw-icon--sm"></svg></span>Create an endpoint</h3>
+                <p class="gw-card__description">One MCP URL, such as <code class="gw-code">{{ endpointExample() }}</code>.</p>
+              </div>
+            </header>
+            <div class="gw-card__body">
+              <div class="gw-stack">
+                @if (isDone(2)) {
+                  <ng-container *ngTemplateOutlet="doneAlert; context: { $implicit: doneLines()[2], action: 'Create another endpoint', route: '/endpoints', fragment: 'create' }" />
+                }
+                <p class="gw-text-body-read">Pick the connections and set each tool to Off, Read only or Approval. Tools that change data run only after you approve them, on every environment.</p>
+              </div>
+            </div>
+            <footer class="gw-card__footer gw-card__footer--split">
+              <button class="gw-btn gw-btn--ghost" type="button" (click)="go(1)"><svg lucideIcon="arrow-left" class="gw-icon"></svg> Back</button>
+              @if (isDone(2)) {
+                <button class="gw-btn gw-btn--primary" type="button" (click)="go(3)">Continue<span class="gw-sr-only"> to connect a client</span> <svg lucideIcon="arrow-right" class="gw-icon"></svg></button>
+              } @else {
+                <!-- Endpoints opens its Create dialog for #create (U7). -->
+                <a class="gw-btn gw-btn--primary" routerLink="/endpoints" fragment="create">Create endpoint</a>
+              }
+            </footer>
+          </section>
+
+          <!-- Step 4 · Connect a client -->
+          <section class="gw-card" id="ob-panel-4" aria-labelledby="ob-panel-4-title" [hidden]="viewing() !== 3">
+            <header class="gw-card__header">
+              <div class="gw-card__heading">
+                <h3 class="gw-card__title" id="ob-panel-4-title" tabindex="-1"><span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--brand"><svg lucideIcon="app-window" class="gw-icon gw-icon--sm"></svg></span>Connect a client</h3>
+                <p class="gw-card__description">{{ clientsDescription() }}</p>
+              </div>
+            </header>
+            <div class="gw-card__body">
+              <div class="gw-stack">
+                @if (isDone(3)) {
+                  <ng-container *ngTemplateOutlet="doneAlert; context: { $implicit: doneLines()[3], action: 'Connect another client', route: '/clients', fragment: null }" />
+                }
+                <!-- Cursor's three ways in, per ARCHITECTURE §8.6.2: a token in its file, the browser sign-in or the bridge. -->
+                <p class="gw-text-body-read">Before anything is written, you see the exact change to the client's config and where the backup goes. Claude Desktop and Codex get a short-lived token on the fly, so no token sits in their config. Cursor keeps a token in plain text in <span class="gw-mono">~/.cursor/mcp.json</span>, or signs in through the browser or goes through the bridge instead.</p>
+              </div>
+            </div>
+            <footer class="gw-card__footer gw-card__footer--split">
+              <button class="gw-btn gw-btn--ghost" type="button" (click)="go(2)"><svg lucideIcon="arrow-left" class="gw-icon"></svg> Back</button>
+              @if (isDone(3)) {
+                <a class="gw-btn gw-btn--primary" routerLink="/overview">Open overview</a>
+              } @else {
+                <a class="gw-btn gw-btn--primary" routerLink="/clients">Connect a client</a>
+              }
+            </footer>
+          </section>
+        </div>
+
+        <!-- Where this leads: setup-map --vertical in setup order like the stepper (Secrets & resources, Connections,
+             Policies, Endpoints, Clients, top to bottom): step 1 is the first node, step 4 the last. Policies is not a
+             step: safe defaults are on from the start, so it is already Done. -->
+        <div class="gw-stack gw-stack--sm">
+          <h3 class="gw-text-h3" id="ob-map-title">Where this leads</h3>
+          <p class="gw-text-small gw-fg-secondary">What you are setting up, in the order of the steps. Each step fills in one part of it.</p>
+          <gw-setup-map [nodes]="nodes()" vertical [level]="4" labelledBy="ob-map-title" [description]="mapFlow" />
+        </div>
+      </div>
+    </div>
+  } @else if (slow()) {
+    <!-- The first answer is slow: placeholders in the shape of the stepper and the two columns. -->
+    <p class="gw-sr-only" role="status">Loading your setup</p>
+    <div class="gw-stack gw-stack--lg" aria-hidden="true">
+      <div class="gw-grid gw-grid--4"><span class="gw-skeleton gw-skeleton--text"></span><span class="gw-skeleton gw-skeleton--text"></span><span class="gw-skeleton gw-skeleton--text"></span><span class="gw-skeleton gw-skeleton--text"></span></div>
+      <div class="gw-grid gw-grid--2">
+        <div class="gw-card"><div class="gw-card__body"><div class="gw-stack gw-stack--sm"><span class="gw-skeleton"></span><span class="gw-skeleton gw-skeleton--text"></span><span class="gw-skeleton gw-skeleton--block"></span></div></div></div>
+        <div class="gw-stack gw-stack--sm"><span class="gw-skeleton"></span><span class="gw-skeleton gw-skeleton--block"></span><span class="gw-skeleton gw-skeleton--block"></span></div>
+      </div>
+    </div>
+  }
+</section>
+
+<p class="gw-text-caption gw-fg-muted"><svg lucideIcon="lock" class="gw-icon gw-icon--xs"></svg> Everything stays on this computer. The core listens on <span class="gw-mono">127.0.0.1</span> only.</p>
+
+<!-- A done step's card: what is set up (the core's facts), and the step's action again for one more. -->
+<ng-template #doneAlert let-line let-action="action" let-route="route" let-fragment="fragment">
+  <div class="gw-alert gw-alert--success gw-alert--compact">
+    <svg lucideIcon="circle-check" class="gw-icon gw-alert__icon"></svg>
+    <div class="gw-alert__content"><p class="gw-alert__body">@for (p of line; track $index) {@if (p.mono) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</p></div>
+    <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" [routerLink]="route" [fragment]="fragment ?? undefined">{{ action }}</a></div>
+  </div>
+</ng-template>

@@ -1,0 +1,46 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "query"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "query": {
+      "type": "string",
+      "maxLength": 20000,
+      "description": "LogQL / Logging query / CloudWatch filter pattern (e.g. ERROR or { $.level = \"error\" }) / query_string."
+    },
+    "source": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "cursor": {
+      "type": "string",
+      "maxLength": 4096,
+      "description": "nextCursor of the previous logs_tail call. Omit on the first call."
+    },
+    "since": {
+      "type": "string",
+      "maxLength": 40,
+      "default": "now",
+      "description": "First call only: also return the newest entries since this time, e.g. -5m."
+    },
+    "wait": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 8,
+      "default": 5,
+      "description": "Seconds to wait for new entries before returning an empty page."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "default": 100
+    }
+  }
+}

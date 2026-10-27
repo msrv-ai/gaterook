@@ -1,0 +1,35 @@
+{
+  "name": "@mcp-gateway/desktop",
+  "productName": "MCP Gateway",
+  "version": "0.4.0",
+  "private": true,
+  "description": "MCP Gateway desktop app: Electron main and preload around the gateway core (ARCHITECTURE.md §7.1).",
+  "author": "MCP Gateway <dev@mcp-gateway.dev>",
+  "homepage": "https://mcp-gateway.dev",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "dist/main.cjs",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc -p tsconfig.json",
+    "pretest": "npm run typecheck",
+    "test": "node --disable-warning=ExperimentalWarning --test \"test/**/*.test.ts\" \"test/**/*.test.mjs\"",
+    "smoke": "node scripts/smoke.mjs",
+    "dev": "node scripts/dev.mjs",
+    "stage": "node ../scripts/stage.mjs",
+    "dist": "node ../scripts/stage.mjs && node scripts/build.mjs --release && electron-builder --config electron-builder.yml",
+    "dist:dir": "node ../scripts/stage.mjs && node scripts/build.mjs --release && electron-builder --config electron-builder.yml --dir"
+  },
+  "engines": {
+    "node": ">=24.15.0"
+  },
+  "devDependencies": {
+    "@mcp-gateway/broker": "0.4.0",
+    "@types/node": "24.19.2",
+    "electron": "45.0.0",
+    "electron-builder": "26.17.0",
+    "electron-updater": "6.8.10",
+    "esbuild": "0.28.2",
+    "typescript": "~6.0.2"
+  }
+}

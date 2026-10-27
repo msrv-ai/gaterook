@@ -1,0 +1,11 @@
+# Codex settings, edited by hand
+model = "gpt-5.5-codex" # the default
+
+[profiles.work]
+approval_policy = "on-request"
+
+# servers below
+[mcp_servers.github]
+url = "https://api.githubcopilot.com/mcp/"
+[mcp_servers.github.env]
+GITHUB_TOKEN_SOURCE = "keychain"

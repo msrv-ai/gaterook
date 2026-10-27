@@ -1,3 +1,7 @@
+# Internal AI work. Anchor this rule so Java src/**/ai/ packages remain visible.
+/ai/
+/.claude/
+
 # Local editor and operating-system state.
 .DS_Store
 .idea/
@@ -30,3 +34,15 @@ npm-debug.log*
 /logs/
 
 # Do not add a blanket dist/ rule: the design kit may version generated assets.
+
+# Additional build output and local runtime data.
+out-tsc/
+.angular/
+*.tsbuildinfo
+/design/site-dist/
+/desktop/.dev/
+*.log
+
+# Public disposable test credentials; generated keys remain local.
+!/test-services/.env
+/test-services/run/

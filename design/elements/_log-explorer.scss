@@ -1,0 +1,296 @@
+// =============================================================
+// .gw-log-explorer · Query and filter zone of the call log
+// -------------------------------------------------------------
+// Element (composition): layout glue only, every look comes from the
+// components it arranges. "Easy viewing and analysis of every logged AI
+// call" starts here: type a structured query, pick a range, narrow with
+// facets, see the shape of the traffic, then read the rows below.
+//
+// Used in   pages/activity.html (above the events table, full layout)
+//           pages/insights.html (rows 1 and 2 only: the same query, range and
+//           tags drive the charts; no facets, no histogram)
+// Composes  gw-toolbar · gw-search · gw-menu-host + gw-menu / gw-popover ·
+//           gw-btn (ghost, link, sm, icon, aria-pressed) · gw-status--brand
+//           --live · gw-tag / gw-tag-list · gw-counter · gw-field (fieldset) ·
+//           gw-checkbox · gw-env · gw-chart (interactive histogram) ·
+//           gw-legend · gw-kv--dense (query help) · gw-code · gw-empty ·
+//           gw-card · gw-dialog (custom range) · gw-input · gw-icon
+//
+//   <section class="gw-log-explorer" aria-label="Filter calls">
+//     <div class="gw-toolbar gw-log-explorer__query">              row 1
+//       <div class="gw-toolbar__start">
+//         <div class="gw-log-explorer__search" role="search" aria-label="Calls">
+//           <div class="gw-search">…input type=search aria-label="Filter calls"
+//             placeholder="Filter: decision:denied tool:sql_* env:prod client:codex"…</div>
+//           <div class="gw-menu-host">…circle-help icon button (aria-haspopup=dialog)
+//             → gw-popover "Query syntax": fields, values, examples…</div>
+//         </div>
+//       </div>
+//       <div class="gw-toolbar__end">
+//         range menu: trigger = "Time range: " (sr-only) + [data-gw-menu-value] +
+//           the absolute range (title + sr-only); role=menu with a menuitemradio
+//           group (15 min · hour · 24 hours · 7 days) + "Custom…" (data-gw-dialog-open)
+//         Live (gw-btn--ghost [aria-pressed]) · Saved views menu · Export menu
+//       </div>
+//     </div>
+//     <div class="gw-toolbar gw-log-explorer__active">             row 2
+//       <div class="gw-toolbar__start">
+//         <button class="gw-btn gw-btn--sm" data-gw-toggle aria-expanded aria-controls="facets">Filters <span class="gw-counter">2<span class="gw-sr-only"> active</span></span></button>
+//         <ul class="gw-tag-list" aria-label="Active filters">
+//           <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">decision:denied</span>
+//             <button class="gw-tag__remove" type="button" aria-label="Remove filter decision:denied">…x…</button></li>
+//           <li class="gw-tag gw-tag--mono gw-tag--prod">…env:prod…</li>
+//         </ul>
+//         <button class="gw-btn gw-btn--link gw-btn--sm" type="button">Clear all</button>
+//       </div>
+//       <div class="gw-toolbar__end"><p class="gw-text-small gw-fg-muted gw-tabular" role="status">6 of 1,287 calls</p></div>
+//     </div>
+//     <div class="gw-log-explorer__body">
+//       <div class="gw-log-explorer__facets" id="facets" role="group" aria-label="Filters">
+//         <fieldset class="gw-field gw-log-explorer__facet">
+//           <legend class="gw-field__label">Decision</legend>
+//           <label class="gw-checkbox">
+//             <input class="gw-checkbox__input" type="checkbox" name="decision" value="denied" checked>
+//             <span class="gw-checkbox__control" aria-hidden="true"></span>
+//             <span class="gw-checkbox__label gw-log-explorer__option">
+//               <i class="gw-icon gw-icon--sm gw-fg-danger" data-lucide="shield-x"></i>
+//               <span class="gw-log-explorer__option-value">Denied by policy</span>
+//               <span class="gw-log-explorer__option-count gw-counter gw-counter--muted">6<span class="gw-sr-only"> calls</span></span>
+//             </span>
+//           </label> …
+//           <div class="gw-log-explorer__facet-more" id="tools-more" hidden>…more checkboxes…</div>
+//           <button class="gw-btn gw-btn--link gw-btn--sm gw-log-explorer__facet-toggle" type="button"
+//                   data-gw-toggle aria-expanded="false" aria-controls="tools-more">
+//             <span class="gw-log-explorer__when-collapsed">Show all 10<span class="gw-sr-only"> tool values</span></span>
+//             <span class="gw-log-explorer__when-expanded">Show fewer<span class="gw-sr-only"> tool values</span></span>
+//           </button>
+//         </fieldset> …
+//       </div>
+//       <div class="gw-log-explorer__main">
+//         <figure class="gw-log-explorer__histogram">
+//           <div class="gw-chart" role="group" aria-label="…finding… Select an hour to zoom into it.">
+//             …<button class="gw-chart__bar" type="button" aria-pressed="false"
+//                      aria-label="14:00–now, 86 calls, 3 waiting for approval, 2 denied, rejected or failed">…</button>…
+//           </div>
+//           <div class="gw-sr-only"><table><caption>…</caption>…the same numbers…</table></div>
+//           <figcaption class="gw-log-explorer__histogram-caption">   (last child)
+//             <ul class="gw-legend">…the four decision series of showcase/64-charts, with counts…</ul>
+//             <p class="gw-text-caption gw-fg-muted">Click a bar to zoom into that hour</p>
+//           </figcaption>
+//         </figure>
+//         …the page puts the events table (gw-table-wrap) or a gw-empty here…
+//       </div>
+//     </div>
+//   </section>
+//
+// Parts
+//   __query       row 1, a gw-toolbar: __search (start, grows) and the range,
+//                 Live, views and export controls (gw-toolbar__end)
+//   __search      gw-search + the query help trigger, kept on one line; a
+//                 400px basis (10 × control-lg) so the example query in the
+//                 placeholder stays readable; the end controls wrap under it
+//                 when the row is shorter
+//   __active      row 2, a gw-toolbar: Filters toggle, active filter tags (or a
+//                 muted hint when there are none), Clear all; the result count
+//                 sits at the end (role=status)
+//   __body        facets column (--gw-layout-sidebar-width, 240px) + main column
+//                 from lg, only while a visible __facets is in it; otherwise
+//                 one column (facets collapsed, or a page without facets)
+//   __facets      the facet groups (role=group "Filters", the Filters toggle
+//                 controls it). From lg one column; below lg the groups flow
+//                 side by side (at least 192px each) under row 2
+//   __facet       fieldset.gw-field of one field: Decision, Tool, AI app,
+//                 Endpoint, Connection, Environment
+//   __option      checkbox label: optional icon or env marker, the value
+//                 (truncates, full value in title), the count pushed to the end
+//   __option-value / __option-count   the two ends of __option
+//   __facet-more  the values past the first five or six; display: contents,
+//                 so its checkboxes join the fieldset's rows when shown
+//                 ([hidden] wins: the reset makes it !important)
+//   __facet-toggle  "Show all N" / "Show fewer" (gw-btn--link --sm, data-gw-toggle)
+//   __when-collapsed / __when-expanded
+//                 the two faces of a disclosure button: only the face matching
+//                 its aria-expanded is shown
+//   __main        histogram, then the page's table or empty state
+//   __histogram   figure: interactive gw-chart (96px tall), the sr-only data
+//                 table, then __histogram-caption (legend with counts + the
+//                 click hint) as the figure's last child
+// Content rules
+//   Tags use the query syntax (field:value), mono, neutral; an env value keeps
+//   its env tone (env:prod is gw-tag--prod). Facet counts are counted within
+//   the OTHER active filters; values without calls are left out unless
+//   checked. Series and words follow showcase/64-charts.html: "Allowed or
+//   approved" (success), "Waiting for approval" (warning), "Denied, rejected
+//   or failed" (danger), "Expired" (neutral), stacked in that order.
+// States
+//   facets open / collapsed   Filters toggle [aria-expanded] + [hidden] on
+//                 __facets (kit.js data-gw-toggle). Collapsed, the main column
+//                 takes the full width. The app opens it by default from lg
+//                 and closes it below lg.
+//   Live          the Live button is gw-btn--ghost [aria-pressed] + data-gw-pressed
+//                 (kit.js flips and announces it) with two faces: a radio icon
+//                 (gw-btn__unpressed) and a gw-status--brand --live dot
+//                 (gw-btn__pressed), plus the pressed bar; on, the range ends at
+//                 now and new calls stream in at the top of the table
+//   zoomed        one histogram bar [aria-pressed=true] (kit.js keeps one per
+//                 chart and announces it); the range trigger names the hour,
+//                 the count and legend cover that hour, the bars keep the
+//                 previous range around it; the same bar again goes back
+//   no filters    row 2 shows a muted hint instead of tags
+//   no results    __main holds a gw-empty in a gw-card ("No calls match these
+//                 filters" + Clear filters); the count says "0 of 1,287 calls"
+// A11y
+//   The query input has aria-label and aria-keyshortcuts="/". Every menu
+//   trigger is a direct child of its gw-menu-host; the range trigger's name
+//   starts with "Time range". Facets are real checkboxes in a fieldset whose
+//   legend names the field; counts carry sr-only " calls". Tag remove buttons
+//   are named "Remove filter <field>:<value>". The result count is
+//   role=status, so applying a filter is announced. The histogram is
+//   role=group with bar buttons labelled "14:00–15:00, 92 calls, …"; bars may
+//   be narrower than 24px, the range menu is the equivalent control.
+// Responsive
+//   ≥ lg (1280): facets 240px | main. md–lg (960–1279): one column, the facet
+//   groups flow in columns of at least 192px under row 2 when opened. Row 1
+//   wraps: the controls move under the query when the row is narrow. Long
+//   values (tool names, connections) truncate in facets and tags.
+// Raw values none.
+// =============================================================
+
+@use "../scss/tokens" as *;
+@use "../scss/mixins" as *;
+
+.gw-log-explorer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gw-space-3);
+  min-width: 0;
+
+  // ─── Row 1: query, range, Live, views, export ───
+  // The query side keeps a 400px basis (10 × control-lg): when the row is
+  // shorter than that plus the controls, the controls wrap under the query
+  // instead of squeezing it.
+  &__query > .gw-toolbar__start { flex-basis: calc(var(--gw-size-control-lg) * 10); }
+
+  &__search {
+    display: flex;
+    align-items: center;
+    gap: var(--gw-space-1);
+    // 400px basis (10 × control-lg) so the example query in the placeholder
+    // stays readable; grows into the free space, shrinks under it if needed.
+    flex: 1 1 calc(var(--gw-size-control-lg) * 10);
+    min-width: 0;
+
+    > .gw-search { flex: 1 1 auto; }
+    > .gw-menu-host { flex: none; }
+  }
+
+  // ─── Row 2: Filters toggle, tags, Clear all, count ───
+  &__active {
+    min-height: var(--gw-size-control-md);
+
+    .gw-tag-list { min-width: 0; }
+  }
+
+  // ─── Facets + main ───
+  &__body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--gw-space-5) var(--gw-space-6);
+    align-items: start;
+    min-width: 0;
+
+    // Two columns only while visible facets are in it: collapsed facets, or
+    // a page that has none (Insights), leave the main column full width.
+    @include gw-bp-up(lg) {
+      &:has(> .gw-log-explorer__facets:not([hidden])) {
+        grid-template-columns: var(--gw-layout-sidebar-width) minmax(0, 1fr);
+      }
+    }
+  }
+
+  &__facets {
+    display: grid;
+    // Below lg the groups flow side by side (at least 192px each).
+    grid-template-columns: repeat(auto-fill, minmax(calc(var(--gw-space-16) * 3), 1fr));
+    gap: var(--gw-space-5) var(--gw-space-6);
+    align-items: start;
+    min-width: 0;
+
+    @include gw-bp-up(lg) { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  &__facet {
+    // Rows span the fieldset grid and stretch to it, so the counts line up at
+    // the end. The span matters for the values inside __facet-more: with
+    // display: contents they are grid items of the fieldset, but not its
+    // direct children, so the field's own "> * { grid-column: 1 / -1 }"
+    // misses them and they would fall into its two columns.
+    .gw-checkbox {
+      grid-column: 1 / -1;
+      justify-self: stretch;
+    }
+  }
+
+  &__option {
+    display: flex;
+    align-items: center;
+    gap: var(--gw-space-1-5);
+    min-width: 0;
+
+    > .gw-icon,
+    > .gw-env { flex: none; }
+  }
+
+  &__option-value {
+    flex: 0 1 auto;
+    @include gw-truncate;
+  }
+
+  &__option-count {
+    flex: none;
+    margin-inline-start: auto;
+  }
+
+  // Extra values join the fieldset's rows when shown ([hidden] still wins).
+  &__facet-more { display: contents; }
+
+  &__facet-toggle { justify-self: start; }
+
+  // Two faces of a disclosure button, following its aria-expanded.
+  &__when-collapsed,
+  &__when-expanded {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--gw-space-1-5);
+  }
+
+  [aria-expanded="true"] > &__when-collapsed,
+  [aria-expanded="false"] > &__when-expanded { display: none; }
+
+  &__main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-4);
+    min-width: 0;
+  }
+
+  // ─── Histogram ───
+  &__histogram {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-2);
+    min-width: 0;
+    margin: 0;
+
+    > .gw-chart { --gw-chart-height: calc(var(--gw-space-12) * 2); }
+  }
+
+  &__histogram-caption {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--gw-space-2) var(--gw-space-4);
+    min-width: 0;
+  }
+}

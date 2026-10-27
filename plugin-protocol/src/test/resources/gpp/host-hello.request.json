@@ -1,0 +1,18 @@
+{
+  "jsonrpc" : "2.0",
+  "id" : 1,
+  "method" : "host/hello",
+  "params" : {
+    "protocol" : 1,
+    "core" : {
+      "version" : "0.4.0",
+      "connectorApi" : "1.0.0",
+      "native" : true
+    },
+    "limits" : {
+      "maxFrameBytes" : 8388608,
+      "maxInFlight" : 8
+    },
+    "logLevel" : "info"
+  }
+}

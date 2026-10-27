@@ -1,0 +1,8 @@
+{
+  "jsonrpc" : "2.0",
+  "method" : "taint/add",
+  "params" : {
+    "callToken" : "ct_9Qm2xLkP0aZs4vRt7yUb1w",
+    "value" : "eyJhbGciOiJSUzI1NiJ9.derived-token"
+  }
+}

@@ -1,0 +1,558 @@
+<header class="gw-page-header">
+  <div class="gw-page-header__row">
+    <div class="gw-page-header__heading">
+      <h1 class="gw-page-header__title">Activity</h1>
+      <p class="gw-page-header__description">Every call an agent made through the gateway, and every change people made to its setup. Append-only, kept {{ kept() }}.</p>
+    </div>
+    <div class="gw-page-header__actions">
+      <a class="gw-btn gw-btn--ghost" routerLink="/insights" [queryParams]="{ q: data.query() || null, range: insightsRange() }" id="ac-insights-link"><svg lucideIcon="chart-column" class="gw-icon"></svg> View in Insights</a>
+      <div class="gw-menu-host">
+        <button class="gw-btn" type="button" aria-haspopup="menu" [gwMenuTrigger]="exportMenu"><svg lucideIcon="download" class="gw-icon"></svg> Export <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm"></svg></button>
+        <div class="gw-menu gw-menu--right" gwMenu #exportMenu="gwMenu" id="ac-export" role="menu" aria-label="Export calls" aria-describedby="ac-export-note" hidden (picked)="onExport($event)">
+          <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-value="csv" [attr.aria-disabled]="desktop.available ? null : 'true'"><svg lucideIcon="file-spreadsheet" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Download CSV</span></button>
+          <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-value="jsonl" [attr.aria-disabled]="desktop.available ? null : 'true'"><svg lucideIcon="file-json" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Download JSONL</span></button>
+          <div class="gw-menu__divider" role="separator"></div>
+          <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-value="siem" aria-haspopup="dialog"><svg lucideIcon="send" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Send to SIEM…</span></button>
+          <div class="gw-menu__note" id="ac-export-note" aria-hidden="true">{{ exportNote() }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Two logs, one audit trail: what agents called, and what people changed in the setup (?view=changes, ?view=traces). -->
+  <div class="gw-page-header__tabs gw-tabs">
+    <div class="gw-tabs__list" role="tablist" aria-label="Audit log" gwTabs #topTabs="gwTabs" [gwTabsSelected]="topTab()" (selectedChange)="onTopTab($event)">
+      <button class="gw-tabs__tab" type="button" role="tab" id="ac-tab-calls" aria-selected="true" aria-controls="ac-panel-calls"><svg lucideIcon="activity" class="gw-icon"></svg> Agent calls@if (data.total() !== null) { <span class="gw-tabs__count">{{ formatCount(data.total()) }}<span class="gw-sr-only"> calls</span></span>}</button>
+      <button class="gw-tabs__tab" type="button" role="tab" id="ac-tab-changes" aria-selected="false" aria-controls="ac-panel-changes" tabindex="-1"><svg lucideIcon="file-clock" class="gw-icon"></svg> Setup changes@if (changesInDay(); as day) { <span class="gw-tabs__count">{{ formatCount(day.length) }}<span class="gw-sr-only"> changes</span></span>}</button>
+    </div>
+  </div>
+</header>
+
+<div class="gw-tabs__panel" role="tabpanel" id="ac-panel-calls" aria-labelledby="ac-tab-calls">
+<div class="gw-stack">
+<div class="gw-alert gw-alert--info gw-alert--compact">
+  <svg lucideIcon="shield" class="gw-icon gw-alert__icon"></svg>
+  <div class="gw-alert__content"><p class="gw-alert__title">Masked before storage</p><p class="gw-alert__body">Policies replace secrets and personal data in arguments and results with <span class="gw-code gw-code--secret">‹masked›</span> before a call is written here. The originals are never stored, so nobody can reveal them later.</p></div>
+  <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" routerLink="/policies/dev" fragment="dev-masking">Masking rules</a></div>
+</div>
+
+<section gwLogExplorer page [attr.aria-label]="'Call log'"
+  [query]="data.query()" (queryChange)="onQuery($event)"
+  [range]="data.range()" (rangeChange)="onRange($event)"
+  [live]="data.live()" (liveChange)="onLive($event)"
+  [zoom]="data.zoom()" (zoomChange)="onZoom($event)"
+  [(facetsOpen)]="facetsOpen"
+  [facets]="data.facets()"
+  [histogram]="data.firstRun() ? null : data.histogram()"
+  [matched]="data.matched()"
+  [total]="data.total()"
+  [waiting]="data.waiting()"
+  [savedViews]="data.views()"
+  [connectionEnvs]="data.connectionEnvs()"
+  [customNote]="customNote()"
+  (saveView)="openSaveView()">
+  <div class="gw-tabs gw-tabs--contained">
+    <div class="gw-tabs__list" role="tablist" aria-label="Activity view" gwTabs #callTabs="gwTabs" [gwTabsSelected]="callTab()" (selectedChange)="onCallTab($event)">
+      <button class="gw-tabs__tab" type="button" role="tab" id="ac-tab-events" aria-selected="true" aria-controls="ac-panel-events"><svg lucideIcon="list" class="gw-icon"></svg> Events@if (data.matched() !== null) { <span class="gw-tabs__count"><span id="ac-events-n">{{ formatCount(data.matched()) }}</span><span class="gw-sr-only"> events</span></span>}</button>
+      <button class="gw-tabs__tab" type="button" role="tab" id="ac-tab-traces" aria-selected="false" aria-controls="ac-panel-traces" tabindex="-1"><svg lucideIcon="list-tree" class="gw-icon"></svg> Traces@if (tracesInRange(); as tr) { <span class="gw-tabs__count"><span id="ac-traces-n">{{ formatCount(tr.length) }}</span><span class="gw-sr-only"> traces</span></span>}</button>
+    </div>
+
+    <!-- ═══════════════ Events ═══════════════ -->
+    <div class="gw-tabs__panel" role="tabpanel" id="ac-panel-events" aria-labelledby="ac-tab-events">
+      <div class="gw-stack">
+        <h2 class="gw-sr-only" id="ac-events-title">Calls</h2>
+        @if (missing(); as id) {
+          <!-- A link to a call the audit log doesn't have (#event-<id>) lands here instead of a drawer. -->
+          <div class="gw-alert gw-alert--info gw-alert--compact" id="ac-missing" role="status">
+            <svg lucideIcon="calendar-x" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content"><p class="gw-alert__title">Event not in the audit log</p><p class="gw-alert__body">Event <span class="gw-mono" id="ac-missing-id">{{ id }}</span> is not among the calls the audit log keeps. Calls older than {{ kept() }} are removed; check the link you followed.</p></div>
+          </div>
+        }
+        @if (data.stale(); as e) {
+          <!-- A reload failed: the calls below are the last ones that loaded. -->
+          <div class="gw-alert gw-alert--warning gw-alert--compact" role="status">
+            <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content">
+              <p class="gw-alert__title">These calls may be out of date.</p>
+              <p class="gw-alert__body">{{ errorText(e) }}</p>
+            </div>
+            <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retry()" [attr.aria-busy]="data.refreshing() ? 'true' : null" [attr.aria-disabled]="data.refreshing() ? 'true' : null">Try again</button></div>
+          </div>
+        }
+
+        @if (data.queryError(); as e) {
+          <!-- The core can't read the query (an unknown field, a bad duration): what it said, and the way out. -->
+          <div class="gw-alert gw-alert--warning" role="alert">
+            <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content">
+              <p class="gw-alert__title">{{ errorTitle(e) }}</p>
+              <p class="gw-alert__body">{{ errorText(e) }}</p>
+              <div class="gw-alert__actions">
+                <button class="gw-btn gw-btn--sm" type="button" (click)="clearFilters()"><svg lucideIcon="filter-x" class="gw-icon gw-icon--sm"></svg> Clear filters</button>
+              </div>
+            </div>
+          </div>
+        } @else if (data.error(); as e) {
+          <!-- Nothing loaded: what happened, what to do, Try again, and the technical details under a disclosure. -->
+          <div class="gw-alert gw-alert--danger" role="alert">
+            <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content">
+              <p class="gw-alert__title">The calls didn't load</p>
+              <p class="gw-alert__body">{{ errorText(e) }}</p>
+              <div class="gw-alert__actions">
+                <button class="gw-btn gw-btn--sm" type="button" (click)="retry()" [attr.aria-busy]="data.refreshing() ? 'true' : null" [attr.aria-disabled]="data.refreshing() ? 'true' : null">@if (data.refreshing()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Try again</button>
+                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle aria-controls="ac-error-details">Details <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
+              </div>
+            </div>
+          </div>
+          <gw-code-block [attr.id]="'ac-error-details'" [id]="'ac-error-pre'" hidden wrap lang="Error" [text]="errorDetails(e)" copyLabel="error details" regionLabel="Error details" />
+        } @else if (data.firstRun()) {
+          <!-- First run: no call has ever reached the gateway (instead of the histogram, table and pager). -->
+          <div class="gw-card" id="ac-first-run">
+            <div class="gw-empty">
+              <span class="gw-empty__icon"><svg lucideIcon="activity" class="gw-icon"></svg></span>
+              <h3 class="gw-empty__title">No calls yet</h3>
+              <p class="gw-empty__text">Every call an agent makes through the gateway shows up here within a second: who called which tool, with which arguments, what was decided and how long it took. Try a tool yourself, or <a class="gw-link" routerLink="/clients">connect a client</a> and ask your agent.</p>
+              <div class="gw-empty__actions">
+                <a class="gw-btn gw-btn--primary" routerLink="/playground"><svg lucideIcon="flask-conical" class="gw-icon"></svg> Try a tool in Playground</a>
+              </div>
+            </div>
+          </div>
+        } @else if (data.rows(); as rows) {
+          @if (rows.length) {
+            <!-- Time | Decision | Tool · connection | Client · endpoint | Duration: fits 712 px (lg with facets open), so
+                 1440 × 900 never scrolls sideways; Client · endpoint and Duration hide first below lg. -->
+            <div class="gw-table-wrap" id="ac-table-wrap" role="region" aria-labelledby="ac-table-cap" tabindex="0" [attr.aria-busy]="data.refreshing() ? 'true' : null">
+              <table class="gw-table gw-table--interactive" id="ac-events">
+                <caption class="gw-sr-only" id="ac-table-cap">{{ caption() }}</caption>
+                <thead>
+                  <tr gwSortRow (sortChange)="onSort($event)">
+                    <th scope="col" aria-sort="descending" data-sort-key="time">
+                      <button class="gw-table__sort" type="button">Time
+                        <svg lucideIcon="chevrons-up-down" class="gw-icon gw-icon--sm gw-table__sort-icon gw-table__sort-icon--none"></svg>
+                        <svg lucideIcon="chevron-up" class="gw-icon gw-icon--sm gw-table__sort-icon gw-table__sort-icon--asc"></svg>
+                        <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-table__sort-icon gw-table__sort-icon--desc"></svg>
+                      </button>
+                    </th>
+                    <th scope="col">Decision</th>
+                    <th scope="col">Tool · connection</th>
+                    <th scope="col" class="gw-table__cell--optional">Client · endpoint</th>
+                    <th scope="col" class="gw-table__cell--num gw-table__cell--optional" aria-sort="none" data-sort-key="duration">
+                      <button class="gw-table__sort" type="button">Duration
+                        <svg lucideIcon="chevrons-up-down" class="gw-icon gw-icon--sm gw-table__sort-icon gw-table__sort-icon--none"></svg>
+                        <svg lucideIcon="chevron-up" class="gw-icon gw-icon--sm gw-table__sort-icon gw-table__sort-icon--asc"></svg>
+                        <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-table__sort-icon gw-table__sort-icon--desc"></svg>
+                      </button>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (e of rowsShown(); track e.callId) {
+                    @let d = decision(e.decision);
+                    @let c = client(e);
+                    <tr [attr.data-event]="e.id">
+                      <td><a class="gw-table__row-link" [routerLink]="[]" [fragment]="'event-' + e.id" queryParamsHandling="preserve" [attr.aria-current]="openId() === e.id ? 'true' : null"><time [attr.datetime]="time.iso(e.at)" [title]="time.iso(e.at)">{{ time.relative(e.at) }}</time><span class="gw-sr-only"> at {{ time.clock(e.at, true) }}, open call {{ e.tool }}@if (e.connection) { on {{ e.connection }}}</span></a></td>
+                      @if (e.decision === 'pending' && e.approvalId) {
+                        <td><div class="gw-stack gw-stack--sm"><div><span class="gw-badge gw-badge--{{ d.tone }} gw-badge--sm"><svg [lucideIcon]="d.icon" class="gw-icon gw-badge__icon"></svg>{{ d.text }}</span></div><div><a class="gw-btn gw-btn--sm" [routerLink]="['/approvals', e.approvalId]">Review<span class="gw-sr-only"> {{ e.tool }}@if (e.connection) { on {{ e.connection }}} in Approvals</span></a></div></div></td>
+                      } @else {
+                        <td><span class="gw-badge gw-badge--{{ d.tone }} gw-badge--sm"><svg [lucideIcon]="d.icon" class="gw-icon gw-badge__icon"></svg>{{ d.text }}</span></td>
+                      }
+                      <td class="gw-table__cell--truncate"><div class="gw-text-code-sm gw-truncate" [title]="e.tool">{{ e.tool }}</div>@if (e.connection) {<div class="gw-text-caption gw-truncate"><span class="gw-mono" [title]="e.connection">{{ e.connection }}</span>@if (e.env) { <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--{{ e.env }} gw-env--sm">{{ e.env }}</span>}</div>}</td>
+                      <td class="gw-table__cell--truncate gw-table__cell--optional"><div class="gw-truncate"><span [gwClientMark]="c.id" size="sm" [letter]="c.letter"></span> {{ c.name }}</div><div class="gw-text-caption gw-fg-muted gw-truncate"><svg lucideIcon="waypoints" class="gw-icon gw-icon--xs"></svg><span class="gw-sr-only">, endpoint</span> <span class="gw-mono" [title]="e.endpoint">{{ e.endpoint }}</span></div></td>
+                      <td class="gw-table__cell--num gw-table__cell--optional">{{ durationText(e) }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+
+            <div class="gw-paginator" id="ac-pager">
+              <p class="gw-paginator__info" id="ac-pager-info">{{ pager() }}</p>
+              @if (data.hasOlder()) {
+                <div class="gw-paginator__controls">
+                  <button class="gw-btn gw-btn--sm" type="button" (click)="loadOlder()" [attr.aria-busy]="data.loadingOlder() ? 'true' : null" [attr.aria-disabled]="data.loadingOlder() ? 'true' : null">@if (data.loadingOlder()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="history" class="gw-icon gw-icon--sm"></svg>} Load older calls</button>
+                </div>
+              }
+            </div>
+          } @else {
+            <!-- Nothing listed: an hour without calls, a query no call matches, or a range without calls. -->
+            @let em = empty();
+            <div class="gw-card" id="ac-empty">
+              <div class="gw-empty">
+                <span class="gw-empty__icon"><svg lucideIcon="search-x" class="gw-icon"></svg></span>
+                <h3 class="gw-empty__title" id="ac-empty-title">{{ em.title }}</h3>
+                <p class="gw-empty__text" id="ac-empty-text">{{ em.text }}</p>
+                @if (em.reset || em.clear || (em.widen && widerLabel())) {
+                  <div class="gw-empty__actions">
+                    @if (em.reset) {
+                      <button class="gw-btn" type="button" id="ac-empty-reset" (click)="unzoom()"><svg lucideIcon="calendar-clock" class="gw-icon"></svg> {{ em.reset }}</button>
+                    }
+                    @if (em.widen && widerLabel()) {
+                      <button class="gw-btn" type="button" id="ac-empty-widen" (click)="widen()"><svg lucideIcon="calendar-clock" class="gw-icon"></svg> {{ widerLabel() }}</button>
+                    }
+                    @if (em.clear) {
+                      <button class="gw-btn" type="button" id="ac-empty-clear" (click)="clearFilters()"><svg lucideIcon="filter-x" class="gw-icon"></svg> Clear filters</button>
+                    }
+                  </div>
+                }
+              </div>
+            </div>
+          }
+        } @else if (slow()) {
+          <!-- The first render, when it takes longer than 300 ms. -->
+          <div class="gw-table-wrap" role="region" aria-labelledby="ac-skel-cap" tabindex="0" aria-busy="true">
+            <table class="gw-table">
+              <caption class="gw-sr-only" id="ac-skel-cap">Calls, loading</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Time</th>
+                  <th scope="col">Decision</th>
+                  <th scope="col">Tool · connection</th>
+                  <th scope="col" class="gw-table__cell--optional">Client · endpoint</th>
+                  <th scope="col" class="gw-table__cell--num gw-table__cell--optional">Duration</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (i of [1, 2, 3, 4, 5, 6]; track i) {
+                  <tr aria-hidden="true">
+                    <td><span class="gw-skeleton gw-skeleton--text"></span></td>
+                    <td><span class="gw-skeleton gw-skeleton--text"></span></td>
+                    <td><span class="gw-skeleton gw-skeleton--text"></span></td>
+                    <td class="gw-table__cell--optional"><span class="gw-skeleton gw-skeleton--text"></span></td>
+                    <td class="gw-table__cell--optional"><span class="gw-skeleton gw-skeleton--text"></span></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+            <p class="gw-sr-only" role="status">Loading calls</p>
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- ═══════════════ Traces ═══════════════ -->
+    <div class="gw-tabs__panel" role="tabpanel" id="ac-panel-traces" aria-labelledby="ac-tab-traces" tabindex="0" hidden>
+      <section class="gw-section" aria-labelledby="ac-traces-title" [attr.aria-busy]="data.traces().value === null && !data.traces().error ? 'true' : null">
+        <div class="gw-section__header">
+          <h2 class="gw-section__title" id="ac-traces-title">Agent tasks</h2>
+          <p class="gw-section__description">One trace is one task: every call an agent made for it, grouped by trace id. Shown when at least one call matches the filters.</p>
+        </div>
+        @if (data.traces().error; as e) {
+          <div class="gw-alert gw-alert--danger" role="alert">
+            <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content">
+              <p class="gw-alert__title">The tasks didn't load</p>
+              <p class="gw-alert__body">{{ errorText(e) }}</p>
+              <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retry()">Try again</button></div>
+            </div>
+          </div>
+        } @else if (tracesInRange(); as list) {
+          @if (list.length) {
+            <div class="gw-stack">
+              @for (t of tracesShown(); track t.traceId) {
+                <div class="gw-card" [attr.data-trace]="t.traceId">
+                  <div class="gw-card__body">
+                    <section gwTraceView page [trace]="traceOf(t)" (showCalls)="onShowCalls()"></section>
+                  </div>
+                </div>
+              }
+            </div>
+          } @else if (filtered()) {
+            <div class="gw-card" id="ac-traces-empty">
+              <div class="gw-empty gw-empty--compact">
+                <span class="gw-empty__icon"><svg lucideIcon="list-x" class="gw-icon"></svg></span>
+                <h3 class="gw-empty__title">No task matches these filters</h3>
+                <p class="gw-empty__text">A task shows here when at least one of its calls matches. Older tasks may be outside the {{ words().replace('in the ', '') }}.</p>
+                <div class="gw-empty__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="clearFilters()"><svg lucideIcon="filter-x" class="gw-icon gw-icon--sm"></svg> Clear filters</button></div>
+              </div>
+            </div>
+          } @else {
+            <div class="gw-card" id="ac-traces-empty">
+              <div class="gw-empty gw-empty--compact">
+                <span class="gw-empty__icon"><svg lucideIcon="list-x" class="gw-icon"></svg></span>
+                <h3 class="gw-empty__title">No agent tasks {{ words() }}</h3>
+                <p class="gw-empty__text">A task shows here when an agent sends a trace id with its calls (W3C <code class="gw-code">traceparent</code>) or names its task. Calls without one are under Events.</p>
+              </div>
+            </div>
+          }
+          @if (list.length) {
+            <div class="gw-paginator" id="ac-traces-pager">
+              <p class="gw-paginator__info" id="ac-traces-info">{{ tracesPager() }}</p>
+              @if (tracesMore()) {
+                <div class="gw-paginator__controls">
+                  <button class="gw-btn gw-btn--sm" type="button" (click)="loadOlderTasks()" [attr.aria-busy]="tracesLoading() ? 'true' : null" [attr.aria-disabled]="tracesLoading() ? 'true' : null">@if (tracesLoading()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="history" class="gw-icon gw-icon--sm"></svg>} Load older tasks</button>
+                </div>
+              }
+            </div>
+          }
+        } @else if (slow()) {
+          <div class="gw-stack" aria-hidden="true">
+            @for (i of [1, 2]; track i) {
+              <div class="gw-card">
+                <div class="gw-card__body">
+                  <div class="gw-stack gw-stack--sm">
+                    <span class="gw-skeleton gw-skeleton--text"></span>
+                    <span class="gw-skeleton gw-skeleton--text"></span>
+                    <span class="gw-skeleton gw-skeleton--block"></span>
+                  </div>
+                </div>
+              </div>
+            }
+          </div>
+          <p class="gw-sr-only" role="status">Loading agent tasks</p>
+        }
+      </section>
+    </div>
+  </div>
+</section>
+</div>
+</div>
+
+<!-- ═══════════════ Setup changes ═══════════════
+     Who changed what in the gateway's own setup, with the reason the dialog asked for. On the desktop "who" is always
+     you. The call filters don't apply here. -->
+<div class="gw-tabs__panel" role="tabpanel" id="ac-panel-changes" aria-labelledby="ac-tab-changes" tabindex="0" hidden>
+  <section class="gw-section" aria-labelledby="ac-changes-title" [attr.aria-busy]="data.changes().value === null && !data.changes().error ? 'true' : null">
+    <div class="gw-section__header">
+      <h2 class="gw-section__title" id="ac-changes-title">Setup changes</h2>
+      <p class="gw-section__description">What changed in the gateway's setup in the last 24 hours, newest first. The call filters don't apply here; each row links to what changed.</p>
+    </div>
+    @if (data.changes().error; as e) {
+      <div class="gw-alert gw-alert--danger" role="alert">
+        <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content">
+          <p class="gw-alert__title">The setup changes didn't load</p>
+          <p class="gw-alert__body">{{ errorText(e) }}</p>
+          <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retry()">Try again</button></div>
+        </div>
+      </div>
+    } @else if (data.changes().value) {
+      @if (changeRows().length) {
+        <div class="gw-table-wrap" role="region" aria-labelledby="ac-changes-cap" tabindex="0">
+          <table class="gw-table">
+            <caption class="gw-sr-only" id="ac-changes-cap">Setup changes {{ changesOlder() ? '' : 'in the last 24 hours, ' }}newest first</caption>
+            <thead>
+              <tr>
+                <th scope="col">Time</th>
+                <th scope="col">What</th>
+                <th scope="col">Change</th>
+                <th scope="col">By</th>
+                <th scope="col">Reason</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (r of changeRows(); track r.id) {
+                <tr [attr.data-change]="r.id">
+                  <td><time [attr.datetime]="time.iso(r.at)" [title]="time.iso(r.at)">{{ time.relative(r.at) }}</time></td>
+                  <th scope="row" class="gw-table__cell--wrap">@if (r.what.route) {<a class="gw-link" [class.gw-mono]="r.what.mono" [routerLink]="r.what.route" [queryParams]="r.what.queryParams">{{ r.what.text }}</a>} @else {<span [class.gw-mono]="r.what.mono">{{ r.what.text }}</span>}@if (r.what.caption) { <span class="gw-text-caption gw-fg-muted">{{ r.what.caption }}</span>}</th>
+                  <td class="gw-table__cell--wrap">@if (r.from; as f) {<ng-container [ngTemplateOutlet]="value" [ngTemplateOutletContext]="{ $implicit: f }" />@if (r.to) { <svg lucideIcon="arrow-right" class="gw-icon gw-icon--xs gw-fg-muted"></svg><span class="gw-sr-only"> to </span> }}@if (r.to; as t) {<ng-container [ngTemplateOutlet]="value" [ngTemplateOutletContext]="{ $implicit: t }" />}@if (!r.from && !r.to) {<span class="gw-fg-muted">—</span>}</td>
+                  <td>{{ r.by }}</td>
+                  @if (r.reason) {
+                    <td class="gw-table__cell--wrap">{{ r.reason }}</td>
+                  } @else {
+                    <td class="gw-table__cell--wrap gw-fg-muted">No reason given</td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <div class="gw-card">
+          <div class="gw-empty gw-empty--compact">
+            <span class="gw-empty__icon"><svg lucideIcon="file-clock" class="gw-icon"></svg></span>
+            <h3 class="gw-empty__title">No setup changes in the last 24 hours</h3>
+            <p class="gw-empty__text">Tool modes, tokens, clients, policies, the tunnel and settings show up here when someone changes them, with the reason they gave.</p>
+          </div>
+        </div>
+      }
+      @if (changeRows().length || changesMore()) {
+        <div class="gw-paginator">
+          <p class="gw-paginator__info">{{ changesPager() }}</p>
+          @if (changesMore()) {
+            <div class="gw-paginator__controls">
+              <button class="gw-btn gw-btn--sm" type="button" (click)="loadOlderChanges()" [attr.aria-busy]="changesLoading() ? 'true' : null" [attr.aria-disabled]="changesLoading() ? 'true' : null">@if (changesLoading()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="history" class="gw-icon gw-icon--sm"></svg>} Load older changes</button>
+            </div>
+          }
+        </div>
+      }
+    } @else if (slow()) {
+      <div class="gw-table-wrap" role="region" aria-labelledby="ac-changes-skel-cap" tabindex="0" aria-busy="true">
+        <table class="gw-table">
+          <caption class="gw-sr-only" id="ac-changes-skel-cap">Setup changes, loading</caption>
+          <thead>
+            <tr>
+              <th scope="col">Time</th>
+              <th scope="col">What</th>
+              <th scope="col">Change</th>
+              <th scope="col">By</th>
+              <th scope="col">Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (i of [1, 2, 3, 4]; track i) {
+              <tr aria-hidden="true">
+                <td><span class="gw-skeleton gw-skeleton--text"></span></td>
+                <td><span class="gw-skeleton gw-skeleton--text"></span></td>
+                <td><span class="gw-skeleton gw-skeleton--text"></span></td>
+                <td><span class="gw-skeleton gw-skeleton--text"></span></td>
+                <td><span class="gw-skeleton gw-skeleton--text"></span></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+        <p class="gw-sr-only" role="status">Loading setup changes</p>
+      </div>
+    }
+  </section>
+</div>
+
+<!-- One side of a change: a tool mode (gw-mode), an on / off or access state (gw-status), or the core's words. -->
+<ng-template #value let-v>@switch (v.kind) {
+  @case ('mode') {<span class="gw-mode {{ v.cls }}"><svg [lucideIcon]="v.icon" class="gw-icon"></svg>{{ v.text }}</span>}
+  @case ('status') {<span class="gw-status gw-status--{{ v.tone }}"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ v.text }}</span></span>}
+  @default {<span>{{ v.text }}</span>}
+}</ng-template>
+
+<!-- ═══════════════ The call's details (#event-<id>) ═══════════════ -->
+<gw-event-drawer #drawer [detail]="detail()" [approval]="detailApproval()" [description]="detailDescription()" [traced]="detailTraced()" [revokeLabel]="revokeTarget()?.name ?? null" (revoke)="askRevoke($event)" (closed)="onDrawerClosed()" />
+
+<!-- ═══════════════ Revoke the access that made the call (from the drawer) ═══════════════ -->
+<dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" gwDialog #revokeDialog="gwDialog" id="ac-revoke" aria-labelledby="ac-revoke-title" aria-describedby="ac-revoke-desc">
+  @if (revoking(); as r) {
+    <header class="gw-dialog__header">
+      <span class="gw-icon-tile"><svg lucideIcon="key-round" class="gw-icon"></svg></span>
+      <h2 class="gw-dialog__title" id="ac-revoke-title">{{ r.words.title }}</h2>
+      <p class="gw-dialog__description" id="ac-revoke-desc">{{ r.words.before }}<span class="gw-mono">{{ r.words.endpoint }}</span>{{ r.words.after }}</p>
+      <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+    </header>
+    <div class="gw-dialog__body">
+      <div class="gw-stack">
+        <dl class="gw-kv gw-kv--dense">
+          <div class="gw-kv__row"><dt class="gw-kv__key">Access</dt><dd class="gw-kv__value"><span class="gw-mono">{{ r.target.name }}</span>{{ r.words.accessRest }}</dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key">Used by</dt><dd class="gw-kv__value">{{ r.words.usedBy }}@if (r.words.through; as t) {, through @if (t.mono) {<span class="gw-mono">{{ t.text }}</span>} @else {{{ t.text }}}}, on endpoint <span class="gw-mono">{{ r.words.endpoint }}</span></dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key">Last used</dt><dd class="gw-kv__value">@if (r.target.lastUsedAt; as at) {<time [attr.datetime]="time.iso(at)" [title]="time.iso(at)">{{ time.relative(at) }}</time>} @else {Never}</dd></div>
+        </dl>
+        @if (revokeError(); as err) {
+          <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+            <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content"><p class="gw-alert__title">{{ r.target.name }} wasn't revoked</p><p class="gw-alert__body">{{ err }}</p></div>
+          </div>
+        }
+      </div>
+    </div>
+    <footer class="gw-dialog__footer">
+      <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
+      <button class="gw-btn gw-btn--danger" type="button" (click)="confirmRevoke()" [attr.aria-busy]="revokeBusy() ? 'true' : null" [attr.aria-disabled]="revokeBusy() ? 'true' : null">@if (revokeBusy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}{{ r.words.button }}</button>
+    </footer>
+  }
+</dialog>
+
+<!-- ═══════════════ Send to SIEM ═══════════════ -->
+<dialog class="gw-dialog gw-dialog--md" gwDialog gwDialogStatic #siemDialog="gwDialog" id="ac-siem" aria-labelledby="ac-siem-title" aria-describedby="ac-siem-desc">
+  @let dests = data.destinations().value;
+  @let off = data.destinations().unavailable;
+  <form (submit)="sendToSiem($event)" novalidate>
+    <header class="gw-dialog__header">
+      <span class="gw-icon-tile"><svg lucideIcon="send" class="gw-icon"></svg></span>
+      <h2 class="gw-dialog__title" id="ac-siem-title">Send calls to SIEM</h2>
+      <p class="gw-dialog__description" id="ac-siem-desc">Sends the @if (data.matched() !== null) {<span>{{ formatCount(data.matched()) }}</span> }calls <span id="ac-siem-scope">{{ siemScope() }}</span>. Masked values stay masked, and nothing is removed from this log.</p>
+      <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+    </header>
+    <div class="gw-dialog__body gw-stack">
+      @if (off) {
+        <div class="gw-alert gw-alert--info gw-alert--compact" id="ac-siem-off">
+          <svg lucideIcon="info" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content"><p class="gw-alert__title">Not available yet</p><p class="gw-alert__body">This version of the core has no audit export destinations. A CSV or JSONL file from Export works now.</p></div>
+        </div>
+      } @else if (data.destinations().error; as e) {
+        <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+          <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content"><p class="gw-alert__title">The destinations didn't load</p><p class="gw-alert__body">{{ errorText(e) }}</p></div>
+        </div>
+      } @else if (dests && !dests.length) {
+        <div class="gw-alert gw-alert--info gw-alert--compact" id="ac-siem-off">
+          <svg lucideIcon="info" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content"><p class="gw-alert__title">No destination yet</p><p class="gw-alert__body">Add a SIEM, S3 or BigQuery destination in <a class="gw-link" routerLink="/settings/audit">Settings, Audit and retention</a>.</p></div>
+        </div>
+      } @else if (noneSendable()) {
+        <div class="gw-alert gw-alert--info gw-alert--compact" id="ac-siem-off">
+          <svg lucideIcon="info" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content"><p class="gw-alert__title">No destination can take calls now</p><p class="gw-alert__body">Each one in the list says why. Turn one on, or save it again, in <a class="gw-link" routerLink="/settings/audit">Settings, Audit and retention</a>.</p></div>
+        </div>
+      }
+      <div class="gw-field">
+        <label class="gw-field__label" for="ac-siem-dest">Destination</label>
+        <select class="gw-select" id="ac-siem-dest" aria-describedby="ac-siem-dest-hint" autofocus [attr.aria-disabled]="dests?.length ? null : 'true'" (change)="siemDestination.set($any($event.target).value)">
+          @if (noneSendable()) {
+            <option value="" selected disabled>Choose a destination</option>
+          }
+          @for (d of dests ?? []; track d.id) {
+            @let why = unsendable(d);
+            <!-- The core refuses these (409): listed with the reason, not choosable. -->
+            <option [value]="d.id" [selected]="d.id === siemDestination()" [disabled]="!!why">{{ d.name }}@if (why) { ({{ why }})}</option>
+          } @empty {
+            <option value="">No destination</option>
+          }
+        </select>
+        <p class="gw-field__hint" id="ac-siem-dest-hint">Destinations and scheduled exports live in <a class="gw-link" routerLink="/settings/audit">Settings, Audit and retention</a>.</p>
+      </div>
+      <fieldset class="gw-field">
+        <legend class="gw-field__label">Format</legend>
+        <label class="gw-radio">
+          <input class="gw-radio__input" type="radio" name="ac-siem-format" value="jsonl" checked>
+          <span class="gw-radio__control" aria-hidden="true"></span>
+          <span class="gw-radio__label">JSON lines</span>
+          <span class="gw-radio__hint">One event per line, the same fields as the raw event</span>
+        </label>
+        <label class="gw-radio">
+          <input class="gw-radio__input" type="radio" name="ac-siem-format" value="cef" aria-disabled="true" aria-describedby="ac-siem-cef-hint">
+          <span class="gw-radio__control" aria-hidden="true"></span>
+          <span class="gw-radio__label">CEF</span>
+          <span class="gw-radio__hint" id="ac-siem-cef-hint">Common Event Format for SIEMs that expect it. Not available yet: the core sends JSON lines.</span>
+        </label>
+      </fieldset>
+      @if (siemError(); as err) {
+        <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+          <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content"><p class="gw-alert__title">The calls weren't sent</p><p class="gw-alert__body">{{ err }}</p></div>
+        </div>
+      }
+    </div>
+    <footer class="gw-dialog__footer">
+      <button class="gw-btn" type="button" gwDialogClose>Cancel</button>
+      <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-disabled]="!siemDestination() || siemBusy() ? 'true' : null" [attr.aria-describedby]="siemDestination() ? null : 'ac-siem-off'" [attr.aria-busy]="siemBusy() ? 'true' : null">@if (siemBusy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="send" class="gw-icon"></svg>} {{ siemButton() }}</button>
+    </footer>
+  </form>
+</dialog>
+
+<!-- ═══════════════ Save current view ═══════════════ -->
+<dialog class="gw-dialog gw-dialog--sm" gwDialog gwDialogStatic #saveDialog="gwDialog" id="ac-save" aria-labelledby="ac-save-title" aria-describedby="ac-save-desc">
+  <form (submit)="confirmSaveView($event)" novalidate>
+    <header class="gw-dialog__header">
+      <h2 class="gw-dialog__title" id="ac-save-title">Save current view</h2>
+      <p class="gw-dialog__description" id="ac-save-desc">Saved views keep the filters, not the time range. @if (data.query()) {This one shows <code class="gw-code">{{ data.query() }}</code>.} @else {This one shows all calls.}</p>
+      <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+    </header>
+    <div class="gw-dialog__body gw-stack">
+      <div class="gw-field">
+        <label class="gw-field__label" for="ac-save-name">Name</label>
+        <input class="gw-input" id="ac-save-name" type="text" autocomplete="off" spellcheck="false" maxlength="80" autofocus [value]="saveName()" (input)="saveName.set($any($event.target).value)" [attr.aria-invalid]="saveNameError() ? 'true' : null" [attr.aria-describedby]="saveNameError() ? 'ac-save-name-error' : saveReplaces() ? 'ac-save-name-hint' : null">
+        @if (saveNameError(); as err) {
+          <p class="gw-field__error" id="ac-save-name-error"><svg lucideIcon="circle-alert" class="gw-icon gw-icon--sm"></svg> {{ err }}</p>
+        } @else if (saveReplaces()) {
+          <p class="gw-field__hint" id="ac-save-name-hint">Replaces the saved view with this name.</p>
+        }
+      </div>
+      @if (saveError(); as err) {
+        <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+          <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content"><p class="gw-alert__title">The view wasn't saved</p><p class="gw-alert__body">{{ err }}</p></div>
+        </div>
+      }
+    </div>
+    <footer class="gw-dialog__footer">
+      <button class="gw-btn" type="button" gwDialogClose>Cancel</button>
+      <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="saveBusy() ? 'true' : null" [attr.aria-disabled]="saveBusy() ? 'true' : null">@if (saveBusy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Save view</button>
+    </footer>
+  </form>
+</dialog>

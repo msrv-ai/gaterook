@@ -1,0 +1,282 @@
+<header class="gw-page-header">
+  <div class="gw-page-header__row">
+    <div class="gw-page-header__heading">
+      <h1 class="gw-page-header__title">Approvals</h1>
+      <p class="gw-page-header__description">Changes agents asked to make. Nothing runs until you approve the exact action; a request you don't answer is denied when its timer runs out.</p>
+      <!-- Delivery channels and who decides: one slim line above the split (Settings › Notifications, Policies › Approvals). -->
+      <div class="gw-page-header__meta">
+        <span>Sent to</span>
+        @switch (channelsState()) {
+          @case ('ready') {
+            @for (c of channels(); track c.label) {
+              <span [class]="'gw-status gw-status--' + c.tone"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ c.label }}@if (c.mono) { <span class="gw-mono">{{ c.mono }}</span>}</span></span>
+            }
+          }
+          @case ('loading') {
+            <span class="gw-status gw-status--neutral" aria-busy="true"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Checking channels…</span></span>
+          }
+          @case ('not-available') {
+            <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Notification channels not available yet</span></span>
+          }
+          @default {
+            <span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Couldn't read the notification channels</span></span>
+          }
+        }
+        <a class="gw-link" routerLink="/settings/notifications">Notification settings</a>
+        <span class="gw-divider gw-divider--vertical" aria-hidden="true"></span>
+        <span>{{ deciders() }}</span>
+        <a class="gw-link" routerLink="/policies/prod" fragment="prod-approvals">Approval rules<span class="gw-sr-only"> in Policies</span></a>
+      </div>
+    </div>
+    <div class="gw-page-header__actions">
+      <a class="gw-btn" routerLink="/activity" [queryParams]="{ q: ACTIVITY_APPROVAL_CALLS }"><svg lucideIcon="activity" class="gw-icon"></svg> View in Activity<span class="gw-sr-only">: every call that needed approval</span></a>
+    </div>
+  </div>
+</header>
+
+@if (loadError(); as e) {
+  <div class="gw-alert gw-alert--danger" role="alert">
+    <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+    <div class="gw-alert__content">
+      <p class="gw-alert__title">{{ loaded() ? "Couldn't refresh the approval requests" : "Couldn't load the approval requests" }}</p>
+      <p class="gw-alert__body">{{ loaded() ? 'What you see may be out of date.' : 'Nothing is shown until the gateway core answers.' }} Requests still expire on time and are denied when they do. Try again; if it keeps failing, check the core log.</p>
+      <div class="gw-alert__actions">
+        <button class="gw-btn gw-btn--sm" type="button" (click)="retryLoad()"><svg lucideIcon="refresh-cw" class="gw-icon gw-icon--sm"></svg>Try again</button>
+        <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle aria-controls="ap-load-error-details"><svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm"></svg>Details</button>
+      </div>
+      <gw-code-block [attr.id]="'ap-load-error-details'" hidden wrap [copy]="false" lang="Error" [filename]="'GET /api/approvals' + (e.status ? ' · ' + e.status : '')" [text]="e.title + '\n' + e.detail" regionLabel="Technical details of the error" />
+    </div>
+  </div>
+}
+
+<div class="gw-split">
+
+  <!-- ═════════════ Queue: Pending (most urgent first) / History ═════════════ -->
+  <div class="gw-split__list">
+    <div class="gw-tabs">
+      <div class="gw-tabs__list" role="tablist" aria-label="Approval requests" gwTabs [gwTabsSelected]="tab() === 'history' ? 'ap-tab-history' : 'ap-tab-pending'" (selectedChange)="onTab($event)">
+        <button class="gw-tabs__tab" type="button" role="tab" id="ap-tab-pending" aria-selected="true" aria-controls="ap-panel-pending"><svg lucideIcon="hourglass" class="gw-icon"></svg>Pending @if (loaded()) {<span class="gw-tabs__count"><span id="ap-pending-count">{{ pendingCount() }}</span><span class="gw-sr-only"> waiting</span></span>}</button>
+        <button class="gw-tabs__tab" type="button" role="tab" id="ap-tab-history" aria-selected="false" aria-controls="ap-panel-history" tabindex="-1"><svg lucideIcon="history" class="gw-icon"></svg>History @if (loaded()) {<span class="gw-tabs__count">{{ historyTotal() }}<span class="gw-sr-only"> decided in the last 24 hours</span></span>}</button>
+      </div>
+
+      <div class="gw-tabs__panel" role="tabpanel" id="ap-panel-pending" aria-labelledby="ap-tab-pending" tabindex="0">
+        <div class="gw-stack gw-stack--sm">
+          <h2 class="gw-sr-only" id="apq-title">Waiting for approval</h2>
+          <p class="gw-text-caption gw-fg-muted">Most urgent first. Open a request to see the exact action before you decide.</p>
+
+          @if (!loaded()) {
+            @if (!loadError()) {
+              <div class="gw-stack gw-stack--sm" aria-busy="true">
+                <p class="gw-sr-only" role="status">Loading approval requests</p>
+                @for (row of [1, 2, 3]; track row) {
+                  <div class="gw-card" aria-hidden="true">
+                    <div class="gw-card__body">
+                      <div class="gw-stack gw-stack--sm">
+                        <span class="gw-skeleton gw-skeleton--text"></span>
+                        <span class="gw-skeleton gw-skeleton--text"></span>
+                      </div>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+          } @else if (queue().length) {
+            <ul class="gw-stack gw-stack--sm" id="apq-list" [attr.aria-label]="queueName()" (click)="onQueueClick($event)">
+              @for (i of queue(); track i.id) {
+                <li>
+                  <!-- The open request: gw-card--selected here, aria-current on its Review link. -->
+                  <article
+                    gwApprovalRequestCompact
+                    [item]="i"
+                    [segments]="details().get(i.id)?.action?.segments ?? null"
+                    [review]="'/approvals/' + i.id"
+                    [current]="i.id === selectedId()"
+                    [class.gw-card--selected]="i.id === selectedId()"
+                    [announce]="lastMinute(i)"
+                    [attr.data-ap-item]="i.id"
+                    (expired)="onExpired(i.id)"
+                  ></article>
+                </li>
+              }
+            </ul>
+          } @else {
+            <div class="gw-card" id="apq-empty">
+              <div class="gw-empty gw-empty--compact">
+                <span class="gw-empty__icon gw-icon-tile--success"><svg lucideIcon="circle-check" class="gw-icon"></svg></span>
+                <p class="gw-empty__title">Nothing waiting</p>
+                <p class="gw-empty__text">Agents will ask here before any change.</p>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+
+      <div class="gw-tabs__panel" role="tabpanel" id="ap-panel-history" aria-labelledby="ap-tab-history" tabindex="0" hidden>
+        <div class="gw-stack gw-stack--sm">
+          <p class="gw-text-caption gw-fg-muted">Decided and expired requests. Each row opens its call in Activity.</p>
+          @if (historyRows().length) {
+            <div class="gw-table-wrap" role="region" aria-labelledby="aph-cap" tabindex="0">
+              <table class="gw-table gw-table--interactive">
+                <caption class="gw-sr-only" id="aph-cap">Decided approval requests, newest first</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Request</th>
+                    <th scope="col">Decision</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of historyRows(); track row.id) {
+                    <tr>
+                      <th scope="row">
+                        <div><a class="gw-table__row-link" [routerLink]="row.link.route" [fragment]="row.link.fragment" [queryParams]="row.link.queryParams"><code class="gw-code">{{ row.tool }}</code><span class="gw-sr-only">{{ row.srText }}</span></a> <span class="gw-sr-only">environment</span> <span [class]="'gw-env gw-env--' + row.env + ' gw-env--sm'">{{ row.env }}</span></div>
+                        <div class="gw-text-caption gw-fg-muted"><span class="gw-mono">{{ row.target }}</span> · <time [attr.datetime]="iso(row.at)" [title]="absolute(row.at)">{{ relative(row.at) }}</time></div>
+                      </th>
+                      <td>
+                        <div><span [class]="'gw-badge gw-badge--' + row.badge.tone"><svg [lucideIcon]="row.badge.icon" class="gw-icon gw-badge__icon"></svg>{{ row.badge.text }}</span></div>
+                        <div class="gw-text-caption gw-fg-muted">{{ row.by }}</div>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            <div class="gw-paginator">
+              <p class="gw-paginator__info">{{ historyLine() }}</p>
+              <div class="gw-paginator__controls">
+                <a class="gw-btn gw-btn--sm" routerLink="/activity" [queryParams]="{ q: ACTIVITY_DECIDED }"><svg lucideIcon="activity" class="gw-icon gw-icon--sm"></svg> View all in Activity<span class="gw-sr-only">: decision approved, rejected or expired</span></a>
+              </div>
+            </div>
+          } @else if (loaded()) {
+            <div class="gw-card">
+              <div class="gw-empty gw-empty--compact">
+                <span class="gw-empty__icon"><svg lucideIcon="history" class="gw-icon"></svg></span>
+                <p class="gw-empty__title">Nothing decided in the last 24 hours</p>
+                <p class="gw-empty__text">Approved, rejected and expired requests appear here. Every call stays in Activity.</p>
+                <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" routerLink="/activity" [queryParams]="{ q: ACTIVITY_DECIDED }"><svg lucideIcon="activity" class="gw-icon gw-icon--sm"></svg> View all in Activity<span class="gw-sr-only">: decision approved, rejected or expired</span></a></div>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═════════════ Detail: the selected request, in full ═════════════ -->
+  <div class="gw-split__detail">
+    @if (tab() === 'history') {
+      <!-- History tab: decided requests open their call in Activity, so the pane says so instead of keeping a pending
+           request, with live Approve and Deny, next to a list it is not part of. -->
+      <div class="gw-card" id="ap-history-detail">
+        <div class="gw-empty">
+          <span class="gw-empty__icon"><svg lucideIcon="history" class="gw-icon gw-icon--lg"></svg></span>
+          <h2 class="gw-empty__title">Decided requests open in Activity</h2>
+          <p class="gw-empty__text">Pick one in the list to see its call: the exact action, who decided and when, the comment and what ran.</p>
+          <div class="gw-empty__actions"><button class="gw-btn" type="button" (click)="showPending()">Back to pending requests</button></div>
+        </div>
+      </div>
+    } @else {
+      @switch (detailState()) {
+        @case ('ready') {
+          <div class="gw-stack" id="ap-details">
+            @for (d of shown(); track d.id) {
+              <div class="gw-stack" [id]="'ap-' + d.id">
+                <article
+                  gwApprovalRequest
+                  [request]="d"
+                  [level]="2"
+                  [traceId]="traceFor(d.id)"
+                  [eventLink]="eventLink(d.id)"
+                  [busy]="busyFor(d.id)"
+                  [error]="errorFor(d.id)"
+                  (decide)="decide(d, $event)"
+                  (expired)="onExpired(d.id)"
+                ></article>
+
+                <!-- Secondary, collapsed: how this request reached you outside the window (approval-notification). -->
+                @if (delivery(); as card) {
+                  <div class="gw-stack gw-stack--sm">
+                    <div>
+                      <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [attr.aria-controls]="'ap-delivery-' + d.id"><svg lucideIcon="bell" class="gw-icon gw-icon--sm"></svg>How this request was delivered<span class="gw-sr-only"> ({{ d.tool }} on {{ d.connection ?? d.endpoint }})</span></button>
+                    </div>
+                    @if (card.preview === 'none') {
+                      <section class="gw-card gw-approval-notification" [id]="'ap-delivery-' + d.id" [attr.aria-labelledby]="'ap-delivery-title-' + d.id" hidden>
+                        <header class="gw-card__header">
+                          <div class="gw-card__heading">
+                            <h3 class="gw-card__title" [id]="'ap-delivery-title-' + d.id"><span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--neutral"><svg [lucideIcon]="card.icon" class="gw-icon gw-icon--sm"></svg></span>{{ card.heading }}</h3>
+                            <p class="gw-card__description">@for (p of card.description; track $index) {@if (p.mono) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}@if (card.settingsLink) { <a class="gw-link" routerLink="/settings/notifications">Notification settings</a>.}</p>
+                          </div>
+                        </header>
+                      </section>
+                    } @else {
+                      <section gwNotificationCard [heading]="card.heading" [letter]="card.letter" [icon]="card.icon" [id]="'ap-delivery-' + d.id" hidden>
+                        <span gwCardDescription>@for (p of card.description; track $index) {@if (p.mono) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</span>
+                        <figure gwNotificationPreview [channel]="card.preview" [request]="d" [slackChannel]="card.slackChannel" [ruleNote]="ruleNote(d)" [os]="os"></figure>
+                      </section>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
+        @case ('loading') {
+          <section class="gw-card" aria-busy="true" aria-labelledby="ap-detail-loading">
+            <div class="gw-card__body">
+              <p class="gw-sr-only" role="status" id="ap-detail-loading">Loading the request</p>
+              <div class="gw-stack gw-stack--sm" aria-hidden="true">
+                <span class="gw-skeleton gw-skeleton--text"></span>
+                <span class="gw-skeleton gw-skeleton--text"></span>
+                <span class="gw-skeleton gw-skeleton--block"></span>
+                <span class="gw-skeleton gw-skeleton--text"></span>
+              </div>
+            </div>
+          </section>
+        }
+        @case ('not-found') {
+          <div class="gw-card">
+            <div class="gw-empty">
+              <span class="gw-empty__icon"><svg lucideIcon="search-x" class="gw-icon gw-icon--lg"></svg></span>
+              <h2 class="gw-empty__title" tabindex="-1" #missingTitle>Request not found</h2>
+              <p class="gw-empty__text">There is no approval request <span class="gw-mono">{{ selectedId() }}</span>. It may have been removed together with its connection or endpoint.</p>
+              <div class="gw-empty__actions"><a class="gw-btn" routerLink="/approvals">Show pending requests</a></div>
+            </div>
+          </div>
+        }
+        @case ('error') {
+          <div class="gw-alert gw-alert--danger" role="alert">
+            <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content">
+              <p class="gw-alert__title">Couldn't load the request</p>
+              <p class="gw-alert__body">{{ detailError()?.title }}: {{ detailError()?.detail }} Nothing was decided.</p>
+              <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retryDetail()"><svg lucideIcon="refresh-cw" class="gw-icon gw-icon--sm"></svg>Try again</button></div>
+            </div>
+          </div>
+        }
+        @default {
+          @if (loaded()) {
+            <!-- Empty detail: with the empty queue, and after the last pending request is decided (focus moves here). -->
+            <div class="gw-card" id="ap-detail-empty">
+              <div class="gw-empty">
+                <span class="gw-empty__icon"><svg lucideIcon="user-check" class="gw-icon gw-icon--lg"></svg></span>
+                <h2 class="gw-empty__title" id="ap-detail-empty-title" tabindex="-1" #emptyTitle>No request to review</h2>
+                <p class="gw-empty__text">When an agent asks to change something, the exact action opens here with Approve and Deny.</p>
+                <div class="gw-empty__actions"><a class="gw-btn" routerLink="/policies"><svg lucideIcon="shield" class="gw-icon"></svg> Review policies</a></div>
+              </div>
+            </div>
+          } @else if (!loadError()) {
+            <!-- The queue says what is loading; this placeholder only keeps the pane's shape. -->
+            <div class="gw-card" aria-hidden="true">
+              <div class="gw-card__body">
+                <div class="gw-stack gw-stack--sm">
+                  <span class="gw-skeleton gw-skeleton--text"></span>
+                  <span class="gw-skeleton gw-skeleton--text"></span>
+                  <span class="gw-skeleton gw-skeleton--block"></span>
+                </div>
+              </div>
+            </div>
+          }
+        }
+      }
+    }
+  </div>
+</div>

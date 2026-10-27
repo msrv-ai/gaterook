@@ -1,0 +1,357 @@
+<header class="gw-section__header">
+  <h2 class="gw-section__title" id="st-notif-t">Notifications</h2>
+  <p class="gw-section__description">Where approval requests reach you. Each message shows the exact action with its connection and environment; the agent's note is never sent.</p>
+  <div class="gw-section__actions">
+    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-haspopup="dialog" [attr.aria-busy]="previewBusy() ? 'true' : null" (click)="openPreview($event)"><svg lucideIcon="message-square" class="gw-icon gw-icon--sm"></svg> Preview messages</button>
+    <button class="gw-btn gw-btn--sm" type="button" [attr.aria-disabled]="off() || busy() === 'test' ? 'true' : null" [attr.aria-busy]="busy() === 'test' ? 'true' : null" [attr.aria-describedby]="off() && (unavailable() || failed()) ? 'st-notif-why' : null" (click)="sendTest()"><svg lucideIcon="send" class="gw-icon gw-icon--sm"></svg> Send test notification</button>
+  </div>
+</header>
+<hr class="gw-divider">
+@if (unavailable()) {
+  <div class="gw-alert gw-alert--neutral gw-alert--compact" id="st-notif-why">
+    <svg lucideIcon="circle-help" class="gw-icon gw-alert__icon"></svg>
+    <div class="gw-alert__content">
+      <p class="gw-alert__title">Not available in this build</p>
+      <p class="gw-alert__body">This core doesn't send notifications yet: approval requests wait in <a class="gw-link" routerLink="/approvals">Approvals</a> and on the titlebar. Desktop, Slack and Telegram are set up here once it does.</p>
+    </div>
+  </div>
+} @else if (failed()) {
+  <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert" id="st-notif-why">
+    <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+    <div class="gw-alert__content">
+      <p class="gw-alert__title">The notification channels didn't load</p>
+      <p class="gw-alert__body">Nothing here can change until they do. Approval requests still wait in <a class="gw-link" routerLink="/approvals">Approvals</a>.</p>
+    </div>
+    <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="data.reloadNotifications()"><svg lucideIcon="refresh-cw" class="gw-icon gw-icon--sm"></svg> Try again</button></div>
+  </div>
+}
+@let why = unavailable() || failed() ? 'st-notif-why' : null;
+<div class="gw-form">
+  <section class="gw-form__section" aria-labelledby="st-desktop-t">
+    <header class="gw-form__section-header">
+      <h3 class="gw-form__legend" id="st-desktop-t">Desktop</h3>
+      <p class="gw-form__description">System notifications on this computer. They apply at once.</p>
+    </header>
+    <div class="gw-form__rows">
+      <div class="gw-switch">
+        <input class="gw-switch__input" type="checkbox" role="switch" id="st-desktop" [checked]="desktopOn()" [attr.aria-disabled]="off() ? 'true' : null" [attr.aria-busy]="busy() === 'desktop' ? 'true' : null" [attr.aria-describedby]="'st-desktop-hint' + (off() && why ? ' ' + why : '')" (change)="setDesktop($event, 'enabled')">
+        <span class="gw-switch__control" aria-hidden="true"></span>
+        <label class="gw-switch__label" for="st-desktop">Desktop notifications</label>
+        <p class="gw-switch__hint" id="st-desktop-hint">A notification for every request, with Review and Deny. It shows one line of the action, so approving happens in the app.</p>
+      </div>
+      <div class="gw-switch">
+        <input class="gw-switch__input" type="checkbox" role="switch" id="st-sound" [checked]="soundForProd()" [attr.aria-disabled]="off() ? 'true' : null" [attr.aria-busy]="busy() === 'desktop' ? 'true' : null" [attr.aria-describedby]="off() && why ? why : null" (change)="setDesktop($event, 'soundForProd')">
+        <span class="gw-switch__control" aria-hidden="true"></span>
+        <label class="gw-switch__label" for="st-sound">Play a sound for prod requests</label>
+      </div>
+    </div>
+  </section>
+
+  <section class="gw-form__section" aria-labelledby="st-slack-t">
+    <header class="gw-form__section-header">
+      <h3 class="gw-form__legend" id="st-slack-t">Slack</h3>
+      <p class="gw-form__description">Sends each request to linked approvers or to a channel; a linked approver decides with the buttons on the message. Changes apply at once.</p>
+    </header>
+    <div class="gw-form__rows">
+      @let ss = slackStatus();
+      <div class="gw-settings-layout__inline">
+        <span class="gw-status" [class.gw-status--success]="ss.tone === 'success'" [class.gw-status--danger]="ss.tone === 'danger'" [class.gw-status--warning]="ss.tone === 'warning'" [class.gw-status--neutral]="ss.tone === 'neutral'"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ ss.label }}@if (slackUp() && workspace(); as ws) { · workspace <span class="gw-mono">{{ ws }}</span>}</span></span>
+        @if (slackUp()) {
+          @if (slack()?.lastDeliveryAt; as at) {
+            <p class="gw-text-caption gw-fg-muted">Last request delivered <time [attr.datetime]="time.iso(at)" [attr.title]="time.absolute(at)">{{ time.relative(at) }}</time></p>
+          } @else {
+            <p class="gw-text-caption gw-fg-muted">No request delivered yet</p>
+          }
+        } @else {
+          <button class="gw-btn" type="button" aria-haspopup="dialog" [attr.aria-disabled]="off() ? 'true' : null" [attr.aria-describedby]="'st-slack-connect-hint' + (off() && why ? ' ' + why : '')" (click)="openSlack($event)"><svg lucideIcon="plug" class="gw-icon"></svg> Connect Slack</button>
+          <p class="gw-text-caption gw-fg-muted" id="st-slack-connect-hint">You need the bot token and the app-level token of the MCP Gateway app in your workspace.</p>
+        }
+      </div>
+      @if (slackUp()) {
+        <fieldset class="gw-field">
+          <legend class="gw-field__label">Send requests to</legend>
+          <div class="gw-radio">
+            <input class="gw-radio__input" type="radio" name="st-slack-to" id="st-slack-to-dm" value="dm" [checked]="deliverTo() === 'dm'" [attr.aria-busy]="busy() === 'slack' ? 'true' : null" aria-describedby="st-slack-to-dm-hint" (change)="setDeliverTo($event)">
+            <span class="gw-radio__control" aria-hidden="true"></span>
+            <label class="gw-radio__label" for="st-slack-to-dm">Direct messages to linked approvers <span class="gw-badge gw-badge--success gw-badge--sm">Recommended</span></label>
+            <p class="gw-radio__hint" id="st-slack-to-dm-hint">Only the people who can decide see the exact action.</p>
+          </div>
+          <div class="gw-radio">
+            <input class="gw-radio__input" type="radio" name="st-slack-to" id="st-slack-to-channel" value="channel" [checked]="deliverTo() === 'channel'" [attr.aria-busy]="busy() === 'slack' ? 'true' : null" aria-describedby="st-slack-to-channel-hint" (change)="setDeliverTo($event)">
+            <span class="gw-radio__control" aria-hidden="true"></span>
+            <label class="gw-radio__label" for="st-slack-to-channel">Post to a channel</label>
+            <p class="gw-radio__hint" id="st-slack-to-channel-hint">Anyone who isn't a linked approver gets Open in app instead of the buttons.</p>
+          </div>
+        </fieldset>
+        @if (deliverTo() === 'channel') {
+          <div class="gw-field gw-field--nested" id="st-slack-channel-group" role="group" aria-label="Slack channel">
+            <label class="gw-field__label" for="st-slack-channel">Channel</label>
+            <select class="gw-select" id="st-slack-channel" aria-describedby="st-slack-channel-hint" [attr.aria-busy]="busy() === 'slack' ? 'true' : null" (change)="setSlackChannel($event)">
+              @if (!slackChannelId()) {
+                <option value="" selected disabled>Choose a channel</option>
+              }
+              @for (c of slackChannels(); track c.id) {
+                <option [value]="c.id" [selected]="c.id === slackChannelId()">{{ c.name.startsWith('#') ? c.name : '#' + c.name }}</option>
+              }
+            </select>
+            <p class="gw-field__hint" id="st-slack-channel-hint">Everyone in the channel sees the exact action. Channels the MCP Gateway app was added to.</p>
+          </div>
+        }
+        <div class="gw-settings-layout__inline">
+          <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askDisconnect($event)"><svg lucideIcon="unplug" class="gw-icon gw-icon--sm"></svg> Disconnect Slack</button>
+        </div>
+      }
+    </div>
+  </section>
+
+  <section class="gw-form__section" aria-labelledby="st-telegram-t">
+    <header class="gw-form__section-header">
+      <h3 class="gw-form__legend" id="st-telegram-t">Telegram</h3>
+      <p class="gw-form__description">A bot posts each request to approvers who linked their Telegram account. They get Deny, and Approve when the request isn't on prod, the whole action fits and no comment is required.</p>
+    </header>
+    <div class="gw-form__rows">
+      @let ts = telegramStatus();
+      <div class="gw-settings-layout__inline">
+        <span class="gw-status" [class.gw-status--success]="ts.tone === 'success'" [class.gw-status--danger]="ts.tone === 'danger'" [class.gw-status--warning]="ts.tone === 'warning'" [class.gw-status--neutral]="ts.tone === 'neutral'"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ ts.label }}@if (telegramUp() && bot(); as b) { · bot <span class="gw-mono">{{ b }}</span>}</span></span>
+        @if (telegramUp()) {
+          @if (telegram()?.lastDeliveryAt; as at) {
+            <p class="gw-text-caption gw-fg-muted">Last request delivered <time [attr.datetime]="time.iso(at)" [attr.title]="time.absolute(at)">{{ time.relative(at) }}</time></p>
+          }
+          <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="dialog" (click)="openTelegram($event)"><svg lucideIcon="send" class="gw-icon gw-icon--sm"></svg> Change bot</button>
+        } @else {
+          <button class="gw-btn" type="button" aria-haspopup="dialog" [attr.aria-disabled]="off() ? 'true' : null" [attr.aria-describedby]="'st-tg-connect-hint' + (off() && why ? ' ' + why : '')" (click)="openTelegram($event)"><svg lucideIcon="send" class="gw-icon"></svg> Connect Telegram bot</button>
+          <p class="gw-text-caption gw-fg-muted" id="st-tg-connect-hint">You need a bot token from <span class="gw-mono">&#64;BotFather</span>.</p>
+        }
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- Preview messages: approval-notification for a request waiting now. Initial focus: the first tab (autofocus). -->
+<dialog class="gw-dialog gw-dialog--lg" id="st-preview-dlg" gwDialog #previewDialog="gwDialog" aria-labelledby="st-preview-t" aria-describedby="st-preview-d">
+  @let p = preview();
+  <header class="gw-dialog__header">
+    <span class="gw-icon-tile gw-icon-tile--neutral"><svg lucideIcon="message-square" class="gw-icon"></svg></span>
+    <h2 class="gw-dialog__title" id="st-preview-t">What approvers see</h2>
+    @switch (p.kind) {
+      @case ('ready') {
+        @if (p.kind === 'ready') {
+          <p class="gw-dialog__description" id="st-preview-d">The pending <span class="gw-mono">{{ p.request.tool }}</span> request on <span class="gw-mono">{{ p.request.connection ?? p.request.endpoint }}</span>, as each channel shows it. Slack and Telegram carry the exact statement, the desktop its first line; none carries the agent's note.</p>
+        }
+      }
+      @case ('failed') {
+        <p class="gw-dialog__description" id="st-preview-d">The waiting requests didn't load, so there is nothing to show. Close this and try again.</p>
+      }
+      @default {
+        <p class="gw-dialog__description" id="st-preview-d">No request is waiting now. When an agent asks for approval, this shows its message in each channel; none carries the agent's note.</p>
+      }
+    }
+    <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+  </header>
+  @if (p.kind === 'ready') {
+    @let r = p.request;
+    <div class="gw-dialog__body">
+      <div class="gw-tabs">
+        <div class="gw-tabs__list" role="tablist" aria-label="Notification channels" gwTabs>
+          <button class="gw-tabs__tab" type="button" role="tab" id="st-an-tab-desktop" aria-selected="true" aria-controls="st-an-p-desktop" autofocus>Desktop</button>
+          <button class="gw-tabs__tab" type="button" role="tab" id="st-an-tab-slack" aria-selected="false" aria-controls="st-an-p-slack" tabindex="-1">Slack</button>
+          <button class="gw-tabs__tab" type="button" role="tab" id="st-an-tab-telegram" aria-selected="false" aria-controls="st-an-p-telegram" tabindex="-1">Telegram</button>
+        </div>
+
+        <div class="gw-tabs__panel" role="tabpanel" id="st-an-p-desktop" aria-labelledby="st-an-tab-desktop">
+          <section gwNotificationCard heading="Desktop notification" icon="monitor">
+            <span gwCardDescription>macOS Notification Center and the Windows notification area.</span>
+            <div class="gw-grid gw-grid--2">
+              <figure gwNotificationPreview="desktop" os="mac" caption="macOS" [request]="r"></figure>
+              <figure gwNotificationPreview="desktop" os="win" caption="Windows" [request]="r"></figure>
+            </div>
+            <div class="gw-alert gw-alert--info gw-alert--compact">
+              <svg lucideIcon="info" class="gw-icon gw-alert__icon"></svg>
+              <div class="gw-alert__content">
+                <p class="gw-alert__title">Review opens the request in the app</p>
+                <p class="gw-alert__body">A system notification always has Review and Deny only: it shows one line of the action, so approving happens in the app, after you see all of it.</p>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="gw-tabs__panel" role="tabpanel" id="st-an-p-slack" aria-labelledby="st-an-tab-slack" hidden>
+          <section gwNotificationCard heading="Slack" letter="S">
+            <span gwCardDescription>
+              @if (!slackUp()) {
+                Not set up yet. Once you connect the MCP Gateway app, it sends each request like this.
+              } @else if (deliverTo() === 'channel' && slackChannel()) {
+                Posted by the MCP Gateway app to <span class="gw-mono">{{ slackChannel() }}</span>@if (workspace(); as ws) { in workspace <span class="gw-mono">{{ ws }}</span>}.
+              } @else {
+                Sent by the MCP Gateway app to each linked approver@if (workspace(); as ws) { in workspace <span class="gw-mono">{{ ws }}</span>}.
+              }
+            </span>
+            <figure gwNotificationPreview="slack" [slackChannel]="deliverTo() === 'channel' ? slackChannel() : null" [ruleNote]="ruleNote()" [request]="r"></figure>
+            <div class="gw-alert gw-alert--info gw-alert--compact">
+              <svg lucideIcon="info" class="gw-icon gw-alert__icon"></svg>
+              <div class="gw-alert__content">
+                <p class="gw-alert__title">Approve and Deny need a linked approver</p>
+                <p class="gw-alert__body">Anyone else gets a private reply with Open in app. Approve is dropped, and Deny and Open in app remain, for every prod request, when the statement is over 3,000 characters, and when a comment is required (a button can't carry one). A prod request starts with "PROD ·".</p>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="gw-tabs__panel" role="tabpanel" id="st-an-p-telegram" aria-labelledby="st-an-tab-telegram" hidden>
+          <section gwNotificationCard heading="Telegram" letter="T">
+            <span gwCardDescription>
+              @if (telegramUp()) {
+                Sent by @if (bot(); as b) {the bot <span class="gw-mono">{{ b }}</span>} @else {the MCP Gateway bot} to each linked approver.
+              } @else {
+                Not set up yet. Once you connect a bot, it sends each request to linked approvers like this.
+              }
+            </span>
+            <figure gwNotificationPreview="telegram" [ruleNote]="ruleNote()" [request]="r"></figure>
+            <div class="gw-alert gw-alert--info gw-alert--compact">
+              <svg lucideIcon="info" class="gw-icon gw-alert__icon"></svg>
+              <div class="gw-alert__content">
+                <p class="gw-alert__title">Only linked approvers can decide here</p>
+                <p class="gw-alert__body">Approve is dropped, and Deny and Open in app remain, for every prod request, when the statement is over 4,096 characters, and when a comment is required.</p>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  }
+  <footer class="gw-dialog__footer">
+    <button class="gw-btn" type="button" gwDialogClose [attr.autofocus]="p.kind === 'ready' ? null : ''">Close</button>
+  </footer>
+</dialog>
+
+<!-- Disconnect Slack: irreversible for the token, so --danger with Cancel focused. -->
+<dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" id="st-slack-disconnect-dlg" gwDialog #slackDisconnectDialog="gwDialog" aria-labelledby="st-slack-disconnect-t" aria-describedby="st-slack-disconnect-d">
+  <header class="gw-dialog__header">
+    <span class="gw-icon-tile"><svg lucideIcon="unplug" class="gw-icon"></svg></span>
+    <h2 class="gw-dialog__title" id="st-slack-disconnect-t">@if (workspace(); as ws) {Disconnect Slack workspace {{ ws }}?} @else {Disconnect Slack?}</h2>
+    <p class="gw-dialog__description" id="st-slack-disconnect-d">Requests stop going @if (deliverTo() === 'channel' && slackChannel()) {to <span class="gw-mono">{{ slackChannel() }}</span>} @else {to linked approvers in Slack} and the workspace token is deleted from the gateway. You can't decide from Slack until you connect it again.</p>
+    <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+  </header>
+  <div class="gw-dialog__body">
+    <div class="gw-stack">
+      <dl class="gw-kv gw-kv--dense">
+        <div class="gw-kv__row"><dt class="gw-kv__key">Still notified by</dt><dd class="gw-kv__value">{{ stillNotified() }}</dd></div>
+        <div class="gw-kv__row"><dt class="gw-kv__key">Policies</dt><dd class="gw-kv__value">{{ policiesAfter() }}</dd></div>
+        @if (pendingCount(); as n) {
+          <div class="gw-kv__row"><dt class="gw-kv__key">Pending requests</dt><dd class="gw-kv__value">{{ n }}, still waiting in <a class="gw-link" routerLink="/approvals" gwDialogClose>Approvals</a>. Their Slack messages lose the buttons.</dd></div>
+        }
+      </dl>
+      @if (disconnectError(); as err) {
+        <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+          <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content"><p class="gw-alert__title">Slack is still connected</p><p class="gw-alert__body">{{ err }}</p></div>
+        </div>
+      }
+    </div>
+  </div>
+  <footer class="gw-dialog__footer">
+    <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
+    <button class="gw-btn gw-btn--danger" type="button" [attr.aria-busy]="disconnectBusy() ? 'true' : null" (click)="disconnectSlack()">@if (disconnectBusy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> }Disconnect Slack</button>
+  </footer>
+</dialog>
+
+<!--
+  Connect Telegram bot: a new secret, typed once. The core checks the token with Telegram (getMe, the webhook) before it
+  saves anything, then stores it encrypted. No chat id: the bot posts to approvers who link their account (K2).
+-->
+<dialog class="gw-dialog gw-dialog--md" id="st-tg-connect-dlg" gwDialog #telegramDialog="gwDialog" aria-labelledby="st-tg-connect-t" aria-describedby="st-tg-connect-d" (closed)="clearTokens()">
+  <form method="dialog" id="st-tg-connect-form" novalidate (submit)="connectTelegram($event)">
+    <header class="gw-dialog__header">
+      <span class="gw-icon-tile"><svg lucideIcon="send" class="gw-icon"></svg></span>
+      <h2 class="gw-dialog__title" id="st-tg-connect-t">Connect a Telegram bot</h2>
+      <p class="gw-dialog__description" id="st-tg-connect-d">Create a bot with <span class="gw-mono">&#64;BotFather</span> and paste its token. The gateway checks it with Telegram before it saves anything.</p>
+      <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+    </header>
+    <div class="gw-dialog__body">
+      <div class="gw-stack">
+        <div class="gw-field">
+          <label class="gw-field__label" for="st-tg-token">Bot token</label>
+          <div class="gw-secret" data-state="empty">
+            <div class="gw-input-group">
+              <input #botToken class="gw-input gw-input--mono" type="password" id="st-tg-token" aria-required="true" autocomplete="off" spellcheck="false" autofocus [attr.aria-invalid]="tgTokenMissing() ? 'true' : null" [attr.aria-describedby]="(tgTokenMissing() ? 'st-tg-token-err ' : '') + 'st-tg-token-hint'" (input)="tgTokenMissing.set(false)">
+              <button class="gw-input-group__addon" type="button" gwReveal aria-label="Show bot token" aria-controls="st-tg-token"><svg lucideIcon="eye" class="gw-icon"></svg><svg lucideIcon="eye-off" class="gw-icon"></svg></button>
+            </div>
+          </div>
+          @if (tgTokenMissing()) {
+            <p class="gw-field__error" id="st-tg-token-err"><svg lucideIcon="circle-alert" class="gw-icon"></svg>Enter the bot token.</p>
+          }
+          <p class="gw-field__hint" id="st-tg-token-hint">Encrypted with the master key when you connect. Nobody can view it afterwards: Replace only. Only approvers who link their Telegram account get requests and can press Approve or Deny.</p>
+        </div>
+        @if (tgWebhook(); as hook) {
+          <div class="gw-alert gw-alert--warning gw-alert--compact" role="alert">
+            <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content"><p class="gw-alert__title">This bot uses a webhook</p><p class="gw-alert__body">{{ hook }}</p></div>
+          </div>
+        }
+        @if (tgError(); as err) {
+          <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+            <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content"><p class="gw-alert__title">The bot isn't connected</p><p class="gw-alert__body">{{ err }}</p></div>
+          </div>
+        }
+      </div>
+    </div>
+    <footer class="gw-dialog__footer">
+      <button class="gw-btn" type="button" gwDialogClose>Cancel</button>
+      <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="tgBusy() ? 'true' : null">@if (tgBusy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> }@if (tgWebhook()) {Remove the webhook and connect} @else {Check token and connect}</button>
+    </footer>
+  </form>
+</dialog>
+
+<!-- Connect Slack: composed like Connect a Telegram bot (the kit draws only the connected state). Two new secrets. -->
+<dialog class="gw-dialog gw-dialog--md" id="st-slack-connect-dlg" gwDialog #slackDialog="gwDialog" aria-labelledby="st-slack-connect-t" aria-describedby="st-slack-connect-d" (closed)="clearTokens()">
+  <form method="dialog" id="st-slack-connect-form" novalidate (submit)="connectSlack($event)">
+    <header class="gw-dialog__header">
+      <span class="gw-icon-tile"><svg lucideIcon="plug" class="gw-icon"></svg></span>
+      <h2 class="gw-dialog__title" id="st-slack-connect-t">Connect Slack</h2>
+      <p class="gw-dialog__description" id="st-slack-connect-d">Add the MCP Gateway app to your workspace, then paste its two tokens. The gateway checks them with Slack before it saves anything.</p>
+      <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+    </header>
+    <div class="gw-dialog__body">
+      <div class="gw-stack">
+        @let miss = slackMissing();
+        <div class="gw-field">
+          <label class="gw-field__label" for="st-slack-bot">Bot token</label>
+          <div class="gw-secret" data-state="empty">
+            <div class="gw-input-group">
+              <input #slackBotToken class="gw-input gw-input--mono" type="password" id="st-slack-bot" aria-required="true" autocomplete="off" spellcheck="false" autofocus [attr.aria-invalid]="miss.bot ? 'true' : null" [attr.aria-describedby]="(miss.bot ? 'st-slack-bot-err ' : '') + 'st-slack-bot-hint'">
+              <button class="gw-input-group__addon" type="button" gwReveal aria-label="Show bot token" aria-controls="st-slack-bot"><svg lucideIcon="eye" class="gw-icon"></svg><svg lucideIcon="eye-off" class="gw-icon"></svg></button>
+            </div>
+          </div>
+          @if (miss.bot) {
+            <p class="gw-field__error" id="st-slack-bot-err"><svg lucideIcon="circle-alert" class="gw-icon"></svg>Enter the bot token.</p>
+          }
+          <p class="gw-field__hint" id="st-slack-bot-hint">Starts with <span class="gw-mono">xoxb-</span>. Encrypted with the master key when you connect. Nobody can view it afterwards: Replace only.</p>
+        </div>
+        <div class="gw-field">
+          <label class="gw-field__label" for="st-slack-app">App-level token</label>
+          <div class="gw-secret" data-state="empty">
+            <div class="gw-input-group">
+              <input #slackAppToken class="gw-input gw-input--mono" type="password" id="st-slack-app" aria-required="true" autocomplete="off" spellcheck="false" [attr.aria-invalid]="miss.app ? 'true' : null" [attr.aria-describedby]="(miss.app ? 'st-slack-app-err ' : '') + 'st-slack-app-hint'">
+              <button class="gw-input-group__addon" type="button" gwReveal aria-label="Show app-level token" aria-controls="st-slack-app"><svg lucideIcon="eye" class="gw-icon"></svg><svg lucideIcon="eye-off" class="gw-icon"></svg></button>
+            </div>
+          </div>
+          @if (miss.app) {
+            <p class="gw-field__error" id="st-slack-app-err"><svg lucideIcon="circle-alert" class="gw-icon"></svg>Enter the app-level token.</p>
+          }
+          <p class="gw-field__hint" id="st-slack-app-hint">Starts with <span class="gw-mono">xapp-</span>. The gateway listens over Socket Mode, so nothing from Slack reaches this computer from outside.</p>
+        </div>
+        @if (slackError(); as err) {
+          <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+            <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content"><p class="gw-alert__title">Slack isn't connected</p><p class="gw-alert__body">{{ err }}</p></div>
+          </div>
+        }
+      </div>
+    </div>
+    <footer class="gw-dialog__footer">
+      <button class="gw-btn" type="button" gwDialogClose>Cancel</button>
+      <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="slackBusy() ? 'true' : null">@if (slackBusy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> }Check tokens and connect</button>
+    </footer>
+  </form>
+</dialog>

@@ -1,0 +1,149 @@
+// =============================================================
+// .gw-timeline · Vertical event feed
+// -------------------------------------------------------------
+// What happened, in order: the path of an approval request
+// (requested → notified → approved → executed), the steps of an agent
+// trace. It is an ordered list; times are <time datetime>.
+//
+//   <ol class="gw-timeline">
+//     <li class="gw-timeline__item">
+//       <span class="gw-timeline__marker gw-timeline__marker--success"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i></span>
+//       <div class="gw-timeline__content">
+//         <p class="gw-timeline__title">Approved by Alex Morgan</p>
+//         <p class="gw-timeline__meta">From the desktop notification · after 47 s</p>
+//         <blockquote class="gw-timeline__comment"><p>Customer asked to cancel.</p></blockquote>
+//       </div>
+//       <time class="gw-timeline__time" datetime="2026-10-22T14:02:58+02:00" title="2026-10-22 14:02:58">14:02:58</time>
+//     </li>
+//   </ol>
+//
+// Subparts
+//   __item      one event. A 1px connector runs from its marker to the next.
+//   __marker    24px circle with a 14px icon in a tone:
+//               --brand --success --warning --danger --info --neutral (default)
+//               Icons follow the decision vocabulary (BLUEPRINT §7). An empty
+//               marker renders a small dot (dense trace steps).
+//   __content   __title (ui, primary) · __meta (small, muted) · __comment
+//   __comment   a person's comment on the decision: quoted, secondary text
+//   __time      <time datetime> at inline end, tabular; absolute time in title
+// States
+//   [aria-current="step"] on __item   the step the request is in right now
+//               (e.g. waiting for approval): the marker fills with the tone
+//               solid (icon in on-solid) and the title gets semibold. Not
+//               colour alone: fill + weight.
+// A11y      Name the <ol> (aria-label: "Approval history of sql_execute on
+//           dev-db"). The marker icon is decorative (aria-hidden by kit.js);
+//           the title says what happened in words, so tone and icon are the
+//           second and third cues. Relative or short times show the full
+//           ISO time in title and datetime.
+// Raw values none.
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+.gw-timeline {
+  --gw-timeline-marker: var(--gw-size-icon-xl);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  &__item {
+    position: relative;
+    display: grid;
+    grid-template-columns: var(--gw-timeline-marker) minmax(0, 1fr) auto;
+    column-gap: var(--gw-space-3);
+    align-items: start;
+    padding-bottom: var(--gw-space-4);
+
+    &:last-child { padding-bottom: 0; }
+
+    // Connector to the next marker.
+    &:not(:last-child)::before {
+      content: "";
+      position: absolute;
+      top: calc(var(--gw-timeline-marker) + var(--gw-space-1));
+      bottom: var(--gw-space-1);
+      inset-inline-start: calc((var(--gw-timeline-marker) - var(--gw-border-width-default)) / 2);
+      border-inline-start: var(--gw-border-width-default) solid var(--gw-color-border-default);
+    }
+  }
+
+  &__marker {
+    @include gw-tone(neutral);
+    @include gw-tone-modifiers((brand, success, warning, danger, info, neutral));
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--gw-timeline-marker);
+    height: var(--gw-timeline-marker);
+    color: var(--gw-tone-fg);
+    background: var(--gw-tone-subtle);
+    border: var(--gw-border-width-default) solid var(--gw-tone-border);
+    border-radius: var(--gw-radius-full);
+
+    &:empty::after {
+      content: "";
+      width: var(--gw-space-2);
+      height: var(--gw-space-2);
+      background: var(--gw-tone-fg);
+      border-radius: var(--gw-radius-full);
+    }
+  }
+
+  &__content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-0-5);
+    min-width: 0;
+    padding-top: var(--gw-space-0-5); // centres the first line on the marker
+  }
+
+  &__title {
+    margin: 0;
+    @include gw-type(ui);
+    color: var(--gw-color-text-primary);
+  }
+
+  &__meta {
+    margin: 0;
+    @include gw-type(small);
+    color: var(--gw-color-text-muted);
+  }
+
+  &__comment {
+    margin: var(--gw-space-1) 0 0;
+    padding: var(--gw-space-2) var(--gw-space-3);
+    @include gw-type(small);
+    color: var(--gw-color-text-secondary);
+    background: var(--gw-color-bg-raised);
+    border-inline-start: var(--gw-border-width-strong) solid var(--gw-color-border-strong);
+    border-start-end-radius: var(--gw-radius-sm);
+    border-end-end-radius: var(--gw-radius-sm);
+
+    > p { margin: 0; }
+  }
+
+  &__time {
+    padding-top: var(--gw-space-0-5);
+    @include gw-type(caption);
+    @include gw-tabular;
+    line-height: var(--gw-type-ui-line);
+    color: var(--gw-color-text-muted);
+    white-space: nowrap;
+  }
+
+  // ─── Current step ───
+  &__item[aria-current="step"] {
+    .gw-timeline__marker {
+      color: var(--gw-tone-on-solid);
+      background: var(--gw-tone-solid);
+      border-color: var(--gw-tone-solid);
+    }
+    .gw-timeline__marker:empty::after { background: var(--gw-tone-on-solid); }
+    .gw-timeline__title { font-weight: var(--gw-font-weight-semibold); }
+  }
+}

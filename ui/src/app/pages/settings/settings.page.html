@@ -1,0 +1,67 @@
+<header class="gw-page-header">
+  <div class="gw-page-header__row">
+    <div class="gw-page-header__heading">
+      <h1 class="gw-page-header__title">Settings</h1>
+      <p class="gw-page-header__description">How the app runs, how clients prove who they are, where approval requests reach you, what the network can see and how long the audit is kept.</p>
+      <div class="gw-page-header__meta">
+        <span class="gw-badge gw-badge--neutral"><svg lucideIcon="monitor" class="gw-icon gw-badge__icon"></svg>Desktop mode</span>
+        <span class="gw-text-small gw-fg-muted">One local user, no sign-in. Team settings show how server mode works.</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+@if (failed(); as e) {
+  <!-- Nothing loaded: what happened, what to do, Try again, and the technical details under a disclosure. -->
+  <div class="gw-alert gw-alert--danger" role="alert">
+    <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+    <div class="gw-alert__content">
+      <p class="gw-alert__title">Settings didn't load</p>
+      <p class="gw-alert__body">{{ errorText(e) }}</p>
+      <div class="gw-alert__actions">
+        <button class="gw-btn gw-btn--sm" type="button" (click)="retry()" [attr.aria-busy]="data.refreshing() ? 'true' : null" [attr.aria-disabled]="data.refreshing() ? 'true' : null">@if (data.refreshing()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Try again</button>
+        <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle aria-controls="settings-error-details">Details <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
+      </div>
+    </div>
+  </div>
+  <gw-code-block [attr.id]="'settings-error-details'" [id]="'settings-error-pre'" hidden wrap lang="Error" [text]="errorDetails(e)" copyLabel="error details" regionLabel="Error details" />
+} @else if (loading()) {
+  @if (slow()) {
+    <p class="gw-sr-only" role="status">Loading settings</p>
+    <div class="gw-stack" aria-hidden="true">
+      <span class="gw-skeleton gw-skeleton--block"></span>
+      <span class="gw-skeleton gw-skeleton--block"></span>
+      <span class="gw-skeleton gw-skeleton--block"></span>
+      <span class="gw-skeleton gw-skeleton--block"></span>
+    </div>
+  }
+} @else {
+  @if (data.stale(); as e) {
+    <!-- A reload failed: what is on screen is the last answer of each part. -->
+    <div class="gw-alert gw-alert--warning gw-alert--compact" role="status">
+      <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">This page may be out of date.</p>
+        <p class="gw-alert__body">{{ errorText(e) }}</p>
+      </div>
+      <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retry()" [attr.aria-busy]="data.refreshing() ? 'true' : null" [attr.aria-disabled]="data.refreshing() ? 'true' : null">Try again</button></div>
+    </div>
+  }
+  <!--
+    settings-layout (elements/settings-layout.html). Save model: a topic that applies at once is a
+    <section class="gw-form__section"> confirmed by a toast; a topic with values to save is a <form> with its own sticky
+    Save bar, shown only while it has unsaved changes. Each section component is the layout's direct child.
+  -->
+  <div gwSettingsLayout [(current)]="current">
+    <section gwGeneralSettings></section>
+    <section gwAppearanceSettings></section>
+    <section gwAuthorizationSettings></section>
+    <section gwUsersSettings></section>
+    <section gwNotificationsSettings></section>
+    <section gwApprovalRulesSettings></section>
+    <section gwTunnelSettings></section>
+    <section gwLocalApiSettings></section>
+    <section gwAuditSettings></section>
+    <section gwBackupSettings></section>
+  </div>
+}

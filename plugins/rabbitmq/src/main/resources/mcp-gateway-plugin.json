@@ -1,0 +1,164 @@
+{
+  "manifestVersion": 1,
+  "id": "rabbitmq",
+  "version": "0.3.0",
+  "name": "RabbitMQ",
+  "provider": "Community",
+  "license": "Apache-2.0",
+  "description": "Queue depth, consumers and dead letters. Community code, not reviewed.",
+  "requires": {
+    "gateway": ">=0.4.0 & <1.0.0",
+    "connectorApi": ">=1.0.0 & <2.0.0",
+    "javaModules": ["java.net.http"]
+  },
+  "connectorClass": "gaterook.plugins.rabbitmq.RabbitMqConnector",
+  "type": "rabbitmq",
+  "toolNamespace": "rabbitmq_",
+  "icon": "puzzle",
+  "group": "HTTP and MCP",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["host", "user", "password"],
+    "x-card": {"description": "Queue depth, consumers and dead letters. Community code, not reviewed."},
+    "properties": {
+      "host": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 253,
+        "pattern": "^[A-Za-z0-9.:\\[\\]-]+$",
+        "title": "Host",
+        "description": "The RabbitMQ node that serves the management API, for example rabbit.acme.internal",
+        "x-agent-visible": true
+      },
+      "port": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 65535,
+        "default": 15672,
+        "title": "Port",
+        "description": "The management API. The plugin may reach only port 15672 of the host.",
+        "x-agent-visible": true
+      },
+      "vhost": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 255,
+        "default": "/",
+        "title": "Virtual host",
+        "description": "Every tool works in this virtual host only",
+        "x-agent-visible": true
+      },
+      "user": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "title": "User",
+        "description": "Best a user tagged monitoring: it reads queues and consumers, and publishing needs write permission on the exchange.",
+        "x-agent-visible": true
+      },
+      "password": {
+        "type": "string",
+        "writeOnly": true,
+        "format": "password",
+        "title": "Password",
+        "x-gateway-secret": "value"
+      },
+      "options": {
+        "type": "object",
+        "additionalProperties": false,
+        "title": "TLS and timeout",
+        "x-collapsed": true,
+        "properties": {
+          "tls": {
+            "type": "boolean",
+            "default": false,
+            "title": "TLS",
+            "description": "https:// to the management API. Without TLS the plugin reaches only a private address the environment's policy allows."
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 30000,
+            "default": 10000,
+            "title": "Timeout (ms)"
+          }
+        }
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "rabbitmq_queues",
+      "title": "Queues",
+      "description": "The queues of the connection's virtual host, deepest first: messages ready and unacknowledged, consumers, state, type and where rejected messages go (the dead-letter exchange).",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {"type": "string", "maxLength": 255, "description": "Only queues whose name contains this text"},
+          "limit": {"type": "integer", "minimum": 1, "maximum": 500, "default": 100}
+        }
+      },
+      "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+      "nature": "READ",
+      "resultShape": "TABLE",
+      "risk": {"privateData": false, "untrustedContent": true, "egress": "NONE"}
+    },
+    {
+      "name": "rabbitmq_consumers",
+      "title": "Consumers",
+      "description": "Who consumes from the virtual host's queues: the queue, the consumer tag, the client connection and host, prefetch, manual or automatic acks and whether the consumer is active.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "queue": {"type": "string", "maxLength": 255, "description": "Only the consumers of this queue"},
+          "limit": {"type": "integer", "minimum": 1, "maximum": 500, "default": 100}
+        }
+      },
+      "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+      "nature": "READ",
+      "resultShape": "TABLE",
+      "risk": {"privateData": false, "untrustedContent": true, "egress": "NONE"}
+    },
+    {
+      "name": "rabbitmq_dead_letters",
+      "title": "Dead letters",
+      "description": "Where the virtual host's rejected and expired messages end up: each dead-letter queue with its depth and the queues that dead-letter into it, and the queues whose dead-letter exchange routes to no queue (those messages are lost). Reads counts only; no message is taken off a queue.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      },
+      "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+      "nature": "READ",
+      "resultShape": "TABLE",
+      "risk": {"privateData": false, "untrustedContent": true, "egress": "NONE"}
+    },
+    {
+      "name": "rabbitmq_publish",
+      "title": "Publish a message",
+      "description": "Publishes one message to an exchange of the virtual host with a routing key (the default exchange delivers to the queue of that name). Waits for a person's approval; the answer says whether a queue took it.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["routingKey", "payload"],
+        "properties": {
+          "exchange": {"type": "string", "maxLength": 255, "default": "", "description": "The exchange; empty for the default exchange"},
+          "routingKey": {"type": "string", "maxLength": 255, "description": "The routing key, or the queue's name on the default exchange"},
+          "payload": {"type": "string", "maxLength": 65536, "description": "The message body as text"},
+          "contentType": {"type": "string", "maxLength": 100, "default": "application/json"},
+          "persistent": {"type": "boolean", "default": true, "description": "Delivery mode 2: the message survives a broker restart"},
+          "headers": {"type": "object", "maxProperties": 20, "additionalProperties": {"type": "string", "maxLength": 1000}, "description": "Message headers"}
+        }
+      },
+      "annotations": {"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false},
+      "nature": "MUTATION",
+      "resultShape": "JSON",
+      "risk": {"privateData": false, "untrustedContent": false, "egress": "CHANNEL"}
+    }
+  ],
+  "access": {"hosts": ["{connection.host}:15672"], "commands": [], "files": []},
+  "resources": {"maxHeapMb": 96}
+}

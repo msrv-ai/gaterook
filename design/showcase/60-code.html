@@ -1,0 +1,169 @@
+<section class="sc-section" id="code" data-title="Code" data-group="Code and data">
+  <h2>Code <code class="gw-code">gw-code</code> <code class="gw-code">gw-code-block</code> <code class="gw-code">gw-tok-*</code></h2>
+  <p>Literal values are shown verbatim in JetBrains Mono with ligatures off: what a human approves or copies is exactly what runs. Use <code class="gw-code">gw-code</code> for one literal inside a sentence, a table cell or a heading (tool names, slugs, hosts, paths, token prefixes). Use <code class="gw-code">gw-code-block</code> for anything multi-line: the exact statement in an approval request, a config snippet, command output. Do not use either for emphasis, for keyboard shortcuts (<code class="gw-code">gw-kbd</code>) or for a value the user edits (<code class="gw-code">gw-textarea--code</code>). Masked values are never real secrets: they render as <code class="gw-code gw-code--secret">‹masked›</code>.</p>
+
+  <h3>Inline literal</h3>
+  <div class="sc-demo" data-sc-code>
+    <p class="gw-text-body-read">Codex called <code class="gw-code">sql_query</code> on <code class="gw-code">dev-db</code> (<code class="gw-code">db.dev.internal:5432/app</code>) as <code class="gw-code">codex-laptop</code> (a 15-minute token issued on the fly). The password stays in the gateway: <code class="gw-code gw-code--secret">‹masked›</code>.</p>
+  </div>
+
+  <h3>SQL with copy</h3>
+  <p class="sc-lead">The copy button reads the <code class="gw-code">&lt;pre&gt;</code> through <code class="gw-code">data-gw-copy-from</code>; for 1.6 s it carries <code class="gw-code">[data-copied]</code> and shows its "Copied" face. The body is a keyboard-scrollable region.</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-code-block">
+      <div class="gw-code-block__header">
+        <span class="gw-code-block__lang">SQL</span>
+        <span class="gw-code-block__filename">sql_query · dev-db</span>
+        <div class="gw-code-block__actions">
+          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#sc-e-code-sql">
+            <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> SQL query</span></span>
+            <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+          </button>
+        </div>
+      </div>
+      <div class="gw-code-block__body" tabindex="0" role="region" aria-label="SQL query">
+<pre class="gw-code-block__pre" id="sc-e-code-sql"><code><span class="gw-tok-comment">-- requested by Codex · trace 4f2a9c</span>
+<span class="gw-tok-keyword">SELECT</span> id<span class="gw-tok-punctuation">,</span> status
+<span class="gw-tok-keyword">FROM</span> orders
+<span class="gw-tok-keyword">WHERE</span> created_at <span class="gw-tok-punctuation">&gt;</span> <span class="gw-tok-function">now</span><span class="gw-tok-punctuation">()</span> <span class="gw-tok-punctuation">-</span> <span class="gw-tok-keyword">interval</span> <span class="gw-tok-string">'1 hour'</span>
+<span class="gw-tok-keyword">LIMIT</span> <span class="gw-tok-number">50</span></code></pre>
+      </div>
+    </div>
+  </div>
+
+  <h3>Numbered lines</h3>
+  <p class="sc-lead">The exact statement of an approval request. Each line is a <code class="gw-code">gw-code-block__line</code> span; numbers come from CSS counters, so they are never copied or read aloud, and they stay put when the block scrolls sideways.</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-code-block gw-code-block--numbered">
+      <div class="gw-code-block__header">
+        <span class="gw-code-block__lang">SQL</span>
+        <span class="gw-code-block__filename">sql_execute · dev-db · waiting for approval</span>
+        <div class="gw-code-block__actions">
+          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#sc-e-code-update">
+            <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> SQL statement</span></span>
+            <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+          </button>
+        </div>
+      </div>
+      <div class="gw-code-block__body" tabindex="0" role="region" aria-label="SQL statement to approve">
+<pre class="gw-code-block__pre" id="sc-e-code-update"><code><span class="gw-code-block__line"><span class="gw-tok-keyword">UPDATE</span> orders</span>
+<span class="gw-code-block__line"><span class="gw-tok-keyword">SET</span> status <span class="gw-tok-punctuation">=</span> <span class="gw-tok-string">'cancelled'</span></span>
+<span class="gw-code-block__line"><span class="gw-tok-keyword">WHERE</span> id <span class="gw-tok-punctuation">=</span> <span class="gw-tok-number">48213</span><span class="gw-tok-punctuation">;</span></span></code></pre>
+      </div>
+    </div>
+  </div>
+
+  <h3>JSON arguments with a masked secret, wrapped</h3>
+  <p class="sc-lead"><code class="gw-code">--wrap</code> soft-wraps long lines instead of scrolling: arguments in event details and drawers. Secrets and PII arrive already replaced by <code class="gw-code">gw-tok-secret</code> placeholders.</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-code-block gw-code-block--wrap">
+      <div class="gw-code-block__header">
+        <span class="gw-code-block__lang">JSON</span>
+        <span class="gw-code-block__filename">http_request · billing-api · arguments</span>
+        <div class="gw-code-block__actions">
+          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#sc-e-code-json">
+            <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> arguments</span></span>
+            <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+          </button>
+        </div>
+      </div>
+      <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Arguments of http_request">
+<pre class="gw-code-block__pre" id="sc-e-code-json"><code><span class="gw-tok-punctuation">{</span>
+  <span class="gw-tok-property">"method"</span><span class="gw-tok-punctuation">:</span> <span class="gw-tok-string">"POST"</span><span class="gw-tok-punctuation">,</span>
+  <span class="gw-tok-property">"url"</span><span class="gw-tok-punctuation">:</span> <span class="gw-tok-string">"https://billing.stage.acme.dev/v1/refunds"</span><span class="gw-tok-punctuation">,</span>
+  <span class="gw-tok-property">"headers"</span><span class="gw-tok-punctuation">: {</span>
+    <span class="gw-tok-property">"Authorization"</span><span class="gw-tok-punctuation">:</span> <span class="gw-tok-secret">"‹masked›"</span><span class="gw-tok-punctuation">,</span>
+    <span class="gw-tok-property">"Idempotency-Key"</span><span class="gw-tok-punctuation">:</span> <span class="gw-tok-string">"refund-48213"</span>
+  <span class="gw-tok-punctuation">},</span>
+  <span class="gw-tok-property">"body"</span><span class="gw-tok-punctuation">: {</span> <span class="gw-tok-property">"order_id"</span><span class="gw-tok-punctuation">:</span> <span class="gw-tok-number">48213</span><span class="gw-tok-punctuation">,</span> <span class="gw-tok-property">"amount"</span><span class="gw-tok-punctuation">:</span> <span class="gw-tok-number">1999</span><span class="gw-tok-punctuation">,</span> <span class="gw-tok-property">"currency"</span><span class="gw-tok-punctuation">:</span> <span class="gw-tok-string">"EUR"</span><span class="gw-tok-punctuation">,</span> <span class="gw-tok-property">"reason"</span><span class="gw-tok-punctuation">:</span> <span class="gw-tok-string">"duplicate charge on order 48213"</span><span class="gw-tok-punctuation">,</span> <span class="gw-tok-property">"customer_email"</span><span class="gw-tok-punctuation">:</span> <span class="gw-tok-secret">"‹masked:pii›"</span> <span class="gw-tok-punctuation">},</span>
+  <span class="gw-tok-property">"dry_run"</span><span class="gw-tok-punctuation">:</span> <span class="gw-tok-keyword">false</span>
+<span class="gw-tok-punctuation">}</span></code></pre>
+      </div>
+    </div>
+  </div>
+
+  <h3>TOML config</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-code-block">
+      <div class="gw-code-block__header">
+        <span class="gw-code-block__lang">TOML</span>
+        <span class="gw-code-block__filename">~/.codex/config.toml</span>
+        <div class="gw-code-block__actions">
+          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#sc-e-code-toml">
+            <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> Codex config</span></span>
+            <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+          </button>
+        </div>
+      </div>
+      <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Codex config snippet">
+<pre class="gw-code-block__pre" id="sc-e-code-toml"><code><span class="gw-tok-comment"># Added by GateRook · previous file kept as config.toml.bak</span>
+<span class="gw-tok-punctuation">[</span><span class="gw-tok-property">mcp_servers.gateway-dev</span><span class="gw-tok-punctuation">]</span>
+<span class="gw-tok-property">url</span> <span class="gw-tok-punctuation">=</span> <span class="gw-tok-string">"http://127.0.0.1:7465/mcp/dev"</span>
+<span class="gw-tok-property">bearer_token_env_var</span> <span class="gw-tok-punctuation">=</span> <span class="gw-tok-string">"GATEWAY_DEV_TOKEN"</span>
+<span class="gw-tok-property">startup_timeout_sec</span> <span class="gw-tok-punctuation">=</span> <span class="gw-tok-number">20</span>
+<span class="gw-tok-property">tool_timeout_sec</span> <span class="gw-tok-punctuation">=</span> <span class="gw-tok-number">120</span></code></pre>
+      </div>
+    </div>
+  </div>
+
+  <h3>Command output, capped height</h3>
+  <p class="sc-lead"><code class="gw-code">--scroll</code> caps the body at 320px (override with <code class="gw-code">--gw-code-block-max-height</code>) and scrolls both ways: long tool results, logs, runbook output. Combined here with <code class="gw-code">--numbered</code>: the gutter stays put when the body scrolls sideways. A header without actions is fine.</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-code-block gw-code-block--scroll gw-code-block--numbered">
+      <div class="gw-code-block__header">
+        <span class="gw-code-block__lang">Output</span>
+        <span class="gw-code-block__filename">ssh_run · runbook compose-ps · dev-vm</span>
+      </div>
+      <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Output of runbook compose-ps">
+<pre class="gw-code-block__pre"><code><span class="gw-code-block__line">NAME                 IMAGE                                  SERVICE      STATUS                  PORTS</span>
+<span class="gw-code-block__line">app-api-1            registry.acme.dev/api:1.42.0           api          Up 3 days (healthy)     0.0.0.0:8080-&gt;8080/tcp</span>
+<span class="gw-code-block__line">app-worker-1         registry.acme.dev/worker:1.42.0        worker       Up 3 days</span>
+<span class="gw-code-block__line">app-worker-2         registry.acme.dev/worker:1.42.0        worker       Up 3 days</span>
+<span class="gw-code-block__line">app-scheduler-1      registry.acme.dev/scheduler:1.42.0     scheduler    Up 3 days</span>
+<span class="gw-code-block__line">app-orders-sync-1    registry.acme.dev/orders-sync:0.9.4    orders-sync  Restarting (1) 12 s ago</span>
+<span class="gw-code-block__line">app-gateway-1        registry.acme.dev/edge:2.3.1           edge         Up 3 days (healthy)     0.0.0.0:443-&gt;8443/tcp</span>
+<span class="gw-code-block__line">app-postgres-1       postgres:16.4                          postgres     Up 12 days (healthy)    5432/tcp</span>
+<span class="gw-code-block__line">app-redis-1          redis:7.2                              redis        Up 12 days (unhealthy)  6379/tcp</span>
+<span class="gw-code-block__line">app-mongo-1          mongo:7.0                              mongo        Up 12 days              27017/tcp</span>
+<span class="gw-code-block__line">app-loki-1           grafana/loki:3.1.1                     loki         Up 12 days              3100/tcp</span>
+<span class="gw-code-block__line">app-promtail-1       grafana/promtail:3.1.1                 promtail     Up 12 days</span>
+<span class="gw-code-block__line">app-mailpit-1        axllent/mailpit:1.20                   mailpit      Up 12 days              8025/tcp</span>
+<span class="gw-code-block__line">app-minio-1          minio/minio:RELEASE.2024-09-13         minio        Up 12 days              9000/tcp</span>
+<span class="gw-code-block__line">app-otel-1           otel/opentelemetry-collector:0.108.0   otel         Up 12 days              4317/tcp</span>
+<span class="gw-code-block__line">app-jaeger-1         jaegertracing/all-in-one:1.60          jaeger       Up 12 days              16686/tcp</span>
+<span class="gw-code-block__line">app-nginx-1          nginx:1.27                             nginx        Up 12 days              80/tcp</span>
+<span class="gw-code-block__line">app-cron-1           registry.acme.dev/cron:1.42.0          cron         Exited (0) 4 min ago</span>
+<span class="gw-code-block__line"></span>
+<span class="gw-code-block__line">17 containers · 1 restarting · 1 unhealthy · exit 0 · 412 ms</span></code></pre>
+      </div>
+    </div>
+  </div>
+
+  <h3>Syntax tokens</h3>
+  <p class="sc-lead">Token colours come from <code class="gw-code">--gw-color-code-*</code>, each at least 4.5:1 on the code background in all four modes. Colour is decoration here: the text itself is the content. A block can omit the header.</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-code-block">
+      <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Syntax token reference">
+<pre class="gw-code-block__pre"><code><span class="gw-tok-keyword">gw-tok-keyword</span>      SELECT, WHERE, true, null
+<span class="gw-tok-string">gw-tok-string</span>       'cancelled', "POST"
+<span class="gw-tok-number">gw-tok-number</span>       48213, 1.5
+<span class="gw-tok-comment">gw-tok-comment</span>      -- comments, # comments
+<span class="gw-tok-function">gw-tok-function</span>     now(), count(*)
+<span class="gw-tok-property">gw-tok-property</span>     JSON, YAML and TOML keys
+<span class="gw-tok-punctuation">gw-tok-punctuation</span>  , ; ( ) = { } [ ]
+<span class="gw-tok-secret">gw-tok-secret</span>       ‹masked›, ‹masked:pii›, ‹secret:vault://kv/stage/db#password›</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <h3>Hidden and look-alike characters</h3>
+  <p class="sc-lead">Text a human confirms must be visible, not only verbatim. A bidi override, a zero-width character, a tab or a trailing space renders as a boxed escape (<code class="gw-code">gw-tok-invisible</code>); a non-ASCII letter that looks like ASCII is boxed as itself (<code class="gw-code">gw-tok-confusable</code>). Both carry the code point in <code class="gw-code">title</code>, and a warning above the block counts them.</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-code-block gw-code-block--wrap">
+      <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Statement with hidden characters shown">
+<pre class="gw-code-block__pre"><code><span class="gw-code-block__line"><span class="gw-tok-keyword">UPDATE</span> <span class="gw-tok-confusable" title="U+043E Cyrillic small letter o">о</span>rders <span class="gw-tok-keyword">SET</span> status <span class="gw-tok-punctuation">=</span> <span class="gw-tok-string">'cancelled'</span> <span class="gw-tok-keyword">WHERE</span> id <span class="gw-tok-punctuation">=</span> <span class="gw-tok-number">48213</span><span class="gw-tok-punctuation">;</span><span class="gw-tok-invisible" title="U+202E right-to-left override">‹U+202E›</span></span>
+<span class="gw-code-block__line"><span class="gw-tok-invisible" title="U+0009 character tabulation">‹TAB›</span><span class="gw-tok-keyword">SELECT</span> <span class="gw-tok-number">1</span><span class="gw-tok-punctuation">;</span><span class="gw-tok-invisible" title="U+200B zero width space">‹U+200B›</span><span class="gw-tok-invisible" title="U+0020 trailing space">‹SP›</span></span></code></pre>
+      </div>
+    </div>
+  </div>
+</section>

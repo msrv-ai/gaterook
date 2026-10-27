@@ -1,0 +1,31 @@
+<nav class="gw-settings-layout__nav gw-nav" [attr.aria-label]="label()">
+  @for (g of groups(); track g.label; let gi = $index) {
+    <div class="gw-nav__group" role="group" [attr.aria-labelledby]="uid + '-g' + gi">
+      <p class="gw-nav__group-label" [id]="uid + '-g' + gi">{{ g.label }}</p>
+      <ul class="gw-nav__list">
+        @for (item of g.items; track item.id) {
+          @if (fragments()) {
+            <li><a class="gw-nav__item" [routerLink]="[]" queryParamsHandling="preserve" [fragment]="idPrefix() + item.id" [attr.aria-current]="current() === item.id ? 'location' : null" (click)="open(item.id)"><svg [lucideIcon]="item.icon" class="gw-icon gw-nav__icon"></svg><span class="gw-nav__label">{{ item.label }}</span></a></li>
+          } @else {
+            <li><a class="gw-nav__item" [routerLink]="[base(), item.id]" [attr.aria-current]="current() === item.id ? 'location' : null" (click)="open(item.id)"><svg [lucideIcon]="item.icon" class="gw-icon gw-nav__icon"></svg><span class="gw-nav__label">{{ item.label }}</span></a></li>
+          }
+        }
+      </ul>
+    </div>
+  }
+</nav>
+<nav class="gw-settings-layout__jump" [attr.aria-label]="label()">
+  <div class="gw-field">
+    <label class="gw-field__label" [for]="uid + '-jump'">Jump to section</label>
+    <select class="gw-select" [id]="uid + '-jump'" (change)="jump($any($event.target).value)">
+      @for (g of groups(); track g.label) {
+        <optgroup [label]="g.label">
+          @for (item of g.items; track item.id) {
+            <option [value]="item.id" [selected]="current() === item.id">{{ item.label }}</option>
+          }
+        </optgroup>
+      }
+    </select>
+  </div>
+</nav>
+<div class="gw-settings-layout__content"><ng-content /></div>

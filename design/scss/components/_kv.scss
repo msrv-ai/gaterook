@@ -1,0 +1,139 @@
+// =============================================================
+// .gw-kv · Key–value list
+// -------------------------------------------------------------
+// Facts about one object (a connection, an event, a token) on a native
+// <dl>: screen readers announce each term with its value. Rows are <div>
+// wrappers (valid inside <dl>) so each pair can carry a divider.
+//
+//   <dl class="gw-kv">
+//     <div class="gw-kv__row">
+//       <dt class="gw-kv__key">Host</dt>
+//       <dd class="gw-kv__value gw-mono">db.dev.internal:5432/app</dd>
+//     </div>
+//     <div class="gw-kv__row">
+//       <dt class="gw-kv__key">Environment</dt>
+//       <dd class="gw-kv__value"><span class="gw-env gw-env--dev">dev</span></dd>
+//     </div>
+//   </dl>
+//
+// Layout     (default)  two columns: keys share one column (as wide as the
+//                       longest key, at most 40%), values the rest; rows split
+//                       by a subtle divider. Detail panels, drawers, cards.
+//            --dense    tighter rows, no dividers: inside popovers, compact
+//                       cards, the side of an approval request.
+//            --inline   pairs flow in a wrapping row, key above value: the
+//                       summary strip of an event or a page header meta line.
+//            --grid     key above value (like --inline) on a fixed grid: 4 equal
+//                       columns from lg, 2 below. Cards in a list that use it with
+//                       the same rows in the same order line their fields up
+//                       across cards (Endpoints). A long value spans 2 columns:
+//                       __row--wide, or automatically a row whose value holds a
+//                       gw-copy-field (the URL).
+// Subparts   __row (div wrapper of one dt + dd pair) __key (dt) __value (dd).
+//            __row--wide  (--grid) spans 2 columns.
+//            Without __row wrappers dt/dd still fall into the two columns
+//            (default and --dense), only the dividers are lost; --inline
+//            and --grid need the wrappers.
+// States     none: display only. Interactive things inside a value (links,
+//            copy buttons) bring their own focus ring.
+// Values     Literals (hosts, paths, tool names, ids) add .gw-mono to the dd
+//            or wrap the literal in .gw-code. Long literals wrap anywhere,
+//            never overflow. Values may hold badges, env markers, statuses,
+//            copy fields and links.
+// A11y       Keys are short nouns ("Host", "Secret", "Last check"), never
+//            "Key:" with a colon. Empty value: write "None" or "Never", not a
+//            dash. Times: relative text in the dd, absolute ISO in <time
+//            datetime> and title. Keys use text.muted, values text.primary.
+// Raw values the 40% cap of the key column (a proportion, not a size).
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+.gw-kv {
+  display: grid;
+  grid-template-columns: fit-content(40%) minmax(0, 1fr); // raw: key column at most 40% of the list
+  column-gap: var(--gw-space-6);
+  align-items: baseline;
+  min-width: 0;
+  margin: 0;
+  @include gw-type(small);
+
+  &__row {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    align-items: baseline;
+    padding-block: var(--gw-space-2);
+  }
+
+  &__row + &__row {
+    border-top: var(--gw-border-width-default) solid var(--gw-color-border-subtle);
+  }
+
+  &__key {
+    min-width: 0;
+    color: var(--gw-color-text-muted);
+  }
+
+  &__value {
+    min-width: 0;
+    margin: 0;
+    color: var(--gw-color-text-primary);
+    overflow-wrap: anywhere;
+  }
+
+  // ─── Dense ───
+  &--dense {
+    column-gap: var(--gw-space-4);
+
+    .gw-kv__row { padding-block: var(--gw-space-1); }
+    .gw-kv__row + .gw-kv__row { border-top: 0; }
+  }
+
+  // ─── Inline ───
+  &--inline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--gw-space-3) var(--gw-space-8);
+
+    .gw-kv__row {
+      display: flex;
+      flex-direction: column;
+      gap: var(--gw-space-0-5);
+      min-width: 0;
+      padding-block: 0;
+    }
+
+    .gw-kv__row + .gw-kv__row { border-top: 0; }
+
+    .gw-kv__key { @include gw-type(caption); }
+  }
+
+  // ─── Grid: inline pairs on fixed columns, aligned across cards ───
+  &--grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: var(--gw-space-3) var(--gw-space-6);
+
+    @include gw-bp-up(lg) { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+    .gw-kv__row {
+      display: flex;
+      flex-direction: column;
+      gap: var(--gw-space-0-5);
+      grid-column: auto;
+      min-width: 0;
+      padding-block: 0;
+    }
+
+    .gw-kv__row + .gw-kv__row { border-top: 0; }
+
+    .gw-kv__row--wide,
+    .gw-kv__row:has(> .gw-kv__value > .gw-copy-field) { grid-column: span 2; }
+
+    .gw-kv__key { @include gw-type(caption); }
+  }
+}

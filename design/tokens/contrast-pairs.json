@@ -1,0 +1,795 @@
+{
+ "$description": "Token pairs that must pass WCAG 2.2 contrast in all four modes (light, dark, light-hc, dark-hc). `npm run check` fails on any miss. min 4.5 = text, 3 = large text and non-text (borders, icons, focus rings, chart marks). `on` may be a list; translucent colours are blended over `under` (default color.bg.surface). Add a pair whenever a new fg/bg combination ships.",
+ "pairs": [
+  {
+   "fg": "color.text.primary",
+   "on": [
+    "color.bg.field",
+    "color.bg.canvas",
+    "color.bg.sidebar",
+    "color.bg.surface",
+    "color.bg.raised",
+    "color.bg.sunken",
+    "color.bg.overlay",
+    "color.bg.selected"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.text.secondary",
+   "on": [
+    "color.bg.canvas",
+    "color.bg.sidebar",
+    "color.bg.surface",
+    "color.bg.raised",
+    "color.bg.sunken",
+    "color.bg.overlay",
+    "color.bg.selected"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.text.muted",
+   "on": [
+    "color.bg.canvas",
+    "color.bg.sidebar",
+    "color.bg.surface",
+    "color.bg.raised",
+    "color.bg.sunken",
+    "color.bg.overlay",
+    "color.bg.selected"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.text.muted",
+   "on": [
+    "color.bg.hover",
+    "color.bg.active"
+   ],
+   "under": "color.bg.surface",
+   "min": 4.5
+  },
+  {
+   "fg": "color.text.placeholder",
+   "on": [
+    "color.bg.field",
+    "color.bg.surface",
+    "color.bg.sunken",
+    "color.bg.raised",
+    "color.bg.overlay"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.text.link",
+   "on": [
+    "color.bg.canvas",
+    "color.bg.surface",
+    "color.bg.raised",
+    "color.bg.overlay",
+    "color.bg.sunken"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.text.inverse",
+   "on": [
+    "color.bg.inverse"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.brand.fg",
+   "on": [
+    "color.bg.canvas",
+    "color.bg.sidebar",
+    "color.bg.surface",
+    "color.bg.raised",
+    "color.bg.overlay",
+    "color.bg.selected",
+    "color.brand.subtle"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.brand.on-solid",
+   "on": [
+    "color.brand.solid",
+    "color.brand.solid-hover",
+    "color.brand.solid-active"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.brand.solid",
+   "on": [
+    "color.bg.canvas",
+    "color.bg.surface",
+    "color.bg.raised",
+    "color.bg.overlay"
+   ],
+   "min": 3,
+   "note": "Switch track on, checked checkbox / radio, progress fill."
+  },
+  {
+   "fg": "color.success.fg",
+   "on": [
+    "color.success.subtle",
+    "color.bg.surface",
+    "color.bg.raised",
+    "color.bg.overlay",
+    "color.bg.canvas"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.warning.fg",
+   "on": [
+    "color.warning.subtle",
+    "color.bg.surface",
+    "color.bg.raised",
+    "color.bg.overlay",
+    "color.bg.canvas"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.danger.fg",
+   "on": [
+    "color.danger.subtle",
+    "color.bg.surface",
+    "color.bg.raised",
+    "color.bg.overlay",
+    "color.bg.canvas"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.info.fg",
+   "on": [
+    "color.info.subtle",
+    "color.bg.surface",
+    "color.bg.raised",
+    "color.bg.overlay",
+    "color.bg.canvas"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.neutral.fg",
+   "on": [
+    "color.neutral.subtle",
+    "color.bg.surface",
+    "color.bg.raised",
+    "color.bg.overlay",
+    "color.bg.canvas"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.env.dev.fg",
+   "on": [
+    "color.env.dev.subtle",
+    "color.bg.surface",
+    "color.bg.raised",
+    "color.bg.overlay"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.env.stage.fg",
+   "on": [
+    "color.env.stage.subtle",
+    "color.bg.surface",
+    "color.bg.raised",
+    "color.bg.overlay"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.env.prod.fg",
+   "on": [
+    "color.env.prod.subtle",
+    "color.bg.surface",
+    "color.bg.raised",
+    "color.bg.overlay"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.success.on-solid",
+   "on": [
+    "color.success.solid",
+    "color.success.solid-hover"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.warning.on-solid",
+   "on": [
+    "color.warning.solid",
+    "color.warning.solid-hover"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.danger.on-solid",
+   "on": [
+    "color.danger.solid",
+    "color.danger.solid-hover"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.info.on-solid",
+   "on": [
+    "color.info.solid",
+    "color.info.solid-hover"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.neutral.on-solid",
+   "on": [
+    "color.neutral.solid",
+    "color.neutral.solid-hover"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.border.input",
+   "on": [
+    "color.bg.field",
+    "color.bg.surface",
+    "color.bg.sunken",
+    "color.bg.overlay",
+    "color.bg.raised"
+   ],
+   "min": 3,
+   "note": "Input boundary is the only cue that a field is a field."
+  },
+  {
+   "fg": "color.border.focus",
+   "on": [
+    "color.bg.canvas",
+    "color.bg.sidebar",
+    "color.bg.surface",
+    "color.bg.raised",
+    "color.bg.overlay",
+    "color.bg.sunken",
+    "color.bg.selected"
+   ],
+   "min": 3
+  },
+  {
+   "fg": "color.env.dev.solid",
+   "on": [
+    "color.bg.surface",
+    "color.bg.overlay"
+   ],
+   "min": 3,
+   "note": "Env bar."
+  },
+  {
+   "fg": "color.env.stage.solid",
+   "on": [
+    "color.bg.surface",
+    "color.bg.overlay"
+   ],
+   "min": 3
+  },
+  {
+   "fg": "color.env.prod.solid",
+   "on": [
+    "color.bg.surface",
+    "color.bg.overlay"
+   ],
+   "min": 3
+  },
+  {
+   "fg": "color.info.fg",
+   "on": [
+    "color.bg.surface",
+    "color.bg.overlay",
+    "color.bg.raised"
+   ],
+   "min": 3,
+   "note": "Dots, bars and other non-text marks paint with the tone FG, never the solid: solids are fills under text."
+  },
+  {
+   "fg": "color.code.text",
+   "on": [
+    "color.code.bg",
+    "color.diff.add-bg",
+    "color.diff.del-bg",
+    "color.diff.hunk-bg"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.code.keyword",
+   "on": [
+    "color.code.bg"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.code.string",
+   "on": [
+    "color.code.bg"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.code.number",
+   "on": [
+    "color.code.bg"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.code.comment",
+   "on": [
+    "color.code.bg"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.code.function",
+   "on": [
+    "color.code.bg"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.code.property",
+   "on": [
+    "color.code.bg"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.code.punctuation",
+   "on": [
+    "color.code.bg"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.code.secret",
+   "on": [
+    "color.code.bg"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.diff.add-fg",
+   "on": [
+    "color.diff.add-bg",
+    "color.code.bg"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.diff.del-fg",
+   "on": [
+    "color.diff.del-bg",
+    "color.code.bg"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.diff.hunk-fg",
+   "on": [
+    "color.diff.hunk-bg"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.chart.1",
+   "on": [
+    "color.bg.surface"
+   ],
+   "min": 3
+  },
+  {
+   "fg": "color.chart.2",
+   "on": [
+    "color.bg.surface"
+   ],
+   "min": 3
+  },
+  {
+   "fg": "color.chart.3",
+   "on": [
+    "color.bg.surface"
+   ],
+   "min": 3
+  },
+  {
+   "fg": "color.chart.4",
+   "on": [
+    "color.bg.surface"
+   ],
+   "min": 3
+  },
+  {
+   "fg": "color.chart.5",
+   "on": [
+    "color.bg.surface"
+   ],
+   "min": 3
+  },
+  {
+   "fg": "color.chart.6",
+   "on": [
+    "color.bg.surface"
+   ],
+   "min": 3
+  },
+  {
+   "fg": "color.text.primary",
+   "on": [
+    "color.bg.hover",
+    "color.bg.active"
+   ],
+   "under": "color.bg.sidebar",
+   "min": 4.5,
+   "note": "Nav item hover / pressed (group A)."
+  },
+  {
+   "fg": "color.text.secondary",
+   "on": [
+    "color.bg.active"
+   ],
+   "under": "color.bg.sidebar",
+   "min": 4.5,
+   "note": "Default gw-counter in the nav."
+  },
+  {
+   "fg": "color.text.secondary",
+   "on": [
+    "color.bg.active"
+   ],
+   "under": "color.bg.selected",
+   "min": 4.5
+  },
+  {
+   "fg": "color.text.secondary",
+   "on": [
+    "color.bg.active"
+   ],
+   "under": "color.bg.surface",
+   "min": 4.5
+  },
+  {
+   "fg": "color.text.secondary",
+   "on": [
+    "color.bg.active"
+   ],
+   "under": "color.bg.raised",
+   "min": 4.5,
+   "note": "Tab count."
+  },
+  {
+   "fg": "color.text.secondary",
+   "on": [
+    "color.bg.active"
+   ],
+   "under": "color.bg.canvas",
+   "min": 4.5
+  },
+  {
+   "fg": "color.text.secondary",
+   "on": [
+    "color.bg.hover"
+   ],
+   "under": "color.bg.overlay",
+   "min": 4.5,
+   "note": "Menu hint on the hover wash. Muted text must never sit there (4.45:1 in dark)."
+  },
+  {
+   "fg": "color.text.primary",
+   "on": [
+    "color.bg.hover"
+   ],
+   "under": "color.bg.overlay",
+   "min": 4.5
+  },
+  {
+   "fg": "color.danger.fg",
+   "on": [
+    "color.danger.subtle"
+   ],
+   "under": "color.bg.overlay",
+   "min": 4.5,
+   "note": "Danger menu item."
+  },
+  {
+   "fg": "color.text.primary",
+   "on": [
+    "color.brand.subtle",
+    "color.success.subtle",
+    "color.warning.subtle",
+    "color.danger.subtle",
+    "color.info.subtle",
+    "color.neutral.subtle"
+   ],
+   "min": 4.5,
+   "note": "Alert and callout body (group D)."
+  },
+  {
+   "fg": "color.text.secondary",
+   "on": [
+    "color.brand.subtle",
+    "color.success.subtle",
+    "color.warning.subtle",
+    "color.danger.subtle",
+    "color.info.subtle",
+    "color.neutral.subtle"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.border.focus",
+   "on": [
+    "color.danger.subtle",
+    "color.env.prod.subtle",
+    "color.warning.subtle"
+   ],
+   "min": 3,
+   "note": "Focus ring inside tinted tags and alerts."
+  },
+  {
+   "fg": "color.brand.fg",
+   "on": [
+    "color.bg.sidebar",
+    "color.bg.selected"
+   ],
+   "min": 3,
+   "note": "Status dots in the sidebar footer, collapsed nav counter dot, dots in selected rows, pressed histogram bar."
+  },
+  {
+   "fg": "color.success.fg",
+   "on": [
+    "color.bg.sidebar",
+    "color.bg.selected"
+   ],
+   "min": 3,
+   "note": "Status dots in the sidebar footer, collapsed nav counter dot, dots in selected rows, pressed histogram bar."
+  },
+  {
+   "fg": "color.warning.fg",
+   "on": [
+    "color.bg.sidebar",
+    "color.bg.selected"
+   ],
+   "min": 3,
+   "note": "Status dots in the sidebar footer, collapsed nav counter dot, dots in selected rows, pressed histogram bar."
+  },
+  {
+   "fg": "color.danger.fg",
+   "on": [
+    "color.bg.sidebar",
+    "color.bg.selected"
+   ],
+   "min": 3,
+   "note": "Status dots in the sidebar footer, collapsed nav counter dot, dots in selected rows, pressed histogram bar."
+  },
+  {
+   "fg": "color.info.fg",
+   "on": [
+    "color.bg.sidebar",
+    "color.bg.selected"
+   ],
+   "min": 3,
+   "note": "Status dots in the sidebar footer, collapsed nav counter dot, dots in selected rows, pressed histogram bar."
+  },
+  {
+   "fg": "color.neutral.fg",
+   "on": [
+    "color.bg.sidebar",
+    "color.bg.selected"
+   ],
+   "min": 3,
+   "note": "Status dots in the sidebar footer, collapsed nav counter dot, dots in selected rows, pressed histogram bar."
+  },
+  {
+   "fg": "color.brand.fg",
+   "on": [
+    "color.bg.raised"
+   ],
+   "min": 3,
+   "note": "Progress and meter fills on their track."
+  },
+  {
+   "fg": "color.warning.fg",
+   "on": [
+    "color.bg.raised"
+   ],
+   "min": 3,
+   "note": "Progress and meter fills on their track."
+  },
+  {
+   "fg": "color.neutral.fg",
+   "on": [
+    "color.bg.raised"
+   ],
+   "min": 3,
+   "note": "Progress and meter fills on their track."
+  },
+  {
+   "fg": "color.env.dev.fg",
+   "on": [
+    "color.bg.canvas"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.env.dev.solid",
+   "on": [
+    "color.bg.raised",
+    "color.bg.canvas",
+    "color.env.dev.subtle"
+   ],
+   "min": 3,
+   "note": "Env bar."
+  },
+  {
+   "fg": "color.env.stage.fg",
+   "on": [
+    "color.bg.canvas"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.env.stage.solid",
+   "on": [
+    "color.bg.raised",
+    "color.bg.canvas",
+    "color.env.stage.subtle"
+   ],
+   "min": 3,
+   "note": "Env bar."
+  },
+  {
+   "fg": "color.env.prod.fg",
+   "on": [
+    "color.bg.canvas"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.env.prod.solid",
+   "on": [
+    "color.bg.raised",
+    "color.bg.canvas",
+    "color.env.prod.subtle"
+   ],
+   "min": 3,
+   "note": "Env bar."
+  },
+  {
+   "fg": "color.brand.solid",
+   "on": [
+    "color.bg.selected"
+   ],
+   "min": 3,
+   "note": "Checked choice-card indicator and edge."
+  },
+  {
+   "fg": "color.success.fg",
+   "on": [
+    "color.bg.field",
+    "color.code.bg"
+   ],
+   "min": 4.5,
+   "note": "Copied state in input addons and code blocks."
+  },
+  {
+   "fg": "color.success.fg",
+   "on": [
+    "color.bg.hover"
+   ],
+   "under": "color.code.bg",
+   "min": 4.5
+  },
+  {
+   "fg": "color.danger.fg",
+   "on": [
+    "color.bg.field"
+   ],
+   "min": 3,
+   "note": "Error edge of a field next to its own fill."
+  },
+  {
+   "fg": "color.bg.surface",
+   "on": [
+    "color.border.input"
+   ],
+   "min": 3,
+   "note": "Switch thumb on the off track."
+  },
+  {
+   "fg": "color.text.primary",
+   "on": [
+    "color.code.bg",
+    "color.warning.subtle"
+   ],
+   "min": 4.5,
+   "note": "Code-block header; secret-once value."
+  },
+  {
+   "fg": "color.text.secondary",
+   "on": [
+    "color.code.bg"
+   ],
+   "min": 4.5
+  },
+  {
+   "fg": "color.text.muted",
+   "on": [
+    "color.code.bg"
+   ],
+   "min": 4.5,
+   "note": "Line numbers, context gutters."
+  },
+  {
+   "fg": "color.brand.fg",
+   "on": [
+    "color.bg.selected"
+   ],
+   "min": 3,
+   "note": "Selected chart range edge."
+  },
+  {
+   "fg": "color.chart.1",
+   "on": [
+    "color.chart.grid"
+   ],
+   "min": 3,
+   "note": "Horizontal bar fill against its track."
+  },
+  {
+   "fg": "color.chart.2",
+   "on": [
+    "color.chart.grid"
+   ],
+   "min": 3,
+   "note": "Horizontal bar fill against its track."
+  },
+  {
+   "fg": "color.chart.3",
+   "on": [
+    "color.chart.grid"
+   ],
+   "min": 3,
+   "note": "Horizontal bar fill against its track."
+  },
+  {
+   "fg": "color.chart.4",
+   "on": [
+    "color.chart.grid"
+   ],
+   "min": 3,
+   "note": "Horizontal bar fill against its track."
+  },
+  {
+   "fg": "color.chart.5",
+   "on": [
+    "color.chart.grid"
+   ],
+   "min": 3,
+   "note": "Horizontal bar fill against its track."
+  },
+  {
+   "fg": "color.chart.6",
+   "on": [
+    "color.chart.grid"
+   ],
+   "min": 3,
+   "note": "Horizontal bar fill against its track."
+  }
+ ]
+}

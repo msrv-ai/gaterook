@@ -1,0 +1,7 @@
+{
+  "jsonrpc" : "2.0",
+  "method" : "connection/invalidate",
+  "params" : {
+    "connectionId" : "c7b1"
+  }
+}

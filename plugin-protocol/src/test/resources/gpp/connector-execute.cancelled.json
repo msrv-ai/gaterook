@@ -1,0 +1,11 @@
+{
+  "jsonrpc" : "2.0",
+  "id" : 41,
+  "error" : {
+    "code" : -32013,
+    "message" : "Cancelled",
+    "data" : {
+      "afterMs" : 10003
+    }
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "type": "object",
+  "required": [
+    "columns",
+    "rows",
+    "rowCount",
+    "truncated"
+  ],
+  "properties": {
+    "columns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "types": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "array"
+      }
+    },
+    "rowCount": {
+      "type": "integer"
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "truncatedReason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "row_limit",
+        "size_limit",
+        "timeout",
+        null
+      ]
+    },
+    "elapsedMs": {
+      "type": "integer"
+    },
+    "masked": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "reflection": [
+    { "type": { "proxy": ["org.springframework.jdbc.datasource.ConnectionProxy"] } }
+  ]
+}

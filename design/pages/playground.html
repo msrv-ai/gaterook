@@ -1,0 +1,1804 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Playground · GateRook</title>
+<link rel="icon" href="../assets/logo-mark.svg" type="image/svg+xml">
+<script src="../assets/theme-boot.js"></script>
+<link rel="stylesheet" href="../dist/gw-kit.css">
+</head>
+<body>
+<!--
+  CANONICAL APP SHELL · copy this file verbatim for every page in pages/.
+  Change only:
+    1. <title>                      "<Section> · GateRook"
+    2. .gw-titlebar__title          the current section name
+    3. aria-current="page"          move it to the current nav item (exactly one)
+    4. the content of .gw-page      page header (one h1) + page content;
+                                    gw-page--narrow for forms, gw-page--full for Activity / split views
+  npm run check fails when a page's <nav data-gw-nav> differs from overview.html
+  (aria-current excluded). Add gw-titlebar--mac on macOS (Electron: process.platform === "darwin").
+-->
+<a class="gw-skip-link" href="#main">Skip to content</a>
+<div class="gw-shell">
+
+  <header class="gw-titlebar">
+    <span class="gw-titlebar__title">Playground</span>
+    <div class="gw-titlebar__drag"></div>
+    <div class="gw-titlebar__actions">
+      <!-- Opens the command palette (#cmdk at the end of <main>, elements/command-palette.html) -->
+      <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Search and commands" aria-haspopup="dialog" aria-keyshortcuts="Meta+K Control+K" data-gw-dialog-open="cmdk"><i class="gw-icon" data-lucide="search"></i> Search <kbd class="gw-btn__kbd" aria-hidden="true">⌘K</kbd></button>
+      <a class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" href="approvals.html" aria-label="Approvals, 3 waiting"><i class="gw-icon" data-lucide="bell"></i><span class="gw-counter gw-counter--attention" aria-hidden="true">3</span></a>
+      <!--
+        Appearance popover. gw-popover belongs to component group D, gw-segmented to group C.
+        The <form method="dialog"> scopes the radio groups (Settings › Appearance has its own
+        gw-theme radios) and never submits outside a <dialog>. kit.js binds name="gw-theme" /
+        name="gw-contrast" to window.gwTheme.
+      -->
+      <div class="gw-menu-host">
+        <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="gw-appearance" aria-label="Appearance"><i class="gw-icon" data-lucide="sun-moon"></i></button>
+        <div class="gw-popover gw-popover--right" id="gw-appearance" role="dialog" aria-labelledby="gw-appearance-title" hidden>
+          <div class="gw-popover__header">
+            <p class="gw-popover__title" id="gw-appearance-title">Appearance</p>
+          </div>
+          <form class="gw-popover__body" method="dialog">
+            <div class="gw-stack gw-stack--sm">
+              <p class="gw-text-caption gw-fg-muted" id="gw-appearance-theme">Theme</p>
+              <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="gw-appearance-theme">
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i> System</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i> Light</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i> Dark</span></label>
+              </div>
+              <p class="gw-text-caption gw-fg-muted" id="gw-appearance-contrast">Contrast</p>
+              <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="gw-appearance-contrast">
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="system"><span class="gw-segmented__label">System</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="normal"><span class="gw-segmented__label">Normal</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="more"><span class="gw-segmented__label">High</span></label>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="gw-sidebar" id="gw-sidebar">
+    <div class="gw-sidebar__header">
+      <a class="gw-logo" href="overview.html" aria-label="GateRook, overview">
+        <img class="gw-logo__mark" src="../assets/logo-mark.svg" alt="">
+        <span class="gw-logo__name">GateRook</span>
+      </a>
+      <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-sidebar__toggle" type="button" data-gw-sidebar-toggle aria-controls="gw-sidebar" aria-expanded="true" aria-label="Collapse sidebar"><i class="gw-icon" data-lucide="panel-left"></i></button>
+    </div>
+
+    <nav class="gw-sidebar__body gw-nav" data-gw-nav aria-label="Main">
+      <div class="gw-nav__group">
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="overview.html"><i class="gw-icon gw-nav__icon" data-lucide="layout-dashboard"></i><span class="gw-nav__label">Overview</span></a></li>
+          <li><a class="gw-nav__item" href="approvals.html"><i class="gw-icon gw-nav__icon" data-lucide="user-check"></i><span class="gw-nav__label">Approvals</span><span class="gw-nav__counter gw-counter gw-counter--attention"><span class="gw-sr-only">, </span>3<span class="gw-sr-only"> waiting</span></span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-resources">
+        <p class="gw-nav__group-label" id="gw-nav-resources">Resources</p>
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="connections.html"><i class="gw-icon gw-nav__icon" data-lucide="database"></i><span class="gw-nav__label">Connections</span></a></li>
+          <li><a class="gw-nav__item" href="connectors.html"><i class="gw-icon gw-nav__icon" data-lucide="puzzle"></i><span class="gw-nav__label">Connectors</span></a></li>
+          <li><a class="gw-nav__item" href="secrets.html"><i class="gw-icon gw-nav__icon" data-lucide="key-round"></i><span class="gw-nav__label">Secrets</span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-access">
+        <p class="gw-nav__group-label" id="gw-nav-access">Access</p>
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="endpoints.html"><i class="gw-icon gw-nav__icon" data-lucide="waypoints"></i><span class="gw-nav__label">Endpoints</span></a></li>
+          <li><a class="gw-nav__item" href="clients.html"><i class="gw-icon gw-nav__icon" data-lucide="app-window"></i><span class="gw-nav__label">AI apps</span></a></li>
+          <li><a class="gw-nav__item" href="policies.html"><i class="gw-icon gw-nav__icon" data-lucide="shield"></i><span class="gw-nav__label">Policies</span></a></li>
+          <li><a class="gw-nav__item" href="playground.html" aria-current="page"><i class="gw-icon gw-nav__icon" data-lucide="flask-conical"></i><span class="gw-nav__label">Playground</span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-observe">
+        <p class="gw-nav__group-label" id="gw-nav-observe">Observe</p>
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="activity.html"><i class="gw-icon gw-nav__icon" data-lucide="activity"></i><span class="gw-nav__label">Activity</span></a></li>
+          <li><a class="gw-nav__item" href="insights.html"><i class="gw-icon gw-nav__icon" data-lucide="chart-column"></i><span class="gw-nav__label">Insights</span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group gw-nav__group--end">
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="settings.html"><i class="gw-icon gw-nav__icon" data-lucide="settings"></i><span class="gw-nav__label">Settings</span></a></li>
+        </ul>
+      </div>
+    </nav>
+
+    <!-- gw-status belongs to component group B. Static on purpose: no gw-status--live in the shell (WCAG 2.2.2).
+         The tunnel status has two faces: gw-status--neutral "Tunnel off" (the demo's state, BLUEPRINT §9) and, while an
+         endpoint is published, gw-status--warning "Tunnel on", together with the app-wide gw-alert--banner --warning
+         "Tunnel is public" (clients.html and settings.html switch both at runtime):
+         <span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel on</span></span> -->
+    <div class="gw-sidebar__footer">
+      <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Core running</span></span>
+      <span class="gw-sidebar__meta">127.0.0.1:7465 · v0.4.0</span>
+      <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off</span></span>
+    </div>
+  </div>
+
+  <main class="gw-shell__main" id="main" tabindex="-1">
+    <!-- App-wide gw-alert--banner (Core stopped, Tunnel is public) goes here, before gw-page -->
+    <div class="gw-page gw-page--full">
+      <!--
+        PLAYGROUND · call a tool the way an agent does and see exactly what it gets back.
+          Left (gw-split--40, 2 : 3):  endpoint (prod warns) → the chosen tool, with Change tool opening the picker
+                                       (tool-policy-list: search, annotations, gw-mode; it closes once a tool is picked,
+                                       so Arguments and Run stay on the first screen) →
+                                       arguments generated from the tool's inputSchema, Form | JSON (gw-tabs--contained,
+                                       both edit the same arguments) → Run. The approval alert shows when the chosen
+                                       tool's mode is Approval; an Off tool can't run and says why.
+          Right:                       What the agent receives: meta strip (decision, duration, size, masked, trace id),
+                                       Structured / Text / JSON-RPC, event details (event-detail, collapsed) with
+                                       Open in Activity, and the last 5 runs.
+        Arguments come from the tool's inputSchema, one field per property in the schema's order: the label is the
+        property's name (mono, "Optional" when the agent may leave it out), the hint is the property's description
+        followed by what the schema says about the value ("Integer, 50 when empty, from 1 to 1,000."), and the
+        errors are the schema renderer's ("sql is required.", "5000 is above the maximum. Use 1000 or less.").
+        The endpoint's own limits (row cap, timeouts) are not repeated in the form: the policy applies them on
+        the call. This page lays out the fields of sql_describe_table, sql_query, sql_execute and
+        k8s_rollout_restart and the main ones of http_request (not query, body, contentType, form); other tools
+        show only connection here. The app shows every property of the schema.
+        A run of a tool in Approval becomes an approval request: the result says "Not run yet: request … waits
+        for your decision" with Review request; once you decide, the page asks approval_status like an agent
+        does, and that answer becomes the last run.
+        Demo data: BLUEPRINT §9. "Now" is 2026-10-22 14:30 CEST; the user opened Playground from the
+        Overview checklist and ran five calls between 14:25 and 14:29:52. They are real calls, so Activity logs them
+        with client Playground (activity.html?q=client:playground) and each run opens as activity.html#event-<id>. sql_query is chosen and the picker is closed; its search is pre-filled with "sql", so Change tool shows the dev-db group.
+        Demo-only script at the end: search filter, picking a tool, Form ↔ JSON sync and validation, Run
+        (loading → result, approval → request sent and waiting, off → blocked).
+      -->
+      <header class="gw-page-header">
+        <div class="gw-page-header__row">
+          <div class="gw-page-header__heading">
+            <h1 class="gw-page-header__title">Playground</h1>
+            <p class="gw-page-header__description">Call a tool the way an agent does and see exactly what it gets back. Calls are real: they pass the same policies, approvals and masking, and land in Activity as Playground.</p>
+          </div>
+        </div>
+      </header>
+
+      <div class="gw-split gw-split--40">
+        <!-- ═══════════════ Left: what to call ═══════════════ -->
+        <div class="gw-split__list">
+          <section class="gw-section" aria-labelledby="pg-tool-t">
+            <header class="gw-section__header">
+              <h2 class="gw-section__title" id="pg-tool-t">Tool</h2>
+              <p class="gw-section__description">What the endpoint offers an agent, and each tool's mode there.</p>
+            </header>
+            <div class="gw-field">
+              <label class="gw-field__label" for="pg-endpoint">Endpoint</label>
+              <select class="gw-select" id="pg-endpoint" aria-describedby="pg-endpoint-hint" data-pg-endpoint-select>
+                <option value="dev" selected>dev · 8 connections, 22 tools</option>
+                <option value="stage-readonly">stage-readonly · 3 connections, read only</option>
+                <option value="incident-prod">incident-prod · 3 prod connections</option>
+              </select>
+              <p class="gw-field__hint" id="pg-endpoint-hint"><span class="gw-mono" id="pg-endpoint-url">http://127.0.0.1:7465/mcp/dev</span> · the same tools, modes and limits an agent gets there</p>
+            </div>
+            <!-- Shown when a prod endpoint is picked; the select then points its aria-describedby at it. The middle
+                 names what waits for a person among the endpoint's tools ("a runbook waits" when only runbooks do,
+                 "a change waits" otherwise, nothing when no tool waits); "on prod, approving needs a comment" only
+                 while the prod policy requires the comment (the default). -->
+            <div class="gw-alert gw-alert--warning gw-alert--compact" id="pg-prod" hidden>
+              <i class="gw-icon gw-alert__icon" data-lucide="triangle-alert"></i>
+              <div class="gw-alert__content">
+                <p class="gw-alert__body">Calls run on <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--prod">prod</span>: <span class="gw-mono">prod-replica</span>, <span class="gw-mono">prod-logs</span> and <span class="gw-mono">prod-vm</span>. They are real reads on production, and a runbook waits for approval like an agent's; on prod, approving needs a comment.</p>
+              </div>
+            </div>
+
+            <!-- The chosen tool stays in view; the picker opens with Change tool and closes again once a tool is picked,
+                 so Arguments and Run fit on the first screen. -->
+            <div class="gw-toolbar" id="pg-chosen">
+              <div class="gw-toolbar__start">
+                <span class="gw-text-small gw-fg-secondary">Chosen</span>
+                <code class="gw-code" data-pg-tool-name>sql_query</code>
+                <span class="gw-text-small gw-fg-secondary" data-pg-chosen-on>on <span class="gw-mono" data-pg-chosen-conn>dev-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev" data-pg-chosen-env>dev</span></span>
+                <span class="gw-mode gw-mode--read" data-pg-chosen-mode><i class="gw-icon" data-lucide="eye"></i>Read only</span>
+              </div>
+              <div class="gw-toolbar__end">
+                <button class="gw-btn gw-btn--sm" type="button" id="pg-change-tool" data-gw-toggle aria-expanded="false" aria-controls="pg-tools"><i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i> Change tool</button>
+              </div>
+            </div>
+
+            <div class="gw-tool-policy-list" id="pg-tools" hidden>
+              <div class="gw-toolbar">
+                <div class="gw-toolbar__start">
+                  <div class="gw-search gw-search--sm">
+                    <i class="gw-icon gw-search__icon" data-lucide="search"></i>
+                    <input class="gw-search__input" type="search" id="pg-tool-q" value="sql" placeholder="Search tools" aria-label="Search tools on dev">
+                    <button class="gw-search__clear" type="button" aria-label="Clear search"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+                  </div>
+                </div>
+                <div class="gw-toolbar__end">
+                  <p class="gw-tool-policy-list__summary" id="pg-tool-summary" role="status"><span class="gw-text-small gw-fg-secondary">4 of 22 tools match<span class="gw-sr-only">:</span></span>
+              <span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>3 read only</span>
+              <span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>1 approval</span></p>
+                </div>
+              </div>
+              <section class="gw-card gw-card--flush" aria-labelledby="pg-g-general" data-pg-group data-pg-endpoint="all" hidden>
+                <header class="gw-card__header">
+                  <div class="gw-tool-policy-list__group-heading">
+                    <span class="gw-icon-tile"><i class="gw-icon" data-lucide="waypoints"></i></span>
+                    <div class="gw-card__heading">
+                      <h3 class="gw-card__title" id="pg-g-general">General</h3>
+                      <p class="gw-card__description">Endpoint tools, no connection of their own · 2 tools · 2 read only</p>
+                    </div>
+                  </div>
+                </header>
+                <div class="gw-card__body">
+                  <div class="gw-table-wrap" role="region" aria-labelledby="pg-g-general-cap" tabindex="0">
+                    <table class="gw-table gw-table--interactive">
+                      <caption class="gw-sr-only" id="pg-g-general-cap">General tools of endpoint <span data-pg-ep-name>dev</span></caption>
+                      <thead><tr><th scope="col">Tool</th><th scope="col">Mode on <span data-pg-ep-name>dev</span></th></tr></thead>
+                      <tbody>
+                      <tr class="gw-tool-policy-list__row" data-mode="read" data-tool="list_connections" data-conn="" hidden>
+                        <th scope="row" class="gw-tool-policy-list__tool">
+                          <div class="gw-tool-policy-list__name">
+                            <a class="gw-table__row-link gw-mono" href="playground.html?tool=list_connections">list_connections</a>
+                            <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of list_connections"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                          </div>
+                          <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Connections of this endpoint with their type and environment.</p>
+                        </th>
+                        <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                      </tr>
+                      <tr class="gw-tool-policy-list__row" data-mode="read" data-tool="describe_connection" data-conn="" hidden>
+                        <th scope="row" class="gw-tool-policy-list__tool">
+                          <div class="gw-tool-policy-list__name">
+                            <a class="gw-table__row-link gw-mono" href="playground.html?tool=describe_connection">describe_connection</a>
+                            <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of describe_connection"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                          </div>
+                          <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Type, environment and tools of one connection. Never its secrets.</p>
+                        </th>
+                        <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                      </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
+              <section class="gw-card gw-card--flush" aria-labelledby="pg-g-dev-db" data-pg-group data-pg-endpoint="dev">
+                <header class="gw-card__header">
+                  <div class="gw-tool-policy-list__group-heading">
+                    <span class="gw-icon-tile"><i class="gw-icon" data-lucide="database"></i></span>
+                    <div class="gw-card__heading">
+                      <h3 class="gw-card__title" id="pg-g-dev-db"><span class="gw-mono">dev-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></h3>
+                      <p class="gw-card__description">PostgreSQL 16 · db.dev.internal:5432/app · 4 tools · 3 read only · 1 approval</p>
+                    </div>
+                  </div>
+                </header>
+                <div class="gw-card__body">
+                  <div class="gw-table-wrap" role="region" aria-labelledby="pg-g-dev-db-cap" tabindex="0">
+                    <table class="gw-table gw-table--interactive">
+                      <caption class="gw-sr-only" id="pg-g-dev-db-cap">Tools on dev-db</caption>
+                      <thead><tr><th scope="col">Tool</th><th scope="col">Mode on <span data-pg-ep-name>dev</span></th></tr></thead>
+                      <tbody>
+                      <tr class="gw-tool-policy-list__row" data-mode="read" data-tool="sql_list_schemas" data-conn="dev-db">
+                        <th scope="row" class="gw-tool-policy-list__tool">
+                          <div class="gw-tool-policy-list__name">
+                            <a class="gw-table__row-link gw-mono" href="playground.html?tool=sql_list_schemas">sql_list_schemas</a>
+                            <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of sql_list_schemas"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                          </div>
+                          <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">List the schemas the connection user can see.</p>
+                        </th>
+                        <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                      </tr>
+                      <tr class="gw-tool-policy-list__row" data-mode="read" data-tool="sql_describe_table" data-conn="dev-db">
+                        <th scope="row" class="gw-tool-policy-list__tool">
+                          <div class="gw-tool-policy-list__name">
+                            <a class="gw-table__row-link gw-mono" href="playground.html?tool=sql_describe_table">sql_describe_table</a>
+                            <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of sql_describe_table"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                          </div>
+                          <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Columns, types, indexes and foreign keys of one table.</p>
+                        </th>
+                        <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                      </tr>
+                      <tr class="gw-tool-policy-list__row" data-mode="read" data-tool="sql_query" data-conn="dev-db" aria-selected="true">
+                        <th scope="row" class="gw-tool-policy-list__tool">
+                          <div class="gw-tool-policy-list__name">
+                            <a class="gw-table__row-link gw-mono" href="playground.html?tool=sql_query" aria-current="true">sql_query</a>
+                            <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of sql_query"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                          </div>
+                          <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Run one SELECT in a read-only transaction. PII columns come back masked.</p>
+                        </th>
+                        <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                      </tr>
+                      <tr class="gw-tool-policy-list__row" data-mode="approval" data-tool="sql_execute" data-conn="dev-db">
+                        <th scope="row" class="gw-tool-policy-list__tool">
+                          <div class="gw-tool-policy-list__name">
+                            <a class="gw-table__row-link gw-mono" href="playground.html?tool=sql_execute">sql_execute</a>
+                            <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of sql_execute"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--danger" title="destructiveHint">Destructive</li></ul>
+                          </div>
+                          <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">INSERT, UPDATE or DELETE. You approve the exact statement.</p>
+                        </th>
+                        <td><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span></td>
+                      </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
+              <section class="gw-card gw-card--flush" aria-labelledby="pg-g-orders-mongo" data-pg-group data-pg-endpoint="dev" hidden>
+                <header class="gw-card__header">
+                  <div class="gw-tool-policy-list__group-heading">
+                    <span class="gw-icon-tile"><i class="gw-icon" data-lucide="leaf"></i></span>
+                    <div class="gw-card__heading">
+                      <h3 class="gw-card__title" id="pg-g-orders-mongo"><span class="gw-mono">orders-mongo</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></h3>
+                      <p class="gw-card__description">MongoDB 7 · mongo.dev.internal:27017/orders · 2 tools · 2 read only</p>
+                    </div>
+                  </div>
+                </header>
+                <div class="gw-card__body">
+                  <div class="gw-table-wrap" role="region" aria-labelledby="pg-g-orders-mongo-cap" tabindex="0">
+                    <table class="gw-table gw-table--interactive">
+                      <caption class="gw-sr-only" id="pg-g-orders-mongo-cap">Tools on orders-mongo</caption>
+                      <thead><tr><th scope="col">Tool</th><th scope="col">Mode on <span data-pg-ep-name>dev</span></th></tr></thead>
+                      <tbody>
+                      <tr class="gw-tool-policy-list__row" data-mode="read" data-tool="mongo_find" data-conn="orders-mongo" hidden>
+                        <th scope="row" class="gw-tool-policy-list__tool">
+                          <div class="gw-tool-policy-list__name">
+                            <a class="gw-table__row-link gw-mono" href="playground.html?tool=mongo_find">mongo_find</a>
+                            <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of mongo_find"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                          </div>
+                          <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Find documents with a filter and a projection.</p>
+                        </th>
+                        <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                      </tr>
+                      <tr class="gw-tool-policy-list__row" data-mode="read" data-tool="mongo_aggregate" data-conn="orders-mongo" hidden>
+                        <th scope="row" class="gw-tool-policy-list__tool">
+                          <div class="gw-tool-policy-list__name">
+                            <a class="gw-table__row-link gw-mono" href="playground.html?tool=mongo_aggregate">mongo_aggregate</a>
+                            <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of mongo_aggregate"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                          </div>
+                          <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Run an aggregation pipeline. $out and $merge are refused.</p>
+                        </th>
+                        <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                      </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
+              <section class="gw-card gw-card--flush" aria-labelledby="pg-g-cache-redis" data-pg-group data-pg-endpoint="dev" hidden>
+                <header class="gw-card__header">
+                  <div class="gw-tool-policy-list__group-heading">
+                    <span class="gw-icon-tile"><i class="gw-icon" data-lucide="layers"></i></span>
+                    <div class="gw-card__heading">
+                      <h3 class="gw-card__title" id="pg-g-cache-redis"><span class="gw-mono">cache-redis</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></h3>
+                      <p class="gw-card__description">Redis 7 · cache.dev.internal:6379 · 2 tools · 2 read only</p>
+                    </div>
+                  </div>
+                </header>
+                <div class="gw-card__body">
+                  <div class="gw-table-wrap" role="region" aria-labelledby="pg-g-cache-redis-cap" tabindex="0">
+                    <table class="gw-table gw-table--interactive">
+                      <caption class="gw-sr-only" id="pg-g-cache-redis-cap">Tools on cache-redis</caption>
+                      <thead><tr><th scope="col">Tool</th><th scope="col">Mode on <span data-pg-ep-name>dev</span></th></tr></thead>
+                      <tbody>
+                      <tr class="gw-tool-policy-list__row" data-mode="read" data-tool="redis_get" data-conn="cache-redis" hidden>
+                        <th scope="row" class="gw-tool-policy-list__tool">
+                          <div class="gw-tool-policy-list__name">
+                            <a class="gw-table__row-link gw-mono" href="playground.html?tool=redis_get">redis_get</a>
+                            <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of redis_get"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                          </div>
+                          <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Read the value of one key.</p>
+                        </th>
+                        <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                      </tr>
+                      <tr class="gw-tool-policy-list__row" data-mode="read" data-tool="redis_scan" data-conn="cache-redis" hidden>
+                        <th scope="row" class="gw-tool-policy-list__tool">
+                          <div class="gw-tool-policy-list__name">
+                            <a class="gw-table__row-link gw-mono" href="playground.html?tool=redis_scan">redis_scan</a>
+                            <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of redis_scan"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                          </div>
+                          <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">List keys that match a pattern, 100 at a time.</p>
+                        </th>
+                        <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                      </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
+              <section class="gw-card gw-card--flush" aria-labelledby="pg-g-dev-vm" data-pg-group data-pg-endpoint="dev" hidden>
+                <header class="gw-card__header">
+                  <div class="gw-tool-policy-list__group-heading">
+                    <span class="gw-icon-tile"><i class="gw-icon" data-lucide="terminal"></i></span>
+                    <div class="gw-card__heading">
+                      <h3 class="gw-card__title" id="pg-g-dev-vm"><span class="gw-mono">dev-vm</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></h3>
+                      <p class="gw-card__description">SSH · 10.20.0.14 · 2 tools · 1 read only · 1 off</p>
+                    </div>
+                  </div>
+                </header>
+                <div class="gw-card__body">
+                  <div class="gw-table-wrap" role="region" aria-labelledby="pg-g-dev-vm-cap" tabindex="0">
+                    <table class="gw-table gw-table--interactive">
+                      <caption class="gw-sr-only" id="pg-g-dev-vm-cap">Tools on dev-vm</caption>
+                      <thead><tr><th scope="col">Tool</th><th scope="col">Mode on <span data-pg-ep-name>dev</span></th></tr></thead>
+                      <tbody>
+                      <tr class="gw-tool-policy-list__row" data-mode="read" data-tool="ssh_run" data-conn="dev-vm" hidden>
+                        <th scope="row" class="gw-tool-policy-list__tool">
+                          <div class="gw-tool-policy-list__name">
+                            <a class="gw-table__row-link gw-mono" href="playground.html?tool=ssh_run">ssh_run</a>
+
+                          </div>
+                          <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Run a saved runbook with typed parameters, such as compose-ps. Read only runs runbooks marked read only.</p>
+                        </th>
+                        <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                      </tr>
+                      <tr class="gw-tool-policy-list__row" data-mode="off" data-tool="ssh_exec" data-conn="dev-vm" hidden>
+                        <th scope="row" class="gw-tool-policy-list__tool">
+                          <div class="gw-tool-policy-list__name">
+                            <a class="gw-table__row-link gw-mono" href="playground.html?tool=ssh_exec">ssh_exec</a>
+                            <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of ssh_exec"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--danger" title="destructiveHint">Destructive</li></ul>
+                          </div>
+                          <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Run any shell command on the host.</p>
+                        </th>
+                        <td><span class="gw-mode gw-mode--off"><i class="gw-icon" data-lucide="circle-off"></i>Off</span></td>
+                      </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
+              <section class="gw-card gw-card--flush" aria-labelledby="pg-g-app-logs" data-pg-group data-pg-endpoint="dev" hidden>
+                <header class="gw-card__header">
+                  <div class="gw-tool-policy-list__group-heading">
+                    <span class="gw-icon-tile"><i class="gw-icon" data-lucide="scroll-text"></i></span>
+                    <div class="gw-card__heading">
+                      <h3 class="gw-card__title" id="pg-g-app-logs"><span class="gw-mono">app-logs</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></h3>
+                      <p class="gw-card__description">Loki · loki.dev.internal:3100 · 2 tools · 1 read only · 1 off</p>
+                    </div>
+                  </div>
+                </header>
+                <div class="gw-card__body">
+                  <div class="gw-table-wrap" role="region" aria-labelledby="pg-g-app-logs-cap" tabindex="0">
+                    <table class="gw-table gw-table--interactive">
+                      <caption class="gw-sr-only" id="pg-g-app-logs-cap">Tools on app-logs</caption>
+                      <thead><tr><th scope="col">Tool</th><th scope="col">Mode on <span data-pg-ep-name>dev</span></th></tr></thead>
+                      <tbody>
+                      <tr class="gw-tool-policy-list__row" data-mode="read" data-tool="logs_search" data-conn="app-logs" hidden>
+                        <th scope="row" class="gw-tool-policy-list__tool">
+                          <div class="gw-tool-policy-list__name">
+                            <a class="gw-table__row-link gw-mono" href="playground.html?tool=logs_search">logs_search</a>
+                            <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of logs_search"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                          </div>
+                          <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Search log lines with a LogQL query.</p>
+                        </th>
+                        <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                      </tr>
+                      <tr class="gw-tool-policy-list__row" data-mode="off" data-tool="logs_tail" data-conn="app-logs" hidden>
+                        <th scope="row" class="gw-tool-policy-list__tool">
+                          <div class="gw-tool-policy-list__name">
+                            <a class="gw-table__row-link gw-mono" href="playground.html?tool=logs_tail">logs_tail</a>
+                            <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of logs_tail"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li></ul>
+                          </div>
+                          <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Stream new log lines for up to 5 minutes.</p>
+                        </th>
+                        <td><span class="gw-mode gw-mode--off"><i class="gw-icon" data-lucide="circle-off"></i>Off</span></td>
+                      </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
+              <section class="gw-card gw-card--flush" aria-labelledby="pg-g-dev-cluster" data-pg-group data-pg-endpoint="dev" hidden>
+                <header class="gw-card__header">
+                  <div class="gw-tool-policy-list__group-heading">
+                    <span class="gw-icon-tile"><i class="gw-icon" data-lucide="ship-wheel"></i></span>
+                    <div class="gw-card__heading">
+                      <h3 class="gw-card__title" id="pg-g-dev-cluster"><span class="gw-mono">dev-cluster</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></h3>
+                      <p class="gw-card__description">Kubernetes · k8s.dev.internal:6443 · ns app-dev · 4 tools · 1 read only · 1 approval · 2 off</p>
+                    </div>
+                  </div>
+                </header>
+                <div class="gw-card__body">
+                  <div class="gw-table-wrap" role="region" aria-labelledby="pg-g-dev-cluster-cap" tabindex="0">
+                    <table class="gw-table gw-table--interactive">
+                      <caption class="gw-sr-only" id="pg-g-dev-cluster-cap">Tools on dev-cluster</caption>
+                      <thead><tr><th scope="col">Tool</th><th scope="col">Mode on <span data-pg-ep-name>dev</span></th></tr></thead>
+                      <tbody>
+                      <tr class="gw-tool-policy-list__row" data-mode="read" data-tool="k8s_get" data-conn="dev-cluster" hidden>
+                        <th scope="row" class="gw-tool-policy-list__tool">
+                          <div class="gw-tool-policy-list__name">
+                            <a class="gw-table__row-link gw-mono" href="playground.html?tool=k8s_get">k8s_get</a>
+                            <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of k8s_get"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                          </div>
+                          <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Get or list resources in namespace app-dev.</p>
+                        </th>
+                        <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                      </tr>
+                      <tr class="gw-tool-policy-list__row" data-mode="off" data-tool="k8s_logs" data-conn="dev-cluster" hidden>
+                        <th scope="row" class="gw-tool-policy-list__tool">
+                          <div class="gw-tool-policy-list__name">
+                            <a class="gw-table__row-link gw-mono" href="playground.html?tool=k8s_logs">k8s_logs</a>
+                            <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of k8s_logs"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li></ul>
+                          </div>
+                          <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Read the logs of one container.</p>
+                        </th>
+                        <td><span class="gw-mode gw-mode--off"><i class="gw-icon" data-lucide="circle-off"></i>Off</span></td>
+                      </tr>
+                      <tr class="gw-tool-policy-list__row" data-mode="approval" data-tool="k8s_rollout_restart" data-conn="dev-cluster" hidden>
+                        <th scope="row" class="gw-tool-policy-list__tool">
+                          <div class="gw-tool-policy-list__name">
+                            <a class="gw-table__row-link gw-mono" href="playground.html?tool=k8s_rollout_restart">k8s_rollout_restart</a>
+                            <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of k8s_rollout_restart"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--danger" title="destructiveHint">Destructive</li></ul>
+                          </div>
+                          <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Restart a deployment, one pod at a time.</p>
+                        </th>
+                        <td><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span></td>
+                      </tr>
+                      <tr class="gw-tool-policy-list__row" data-mode="off" data-tool="k8s_apply" data-conn="dev-cluster" hidden>
+                        <th scope="row" class="gw-tool-policy-list__tool">
+                          <div class="gw-tool-policy-list__name">
+                            <a class="gw-table__row-link gw-mono" href="playground.html?tool=k8s_apply">k8s_apply</a>
+                            <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of k8s_apply"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--danger" title="destructiveHint">Destructive</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                          </div>
+                          <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Apply a manifest. You approve the diff.</p>
+                        </th>
+                        <td><span class="gw-mode gw-mode--off"><i class="gw-icon" data-lucide="circle-off"></i>Off</span></td>
+                      </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
+              <section class="gw-card gw-card--flush" aria-labelledby="pg-g-aws-stage" data-pg-group data-pg-endpoint="dev" hidden>
+                <header class="gw-card__header">
+                  <div class="gw-tool-policy-list__group-heading">
+                    <span class="gw-icon-tile"><i class="gw-icon" data-lucide="cloud"></i></span>
+                    <div class="gw-card__heading">
+                      <h3 class="gw-card__title" id="pg-g-aws-stage"><span class="gw-mono">aws-stage</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--stage">stage</span></h3>
+                      <p class="gw-card__description">AWS · AssumeRole · eu-central-1 · acme-stage · 2 tools · 2 read only</p>
+                    </div>
+                  </div>
+                </header>
+                <div class="gw-card__body">
+                  <div class="gw-table-wrap" role="region" aria-labelledby="pg-g-aws-stage-cap" tabindex="0">
+                    <table class="gw-table gw-table--interactive">
+                      <caption class="gw-sr-only" id="pg-g-aws-stage-cap">Tools on aws-stage</caption>
+                      <thead><tr><th scope="col">Tool</th><th scope="col">Mode on <span data-pg-ep-name>dev</span></th></tr></thead>
+                      <tbody>
+                      <tr class="gw-tool-policy-list__row" data-mode="read" data-tool="aws_describe" data-conn="aws-stage" hidden>
+                        <th scope="row" class="gw-tool-policy-list__tool">
+                          <div class="gw-tool-policy-list__name">
+                            <a class="gw-table__row-link gw-mono" href="playground.html?tool=aws_describe">aws_describe</a>
+                            <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of aws_describe"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                          </div>
+                          <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Describe resources such as instances, queues and buckets.</p>
+                        </th>
+                        <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                      </tr>
+                      <tr class="gw-tool-policy-list__row" data-mode="read" data-tool="aws_metrics" data-conn="aws-stage" hidden>
+                        <th scope="row" class="gw-tool-policy-list__tool">
+                          <div class="gw-tool-policy-list__name">
+                            <a class="gw-table__row-link gw-mono" href="playground.html?tool=aws_metrics">aws_metrics</a>
+                            <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of aws_metrics"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                          </div>
+                          <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Read CloudWatch metrics of one resource.</p>
+                        </th>
+                        <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
+                      </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
+              <section class="gw-card gw-card--flush" aria-labelledby="pg-g-billing-api" data-pg-group data-pg-endpoint="dev" hidden>
+                <header class="gw-card__header">
+                  <div class="gw-tool-policy-list__group-heading">
+                    <span class="gw-icon-tile"><i class="gw-icon" data-lucide="globe"></i></span>
+                    <div class="gw-card__heading">
+                      <h3 class="gw-card__title" id="pg-g-billing-api"><span class="gw-mono">billing-api</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--stage">stage</span></h3>
+                      <p class="gw-card__description">HTTP API · billing.stage.acme.dev · 2 tools · 1 approval · 1 off</p>
+                    </div>
+                  </div>
+                </header>
+                <div class="gw-card__body">
+                  <div class="gw-table-wrap" role="region" aria-labelledby="pg-g-billing-api-cap" tabindex="0">
+                    <table class="gw-table gw-table--interactive">
+                      <caption class="gw-sr-only" id="pg-g-billing-api-cap">Tools on billing-api</caption>
+                      <thead><tr><th scope="col">Tool</th><th scope="col">Mode on <span data-pg-ep-name>dev</span></th></tr></thead>
+                      <tbody>
+                      <tr class="gw-tool-policy-list__row" data-mode="off" data-tool="http_get" data-conn="billing-api" hidden>
+                        <th scope="row" class="gw-tool-policy-list__tool">
+                          <div class="gw-tool-policy-list__name">
+                            <a class="gw-table__row-link gw-mono" href="playground.html?tool=http_get">http_get</a>
+                            <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of http_get"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--warning" title="openWorldHint">Open world</li></ul>
+                          </div>
+                          <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">GET or HEAD on the allowed paths of the API.</p>
+                        </th>
+                        <td><span class="gw-mode gw-mode--off"><i class="gw-icon" data-lucide="circle-off"></i>Off</span></td>
+                      </tr>
+                      <tr class="gw-tool-policy-list__row" data-mode="approval" data-tool="http_request" data-conn="billing-api" hidden>
+                        <th scope="row" class="gw-tool-policy-list__tool">
+                          <div class="gw-tool-policy-list__name">
+                            <a class="gw-table__row-link gw-mono" href="playground.html?tool=http_request">http_request</a>
+                            <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of http_request"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--danger" title="destructiveHint">Destructive</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--warning" title="openWorldHint">Open world</li></ul>
+                          </div>
+                          <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">POST, PUT, PATCH or DELETE on the allowed paths. You approve the exact request.</p>
+                        </th>
+                        <td><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span></td>
+                      </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
+              <div class="gw-card gw-card--flush" id="pg-tools-empty" hidden>
+                <div class="gw-card__body">
+                  <div class="gw-empty gw-empty--compact">
+                    <span class="gw-empty__icon"><i class="gw-icon" data-lucide="search-x"></i></span>
+                    <h3 class="gw-empty__title">No tools match <span id="pg-tools-empty-q">“s3”</span></h3>
+                    <p class="gw-empty__text">Search looks at tool names, connections and descriptions on endpoint <span class="gw-mono" data-pg-ep-name>dev</span>. Try another word, or add a connection to the endpoint to give agents more tools.</p>
+                    <div class="gw-empty__actions">
+                      <button class="gw-btn gw-btn--sm" type="button" data-gw-search-clear="#pg-tool-q"><i class="gw-icon gw-icon--sm" data-lucide="x"></i>Clear search</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <form class="gw-card" id="pg-args" aria-labelledby="pg-args-t" novalidate>
+            <header class="gw-card__header">
+              <div class="gw-card__heading">
+                <h2 class="gw-card__title" id="pg-args-t">Arguments</h2>
+                <p class="gw-card__description">For <code class="gw-code" data-pg-tool-name>sql_query</code>, built from its inputSchema</p>
+              </div>
+              <div class="gw-card__actions">
+                <div class="gw-tabs gw-tabs--contained">
+                  <div class="gw-tabs__list" role="tablist" aria-label="Arguments view">
+                    <button class="gw-tabs__tab" type="button" role="tab" id="pg-tab-form" aria-selected="true" aria-controls="pg-panel-form"><i class="gw-icon" data-lucide="list"></i> Form</button>
+                    <button class="gw-tabs__tab" type="button" role="tab" id="pg-tab-json" aria-selected="false" aria-controls="pg-panel-json" tabindex="-1"><i class="gw-icon" data-lucide="braces"></i> JSON</button>
+                  </div>
+                </div>
+              </div>
+            </header>
+            <div class="gw-card__body gw-stack">
+              <div class="gw-tabs__panel gw-stack" role="tabpanel" id="pg-panel-form" aria-labelledby="pg-tab-form">
+                <div class="gw-field" data-pg-arg="connection" data-pg-tools="!list_connections">
+                  <label class="gw-field__label" for="pg-a-connection"><span class="gw-mono">connection</span></label>
+                  <select class="gw-select" id="pg-a-connection" name="connection" required aria-describedby="pg-a-connection-hint">
+                    <option value="dev-db" selected>dev-db · PostgreSQL 16</option>
+                  </select>
+                  <p class="gw-field__hint" id="pg-a-connection-hint">Environment <span class="gw-env gw-env--sm gw-env--dev" id="pg-a-connection-env">dev</span> · <span class="gw-mono" id="pg-a-connection-where">db.dev.internal:5432/app</span></p>
+                </div>
+                <!-- From here on, one field per property of the tool's inputSchema, in its order: the label is the
+                     property's name, the hint its description plus what the schema says about the value, the errors
+                     the schema renderer's. -->
+                <div class="gw-field" data-pg-arg="table" data-pg-tools="sql_describe_table" hidden>
+                  <label class="gw-field__label" for="pg-a-table"><span class="gw-mono">table</span></label>
+                  <input class="gw-input gw-input--mono" id="pg-a-table" name="table" type="text" value="orders" required spellcheck="false" autocomplete="off" aria-describedby="pg-a-table-hint">
+                  <p class="gw-field__error" id="pg-a-table-err" hidden><i class="gw-icon" data-lucide="circle-alert"></i><span id="pg-a-table-err-text">table is required.</span></p>
+                  <p class="gw-field__hint" id="pg-a-table-hint">orders, billing.invoices or "Mixed"."Case". Without a schema: the connection's default schema.</p>
+                </div>
+                <div class="gw-field" data-pg-arg="sql" data-pg-tools="sql_query sql_execute">
+                  <label class="gw-field__label" for="pg-a-sql"><span class="gw-mono">sql</span></label>
+                  <textarea class="gw-textarea gw-textarea--code gw-textarea--wrap" id="pg-a-sql" name="sql" rows="4" required spellcheck="false" autocapitalize="off" aria-describedby="pg-a-sql-hint">SELECT id, status, customer_email, customer_phone, total, created_at
+FROM orders
+WHERE created_at &gt; now() - interval '1 hour'
+ORDER BY created_at DESC</textarea>
+                  <p class="gw-field__error" id="pg-a-sql-err" hidden><i class="gw-icon" data-lucide="circle-alert"></i><span id="pg-a-sql-err-text">sql is required.</span></p>
+                  <p class="gw-field__hint" id="pg-a-sql-hint">One SELECT, WITH … SELECT, VALUES, TABLE, SHOW or EXPLAIN. Runs in a read-only transaction.</p>
+                </div>
+                <div class="gw-field" data-pg-arg="limit" data-pg-tools="sql_query">
+                  <label class="gw-field__label" for="pg-a-limit"><span class="gw-mono">limit</span> <span class="gw-field__optional">Optional</span></label>
+                  <input class="gw-input gw-input--mono" id="pg-a-limit" name="limit" type="text" inputmode="numeric" value="50" autocomplete="off" aria-describedby="pg-a-limit-hint">
+                  <p class="gw-field__error" id="pg-a-limit-err" hidden><i class="gw-icon" data-lucide="circle-alert"></i><span id="pg-a-limit-err-text">5000 is above the maximum. Use 1000 or less.</span></p>
+                  <p class="gw-field__hint" id="pg-a-limit-hint">Max rows; the endpoint caps it. Integer, 50 when empty, from 1 to 1,000.</p>
+                </div>
+                <div class="gw-field" data-pg-arg="namespace" data-pg-tools="k8s_rollout_restart" hidden>
+                  <label class="gw-field__label" for="pg-a-namespace"><span class="gw-mono">namespace</span> <span class="gw-field__optional">Optional</span></label>
+                  <input class="gw-input gw-input--mono" id="pg-a-namespace" name="namespace" type="text" spellcheck="false" autocomplete="off" aria-describedby="pg-a-namespace-hint">
+                  <p class="gw-field__hint" id="pg-a-namespace-hint">Default: the connection's namespace.</p>
+                </div>
+                <div class="gw-form__row" data-pg-arg="k8s" data-pg-tools="k8s_rollout_restart" hidden>
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="pg-a-kind"><span class="gw-mono">kind</span></label>
+                    <select class="gw-select" id="pg-a-kind" name="kind" required>
+                      <option value="deployment" selected>deployment</option>
+                      <option value="statefulset">statefulset</option>
+                      <option value="daemonset">daemonset</option>
+                    </select>
+                  </div>
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="pg-a-name"><span class="gw-mono">name</span></label>
+                    <input class="gw-input gw-input--mono" id="pg-a-name" name="name" type="text" value="api" required spellcheck="false" autocomplete="off">
+                    <p class="gw-field__error" id="pg-a-name-err" hidden><i class="gw-icon" data-lucide="circle-alert"></i><span id="pg-a-name-err-text">name is required.</span></p>
+                  </div>
+                </div>
+                <div class="gw-form__row" data-pg-arg="http" data-pg-tools="http_request" hidden>
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="pg-a-method"><span class="gw-mono">method</span></label>
+                    <select class="gw-select" id="pg-a-method" name="method" required>
+                      <option value="GET">GET</option>
+                      <option value="HEAD">HEAD</option>
+                      <option value="POST" selected>POST</option>
+                      <option value="PUT">PUT</option>
+                      <option value="PATCH">PATCH</option>
+                      <option value="DELETE">DELETE</option>
+                    </select>
+                  </div>
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="pg-a-path"><span class="gw-mono">path</span></label>
+                    <input class="gw-input gw-input--mono" id="pg-a-path" name="path" type="text" value="/v1/refunds" required spellcheck="false" autocomplete="off" aria-describedby="pg-a-path-hint">
+                    <p class="gw-field__error" id="pg-a-path-err" hidden><i class="gw-icon" data-lucide="circle-alert"></i><span id="pg-a-path-err-text">path is required.</span></p>
+                    <p class="gw-field__hint" id="pg-a-path-hint">Path under the base URL with an optional query, e.g. /v1/invoices?limit=10. A full URL works only if it starts with an allowed base URL.</p>
+                  </div>
+                </div>
+                <!-- Objects and values of any type are JSON, checked against the schema by the core. -->
+                <div class="gw-field" data-pg-arg="headers" data-pg-tools="http_request" hidden>
+                  <label class="gw-field__label" for="pg-a-headers"><span class="gw-mono">headers</span> <span class="gw-field__optional">Optional</span></label>
+                  <textarea class="gw-textarea gw-textarea--code" id="pg-a-headers" name="headers" rows="2" spellcheck="false" autocapitalize="off" aria-describedby="pg-a-headers-hint" data-pg-json>{ "Idempotency-Key": "refund-48213" }</textarea>
+                  <p class="gw-field__hint" id="pg-a-headers-hint">Extra request headers. Authorization is added by the gateway.</p>
+                </div>
+                <div class="gw-field" data-pg-arg="json" data-pg-tools="http_request" hidden>
+                  <label class="gw-field__label" for="pg-a-json"><span class="gw-mono">json</span> <span class="gw-field__optional">Optional</span></label>
+                  <textarea class="gw-textarea gw-textarea--code" id="pg-a-json" name="json" rows="4" spellcheck="false" autocapitalize="off" aria-describedby="pg-a-json-hint" data-pg-json>{
+  "order_id": 48213,
+  "amount": 1999,
+  "currency": "EUR",
+  "reason": "duplicate charge on order 48213"
+}</textarea>
+                  <p class="gw-field__hint" id="pg-a-json-hint">A JSON body, sent as application/json.</p>
+                </div>
+                <!-- The agent's note of a tool that waits for a person: the approver sees it as unverified. -->
+                <div class="gw-field" data-pg-arg="note" data-pg-tools="sql_execute k8s_rollout_restart http_request" hidden>
+                  <label class="gw-field__label" for="pg-a-note"><span class="gw-mono">note</span> <span class="gw-field__optional">Optional</span></label>
+                  <input class="gw-input gw-input--mono" id="pg-a-note" name="note" type="text" maxlength="500" spellcheck="false" autocomplete="off" aria-describedby="pg-a-note-hint">
+                  <p class="gw-field__hint" id="pg-a-note-hint">Why you need this change. Shown to the approver as unverified.</p>
+                </div>
+              </div>
+
+              <div class="gw-tabs__panel" role="tabpanel" id="pg-panel-json" aria-labelledby="pg-tab-json" hidden>
+                <div class="gw-field">
+                  <label class="gw-field__label" for="pg-json">Arguments as JSON</label>
+                  <textarea class="gw-textarea gw-textarea--code" id="pg-json" rows="8" spellcheck="false" autocapitalize="off" aria-describedby="pg-json-hint">{
+  "connection": "dev-db",
+  "sql": "SELECT id, status, customer_email, customer_phone, total, created_at\nFROM orders\nWHERE created_at &gt; now() - interval '1 hour'\nORDER BY created_at DESC",
+  "limit": 50
+}</textarea>
+                  <p class="gw-field__error" id="pg-json-err" hidden><i class="gw-icon" data-lucide="circle-alert"></i><span id="pg-json-err-text">This is not valid JSON: Expected ',' or '}' after property value in JSON at position 52. Fix it, or go back to Form: it keeps the last valid arguments.</span></p>
+                  <p class="gw-field__hint" id="pg-json-hint">The same arguments as the form. They are checked against the inputSchema of <code class="gw-code" data-pg-tool-name>sql_query</code> before the call.</p>
+                </div>
+              </div>
+
+              <!-- Shown when the chosen tool's mode on the endpoint is Approval (sql_execute, k8s_rollout_restart, http_request). -->
+              <div class="gw-alert gw-alert--warning" id="pg-approval-alert" hidden>
+                <i class="gw-icon gw-alert__icon" data-lucide="user-check"></i>
+                <div class="gw-alert__content">
+                  <p class="gw-alert__title">This call needs approval</p>
+                  <p class="gw-alert__body">Running it sends you an approval request, exactly like an agent would. It runs after you approve it in <a class="gw-link" href="approvals.html">Approvals</a>, and the result shows up here.</p>
+                </div>
+              </div>
+              <!-- Shown when the chosen tool is Off on the endpoint: agents don't get it, so it can't run here either. -->
+              <div class="gw-alert gw-alert--neutral" id="pg-off-alert" hidden>
+                <i class="gw-icon gw-alert__icon" data-lucide="circle-off"></i>
+                <div class="gw-alert__content">
+                  <p class="gw-alert__title">Off on endpoint <span data-pg-ep-name>dev</span></p>
+                  <p class="gw-alert__body">Agents don't get this tool, so it can't run here either. Change its mode on the endpoint first.</p>
+                  <div class="gw-alert__actions"><a class="gw-btn gw-btn--sm" href="endpoint-detail.html#tools" id="pg-off-link">Open tools of <span data-pg-ep-name>dev</span></a></div>
+                </div>
+              </div>
+            </div>
+            <footer class="gw-card__footer">
+              <button class="gw-btn gw-btn--ghost" type="reset"><i class="gw-icon" data-lucide="rotate-ccw"></i> Reset</button>
+              <button class="gw-btn gw-btn--primary" type="submit" id="pg-run" aria-keyshortcuts="Meta+Enter Control+Enter"><i class="gw-icon" data-lucide="play"></i> Run<span class="gw-sr-only" data-pg-run-tool> sql_query</span> <kbd class="gw-btn__kbd" aria-hidden="true">⌘ Enter</kbd></button>
+            </footer>
+          </form>
+        </div>
+
+        <!-- ═══════════════ Right: what came back ═══════════════ -->
+        <div class="gw-split__detail">
+          <section class="gw-section" id="pg-out" aria-labelledby="pg-out-t">
+            <header class="gw-section__header">
+              <h2 class="gw-section__title" id="pg-out-t">What the agent receives</h2>
+              <p class="gw-section__description">Last run: <code class="gw-code" data-pg-out="tool">sql_query</code><span data-pg-out="on"> on <code class="gw-code" data-pg-out="conn">dev-db</code> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev" data-pg-out="env">dev</span></span>, <time datetime="2026-10-22T14:29:52+02:00" title="2026-10-22 14:29:52 +02:00" data-pg-out="when">just now</time>. Masked and limited exactly as for an agent.</p>
+            </header>
+            <p class="gw-sr-only" role="status" id="pg-out-status"></p>
+
+            <!-- Loading: shown while a run is in flight (the section gets aria-busy). -->
+            <div class="gw-stack gw-stack--sm" id="pg-loading" aria-hidden="true" hidden>
+              <span class="gw-skeleton gw-skeleton--text"></span>
+              <span class="gw-skeleton gw-skeleton--text"></span>
+              <span class="gw-skeleton gw-skeleton--block"></span>
+              <span class="gw-skeleton gw-skeleton--block"></span>
+            </div>
+
+            <!-- Result of sql_query (the state of this page) -->
+            <div class="gw-stack" id="pg-result">
+              <dl class="gw-kv gw-kv--inline">
+                <div class="gw-kv__row"><dt class="gw-kv__key">Decision</dt><dd class="gw-kv__value"><span class="gw-badge gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>Allowed</span></dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Duration</dt><dd class="gw-kv__value gw-tabular">38 ms</dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Size</dt><dd class="gw-kv__value gw-tabular">3.1 KB · 12 rows</dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Masked</dt><dd class="gw-kv__value">2 fields: <span class="gw-mono">customer_email</span>, <span class="gw-mono">customer_phone</span> · <a class="gw-link" href="policies.html#dev-masking">by the dev masking rules</a></dd></div>
+                <div class="gw-kv__row">
+                  <dt class="gw-kv__key" id="pg-trace-key">Trace id</dt>
+                  <dd class="gw-kv__value">
+                    <div class="gw-copy-field" role="group" aria-labelledby="pg-trace-key">
+                      <code class="gw-copy-field__value" id="pg-trace" title="9e3b51d07a4c4f0e8b2d6c19a5f7e340">9e3b51d07a4c4f0e8b2d6c19a5f7e340</code>
+                      <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" data-gw-copy-from="#pg-trace">
+                        <span class="gw-copy-field__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> trace id</span></span>
+                        <span class="gw-copy-field__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                      </button>
+                    </div>
+                  </dd>
+                </div>
+              </dl>
+
+              <div class="gw-tabs">
+                <div class="gw-tabs__list" role="tablist" aria-label="Result of sql_query">
+                  <button class="gw-tabs__tab" type="button" role="tab" id="pg-rt-struct" aria-selected="true" aria-controls="pg-rp-struct"><i class="gw-icon" data-lucide="table"></i> Structured <span class="gw-tabs__count">12<span class="gw-sr-only"> rows</span></span></button>
+                  <button class="gw-tabs__tab" type="button" role="tab" id="pg-rt-text" aria-selected="false" aria-controls="pg-rp-text" tabindex="-1"><i class="gw-icon" data-lucide="text"></i> Text</button>
+                  <button class="gw-tabs__tab" type="button" role="tab" id="pg-rt-rpc" aria-selected="false" aria-controls="pg-rp-rpc" tabindex="-1"><i class="gw-icon" data-lucide="braces"></i> JSON-RPC</button>
+                </div>
+
+                <div class="gw-tabs__panel gw-stack gw-stack--sm" role="tabpanel" id="pg-rp-struct" aria-labelledby="pg-rt-struct">
+                  <div class="gw-table-wrap" role="region" aria-labelledby="pg-struct-cap" tabindex="0">
+                    <table class="gw-table gw-table--dense">
+                      <caption class="gw-sr-only" id="pg-struct-cap">structuredContent of sql_query: 12 rows from orders</caption>
+                      <thead>
+                        <tr>
+                          <th scope="col" class="gw-table__cell--num">id</th>
+                          <th scope="col">status</th>
+                          <th scope="col">customer_email</th>
+                          <th scope="col">customer_phone</th>
+                          <th scope="col" class="gw-table__cell--num">total</th>
+                          <th scope="col">created_at</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <th scope="row" class="gw-table__cell--num">48240</th>
+                          <td>pending</td>
+                          <td><code class="gw-code gw-code--secret">‹masked›</code></td>
+                          <td><code class="gw-code gw-code--secret">‹masked›</code></td>
+                          <td class="gw-table__cell--num">84.90</td>
+                          <td class="gw-table__cell--mono">2026-10-22T14:29:41+02:00</td>
+                        </tr>
+                        <tr>
+                          <th scope="row" class="gw-table__cell--num">48239</th>
+                          <td>synced</td>
+                          <td><code class="gw-code gw-code--secret">‹masked›</code></td>
+                          <td><code class="gw-code gw-code--secret">‹masked›</code></td>
+                          <td class="gw-table__cell--num">129.00</td>
+                          <td class="gw-table__cell--mono">2026-10-22T14:28:12+02:00</td>
+                        </tr>
+                        <tr>
+                          <th scope="row" class="gw-table__cell--num">48238</th>
+                          <td>synced</td>
+                          <td><code class="gw-code gw-code--secret">‹masked›</code></td>
+                          <td><code class="gw-code gw-code--secret">‹masked›</code></td>
+                          <td class="gw-table__cell--num">42.50</td>
+                          <td class="gw-table__cell--mono">2026-10-22T14:27:07+02:00</td>
+                        </tr>
+                        <tr>
+                          <th scope="row" class="gw-table__cell--num">48237</th>
+                          <td>failed</td>
+                          <td><code class="gw-code gw-code--secret">‹masked›</code></td>
+                          <td><code class="gw-code gw-code--secret">‹masked›</code></td>
+                          <td class="gw-table__cell--num">310.00</td>
+                          <td class="gw-table__cell--mono">2026-10-22T14:23:55+02:00</td>
+                        </tr>
+                        <tr>
+                          <th scope="row" class="gw-table__cell--num">48236</th>
+                          <td>synced</td>
+                          <td><code class="gw-code gw-code--secret">‹masked›</code></td>
+                          <td><code class="gw-code gw-code--secret">‹masked›</code></td>
+                          <td class="gw-table__cell--num">18.99</td>
+                          <td class="gw-table__cell--mono">2026-10-22T14:19:20+02:00</td>
+                        </tr>
+                        <tr>
+                          <th scope="row" class="gw-table__cell--num">48235</th>
+                          <td>synced</td>
+                          <td><code class="gw-code gw-code--secret">‹masked›</code></td>
+                          <td><code class="gw-code gw-code--secret">‹masked›</code></td>
+                          <td class="gw-table__cell--num">64.00</td>
+                          <td class="gw-table__cell--mono">2026-10-22T14:14:02+02:00</td>
+                        </tr>
+                        <tr>
+                          <th scope="row" class="gw-table__cell--num">48234</th>
+                          <td>failed</td>
+                          <td><code class="gw-code gw-code--secret">‹masked›</code></td>
+                          <td><code class="gw-code gw-code--secret">‹masked›</code></td>
+                          <td class="gw-table__cell--num">97.40</td>
+                          <td class="gw-table__cell--mono">2026-10-22T14:07:45+02:00</td>
+                        </tr>
+                        <tr>
+                          <th scope="row" class="gw-table__cell--num">48233</th>
+                          <td>synced</td>
+                          <td><code class="gw-code gw-code--secret">‹masked›</code></td>
+                          <td><code class="gw-code gw-code--secret">‹masked›</code></td>
+                          <td class="gw-table__cell--num">220.00</td>
+                          <td class="gw-table__cell--mono">2026-10-22T14:02:19+02:00</td>
+                        </tr>
+                        <tr>
+                          <th scope="row" class="gw-table__cell--num">48232</th>
+                          <td>synced</td>
+                          <td><code class="gw-code gw-code--secret">‹masked›</code></td>
+                          <td><code class="gw-code gw-code--secret">‹masked›</code></td>
+                          <td class="gw-table__cell--num">15.00</td>
+                          <td class="gw-table__cell--mono">2026-10-22T13:55:58+02:00</td>
+                        </tr>
+                        <tr>
+                          <th scope="row" class="gw-table__cell--num">48231</th>
+                          <td>failed</td>
+                          <td><code class="gw-code gw-code--secret">‹masked›</code></td>
+                          <td><code class="gw-code gw-code--secret">‹masked›</code></td>
+                          <td class="gw-table__cell--num">58.25</td>
+                          <td class="gw-table__cell--mono">2026-10-22T13:48:33+02:00</td>
+                        </tr>
+                        <tr>
+                          <th scope="row" class="gw-table__cell--num">48230</th>
+                          <td>synced</td>
+                          <td><code class="gw-code gw-code--secret">‹masked›</code></td>
+                          <td><code class="gw-code gw-code--secret">‹masked›</code></td>
+                          <td class="gw-table__cell--num">140.00</td>
+                          <td class="gw-table__cell--mono">2026-10-22T13:42:10+02:00</td>
+                        </tr>
+                        <tr>
+                          <th scope="row" class="gw-table__cell--num">48229</th>
+                          <td>synced</td>
+                          <td><code class="gw-code gw-code--secret">‹masked›</code></td>
+                          <td><code class="gw-code gw-code--secret">‹masked›</code></td>
+                          <td class="gw-table__cell--num">33.70</td>
+                          <td class="gw-table__cell--mono">2026-10-22T13:37:04+02:00</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <p class="gw-text-caption gw-fg-muted"><span class="gw-mono">structuredContent</span> as the agent gets it: 12 rows, not truncated. The values of masked fields never leave the gateway.</p>
+                </div>
+
+                <div class="gw-tabs__panel gw-stack gw-stack--sm" role="tabpanel" id="pg-rp-text" aria-labelledby="pg-rt-text" hidden>
+                  <div class="gw-code-block gw-code-block--scroll">
+                    <div class="gw-code-block__header">
+                      <span class="gw-code-block__lang">Text</span>
+                      <span class="gw-code-block__filename">content[0].text</span>
+                      <div class="gw-code-block__actions">
+                        <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#pg-text-pre">
+                          <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> text content</span></span>
+                          <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                        </button>
+                      </div>
+                    </div>
+                    <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Text content of the result">
+<pre class="gw-code-block__pre" id="pg-text-pre"><code>12 rows from dev-db, table orders. Masked by policy: customer_email, customer_phone.
+
+id     status   customer_email  customer_phone  total   created_at
+48240  pending  <span class="gw-tok-secret">‹masked›</span>        <span class="gw-tok-secret">‹masked›</span>        84.90   2026-10-22T14:29:41+02:00
+48239  synced   <span class="gw-tok-secret">‹masked›</span>        <span class="gw-tok-secret">‹masked›</span>        129.00  2026-10-22T14:28:12+02:00
+48238  synced   <span class="gw-tok-secret">‹masked›</span>        <span class="gw-tok-secret">‹masked›</span>        42.50   2026-10-22T14:27:07+02:00
+48237  failed   <span class="gw-tok-secret">‹masked›</span>        <span class="gw-tok-secret">‹masked›</span>        310.00  2026-10-22T14:23:55+02:00
+48236  synced   <span class="gw-tok-secret">‹masked›</span>        <span class="gw-tok-secret">‹masked›</span>        18.99   2026-10-22T14:19:20+02:00
+48235  synced   <span class="gw-tok-secret">‹masked›</span>        <span class="gw-tok-secret">‹masked›</span>        64.00   2026-10-22T14:14:02+02:00
+48234  failed   <span class="gw-tok-secret">‹masked›</span>        <span class="gw-tok-secret">‹masked›</span>        97.40   2026-10-22T14:07:45+02:00
+48233  synced   <span class="gw-tok-secret">‹masked›</span>        <span class="gw-tok-secret">‹masked›</span>        220.00  2026-10-22T14:02:19+02:00
+48232  synced   <span class="gw-tok-secret">‹masked›</span>        <span class="gw-tok-secret">‹masked›</span>        15.00   2026-10-22T13:55:58+02:00
+48231  failed   <span class="gw-tok-secret">‹masked›</span>        <span class="gw-tok-secret">‹masked›</span>        58.25   2026-10-22T13:48:33+02:00
+48230  synced   <span class="gw-tok-secret">‹masked›</span>        <span class="gw-tok-secret">‹masked›</span>        140.00  2026-10-22T13:42:10+02:00
+48229  synced   <span class="gw-tok-secret">‹masked›</span>        <span class="gw-tok-secret">‹masked›</span>        33.70   2026-10-22T13:37:04+02:00</code></pre>
+                    </div>
+                  </div>
+                  <p class="gw-text-caption gw-fg-muted">What an AI app that ignores <span class="gw-mono">structuredContent</span> puts in front of the model.</p>
+                </div>
+
+                <div class="gw-tabs__panel gw-stack gw-stack--sm" role="tabpanel" id="pg-rp-rpc" aria-labelledby="pg-rt-rpc" tabindex="0" hidden>
+                  <p class="gw-text-small gw-fg-secondary">MCP revision <span class="gw-mono">2026-07-28</span>: no session, every request stands on its own. <span class="gw-mono">Mcp-Method</span> and <span class="gw-mono">Mcp-Name</span> are required headers; the gateway still decides on the body.</p>
+                  <div class="gw-code-block gw-code-block--scroll">
+                    <div class="gw-code-block__header">
+                      <span class="gw-code-block__lang">HTTP</span>
+                      <span class="gw-code-block__filename">Request · POST /mcp/dev</span>
+                      <div class="gw-code-block__actions">
+                        <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#pg-req-pre">
+                          <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> request</span></span>
+                          <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                        </button>
+                      </div>
+                    </div>
+                    <div class="gw-code-block__body" tabindex="0" role="region" aria-label="JSON-RPC request">
+<pre class="gw-code-block__pre" id="pg-req-pre"><code><span class="gw-tok-keyword">POST</span> /mcp/dev HTTP/1.1
+<span class="gw-tok-property">Host</span>: 127.0.0.1:7465
+<span class="gw-tok-property">Content-Type</span>: application/json
+<span class="gw-tok-property">Accept</span>: application/json, text/event-stream
+<span class="gw-tok-property">MCP-Protocol-Version</span>: 2026-07-28
+<span class="gw-tok-property">Mcp-Method</span>: tools/call
+<span class="gw-tok-property">Mcp-Name</span>: sql_query
+<span class="gw-tok-property">Authorization</span>: Bearer <span class="gw-tok-secret">‹masked›</span>
+
+{
+  <span class="gw-tok-property">"jsonrpc"</span>: <span class="gw-tok-string">"2.0"</span>,
+  <span class="gw-tok-property">"id"</span>: <span class="gw-tok-number">7</span>,
+  <span class="gw-tok-property">"method"</span>: <span class="gw-tok-string">"tools/call"</span>,
+  <span class="gw-tok-property">"params"</span>: {
+    <span class="gw-tok-property">"name"</span>: <span class="gw-tok-string">"sql_query"</span>,
+    <span class="gw-tok-property">"arguments"</span>: {
+      <span class="gw-tok-property">"connection"</span>: <span class="gw-tok-string">"dev-db"</span>,
+      <span class="gw-tok-property">"sql"</span>: <span class="gw-tok-string">"SELECT id, status, customer_email, customer_phone, total, created_at\nFROM orders\nWHERE created_at &gt; now() - interval '1 hour'\nORDER BY created_at DESC"</span>,
+      <span class="gw-tok-property">"limit"</span>: <span class="gw-tok-number">50</span>
+    },
+    <span class="gw-tok-property">"_meta"</span>: {
+      <span class="gw-tok-property">"traceparent"</span>: <span class="gw-tok-string">"00-9e3b51d07a4c4f0e8b2d6c19a5f7e340-b7ad6b7169203331-01"</span>
+    }
+  }
+}</code></pre>
+                    </div>
+                  </div>
+                  <div class="gw-code-block gw-code-block--scroll">
+                    <div class="gw-code-block__header">
+                      <span class="gw-code-block__lang">HTTP</span>
+                      <span class="gw-code-block__filename">Response · 200 OK · 3.1 KB</span>
+                      <div class="gw-code-block__actions">
+                        <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#pg-res-pre">
+                          <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> response</span></span>
+                          <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                        </button>
+                      </div>
+                    </div>
+                    <div class="gw-code-block__body" tabindex="0" role="region" aria-label="JSON-RPC response">
+<pre class="gw-code-block__pre" id="pg-res-pre"><code>HTTP/1.1 <span class="gw-tok-number">200</span> OK
+<span class="gw-tok-property">Content-Type</span>: application/json
+
+{
+  <span class="gw-tok-property">"jsonrpc"</span>: <span class="gw-tok-string">"2.0"</span>,
+  <span class="gw-tok-property">"id"</span>: <span class="gw-tok-number">7</span>,
+  <span class="gw-tok-property">"result"</span>: {
+    <span class="gw-tok-property">"content"</span>: [
+      {
+        <span class="gw-tok-property">"type"</span>: <span class="gw-tok-string">"text"</span>,
+        <span class="gw-tok-property">"text"</span>: <span class="gw-tok-string">"12 rows from dev-db, table orders. Masked by policy: customer_email, customer_phone.\n\nid     status   customer_email  customer_phone  total   created_at\n48240  pending  <span class="gw-tok-secret">‹masked›</span>        <span class="gw-tok-secret">‹masked›</span>        84.90   2026-10-22T14:29:41+02:00\n48239  synced   <span class="gw-tok-secret">‹masked›</span>        <span class="gw-tok-secret">‹masked›</span>        129.00  2026-10-22T14:28:12+02:00\n48238  synced   <span class="gw-tok-secret">‹masked›</span>        <span class="gw-tok-secret">‹masked›</span>        42.50   2026-10-22T14:27:07+02:00\n48237  failed   <span class="gw-tok-secret">‹masked›</span>        <span class="gw-tok-secret">‹masked›</span>        310.00  2026-10-22T14:23:55+02:00\n48236  synced   <span class="gw-tok-secret">‹masked›</span>        <span class="gw-tok-secret">‹masked›</span>        18.99   2026-10-22T14:19:20+02:00\n48235  synced   <span class="gw-tok-secret">‹masked›</span>        <span class="gw-tok-secret">‹masked›</span>        64.00   2026-10-22T14:14:02+02:00\n48234  failed   <span class="gw-tok-secret">‹masked›</span>        <span class="gw-tok-secret">‹masked›</span>        97.40   2026-10-22T14:07:45+02:00\n48233  synced   <span class="gw-tok-secret">‹masked›</span>        <span class="gw-tok-secret">‹masked›</span>        220.00  2026-10-22T14:02:19+02:00\n48232  synced   <span class="gw-tok-secret">‹masked›</span>        <span class="gw-tok-secret">‹masked›</span>        15.00   2026-10-22T13:55:58+02:00\n48231  failed   <span class="gw-tok-secret">‹masked›</span>        <span class="gw-tok-secret">‹masked›</span>        58.25   2026-10-22T13:48:33+02:00\n48230  synced   <span class="gw-tok-secret">‹masked›</span>        <span class="gw-tok-secret">‹masked›</span>        140.00  2026-10-22T13:42:10+02:00\n48229  synced   <span class="gw-tok-secret">‹masked›</span>        <span class="gw-tok-secret">‹masked›</span>        33.70   2026-10-22T13:37:04+02:00"</span>
+      }
+    ],
+    <span class="gw-tok-property">"structuredContent"</span>: {
+      <span class="gw-tok-property">"columns"</span>: [<span class="gw-tok-string">"id"</span>, <span class="gw-tok-string">"status"</span>, <span class="gw-tok-string">"customer_email"</span>, <span class="gw-tok-string">"customer_phone"</span>, <span class="gw-tok-string">"total"</span>, <span class="gw-tok-string">"created_at"</span>],
+      <span class="gw-tok-property">"rows"</span>: [
+        [<span class="gw-tok-number">48240</span>, <span class="gw-tok-string">"pending"</span>, <span class="gw-tok-string">"<span class="gw-tok-secret">‹masked›</span>"</span>, <span class="gw-tok-string">"<span class="gw-tok-secret">‹masked›</span>"</span>, <span class="gw-tok-string">"84.90"</span>, <span class="gw-tok-string">"2026-10-22T14:29:41+02:00"</span>],
+        [<span class="gw-tok-number">48239</span>, <span class="gw-tok-string">"synced"</span>, <span class="gw-tok-string">"<span class="gw-tok-secret">‹masked›</span>"</span>, <span class="gw-tok-string">"<span class="gw-tok-secret">‹masked›</span>"</span>, <span class="gw-tok-string">"129.00"</span>, <span class="gw-tok-string">"2026-10-22T14:28:12+02:00"</span>],
+        [<span class="gw-tok-number">48238</span>, <span class="gw-tok-string">"synced"</span>, <span class="gw-tok-string">"<span class="gw-tok-secret">‹masked›</span>"</span>, <span class="gw-tok-string">"<span class="gw-tok-secret">‹masked›</span>"</span>, <span class="gw-tok-string">"42.50"</span>, <span class="gw-tok-string">"2026-10-22T14:27:07+02:00"</span>],
+        [<span class="gw-tok-number">48237</span>, <span class="gw-tok-string">"failed"</span>, <span class="gw-tok-string">"<span class="gw-tok-secret">‹masked›</span>"</span>, <span class="gw-tok-string">"<span class="gw-tok-secret">‹masked›</span>"</span>, <span class="gw-tok-string">"310.00"</span>, <span class="gw-tok-string">"2026-10-22T14:23:55+02:00"</span>],
+        [<span class="gw-tok-number">48236</span>, <span class="gw-tok-string">"synced"</span>, <span class="gw-tok-string">"<span class="gw-tok-secret">‹masked›</span>"</span>, <span class="gw-tok-string">"<span class="gw-tok-secret">‹masked›</span>"</span>, <span class="gw-tok-string">"18.99"</span>, <span class="gw-tok-string">"2026-10-22T14:19:20+02:00"</span>],
+        [<span class="gw-tok-number">48235</span>, <span class="gw-tok-string">"synced"</span>, <span class="gw-tok-string">"<span class="gw-tok-secret">‹masked›</span>"</span>, <span class="gw-tok-string">"<span class="gw-tok-secret">‹masked›</span>"</span>, <span class="gw-tok-string">"64.00"</span>, <span class="gw-tok-string">"2026-10-22T14:14:02+02:00"</span>],
+        [<span class="gw-tok-number">48234</span>, <span class="gw-tok-string">"failed"</span>, <span class="gw-tok-string">"<span class="gw-tok-secret">‹masked›</span>"</span>, <span class="gw-tok-string">"<span class="gw-tok-secret">‹masked›</span>"</span>, <span class="gw-tok-string">"97.40"</span>, <span class="gw-tok-string">"2026-10-22T14:07:45+02:00"</span>],
+        [<span class="gw-tok-number">48233</span>, <span class="gw-tok-string">"synced"</span>, <span class="gw-tok-string">"<span class="gw-tok-secret">‹masked›</span>"</span>, <span class="gw-tok-string">"<span class="gw-tok-secret">‹masked›</span>"</span>, <span class="gw-tok-string">"220.00"</span>, <span class="gw-tok-string">"2026-10-22T14:02:19+02:00"</span>],
+        [<span class="gw-tok-number">48232</span>, <span class="gw-tok-string">"synced"</span>, <span class="gw-tok-string">"<span class="gw-tok-secret">‹masked›</span>"</span>, <span class="gw-tok-string">"<span class="gw-tok-secret">‹masked›</span>"</span>, <span class="gw-tok-string">"15.00"</span>, <span class="gw-tok-string">"2026-10-22T13:55:58+02:00"</span>],
+        [<span class="gw-tok-number">48231</span>, <span class="gw-tok-string">"failed"</span>, <span class="gw-tok-string">"<span class="gw-tok-secret">‹masked›</span>"</span>, <span class="gw-tok-string">"<span class="gw-tok-secret">‹masked›</span>"</span>, <span class="gw-tok-string">"58.25"</span>, <span class="gw-tok-string">"2026-10-22T13:48:33+02:00"</span>],
+        [<span class="gw-tok-number">48230</span>, <span class="gw-tok-string">"synced"</span>, <span class="gw-tok-string">"<span class="gw-tok-secret">‹masked›</span>"</span>, <span class="gw-tok-string">"<span class="gw-tok-secret">‹masked›</span>"</span>, <span class="gw-tok-string">"140.00"</span>, <span class="gw-tok-string">"2026-10-22T13:42:10+02:00"</span>],
+        [<span class="gw-tok-number">48229</span>, <span class="gw-tok-string">"synced"</span>, <span class="gw-tok-string">"<span class="gw-tok-secret">‹masked›</span>"</span>, <span class="gw-tok-string">"<span class="gw-tok-secret">‹masked›</span>"</span>, <span class="gw-tok-string">"33.70"</span>, <span class="gw-tok-string">"2026-10-22T13:37:04+02:00"</span>]
+      ],
+      <span class="gw-tok-property">"rowCount"</span>: <span class="gw-tok-number">12</span>,
+      <span class="gw-tok-property">"truncated"</span>: <span class="gw-tok-keyword">false</span>,
+      <span class="gw-tok-property">"masked"</span>: [<span class="gw-tok-string">"customer_email"</span>, <span class="gw-tok-string">"customer_phone"</span>]
+    },
+    <span class="gw-tok-property">"isError"</span>: <span class="gw-tok-keyword">false</span>
+  }
+}</code></pre>
+                    </div>
+                  </div>
+                  <p class="gw-text-caption gw-fg-muted">Playground calls carry this app's session instead of an endpoint token; it is masked like any secret.</p>
+                </div>
+              </div>
+
+              <div class="gw-toolbar">
+                <div class="gw-toolbar__start">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="pg-event"><i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i> Event details<span class="gw-sr-only"> of this run</span></button>
+                  <span class="gw-text-small gw-fg-muted">Policy decision and timing · <span class="gw-mono">ev_5d1e7a20</span></span>
+                </div>
+                <div class="gw-toolbar__end">
+                  <a class="gw-btn gw-btn--sm" href="activity.html?q=client:playground"><i class="gw-icon gw-icon--sm" data-lucide="activity"></i> Open in Activity</a>
+                </div>
+              </div>
+
+              <div id="pg-event" hidden>
+                <div class="gw-card">
+                  <div class="gw-card__body">
+                    <article class="gw-event-detail" aria-labelledby="pg-ev-decision pg-ev-title">
+                      <header class="gw-event-detail__summary">
+                        <div class="gw-event-detail__headline">
+                          <span class="gw-badge gw-badge--success" id="pg-ev-decision"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>Allowed</span>
+                          <h3 class="gw-event-detail__title gw-text-h3" id="pg-ev-title"><code class="gw-code">sql_query</code> on <code class="gw-code">dev-db</code> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev">dev</span></h3>
+                        </div>
+                        <dl class="gw-kv gw-kv--inline">
+                          <div class="gw-kv__row"><dt class="gw-kv__key">Time</dt><dd class="gw-kv__value"><time datetime="2026-10-22T14:29:52+02:00" title="2026-10-22T14:29:52+02:00">2026-10-22 14:29:52</time></dd></div>
+                          <div class="gw-kv__row"><dt class="gw-kv__key">Event</dt><dd class="gw-kv__value gw-mono">ev_5d1e7a20</dd></div>
+                        </dl>
+                        <div class="gw-event-detail__actions">
+                          <button class="gw-btn gw-btn--sm" type="button" data-gw-copy="gaterook://activity/events/ev_5d1e7a20" data-gw-toast="Link to event ev_5d1e7a20 copied" data-gw-toast-tone="success"><i class="gw-icon gw-icon--sm" data-lucide="link"></i> Copy link</button>
+                          <a class="gw-btn gw-btn--sm" href="activity.html?q=trace:9e3b51&amp;view=traces"><i class="gw-icon gw-icon--sm" data-lucide="list-tree"></i> Open trace</a>
+                        </div>
+                      </header>
+
+                      <section class="gw-event-detail__section" aria-labelledby="pg-ev-request">
+                        <div class="gw-event-detail__section-header">
+                          <h4 class="gw-text-overline" id="pg-ev-request">Request</h4>
+                        </div>
+                        <dl class="gw-kv">
+                          <div class="gw-kv__row"><dt class="gw-kv__key">AI app</dt><dd class="gw-kv__value"><span class="gw-client-mark gw-client-mark--generic gw-client-mark--sm" aria-hidden="true"><i class="gw-icon" data-lucide="flask-conical"></i></span> Playground, as the local user</dd></div>
+                          <div class="gw-kv__row"><dt class="gw-kv__key">Auth</dt><dd class="gw-kv__value">Session of this app, not an endpoint token</dd></div>
+                          <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">dev</code> · <span class="gw-mono">/mcp/dev</span></dd></div>
+                          <div class="gw-kv__row"><dt class="gw-kv__key">Protocol</dt><dd class="gw-kv__value">MCP revision <span class="gw-mono">2026-07-28</span> · Streamable HTTP</dd></div>
+                        </dl>
+                      </section>
+
+                      <section class="gw-event-detail__section" aria-labelledby="pg-ev-policy">
+                        <div class="gw-event-detail__section-header">
+                          <h4 class="gw-text-overline" id="pg-ev-policy">Policy decision</h4>
+                          <a class="gw-btn gw-btn--link gw-btn--sm" href="policies.html#dev">Open the dev policy</a>
+                        </div>
+                        <ol class="gw-timeline" aria-label="Rules evaluated for sql_query on dev-db, in order">
+                          <li class="gw-timeline__item">
+                            <span class="gw-timeline__marker gw-timeline__marker--info"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i></span>
+                            <div class="gw-timeline__content">
+                              <p class="gw-timeline__title"><code class="gw-code">mode</code>: read only <span class="gw-badge gw-badge--brand gw-badge--sm">Matched rule</span></p>
+                              <p class="gw-timeline__meta">Endpoint <code class="gw-code">dev</code>, tool <code class="gw-code">sql_query</code>. Reads run without asking.</p>
+                            </div>
+                          </li>
+                          <li class="gw-timeline__item">
+                            <span class="gw-timeline__marker gw-timeline__marker--info"><i class="gw-icon gw-icon--sm" data-lucide="scan-search"></i></span>
+                            <div class="gw-timeline__content">
+                              <p class="gw-timeline__title"><code class="gw-code">sql</code>: classified as read</p>
+                              <p class="gw-timeline__meta">One SELECT on <code class="gw-code">orders</code>, limit 50 within the row cap of 1,000</p>
+                            </div>
+                          </li>
+                          <li class="gw-timeline__item">
+                            <span class="gw-timeline__marker gw-timeline__marker--success"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
+                            <div class="gw-timeline__content">
+                              <p class="gw-timeline__title"><code class="gw-code">limits</code>: within rate limit</p>
+                              <p class="gw-timeline__meta">5 of 120 calls per minute on endpoint <code class="gw-code">dev</code></p>
+                            </div>
+                          </li>
+                          <li class="gw-timeline__item">
+                            <span class="gw-timeline__marker gw-timeline__marker--success"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
+                            <div class="gw-timeline__content">
+                              <p class="gw-timeline__title">Decision: allowed</p>
+                              <p class="gw-timeline__meta">No approval needed. The result was masked after the query: 2 PII columns.</p>
+                            </div>
+                          </li>
+                        </ol>
+                      </section>
+
+                      <section class="gw-event-detail__section" aria-labelledby="pg-ev-timing">
+                        <div class="gw-event-detail__section-header">
+                          <h4 class="gw-text-overline" id="pg-ev-timing">Timing</h4>
+                        </div>
+                        <p class="gw-text-small gw-fg-secondary" id="pg-ev-timing-label">38 ms in total: 31 ms in <code class="gw-code">dev-db</code>, 7 ms in the gateway</p>
+                        <ol class="gw-waterfall" aria-labelledby="pg-ev-timing-label">
+                          <li class="gw-waterfall__row">
+                            <span class="gw-waterfall__label">Authenticate and check policy</span>
+                            <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--gateway" style="--start: 0; --len: 0.053"></span></span>
+                            <span class="gw-waterfall__value">2 ms</span>
+                          </li>
+                          <li class="gw-waterfall__row">
+                            <span class="gw-waterfall__label">Decrypt secret for <code class="gw-code">dev-db</code></span>
+                            <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--gateway" style="--start: 0.053; --len: 0.026"></span></span>
+                            <span class="gw-waterfall__value">1 ms</span>
+                          </li>
+                          <li class="gw-waterfall__row">
+                            <span class="gw-waterfall__label">Query on <code class="gw-code">dev-db</code></span>
+                            <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--resource" style="--start: 0.079; --len: 0.816"></span></span>
+                            <span class="gw-waterfall__value">31 ms</span>
+                          </li>
+                          <li class="gw-waterfall__row">
+                            <span class="gw-waterfall__label">Mask result and write audit</span>
+                            <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--gateway" style="--start: 0.895; --len: 0.105"></span></span>
+                            <span class="gw-waterfall__value">4 ms</span>
+                          </li>
+                        </ol>
+                        <ul class="gw-legend" aria-label="Timing phases of sql_query">
+                          <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--brand"></span>Gateway</li>
+                          <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--info"></span>Resource</li>
+                        </ul>
+                      </section>
+
+                      <hr class="gw-divider">
+                      <footer class="gw-event-detail__footer">
+                        <a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?q=tool:sql_query"><i class="gw-icon gw-icon--sm" data-lucide="filter"></i> Filter by this tool<span class="gw-sr-only"> sql_query</span></a>
+                        <a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?q=connection:dev-db"><i class="gw-icon gw-icon--sm" data-lucide="filter"></i> Filter by this connection<span class="gw-sr-only"> dev-db</span></a>
+                      </footer>
+                    </article>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Empty result: a read tool that ran and returned nothing (shown by the demo script for read tools other than sql_query). -->
+            <div class="gw-stack" id="pg-result-empty" hidden>
+              <dl class="gw-kv gw-kv--inline">
+                <div class="gw-kv__row"><dt class="gw-kv__key">Decision</dt><dd class="gw-kv__value"><span class="gw-badge gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>Allowed</span></dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Duration</dt><dd class="gw-kv__value gw-tabular">14 ms</dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Size</dt><dd class="gw-kv__value gw-tabular">0.1 KB</dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Masked</dt><dd class="gw-kv__value">None</dd></div>
+              </dl>
+              <div class="gw-card">
+                <div class="gw-card__body">
+                  <div class="gw-empty gw-empty--compact">
+                    <span class="gw-empty__icon"><i class="gw-icon" data-lucide="inbox"></i></span>
+                    <h3 class="gw-empty__title">Empty result</h3>
+                    <p class="gw-empty__text"><code class="gw-code" data-pg-out="tool">sql_list_schemas</code> ran and returned no content. The agent gets an empty result too, not an error.</p>
+                    <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" href="activity.html?q=client:playground" data-pg-out="event"><i class="gw-icon gw-icon--sm" data-lucide="activity"></i> Open in Activity</a></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- A run of a tool in Approval (shown by the demo script after Run): the call became an approval request
+                 and hasn't run. You decide in Approvals; then the page asks approval_status like an agent does, and
+                 that answer (the result, or the rejection) becomes the last run here. -->
+            <div class="gw-stack" id="pg-result-pending" hidden>
+              <dl class="gw-kv gw-kv--inline">
+                <div class="gw-kv__row"><dt class="gw-kv__key">Decision</dt><dd class="gw-kv__value"><span class="gw-badge gw-badge--warning"><i class="gw-icon gw-badge__icon" data-lucide="hourglass"></i>Waiting for approval</span></dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Duration</dt><dd class="gw-kv__value gw-tabular">24 ms</dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Size</dt><dd class="gw-kv__value gw-tabular">0.3 KB</dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Masked</dt><dd class="gw-kv__value">None</dd></div>
+              </dl>
+              <div class="gw-alert gw-alert--warning gw-alert--compact" id="pg-pending">
+                <i class="gw-icon gw-alert__icon" data-lucide="hourglass"></i>
+                <div class="gw-alert__content">
+                  <p class="gw-alert__body">Not run yet: request <span class="gw-mono">ap_7f3k2m9q4x1c</span> waits for your decision. Once you decide, the outcome the agent gets shows up here.</p>
+                  <div class="gw-alert__actions"><a class="gw-btn gw-btn--sm" href="approvals.html">Review request<span class="gw-sr-only"> ap_7f3k2m9q4x1c</span></a></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Before the first run: nothing to show yet (not this page's state). -->
+            <div class="gw-card" id="pg-result-none" hidden>
+              <div class="gw-card__body">
+                <div class="gw-empty gw-empty--compact">
+                  <span class="gw-empty__icon"><i class="gw-icon" data-lucide="play"></i></span>
+                  <h3 class="gw-empty__title">Nothing run yet</h3>
+                  <p class="gw-empty__text">Choose a tool, fill in its arguments and press Run. The answer shows up here exactly as an agent gets it.</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="gw-section" aria-labelledby="pg-hist-t">
+            <header class="gw-section__header">
+              <h2 class="gw-section__title" id="pg-hist-t">History</h2>
+              <p class="gw-section__description">Your last 5 runs, newest first. Each one opens in Activity.</p>
+              <div class="gw-section__actions"><a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?q=client:playground"><i class="gw-icon gw-icon--sm" data-lucide="activity"></i> All runs in Activity</a></div>
+            </header>
+            <div class="gw-table-wrap" role="region" aria-labelledby="pg-hist-cap" tabindex="0">
+              <table class="gw-table gw-table--dense gw-table--interactive">
+                <caption class="gw-sr-only" id="pg-hist-cap">Last 5 playground runs, newest first</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Time</th>
+                    <th scope="col">Decision</th>
+                    <th scope="col">Tool · connection</th>
+                    <th scope="col" class="gw-table__cell--num">Duration</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><a class="gw-table__row-link" href="activity.html?q=client:playground" aria-current="true"><time datetime="2026-10-22T14:29:52+02:00" title="2026-10-22 14:29:52 +02:00">8 s ago</time><span class="gw-sr-only"> at 14:29:52, open run sql_query in Activity, shown above</span></a></td>
+                    <td><span class="gw-badge gw-badge--sm gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>Allowed</span></td>
+                    <td class="gw-table__cell--truncate"><div class="gw-text-code-sm gw-truncate" title="sql_query">sql_query</div><div class="gw-text-caption gw-truncate"><span class="gw-mono" title="dev-db">dev-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></div></td>
+                    <td class="gw-table__cell--num">38 ms</td>
+                  </tr>
+                  <tr>
+                    <td><a class="gw-table__row-link" href="activity.html?q=client:playground"><time datetime="2026-10-22T14:28:30+02:00" title="2026-10-22 14:28:30 +02:00">1 min ago</time><span class="gw-sr-only"> at 14:28:30, open run sql_describe_table in Activity</span></a></td>
+                    <td><span class="gw-badge gw-badge--sm gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>Allowed</span></td>
+                    <td class="gw-table__cell--truncate"><div class="gw-text-code-sm gw-truncate" title="sql_describe_table">sql_describe_table</div><div class="gw-text-caption gw-truncate"><span class="gw-mono" title="dev-db">dev-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></div></td>
+                    <td class="gw-table__cell--num">21 ms</td>
+                  </tr>
+                  <tr>
+                    <td><a class="gw-table__row-link" href="activity.html?q=client:playground"><time datetime="2026-10-22T14:27:08+02:00" title="2026-10-22 14:27:08 +02:00">2 min ago</time><span class="gw-sr-only"> at 14:27:08, open run sql_query in Activity</span></a></td>
+                    <td><span class="gw-badge gw-badge--sm gw-badge--danger"><i class="gw-icon gw-badge__icon" data-lucide="shield-x"></i>Denied by policy</span></td>
+                    <td class="gw-table__cell--truncate"><div class="gw-text-code-sm gw-truncate" title="sql_query">sql_query</div><div class="gw-text-caption gw-truncate"><span class="gw-mono" title="dev-db">dev-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></div></td>
+                    <td class="gw-table__cell--num">3 ms</td>
+                  </tr>
+                  <tr>
+                    <td><a class="gw-table__row-link" href="activity.html?q=client:playground"><time datetime="2026-10-22T14:26:15+02:00" title="2026-10-22 14:26:15 +02:00">3 min ago</time><span class="gw-sr-only"> at 14:26:15, open run redis_get in Activity</span></a></td>
+                    <td><span class="gw-badge gw-badge--sm gw-badge--danger"><i class="gw-icon gw-badge__icon" data-lucide="circle-alert"></i>Error</span></td>
+                    <td class="gw-table__cell--truncate"><div class="gw-text-code-sm gw-truncate" title="redis_get">redis_get</div><div class="gw-text-caption gw-truncate"><span class="gw-mono" title="cache-redis">cache-redis</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></div></td>
+                    <td class="gw-table__cell--num">2.0 s</td>
+                  </tr>
+                  <tr>
+                    <td><a class="gw-table__row-link" href="activity.html?q=client:playground"><time datetime="2026-10-22T14:25:02+02:00" title="2026-10-22 14:25:02 +02:00">4 min ago</time><span class="gw-sr-only"> at 14:25:02, open run logs_search in Activity</span></a></td>
+                    <td><span class="gw-badge gw-badge--sm gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>Allowed</span></td>
+                    <td class="gw-table__cell--truncate"><div class="gw-text-code-sm gw-truncate" title="logs_search">logs_search</div><div class="gw-text-caption gw-truncate"><span class="gw-mono" title="app-logs">app-logs</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></div></td>
+                    <td class="gw-table__cell--num">122 ms</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <!-- Before the first run on the endpoint (not this page's state). A denied run shows the duration this page
+                 measured: the audit keeps none for a call that never ran. -->
+            <div class="gw-card" id="pg-hist-none" hidden>
+              <div class="gw-card__body">
+                <div class="gw-empty gw-empty--compact">
+                  <span class="gw-empty__icon"><i class="gw-icon" data-lucide="history"></i></span>
+                  <h3 class="gw-empty__title">No runs yet</h3>
+                  <p class="gw-empty__text">Your runs on endpoint <span class="gw-mono" data-pg-ep-name>dev</span> show up here, newest first. Activity keeps all of them.</p>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+    <!--
+      Command palette (elements/command-palette.html), opened by the titlebar Search button and ⌘K / Ctrl+K.
+      Part of the shell: copy it with the titlebar into every page, at the end of main. kit.js drives it, no page
+      script: data-gw-dialog-open="cmdk" opens it, the .gw-command-palette hook filters the options, moves the
+      active one (arrows, Home / End, pointer), runs it on Enter and resets on close, and the global ⌘K / Ctrl+K
+      listener toggles #cmdk (COMPONENTS.md › command-palette).
+    -->
+    <dialog class="gw-dialog gw-dialog--md gw-command-palette" id="cmdk" aria-labelledby="cmdk-title" aria-describedby="cmdk-keys">
+      <h2 class="gw-sr-only" id="cmdk-title">Command palette</h2>
+      <div class="gw-command-palette__search">
+        <div class="gw-search">
+          <i class="gw-icon gw-search__icon" data-lucide="search"></i>
+          <input class="gw-search__input" type="search" id="cmdk-q" role="combobox" aria-expanded="true" aria-controls="cmdk-list" aria-autocomplete="list" aria-activedescendant="cmdk-o-overview" aria-label="Search pages, connections, endpoints, actions" placeholder="Search pages, connections, endpoints, actions" autocomplete="off" spellcheck="false" autofocus>
+          <button class="gw-search__clear" type="button" aria-label="Clear search"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+        </div>
+      </div>
+      <div class="gw-command-palette__results">
+        <div class="gw-command-palette__list" role="listbox" id="cmdk-list" aria-label="Results">
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-goto">
+            <p class="gw-menu__note" id="cmdk-g-goto" aria-hidden="true">Go to</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-overview" href="overview.html" aria-selected="true" tabindex="-1" data-keywords="home dashboard setup map health">
+              <i class="gw-icon gw-menu__icon" data-lucide="layout-dashboard"></i><span class="gw-menu__label">Overview</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-approvals" href="approvals.html" aria-selected="false" tabindex="-1" data-keywords="requests pending queue decide">
+              <i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approvals <span class="gw-counter gw-counter--attention">3<span class="gw-sr-only"> waiting</span></span></span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-connections" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="databases servers logs clusters">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label">Connections</span><span class="gw-menu__hint">Resources</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-connectors" href="connectors.html" aria-selected="false" tabindex="-1" data-keywords="plugins templates mcp servers catalog">
+              <i class="gw-icon gw-menu__icon" data-lucide="puzzle"></i><span class="gw-menu__label">Connectors</span><span class="gw-menu__hint">Resources</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-secrets" href="secrets.html" aria-selected="false" tabindex="-1" data-keywords="master key vault encryption">
+              <i class="gw-icon gw-menu__icon" data-lucide="key-round"></i><span class="gw-menu__label">Secrets</span><span class="gw-menu__hint">Resources</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-endpoints" href="endpoints.html" aria-selected="false" tabindex="-1" data-keywords="mcp url tools tokens">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label">Endpoints</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-clients" href="clients.html" aria-selected="false" tabindex="-1" data-keywords="clients mcp claude desktop codex cursor antigravity">
+              <i class="gw-icon gw-menu__icon" data-lucide="app-window"></i><span class="gw-menu__label">AI apps</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-policies" href="policies.html" aria-selected="false" tabindex="-1" data-keywords="limits allowlist environments">
+              <i class="gw-icon gw-menu__icon" data-lucide="shield"></i><span class="gw-menu__label">Policies</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-playground" href="playground.html" aria-selected="false" tabindex="-1" data-keywords="try call tool">
+              <i class="gw-icon gw-menu__icon" data-lucide="flask-conical"></i><span class="gw-menu__label">Playground</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-activity" href="activity.html" aria-selected="false" tabindex="-1" data-keywords="log audit calls events traces">
+              <i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">Activity</span><span class="gw-menu__hint">Observe</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-insights" href="insights.html" aria-selected="false" tabindex="-1" data-keywords="analytics charts latency errors">
+              <i class="gw-icon gw-menu__icon" data-lucide="chart-column"></i><span class="gw-menu__label">Insights</span><span class="gw-menu__hint">Observe</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-settings" href="settings.html" aria-selected="false" tabindex="-1" aria-keyshortcuts="Meta+Comma Control+Comma" data-keywords="preferences notifications tunnel authorization appearance">
+              <i class="gw-icon gw-menu__icon" data-lucide="settings"></i><span class="gw-menu__label">Settings</span><kbd class="gw-menu__kbd" aria-hidden="true">⌘ ,</kbd><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+          </div>
+
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-actions">
+            <p class="gw-menu__note" id="cmdk-g-actions" aria-hidden="true">Actions</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-add-connection" href="connection-new.html" aria-selected="false" tabindex="-1" data-keywords="new resource postgres mongodb redis kubernetes">
+              <i class="gw-icon gw-menu__icon" data-lucide="plus"></i><span class="gw-menu__label">Add connection</span><span class="gw-menu__hint">Database, SSH, logs, cluster</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-create-endpoint" href="endpoints.html" aria-selected="false" tabindex="-1" data-keywords="new mcp url">
+              <i class="gw-icon gw-menu__icon" data-lucide="square-plus"></i><span class="gw-menu__label">Create endpoint</span><span class="gw-menu__hint">New MCP URL</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-issue-token" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="new token access key client">
+              <i class="gw-icon gw-menu__icon" data-lucide="key-round"></i><span class="gw-menu__label">Issue token</span><span class="gw-menu__hint">Shown once</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <button class="gw-menu__item" type="button" role="option" id="cmdk-o-copy-dev" aria-selected="false" tabindex="-1" data-gw-copy="http://127.0.0.1:7465/mcp/dev" data-gw-dialog-close data-keywords="clipboard link">
+              <i class="gw-icon gw-menu__icon" data-lucide="copy"></i><span class="gw-menu__label">Copy URL of endpoint <span class="gw-mono">dev</span></span><span class="gw-menu__hint gw-mono">/mcp/dev</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </button>
+            <button class="gw-menu__item" type="button" role="option" id="cmdk-o-theme" aria-selected="false" tabindex="-1" data-cmdk-theme data-gw-dialog-close data-keywords="dark light appearance">
+              <i class="gw-icon gw-menu__icon" data-lucide="sun-moon"></i><span class="gw-menu__label">Toggle theme</span><span class="gw-menu__hint">Light or dark</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </button>
+          </div>
+
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-connections">
+            <p class="gw-menu__note" id="cmdk-g-connections" aria-hidden="true">Connections</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-dev-db" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="postgres sql db.dev.internal">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label"><span class="gw-mono">dev-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></span><span class="gw-menu__hint">PostgreSQL 16</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-stage-db" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="postgres sql vault">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label"><span class="gw-mono">stage-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--stage">stage</span></span><span class="gw-menu__hint">PostgreSQL</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-prod-replica" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="postgres sql replica">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label"><span class="gw-mono">prod-replica</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--prod">prod</span></span><span class="gw-menu__hint">PostgreSQL read replica</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-dev-vm" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="ssh server runbook">
+              <i class="gw-icon gw-menu__icon" data-lucide="terminal"></i><span class="gw-menu__label"><span class="gw-mono">dev-vm</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></span><span class="gw-menu__hint">SSH · <span class="gw-mono">10.20.0.14</span></span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+          </div>
+
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-endpoints">
+            <p class="gw-menu__note" id="cmdk-g-endpoints" aria-hidden="true">Endpoints</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-ep-dev" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="endpoint tools tokens">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label gw-mono">dev</span><span class="gw-menu__hint gw-mono">/mcp/dev</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-ep-stage-readonly" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="endpoint claude.ai tunnel read only">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label gw-mono">stage-readonly</span><span class="gw-menu__hint gw-mono">/mcp/stage-readonly</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-ep-incident-prod" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="endpoint prod logs read only incident">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label gw-mono">incident-prod</span><span class="gw-menu__hint gw-mono">/mcp/incident-prod</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+          </div>
+        </div>
+
+        <div class="gw-empty gw-empty--compact" hidden data-cmdk-empty>
+          <span class="gw-empty__icon"><i class="gw-icon" data-lucide="search-x"></i></span>
+          <p class="gw-empty__title">No results for “<span data-cmdk-query></span>”</p>
+          <p class="gw-empty__text">Search covers pages, actions, connections and endpoints. A resource that isn't here yet starts with a new connection.</p>
+          <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" href="connection-new.html">Add connection</a></div>
+        </div>
+      </div>
+      <footer class="gw-dialog__footer gw-command-palette__footer" id="cmdk-keys">
+        <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd"><i class="gw-icon" data-lucide="arrow-up"></i><span class="gw-sr-only">Up arrow</span></kbd><kbd class="gw-kbd"><i class="gw-icon" data-lucide="arrow-down"></i><span class="gw-sr-only">Down arrow</span></kbd> to move</p>
+        <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd"><i class="gw-icon" data-lucide="corner-down-left"></i><span class="gw-sr-only">Enter</span></kbd> to open</p>
+        <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd">Esc</kbd> to close</p>
+      </footer>
+      <p class="gw-sr-only" role="status" data-cmdk-status></p>
+    </dialog>
+  </main>
+
+</div>
+<script src="../vendor/lucide/lucide.min.js"></script>
+<script src="../assets/kit.js"></script>
+<script>
+/* Demo only (the Angular app does this for real):
+   endpoint select: the URL, the tool list (stage-readonly and incident-prod are built from EP below), and for a
+   prod endpoint the warning, joined to the select's description and read out ·
+   search filter of the tool picker · picking a tool (selection, the chosen bar, form fields, approval / off state;
+   the picker closes again and focus moves to the first argument) · Form ↔ JSON stay in sync and are validated ·
+   Run: loading → result, approval → request sent and the waiting result, off → blocked · ?tool=<name> opens with
+   that tool chosen. Hints and errors of the arguments are the schema renderer's (see the comment at the top). */
+(function () {
+  "use strict";
+  var doc = document;
+  var CONN = {
+    "dev-db": ["dev", "PostgreSQL 16", "db.dev.internal:5432/app"], "orders-mongo": ["dev", "MongoDB 7", "mongo.dev.internal:27017/orders"],
+    "cache-redis": ["dev", "Redis 7", "cache.dev.internal:6379"], "dev-vm": ["dev", "SSH", "10.20.0.14"], "app-logs": ["dev", "Loki", "loki.dev.internal:3100"],
+    "dev-cluster": ["dev", "Kubernetes", "k8s.dev.internal:6443 · ns app-dev"], "aws-stage": ["stage", "AWS", "eu-central-1 · acme-stage"],
+    "billing-api": ["stage", "HTTP API", "billing.stage.acme.dev"], "stage-db": ["stage", "PostgreSQL 16", "db.stage.internal:5432/app"],
+    "prod-replica": ["prod", "PostgreSQL read replica", "replica.prod.internal:5432/app"], "prod-logs": ["prod", "GCP Cloud Logging", "projects/acme-prod"],
+    "prod-vm": ["prod", "SSH", "10.40.0.21"]
+  };
+  var MODE = { read: ["eye", "read only"], approval: ["user-check", "approval"], off: ["circle-off", "off"] };
+  var MODE_LABEL = { read: "Read only", approval: "Approval", off: "Off" };
+  // Annotations: R read only · I idempotent · D destructive · W open world (as on the endpoint's tool list)
+  var NOTE = { R: ["info", "readOnlyHint", "Read only"], I: ["neutral", "idempotentHint", "Idempotent"], D: ["danger", "destructiveHint", "Destructive"], W: ["warning", "openWorldHint", "Open world"] };
+  var SQL = function (exec) { return [
+    ["sql_list_schemas", "read", "RI", "List the schemas the connection user can see."],
+    ["sql_describe_table", "read", "RI", "Columns, types, indexes and foreign keys of one table."],
+    ["sql_query", "read", "RI", "Run one SELECT in a read-only transaction. PII columns come back masked."],
+    ["sql_execute", exec, "D", "INSERT, UPDATE or DELETE. You approve the exact statement."]]; };
+  // The endpoint's limits (row cap, timeouts) apply on the call, by its policy; the form only follows the schema.
+  // ssh_run on prod: the tool's mode plus each runbook's own flag. In Read only, service-status (marked read only)
+  // runs at once and restart-api still waits for approval; in Approval every run would wait.
+  var EP = {
+    "dev": { conns: ["dev-db", "orders-mongo", "cache-redis", "dev-vm", "app-logs", "dev-cluster", "aws-stage", "billing-api"] },
+    "stage-readonly": { conns: ["stage-db", "aws-stage", "billing-api"], groups: [
+      ["stage-db", "database", SQL("off")],
+      ["aws-stage", "cloud", [["aws_describe", "read", "RI", "Describe resources such as instances, queues and buckets."], ["aws_metrics", "read", "RI", "Read CloudWatch metrics of one resource."]]],
+      ["billing-api", "globe", [["http_get", "read", "RIW", "GET or HEAD on the allowed paths of the API."], ["http_request", "off", "DW", "POST, PUT, PATCH or DELETE on the allowed paths. You approve the exact request."]]]] },
+    "incident-prod": { conns: ["prod-replica", "prod-logs", "prod-vm"], groups: [
+      ["prod-replica", "database", SQL("off")],
+      ["prod-logs", "scroll-text", [["logs_search", "read", "RI", "Search log entries with a Cloud Logging filter."], ["logs_tail", "off", "R", "Stream new log entries for up to 5 minutes."]]],
+      ["prod-vm", "terminal", [["ssh_run", "read", "", "Run a saved runbook: service-status is read only and runs at once, restart-api waits for approval."], ["ssh_exec", "off", "D", "Run any shell command on the host."]]]] }
+  };
+  // The descriptions of the arguments in the tools' inputSchema (the field hints).
+  var SQL_HINT = {
+    sql_query: "One SELECT, WITH … SELECT, VALUES, TABLE, SHOW or EXPLAIN. Runs in a read-only transaction.",
+    sql_execute: "INSERT, UPDATE, DELETE, MERGE or DDL. PostgreSQL: up to 20 statements, run in one transaction. MySQL: one statement. A person approves the exact text."
+  };
+  var NOTE_HINT = {
+    sql_execute: "Why you need this change. Shown to the approver as unverified.",
+    k8s_rollout_restart: "Why. Shown to the approver as unverified.",
+    http_request: "Why you send it. Shown to the approver as unverified."
+  };
+  var LIMIT = { min: 1, max: 1000, example: 50 }; // sql_query's inputSchema: integer, default 50, 1 to 1000
+  var ep = "dev";
+  var say = function (t) { if (window.gwAnnounce) window.gwAnnounce(t); };
+  var icons = function (root) { if (window.gwIcons) window.gwIcons(root); };
+  var $ = function (id) { return doc.getElementById(id); };
+
+  // ── tool picker: search ──
+  var q = $("pg-tool-q"), picker = $("pg-tools"), summary = $("pg-tool-summary"), empty = $("pg-tools-empty");
+  var groups = Array.prototype.slice.call(picker.querySelectorAll("[data-pg-group]"));
+  var emptyCard = $("pg-tools-empty");
+  function filter() {
+    var term = q.value.trim().toLowerCase(), total = 0, shown = 0, n = { read: 0, approval: 0, off: 0 };
+    groups.forEach(function (g) {
+      var mine = g.getAttribute("data-pg-endpoint");
+      if (mine !== "all" && mine !== ep) { g.hidden = true; return; }
+      var any = false;
+      g.querySelectorAll("tbody tr").forEach(function (tr) {
+        total++;
+        var hay = (tr.getAttribute("data-tool") + " " + tr.getAttribute("data-conn") + " " + tr.querySelector("p").textContent).toLowerCase();
+        var hit = !term || hay.indexOf(term) > -1;
+        tr.hidden = !hit;
+        if (hit) { any = true; shown++; n[tr.getAttribute("data-mode")]++; }
+      });
+      g.hidden = !any;
+    });
+    empty.hidden = shown > 0;
+    $("pg-tools-empty-q").textContent = "\u201c" + q.value.trim() + "\u201d";
+    var lead = term ? shown + " of " + total + " tools match" : total + " tools";
+    var html = '<span class="gw-text-small gw-fg-secondary">' + lead + '<span class="gw-sr-only">:</span></span>';
+    ["read", "approval", "off"].forEach(function (m) {
+      if (n[m]) html += ' <span class="gw-mode gw-mode--' + m + '"><i class="gw-icon" data-lucide="' + MODE[m][0] + '"></i>' + n[m] + " " + MODE[m][1] + "</span>";
+    });
+    summary.innerHTML = html;
+    icons(summary);
+  }
+  q.addEventListener("input", filter);
+
+  // ── tool picker: choose a tool ──
+  var form = $("pg-args"), run = $("pg-run"), json = $("pg-json");
+  var current = picker.querySelector('tr[aria-selected="true"]');
+  var toggle = $("pg-change-tool");
+  function setPicker(open) { toggle.setAttribute("aria-expanded", String(open)); picker.hidden = !open; }
+  function choose(tr, opts) {
+    opts = opts || {};
+    if (current) { current.removeAttribute("aria-selected"); current.querySelector("a").removeAttribute("aria-current"); }
+    current = tr;
+    tr.setAttribute("aria-selected", "true");
+    tr.querySelector("a").setAttribute("aria-current", "true");
+    var tool = tr.getAttribute("data-tool"), mode = tr.getAttribute("data-mode"), conn = tr.getAttribute("data-conn");
+    doc.querySelectorAll("[data-pg-tool-name]").forEach(function (el) { el.textContent = tool; });
+    doc.querySelector("[data-pg-run-tool]").textContent = " " + tool;
+    form.querySelectorAll("[data-pg-tools]").forEach(function (f) {
+      var list = f.getAttribute("data-pg-tools");
+      f.hidden = list.charAt(0) === "!" ? list.slice(1) === tool : list.split(" ").indexOf(tool) === -1;
+    });
+    var sel = $("pg-a-connection"), names = conn ? [conn] : EP[ep].conns;
+    sel.innerHTML = "";
+    names.forEach(function (c) { var o = doc.createElement("option"); o.value = c; o.textContent = c + " \u00b7 " + CONN[c][1]; sel.appendChild(o); });
+    showConn();
+    if (SQL_HINT[tool]) $("pg-a-sql-hint").textContent = SQL_HINT[tool];
+    if (NOTE_HINT[tool]) $("pg-a-note-hint").textContent = NOTE_HINT[tool];
+    $("pg-approval-alert").hidden = mode !== "approval";
+    $("pg-off-alert").hidden = mode !== "off";
+    if (mode === "off") { run.setAttribute("aria-disabled", "true"); run.setAttribute("aria-describedby", "pg-off-alert"); }
+    else { run.removeAttribute("aria-disabled"); run.removeAttribute("aria-describedby"); }
+    var chip = doc.querySelector("[data-pg-chosen-mode]");
+    chip.className = "gw-mode gw-mode--" + mode;
+    chip.innerHTML = '<i class="gw-icon" data-lucide="' + MODE[mode][0] + '"></i>' + MODE_LABEL[mode];
+    icons(chip);
+    doc.querySelector("[data-pg-chosen-on]").hidden = !conn;
+    if (conn) {
+      doc.querySelector("[data-pg-chosen-conn]").textContent = conn;
+      var chosenEnv = doc.querySelector("[data-pg-chosen-env]");
+      chosenEnv.className = "gw-env gw-env--sm gw-env--" + CONN[conn][0];
+      chosenEnv.textContent = CONN[conn][0];
+    }
+    clearErrors();
+    writeJson();
+    if (opts.collapse !== false) setPicker(false);
+    if (opts.focus) { var first = visibleControls()[0]; if (first) first.focus(); }
+    if (opts.quiet) return;
+    say(tool + " chosen. Mode on " + ep + ": " + MODE[mode][1] + (mode === "approval" ? ". This call needs approval." : mode === "off" ? ". It can't run." : "."));
+  }
+  picker.addEventListener("click", function (e) {
+    var a = e.target.closest("a.gw-table__row-link");
+    if (!a) return;
+    e.preventDefault();
+    choose(a.closest("tr"), { focus: true });
+  });
+  function showConn() {
+    var c = CONN[$("pg-a-connection").value];
+    if (!c) return;
+    var envEl = $("pg-a-connection-env");
+    envEl.className = "gw-env gw-env--sm gw-env--" + c[0];
+    envEl.textContent = c[0];
+    $("pg-a-connection-where").textContent = c[2];
+  }
+  $("pg-a-connection").addEventListener("change", showConn);
+
+  // ── arguments: Form ↔ JSON ──
+  function visibleControls() {
+    return Array.prototype.slice.call(form.querySelectorAll("#pg-panel-form [name]")).filter(function (el) { return !el.closest("[data-pg-tools][hidden]"); });
+  }
+  function argsFromForm() {
+    var o = {};
+    visibleControls().forEach(function (el) {
+      var v = el.value;
+      if (v.trim() === "" && !el.required) return; // an optional argument left empty is left out
+      if (el.name === "limit") v = /^-?\d+(\.\d+)?$/.test(v.trim()) ? Number(v) : v;
+      else if (el.hasAttribute("data-pg-json")) { try { v = JSON.parse(v); } catch (err) { /* sent as typed: the core says what is wrong */ } }
+      o[el.name] = v;
+    });
+    return o;
+  }
+  function writeJson() { json.value = JSON.stringify(argsFromForm(), null, 2); jsonBad = false; setError(json, "pg-json-err", null); }
+  function setError(el, errId, text) {
+    var err = $(errId), hint = el.getAttribute("aria-describedby") || "";
+    var ids = hint.split(" ").filter(function (id) { return id && id !== errId; });
+    if (text) {
+      $(errId + "-text").textContent = text;
+      err.hidden = false; el.setAttribute("aria-invalid", "true"); ids.unshift(errId);
+    } else { err.hidden = true; el.removeAttribute("aria-invalid"); }
+    if (ids.length) el.setAttribute("aria-describedby", ids.join(" ")); else el.removeAttribute("aria-describedby");
+  }
+  // The schema renderer's words for limit (integer, 1 to 1000): what is wrong and how to fix it. The endpoint's
+  // own row cap is not a schema rule: the policy applies it on the call.
+  function limitProblem(v) {
+    if (v === "" || v === undefined || v === null) return null;
+    var s = String(v).trim(), n = typeof v === "number" ? v : /^-?\d+(\.\d+)?$/.test(s) ? Number(s) : NaN;
+    if (isNaN(n)) return s + " is not a number. Enter a whole number, for example " + LIMIT.example + ".";
+    if (n % 1 !== 0) return "Enter a whole number, for example " + LIMIT.example + ".";
+    if (n < LIMIT.min) return n + " is below the minimum. Use " + LIMIT.min + " or more.";
+    if (n > LIMIT.max) return n + " is above the maximum. Use " + LIMIT.max + " or less.";
+    return null;
+  }
+  var REQUIRED = ["sql", "table", "name", "path"]; // required text arguments of the demo's tools
+  function validateForm() {
+    var bad = null;
+    var lim = $("pg-a-limit");
+    if (!lim.closest("[data-pg-tools][hidden]")) { var p = limitProblem(lim.value.trim()); setError(lim, "pg-a-limit-err", p); if (p) bad = bad || lim; }
+    REQUIRED.forEach(function (name) {
+      var el = $("pg-a-" + name);
+      if (el.closest("[data-pg-tools][hidden]")) return;
+      var miss = el.value.trim() === "";
+      setError(el, "pg-a-" + name + "-err", miss ? name + " is required." : null);
+      if (miss) bad = bad || el;
+    });
+    return bad;
+  }
+  function clearErrors() {
+    setError($("pg-a-limit"), "pg-a-limit-err", null);
+    REQUIRED.forEach(function (name) { setError($("pg-a-" + name), "pg-a-" + name + "-err", null); });
+    setError(json, "pg-json-err", null);
+  }
+  $("pg-panel-form").addEventListener("input", function () { writeJson(); validateForm(); });
+  $("pg-panel-form").addEventListener("change", function () { writeJson(); });
+  var jsonBad = false;
+  json.addEventListener("input", function () {
+    var o;
+    try { o = JSON.parse(json.value); } catch (err) {
+      jsonBad = true;
+      setError(json, "pg-json-err", "This is not valid JSON: " + err.message.replace(/^JSON\.parse: /, "") + ". Fix it, or go back to Form: it keeps the last valid arguments.");
+      return;
+    }
+    if (o === null || typeof o !== "object" || Array.isArray(o)) { jsonBad = true; setError(json, "pg-json-err", "Arguments must be one JSON object, like { \"connection\": \"dev-db\" }."); return; }
+    var lp = "limit" in o && !$("pg-a-limit").closest("[data-pg-tools][hidden]") ? limitProblem(o.limit) : null;
+    if (lp) { jsonBad = true; setError(json, "pg-json-err", "limit: " + lp); return; }
+    jsonBad = false;
+    setError(json, "pg-json-err", null);
+    // Every field the JSON names takes its value; the others empty out (the connection select keeps its one choice).
+    visibleControls().forEach(function (el) {
+      if (!(el.name in o)) { if (el.tagName !== "SELECT") el.value = ""; return; }
+      var v = o[el.name];
+      el.value = typeof v === "string" ? v : el.hasAttribute("data-pg-json") ? JSON.stringify(v, null, 2) : String(v);
+    });
+    validateForm();
+  });
+  form.addEventListener("reset", function () {
+    setTimeout(function () { jsonBad = false; clearErrors(); showConn(); writeJson(); say("Arguments reset"); }, 0);
+  });
+
+  // ── run ──
+  var out = $("pg-out"), result = $("pg-result"), resultEmpty = $("pg-result-empty"), resultPending = $("pg-result-pending"),
+      loading = $("pg-loading"), status = $("pg-out-status");
+  // The last run in the section's description: its tool, connection and environment.
+  function lastRun(tool, conn) {
+    doc.querySelectorAll('[data-pg-out="tool"]').forEach(function (el) { el.textContent = tool; });
+    doc.querySelector('[data-pg-out="on"]').hidden = tool === "list_connections";
+    doc.querySelector('[data-pg-out="conn"]').textContent = conn;
+    var envEl = doc.querySelector('[data-pg-out="env"]');
+    if (CONN[conn]) { envEl.className = "gw-env gw-env--sm gw-env--" + CONN[conn][0]; envEl.textContent = CONN[conn][0]; }
+    doc.querySelector('[data-pg-out="when"]').textContent = "just now";
+  }
+  function busy(on) {
+    if (on) {
+      var s = doc.createElement("span"); s.className = "gw-spinner gw-spinner--sm"; s.setAttribute("aria-hidden", "true");
+      run.insertBefore(s, run.firstChild); run.querySelector(".gw-icon").setAttribute("hidden", ""); run.setAttribute("aria-busy", "true");
+    } else {
+      var sp = run.querySelector(".gw-spinner"); if (sp) sp.remove();
+      run.querySelector(".gw-icon").removeAttribute("hidden"); run.removeAttribute("aria-busy");
+    }
+  }
+  function openTab(tabId) { var t = $(tabId); if (t.getAttribute("aria-selected") !== "true") t.click(); }
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    if (run.getAttribute("aria-busy") === "true") return;
+    var tool = current.getAttribute("data-tool"), mode = current.getAttribute("data-mode"), conn = $("pg-a-connection").value;
+    if (mode === "off") { say(tool + " is off on endpoint " + ep + " and can't run."); $("pg-off-alert").scrollIntoView({ block: "nearest" }); return; }
+    if (jsonBad) { openTab("pg-tab-json"); json.focus(); say("Fix the JSON arguments first."); return; }
+    var bad = validateForm();
+    if (bad) { openTab("pg-tab-form"); bad.focus(); say("Fix the highlighted argument first."); return; }
+    busy(true);
+    if (mode === "approval") {
+      // The call became an approval request: it hasn't run. The result says so until you decide in Approvals;
+      // then the app asks approval_status like an agent does and shows that answer as the last run.
+      setTimeout(function () {
+        busy(false);
+        result.hidden = true; resultEmpty.hidden = true; resultPending.hidden = false;
+        lastRun(tool, conn);
+        status.textContent = tool + " waits for approval in 24 ms.";
+        if (window.gwToast) window.gwToast({ title: "Approval request sent", body: tool + " on " + conn + " waits for you in Approvals. The result shows up here once you approve it.", tone: "warning", icon: "hourglass" });
+      }, 600);
+      return;
+    }
+    out.setAttribute("aria-busy", "true");
+    status.textContent = "Running " + tool;
+    result.hidden = true; resultEmpty.hidden = true; resultPending.hidden = true; loading.hidden = false;
+    setTimeout(function () {
+      busy(false);
+      loading.hidden = true;
+      out.removeAttribute("aria-busy");
+      var isQuery = tool === "sql_query";
+      result.hidden = !isQuery; resultEmpty.hidden = isQuery;
+      lastRun(tool, conn);
+      status.textContent = isQuery ? "sql_query allowed in 38 ms: 12 rows, 2 fields masked." : tool + " allowed in 14 ms: empty result.";
+    }, 900);
+  });
+  form.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); form.requestSubmit(); }
+  });
+
+  // ── endpoint: its URL, tools and limits; prod warns ──
+  var epSelect = $("pg-endpoint");
+  function row(t, conn) {
+    var notes = t[2].split("").map(function (k) { return '<li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--' + NOTE[k][0] + '" title="' + NOTE[k][1] + '">' + NOTE[k][2] + "</li>"; }).join("");
+    return '<tr class="gw-tool-policy-list__row" data-mode="' + t[1] + '" data-tool="' + t[0] + '" data-conn="' + conn + '">' +
+      '<th scope="row" class="gw-tool-policy-list__tool"><div class="gw-tool-policy-list__name">' +
+      '<a class="gw-table__row-link gw-mono" href="playground.html?tool=' + t[0] + '">' + t[0] + "</a>" +
+      (notes ? '<ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of ' + t[0] + '">' + notes + "</ul>" : "") +
+      '</div><p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">' + t[3] + "</p></th>" +
+      '<td><span class="gw-mode gw-mode--' + t[1] + '"><i class="gw-icon" data-lucide="' + MODE[t[1]][0] + '"></i>' + MODE_LABEL[t[1]] + "</span></td></tr>";
+  }
+  function group(slug, g) {
+    var conn = g[0], c = CONN[conn], id = "pg-g-" + slug + "-" + conn;
+    var counts = { read: 0, approval: 0, off: 0 };
+    g[2].forEach(function (t) { counts[t[1]]++; });
+    var tally = ["read", "approval", "off"].filter(function (m) { return counts[m]; }).map(function (m) { return counts[m] + " " + MODE[m][1]; }).join(" · ");
+    var el = doc.createElement("section");
+    el.className = "gw-card gw-card--flush";
+    el.setAttribute("aria-labelledby", id);
+    el.setAttribute("data-pg-group", "");
+    el.setAttribute("data-pg-endpoint", slug);
+    el.innerHTML = '<header class="gw-card__header"><div class="gw-tool-policy-list__group-heading">' +
+      '<span class="gw-icon-tile"><i class="gw-icon" data-lucide="' + g[1] + '"></i></span><div class="gw-card__heading">' +
+      '<h3 class="gw-card__title" id="' + id + '"><span class="gw-mono">' + conn + '</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--' + c[0] + '">' + c[0] + "</span></h3>" +
+      '<p class="gw-card__description">' + c[1] + " · " + c[2] + " · " + g[2].length + " tools · " + tally + "</p></div></div></header>" +
+      '<div class="gw-card__body"><div class="gw-table-wrap" role="region" aria-labelledby="' + id + '-cap" tabindex="0">' +
+      '<table class="gw-table gw-table--interactive"><caption class="gw-sr-only" id="' + id + '-cap">Tools on ' + conn + "</caption>" +
+      '<thead><tr><th scope="col">Tool</th><th scope="col">Mode on <span data-pg-ep-name>' + slug + "</span></th></tr></thead><tbody>" +
+      g[2].map(function (t) { return row(t, conn); }).join("") + "</tbody></table></div></div>";
+    return el;
+  }
+  epSelect.addEventListener("change", function () {
+    ep = epSelect.value;
+    var isProd = ep === "incident-prod";
+    if (EP[ep].groups && !picker.querySelector('[data-pg-endpoint="' + ep + '"]')) {
+      EP[ep].groups.forEach(function (g) { var el = group(ep, g); picker.insertBefore(el, emptyCard); groups.push(el); icons(el); });
+    }
+    $("pg-endpoint-url").textContent = "http://127.0.0.1:7465/mcp/" + ep;
+    $("pg-prod").hidden = !isProd;
+    epSelect.setAttribute("aria-describedby", isProd ? "pg-endpoint-hint pg-prod" : "pg-endpoint-hint");
+    doc.querySelectorAll("[data-pg-ep-name]").forEach(function (el) { el.textContent = ep; });
+    q.setAttribute("aria-label", "Search tools on " + ep);
+    $("pg-off-link").setAttribute("href", "endpoint-detail.html" + (ep === "dev" ? "" : "?endpoint=" + ep) + "#tools");
+    q.value = "";
+    filter();
+    setPicker(true);
+    var first = picker.querySelector('tr[data-tool="sql_query"]:not([hidden])') || picker.querySelector("tr.gw-tool-policy-list__row:not([hidden])");
+    if (first) choose(first, { collapse: false, quiet: true });
+    var n = picker.querySelectorAll("tr.gw-tool-policy-list__row:not([hidden])").length;
+    say("Endpoint " + ep + ": " + n + " tools. " + (isProd ? "Warning: calls run on prod-replica, prod-logs and prod-vm. " : "") + current.getAttribute("data-tool") + " chosen.");
+  });
+
+  // ── deep link: playground.html?tool=<name> (Overview checklist, the picker's own row links) ──
+  var wanted = (new URLSearchParams(window.location.search).get("tool") || "").replace(/[^a-z0-9_]/g, "");
+  if (wanted && wanted !== current.getAttribute("data-tool")) {
+    var row = picker.querySelector('tr[data-tool="' + wanted + '"]');
+    if (row) { q.value = wanted; filter(); choose(row, { quiet: true }); }
+  }
+})();
+</script>
+</body>
+</html>

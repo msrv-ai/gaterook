@@ -1,0 +1,46 @@
+<section class="sc-section" id="cards" data-title="Cards" data-group="Layout">
+  <h2>Cards <code class="gw-code">gw-card</code> <code class="gw-code">gw-stack</code></h2>
+  <p>The one container. Header with a title, an optional one-line description and actions on the right; body; optional footer. Stack cards with <code class="gw-code">gw-stack</code> so the gap is always <code class="gw-code">--gw-space-4</code>.</p>
+
+  <div class="sc-demo sc-demo--canvas sc-demo--col" data-sc-code>
+    <div class="gw-stack">
+      <section class="gw-card" aria-labelledby="sc-card-1">
+        <header class="gw-card__header">
+          <div class="gw-card__heading">
+            <h3 class="gw-card__title" id="sc-card-1">Master key</h3>
+            <p class="gw-card__description">Encrypts every stored secret. Lives outside the database and its backups.</p>
+          </div>
+          <div class="gw-card__actions"><button class="gw-btn gw-btn--sm" type="button">Back up key</button></div>
+        </header>
+        <div class="gw-card__body">
+          <p class="gw-text-body-read">~/.gaterook/master.keyset · permissions 0400 · last backup 12 days ago</p>
+        </div>
+        <footer class="gw-card__footer gw-card__footer--split">
+          <button class="gw-btn gw-btn--link" type="button">How rotation works</button>
+          <button class="gw-btn gw-btn--sm" type="button">Rotate key</button>
+        </footer>
+      </section>
+
+      <section class="gw-card gw-card--interactive" aria-labelledby="sc-card-2">
+        <header class="gw-card__header">
+          <div class="gw-card__heading">
+            <h3 class="gw-card__title" id="sc-card-2"><a class="gw-card__link" href="#cards">Endpoint dev</a></h3>
+            <p class="gw-card__description">8 connections · 14 tools · 2 AI apps</p>
+          </div>
+          <i class="gw-icon gw-fg-muted" data-lucide="chevron-right"></i>
+        </header>
+        <div class="gw-card__body"></div>
+      </section>
+
+      <div class="gw-card gw-card--selected" aria-current="true">
+        <div class="gw-card__body">Selected card: pair the tint with <code class="gw-code">aria-current</code> or a check.</div>
+      </div>
+      <div class="gw-card gw-card--dashed">
+        <div class="gw-card__body"><button class="gw-btn gw-btn--ghost" type="button"><i class="gw-icon" data-lucide="plus"></i> Add connection</button></div>
+      </div>
+      <div class="gw-card gw-card--muted">
+        <div class="gw-card__body gw-text-small">Muted card for secondary information inside a page.</div>
+      </div>
+    </div>
+  </div>
+</section>

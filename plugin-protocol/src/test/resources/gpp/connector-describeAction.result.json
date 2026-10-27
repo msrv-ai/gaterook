@@ -1,0 +1,18 @@
+{
+  "jsonrpc" : "2.0",
+  "id" : 57,
+  "result" : {
+    "kind" : "HTTP",
+    "language" : "http",
+    "text" : "POST https://acme.atlassian.net/rest/servicedeskapi/request/SD-123/comment\n{\"body\":\"Restarted the payment worker\",\"public\":false}",
+    "target" : "acme-jsm · acme.atlassian.net",
+    "summary" : "Internal comment on SD-123",
+    "fields" : [ {
+      "label" : "Request",
+      "value" : "SD-123"
+    } ],
+    "impact" : [ ],
+    "warnings" : [ ],
+    "auditFacets" : { }
+  }
+}

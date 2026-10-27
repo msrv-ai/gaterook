@@ -1,0 +1,137 @@
+<section class="sc-section" id="choices" data-title="Checkbox, radio, switch" data-group="Forms">
+  <h2>Checkbox, radio, switch <code class="gw-code">gw-checkbox</code> <code class="gw-code">gw-radio</code> <code class="gw-code">gw-switch</code></h2>
+  <p>The native input does the work and is stretched, transparent, over the whole choice, so the box, the label and the hint are one target at least 24px tall. <strong>Checkbox</strong>: a value saved with the form, several independent options, "select all" (indeterminate is a property, set from script: <code class="gw-code">[indeterminate]</code> in Angular). <strong>Radio</strong>: one of a few options that each need a sentence; with an icon and a description use <code class="gw-code">gw-choice-card</code>, with one word each use <code class="gw-code">gw-segmented</code>. <strong>Switch</strong>: a setting that applies at once, with no Save; never inside a form that has a Save button. Dependent options under a "select all" sit in <code class="gw-code">gw-field--nested</code>; in a table the selection column uses the box without a label (<code class="gw-code">gw-table</code>). <strong>Unavailable, with a reason</strong>: <code class="gw-code">aria-disabled="true"</code> + <code class="gw-code">aria-describedby</code> on the input (the hint says why); it looks like disabled, stays in the Tab order, and kit.js keeps it from toggling. Native <code class="gw-code">disabled</code> only when there is nothing to explain.</p>
+
+  <h3>Checkbox</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <fieldset class="gw-field">
+      <legend class="gw-field__label">Result masking</legend>
+      <div class="gw-checkbox">
+        <input class="gw-checkbox__input" type="checkbox" id="sc-c-cb-secrets" checked aria-describedby="sc-c-cb-secrets-hint">
+        <span class="gw-checkbox__control" aria-hidden="true"></span>
+        <label class="gw-checkbox__label" for="sc-c-cb-secrets">Mask secrets in results</label>
+        <p class="gw-checkbox__hint" id="sc-c-cb-secrets-hint">Values of fields named password, token, secret or key become ‹masked›.</p>
+      </div>
+      <label class="gw-checkbox">
+        <input class="gw-checkbox__input" type="checkbox">
+        <span class="gw-checkbox__control" aria-hidden="true"></span>
+        <span class="gw-checkbox__label">Mask emails and phone numbers</span>
+      </label>
+      <div class="gw-checkbox">
+        <input class="gw-checkbox__input" type="checkbox" id="sc-c-cb-declared" checked aria-disabled="true" aria-describedby="sc-c-cb-declared-hint">
+        <span class="gw-checkbox__control" aria-hidden="true"></span>
+        <label class="gw-checkbox__label" for="sc-c-cb-declared">Mask fields the connector declares secret</label>
+        <p class="gw-checkbox__hint" id="sc-c-cb-declared-hint">Always on. It cannot be turned off for any endpoint.</p>
+      </div>
+      <label class="gw-checkbox">
+        <input class="gw-checkbox__input" type="checkbox" disabled>
+        <span class="gw-checkbox__control" aria-hidden="true"></span>
+        <span class="gw-checkbox__label">Mask column values by name pattern</span>
+      </label>
+    </fieldset>
+  </div>
+
+  <h3>Indeterminate and error</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <fieldset class="gw-field">
+      <legend class="gw-field__label">Tools of dev-db on endpoint dev</legend>
+      <label class="gw-checkbox">
+        <input class="gw-checkbox__input" type="checkbox" id="sc-c-cb-all" aria-controls="sc-c-cb-tools">
+        <span class="gw-checkbox__control" aria-hidden="true"></span>
+        <span class="gw-checkbox__label">All 3 tools</span>
+      </label>
+      <div class="gw-field gw-field--nested" id="sc-c-cb-tools" role="group" aria-label="dev-db tools">
+        <label class="gw-checkbox">
+          <input class="gw-checkbox__input" type="checkbox" checked>
+          <span class="gw-checkbox__control" aria-hidden="true"></span>
+          <span class="gw-checkbox__label gw-mono">sql_query</span>
+        </label>
+        <label class="gw-checkbox">
+          <input class="gw-checkbox__input" type="checkbox" checked>
+          <span class="gw-checkbox__control" aria-hidden="true"></span>
+          <span class="gw-checkbox__label gw-mono">sql_explain</span>
+        </label>
+        <label class="gw-checkbox">
+          <input class="gw-checkbox__input" type="checkbox">
+          <span class="gw-checkbox__control" aria-hidden="true"></span>
+          <span class="gw-checkbox__label gw-mono">sql_execute</span>
+        </label>
+      </div>
+    </fieldset>
+    <div class="gw-field">
+      <div class="gw-checkbox">
+        <input class="gw-checkbox__input" type="checkbox" id="sc-c-cb-saved" required aria-invalid="true" aria-describedby="sc-c-cb-saved-err">
+        <span class="gw-checkbox__control" aria-hidden="true"></span>
+        <label class="gw-checkbox__label" for="sc-c-cb-saved">I've saved the token cursor-laptop</label>
+      </div>
+      <p class="gw-field__error" id="sc-c-cb-saved-err"><i class="gw-icon" data-lucide="circle-alert"></i>Confirm you saved the token. It is shown only once.</p>
+    </div>
+  </div>
+  <script>document.getElementById("sc-c-cb-all").indeterminate = true;</script>
+
+  <h3>Without a visible label (table selection)</h3>
+  <div class="sc-demo" data-sc-code>
+    <label class="gw-checkbox">
+      <input class="gw-checkbox__input" type="checkbox" aria-label="Select call sql_query, 2 min ago">
+      <span class="gw-checkbox__control" aria-hidden="true"></span>
+    </label>
+    <label class="gw-checkbox">
+      <input class="gw-checkbox__input" type="checkbox" checked aria-label="Select call ssh_run on dev-vm, 5 min ago">
+      <span class="gw-checkbox__control" aria-hidden="true"></span>
+    </label>
+  </div>
+
+  <h3>Radio</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <fieldset class="gw-field">
+      <legend class="gw-field__label">Tunnel for claude.ai</legend>
+      <div class="gw-radio">
+        <input class="gw-radio__input" type="radio" name="sc-c-tunnel" id="sc-c-tunnel-off" value="off" checked aria-describedby="sc-c-tunnel-off-hint">
+        <span class="gw-radio__control" aria-hidden="true"></span>
+        <label class="gw-radio__label" for="sc-c-tunnel-off">Off</label>
+        <p class="gw-radio__hint" id="sc-c-tunnel-off-hint">claude.ai can't reach endpoint stage-readonly. Local AI apps still work.</p>
+      </div>
+      <div class="gw-radio">
+        <input class="gw-radio__input" type="radio" name="sc-c-tunnel" id="sc-c-tunnel-cf" value="cloudflare" aria-describedby="sc-c-tunnel-cf-hint">
+        <span class="gw-radio__control" aria-hidden="true"></span>
+        <label class="gw-radio__label" for="sc-c-tunnel-cf">Cloudflare Tunnel</label>
+        <p class="gw-radio__hint" id="sc-c-tunnel-cf-hint">Uses cloudflared on this machine. Publishes only the endpoints you pick.</p>
+      </div>
+      <div class="gw-radio">
+        <input class="gw-radio__input" type="radio" name="sc-c-tunnel" id="sc-c-tunnel-ngrok" value="ngrok" aria-disabled="true" aria-describedby="sc-c-tunnel-ngrok-hint">
+        <span class="gw-radio__control" aria-hidden="true"></span>
+        <label class="gw-radio__label" for="sc-c-tunnel-ngrok">ngrok</label>
+        <p class="gw-radio__hint" id="sc-c-tunnel-ngrok-hint">Add an ngrok auth token in Secrets to use it.</p>
+      </div>
+    </fieldset>
+  </div>
+
+  <h3>Switch (applies immediately)</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <fieldset class="gw-field">
+      <legend class="gw-field__label">Approval notifications</legend>
+      <div class="gw-switch">
+        <input class="gw-switch__input" type="checkbox" role="switch" id="sc-c-sw-desktop" checked aria-describedby="sc-c-sw-desktop-hint">
+        <span class="gw-switch__control" aria-hidden="true"></span>
+        <label class="gw-switch__label" for="sc-c-sw-desktop">Desktop notifications</label>
+        <p class="gw-switch__hint" id="sc-c-sw-desktop-hint">A system notification with Review and Deny for every request. Approving always happens in the app, with the exact action on screen.</p>
+      </div>
+      <label class="gw-switch">
+        <input class="gw-switch__input" type="checkbox" role="switch">
+        <span class="gw-switch__control" aria-hidden="true"></span>
+        <span class="gw-switch__label">Play a sound for prod requests</span>
+      </label>
+      <div class="gw-switch">
+        <input class="gw-switch__input" type="checkbox" role="switch" id="sc-c-sw-telegram" aria-disabled="true" aria-describedby="sc-c-sw-telegram-hint">
+        <span class="gw-switch__control" aria-hidden="true"></span>
+        <label class="gw-switch__label" for="sc-c-sw-telegram">Telegram</label>
+        <p class="gw-switch__hint" id="sc-c-sw-telegram-hint">Not set up. Add a Telegram bot in Settings › Notifications first.</p>
+      </div>
+      <label class="gw-switch">
+        <input class="gw-switch__input" type="checkbox" role="switch" checked disabled>
+        <span class="gw-switch__control" aria-hidden="true"></span>
+        <span class="gw-switch__label">Audit log (always on)</span>
+      </label>
+    </fieldset>
+  </div>
+</section>

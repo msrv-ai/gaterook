@@ -1,0 +1,198 @@
+// =============================================================
+// .gw-how-it-works · How it works (element)
+// -------------------------------------------------------------
+// A compact strip of 3–4 numbered steps that explains a mechanism at the
+// top of a section, before the user configures it: how secrets are kept
+// from the agent, how authorization works, what one-click Connect writes.
+// Each step: a number, an icon, a short bold title and one line of
+// explanation. Collapsible; the header keeps a one-line summary visible
+// when it is closed.
+//
+// Where   secrets (what happens to a secret), clients (what one-click Connect
+//         writes), connectors (three ways to extend), settings (Authorization,
+//         Notifications, Tunnel; --vertical inside the settings column).
+// Composes gw-card --muted (+ __body __heading __title __description),
+//         gw-btn --ghost --sm --icon (disclosure, kit.js data-gw-toggle),
+//         gw-icon-tile --brand, gw-icon, gw-counter (step number),
+//         gw-text-* / gw-fg-* utilities, gw-link, gw-code (--secret).
+// Why the header sits inside gw-card__body: a collapsed strip keeps the card's
+// bottom padding (gw-card__header has none of its own).
+//
+// Usage
+//   <section class="gw-card gw-card--muted gw-how-it-works" aria-labelledby="hiw-t">
+//     <div class="gw-card__body gw-how-it-works__body">
+//       <div class="gw-how-it-works__header">
+//         <div class="gw-card__heading">
+//           <h2 class="gw-card__title" id="hiw-t">How it works</h2>
+//           <p class="gw-card__description">The agent never sees a secret value.</p>
+//         </div>
+//         <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-how-it-works__toggle" type="button"
+//                 data-gw-toggle aria-expanded="true" aria-controls="hiw-p" aria-labelledby="hiw-t">
+//           <i class="gw-icon gw-how-it-works__toggle-icon gw-how-it-works__toggle-icon--collapse" data-lucide="chevron-up"></i>
+//           <i class="gw-icon gw-how-it-works__toggle-icon gw-how-it-works__toggle-icon--expand" data-lucide="chevron-down"></i>
+//         </button>
+//       </div>
+//       <div class="gw-how-it-works__panel" id="hiw-p">
+//         <ol class="gw-how-it-works__steps" aria-label="How secrets are used">
+//           <li class="gw-how-it-works__step">
+//             <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="key-round"></i></span>
+//             <span class="gw-how-it-works__arrow gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="chevron-right"></i></span>   (not on the last step)
+//             <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">1</span>Store or reference</p>
+//             <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">One line of explanation.</p>
+//           </li>
+//         </ol>
+//         <p class="gw-how-it-works__more"><a class="gw-link gw-text-small" href="…">Learn more about …</a></p>
+//       </div>
+//     </div>
+//   </section>
+//
+// Parts    __body (on gw-card__body) __header __toggle __toggle-icon(--collapse
+//          --expand) __panel __steps __step __icon __arrow __title __text __more
+// States   expanded: button aria-expanded="true", panel visible, chevron-up
+//          collapsed: aria-expanded="false" + hidden on the panel, chevron-down;
+//          the title and the one-line summary stay. kit.js data-gw-toggle flips
+//          both. The app remembers the choice per section (kit.js does not).
+// Layout   below lg, or always with --vertical: a list, one row per step (tile |
+//          number + title, then the line of text; the title line is centred on
+//          the tile). lg and up: a strip of equal columns (3 or 4); a chevron sits
+//          centred in the gap between steps, level with the tiles.
+// Colour   the chevron's muted colour sits on its wrapper span: a gw-fg-* class on
+//          the <i class="gw-icon"> itself loses to .gw-icon { color: inherit }.
+// A11y     The <ol> carries the order, so the visible number (gw-counter) is
+//          aria-hidden and the list is named (aria-label). The toggle is a real
+//          button named by the title (aria-labelledby) with aria-expanded and
+//          aria-controls; its chevrons swap with the state. Icons and arrows are
+//          decorative. The section is a region named by its title: one per page.
+//          The title is a heading one level below the page section it opens.
+// Raw      none.
+// =============================================================
+
+@use "../scss/tokens" as *;
+@use "../scss/mixins" as *;
+
+.gw-how-it-works {
+  --gw-how-it-works-gap: var(--gw-space-6);
+
+  // Header and panel stack inside the card body.
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-4);
+    min-width: 0;
+  }
+
+  &__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--gw-space-4);
+    min-width: 0;
+  }
+
+  // 28px button beside a 24px title line: pull it up so the centres match.
+  &__toggle {
+    flex: none;
+    margin-block: calc(-1 * var(--gw-space-0-5));
+  }
+
+  // Two chevrons in the button; the state shows one.
+  &__toggle-icon { flex: none; }
+  &__toggle[aria-expanded="true"] &__toggle-icon--expand,
+  &__toggle[aria-expanded="false"] &__toggle-icon--collapse { display: none; }
+
+  &__panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-4);
+    min-width: 0;
+  }
+
+  // Optional "Learn more" row under the steps (one or two links).
+  &__more {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--gw-space-2) var(--gw-space-4);
+  }
+
+  // ─── Steps: a list by default ───
+  &__steps {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--gw-space-4);
+    min-width: 0;
+  }
+
+  &__step {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "icon title"
+      "icon text";
+    align-items: start;
+    column-gap: var(--gw-space-3);
+    row-gap: var(--gw-space-0-5);
+    min-width: 0;
+  }
+
+  &__icon  { grid-area: icon; }
+
+  // Wrapper span around the chevron (it carries gw-fg-muted); hidden in a list.
+  &__arrow {
+    grid-area: arrow;
+    display: none;
+    align-items: center;
+  }
+
+  &__title {
+    grid-area: title;
+    display: flex;
+    align-items: center;
+    gap: var(--gw-space-2);
+    min-width: 0;
+    // Centre the title line (h3, 20px) on the 32px tile; the text runs below.
+    padding-top: calc((var(--gw-size-control-md) - var(--gw-type-h3-line)) / 2);
+
+    > .gw-counter { flex: none; }
+  }
+
+  &__text {
+    grid-area: text;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+// ─── lg and up: a strip of equal columns ───
+@include gw-bp-up(lg) {
+  .gw-how-it-works:not(.gw-how-it-works--vertical) {
+    .gw-how-it-works__steps {
+      grid-template-columns: none;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(0, 1fr);
+      column-gap: var(--gw-how-it-works-gap);
+    }
+
+    .gw-how-it-works__step {
+      grid-template-columns: auto minmax(0, 1fr);
+      grid-template-areas:
+        "icon  arrow"
+        "title title"
+        "text  text";
+      row-gap: var(--gw-space-1);
+    }
+
+    .gw-how-it-works__icon { margin-bottom: var(--gw-space-2); }
+
+    // The chevron leaves the column and sits centred in the gap, level with the tile.
+    .gw-how-it-works__arrow {
+      display: flex;
+      align-self: start;
+      justify-self: end;
+      margin-top: calc((var(--gw-size-control-md) - var(--gw-size-icon-sm)) / 2);
+      margin-inline-end: calc(-1 * (var(--gw-how-it-works-gap) + var(--gw-size-icon-sm)) / 2);
+    }
+    .gw-how-it-works__step:last-child .gw-how-it-works__arrow { display: none; }
+
+    .gw-how-it-works__title { padding-top: 0; }
+  }
+}

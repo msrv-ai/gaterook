@@ -1,0 +1,81 @@
+<section class="sc-section" id="progress" data-title="Progress and meters" data-group="Status and data">
+  <h2>Progress and meters <code class="gw-code">gw-progress</code> <code class="gw-code">gw-meter</code></h2>
+  <p><strong>Progress</strong> shows how far a task has got: setup steps, a plugin upload, the core starting. The page sets the fraction on the root (<code class="gw-code">style="--gw-progress: 0.42"</code>) and the ARIA values; with no estimate it is indeterminate. For a short wait in place (a button, Test connection) use a spinner instead. <strong>Meter</strong> shows an amount against a limit: calls per hour, response size, rows returned. The page compares it with its thresholds and sets <code class="gw-code">data-level</code>; the value is always written out. Neither one is a chart: compare values over time with a chart.</p>
+
+  <h3>Determinate</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-stack gw-stack--sm">
+      <p class="gw-text-small" id="sc-b-prog-setup">Getting started · 5 of 6 steps done</p>
+      <div class="gw-progress" role="progressbar" aria-labelledby="sc-b-prog-setup" aria-valuemin="0" aria-valuemax="6" aria-valuenow="5" aria-valuetext="5 of 6 steps" style="--gw-progress: 0.833"><div class="gw-progress__bar"></div></div>
+    </div>
+    <div class="gw-stack gw-stack--sm">
+      <p class="gw-text-small" id="sc-b-prog-upload">Uploading <span class="gw-mono">orders-sync-plugin-1.2.0.jar</span> · 42%</p>
+      <div class="gw-progress" role="progressbar" aria-labelledby="sc-b-prog-upload" aria-valuemin="0" aria-valuemax="100" aria-valuenow="42" style="--gw-progress: 0.42"><div class="gw-progress__bar"></div></div>
+    </div>
+  </div>
+
+  <h3>Tones</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-stack gw-stack--sm">
+      <p class="gw-text-small" id="sc-b-prog-backup">Master key backup · complete</p>
+      <div class="gw-progress gw-progress--success" role="progressbar" aria-labelledby="sc-b-prog-backup" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" style="--gw-progress: 1"><div class="gw-progress__bar"></div></div>
+    </div>
+    <div class="gw-stack gw-stack--sm">
+      <p class="gw-text-small" id="sc-b-prog-export">Audit export to S3 · retrying after a timeout · 71%</p>
+      <div class="gw-progress gw-progress--warning" role="progressbar" aria-labelledby="sc-b-prog-export" aria-valuemin="0" aria-valuemax="100" aria-valuenow="71" style="--gw-progress: 0.71"><div class="gw-progress__bar"></div></div>
+    </div>
+    <div class="gw-stack gw-stack--sm">
+      <p class="gw-text-small" id="sc-b-prog-failed"><span class="gw-fg-danger">Upload failed at 68%.</span> The signature does not match. Upload a signed build.</p>
+      <div class="gw-progress gw-progress--danger" role="progressbar" aria-labelledby="sc-b-prog-failed" aria-valuemin="0" aria-valuemax="100" aria-valuenow="68" style="--gw-progress: 0.68"><div class="gw-progress__bar"></div></div>
+    </div>
+    <div class="gw-stack gw-stack--sm">
+      <p class="gw-text-small" id="sc-b-prog-sync">Syncing tool list from <span class="gw-mono">orders-mongo</span> · 9 of 14</p>
+      <div class="gw-progress gw-progress--info" role="progressbar" aria-labelledby="sc-b-prog-sync" aria-valuemin="0" aria-valuemax="14" aria-valuenow="9" aria-valuetext="9 of 14 tools" style="--gw-progress: 0.64"><div class="gw-progress__bar"></div></div>
+    </div>
+    <div class="gw-stack gw-stack--sm">
+      <p class="gw-text-small" id="sc-b-prog-paused">Database backup · paused at 30% while the core restarts</p>
+      <div class="gw-progress gw-progress--neutral" role="progressbar" aria-labelledby="sc-b-prog-paused" aria-valuemin="0" aria-valuemax="100" aria-valuenow="30" style="--gw-progress: 0.3"><div class="gw-progress__bar"></div></div>
+    </div>
+  </div>
+
+  <h3>Sizes</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-progress gw-progress--sm" role="progressbar" aria-label="Small progress example" aria-valuemin="0" aria-valuemax="100" aria-valuenow="42" style="--gw-progress: 0.42"><div class="gw-progress__bar"></div></div>
+    <div class="gw-progress" role="progressbar" aria-label="Medium progress example" aria-valuemin="0" aria-valuemax="100" aria-valuenow="42" style="--gw-progress: 0.42"><div class="gw-progress__bar"></div></div>
+    <div class="gw-progress gw-progress--lg" role="progressbar" aria-label="Large progress example" aria-valuemin="0" aria-valuemax="100" aria-valuenow="42" style="--gw-progress: 0.42"><div class="gw-progress__bar"></div></div>
+  </div>
+
+  <h3>Indeterminate</h3>
+  <p class="gw-text-small gw-fg-muted">No <code class="gw-code">aria-valuenow</code>. A segment sweeps the track; with reduced motion the bar pulses in place.</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-stack gw-stack--sm">
+      <p class="gw-text-small" id="sc-b-prog-core">Starting core on <span class="gw-mono">127.0.0.1:7465</span></p>
+      <div class="gw-progress gw-progress--indeterminate" role="progressbar" aria-labelledby="sc-b-prog-core" aria-valuemin="0" aria-valuemax="100"><div class="gw-progress__bar"></div></div>
+    </div>
+  </div>
+
+  <h3>Meter levels</h3>
+  <p class="gw-text-small gw-fg-muted">Ok, warn and critical come from the page's thresholds. At warn and critical the value leads with an icon and turns medium weight, so the level never rests on colour; the same words go in <code class="gw-code">aria-valuetext</code>. Without <code class="gw-code">data-level</code> the meter is a plain brand measurement.</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-meter" role="meter" aria-labelledby="sc-b-meter-size" aria-valuemin="0" aria-valuemax="1024" aria-valuenow="120" aria-valuetext="120 KB of 1 MB" data-level="ok" style="--gw-meter: 0.12">
+      <span class="gw-meter__label" id="sc-b-meter-size">Response size · last call</span>
+      <span class="gw-meter__value">120 KB / 1 MB</span>
+      <span class="gw-meter__track"><span class="gw-meter__fill"></span></span>
+    </div>
+    <div class="gw-meter" role="meter" aria-labelledby="sc-b-meter-rate" aria-valuemin="0" aria-valuemax="1000" aria-valuenow="812" aria-valuetext="812 of 1,000 calls per hour, near the limit" data-level="warn" style="--gw-meter: 0.812">
+      <span class="gw-meter__label" id="sc-b-meter-rate">Rate limit · endpoint dev</span>
+      <span class="gw-meter__value"><i class="gw-icon" data-lucide="triangle-alert"></i>812 / 1,000 calls per hour</span>
+      <span class="gw-meter__track"><span class="gw-meter__fill"></span></span>
+    </div>
+    <div class="gw-meter" role="meter" aria-labelledby="sc-b-meter-rows" aria-valuemin="0" aria-valuemax="10000" aria-valuenow="9800" aria-valuetext="9,800 of 10,000 rows, at the limit" data-level="critical" style="--gw-meter: 0.98">
+      <span class="gw-meter__label" id="sc-b-meter-rows">Rows returned · <span class="gw-mono">sql_query</span></span>
+      <span class="gw-meter__value"><i class="gw-icon" data-lucide="circle-alert"></i>9,800 / 10,000 rows</span>
+      <span class="gw-meter__track"><span class="gw-meter__fill"></span></span>
+    </div>
+    <div class="gw-meter" role="meter" aria-labelledby="sc-b-meter-ttl" aria-valuemin="0" aria-valuemax="30" aria-valuenow="27" aria-valuetext="27 of 30 days used, expires in 3 days" data-level="warn" style="--gw-meter: 0.9">
+      <span class="gw-meter__label" id="sc-b-meter-ttl">Token lifetime used · <span class="gw-mono">inspector-debug</span></span>
+      <span class="gw-meter__value"><i class="gw-icon" data-lucide="triangle-alert"></i>27 / 30 days</span>
+      <span class="gw-meter__track"><span class="gw-meter__fill"></span></span>
+    </div>
+  </div>
+</section>

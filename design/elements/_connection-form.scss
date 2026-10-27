@@ -1,0 +1,214 @@
+// =============================================================
+// connection-form · Element
+// -------------------------------------------------------------
+// The "Configure" step of Add connection, rendered from the connector's
+// JSON Schema (the PostgreSQL demo: Connection · Credentials · Environment
+// and safety · Advanced), with a "Test connection" panel before Save. The
+// schema decides the fields; this element decides the order, the grouping
+// and how the secret, the environment and the test result behave.
+//
+// Where   pages/connection-new.html (step 2 Configure, step 3 Test),
+//         pages/onboarding.html (Add connection), the edit view of a
+//         connection (same form, the secret in the stored / editing state).
+//
+// Composes  gw-form (--sticky-actions optional, __section __section-header
+//           __legend __description __rows __row __actions), gw-field (__label
+//           __optional __hint __error), gw-input (--mono), gw-select,
+//           gw-input-group (__affix __addon), gw-secret (empty / editing /
+//           stored / reference), gw-choice-card --compact (+ gw-env), gw-env
+//           --sm, gw-grid --auto, gw-alert (--info --warning --danger
+//           --compact), gw-tag-list + gw-tag --mono (__remove), gw-btn
+//           (--primary --ghost --link, aria-busy + gw-spinner), gw-card
+//           --muted, gw-status (--success --neutral), gw-kv --dense, gw-badge
+//           --warning --sm, gw-code-block --wrap, gw-code, gw-mono.
+//
+// Skeleton
+//   <form class="gw-form gw-connection-form" novalidate aria-labelledby="step-title">
+//     <fieldset class="gw-form__section">                       Connection
+//       Name (mono, slug hint) · __row Host / Port / Database · SSL mode
+//     </fieldset>
+//     <section class="gw-form__section gw-connection-form__credentials" aria-labelledby="…">
+//       <header class="gw-form__section-header"><h3 class="gw-form__legend">Credentials</h3>…</header>
+//       User (.gw-connection-form__user) · Secret source:
+//       <fieldset class="gw-field"><legend class="gw-field__label">Secret source</legend>
+//         <div class="gw-grid gw-grid--auto gw-connection-form__sources"> 5 × gw-choice-card --compact
+//           (value = local | vault | gcp | aws | dynamic) </div></fieldset>
+//       one secret field per source:
+//       <div class="gw-field gw-connection-form__secret" data-source="local">…gw-secret…</div>
+//     </section>
+//     <section class="gw-form__section gw-connection-form__safety" aria-labelledby="…">
+//       Environment: 3 × gw-choice-card --compact (value = dev | stage | prod, title
+//       holds the gw-env marker) in a gw-form__row
+//       <div class="gw-alert gw-alert--info gw-connection-form__prod-defaults">… title +
+//         <ul class="gw-alert__body gw-connection-form__defaults"><li><i class="gw-icon gw-icon--sm" data-lucide="lock"></i>Read-only transactions</li>…</ul></div>
+//     </section>
+//     <fieldset class="gw-form__section">                       Advanced
+//       <div class="gw-form__rows">
+//         <button class="gw-btn gw-btn--ghost gw-btn--sm gw-connection-form__toggle" type="button"
+//                 data-gw-toggle aria-expanded="false" aria-controls="adv">
+//           <i class="gw-icon gw-icon--sm gw-connection-form__when-closed" data-lucide="chevron-down"></i>
+//           <i class="gw-icon gw-icon--sm gw-connection-form__when-open" data-lucide="chevron-up"></i>Advanced settings</button>
+//         <div class="gw-form__rows" id="adv" hidden> timeout · pool · schema allowlist (__tags) </div>
+//       </div>
+//     </fieldset>
+//     <section class="gw-card gw-card--muted gw-connection-form__test" aria-labelledby="t">
+//       gw-card__header (title, description, Test connection button in __actions)
+//       <div class="gw-card__body gw-connection-form__result" role="status">…</div>
+//     </section>
+//     <div class="gw-form__actions">Back · Save connection (primary, submit)</div>
+//   </form>
+//   Headings: the step title is the h2 of the page; sections that hold a
+//   nested fieldset (Credentials, Environment and safety) are <section> + h3,
+//   the others plain fieldsets with a legend (gw-form contract).
+//
+// Behaviour (CSS only, no script; the app renders the same states from data)
+//   Secret source  every source has its own secret field marked data-source;
+//                  the field of the checked source is shown, the others are
+//                  display: none. "Short-lived" also hides the User field
+//                  (Vault issues user and password per call). In the app, render
+//                  only the chosen field (hidden inputs would still submit).
+//                  Without :has() support every field shows.
+//   Prod           __prod-defaults (gw-alert--info: the prod policy's values,
+//                  read from the policy, never hard-coded: read-only transactions,
+//                  "Row limit 100 (dev: 1,000)", "Statement timeout 3 s (dev: 5 s)",
+//                  no DDL, "Approval timeout 10 min, and a comment is required to
+//                  approve"; link to the prod policy) shows only while prod is
+//                  checked in __safety; the prod card's __meta "Turns on stricter
+//                  defaults" says it up front.
+//   Disclosure     __toggle swaps its chevrons from aria-expanded (kit.js
+//                  data-gw-toggle flips aria-expanded and [hidden]).
+//   First run      (connection-new ?state=first-run) Encrypted here is
+//                  preselected and the Secret source fieldset starts hidden
+//                  behind a __toggle "Use a secret manager instead (Vault, GCP,
+//                  AWS)" placed before it; the password field shows at once.
+//
+// Secret field per source (gw-secret data-state)
+//   local (Encrypted here)  new: empty, password input + reveal while typing a
+//                           new value only. Edit view: stored (Encrypted ·
+//                           version 3 · updated 2 days ago, Replace / Rotate),
+//                           then editing after Replace (Cancel / Save, no reveal)
+//   vault / gcp / aws       new: empty with a mono reference input (vault://…,
+//                           gcp-sm://…, aws-sm://…) + Test reference; once
+//                           tested: reference well (provider + ref + actions)
+//   dynamic (Short-lived)   new: Vault role input + Test role; once tested:
+//                           reference well with the role path; no User field
+//
+// Test connection panel (__test, gw-card --muted, __result is role="status")
+//   idle     gw-status --neutral "Not tested yet" + what the test shows
+//   testing  the button gets aria-busy="true" aria-disabled="true" and a
+//            gw-spinner --sm first (one spinner only); the result text says
+//            where it connects, as whom, and when it gives up
+//   success  gw-status --success "Connected · PostgreSQL 16.4 · 12 ms" + gw-kv
+//            --dense of detected permissions (User · Read · Write); a write
+//            grant gets gw-badge --warning "Can write" (icon + words) and a
+//            gw-alert --warning --compact "This user can write" / "For prod use
+//            a read-only user or a replica." with a link to the User field
+//   failure  gw-alert --danger "Can't reach db.dev.internal:5432" + what to do,
+//            details in a gw-code-block --wrap behind a data-gw-toggle button
+// Validation  after submit: aria-invalid + gw-field__error (what is wrong + how
+//             to fix it) before the hint, focus on the first invalid field.
+//
+// Parts
+//   __credentials   the Credentials section (scope of the source switch)
+//   __sources       grid of the five source cards (min column 200px: two or
+//                   three across, depending on the column width)
+//   __user          the User field (hidden for short-lived credentials)
+//   __secret        one secret field, with data-source="local|vault|gcp|aws|dynamic"
+//   __safety        the Environment and safety section (scope of the prod alert)
+//   __prod-defaults the strict defaults alert
+//   __defaults      its list (a ul.gw-alert__body): icon + default per line
+//   __toggle        a disclosure button with __when-closed / __when-open icons
+//   __tags          schema allowlist: tag list over the add input, 8px apart
+//   __test          the Test connection panel (a gw-card --muted)
+//   __result        the result area of the panel, stacked 12px apart
+// A11y   Real fieldsets and legends; sections with nested fieldsets are
+//        <section aria-labelledby> with an h3 legend. Choice cards are named
+//        by their title and described by their description. Hidden
+//        alternatives are display: none, so they leave the tab order and the
+//        accessibility tree. The result area is role="status": the outcome of
+//        a test is announced. The busy button keeps its label; its spinner is
+//        decorative. Repeated forms on one page carry distinct names.
+// Raw values: none (the 200px source column is 5 × --gw-size-control-lg).
+// =============================================================
+
+@use "../scss/tokens" as *;
+@use "../scss/mixins" as *;
+
+$gw-secret-sources: (local, vault, gcp, aws, dynamic);
+
+.gw-connection-form {
+  // Sits on a gw-form: the form owns the section rhythm; the element only
+  // lets long mono values shrink inside narrow columns.
+  min-width: 0;
+
+  // ─── Credentials: the secret field follows the chosen source ───
+  &__sources {
+    --gw-grid-min: calc(var(--gw-size-control-lg) * 5); // 200px: two or three source cards across
+  }
+
+  @each $source in $gw-secret-sources {
+    &__credentials:has(.gw-connection-form__sources input[value="#{$source}"]:checked) .gw-connection-form__secret:not([data-source="#{$source}"]) {
+      display: none;
+    }
+  }
+
+  // Short-lived credentials bring their own user.
+  &__credentials:has(.gw-connection-form__sources input[value="dynamic"]:checked) &__user {
+    display: none;
+  }
+
+  // ─── Environment and safety: strict defaults only for prod ───
+  &__safety:not(:has(input[value="prod"]:checked)) &__prod-defaults {
+    display: none;
+  }
+
+  // The four strict defaults, one per line with their icon.
+  &__defaults {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-1);
+
+    > li {
+      display: flex;
+      align-items: center;
+      gap: var(--gw-space-2);
+    }
+  }
+
+  // ─── Disclosure chevrons follow aria-expanded ───
+  &__toggle {
+    align-self: flex-start;
+  }
+
+  &__toggle[aria-expanded="true"] > &__when-closed,
+  &__toggle:not([aria-expanded="true"]) > &__when-open {
+    display: none;
+  }
+
+  // ─── Advanced: schema allowlist ───
+  &__tags {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-2);
+    min-width: 0;
+  }
+
+  // ─── Test connection panel ───
+  &__test {
+    min-width: 0;
+  }
+
+  &__result {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--gw-space-3);
+    min-width: 0;
+
+    > .gw-kv,
+    > .gw-alert,
+    > .gw-code-block {
+      align-self: stretch;
+    }
+  }
+}

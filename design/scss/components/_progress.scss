@@ -1,0 +1,186 @@
+// =============================================================
+// .gw-progress · .gw-meter
+// -------------------------------------------------------------
+// .gw-progress  How far a task has got (plugin upload, core start, setup
+//               checklist). Determinate: the page sets the fraction 0..1 as a
+//               custom property on the root; the bar reads it (clamped).
+//
+//   <p class="gw-text-small" id="up-label">Uploading orders-plugin-1.2.0.jar · 42%</p>
+//   <div class="gw-progress" role="progressbar" aria-labelledby="up-label"
+//        aria-valuemin="0" aria-valuemax="100" aria-valuenow="42" style="--gw-progress: 0.42">
+//     <div class="gw-progress__bar"></div>
+//   </div>
+//
+// Tones      --brand (default) --success --warning --danger --info --neutral.
+//            The bar paints with the tone FG (non-text mark, 3:1 or more on
+//            the raised track); solids are fills under text and never used here.
+// Sizes      --sm 4px | md 6px (default) | --lg 8px
+// Variants   --indeterminate  no aria-valuenow. A 40% segment sweeps the
+//                             track; with reduced motion the full bar pulses
+//                             its opacity in place instead. Long waits with no
+//                             estimate (Core starting). Short in-place waits
+//                             use .gw-spinner.
+// Subparts   __bar
+// States     the fraction (--gw-progress) and the tone; a failed task keeps
+//            its bar at the point it stopped, takes --danger and says what
+//            happened in the label.
+// A11y       role="progressbar" + a name (aria-labelledby a visible label, or
+//            aria-label) + aria-valuemin/max/now; aria-valuetext for friendlier
+//            words ("3 of 6 steps"). Keep the number visible as text when it
+//            matters. The track edge is an inset hairline in border.subtle
+//            (a coloured edge, not a shadow, so it reads in dark). Track and
+//            bar carry transparent outlines that Windows forced-colors mode
+//            paints, so the shape and the filled part survive there.
+//
+// .gw-meter  A measured amount against a limit (rate limit, response size,
+//            rows returned). The page decides the level from its thresholds
+//            and sets data-level; the fraction 0..1 goes in --gw-meter.
+//
+//   <div class="gw-meter" role="meter" aria-labelledby="rl" aria-valuemin="0"
+//        aria-valuemax="1000" aria-valuenow="812" aria-valuetext="812 of 1,000 calls per hour, near the limit"
+//        data-level="warn" style="--gw-meter: 0.812">
+//     <span class="gw-meter__label" id="rl">Rate limit</span>
+//     <span class="gw-meter__value"><i class="gw-icon" data-lucide="triangle-alert"></i>812 / 1,000 calls per hour</span>
+//     <span class="gw-meter__track"><span class="gw-meter__fill"></span></span>
+//   </div>
+//
+// Levels     data-level="ok" (success) | "warn" (warning) | "critical" (danger);
+//            absent = brand (a plain measurement, no judgement). At warn and
+//            critical the value text takes the tone and medium weight, and
+//            leads with an icon (triangle-alert / circle-alert) so the level
+//            never rests on colour; the page also says why in words nearby
+//            ("Calls slow down at 1,000 per hour").
+// Subparts   __label (truncates) __value (tabular, optional leading 14px
+//            icon) __track __fill
+// A11y       role="meter" (children presentational: the name comes from
+//            aria-labelledby, the reading from aria-valuetext, so put the
+//            judgement in aria-valuetext too).
+// Raw values the sliding segment's 40% width and its travel, the two loop
+//            timings, the pulse opacity.
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+// Shared track + fill look (module-private mixins).
+@mixin _track {
+  position: relative;
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  background: var(--gw-color-bg-raised);
+  border-radius: var(--gw-radius-full);
+  // Hairline edge: the raised fill alone is too close to the surface in dark.
+  box-shadow: inset 0 0 0 var(--gw-border-width-default) var(--gw-color-border-subtle);
+  outline: var(--gw-border-width-default) solid transparent;
+}
+
+@mixin _fill($fraction) {
+  display: block;
+  height: 100%;
+  width: calc(clamp(0, #{$fraction}, 1) * 100%);
+  background: var(--gw-tone-fg);
+  border-radius: inherit;
+  outline: var(--gw-border-width-default) solid transparent;
+  outline-offset: calc(-1 * var(--gw-border-width-default));
+  transition: width var(--gw-motion-duration-base) var(--gw-motion-ease-standard);
+}
+
+.gw-progress {
+  --gw-progress: 0;
+  @include gw-tone(brand);
+  @include _track;
+  height: var(--gw-space-1-5);
+
+  @include gw-tone-modifiers((brand, success, warning, danger, info, neutral));
+
+  &__bar {
+    @include _fill(var(--gw-progress));
+  }
+
+  // Inside a countdown (kit.js data-gw-countdown) the last minute turns danger;
+  // the countdown text says the time, so tone is not the only cue.
+  [data-gw-countdown][data-urgent] &,
+  &[data-gw-countdown][data-urgent] { @include gw-tone(danger); }
+
+  // ─── Sizes ───
+  &--sm { height: var(--gw-space-1); }
+  &--lg { height: var(--gw-space-2); }
+
+  // ─── Indeterminate ───
+  // Base (and reduced motion): the whole bar breathes in place.
+  &--indeterminate .gw-progress__bar {
+    width: 100%;
+    animation: gw-progress-pulse 1.6s ease-in-out infinite; // raw: calm opacity pulse, same rhythm as the reduced-motion spinner
+  }
+
+  @include gw-motion {
+    &--indeterminate .gw-progress__bar {
+      width: 40%; // raw: sliding segment length
+      animation: gw-progress-slide 1.4s var(--gw-motion-ease-standard) infinite; // raw: one sweep across the track
+    }
+  }
+}
+
+@keyframes gw-progress-slide {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(250%); } // raw: 2.5 segment widths = past the end of the track
+}
+
+@keyframes gw-progress-pulse {
+  50% { opacity: 0.4; } // raw: dims but never disappears
+}
+
+.gw-meter {
+  --gw-meter: 0;
+  @include gw-tone(brand);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  // Centre, not baseline: a leading icon in __value has no text baseline.
+  align-items: center;
+  gap: var(--gw-space-1-5) var(--gw-space-3);
+  min-width: 0;
+  @include gw-type(small);
+
+  &__label {
+    @include gw-truncate;
+    font-weight: var(--gw-font-weight-medium);
+    color: var(--gw-color-text-primary);
+  }
+
+  &__value {
+    display: inline-flex;
+    align-items: center;
+    justify-self: end;
+    gap: var(--gw-space-1);
+    @include gw-tabular;
+    white-space: nowrap;
+    color: var(--gw-color-text-muted);
+
+    > .gw-icon { --gw-icon-size: var(--gw-size-icon-sm); }
+  }
+
+  &__track {
+    grid-column: 1 / -1;
+    @include _track;
+    height: var(--gw-space-1-5);
+  }
+
+  &__fill {
+    @include _fill(var(--gw-meter));
+  }
+
+  // ─── Levels (decided by the page) ───
+  &[data-level="ok"] { @include gw-tone(success); }
+
+  &[data-level="warn"],
+  &[data-level="critical"] {
+    .gw-meter__value {
+      font-weight: var(--gw-font-weight-medium);
+      color: var(--gw-tone-fg);
+    }
+  }
+
+  &[data-level="warn"] { @include gw-tone(warning); }
+  &[data-level="critical"] { @include gw-tone(danger); }
+}

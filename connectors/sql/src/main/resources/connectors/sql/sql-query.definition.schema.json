@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SQL query",
+  "description": "A saved SQL statement with typed :name parameters. The agent calls it with arguments and never sees or writes the SQL.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "name",
+    "sql"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Tool name",
+      "pattern": "^[a-z][a-z0-9_]{0,63}$",
+      "description": "What the agent calls. Lowercase letters, digits and _."
+    },
+    "title": {
+      "type": "string",
+      "title": "Title",
+      "maxLength": 120
+    },
+    "description": {
+      "type": "string",
+      "title": "Description for the agent",
+      "maxLength": 2000,
+      "x-widget": "textarea",
+      "description": "The agent reads this to decide when to call the tool."
+    },
+    "sql": {
+      "type": "string",
+      "title": "SQL",
+      "minLength": 1,
+      "maxLength": 20000,
+      "x-widget": "code",
+      "x-language": "sql",
+      "description": "Write :name for a parameter. Values are bound by the driver, never pasted into the SQL."
+    },
+    "maxRows": {
+      "type": "integer",
+      "title": "Max rows",
+      "minimum": 1,
+      "maximum": 100000,
+      "x-unit": "rows",
+      "description": "Rows a read returns at most. The environment's row limit still applies."
+    },
+    "params": {
+      "type": "array",
+      "title": "Parameters",
+      "maxItems": 20,
+      "description": "Typed and validated before the query runs. The agent sees them as the input schema of the tool.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "type"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "pattern": "^[a-z_][a-z0-9_]{0,31}$"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "enum": [
+              "string",
+              "enum",
+              "integer",
+              "number",
+              "boolean",
+              "timestamp",
+              "date"
+            ],
+            "x-enumTitles": [
+              "String",
+              "Enum",
+              "Integer",
+              "Number",
+              "Boolean",
+              "Timestamp",
+              "Date"
+            ]
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required",
+            "default": true
+          },
+          "values": {
+            "type": "array",
+            "title": "Allowed values",
+            "maxItems": 200,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          "default": {
+            "title": "Default",
+            "type": [
+              "string",
+              "number",
+              "integer",
+              "boolean",
+              "null"
+            ],
+            "description": "A default can be a time or an ISO 8601 duration relative to now: -PT24H means 24 hours ago."
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "maxLength": 500
+          },
+          "maxLength": {
+            "type": "integer",
+            "title": "Max length",
+            "minimum": 1,
+            "maximum": 4000,
+            "default": 256
+          },
+          "pattern": {
+            "type": "string",
+            "title": "Pattern",
+            "maxLength": 500
+          },
+          "minimum": {
+            "type": "number",
+            "title": "Minimum"
+          },
+          "maximum": {
+            "type": "number",
+            "title": "Maximum"
+          }
+        }
+      }
+    }
+  }
+}

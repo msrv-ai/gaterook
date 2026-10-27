@@ -1,0 +1,370 @@
+<header class="gw-page-header">
+  <div class="gw-page-header__row">
+    <div class="gw-page-header__heading">
+      <h1 class="gw-page-header__title">Connections</h1>
+      <p class="gw-page-header__description">The databases, servers, logs, clusters, clouds and APIs your agents can reach, and whether each one answers right now.</p>
+      @if (rows().length) {
+        <div class="gw-page-header__meta">
+          @for (s of statuses(); track s.label) {
+            <span [class]="'gw-status gw-status--' + s.tone"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ s.label }}</span></span>
+          }
+          @if (checkedNote(); as note) {
+            <span class="gw-divider gw-divider--vertical" aria-hidden="true"></span>
+            <span class="gw-text-small gw-fg-muted">{{ note }}</span>
+          }
+        </div>
+      }
+    </div>
+    <div class="gw-page-header__actions">
+      <a class="gw-btn gw-btn--primary" routerLink="/connections/new"><svg lucideIcon="plus" class="gw-icon"></svg> Add connection</a>
+    </div>
+  </div>
+</header>
+
+@if (data.rows() || data.error()) {
+  <!-- how-it-works: folded by default and remembered; on the first run (nothing to list) it opens. Rendered once the
+       first answer is in, so a remembered choice is read when the card is created. -->
+  <section gwHowItWorks heading="How connections work" [level]="2" summary="Add a resource once. Agents call its tools by name through an endpoint and never see its credentials." stepsLabel="How a connection reaches an agent" persist="connections-how-it-works" [expanded]="firstRun()">
+    <li gwHowItWorksStep icon="plug-zap" heading="Add and test">Pick a type, point it at a host and test it. The test shows what the account is allowed to do.</li>
+    <!-- Decision 10 (ARCHITECTURE §8.6.5): short-lived credentials are renewed, not issued for every call. -->
+    <li gwHowItWorksStep icon="lock-keyhole" heading="Credentials stay here">Encrypted with your master key, read from Vault, GCP or AWS at call time, or issued short-lived and renewed automatically. Write-only.</li>
+    <li gwHowItWorksStep icon="waypoints" heading="Add it to an endpoint">Its tools appear there as Off, Read only or Approval. Anything that writes waits for a person.</li>
+    <li gwHowItWorksStep icon="activity" heading="Agents call it by name"><code class="gw-code">sql_query(connection='dev-db', …)</code>. Every call is logged in Activity.</li>
+    <p class="gw-how-it-works__more" gwHowItWorksMore><a class="gw-link gw-text-small" routerLink="/secrets">Learn how credentials are protected</a></p>
+  </section>
+}
+
+@if (data.error(); as e) {
+  <!-- Nothing loaded: what happened, what to do, Try again, and the technical details under a disclosure. -->
+  <div class="gw-alert gw-alert--danger" role="alert">
+    <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+    <div class="gw-alert__content">
+      <p class="gw-alert__title">The connections didn't load</p>
+      <p class="gw-alert__body">{{ errorText(e) }}</p>
+      <div class="gw-alert__actions">
+        <button class="gw-btn gw-btn--sm" type="button" (click)="retry()" [attr.aria-busy]="data.refreshing() ? 'true' : null" [attr.aria-disabled]="data.refreshing() ? 'true' : null">@if (data.refreshing()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Try again</button>
+        <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle aria-controls="conn-error-details">Details <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
+      </div>
+    </div>
+  </div>
+  <gw-code-block [attr.id]="'conn-error-details'" [id]="'conn-error-pre'" hidden wrap lang="Error" [text]="errorDetails(e)" copyLabel="error details" regionLabel="Error details" />
+} @else if (loading()) {
+  @if (slow()) {
+    <!-- The first render of the list, when it takes longer than 300 ms (kit "Loading"). -->
+    <div class="gw-stack">
+      <div class="gw-table-wrap" role="region" aria-labelledby="conn-skel-cap" tabindex="0" aria-busy="true">
+        <table class="gw-table">
+          <caption class="gw-sr-only" id="conn-skel-cap">Connections, loading</caption>
+          <thead>
+            <tr>
+              <th scope="col">Connection</th>
+              <th scope="col" class="gw-table__cell--optional">Type</th>
+              <th scope="col">Health</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (i of [1, 2, 3]; track i) {
+              <tr aria-hidden="true"><td><span class="gw-skeleton gw-skeleton--text"></span></td><td class="gw-table__cell--optional"><span class="gw-skeleton gw-skeleton--text"></span></td><td><span class="gw-skeleton gw-skeleton--text"></span></td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <p class="gw-sr-only" role="status">Loading connections</p>
+    </div>
+  }
+} @else if (firstRun()) {
+  <!-- First run: no connections yet, the empty state replaces the toolbar and the table. -->
+  <div class="gw-card">
+    <div class="gw-empty">
+      <span class="gw-empty__icon"><svg lucideIcon="database" class="gw-icon gw-icon--lg"></svg></span>
+      <p class="gw-empty__title">No connections yet</p>
+      <p class="gw-empty__text">Connect a database, server, log store or cluster. Agents reach it through an endpoint and never see its credentials.</p>
+      <div class="gw-empty__actions"><a class="gw-btn" routerLink="/connections/new"><svg lucideIcon="plus" class="gw-icon"></svg> Add your first connection</a></div>
+    </div>
+  </div>
+} @else {
+  @if (data.stale(); as e) {
+    <!-- A reload failed: the rows below are the last ones that loaded (health keeps arriving as events). -->
+    <div class="gw-alert gw-alert--warning gw-alert--compact" role="status">
+      <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">This list may be out of date.</p>
+        <p class="gw-alert__body">{{ errorText(e) }}</p>
+      </div>
+      <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retry()" [attr.aria-busy]="data.refreshing() ? 'true' : null" [attr.aria-disabled]="data.refreshing() ? 'true' : null">Try again</button></div>
+    </div>
+  }
+
+  <div class="gw-stack">
+    <div class="gw-toolbar">
+      <div class="gw-toolbar__start" role="search" aria-label="Filter connections">
+        <div class="gw-search gw-search--sm">
+          <svg lucideIcon="search" class="gw-icon gw-search__icon"></svg>
+          <input class="gw-search__input" type="search" id="conn-q" #search placeholder="Search name, host or type" aria-label="Search connections by name, host or type" aria-keyshortcuts="/" autocomplete="off" spellcheck="false" [value]="filters().q" (input)="onSearch(search.value)">
+          <button class="gw-search__clear" type="button" aria-label="Clear search"><svg lucideIcon="x" class="gw-icon gw-icon--sm"></svg></button>
+          <kbd class="gw-search__kbd" aria-hidden="true">/</kbd>
+        </div>
+        <div class="gw-menu-host">
+          <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="listbox" [gwMenuTrigger]="typeMenu"><svg lucideIcon="list-filter" class="gw-icon gw-icon--sm"></svg> Type: <span data-gw-menu-value>{{ typeLabel() }}</span> <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
+          <div class="gw-menu" gwMenu #typeMenu="gwMenu" id="conn-type-menu" role="listbox" aria-label="Filter by type" hidden (picked)="pickType($event)">
+            @for (o of typeOptions(); track o.value) {
+              <button class="gw-menu__item" type="button" role="option" [attr.aria-selected]="filters().type === o.value ? 'true' : 'false'" tabindex="-1" [attr.data-value]="o.value"><svg lucideIcon="check" class="gw-icon gw-menu__check"></svg>@if (o.icon) {<svg [lucideIcon]="o.icon" class="gw-icon gw-menu__icon"></svg>}<span class="gw-menu__label">{{ o.label }}</span><span class="gw-menu__hint">{{ o.count }}<span class="gw-sr-only">{{ o.count === 1 ? ' connection' : ' connections' }}</span></span></button>
+            }
+          </div>
+        </div>
+        <fieldset class="gw-segmented gw-segmented--sm">
+          <legend class="gw-sr-only">Environment</legend>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="conn-env" value="all" [checked]="filters().env === 'all'" (change)="setEnv('all')"><span class="gw-segmented__label">All</span></label>
+          @for (e of envs; track e) {
+            <label class="gw-segmented__option" [attr.data-tone]="e"><input class="gw-segmented__input" type="radio" name="conn-env" [value]="e" [checked]="filters().env === e" (change)="setEnv(e)"><span class="gw-segmented__label">{{ e }}</span></label>
+          }
+        </fieldset>
+        <div class="gw-menu-host">
+          <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="listbox" [gwMenuTrigger]="healthMenu"><svg lucideIcon="heart-pulse" class="gw-icon gw-icon--sm"></svg> Health: <span data-gw-menu-value>{{ healthLabel() }}</span> <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
+          <div class="gw-menu" gwMenu #healthMenu="gwMenu" id="conn-health-menu" role="listbox" aria-label="Filter by health" hidden (picked)="pickHealth($event)">
+            @for (o of healthOptions(); track o.value) {
+              <button class="gw-menu__item" type="button" role="option" [attr.aria-selected]="filters().health === o.value ? 'true' : 'false'" tabindex="-1" [attr.data-value]="o.value"><svg lucideIcon="check" class="gw-icon gw-menu__check"></svg><span class="gw-menu__label">{{ o.label }}</span><span class="gw-menu__hint">{{ o.count }}<span class="gw-sr-only">{{ o.count === 1 ? ' connection' : ' connections' }}</span></span></button>
+            }
+          </div>
+        </div>
+        <span class="gw-divider gw-divider--vertical" aria-hidden="true"></span>
+        <p class="gw-text-small gw-fg-muted" id="conn-count" role="status">{{ countLabel() }}</p>
+      </div>
+      <div class="gw-toolbar__end">
+        <!-- In work: aria-busy + aria-disabled, a spinner, and the count line says what runs (DESIGN §8 "Action hierarchy and disabled behavior"). -->
+        <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" id="conn-test-all" (click)="testAll()" [attr.aria-busy]="data.testingAll() ? 'true' : null" [attr.aria-disabled]="data.testingAll() ? 'true' : null" [attr.aria-describedby]="data.testingAll() ? 'conn-count' : null">@if (data.testingAll()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}<svg lucideIcon="refresh-cw" class="gw-icon gw-icon--sm"></svg> Test all<span class="gw-sr-only"> connections</span></button>
+      </div>
+    </div>
+
+    <div class="gw-table-wrap" role="region" aria-labelledby="conn-cap" tabindex="0" id="conn-wrap">
+      <table class="gw-table" id="conn-table">
+        <caption class="gw-sr-only" id="conn-cap">All connections, by name</caption>
+        <thead>
+          <tr>
+            <th scope="col">Connection</th>
+            <th scope="col" class="gw-table__cell--optional">Type</th>
+            <th scope="col" class="gw-table__cell--optional">Credentials</th>
+            <th scope="col">Health</th>
+            <th scope="col">Used by</th>
+            <th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (v of view(); track v.row.name) {
+            <tr>
+              <th scope="row">
+                <a class="gw-link gw-mono" [id]="idOf('conn-link', v.row.name)" [routerLink]="['/connections', v.row.name]">{{ v.row.name }}</a> <span class="gw-sr-only">environment</span> <span [class]="'gw-env gw-env--sm gw-env--' + v.row.env">{{ v.row.env }}</span>
+                @if (v.row.host) {
+                  <div class="gw-text-code-sm gw-fg-muted" [title]="v.row.host">{{ v.row.host }}</div>
+                }
+              </th>
+              <td class="gw-table__cell--optional"><svg [lucideIcon]="connectorIcon(v.row.type)" class="gw-icon gw-icon--sm"></svg> {{ typeText(v.row) }}@for (b of v.row.badges; track b) { <span class="gw-badge gw-badge--outline gw-badge--sm">{{ b }}</span>}</td>
+              <td class="gw-table__cell--optional">
+                @if (v.credentials.muted) {
+                  <span class="gw-fg-muted"><svg [lucideIcon]="v.credentials.icon" class="gw-icon gw-icon--sm"></svg> {{ v.credentials.label }}</span>
+                } @else {
+                  <svg [lucideIcon]="v.credentials.icon" class="gw-icon gw-icon--sm"></svg> {{ v.credentials.label }}
+                }
+                @if (v.credentials.caption; as caption) {
+                  <div [class]="v.credentials.captionCode ? 'gw-text-code-sm gw-fg-muted' : 'gw-text-caption gw-fg-muted'" [attr.title]="v.credentials.captionTitle">{{ caption }}</div>
+                }
+                @for (p of v.credentials.problems; track p.label) {
+                  <div><span class="gw-status gw-status--warning" [title]="p.title"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ p.label }}</span></span></div>
+                }
+              </td>
+              <td>
+                @if (v.checking) {
+                  <span class="gw-status gw-status--checking" [id]="idOf('conn-checking', v.row.name)"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span><span class="gw-status__label">Checking</span></span>
+                } @else {
+                  <span [class]="'gw-status gw-status--' + v.health.tone"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ v.health.text }}</span></span>
+                }
+                @if (v.checkedAt; as at) {
+                  <div class="gw-text-caption gw-fg-muted">Checked <time [attr.datetime]="time.iso(at)" [title]="time.absolute(at)">{{ v.checkedText }}</time></div>
+                }
+              </td>
+              <td>
+                @for (ep of v.row.usedBy; track ep; let last = $last) {
+                  <a class="gw-link gw-mono" [routerLink]="['/endpoints', ep]"><span class="gw-sr-only">Endpoint </span>{{ ep }}</a>@if (!last) {<br>}
+                } @empty {
+                  <span class="gw-text-small gw-fg-muted">No endpoint</span>
+                }
+              </td>
+              <td class="gw-table__cell--actions">
+                <div class="gw-menu-host">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" [attr.aria-label]="'Actions for connection ' + v.row.name" aria-haspopup="menu" [gwMenuTrigger]="rowMenu"><svg lucideIcon="ellipsis" class="gw-icon"></svg></button>
+                  <div class="gw-menu gw-menu--right" gwMenu #rowMenu="gwMenu" [id]="idOf('conn-menu', v.row.name)" role="menu" [attr.aria-label]="'Actions for connection ' + v.row.name" hidden>
+                    <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" [attr.aria-disabled]="v.testBlocked ? 'true' : null" (click)="test(v.row)"><svg lucideIcon="plug-zap" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Test connection@if (v.testBlocked; as why) {<span class="gw-menu__hint">{{ why }}</span>}</span></button>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" [routerLink]="['/connections', v.row.name]"><svg lucideIcon="pencil" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Edit</span></a>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" routerLink="/activity" [queryParams]="{ q: 'connection:' + v.row.name }"><svg lucideIcon="activity" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">View activity<span class="gw-menu__hint gw-mono">connection:{{ v.row.name }}</span></span></a>
+                    <a class="gw-menu__item" role="menuitem" tabindex="-1" routerLink="/connections/new" [queryParams]="{ duplicate: v.row.name }"><svg lucideIcon="copy-plus" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Duplicate</span></a>
+                    <div class="gw-menu__divider" role="separator"></div>
+                    <button class="gw-menu__item gw-menu__item--danger" type="button" role="menuitem" tabindex="-1" aria-haspopup="dialog" (click)="askDelete(v.row, $event)"><svg lucideIcon="trash-2" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Delete connection</span></button>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            @if (v.alert; as a) {
+              <!-- Where it happened: the problem of this row under it, with what to do (kit billing-api). -->
+              <tr>
+                <td colspan="6">
+                  <div [class]="'gw-alert gw-alert--' + a.tone + ' gw-alert--compact'">
+                    <svg [lucideIcon]="a.icon" class="gw-icon gw-alert__icon"></svg>
+                    <div class="gw-alert__content">
+                      <p class="gw-alert__title"><span class="gw-sr-only">{{ v.row.name }}: </span>{{ a.title }}</p>
+                      @if (a.body) {
+                        <p class="gw-alert__body">{{ a.body }}</p>
+                      }
+                    </div>
+                    <div class="gw-alert__actions">
+                      @if (a.kind === 'unreachable') {
+                        <button class="gw-btn gw-btn--sm" type="button" (click)="test(v.row)" [attr.aria-busy]="v.checking ? 'true' : null" [attr.aria-disabled]="v.checking ? 'true' : null" [attr.aria-describedby]="v.checking ? idOf('conn-checking', v.row.name) : null">@if (v.checking) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Test again<span class="gw-sr-only"> {{ v.row.name }}</span></button>
+                        <a class="gw-btn gw-btn--link" routerLink="/activity" [queryParams]="{ q: 'connection:' + v.row.name + ' decision:error' }">View errors<span class="gw-sr-only"> of {{ v.row.name }}</span></a>
+                      } @else {
+                        <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askKeep(v.row, $event)">Keep as stored<span class="gw-sr-only"> {{ v.row.name }}</span></button>
+                        <a class="gw-btn gw-btn--link" [routerLink]="['/connections', v.row.name]">Review<span class="gw-sr-only"> {{ v.row.name }}</span></a>
+                      }
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            }
+          } @empty {
+            <tr>
+              <td class="gw-table__empty" colspan="6">
+                <div class="gw-empty gw-empty--compact">
+                  <span class="gw-empty__icon"><svg lucideIcon="search-x" class="gw-icon"></svg></span>
+                  <p class="gw-empty__title">No connections match these filters</p>
+                  <p class="gw-empty__text">Try another type, environment or health, or search by host.</p>
+                  <div class="gw-empty__actions"><button class="gw-btn gw-btn--sm" type="button" id="conn-clear" (click)="clearFilters()"><svg lucideIcon="filter-x" class="gw-icon gw-icon--sm"></svg> Clear filters</button></div>
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+}
+
+<!-- One delete confirmation for every row, filled for the row that opened it (kit #dlg-delete-connection). -->
+<dialog class="gw-dialog gw-dialog--md gw-dialog--danger" gwDialog #deleteDialog="gwDialog" id="dlg-delete-connection" [attr.aria-labelledby]="deleting() ? 'dlg-del-title' : null" [attr.aria-describedby]="deleting() ? 'dlg-del-desc' : null" (closed)="onDeleteClosed()">
+  @if (deleting(); as d) {
+    <header class="gw-dialog__header">
+      <span class="gw-icon-tile"><svg lucideIcon="trash-2" class="gw-icon"></svg></span>
+      <h2 class="gw-dialog__title" id="dlg-del-title">Delete connection <span class="gw-mono">{{ d.name }}</span>?</h2>
+      <p class="gw-dialog__description" id="dlg-del-desc"><span>{{ deleteLead(d) }}</span> @if (deleteFacts()?.impact?.secrets; as s) {<span>{{ s }}</span> }This can't be undone.</p>
+      <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+    </header>
+    <div class="gw-dialog__body">
+      <div class="gw-stack gw-stack--sm">
+        <dl class="gw-kv gw-kv--dense">
+          <div class="gw-kv__row"><dt class="gw-kv__key">Connection</dt><dd class="gw-kv__value"><span class="gw-mono">{{ d.name }}</span> <span class="gw-sr-only">environment</span> <span [class]="'gw-env gw-env--sm gw-env--' + d.env">{{ d.env }}</span> · <span>{{ typeText(d) }}</span></dd></div>
+        </dl>
+        @if (deleteFacts(); as f) {
+          @if (f.impact.endpoints.length) {
+            <p class="gw-text-ui">Stops working</p>
+            <dl class="gw-kv gw-kv--dense">
+              @for (ep of f.impact.endpoints; track ep.slug) {
+                <div class="gw-kv__row">
+                  <dt class="gw-kv__key">Endpoint <span class="gw-mono">{{ ep.slug }}</span></dt>
+                  <dd class="gw-kv__value">
+                    @if (ep.tools.length) {
+                      {{ ep.tools.length }} {{ ep.tools.length === 1 ? 'tool' : 'tools' }}: @for (t of ep.tools; track t; let first = $first) {@if (!first) {, }<code class="gw-code">{{ t }}</code>}
+                    } @else if (f.detail) {
+                      Its tools there are all off
+                    } @else {
+                      Its tools on this endpoint
+                    }
+                    @if (ep.clients) { · used by {{ ep.clients }}}
+                  </dd>
+                </div>
+              }
+            </dl>
+          }
+          @if (f.impact.pending.length) {
+            <div class="gw-alert gw-alert--warning gw-alert--compact">
+              <svg lucideIcon="hourglass" class="gw-icon gw-alert__icon"></svg>
+              <div class="gw-alert__content">
+                <p class="gw-alert__title">{{ pendingTitle(f.impact.pending.length) }}</p>
+                <p class="gw-alert__body">@for (p of f.impact.pending; track $index; let first = $first) {@if (!first) {, }<code class="gw-code">{{ p.tool }}</code> from {{ p.client }}}</p>
+              </div>
+            </div>
+          }
+          @if (f.failed) {
+            <div class="gw-alert gw-alert--warning gw-alert--compact">
+              <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+              <div class="gw-alert__content">
+                <p class="gw-alert__title">What stops working didn't load</p>
+                <p class="gw-alert__body">{{ errorText(f.failed) }}</p>
+              </div>
+            </div>
+          }
+        } @else {
+          <!-- What stops working is on its way: Delete waits for it, so the person sees it before confirming. -->
+          <div class="gw-stack gw-stack--sm" aria-hidden="true">
+            <span class="gw-skeleton gw-skeleton--text"></span>
+            <span class="gw-skeleton gw-skeleton--text"></span>
+          </div>
+          <p class="gw-sr-only" id="dlg-del-loading">Checking what stops working</p>
+        }
+        <p class="gw-text-small gw-fg-muted">Past calls stay in Activity: the audit log is append-only.</p>
+        @if (deleteError(); as err) {
+          <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+            <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content">
+              <p class="gw-alert__title">{{ d.name }} wasn't deleted</p>
+              <p class="gw-alert__body">{{ err }}</p>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+    <footer class="gw-dialog__footer">
+      <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
+      <button class="gw-btn gw-btn--danger" type="button" (click)="confirmDelete()" [attr.aria-busy]="deleteBusy() ? 'true' : null" [attr.aria-disabled]="deleteBusy() || !deleteFacts() ? 'true' : null" [attr.aria-describedby]="!deleteFacts() ? 'dlg-del-loading' : null">@if (deleteBusy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Delete connection <span>{{ d.name }}</span></button>
+    </footer>
+  }
+</dialog>
+
+<!--
+  Keep a connection changed outside MCP Gateway (POST /api/connections/{name}/confirm-integrity). Risky, so it asks
+  (gw-dialog--warning, Cancel has the focus); the kit has no such dialog, it is composed like the kit's warning
+  confirmations (Settings › Change port).
+-->
+<dialog class="gw-dialog gw-dialog--md gw-dialog--warning" gwDialog #keepDialog="gwDialog" id="dlg-keep-connection" [attr.aria-labelledby]="keeping() ? 'dlg-keep-title' : null" [attr.aria-describedby]="keeping() ? 'dlg-keep-desc' : null" (closed)="onKeepClosed()">
+  @if (keeping(); as k) {
+    <header class="gw-dialog__header">
+      <span class="gw-icon-tile"><svg lucideIcon="shield-alert" class="gw-icon"></svg></span>
+      <h2 class="gw-dialog__title" id="dlg-keep-title">Keep <span class="gw-mono">{{ k.name }}</span> as stored?</h2>
+      <p class="gw-dialog__description" id="dlg-keep-desc">It was changed outside MCP Gateway, so the gateway can't vouch for its settings. Keep it only if you made this change: agents can use it again from their next call.</p>
+      <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+    </header>
+    <div class="gw-dialog__body">
+      <div class="gw-stack gw-stack--sm">
+        <dl class="gw-kv gw-kv--dense">
+          <div class="gw-kv__row"><dt class="gw-kv__key">Connection</dt><dd class="gw-kv__value"><span class="gw-mono">{{ k.name }}</span> <span class="gw-sr-only">environment</span> <span [class]="'gw-env gw-env--sm gw-env--' + k.env">{{ k.env }}</span> · <span>{{ k.typeName }}</span></dd></div>
+          @if (k.host) {
+            <div class="gw-kv__row"><dt class="gw-kv__key">Connects to</dt><dd class="gw-kv__value"><span class="gw-mono">{{ k.host }}</span></dd></div>
+          }
+          @if (k.usedBy.length) {
+            <div class="gw-kv__row"><dt class="gw-kv__key">Used by</dt><dd class="gw-kv__value">@for (ep of k.usedBy; track ep; let first = $first) {@if (!first) {, }<span class="gw-mono">{{ ep }}</span>}</dd></div>
+          }
+        </dl>
+        <p class="gw-text-small gw-fg-muted">Not sure? Review it first: open it and compare the settings with what you expect.</p>
+        @if (keepError(); as err) {
+          <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+            <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content">
+              <p class="gw-alert__title">{{ k.name }} wasn't kept</p>
+              <p class="gw-alert__body">{{ err }}</p>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+    <footer class="gw-dialog__footer">
+      <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
+      <button class="gw-btn gw-btn--primary" type="button" (click)="confirmKeep()" [attr.aria-busy]="keepBusy() ? 'true' : null" [attr.aria-disabled]="keepBusy() ? 'true' : null">@if (keepBusy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Keep <span>{{ k.name }}</span></button>
+    </footer>
+  }
+</dialog>

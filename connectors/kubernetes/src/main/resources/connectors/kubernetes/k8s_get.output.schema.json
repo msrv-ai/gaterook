@@ -1,0 +1,128 @@
+{
+  "type": "object",
+  "required": [
+    "mode",
+    "connection",
+    "kind"
+  ],
+  "properties": {
+    "mode": {
+      "enum": [
+        "list",
+        "object"
+      ]
+    },
+    "connection": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "apiVersion": {
+      "type": "string"
+    },
+    "namespace": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "columns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "cells"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "namespace": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cells": {
+            "type": "array"
+          }
+        }
+      }
+    },
+    "cursor": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Pass it back as cursor for the next page; null on the last one."
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "object": {
+      "type": "object",
+      "description": "Without managedFields and last-applied-configuration; Secret values masked."
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "rollout": {
+      "type": "object",
+      "properties": {
+        "generation": {
+          "type": "integer"
+        },
+        "observedGeneration": {
+          "type": "integer"
+        },
+        "replicas": {
+          "type": "integer"
+        },
+        "updated": {
+          "type": "integer"
+        },
+        "ready": {
+          "type": "integer"
+        },
+        "available": {
+          "type": "integer"
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "paused": {
+          "type": "boolean"
+        },
+        "conditions": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "containers": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

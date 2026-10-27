@@ -1,0 +1,249 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "baseUrls",
+    "auth"
+  ],
+  "properties": {
+    "baseUrls": {
+      "type": "array",
+      "title": "Base URLs",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": {
+        "type": "string",
+        "maxLength": 512,
+        "pattern": "^https?://[^/?#@\\s]+(/[^?#\\s]*)?$"
+      },
+      "description": "Requests must start with one of these, path included: https://billing.stage.acme.dev/v1. Added to the allowlist of this environment in Policies.",
+      "x-agent-visible": true
+    },
+    "allowedPaths": {
+      "type": "array",
+      "title": "Allowed paths",
+      "items": {
+        "type": "string",
+        "maxLength": 256
+      },
+      "default": [
+        "/**"
+      ],
+      "description": "Globs under the base path: /invoices/**, /refunds/*",
+      "x-agent-visible": true
+    },
+    "mutatingGetPaths": {
+      "type": "array",
+      "title": "GET paths that change state",
+      "items": {
+        "type": "string",
+        "maxLength": 256
+      },
+      "default": [],
+      "description": "GET requests here change state: http_get refuses them, every other tool asks a person first. Globs like allowedPaths.",
+      "x-agent-visible": true
+    },
+    "auth": {
+      "type": "object",
+      "title": "Credentials",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "none",
+            "bearer",
+            "apiKeyHeader",
+            "apiKeyQuery",
+            "basic"
+          ],
+          "default": "bearer",
+          "x-enumTitles": [
+            "None",
+            "Bearer token",
+            "API key in a header",
+            "API key in the query (not on prod)",
+            "User and password"
+          ],
+          "x-forbidden-env-values": {
+            "prod": [
+              "apiKeyQuery"
+            ]
+          },
+          "x-agent-visible": true
+        },
+        "token": {
+          "type": "string",
+          "writeOnly": true,
+          "x-gateway-secret": "value"
+        },
+        "headerName": {
+          "type": "string",
+          "default": "X-API-Key",
+          "pattern": "^[A-Za-z0-9-]{1,64}$"
+        },
+        "queryName": {
+          "type": "string",
+          "default": "api_key",
+          "maxLength": 64
+        },
+        "apiKey": {
+          "type": "string",
+          "writeOnly": true,
+          "x-gateway-secret": "value"
+        },
+        "username": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "password": {
+          "type": "string",
+          "writeOnly": true,
+          "x-gateway-secret": "value",
+          "format": "password"
+        }
+      }
+    },
+    "secretHeaders": {
+      "type": "array",
+      "maxItems": 5,
+      "title": "More secret headers",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "value"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9-]{1,64}$"
+          },
+          "value": {
+            "type": "string",
+            "writeOnly": true,
+            "x-gateway-secret": "value"
+          },
+          "methods": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "GET",
+                "HEAD",
+                "POST",
+                "PUT",
+                "PATCH",
+                "DELETE"
+              ]
+            },
+            "description": "Empty: every request"
+          }
+        }
+      }
+    },
+    "defaultHeaders": {
+      "type": "object",
+      "title": "Default headers",
+      "maxProperties": 10,
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 1024
+      },
+      "description": "Not secret, e.g. Accept: application/json"
+    },
+    "tls": {
+      "type": "object",
+      "title": "TLS",
+      "x-collapsed": true,
+      "additionalProperties": false,
+      "properties": {
+        "caCertificates": {
+          "type": "string",
+          "x-widget": "textarea",
+          "maxLength": 64000,
+          "description": "PEM of an internal CA or of one trusted certificate. Filled by Test connection after you trust it."
+        },
+        "pins": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^sha256/[A-Za-z0-9+/=]{44}$"
+          }
+        },
+        "minVersion": {
+          "enum": [
+            "TLSv1.2",
+            "TLSv1.3"
+          ],
+          "default": "TLSv1.2"
+        }
+      }
+    },
+    "advanced": {
+      "type": "object",
+      "title": "Advanced",
+      "x-collapsed": true,
+      "additionalProperties": false,
+      "properties": {
+        "connectTimeoutSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30,
+          "default": 5,
+          "x-unit": "s"
+        },
+        "followRedirects": {
+          "enum": [
+            "off",
+            "same-origin"
+          ],
+          "default": "off",
+          "x-forbidden-env-values": {
+            "prod": [
+              "same-origin"
+            ]
+          },
+          "description": "same-origin: a read follows up to 3 redirects on the same host, each under the base URL and the allowed paths. Never on prod."
+        },
+        "allowPlainHttp": {
+          "type": "boolean",
+          "default": false,
+          "x-forbidden-env": [
+            "prod"
+          ],
+          "description": "http:// only for private addresses you allowed in Policies"
+        },
+        "maxConcurrentCalls": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16,
+          "default": 4,
+          "x-env-default": {
+            "prod": 2
+          }
+        },
+        "test": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "method": {
+              "enum": [
+                "GET",
+                "HEAD"
+              ],
+              "default": "GET"
+            },
+            "path": {
+              "type": "string",
+              "default": "/"
+            }
+          }
+        }
+      }
+    }
+  }
+}

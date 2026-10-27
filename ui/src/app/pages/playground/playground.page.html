@@ -1,0 +1,345 @@
+<header class="gw-page-header">
+  <div class="gw-page-header__row">
+    <div class="gw-page-header__heading">
+      <h1 class="gw-page-header__title">Playground</h1>
+      <p class="gw-page-header__description">Call a tool the way an agent does and see exactly what it gets back. Calls are real: they pass the same policies, approvals and masking, and land in Activity as Playground.</p>
+    </div>
+  </div>
+</header>
+
+@let list = endpoints();
+@if (data.endpointsError(); as e) {
+  <!-- Nothing to call on: what happened, Try again, and the technical details under a disclosure. -->
+  <div class="gw-alert gw-alert--danger" role="alert">
+    <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+    <div class="gw-alert__content">
+      <p class="gw-alert__title">The endpoints didn't load</p>
+      <p class="gw-alert__body">{{ errorText(e) }}</p>
+      <div class="gw-alert__actions">
+        <button class="gw-btn gw-btn--sm" type="button" (click)="retryEndpoints()">Try again</button>
+        <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle aria-controls="pg-endpoints-error">Details <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
+      </div>
+    </div>
+  </div>
+  <gw-code-block [attr.id]="'pg-endpoints-error'" [id]="'pg-endpoints-error-pre'" hidden wrap lang="Error" [text]="errorDetails(e, 'GET /api/endpoints')" copyLabel="error details" regionLabel="Error details" />
+} @else if (!list) {
+  @if (slow()) {
+    <!-- The first render, when it takes longer than 300 ms (kit "Loading"). -->
+    <div class="gw-split gw-split--40" aria-hidden="true">
+      <div class="gw-split__list gw-stack">
+        <span class="gw-skeleton gw-skeleton--text"></span>
+        <span class="gw-skeleton gw-skeleton--block"></span>
+        <span class="gw-skeleton gw-skeleton--block"></span>
+      </div>
+      <div class="gw-split__detail gw-stack">
+        <span class="gw-skeleton gw-skeleton--text"></span>
+        <span class="gw-skeleton gw-skeleton--block"></span>
+      </div>
+    </div>
+    <p class="gw-sr-only" role="status">Loading the Playground</p>
+  }
+} @else if (!list.length) {
+  <!-- No endpoint yet: nothing offers tools to call. -->
+  <div class="gw-card">
+    <div class="gw-empty">
+      <span class="gw-empty__icon"><svg lucideIcon="waypoints" class="gw-icon gw-icon--lg"></svg></span>
+      <p class="gw-empty__title">No endpoints yet</p>
+      <p class="gw-empty__text">The Playground calls tools through an endpoint, exactly as an agent does. Create one and add a connection to it first.</p>
+      <div class="gw-empty__actions"><a class="gw-btn gw-btn--primary" routerLink="/endpoints" fragment="create"><svg lucideIcon="plus" class="gw-icon"></svg> Create endpoint</a></div>
+    </div>
+  </div>
+} @else {
+  @if (missing(); as m) {
+    <!-- A link named an endpoint that doesn't exist (removed or renamed): the page opened another one. -->
+    <div class="gw-alert gw-alert--warning gw-alert--compact" role="status">
+      <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content">
+        <p class="gw-alert__body">There is no endpoint <span class="gw-mono">{{ m }}</span>. It was removed or renamed@if (slug(); as s) {, so the Playground opened <span class="gw-mono">{{ s }}</span>}.</p>
+      </div>
+    </div>
+  }
+
+  <div class="gw-split gw-split--40">
+    <!-- ═══════════════ Left: what to call ═══════════════ -->
+    <div class="gw-split__list">
+      <section class="gw-section" aria-labelledby="pg-tool-t">
+        <header class="gw-section__header">
+          <h2 class="gw-section__title" id="pg-tool-t">Tool</h2>
+          <p class="gw-section__description">What the endpoint offers an agent, and each tool's mode there.</p>
+        </header>
+        <div class="gw-field">
+          <label class="gw-field__label" for="pg-endpoint">Endpoint</label>
+          <select class="gw-select" id="pg-endpoint" [attr.aria-describedby]="prod() ? 'pg-endpoint-hint pg-prod' : 'pg-endpoint-hint'" (change)="onEndpoint($event)">
+            @for (e of list; track e.slug) {
+              <option [value]="e.slug" [selected]="e.slug === slug()">{{ endpointOption(e) }}</option>
+            }
+          </select>
+          <p class="gw-field__hint" id="pg-endpoint-hint">@if (summary()?.url; as url) {<span class="gw-mono" id="pg-endpoint-url">{{ url }}</span> · }the same tools, modes and limits an agent gets there</p>
+        </div>
+        @if (prod()) {
+          <!-- A prod endpoint: the select points its aria-describedby at the warning. -->
+          <div class="gw-alert gw-alert--warning gw-alert--compact" id="pg-prod">
+            <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content">
+              <p class="gw-alert__body">Calls run on <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--prod">prod</span>@if (prodConnections().length) {: @for (n of prodConnections(); track n) {@if (!$first) {{{ $last ? ' and ' : ', ' }}}<span class="gw-mono">{{ n }}</span>}}. {{ prodTail() }}</p>
+            </div>
+          </div>
+        }
+
+        @if (loaded(); as t) {
+          <!-- The chosen tool stays in view; the picker opens with Change tool and closes once a tool is picked. -->
+          <div class="gw-toolbar" id="pg-chosen">
+            <div class="gw-toolbar__start">
+              <span class="gw-text-small gw-fg-secondary">Chosen</span>
+              @if (chosen(); as c) {
+                @let look = modes[c.mode];
+                <code class="gw-code">{{ c.name }}</code>
+                @if (c.connection) {
+                  <span class="gw-text-small gw-fg-secondary">on <span class="gw-mono">{{ c.connection }}</span>@if (c.env) { <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--{{ c.env }}">{{ c.env }}</span>}</span>
+                }
+                <span class="gw-mode {{ look.cls }}"><svg [lucideIcon]="look.icon" class="gw-icon"></svg>{{ look.text }}</span>
+              } @else {
+                <span class="gw-text-small gw-fg-muted">Nothing yet</span>
+              }
+            </div>
+            <div class="gw-toolbar__end">
+              <button class="gw-btn gw-btn--sm" type="button" id="pg-change-tool" gwToggle #pickerToggle="gwToggle" aria-controls="pg-tools"><svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg> Change tool</button>
+            </div>
+          </div>
+
+          <div gwToolPolicyList id="pg-tools" hidden variant="picker" summaryChips [showModeFilter]="false" [groups]="groups()" [slug]="t.slug" [endpointEnv]="summary()?.env ?? 'dev'" [descriptions]="descriptions()" [selected]="chosen()?.name ?? null" [selectedConnection]="chosen()?.connection" [(query)]="query" (picked)="onPicked($event)"></div>
+        } @else if (data.toolsError(); as e) {
+          <div class="gw-alert gw-alert--danger" role="alert">
+            <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content">
+              <p class="gw-alert__title">The tools of {{ slug() }} didn't load</p>
+              <p class="gw-alert__body">{{ errorText(e) }}</p>
+              <div class="gw-alert__actions">
+                <button class="gw-btn gw-btn--sm" type="button" (click)="retryTools()">Try again</button>
+                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle aria-controls="pg-tools-error">Details <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
+              </div>
+            </div>
+          </div>
+          <gw-code-block [attr.id]="'pg-tools-error'" [id]="'pg-tools-error-pre'" hidden wrap lang="Error" [text]="errorDetails(e, 'GET /api/playground/tools?endpoint=' + slug())" copyLabel="error details" regionLabel="Error details" />
+        } @else if (slow()) {
+          <div class="gw-stack gw-stack--sm" aria-hidden="true">
+            <span class="gw-skeleton gw-skeleton--text"></span>
+            <span class="gw-skeleton gw-skeleton--block"></span>
+          </div>
+          <p class="gw-sr-only" role="status">Loading the tools of {{ slug() }}</p>
+        }
+      </section>
+
+      @if (loaded()) {
+        @if (chosen(); as c) {
+          @if (args(); as form) {
+            <form class="gw-card" id="pg-args" aria-labelledby="pg-args-t" novalidate (submit)="onSubmit($event)" (reset)="onReset($event)" (keydown)="onFormKey($event)">
+              <header class="gw-card__header">
+                <div class="gw-card__heading">
+                  <h2 class="gw-card__title" id="pg-args-t">Arguments</h2>
+                  <p class="gw-card__description">For <code class="gw-code">{{ c.name }}</code>, built from its inputSchema</p>
+                </div>
+                <div class="gw-card__actions">
+                  <div class="gw-tabs gw-tabs--contained">
+                    <div class="gw-tabs__list" role="tablist" aria-label="Arguments view" gwTabs #argTabs="gwTabs" (selectedChange)="onArgsView($event)">
+                      <button class="gw-tabs__tab" type="button" role="tab" id="pg-tab-form" aria-selected="true" aria-controls="pg-panel-form"><svg lucideIcon="list" class="gw-icon"></svg> Form</button>
+                      <button class="gw-tabs__tab" type="button" role="tab" id="pg-tab-json" aria-selected="false" aria-controls="pg-panel-json" tabindex="-1"><svg lucideIcon="braces" class="gw-icon"></svg> JSON</button>
+                    </div>
+                  </div>
+                </div>
+              </header>
+              <div class="gw-card__body gw-stack">
+                <div class="gw-tabs__panel gw-stack" role="tabpanel" id="pg-panel-form" aria-labelledby="pg-tab-form" gwPlaygroundFields [form]="form" [tool]="c.name" [connectionChoices]="choices()" [connections]="data.connections()" (input)="formEdited()" (change)="formEdited()"></div>
+
+                <div class="gw-tabs__panel" role="tabpanel" id="pg-panel-json" aria-labelledby="pg-tab-json" hidden>
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="pg-json">Arguments as JSON</label>
+                    <textarea class="gw-textarea gw-textarea--code" id="pg-json" rows="8" spellcheck="false" autocapitalize="off" [attr.aria-describedby]="jsonProblem() ? 'pg-json-err pg-json-hint' : 'pg-json-hint'" [attr.aria-invalid]="jsonProblem() ? 'true' : null" [value]="jsonText()" (input)="onJson($event)"></textarea>
+                    @if (jsonProblem(); as p) {
+                      <p class="gw-field__error" id="pg-json-err"><svg lucideIcon="circle-alert" class="gw-icon"></svg><span id="pg-json-err-text">{{ p }}</span></p>
+                    }
+                    <p class="gw-field__hint" id="pg-json-hint">The same arguments as the form. They are checked against the inputSchema of <code class="gw-code">{{ c.name }}</code> before the call.</p>
+                  </div>
+                </div>
+
+                @switch (state()) {
+                  @case ('approval') {
+                    <div class="gw-alert gw-alert--warning" id="pg-approval-alert">
+                      <svg lucideIcon="user-check" class="gw-icon gw-alert__icon"></svg>
+                      <div class="gw-alert__content">
+                        <p class="gw-alert__title">This call needs approval</p>
+                        <p class="gw-alert__body">Running it sends you an approval request, exactly like an agent would. It runs after you approve it in <a class="gw-link" routerLink="/approvals">Approvals</a>, and the result shows up here.</p>
+                      </div>
+                    </div>
+                  }
+                  @case ('off') {
+                    <!-- Off on the endpoint: agents don't get it, so it can't run here either. -->
+                    <div class="gw-alert gw-alert--neutral" id="pg-off-alert">
+                      <svg lucideIcon="circle-off" class="gw-icon gw-alert__icon"></svg>
+                      <div class="gw-alert__content">
+                        <p class="gw-alert__title">Off on endpoint {{ slug() }}</p>
+                        <p class="gw-alert__body">Agents don't get this tool, so it can't run here either. Change its mode on the endpoint first.</p>
+                        <div class="gw-alert__actions"><a class="gw-btn gw-btn--sm" id="pg-off-link" [routerLink]="['/endpoints', slug()]" [queryParams]="{ tab: 'tools' }">Open tools of {{ slug() }}</a></div>
+                      </div>
+                    </div>
+                  }
+                  @case ('blocked') {
+                    <!-- The endpoint can't serve the tool (disabled, changed outside MCP Gateway, a name clash): the core's reason. -->
+                    <div class="gw-alert gw-alert--neutral" id="pg-off-alert">
+                      <svg lucideIcon="ban" class="gw-icon gw-alert__icon"></svg>
+                      <div class="gw-alert__content">
+                        <p class="gw-alert__title">Can't run on endpoint {{ slug() }}</p>
+                        <p class="gw-alert__body">{{ playTool()?.reason ?? "The endpoint can't serve this tool right now." }}</p>
+                        <div class="gw-alert__actions"><a class="gw-btn gw-btn--sm" id="pg-off-link" [routerLink]="['/endpoints', slug()]">Open endpoint {{ slug() }}</a></div>
+                      </div>
+                    </div>
+                  }
+                }
+              </div>
+              <footer class="gw-card__footer">
+                <button class="gw-btn gw-btn--ghost" type="reset"><svg lucideIcon="rotate-ccw" class="gw-icon"></svg> Reset</button>
+                <button class="gw-btn gw-btn--primary" type="submit" id="pg-run" aria-keyshortcuts="Meta+Enter Control+Enter" [attr.aria-disabled]="cannotRun() || busy() ? 'true' : null" [attr.aria-describedby]="cannotRun() ? 'pg-off-alert' : null" [attr.aria-busy]="busy() ? 'true' : null">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="play" class="gw-icon"></svg>} Run<span class="gw-sr-only"> {{ c.name }}</span> <kbd class="gw-btn__kbd" aria-hidden="true">⌘ Enter</kbd></button>
+              </footer>
+            </form>
+          }
+        } @else {
+          <!-- The endpoint offers no tool yet. -->
+          <div class="gw-card">
+            <div class="gw-empty gw-empty--compact">
+              <span class="gw-empty__icon"><svg lucideIcon="plug-zap" class="gw-icon"></svg></span>
+              <h2 class="gw-empty__title">No tools on {{ slug() }}</h2>
+              <p class="gw-empty__text">Add a connection to the endpoint to give agents tools, then try them here.</p>
+              <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" [routerLink]="['/endpoints', slug()]" [queryParams]="{ tab: 'connections' }">Open endpoint {{ slug() }}</a></div>
+            </div>
+          </div>
+        }
+      }
+    </div>
+
+    <!-- ═══════════════ Right: what came back ═══════════════ -->
+    <div class="gw-split__detail">
+      <section class="gw-section" id="pg-out" aria-labelledby="pg-out-t" [attr.aria-busy]="busy() ? 'true' : null">
+        <header class="gw-section__header">
+          <h2 class="gw-section__title" id="pg-out-t">What the agent receives</h2>
+          @if (lastRun(); as r) {
+            <p class="gw-section__description">Last run: <code class="gw-code">{{ r.tool }}</code>@if (r.connection) {<span> on <code class="gw-code">{{ r.connection }}</code>@if (r.env) { <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--{{ r.env }}">{{ r.env }}</span>}</span>}, <time [attr.datetime]="time.iso(r.at)" [attr.title]="time.absolute(r.at)">{{ time.relative(r.at) }}</time>. Masked and limited exactly as for an agent.</p>
+          } @else {
+            <p class="gw-section__description">Masked and limited exactly as for an agent.</p>
+          }
+        </header>
+        <p class="gw-sr-only" role="status" id="pg-out-status">{{ outStatus() }}</p>
+
+        @if (busy()) {
+          <!-- A run in flight (the section is aria-busy). -->
+          <div class="gw-stack gw-stack--sm" id="pg-loading" aria-hidden="true">
+            <span class="gw-skeleton gw-skeleton--text"></span>
+            <span class="gw-skeleton gw-skeleton--text"></span>
+            <span class="gw-skeleton gw-skeleton--block"></span>
+            <span class="gw-skeleton gw-skeleton--block"></span>
+          </div>
+        } @else if (runError(); as e) {
+          <!-- The call didn't reach the endpoint: the admin API refused it or the core didn't answer. -->
+          <div class="gw-alert gw-alert--danger" role="alert">
+            <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content">
+              <p class="gw-alert__title">The call didn't run</p>
+              <p class="gw-alert__body">{{ errorText(e) }}</p>
+              <div class="gw-alert__actions">
+                <button class="gw-btn gw-btn--sm" type="button" (click)="run()">Try again</button>
+                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle aria-controls="pg-run-error">Details <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
+              </div>
+            </div>
+          </div>
+          <gw-code-block [attr.id]="'pg-run-error'" [id]="'pg-run-error-pre'" hidden wrap lang="Error" [text]="errorDetails(e, 'POST /api/playground/call')" copyLabel="error details" regionLabel="Error details" />
+        } @else {
+          @for (r of runs(); track r.call.callId + r.at) {
+            <div gwPlaygroundResult id="pg-result" [run]="r" [event]="lastEvent()"></div>
+          } @empty {
+            <div class="gw-card">
+              <div class="gw-card__body">
+                <div class="gw-empty gw-empty--compact">
+                  <span class="gw-empty__icon"><svg lucideIcon="play" class="gw-icon"></svg></span>
+                  <h3 class="gw-empty__title">Nothing run yet</h3>
+                  <p class="gw-empty__text">Choose a tool, fill in its arguments and press Run. The answer shows up here exactly as an agent gets it.</p>
+                </div>
+              </div>
+            </div>
+          }
+        }
+      </section>
+
+      <section class="gw-section" aria-labelledby="pg-hist-t">
+        <header class="gw-section__header">
+          <h2 class="gw-section__title" id="pg-hist-t">History</h2>
+          <p class="gw-section__description">Your last 5 runs, newest first. Each one opens in Activity.</p>
+          <div class="gw-section__actions"><a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/activity" [queryParams]="{ q: 'client:playground' }"><svg lucideIcon="activity" class="gw-icon gw-icon--sm"></svg> All runs in Activity</a></div>
+        </header>
+        @if (historyRows(); as rows) {
+          @if (rows.length) {
+            <div class="gw-table-wrap" role="region" aria-labelledby="pg-hist-cap" tabindex="0">
+              <table class="gw-table gw-table--dense gw-table--interactive">
+                <caption class="gw-sr-only" id="pg-hist-cap">Last {{ rows.length }} playground runs, newest first</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Time</th>
+                    <th scope="col">Decision</th>
+                    <th scope="col">Tool · connection</th>
+                    <th scope="col" class="gw-table__cell--num">Duration</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (h of rows; track h.id) {
+                    <tr>
+                      <td><a class="gw-table__row-link" routerLink="/activity" [fragment]="'event-' + h.id" [attr.aria-current]="h.current ? 'true' : null"><time [attr.datetime]="time.iso(h.at)" [attr.title]="time.absolute(h.at)">{{ time.relative(h.at) }}</time><span class="gw-sr-only"> at {{ time.clock(h.at, true) }}, open run {{ h.tool }} in Activity{{ h.current ? ', shown above' : '' }}</span></a></td>
+                      <td><span class="gw-badge gw-badge--sm gw-badge--{{ h.badge.tone }}"><svg [lucideIcon]="h.badge.icon" class="gw-icon gw-badge__icon"></svg>{{ h.badge.text }}</span></td>
+                      <td class="gw-table__cell--truncate"><div class="gw-text-code-sm gw-truncate" [title]="h.tool">{{ h.tool }}</div>@if (h.connection) {<div class="gw-text-caption gw-truncate"><span class="gw-mono" [title]="h.connection">{{ h.connection }}</span>@if (h.env) { <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--{{ h.env }}">{{ h.env }}</span>}</div>}</td>
+                      <td class="gw-table__cell--num">{{ h.duration }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          } @else {
+            <div class="gw-card">
+              <div class="gw-card__body">
+                <div class="gw-empty gw-empty--compact">
+                  <span class="gw-empty__icon"><svg lucideIcon="history" class="gw-icon"></svg></span>
+                  <h3 class="gw-empty__title">No runs yet</h3>
+                  <p class="gw-empty__text">Your runs on endpoint <span class="gw-mono">{{ slug() }}</span> show up here, newest first. Activity keeps all of them.</p>
+                </div>
+              </div>
+            </div>
+          }
+        } @else if (data.historyError(); as e) {
+          <div class="gw-alert gw-alert--danger" role="alert">
+            <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content">
+              <p class="gw-alert__title">The history didn't load</p>
+              <p class="gw-alert__body">{{ errorText(e) }}</p>
+              <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retryHistory()">Try again</button></div>
+            </div>
+          </div>
+        } @else if (slow()) {
+          <div class="gw-table-wrap" role="region" aria-labelledby="pg-hist-skel-cap" tabindex="0" aria-busy="true">
+            <table class="gw-table gw-table--dense">
+              <caption class="gw-sr-only" id="pg-hist-skel-cap">Playground runs, loading</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Time</th>
+                  <th scope="col">Decision</th>
+                  <th scope="col">Tool · connection</th>
+                  <th scope="col" class="gw-table__cell--num">Duration</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (i of [1, 2, 3]; track i) {
+                  <tr aria-hidden="true"><td><span class="gw-skeleton gw-skeleton--text"></span></td><td><span class="gw-skeleton gw-skeleton--text"></span></td><td><span class="gw-skeleton gw-skeleton--text"></span></td><td><span class="gw-skeleton gw-skeleton--text"></span></td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+    </div>
+  </div>
+}

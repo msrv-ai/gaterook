@@ -1,0 +1,49 @@
+{
+  "reflection": [
+    {"type": "java.security.AlgorithmParameters", "methods": [
+      {"name": "getInstance", "parameterTypes": ["java.lang.String"]},
+      {"name": "getInstance", "parameterTypes": ["java.lang.String", "java.security.Provider"]}]},
+    {"type": "java.security.KeyFactory", "methods": [
+      {"name": "getInstance", "parameterTypes": ["java.lang.String"]},
+      {"name": "getInstance", "parameterTypes": ["java.lang.String", "java.security.Provider"]}]},
+    {"type": "java.security.KeyPairGenerator", "methods": [
+      {"name": "getInstance", "parameterTypes": ["java.lang.String"]},
+      {"name": "getInstance", "parameterTypes": ["java.lang.String", "java.security.Provider"]}]},
+    {"type": "java.security.MessageDigest", "methods": [
+      {"name": "getInstance", "parameterTypes": ["java.lang.String"]},
+      {"name": "getInstance", "parameterTypes": ["java.lang.String", "java.security.Provider"]}]},
+    {"type": "java.security.Signature", "methods": [
+      {"name": "getInstance", "parameterTypes": ["java.lang.String"]},
+      {"name": "getInstance", "parameterTypes": ["java.lang.String", "java.security.Provider"]}]},
+    {"type": "java.security.cert.CertificateFactory", "methods": [
+      {"name": "getInstance", "parameterTypes": ["java.lang.String"]},
+      {"name": "getInstance", "parameterTypes": ["java.lang.String", "java.security.Provider"]}]},
+    {"type": "javax.crypto.Cipher", "methods": [
+      {"name": "getInstance", "parameterTypes": ["java.lang.String"]},
+      {"name": "getInstance", "parameterTypes": ["java.lang.String", "java.security.Provider"]}]},
+    {"type": "javax.crypto.KeyAgreement", "methods": [
+      {"name": "getInstance", "parameterTypes": ["java.lang.String"]},
+      {"name": "getInstance", "parameterTypes": ["java.lang.String", "java.security.Provider"]}]},
+    {"type": "javax.crypto.Mac", "methods": [
+      {"name": "getInstance", "parameterTypes": ["java.lang.String"]},
+      {"name": "getInstance", "parameterTypes": ["java.lang.String", "java.security.Provider"]}]},
+    {"type": "org.apache.sshd.common.util.security.SunJCESecurityProviderRegistrar",
+     "methods": [{"name": "<init>", "parameterTypes": []}]},
+    {"type": "org.apache.sshd.common.util.security.bouncycastle.BouncyCastleSecurityProviderRegistrar",
+     "methods": [{"name": "<init>", "parameterTypes": []}]},
+    {"type": "org.apache.sshd.common.util.security.eddsa.EdDSASecurityProviderRegistrar",
+     "methods": [{"name": "<init>", "parameterTypes": []}]},
+    {"type": "org.apache.sshd.common.io.nio2.Nio2ServiceFactoryFactory",
+     "methods": [{"name": "<init>", "parameterTypes": []}]},
+    {"type": "org.apache.sshd.common.channel.ChannelListener", "allPublicMethods": true},
+    {"type": "org.apache.sshd.common.session.SessionListener", "allPublicMethods": true},
+    {"type": "org.apache.sshd.common.forward.PortForwardingEventListener", "allPublicMethods": true},
+    {"type": {"proxy": ["org.apache.sshd.common.channel.ChannelListener"]}},
+    {"type": {"proxy": ["org.apache.sshd.common.session.SessionListener"]}},
+    {"type": {"proxy": ["org.apache.sshd.common.forward.PortForwardingEventListener"]}}
+  ],
+  "resources": [
+    {"glob": "org/apache/sshd/sshd-version.properties"},
+    {"glob": "META-INF/services/org.apache.sshd.common.io.IoServiceFactoryFactory"}
+  ]
+}

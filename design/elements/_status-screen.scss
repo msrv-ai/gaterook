@@ -1,0 +1,189 @@
+// =============================================================
+// .gw-status-screen · Core status screen (element)
+// -------------------------------------------------------------
+// Purpose   Stands in for the whole window while the gateway core is not
+//           available: starting (indeterminate), failed to start (port in
+//           use, master key missing, no Java runtime) or stopped unexpectedly.
+//           There is no gw-shell behind it: nothing in the app works until the
+//           core answers on 127.0.0.1:7465, so the screen says what is
+//           happening, why, and the one or two things to do about it.
+// Used in   pages/core-starting.html; the Electron renderer shows it until the
+//           first successful health call and again whenever the core exits.
+// Composes  gw-logo --xl · gw-card (__body, __footer) · gw-icon-tile --lg --danger
+//           · gw-progress --indeterminate · gw-stepper --vertical (gw-spinner
+//           --sm in the current marker) · gw-alert --danger · gw-code-block ·
+//           gw-kv --dense · gw-btn (--primary, default, --ghost, --danger-ghost)
+//           · gw-dialog --danger (Create a new key) · gw-stack --sm · gw-code
+//           · gw-sr-only live text
+//
+//   <main class="gw-status-screen" data-state="starting" aria-labelledby="core-title">
+//     <div class="gw-status-screen__drag" aria-hidden="true"></div>
+//     <div class="gw-status-screen__column">
+//       <span class="gw-logo gw-logo--xl">
+//         <img class="gw-logo__mark" src="assets/logo-mark.svg" alt="">
+//         <span class="gw-logo__name">GateRook</span>
+//       </span>
+//       <section class="gw-card gw-status-screen__card" aria-labelledby="core-title">
+//         <div class="gw-card__body gw-status-screen__body">
+//           <div class="gw-status-screen__intro">
+//             (failures: <span class="gw-icon-tile gw-icon-tile--lg gw-icon-tile--danger">…</span>)
+//             <div class="gw-status-screen__text">
+//               <h1 class="gw-text-h1" id="core-title">Starting the gateway core</h1>
+//               <p class="gw-text-body-read">Starting Java runtime and the local API on 127.0.0.1:7465. …</p>
+//             </div>
+//           </div>
+//           <div class="gw-progress gw-progress--indeterminate" role="progressbar" aria-labelledby="core-title">
+//             <div class="gw-progress__bar"></div>
+//           </div>
+//           <ol class="gw-stepper gw-stepper--vertical" aria-label="Start-up steps">…</ol>
+//           <div class="gw-status-screen__details">…disclosure + gw-code-block…</div>
+//           <p class="gw-sr-only" role="status">Starting the gateway core: local API, step 4 of 4.</p>
+//         </div>
+//         <footer class="gw-card__footer">…secondary, then primary last…</footer>
+//       </section>
+//       <p class="gw-status-screen__meta gw-text-caption gw-fg-muted">GateRook 0.4.0 · …</p>
+//     </div>
+//   </main>
+//
+// Parts
+//   (root)     fixed over the whole window (z status-screen, above toasts), the
+//              window canvas as its ground (it IS the window, like gw-shell), owns
+//              its scroll; the column is centred and falls back to the top when the
+//              window is shorter than the content (safe centring).
+//   __drag     invisible strip, titlebar height, at the top: the frameless Electron
+//              window stays draggable without a titlebar. Content stays selectable.
+//   __column   the centred column: logo → card → meta, as wide as a dialog (560).
+//   __card     the gw-card; stretches to the column width.
+//   __body     the card body as a stack: intro → progress → steps → details.
+//   __intro    [danger icon tile] + __text, side by side.
+//   __text     title + reading text.
+//   __details  a disclosure (data-gw-toggle) and what it reveals: the command or
+//              the last log lines. The revealed block takes the full width.
+//   __meta     version, address and log path under the card, centred.
+//   __frame    preview frame for demos and design reviews: pair it with gw-card
+//              (the frame look) and put a --contained screen inside.
+// Variants
+//   --contained  in flow instead of fixed: fills its __frame (or any sized box).
+// States (content, not style; data-state is the app's hook)
+//   starting   no tile; gw-progress--indeterminate; stepper complete … current
+//              (gw-spinner--sm in the marker); sr-only role="status" text.
+//   failed     danger tile; the failing step data-state="error" (x icon) with the
+//              reason in __description, later steps upcoming; actions in the card
+//              footer (secondary first, primary last). Port in use: the details
+//              block holds the command that finds the process (lsof, netstat on
+//              Windows), open by default; the text says what another port costs
+//              (endpoint URLs change, clients reconnect). Master key not found:
+//              Restore from backup is the primary; a gw-alert--danger
+//              (circle-alert) says what a new key breaks, and its
+//              gw-btn--danger-ghost opens gw-dialog--danger whose confirm button
+//              names the object ("Create a new master key").
+//   stopped    danger tile; gw-kv --dense facts (exit code, reason, uptime, log
+//              path in mono); the last log lines under a closed disclosure; Open
+//              logs + Restart core (primary). Pending approval requests are kept
+//              (say so: people worry about them).
+// A11y
+//   In the app the root is the <main> landmark and the title the page's h1 (in a
+//   preview the title follows the surrounding outline). Starting: one sr-only
+//   role="status" line, updated per step. Failure: one sr-only role="alert" line
+//   ("Core failed to start: port 7465 is already in use"), announced once. The
+//   progress bar is named by the title; the stepper marks the step state in
+//   sr-only words (", completed" / ", in progress" / ", failed").
+// Colour      only the window ground (bg.canvas, as body / gw-shell): everything
+//             else comes from the composed components.
+// Raw values: none (preview frame height is 15 table rows).
+// =============================================================
+
+@use "../scss/tokens" as *;
+@use "../scss/mixins" as *;
+
+.gw-status-screen {
+  position: fixed;
+  inset: 0;
+  z-index: var(--gw-z-status-screen);
+  display: grid;
+  align-content: safe center;
+  justify-items: center;
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--gw-space-12) var(--gw-layout-page-gutter);
+  // Not a new look: the window ground body and gw-shell already paint. Needed
+  // because the fixed screen covers the app shell when the core exits mid-session.
+  background: var(--gw-color-bg-canvas);
+  @include gw-scrollbar;
+
+  @include gw-bp-down(sm) { padding-inline: var(--gw-layout-page-gutter-sm); }
+
+  // ─── Preview: in flow, fills its frame ───
+  &--contained {
+    position: relative;
+    inset: auto;
+    z-index: auto;
+    overflow: visible;
+  }
+
+  &__drag {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline: 0;
+    block-size: var(--gw-layout-titlebar-height);
+    @include gw-drag-region;
+  }
+
+  &__column {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--gw-space-6);
+    inline-size: min(100%, var(--gw-layout-dialog-md));
+    min-width: 0;
+  }
+
+  &__card { align-self: stretch; }
+
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-5);
+    min-width: 0;
+  }
+
+  &__intro {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--gw-space-4);
+    min-width: 0;
+  }
+
+  &__text {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: var(--gw-space-2);
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  &__details {
+    display: grid;
+    justify-items: start;
+    gap: var(--gw-space-2);
+    min-width: 0;
+
+    > :not(.gw-btn) { justify-self: stretch; }
+  }
+
+  &__meta {
+    text-align: center;
+    overflow-wrap: anywhere;
+  }
+
+  // ─── Preview frame (demo pages, reviews): pair with gw-card ───
+  &__frame {
+    position: relative;
+    display: grid;
+    min-block-size: calc(var(--gw-size-row) * 15); // 600px: a small app window
+    min-width: 0;
+    overflow: hidden;
+  }
+}

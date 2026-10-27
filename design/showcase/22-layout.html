@@ -1,0 +1,202 @@
+<section class="sc-section" id="page-layout" data-title="Page layout" data-group="Layout">
+  <h2>Page layout <code class="gw-code">gw-page</code> <code class="gw-code">gw-section</code> <code class="gw-code">gw-toolbar</code> <code class="gw-code">gw-split</code> <code class="gw-code">gw-grid</code> <code class="gw-code">gw-divider</code></h2>
+  <p>Arrangement only: these classes place cards, tables and forms inside <code class="gw-code">gw-shell__main</code>; they draw no surfaces of their own. <code class="gw-code">gw-page</code> is the only way to cap a width, so never set <code class="gw-code">max-width</code> or <code class="gw-code">margin: 0 auto</code> on page content.</p>
+
+  <h3>Page widths</h3>
+  <p class="sc-lead">Default: up to 1440px of content with 32px gutters (16px below 640px), sections 32px apart. <code class="gw-code">gw-page--narrow</code> caps content at 880px for forms and settings read top to bottom. <code class="gw-code">gw-page--full</code> has no cap and fills main's height, so a <code class="gw-code">gw-split</code> inside it takes the remaining height (Approvals, Playground, Activity).</p>
+  <div class="sc-demo sc-demo--canvas sc-demo--col" data-sc-code>
+    <div class="gw-page gw-page--narrow">
+      <div class="gw-card gw-card--dashed"><div class="gw-card__body gw-text-small"><code class="gw-code">gw-page--narrow</code> · Settings, Connection form, Policies</div></div>
+    </div>
+    <div class="gw-page">
+      <div class="gw-card gw-card--dashed"><div class="gw-card__body gw-text-small"><code class="gw-code">gw-page</code> · Overview, Connections, Endpoints, AI apps</div></div>
+    </div>
+    <div class="gw-page gw-page--full">
+      <div class="gw-card gw-card--dashed"><div class="gw-card__body gw-text-small"><code class="gw-code">gw-page--full</code> · Activity, Approvals, Playground</div></div>
+    </div>
+  </div>
+
+  <h3>Section</h3>
+  <p class="sc-lead">A titled block of a page without a card around it: <code class="gw-code">h2</code>, an optional one-line description and actions on the right. Use a card instead when the block needs its own surface or footer.</p>
+  <div class="sc-demo sc-demo--canvas sc-demo--col" data-sc-code>
+    <section class="gw-section" aria-labelledby="sc-a-sec-health">
+      <header class="gw-section__header">
+        <!-- h2 on a real page -->
+        <h4 class="gw-section__title" id="sc-a-sec-health">Connection health</h4>
+        <p class="gw-section__description">Checked every minute. Tools on an unreachable connection fail fast instead of timing out.</p>
+        <div class="gw-section__actions">
+          <button class="gw-btn gw-btn--sm" type="button"><i class="gw-icon gw-icon--sm" data-lucide="refresh-cw"></i> Check all</button>
+        </div>
+      </header>
+      <div class="gw-grid gw-grid--3">
+        <div class="gw-card"><div class="gw-card__body"><p class="gw-mono">dev-db</p><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy · 12 ms</span></span></div></div>
+        <div class="gw-card"><div class="gw-card__body"><p class="gw-mono">cache-redis</p><span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Slow · 1.8 s</span></span></div></div>
+        <div class="gw-card"><div class="gw-card__body"><p class="gw-mono">billing-api</p><span class="gw-status gw-status--danger"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Unreachable</span></span></div></div>
+      </div>
+    </section>
+  </div>
+
+  <h3>Toolbar</h3>
+  <p class="sc-lead">Filters and actions above a table or list. <code class="gw-code">__start</code> holds search and filters and wraps; <code class="gw-code">__end</code> holds actions and stays right. Group related controls with a vertical divider.</p>
+  <div class="sc-demo sc-demo--canvas sc-demo--col" data-sc-code>
+    <div class="gw-toolbar">
+      <div class="gw-toolbar__start">
+        <div class="gw-search">
+          <i class="gw-icon gw-search__icon" data-lucide="search"></i>
+          <input class="gw-search__input" type="search" placeholder="Search connections" aria-label="Search connections">
+          <button class="gw-search__clear" type="button" aria-label="Clear search"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+          <kbd class="gw-search__kbd" aria-hidden="true">/</kbd>
+        </div>
+        <button class="gw-btn gw-btn--sm" type="button"><i class="gw-icon gw-icon--sm" data-lucide="list-filter"></i> Type: All</button>
+        <button class="gw-btn gw-btn--sm" type="button"><i class="gw-icon gw-icon--sm" data-lucide="list-filter"></i> Environment: All</button>
+        <span class="gw-divider gw-divider--vertical" aria-hidden="true"></span>
+        <span class="gw-text-small gw-fg-muted">11 connections</span>
+      </div>
+      <div class="gw-toolbar__end">
+        <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button"><i class="gw-icon gw-icon--sm" data-lucide="download"></i> Export CSV</button>
+        <button class="gw-btn gw-btn--primary gw-btn--sm" type="button"><i class="gw-icon gw-icon--sm" data-lucide="plus"></i> Add connection</button>
+      </div>
+    </div>
+  </div>
+
+  <h4>Sticky toolbar</h4>
+  <p class="sc-lead"><code class="gw-code">gw-toolbar--sticky</code> stays at the top of the scrolling main while a long list moves under it. Its canvas fill hides the rows, so it belongs on the page canvas, not inside a card. Scroll the box below.</p>
+  <div class="sc-demo sc-demo--canvas sc-demo--col" data-sc-code>
+    <div style="height: 240px; overflow: auto" tabindex="0" role="region" aria-label="Sticky toolbar example">
+      <div class="gw-toolbar gw-toolbar--sticky">
+        <div class="gw-toolbar__start">
+          <button class="gw-btn gw-btn--sm" type="button" aria-pressed="true"><i class="gw-icon gw-icon--sm" data-lucide="activity"></i> Live</button>
+          <span class="gw-text-small gw-fg-muted">Last 15 minutes · 42 events</span>
+        </div>
+        <div class="gw-toolbar__end">
+          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button"><i class="gw-icon gw-icon--sm" data-lucide="download"></i> Export JSONL</button>
+        </div>
+      </div>
+      <div class="gw-stack gw-stack--sm">
+        <p class="gw-text-code-sm">12:04:31 · sql_query · dev-db · allowed · 38 ms</p>
+        <p class="gw-text-code-sm">12:04:12 · ssh_run · dev-vm · allowed · 410 ms</p>
+        <p class="gw-text-code-sm">12:03:58 · logs_search · app-logs · allowed · 122 ms</p>
+        <p class="gw-text-code-sm">12:03:40 · sql_execute · prod-replica · denied by policy · 2 ms</p>
+        <p class="gw-text-code-sm">12:03:02 · k8s_apply · dev-cluster · rejected · 47 s</p>
+        <p class="gw-text-code-sm">12:02:44 · http_request · billing-api · expired · 5 min</p>
+        <p class="gw-text-code-sm">12:02:10 · redis_get · cache-redis · error · 1.8 s</p>
+        <p class="gw-text-code-sm">12:01:55 · sql_query · dev-db · allowed · 41 ms</p>
+        <p class="gw-text-code-sm">12:01:31 · sql_query · dev-db · allowed · 36 ms</p>
+        <p class="gw-text-code-sm">12:01:02 · logs_search · prod-logs · allowed · 640 ms</p>
+        <p class="gw-text-code-sm">12:00:48 · sql_execute · dev-db · approved · 52 s</p>
+        <p class="gw-text-code-sm">12:00:20 · ssh_run · dev-vm · allowed · 380 ms</p>
+      </div>
+    </div>
+  </div>
+
+  <h3>Split</h3>
+  <p class="sc-lead">Master-detail with two panels that scroll on their own once the split has a height: inside <code class="gw-code">gw-page--full</code> it fills the rest of main, elsewhere set <code class="gw-code">--gw-split-height</code> (never a fixed <code class="gw-code">height</code>: below 960px the panels stack, the height is dropped and the page scrolls). Default 1 : 2 for queues (Approvals), <code class="gw-code">--40</code> for lists with wide rows, <code class="gw-code">--50</code> for input and output side by side (Playground).</p>
+  <div class="sc-demo sc-demo--canvas sc-demo--col" data-sc-code>
+    <div class="gw-split" style="--gw-split-height: 360px">
+      <div class="gw-split__list">
+        <p class="gw-text-overline" id="sc-a-split-pending">Pending · 3</p>
+        <ul class="gw-stack gw-stack--sm" aria-labelledby="sc-a-split-pending">
+          <li class="gw-card gw-card--interactive gw-card--selected">
+            <div class="gw-card__body">
+              <a class="gw-card__link" href="#page-layout" aria-current="true"><code class="gw-code">sql_execute</code></a>
+              <p class="gw-text-small gw-fg-muted"><span class="gw-mono">dev-db</span> · Codex · auto-deny in 4:12</p>
+            </div>
+          </li>
+          <li class="gw-card gw-card--interactive">
+            <div class="gw-card__body">
+              <a class="gw-card__link" href="#page-layout"><code class="gw-code">k8s_rollout_restart</code></a>
+              <p class="gw-text-small gw-fg-muted"><span class="gw-mono">dev-cluster</span> · Claude Desktop · auto-deny in 0:48</p>
+            </div>
+          </li>
+          <li class="gw-card gw-card--interactive">
+            <div class="gw-card__body">
+              <a class="gw-card__link" href="#page-layout"><code class="gw-code">http_request</code></a>
+              <p class="gw-text-small gw-fg-muted"><span class="gw-mono">billing-api</span> · Codex · auto-deny in 9:30</p>
+            </div>
+          </li>
+        </ul>
+        <p class="gw-text-overline" id="sc-a-split-history">History</p>
+        <ul class="gw-stack gw-stack--sm" aria-labelledby="sc-a-split-history">
+          <li class="gw-card gw-card--muted"><div class="gw-card__body gw-text-small"><code class="gw-code">sql_execute</code> approved by you · 12 min ago</div></li>
+          <li class="gw-card gw-card--muted"><div class="gw-card__body gw-text-small"><code class="gw-code">k8s_apply</code> rejected by you · 48 min ago</div></li>
+          <li class="gw-card gw-card--muted"><div class="gw-card__body gw-text-small"><code class="gw-code">http_request</code> expired · 2 h ago</div></li>
+        </ul>
+      </div>
+      <div class="gw-split__detail">
+        <section class="gw-card" aria-labelledby="sc-a-split-detail">
+          <header class="gw-card__header">
+            <div class="gw-card__heading">
+              <h4 class="gw-card__title" id="sc-a-split-detail"><code class="gw-code">sql_execute</code> on <span class="gw-mono">dev-db</span></h4>
+              <p class="gw-card__description">Requested by Codex with token <span class="gw-mono">codex-laptop</span> on endpoint <span class="gw-mono">dev</span></p>
+            </div>
+          </header>
+          <div class="gw-card__body gw-stack">
+            <div class="gw-code-block">
+              <div class="gw-code-block__body" tabindex="0" role="region" aria-label="SQL statement to approve">
+<pre class="gw-code-block__pre"><code>UPDATE orders SET status = 'cancelled' WHERE id = 48213;</code></pre>
+              </div>
+            </div>
+            <p class="gw-text-body-read">Why approval: the policy for dev sends every mutation to a human. Estimated impact: 1 row.</p>
+            <p class="gw-text-body-read">Agent's note · unverified: the order was created twice by the sync job; cancelling the duplicate.</p>
+          </div>
+          <footer class="gw-card__footer">
+            <button class="gw-btn gw-btn--danger" type="button">Deny</button>
+            <button class="gw-btn gw-btn--approve" type="button"><i class="gw-icon" data-lucide="check"></i> Approve and run</button>
+          </footer>
+        </section>
+      </div>
+    </div>
+  </div>
+  <div class="sc-demo sc-demo--canvas sc-demo--col" data-sc-code>
+    <div class="gw-split gw-split--40">
+      <div class="gw-split__list"><div class="gw-card gw-card--dashed"><div class="gw-card__body gw-text-small"><code class="gw-code">gw-split--40</code> · list 2fr</div></div></div>
+      <div class="gw-split__detail"><div class="gw-card gw-card--dashed"><div class="gw-card__body gw-text-small">detail 3fr</div></div></div>
+    </div>
+    <div class="gw-split gw-split--50">
+      <div class="gw-split__list"><div class="gw-card gw-card--dashed"><div class="gw-card__body gw-text-small"><code class="gw-code">gw-split--50</code> · arguments 1fr</div></div></div>
+      <div class="gw-split__detail"><div class="gw-card gw-card--dashed"><div class="gw-card__body gw-text-small">what the agent receives 1fr</div></div></div>
+    </div>
+  </div>
+
+  <h3>Grid</h3>
+  <p class="sc-lead">Cards in columns, 16px apart. <code class="gw-code">--2</code>, <code class="gw-code">--3</code> and <code class="gw-code">--4</code> step down to two columns below 1280px and one below 640px; <code class="gw-code">--auto</code> fits as many 280px columns as there is room for (set <code class="gw-code">--gw-grid-min</code> to change it). Inside narrow panels use <code class="gw-code">--auto</code>.</p>
+  <div class="sc-demo sc-demo--canvas sc-demo--col" data-sc-code>
+    <div class="gw-grid gw-grid--4">
+      <div class="gw-card"><div class="gw-card__body"><p class="gw-text-caption gw-fg-muted">Calls · 24 h</p><p class="gw-text-stat">1,284</p></div></div>
+      <div class="gw-card"><div class="gw-card__body"><p class="gw-text-caption gw-fg-muted">Waiting for approval</p><p class="gw-text-stat">3</p></div></div>
+      <div class="gw-card"><div class="gw-card__body"><p class="gw-text-caption gw-fg-muted">Denied by policy</p><p class="gw-text-stat">17</p></div></div>
+      <div class="gw-card"><div class="gw-card__body"><p class="gw-text-caption gw-fg-muted">Gateway overhead p95</p><p class="gw-text-stat">31 ms</p></div></div>
+    </div>
+    <div class="gw-grid gw-grid--3">
+      <div class="gw-card gw-card--muted"><div class="gw-card__body gw-text-small"><code class="gw-code">gw-grid--3</code> · one</div></div>
+      <div class="gw-card gw-card--muted"><div class="gw-card__body gw-text-small">two</div></div>
+      <div class="gw-card gw-card--muted"><div class="gw-card__body gw-text-small">three</div></div>
+    </div>
+    <div class="gw-grid gw-grid--2">
+      <div class="gw-card gw-card--muted"><div class="gw-card__body gw-text-small"><code class="gw-code">gw-grid--2</code> · Waiting for you</div></div>
+      <div class="gw-card gw-card--muted"><div class="gw-card__body gw-text-small">Recent activity</div></div>
+    </div>
+    <div class="gw-grid gw-grid--auto">
+      <div class="gw-card"><div class="gw-card__body"><p class="gw-mono">dev-db</p><p class="gw-text-small gw-fg-muted">PostgreSQL 16 · dev</p></div></div>
+      <div class="gw-card"><div class="gw-card__body"><p class="gw-mono">stage-db</p><p class="gw-text-small gw-fg-muted">PostgreSQL · stage</p></div></div>
+      <div class="gw-card"><div class="gw-card__body"><p class="gw-mono">prod-replica</p><p class="gw-text-small gw-fg-muted">PostgreSQL read replica · prod</p></div></div>
+      <div class="gw-card"><div class="gw-card__body"><p class="gw-mono">orders-mongo</p><p class="gw-text-small gw-fg-muted">MongoDB · dev</p></div></div>
+      <div class="gw-card"><div class="gw-card__body"><p class="gw-mono">dev-vm</p><p class="gw-text-small gw-fg-muted">SSH · dev</p></div></div>
+    </div>
+  </div>
+
+  <h3>Divider</h3>
+  <p class="sc-lead">A hairline between groups of content that share a surface. Horizontal is an <code class="gw-code">hr</code>; vertical sits between inline items and is decorative (<code class="gw-code">aria-hidden</code>). Between cards, use the gap, not a divider.</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <p class="gw-text-body-read">The master key encrypts every stored secret.</p>
+    <hr class="gw-divider">
+    <p class="gw-text-body-read">Secrets are decrypted only inside the connector, for the duration of one call.</p>
+  </div>
+  <div class="sc-demo" data-sc-code>
+    <span class="gw-text-small">8 connections</span>
+    <span class="gw-divider gw-divider--vertical" aria-hidden="true"></span>
+    <span class="gw-text-small">14 tools</span>
+    <span class="gw-divider gw-divider--vertical" aria-hidden="true"></span>
+    <span class="gw-text-small">3 tokens</span>
+  </div>
+</section>

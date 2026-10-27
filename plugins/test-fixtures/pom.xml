@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Misbehaving plugins for plugin-it (ARCHITECTURE.md §10 K4, report 16 §10): each is a JAR with its own
+  mcp-gateway-plugin.json (src/main/fixtures/<name>/) over the same classes, attached with the fixture's name as the
+  classifier.
+
+  crash           — System.exit(3) in a call
+  oom             — fills a 64 MB heap: -XX:+ExitOnOutOfMemoryError ends the process
+  hang            — a call that ignores interrupts (and $/cancel)
+  stdout-polluter — println in a static initializer, raw lines on the protocol's file descriptor
+  secret-thief    — asks for a field outside its connection, replays its call's token after the call, and tries to
+                    read MCP Gateway's master key, database and the core's environment
+
+  Never installed anywhere but in tests. Built by step K4.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>ai.msrv.gaterook</groupId>
+    <artifactId>mcp-gateway</artifactId>
+    <version>0.4.0-SNAPSHOT</version>
+    <relativePath>../../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>plugins-test-fixtures</artifactId>
+  <name>MCP Gateway · Plugins · Test fixtures</name>
+
+  <properties>
+    <maven.deploy.skip>true</maven.deploy.skip>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connector-api</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>tools.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <scope>provided</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-resources-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>fixture-crash</id>
+            <phase>prepare-package</phase>
+            <goals><goal>copy-resources</goal></goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/fixture-crash</outputDirectory>
+              <resources>
+                <resource><directory>${project.build.outputDirectory}</directory></resource>
+                <resource><directory>src/main/fixtures/crash</directory></resource>
+              </resources>
+            </configuration>
+          </execution>
+          <execution>
+            <id>fixture-oom</id>
+            <phase>prepare-package</phase>
+            <goals><goal>copy-resources</goal></goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/fixture-oom</outputDirectory>
+              <resources>
+                <resource><directory>${project.build.outputDirectory}</directory></resource>
+                <resource><directory>src/main/fixtures/oom</directory></resource>
+              </resources>
+            </configuration>
+          </execution>
+          <execution>
+            <id>fixture-hang</id>
+            <phase>prepare-package</phase>
+            <goals><goal>copy-resources</goal></goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/fixture-hang</outputDirectory>
+              <resources>
+                <resource><directory>${project.build.outputDirectory}</directory></resource>
+                <resource><directory>src/main/fixtures/hang</directory></resource>
+              </resources>
+            </configuration>
+          </execution>
+          <execution>
+            <id>fixture-stdout-polluter</id>
+            <phase>prepare-package</phase>
+            <goals><goal>copy-resources</goal></goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/fixture-stdout-polluter</outputDirectory>
+              <resources>
+                <resource><directory>${project.build.outputDirectory}</directory></resource>
+                <resource><directory>src/main/fixtures/stdout-polluter</directory></resource>
+              </resources>
+            </configuration>
+          </execution>
+          <execution>
+            <id>fixture-secret-thief</id>
+            <phase>prepare-package</phase>
+            <goals><goal>copy-resources</goal></goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/fixture-secret-thief</outputDirectory>
+              <resources>
+                <resource><directory>${project.build.outputDirectory}</directory></resource>
+                <resource><directory>src/main/fixtures/secret-thief</directory></resource>
+              </resources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>fixture-crash</id>
+            <phase>package</phase>
+            <goals><goal>jar</goal></goals>
+            <configuration>
+              <classifier>crash</classifier>
+              <classesDirectory>${project.build.directory}/fixture-crash</classesDirectory>
+            </configuration>
+          </execution>
+          <execution>
+            <id>fixture-oom</id>
+            <phase>package</phase>
+            <goals><goal>jar</goal></goals>
+            <configuration>
+              <classifier>oom</classifier>
+              <classesDirectory>${project.build.directory}/fixture-oom</classesDirectory>
+            </configuration>
+          </execution>
+          <execution>
+            <id>fixture-hang</id>
+            <phase>package</phase>
+            <goals><goal>jar</goal></goals>
+            <configuration>
+              <classifier>hang</classifier>
+              <classesDirectory>${project.build.directory}/fixture-hang</classesDirectory>
+            </configuration>
+          </execution>
+          <execution>
+            <id>fixture-stdout-polluter</id>
+            <phase>package</phase>
+            <goals><goal>jar</goal></goals>
+            <configuration>
+              <classifier>stdout-polluter</classifier>
+              <classesDirectory>${project.build.directory}/fixture-stdout-polluter</classesDirectory>
+            </configuration>
+          </execution>
+          <execution>
+            <id>fixture-secret-thief</id>
+            <phase>package</phase>
+            <goals><goal>jar</goal></goals>
+            <configuration>
+              <classifier>secret-thief</classifier>
+              <classesDirectory>${project.build.directory}/fixture-secret-thief</classesDirectory>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

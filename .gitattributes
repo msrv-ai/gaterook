@@ -1,0 +1,11 @@
+# Keep scripts and ordinary source portable across checkouts.
+* text=auto eol=lf
+
+# These fixtures deliberately test exact bytes, including CRLF and whitespace.
+core/src/test/resources/ai/msrv/gaterook/core/clients/golden/** -text -whitespace
+
+# Preserve vendored protocol schemas exactly as obtained from upstream.
+core/src/test/resources/mcp-schema/** -text -whitespace
+
+# Existing Flyway migrations are immutable, including comments and line endings.
+core/src/main/resources/db/migration/*.sql -text

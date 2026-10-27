@@ -1,0 +1,121 @@
+<section class="sc-section" id="choice-cards" data-title="Choice cards" data-group="Forms">
+  <h2>Choice cards <code class="gw-code">gw-choice-card</code></h2>
+  <p>A radio or checkbox drawn as a card, for choices that need an icon and a sentence: connection type, secret source, environment. The native input covers the card, so a click anywhere selects it and arrow keys move between radio cards. Checked = 2px brand border, brand tint and a filled indicator with a check; keyboard focus rings the whole card. Name the input with <code class="gw-code">aria-labelledby</code> (title) and <code class="gw-code">aria-describedby</code> (description) when the card has more than a title. Lay cards out with <code class="gw-code">gw-grid</code> inside <code class="gw-code">fieldset.gw-field</code>. For one-word options use <code class="gw-code">gw-segmented</code>; for options that need no explanation use <code class="gw-code">gw-radio</code>.</p>
+
+  <h3>Secret source</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <fieldset class="gw-field">
+      <legend class="gw-field__label">Secret source</legend>
+      <div class="gw-grid gw-grid--3">
+        <label class="gw-choice-card">
+          <input class="gw-choice-card__input" type="radio" name="sc-c-src" value="local" checked aria-labelledby="sc-c-src-local-t" aria-describedby="sc-c-src-local-d">
+          <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="lock-keyhole"></i></span>
+          <span class="gw-choice-card__title" id="sc-c-src-local-t">Encrypted here</span>
+          <span class="gw-choice-card__description" id="sc-c-src-local-d">Stored in the local database, encrypted with the master key. Write-only.</span>
+          <span class="gw-choice-card__meta">Default</span>
+        </label>
+        <label class="gw-choice-card">
+          <input class="gw-choice-card__input" type="radio" name="sc-c-src" value="vault" aria-labelledby="sc-c-src-vault-t" aria-describedby="sc-c-src-vault-d">
+          <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="vault"></i></span>
+          <span class="gw-choice-card__title" id="sc-c-src-vault-t">Vault</span>
+          <span class="gw-choice-card__description" id="sc-c-src-vault-d">Resolve a <span class="gw-mono">vault://</span> reference at call time. Vault or OpenBao.</span>
+          <span class="gw-choice-card__meta">KV v2 · dynamic database secrets</span>
+        </label>
+        <label class="gw-choice-card">
+          <input class="gw-choice-card__input" type="radio" name="sc-c-src" value="gcp" aria-labelledby="sc-c-src-gcp-t" aria-describedby="sc-c-src-gcp-d">
+          <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
+          <span class="gw-choice-card__title" id="sc-c-src-gcp-t">GCP Secret Manager</span>
+          <span class="gw-choice-card__description" id="sc-c-src-gcp-d">Resolve <span class="gw-mono">gcp-sm://</span> with the core's service account.</span>
+          <span class="gw-choice-card__meta">Needs roles/secretmanager.secretAccessor</span>
+        </label>
+        <label class="gw-choice-card">
+          <input class="gw-choice-card__input" type="radio" name="sc-c-src" value="aws" aria-labelledby="sc-c-src-aws-t" aria-describedby="sc-c-src-aws-d">
+          <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
+          <span class="gw-choice-card__title" id="sc-c-src-aws-t">AWS Secrets Manager</span>
+          <span class="gw-choice-card__description" id="sc-c-src-aws-d">Resolve <span class="gw-mono">aws-sm://</span> with the core's AWS profile.</span>
+          <span class="gw-choice-card__meta">Needs secretsmanager:GetSecretValue</span>
+        </label>
+        <label class="gw-choice-card">
+          <input class="gw-choice-card__input" type="radio" name="sc-c-src" value="short-lived" aria-labelledby="sc-c-src-sl-t" aria-describedby="sc-c-src-sl-d">
+          <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="timer"></i></span>
+          <span class="gw-choice-card__title" id="sc-c-src-sl-t">Short-lived credentials</span>
+          <span class="gw-choice-card__description" id="sc-c-src-sl-d">Nothing stored: impersonation, AssumeRole or Vault dynamic users, renewed automatically, or SSH CA certificates for each call.</span>
+          <span class="gw-choice-card__meta">Recommended for prod</span>
+        </label>
+      </div>
+    </fieldset>
+  </div>
+
+  <h3>Environment (compact, with gw-env)</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <fieldset class="gw-field">
+      <legend class="gw-field__label">Environment</legend>
+      <div class="gw-grid gw-grid--3">
+        <label class="gw-choice-card gw-choice-card--compact">
+          <input class="gw-choice-card__input" type="radio" name="sc-c-env" value="dev" checked aria-labelledby="sc-c-env-dev-t" aria-describedby="sc-c-env-dev-d">
+          <span class="gw-choice-card__title" id="sc-c-env-dev-t"><span class="gw-env gw-env--dev">dev</span> Development</span>
+          <span class="gw-choice-card__description" id="sc-c-env-dev-d">Local work. Mutations still need an approval.</span>
+        </label>
+        <label class="gw-choice-card gw-choice-card--compact">
+          <input class="gw-choice-card__input" type="radio" name="sc-c-env" value="stage" aria-labelledby="sc-c-env-stage-t" aria-describedby="sc-c-env-stage-d">
+          <span class="gw-choice-card__title" id="sc-c-env-stage-t"><span class="gw-env gw-env--stage">stage</span> Staging</span>
+          <span class="gw-choice-card__description" id="sc-c-env-stage-d">Shared test systems and data. Stricter limits than dev.</span>
+        </label>
+        <label class="gw-choice-card gw-choice-card--compact">
+          <input class="gw-choice-card__input" type="radio" name="sc-c-env" value="prod" aria-labelledby="sc-c-env-prod-t" aria-describedby="sc-c-env-prod-d sc-c-env-prod-m">
+          <span class="gw-choice-card__title" id="sc-c-env-prod-t"><span class="gw-env gw-env--prod">prod</span> Production</span>
+          <span class="gw-choice-card__description" id="sc-c-env-prod-d">Read-only user check, row limit 100, approval by an Approver.</span>
+          <span class="gw-choice-card__meta" id="sc-c-env-prod-m">Turns on strict defaults</span>
+        </label>
+      </div>
+    </fieldset>
+  </div>
+
+  <h3>Checkbox cards and states</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <fieldset class="gw-field">
+      <legend class="gw-field__label">Send approval requests to</legend>
+      <div class="gw-grid gw-grid--3">
+        <label class="gw-choice-card gw-choice-card--compact">
+          <input class="gw-choice-card__input" type="checkbox" name="sc-c-ch" value="desktop" checked>
+          <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="app-window"></i></span>
+          <span class="gw-choice-card__title">Desktop</span>
+          <span class="gw-choice-card__description">System notification</span>
+        </label>
+        <label class="gw-choice-card gw-choice-card--compact">
+          <input class="gw-choice-card__input" type="checkbox" name="sc-c-ch" value="slack" checked>
+          <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="message-square"></i></span>
+          <span class="gw-choice-card__title">Slack</span>
+          <span class="gw-choice-card__description">#deploy-approvals in acme</span>
+        </label>
+        <label class="gw-choice-card gw-choice-card--compact">
+          <input class="gw-choice-card__input" type="checkbox" name="sc-c-ch" value="telegram" aria-disabled="true" aria-labelledby="sc-c-ch-tg-t" aria-describedby="sc-c-ch-tg-d">
+          <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="send"></i></span>
+          <span class="gw-choice-card__title" id="sc-c-ch-tg-t">Telegram</span>
+          <span class="gw-choice-card__description" id="sc-c-ch-tg-d">Not set up: add a bot in Notifications first</span>
+        </label>
+      </div>
+    </fieldset>
+    <fieldset class="gw-field">
+      <legend class="gw-field__label">Connection type</legend>
+      <div class="gw-grid gw-grid--3">
+        <label class="gw-choice-card gw-choice-card--compact">
+          <input class="gw-choice-card__input" type="radio" name="sc-c-type" value="postgres" required aria-invalid="true" aria-describedby="sc-c-type-err">
+          <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="database"></i></span>
+          <span class="gw-choice-card__title">PostgreSQL</span>
+        </label>
+        <label class="gw-choice-card gw-choice-card--compact">
+          <input class="gw-choice-card__input" type="radio" name="sc-c-type" value="ssh" required aria-invalid="true" aria-describedby="sc-c-type-err">
+          <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="terminal"></i></span>
+          <span class="gw-choice-card__title">SSH</span>
+        </label>
+        <label class="gw-choice-card gw-choice-card--compact">
+          <input class="gw-choice-card__input" type="radio" name="sc-c-type" value="k8s" required aria-invalid="true" aria-describedby="sc-c-type-err">
+          <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="ship-wheel"></i></span>
+          <span class="gw-choice-card__title">Kubernetes</span>
+        </label>
+      </div>
+      <p class="gw-field__error" id="sc-c-type-err"><i class="gw-icon" data-lucide="circle-alert"></i>Choose a connection type to continue.</p>
+    </fieldset>
+  </div>
+</section>

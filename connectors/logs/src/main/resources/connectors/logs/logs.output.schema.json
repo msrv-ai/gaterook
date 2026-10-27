@@ -1,0 +1,143 @@
+{
+  "type": "object",
+  "required": [
+    "backend",
+    "entries",
+    "count",
+    "truncated"
+  ],
+  "properties": {
+    "backend": {
+      "enum": [
+        "loki",
+        "gcp-logging",
+        "cloudwatch",
+        "opensearch"
+      ]
+    },
+    "from": {
+      "type": "string"
+    },
+    "to": {
+      "type": "string"
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "timestamp",
+          "severity",
+          "message"
+        ],
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "description": "RFC 3339 UTC, precision as stored (ns on Loki and GCP)"
+          },
+          "severity": {
+            "enum": [
+              "DEFAULT",
+              "DEBUG",
+              "INFO",
+              "NOTICE",
+              "WARNING",
+              "ERROR",
+              "CRITICAL",
+              "ALERT",
+              "EMERGENCY"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "labels": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "fields": {
+            "type": "object",
+            "description": "Structured payload: GCP jsonPayload/protoPayload, OpenSearch _source, extra Insights fields"
+          },
+          "id": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "aggregate": {
+      "type": "object",
+      "properties": {
+        "columns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "array"
+          }
+        }
+      }
+    },
+    "count": {
+      "type": "integer"
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "truncatedReason": {
+      "enum": [
+        "limit",
+        "size",
+        "timeout",
+        "partial",
+        null
+      ]
+    },
+    "nextCursor": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "waitedMs": {
+      "type": "integer"
+    },
+    "gapPossible": {
+      "type": "boolean",
+      "description": "Entries may be missing before this page: a tail cursor older than 1 h, or more entries at one instant than a cursor holds."
+    },
+    "stats": {
+      "type": "object",
+      "properties": {
+        "bytesScanned": {
+          "type": "integer"
+        },
+        "recordsScanned": {
+          "type": "integer"
+        },
+        "requests": {
+          "type": "integer"
+        }
+      }
+    },
+    "masked": {
+      "type": "integer"
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "What the gateway changed about the call, like a limit lowered by the policy."
+    }
+  }
+}

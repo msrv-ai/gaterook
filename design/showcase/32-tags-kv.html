@@ -1,0 +1,186 @@
+<section class="sc-section" id="tags-kv" data-title="Tags and key-value lists" data-group="Status and data">
+  <h2>Tags and key-value lists <code class="gw-code">gw-tag</code> <code class="gw-code">gw-tag-list</code> <code class="gw-code">gw-kv</code></h2>
+  <p><strong>Tags</strong> hold values as tokens: allowlist entries (hosts, IPs, CIDRs, schemas), scopes, and the active filters of the log explorer. Literal values use the mono variant. When a tag can be removed, the remove control is a real 24 × 24 button named "Remove &lt;value&gt;". Do not use a tag for a status (badge) or for a choice the user toggles (checkbox, segmented control). <strong>Key-value lists</strong> show the facts of one object on a native <code class="gw-code">&lt;dl&gt;</code>: connection details, the request block of an event, the summary strip of a call. Do not use them for many objects with the same fields: that is a table.</p>
+
+  <h3>Allowlist entries</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <ul class="gw-tag-list" aria-label="Allowed hosts for dev-vm">
+      <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">10.20.0.14</span><button class="gw-tag__remove" type="button" aria-label="Remove 10.20.0.14"><i class="gw-icon" data-lucide="x"></i></button></li>
+      <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">10.20.0.0/16</span><button class="gw-tag__remove" type="button" aria-label="Remove 10.20.0.0/16"><i class="gw-icon" data-lucide="x"></i></button></li>
+      <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">db.dev.internal</span><button class="gw-tag__remove" type="button" aria-label="Remove db.dev.internal"><i class="gw-icon" data-lucide="x"></i></button></li>
+      <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">*.dev.internal</span><button class="gw-tag__remove" type="button" aria-label="Remove *.dev.internal"><i class="gw-icon" data-lucide="x"></i></button></li>
+    </ul>
+  </div>
+
+  <h3>Read-only values</h3>
+  <div class="sc-demo" data-sc-code>
+    <ul class="gw-tag-list" aria-label="Schemas visible to sql_query on dev-db">
+      <li class="gw-tag gw-tag--mono">app</li>
+      <li class="gw-tag gw-tag--mono">public</li>
+      <li class="gw-tag gw-tag--mono">audit</li>
+    </ul>
+  </div>
+
+  <h3>Active filters</h3>
+  <div class="sc-demo" data-sc-code>
+    <ul class="gw-tag-list" aria-label="Active filters">
+      <li class="gw-tag gw-tag--mono gw-tag--danger"><span class="gw-tag__label">decision:denied</span><button class="gw-tag__remove" type="button" aria-label="Remove filter decision:denied"><i class="gw-icon" data-lucide="x"></i></button></li>
+      <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">tool:sql_*</span><button class="gw-tag__remove" type="button" aria-label="Remove filter tool:sql_*"><i class="gw-icon" data-lucide="x"></i></button></li>
+      <li class="gw-tag gw-tag--mono gw-tag--prod"><span class="gw-tag__label">env:prod</span><button class="gw-tag__remove" type="button" aria-label="Remove filter env:prod"><i class="gw-icon" data-lucide="x"></i></button></li>
+    </ul>
+    <button class="gw-btn gw-btn--link" type="button">Clear filters</button>
+  </div>
+
+  <h3>Tones</h3>
+  <div class="sc-demo" data-sc-code>
+    <span class="gw-tag gw-tag--brand">Selected scope</span>
+    <span class="gw-tag gw-tag--success gw-tag--mono">decision:allowed</span>
+    <span class="gw-tag gw-tag--warning gw-tag--mono">decision:pending</span>
+    <span class="gw-tag gw-tag--danger gw-tag--mono">decision:denied</span>
+    <span class="gw-tag gw-tag--info gw-tag--mono">mode:read</span>
+    <span class="gw-tag gw-tag--neutral gw-tag--mono">decision:expired</span>
+    <span class="gw-tag gw-tag--dev gw-tag--mono">env:dev</span>
+    <span class="gw-tag gw-tag--stage gw-tag--mono">env:stage</span>
+    <span class="gw-tag gw-tag--prod gw-tag--mono">env:prod</span>
+  </div>
+
+  <h3>Invalid and locked entries</h3>
+  <p class="gw-text-small gw-fg-muted">An invalid entry takes the danger tone <em>and</em> a leading icon, and the field error names the value. A locked entry keeps its remove button focusable with <code class="gw-code">aria-disabled="true"</code>, so the reason can be read out with it.</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <ul class="gw-tag-list" aria-label="Allowed hosts for the local API" aria-describedby="sc-b-tag-invalid">
+      <li class="gw-tag gw-tag--mono"><i class="gw-icon" data-lucide="lock"></i><span class="gw-tag__label">127.0.0.1</span><button class="gw-tag__remove" type="button" aria-label="Remove 127.0.0.1" aria-disabled="true" aria-describedby="sc-b-tag-locked"><i class="gw-icon" data-lucide="x"></i></button></li>
+      <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">localhost</span><button class="gw-tag__remove" type="button" aria-label="Remove localhost"><i class="gw-icon" data-lucide="x"></i></button></li>
+      <li class="gw-tag gw-tag--mono gw-tag--danger"><i class="gw-icon" data-lucide="circle-alert"></i><span class="gw-tag__label">10.20.0.300</span><button class="gw-tag__remove" type="button" aria-label="Remove 10.20.0.300"><i class="gw-icon" data-lucide="x"></i></button></li>
+    </ul>
+    <p class="gw-text-caption gw-fg-danger" id="sc-b-tag-invalid">10.20.0.300 is not a valid IP address. Fix it or remove it.</p>
+    <p class="gw-text-caption gw-fg-muted" id="sc-b-tag-locked">127.0.0.1 is the core's own address and cannot be removed.</p>
+  </div>
+
+  <h3>Long values</h3>
+  <p class="gw-text-small gw-fg-muted">In a narrow column the label truncates with an ellipsis. The full value stays in the remove button's name and in <code class="gw-code">title</code> for the pointer; tab to the remove button and the label wraps in full.</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <ul class="gw-tag-list" aria-label="Allowed URLs for billing-api" style="max-width: var(--gw-layout-sidebar-width)">
+      <li class="gw-tag gw-tag--mono"><span class="gw-tag__label" title="https://billing.stage.acme.dev/v1/refunds/*">https://billing.stage.acme.dev/v1/refunds/*</span><button class="gw-tag__remove" type="button" aria-label="Remove https://billing.stage.acme.dev/v1/refunds/*"><i class="gw-icon" data-lucide="x"></i></button></li>
+      <li class="gw-tag gw-tag--mono"><span class="gw-tag__label" title="https://billing.stage.acme.dev/v1/invoices/*">https://billing.stage.acme.dev/v1/invoices/*</span><button class="gw-tag__remove" type="button" aria-label="Remove https://billing.stage.acme.dev/v1/invoices/*"><i class="gw-icon" data-lucide="x"></i></button></li>
+    </ul>
+  </div>
+
+  <h3>Key-value list</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <dl class="gw-kv">
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key">Type</dt>
+        <dd class="gw-kv__value">PostgreSQL 16</dd>
+      </div>
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key">Environment</dt>
+        <dd class="gw-kv__value"><span class="gw-env gw-env--dev">dev</span></dd>
+      </div>
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key">Host</dt>
+        <dd class="gw-kv__value gw-mono">db.dev.internal:5432/app</dd>
+      </div>
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key">Secret</dt>
+        <dd class="gw-kv__value">Encrypted · version 3 · updated 2 days ago</dd>
+      </div>
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key">Health</dt>
+        <dd class="gw-kv__value"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy · 12 ms</span></span></dd>
+      </div>
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key">Used in</dt>
+        <dd class="gw-kv__value">Endpoint <code class="gw-code">dev</code></dd>
+      </div>
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key">Last check</dt>
+        <dd class="gw-kv__value"><time datetime="2026-10-22T14:03:11+02:00">2 min ago</time> <span class="gw-fg-muted gw-tabular">· 2026-10-22 14:03:11 +02:00</span></dd>
+      </div>
+    </dl>
+  </div>
+
+  <h3>Dense</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <dl class="gw-kv gw-kv--dense">
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key">AI app</dt>
+        <dd class="gw-kv__value">Codex</dd>
+      </div>
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key">Token</dt>
+        <dd class="gw-kv__value"><code class="gw-code">codex-laptop</code> <span class="gw-fg-muted">· issued on the fly</span></dd>
+      </div>
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key">Endpoint</dt>
+        <dd class="gw-kv__value gw-mono">http://127.0.0.1:7465/mcp/dev</dd>
+      </div>
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key">Trace</dt>
+        <dd class="gw-kv__value"><a class="gw-link gw-mono" href="#tags-kv">4f2a9c…</a></dd>
+      </div>
+    </dl>
+  </div>
+
+  <h3>Inline</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <dl class="gw-kv gw-kv--inline">
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key">Decision</dt>
+        <dd class="gw-kv__value"><span class="gw-badge gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>Allowed</span></dd>
+      </div>
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key">Tool</dt>
+        <dd class="gw-kv__value"><code class="gw-code">sql_query</code></dd>
+      </div>
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key">Connection</dt>
+        <dd class="gw-kv__value"><code class="gw-code">dev-db</code> <span class="gw-env gw-env--dev gw-env--sm">dev</span></dd>
+      </div>
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key">Duration</dt>
+        <dd class="gw-kv__value gw-tabular">38 ms</dd>
+      </div>
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key">Time</dt>
+        <dd class="gw-kv__value"><time datetime="2026-10-22T14:03:11+02:00">14:03:11</time></dd>
+      </div>
+    </dl>
+  </div>
+
+  <h3>Grid</h3>
+  <p class="sc-lead"><code class="gw-code">gw-kv--grid</code>: key above value on fixed columns (4 from lg, 2 below), so cards that list the same fields in the same order line them up. A row holding a copy field (the URL) spans 2 columns; <code class="gw-code">gw-kv__row--wide</code> does the same for any long value.</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <dl class="gw-kv gw-kv--grid">
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key">URL</dt>
+        <dd class="gw-kv__value"><div class="gw-copy-field" role="group" aria-label="URL of endpoint dev">
+          <code class="gw-copy-field__value" id="sc-kv-grid-url" title="http://127.0.0.1:7465/mcp/dev">http://127.0.0.1:7465/mcp/dev</code>
+          <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" data-gw-copy-from="#sc-kv-grid-url">
+            <span class="gw-copy-field__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> URL of endpoint dev</span></span>
+            <span class="gw-copy-field__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+          </button>
+        </div></dd>
+      </div>
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key">Connections</dt>
+        <dd class="gw-kv__value gw-tabular">8</dd>
+      </div>
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key">Tools</dt>
+        <dd class="gw-kv__value"><span class="gw-tabular">22</span> · 3 need approval</dd>
+      </div>
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key">AI apps</dt>
+        <dd class="gw-kv__value">Claude Desktop, Codex</dd>
+      </div>
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key">Tokens</dt>
+        <dd class="gw-kv__value">2 active · 1 expired</dd>
+      </div>
+      <div class="gw-kv__row gw-kv__row--wide">
+        <dt class="gw-kv__key">Approvals</dt>
+        <dd class="gw-kv__value">3 waiting</dd>
+      </div>
+    </dl>
+  </div>
+</section>

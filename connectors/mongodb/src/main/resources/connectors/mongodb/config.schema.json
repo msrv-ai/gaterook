@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "object",
+      "title": "Connection",
+      "additionalProperties": false,
+      "required": [
+        "uri"
+      ],
+      "properties": {
+        "uri": {
+          "type": "string",
+          "title": "Connection string",
+          "maxLength": 4000,
+          "pattern": "^mongodb(\\+srv)?://",
+          "examples": [
+            "mongodb://mongo.dev.internal:27017/orders"
+          ],
+          "description": "Without a user name or password: they go into Credentials. mongodb+srv:// turns TLS on."
+        },
+        "tls": {
+          "type": "boolean",
+          "title": "Use TLS",
+          "default": false,
+          "x-env-default": {
+            "prod": true
+          }
+        },
+        "caCertificate": {
+          "type": "string",
+          "title": "CA certificate (PEM)",
+          "maxLength": 20000,
+          "x-widget": "textarea",
+          "description": "Only for a private CA. Empty: the system trust store."
+        },
+        "allowInvalidHostnames": {
+          "type": "boolean",
+          "title": "Skip the host name check",
+          "default": false,
+          "x-forbidden-env": [
+            "prod"
+          ]
+        },
+        "readPreference": {
+          "type": "string",
+          "title": "Read preference",
+          "enum": [
+            "primary",
+            "primaryPreferred",
+            "secondary",
+            "secondaryPreferred",
+            "nearest"
+          ],
+          "default": "primary",
+          "x-env-default": {
+            "prod": "secondaryPreferred"
+          },
+          "description": "secondaryPreferred keeps agent reads off the primary."
+        }
+      }
+    },
+    "credentials": {
+      "type": "object",
+      "title": "Credentials",
+      "x-gateway-secret": "login",
+      "additionalProperties": false,
+      "properties": {
+        "user": {
+          "type": "string",
+          "title": "User",
+          "maxLength": 256,
+          "description": "A user with the read role only. The test below shows what it may do."
+        },
+        "password": {
+          "type": "string",
+          "title": "Password",
+          "writeOnly": true,
+          "format": "password"
+        },
+        "authSource": {
+          "type": "string",
+          "title": "Auth database",
+          "default": "admin",
+          "maxLength": 64
+        },
+        "mechanism": {
+          "type": "string",
+          "title": "Mechanism",
+          "enum": [
+            "auto",
+            "SCRAM-SHA-256",
+            "SCRAM-SHA-1",
+            "none"
+          ],
+          "default": "auto"
+        }
+      }
+    },
+    "advanced": {
+      "type": "object",
+      "title": "Advanced",
+      "x-collapsed": true,
+      "additionalProperties": false,
+      "properties": {
+        "namespaceAllowlist": {
+          "type": "array",
+          "title": "Collections the agent may read",
+          "uniqueItems": true,
+          "maxItems": 200,
+          "x-stricter": "intersect",
+          "items": {
+            "type": "string",
+            "pattern": "^[^$\\s/\\\\.\"]{1,64}\\.(\\*|[^$\\s]{1,255})$"
+          },
+          "description": "orders.* or orders.orders. Empty: every database the user can read, except admin, local, config and system.* collections."
+        },
+        "maxTimeMs": {
+          "type": "integer",
+          "title": "Query time limit",
+          "minimum": 100,
+          "maximum": 600000,
+          "x-unit": "ms",
+          "x-stricter": "min",
+          "description": "Empty: the environment policy."
+        },
+        "poolSize": {
+          "type": "integer",
+          "title": "Pool size",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 2,
+          "x-unit": "connections"
+        },
+        "serverSelectionTimeoutMs": {
+          "type": "integer",
+          "title": "Server selection timeout",
+          "minimum": 1000,
+          "maximum": 30000,
+          "default": 5000,
+          "x-unit": "ms"
+        }
+      }
+    }
+  }
+}

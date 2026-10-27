@@ -1,0 +1,140 @@
+@let w = wiring();
+<p class="gw-sr-only" [id]="uid + '-flow'">{{ flow() }}</p>
+<ol class="gw-setup-map gw-setup-map--wiring" [attr.aria-label]="'How endpoint ' + w.slug + ' connects'" [attr.aria-describedby]="uid + '-flow'">
+  <li class="gw-setup-map__step" data-state="done">
+    <div class="gw-card gw-setup-map__node">
+      <header class="gw-card__header">
+        <div class="gw-card__heading">
+          <ng-container *ngTemplateOutlet="title; context: { $implicit: 'Clients', icon: 'app-window', tone: 'brand' }" />
+          <p class="gw-card__description">{{ connected() }} connected · {{ detected() }} detected</p>
+        </div>
+      </header>
+      <div class="gw-card__body">
+        <ul class="gw-setup-map__list gw-text-small" [attr.aria-label]="'Clients of endpoint ' + w.slug">
+          @for (c of w.clients; track c.client) {
+            @let look = clientLook(c);
+            <li class="gw-setup-map__item">
+              <span [gwClientMark]="c.client" size="sm"></span>
+              <span class="gw-setup-map__name"><span>{{ clientName(c.client) }}</span></span>
+              <span [class]="'gw-status gw-status--' + look.tone"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ look.text }}</span></span>
+            </li>
+          }
+        </ul>
+      </div>
+      <footer class="gw-card__footer gw-card__footer--split">
+        <span class="gw-text-caption gw-fg-muted">{{ w.clientsNote ?? 'Each signs in with its own token' }}</span>
+        @if (inPage()) {
+          <a class="gw-btn gw-btn--link" [routerLink]="[]" [queryParams]="{ tab: 'clients' }" queryParamsHandling="merge">Manage clients<span class="gw-sr-only"> of {{ w.slug }}</span></a>
+        } @else {
+          <a class="gw-btn gw-btn--link" routerLink="/clients">Connect a client</a>
+        }
+      </footer>
+    </div>
+    <span class="gw-setup-map__connector" aria-hidden="true">
+      <span class="gw-setup-map__line"></span>
+      <svg lucideIcon="chevron-right" class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across"></svg>
+      <svg lucideIcon="chevron-down" class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down"></svg>
+    </span>
+  </li>
+  <li class="gw-setup-map__step" data-state="done">
+    <div class="gw-card gw-setup-map__node">
+      <header class="gw-card__header">
+        <div class="gw-card__heading">
+          <ng-container *ngTemplateOutlet="title; context: { $implicit: 'Endpoint', code: w.slug, icon: 'waypoints', tone: 'brand' }" />
+          <p class="gw-card__description">{{ counts() }}</p>
+        </div>
+      </header>
+      <div class="gw-card__body gw-setup-map__stack">
+        @if (!inPage()) {
+          <div class="gw-copy-field" role="group" aria-label="Endpoint URL">
+            <code class="gw-copy-field__value" [id]="uid + '-url'" [attr.title]="w.url">{{ w.url }}</code>
+            <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" [gwCopyFrom]="'#' + uid + '-url'">
+              <span class="gw-copy-field__copy"><svg lucideIcon="copy" class="gw-icon gw-icon--sm"></svg> Copy<span class="gw-sr-only"> endpoint URL</span></span>
+              <span class="gw-copy-field__copied"><svg lucideIcon="check" class="gw-icon gw-icon--sm"></svg> Copied</span>
+            </button>
+          </div>
+        }
+        <dl class="gw-kv gw-kv--dense">
+          @if (!inPage()) {
+            <div class="gw-kv__row">
+              <dt class="gw-kv__key">Sign-in</dt>
+              <dd class="gw-kv__value"><span class="gw-setup-map__chips"><span class="gw-badge"><svg lucideIcon="key-round" class="gw-icon gw-badge__icon"></svg>Token</span>@if (w.oauth) {<span class="gw-badge"><svg lucideIcon="log-in" class="gw-icon gw-badge__icon"></svg>OAuth</span>} @else {<span class="gw-badge gw-badge--outline">OAuth off</span>}</span></dd>
+            </div>
+          }
+          <div class="gw-kv__row">
+            <dt class="gw-kv__key">Tools</dt>
+            <dd class="gw-kv__value"><span class="gw-setup-map__chips"><span class="gw-mode gw-mode--read"><svg lucideIcon="eye" class="gw-icon"></svg>{{ w.tools.read }} read only</span><span class="gw-mode gw-mode--approval"><svg lucideIcon="user-check" class="gw-icon"></svg>{{ w.tools.approval }} approval</span><span class="gw-mode gw-mode--off"><svg lucideIcon="circle-off" class="gw-icon"></svg>{{ w.tools.off }} off</span></span></dd>
+          </div>
+          <div class="gw-kv__row">
+            <dt class="gw-kv__key">Policy</dt>
+            @if (inPage() && w.policyEnvs?.length) {
+              <dd class="gw-kv__value">@for (e of w.policyEnvs; track e) {<a class="gw-link" [routerLink]="['/policies', e]">{{ e }}</a>@if (!$last) {{{ $index === w.policyEnvs!.length - 2 ? ' and ' : ', ' }}}} rules · mutations need approval</dd>
+            } @else {
+              <dd class="gw-kv__value">{{ w.policy }}</dd>
+            }
+          </div>
+          @if (inPage() && w.limits; as l) {
+            <div class="gw-kv__row">
+              <dt class="gw-kv__key">Limits</dt>
+              <dd class="gw-kv__value">{{ l.text }}, from the <a class="gw-link" [routerLink]="['/policies', l.env]" [fragment]="l.env + '-limits'">{{ l.env }} policy</a></dd>
+            </div>
+          }
+        </dl>
+      </div>
+      <footer class="gw-card__footer">
+        @if (inPage()) {
+          <a class="gw-btn gw-btn--link" [routerLink]="[]" [queryParams]="{ tab: 'tools' }" queryParamsHandling="merge">Review tools and modes</a>
+        } @else {
+          <a class="gw-btn gw-btn--link" [routerLink]="['/endpoints', w.slug]" [queryParams]="{ tab: 'tools' }">Review tools and modes</a>
+        }
+      </footer>
+    </div>
+    <span class="gw-setup-map__connector" aria-hidden="true">
+      <span class="gw-setup-map__line"></span>
+      <svg lucideIcon="chevron-right" class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across"></svg>
+      <svg lucideIcon="chevron-down" class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down"></svg>
+    </span>
+  </li>
+  <li class="gw-setup-map__step" [attr.data-state]="attention() ? 'attention' : 'done'">
+    <div class="gw-card gw-setup-map__node">
+      <header class="gw-card__header">
+        <div class="gw-card__heading">
+          <ng-container *ngTemplateOutlet="title; context: { $implicit: 'Connections', icon: 'database', tone: attention() ? 'warning' : 'brand' }" />
+          <p class="gw-card__description">{{ connectionsSummary() }}</p>
+        </div>
+        @if (attention()) {
+          <div class="gw-card__actions">
+            <span class="gw-badge gw-badge--warning"><svg lucideIcon="triangle-alert" class="gw-icon gw-badge__icon"></svg>Needs attention</span>
+          </div>
+        }
+      </header>
+      <div class="gw-card__body">
+        <ul class="gw-setup-map__list gw-text-small" [attr.aria-label]="'Connections of endpoint ' + w.slug">
+          @for (c of w.connections; track c.name) {
+            @let h = health(c);
+            <li class="gw-setup-map__item">
+              <span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--neutral" aria-hidden="true"><svg [lucideIcon]="connectorIcon(c.type)" class="gw-icon gw-icon--sm"></svg></span>
+              <span class="gw-setup-map__name"><span class="gw-mono" [attr.title]="c.name">{{ c.name }}</span> <span class="gw-sr-only">environment</span> <span [class]="'gw-env gw-env--sm gw-env--' + c.env">{{ c.env }}</span></span>
+              <span [class]="'gw-status gw-status--' + h.tone"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ h.text }}</span></span>
+            </li>
+          }
+        </ul>
+      </div>
+      <footer class="gw-card__footer gw-card__footer--split">
+        <p class="gw-setup-map__note gw-text-caption gw-fg-muted"><svg lucideIcon="lock-keyhole" class="gw-icon gw-icon--xs"></svg><span>Secrets injected here, never sent to the agent</span></p>
+        @if (inPage()) {
+          <a class="gw-btn gw-btn--link" [routerLink]="[]" [queryParams]="{ tab: 'connections' }" queryParamsHandling="merge">Manage connections<span class="gw-sr-only"> of {{ w.slug }}</span></a>
+        } @else {
+          <a class="gw-btn gw-btn--link" routerLink="/connections">View connections</a>
+        }
+      </footer>
+    </div>
+  </li>
+</ol>
+
+<ng-template #title let-text let-code="code" let-icon="icon" let-tone="tone">
+  @switch (level()) {
+    @case (2) { <h2 class="gw-card__title"><span [class]="'gw-icon-tile gw-icon-tile--sm gw-icon-tile--' + tone"><svg [lucideIcon]="icon" class="gw-icon gw-icon--sm"></svg></span>{{ text }}@if (code) {{{ ' ' }}<code class="gw-code">{{ code }}</code>}</h2> }
+    @default { <h3 class="gw-card__title"><span [class]="'gw-icon-tile gw-icon-tile--sm gw-icon-tile--' + tone"><svg [lucideIcon]="icon" class="gw-icon gw-icon--sm"></svg></span>{{ text }}@if (code) {{{ ' ' }}<code class="gw-code">{{ code }}</code>}</h3> }
+  }
+</ng-template>

@@ -1,0 +1,276 @@
+// =============================================================
+// tool-policy-list · Element (E3 · Endpoint access control)
+// -------------------------------------------------------------
+// WHAT an agent may call on one endpoint, and HOW: every tool of the
+// endpoint, grouped by the connection it runs on, with its MCP annotations
+// and the mode picker Off · Read only · Approval. There is no "allow
+// writes" mode: a tool that changes data (destructiveHint) can only be
+// Approval or Off, and the reason is written under its picker.
+// Per-tool limits (rows, timeout, response size) open in a disclosure row
+// that says, field by field, what is inherited from the environment policy
+// of the connection (dev-db → dev policy, billing-api → stage policy) and
+// what this tool overrides. An override can only be stricter.
+//
+// Used in   pages/endpoint-detail.html (Tools & policies tab) · pages/policies.html
+//           (what an environment's rules do to each tool) · pages/playground.html
+//           (tool picker: same groups, gw-mode instead of the picker, row links)
+// Composes  gw-toolbar · gw-search--sm · gw-menu-host + gw-menu (role=listbox mode
+//           filter; role=menu "Set all to…") · gw-mode (summary chips, picker
+//           variant) · gw-card--flush (one per connection) · gw-icon-tile · gw-env ·
+//           gw-table-wrap + gw-table (--interactive + __row-link in the picker) ·
+//           gw-code · gw-badge--outline --sm (annotations) · gw-segmented--sm +
+//           data-tone · gw-btn--ghost --sm · gw-counter · gw-card--muted + gw-field +
+//           gw-input-group (limits) · gw-link · gw-empty--compact (no match)
+//
+//   <div class="gw-tool-policy-list">
+//     <div class="gw-toolbar">
+//       <div class="gw-toolbar__start">…gw-search--sm… …Mode filter (gw-menu role=listbox)…</div>
+//       <div class="gw-toolbar__end">
+//         <p class="gw-tool-policy-list__summary" role="status">
+//           <span class="gw-text-small gw-fg-secondary">14 tools<span class="gw-sr-only">:</span></span>
+//           <span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>6 read only</span> …</p>
+//       </div>
+//     </div>
+//     <section class="gw-card gw-card--flush" aria-labelledby="g-dev-db">
+//       <header class="gw-card__header">
+//         <div class="gw-tool-policy-list__group-heading">
+//           <span class="gw-icon-tile"><i class="gw-icon" data-lucide="database"></i></span>
+//           <div class="gw-card__heading">
+//             <h3 class="gw-card__title" id="g-dev-db"><span class="gw-mono">dev-db</span>
+//               <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></h3>
+//             <p class="gw-card__description">PostgreSQL 16 · 4 tools · 3 read only · 1 approval</p>
+//           </div>
+//         </div>
+//         <div class="gw-card__actions">…"Set all to…" gw-menu (role=menu, __hint per item)…</div>
+//       </header>
+//       <div class="gw-card__body">
+//         <div class="gw-table-wrap" role="region" aria-labelledby="g-dev-db-cap" tabindex="0">
+//           <table class="gw-table">
+//             <caption class="gw-sr-only" id="g-dev-db-cap">Tools on dev-db</caption>
+//             <thead><tr><th scope="col">Tool</th><th scope="col">Mode</th>
+//               <th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Limits</span></th></tr></thead>
+//             <tbody>
+//               <tr class="gw-tool-policy-list__row" data-mode="approval">
+//                 <th scope="row" class="gw-tool-policy-list__tool">
+//                   <div class="gw-tool-policy-list__name"><code class="gw-code">sql_execute</code>
+//                     <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of sql_execute">
+//                       <li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--danger" title="destructiveHint">Destructive</li></ul></div>
+//                   <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">INSERT, UPDATE or DELETE. You approve the exact statement.</p>
+//                 </th>
+//                 <td><div class="gw-tool-policy-list__mode">
+//                   <fieldset class="gw-segmented gw-segmented--sm" aria-describedby="why-exec">
+//                     <legend class="gw-sr-only">Mode for sql_execute</legend>
+//                     …Off · Read only (<input disabled aria-describedby="why-exec">) · Approval (checked)…
+//                   </fieldset>
+//                   <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" id="why-exec">
+//                     <i class="gw-icon gw-icon--xs" data-lucide="lock"></i>Mutates data: approval or off</p>
+//                 </div></td>
+//                 <td class="gw-table__cell--actions">
+//                   <button class="gw-btn gw-btn--ghost gw-btn--sm gw-tool-policy-list__limits-toggle" type="button"
+//                           data-gw-toggle aria-expanded="false" aria-controls="lim-exec">Limits<span class="gw-sr-only"> for sql_execute</span>
+//                     <i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--closed" data-lucide="chevron-down"></i>
+//                     <i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--open" data-lucide="chevron-up"></i></button>
+//                 </td>
+//               </tr>
+//               <tr class="gw-tool-policy-list__limits" id="lim-exec" hidden><td colspan="3">
+//                 <div class="gw-card gw-card--muted" role="group" aria-label="Limits for sql_execute"><div class="gw-card__body">
+//                   <div class="gw-tool-policy-list__limits-fields">…gw-field + gw-input-group (affix rows / s / KB)…</div>
+//                   <div class="gw-tool-policy-list__limits-footer">…"Empty fields follow the dev policy" · Reset to dev policy…</div>
+//                 </div></div>
+//               </td></tr>
+//             </tbody>
+//           </table>
+//         </div>
+//       </div>
+//     </section>
+//   </div>
+//
+// Parts     __summary          toolbar counts: total ("14 tools", "3 of 14 tools match")
+//                              + one gw-mode chip per mode that has tools
+//           __group-heading    connector icon tile beside gw-card__heading in a group header
+//           __row              a tool row (data-mode = its current mode)
+//           __tool             the row header cell: absorbs the free width, wraps
+//           __name             tool name (gw-code, or the __row-link in the picker) +
+//                              annotation badges on one wrapping line
+//           __annotations      <ul> of gw-badge --outline --sm: readOnlyHint "Read only"
+//                              (info) · destructiveHint "Destructive" (danger) ·
+//                              idempotentHint "Idempotent" (neutral). None: no list,
+//                              except for an external tool (below). A tool of an
+//                              external MCP server or a plugin adds, last, a
+//                              gw-badge --outline --sm --warning with a
+//                              shield-question-mark icon: "Declared by <server>, not
+//                              verified" (title: the gateway can't check it).
+//           __description      one sentence under the name; sets the column's minimum
+//           __mode             picker + note, as wide as the picker (the note wraps); the
+//                              picker keeps its full width (min-width: max-content) and a
+//                              static gw-mode chip gets a 192px floor for its note
+//           __mode-note        why an option is unavailable (lock icon) or what a mode
+//                              means for this tool (info icon); aria-describedby target
+//           __limits-toggle    "Limits" disclosure; a gw-counter inside = number of overrides
+//           __chevron--closed / --open   icon pair swapped by aria-expanded
+//           __limits           the disclosure <tr hidden>; one cell spans every column
+//           __limits-fields    auto-fit grid of gw-field (min 200px a column)
+//           __limits-footer    where empty fields come from + "Reset to … policy"
+// States    default: all groups, mode chips in the summary
+//           destructive tool: Read only <input disabled> + __mode-note "Mutates data:
+//             approval or off", referenced by the fieldset and the option. Read only
+//             here would remove the approval, so it stays NATIVELY disabled (out of
+//             the arrow order) with the reason visible; aria-disabled is allowed only
+//             because kit.js reverts any change to an aria-disabled radio.
+//           read-only subset: Read only stays available, __mode-note says what it
+//             allows ("Read only runs runbooks marked read only")
+//           external tool (MCP server, plugin): starts in Approval when added to an
+//             endpoint, whatever it declares. Declared read only: the Read only
+//             option is aria-disabled + aria-describedby → __mode-note "Read only
+//             needs your confirmation for this tool", and a gw-btn--link --sm
+//             "Confirm read only" under the note opens a per-tool gw-dialog--warning
+//             (what the server declares, that it is unverified, an acknowledgement
+//             checkbox; the primary "Allow read only for <tool>" is aria-disabled
+//             until it is checked; Cancel autofocus). Not declared read only, or
+//             declared destructive: Read only natively disabled, like a built-in
+//             destructive tool ("Not declared read only: approval or off").
+//           locked by the endpoint: <fieldset disabled> + __mode-note naming the
+//             read-only endpoint
+//           limits: toggle aria-expanded ↔ __limits [hidden]; overridden = filled input
+//             + "Overrides dev policy: 1,000 rows" + gw-counter on the toggle;
+//             inherited = empty input, policy value as placeholder + "Inherited from
+//             dev policy: 1,000 rows"; Reset is disabled while nothing is overridden
+//           filtered: Mode: Approval (listbox aria-selected) → "3 of 14 tools match",
+//             each group "1 of 4 tools shown", groups without a match left out
+//           no match: summary "0 of 14 tools match" + gw-empty--compact in a flush card
+//           picker (Playground): gw-table--interactive, the name is a __row-link,
+//             gw-mode instead of the picker, no bulk menu, no limits; the current tool
+//             is tr[aria-selected="true"] + aria-current on its link
+// A11y      Native table per connection: the caption names it, th[scope=row] is the
+//           tool. Each picker is a fieldset whose legend names the tool ("Mode for
+//           sql_execute"); disabled options keep their reason in visible text.
+//           Annotation lists are named per tool. Group headings are h3 under the
+//           section's h2; the env marker has a sr-only "environment" before it.
+//           Bulk menu and filter are kit menus (Enter / Space / arrows / Esc). The
+//           summary is role=status so a filter announces the new counts. The limits
+//           panel is role=group named "Limits for <tool>".
+// Responsive  The tool column absorbs the free width and wraps; picker and limits
+//           columns keep their natural width (≈ 200 + 230 + 100px): fits a 960px
+//           window with the sidebar. Below that the table wrap scrolls sideways
+//           (never the page). Limits fields drop from 3 to 1 column as space runs out.
+// Raw values  width: 100% on the tool column (auto table layout idiom)
+// =============================================================
+
+@use "../scss/tokens" as *;
+@use "../scss/mixins" as *;
+
+.gw-tool-policy-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gw-space-4);
+  min-width: 0;
+
+  // ─── Toolbar summary: total + mode chips ───
+  &__summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gw-space-1-5) var(--gw-space-2);
+    margin: 0;
+  }
+
+  // ─── Group header: connector tile beside the card heading ───
+  &__group-heading {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--gw-space-3);
+    min-width: 0;
+  }
+
+  // ─── Tool row ───
+  // Two-line cells (name + description, picker + note) need more room
+  // than the table's single-line block spacing.
+  .gw-table &__row > :is(th, td) {
+    padding-block: var(--gw-space-2);
+  }
+
+  // The row header takes the slack and wraps; the other cells hug their content.
+  .gw-table &__tool {
+    width: 100%; // raw: auto table layout: this column absorbs the free width
+    white-space: normal;
+  }
+
+  &__name {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gw-space-1) var(--gw-space-2);
+    min-width: 0;
+  }
+
+  &__annotations {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gw-space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__description {
+    // Minimum width of the tool column: below it the table wrap scrolls instead.
+    min-width: calc(var(--gw-size-control-lg) * 5);
+    margin: var(--gw-space-0-5) 0 0;
+  }
+
+  // ─── Mode cell: picker + note, as wide as the picker ───
+  // The picker never shrinks below its segments (a table cell offers it only its
+  // min-content width); a static gw-mode chip gets a floor so its note wraps to a
+  // readable measure instead of one word per line.
+  &__mode {
+    display: grid;
+    width: min-content;
+    min-inline-size: calc(var(--gw-space-16) * 3);
+    gap: var(--gw-space-1);
+    justify-items: start;
+
+    > .gw-segmented { min-width: max-content; }
+    > .gw-segmented > .gw-segmented__option { flex: none; }
+  }
+
+  &__mode-note {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--gw-space-1);
+    margin: 0;
+    white-space: normal;
+
+    > .gw-icon { margin-block-start: var(--gw-space-0-5); } // centre a 12px icon on the 16px line
+  }
+
+  // ─── Limits disclosure ───
+  &__limits-toggle {
+    &[aria-expanded="true"] .gw-tool-policy-list__chevron--closed,
+    &[aria-expanded="false"] .gw-tool-policy-list__chevron--open { display: none; }
+  }
+
+  .gw-table &__limits > td {
+    height: auto;
+    padding-block: 0 var(--gw-space-3);
+    white-space: normal;
+  }
+
+  &__limits-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--gw-size-control-lg) * 5)), 1fr));
+    gap: var(--gw-space-4);
+    align-items: start;
+  }
+
+  &__limits-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--gw-space-2) var(--gw-space-4);
+    margin-top: var(--gw-space-4);
+
+    > p { margin: 0; }
+  }
+}

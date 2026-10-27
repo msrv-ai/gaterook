@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Welcome · GateRook</title>
+<link rel="icon" href="../assets/logo-mark.svg" type="image/svg+xml">
+<script src="../assets/theme-boot.js"></script>
+<link rel="stylesheet" href="../dist/gw-kit.css">
+</head>
+<body>
+<!--
+  ONBOARDING · first run. The shell's no-sidebar variant: gw-shell with only the titlebar and main
+  (no .gw-sidebar, so main spans the full width and there is no <nav data-gw-nav>). Nothing to navigate
+  to yet; the titlebar keeps the drag region and Appearance (no search, no approvals bell: both would be empty).
+  Order: welcome (logo, value, three promises) → stepper → current step + setup-map preview → where data lives.
+  Step 1 (Protect master key) is current. The page script switches step panels (demo only); in the app,
+  steps 2–4 hand over to Add connection, Create endpoint and AI apps and come back here.
+-->
+<a class="gw-skip-link" href="#main">Skip to content</a>
+<div class="gw-shell">
+
+  <header class="gw-titlebar">
+    <span class="gw-titlebar__title">Welcome</span>
+    <div class="gw-titlebar__drag"></div>
+    <div class="gw-titlebar__actions">
+      <!--
+        Appearance popover. gw-popover belongs to component group D, gw-segmented to group C.
+        The <form method="dialog"> scopes the radio groups (Settings › Appearance has its own
+        gw-theme radios) and never submits outside a <dialog>. kit.js binds name="gw-theme" /
+        name="gw-contrast" to window.gwTheme.
+      -->
+      <div class="gw-menu-host">
+        <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="gw-appearance" aria-label="Appearance"><i class="gw-icon" data-lucide="sun-moon"></i></button>
+        <div class="gw-popover gw-popover--right" id="gw-appearance" role="dialog" aria-labelledby="gw-appearance-title" hidden>
+          <div class="gw-popover__header">
+            <p class="gw-popover__title" id="gw-appearance-title">Appearance</p>
+          </div>
+          <form class="gw-popover__body" method="dialog">
+            <div class="gw-stack gw-stack--sm">
+              <p class="gw-text-caption gw-fg-muted" id="gw-appearance-theme">Theme</p>
+              <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="gw-appearance-theme">
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i> System</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i> Light</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i> Dark</span></label>
+              </div>
+              <p class="gw-text-caption gw-fg-muted" id="gw-appearance-contrast">Contrast</p>
+              <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="gw-appearance-contrast">
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="system"><span class="gw-segmented__label">System</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="normal"><span class="gw-segmented__label">Normal</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="more"><span class="gw-segmented__label">High</span></label>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="gw-shell__main" id="main" tabindex="-1">
+    <div class="gw-page gw-page--narrow">
+
+      <!-- ─────────────── Welcome ─────────────── -->
+      <!-- The lockup is decorative here: the h1 already names the product. -->
+      <span class="gw-logo gw-logo--xl" aria-hidden="true">
+        <img class="gw-logo__mark" src="../assets/logo-mark.svg" alt="">
+        <span class="gw-logo__name">GateRook</span>
+      </span>
+
+      <header class="gw-page-header">
+        <div class="gw-page-header__row">
+          <div class="gw-page-header__heading">
+            <h1 class="gw-page-header__title">Welcome to GateRook</h1>
+            <p class="gw-page-header__description">Give your AI agents one MCP URL to your databases, servers, logs and clusters, without handing them a single password.</p>
+          </div>
+          <div class="gw-page-header__actions">
+            <a class="gw-btn gw-btn--ghost" href="overview.html">Skip setup</a>
+          </div>
+        </div>
+      </header>
+
+      <ul class="gw-grid gw-grid--auto" aria-label="What GateRook guarantees">
+        <li class="gw-card gw-card--muted">
+          <div class="gw-card__body">
+            <div class="gw-stack gw-stack--sm">
+              <span class="gw-icon-tile gw-icon-tile--brand"><i class="gw-icon" data-lucide="eye-off"></i></span>
+              <p class="gw-text-h3">Your agent never sees secrets</p>
+              <p class="gw-text-small gw-fg-secondary">Passwords and keys stay encrypted on this computer. The gateway adds them to each call and masks them in results.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--muted">
+          <div class="gw-card__body">
+            <div class="gw-stack gw-stack--sm">
+              <span class="gw-icon-tile gw-icon-tile--brand"><i class="gw-icon" data-lucide="user-check"></i></span>
+              <p class="gw-text-h3">You approve every change</p>
+              <p class="gw-text-small gw-fg-secondary">Writes, restarts, deploys and SSH commands wait for you, shown exactly as they will run. No answer means no.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--muted">
+          <div class="gw-card__body">
+            <div class="gw-stack gw-stack--sm">
+              <span class="gw-icon-tile gw-icon-tile--brand"><i class="gw-icon" data-lucide="scroll-text"></i></span>
+              <p class="gw-text-h3">Every call is logged</p>
+              <p class="gw-text-small gw-fg-secondary">Who called which tool, with which arguments, what was decided and how long it took. The log is append-only.</p>
+            </div>
+          </div>
+        </li>
+      </ul>
+
+      <!-- ─────────────── Set up · stepper + current step + where it leads ─────────────── -->
+      <section class="gw-section" aria-labelledby="setup-title">
+        <header class="gw-section__header">
+          <h2 class="gw-section__title" id="setup-title">Set up in four steps</h2>
+          <p class="gw-section__description">About 5 minutes. Everything can be changed later.</p>
+        </header>
+
+        <div class="gw-stack gw-stack--lg">
+          <!-- Progress, not navigation: moving between steps uses the buttons in the step card. -->
+          <ol class="gw-stepper" aria-label="Set up GateRook" id="ob-stepper">
+            <li class="gw-stepper__step" data-state="current" aria-current="step">
+              <span class="gw-stepper__marker" aria-hidden="true">1</span>
+              <span class="gw-stepper__label">Protect master key</span>
+              <span class="gw-stepper__description">Back it up off this computer</span>
+            </li>
+            <li class="gw-stepper__step" data-state="upcoming">
+              <span class="gw-stepper__marker" aria-hidden="true">2</span>
+              <span class="gw-stepper__label">Add a connection</span>
+              <span class="gw-stepper__description">A database, server, log store or API</span>
+            </li>
+            <li class="gw-stepper__step" data-state="upcoming">
+              <span class="gw-stepper__marker" aria-hidden="true">3</span>
+              <span class="gw-stepper__label">Create an endpoint</span>
+              <span class="gw-stepper__description">One MCP URL with the tools you choose</span>
+            </li>
+            <li class="gw-stepper__step" data-state="upcoming">
+              <span class="gw-stepper__marker" aria-hidden="true">4</span>
+              <span class="gw-stepper__label">Connect your AI app</span>
+              <span class="gw-stepper__description">Claude Desktop, Codex, Cursor and more</span>
+            </li>
+          </ol>
+
+          <div class="gw-grid gw-grid--2">
+
+            <!-- Current step. One panel visible at a time; the others wait with hidden. -->
+            <div>
+              <!-- Step 1 · Protect master key (current) -->
+              <section class="gw-card" id="ob-panel-1" aria-labelledby="ob-panel-1-title">
+                <header class="gw-card__header">
+                  <div class="gw-card__heading">
+                    <h3 class="gw-card__title" id="ob-panel-1-title" tabindex="-1"><span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--brand"><i class="gw-icon gw-icon--sm" data-lucide="key-round"></i></span>Protect your master key</h3>
+                    <p class="gw-card__description">It encrypts every secret you store here.</p>
+                  </div>
+                </header>
+                <div class="gw-card__body">
+                  <div class="gw-stack">
+                    <!-- The trust boundary of decision 5 (ARCHITECTURE §8.6.11) closes the explanation: the boundary is the OS account. -->
+                    <p class="gw-text-body-read">GateRook created this key when it first started. Each secret gets its own data key, sealed with this one, and the file lives apart from the database and its backups: a copied database alone reveals nothing. It protects against other users and copied files, not against programs you run, including AI agents with a terminal.</p>
+                    <!-- Full card width for the path: inside a kv value column it would truncate at a 960 px window. -->
+                    <div class="gw-field">
+                      <p class="gw-field__label" id="ob-key-file">Key file</p>
+                      <div class="gw-copy-field" role="group" aria-labelledby="ob-key-file">
+                        <code class="gw-copy-field__value" id="ob-key-path">~/.gaterook/master.keyset</code>
+                        <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" data-gw-copy-from="#ob-key-path">
+                          <span class="gw-copy-field__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> key file path</span></span>
+                          <span class="gw-copy-field__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                        </button>
+                      </div>
+                    </div>
+                    <dl class="gw-kv gw-kv--dense">
+                      <div class="gw-kv__row">
+                        <dt class="gw-kv__key">Permissions</dt>
+                        <dd class="gw-kv__value"><code class="gw-code">0400</code> · only your user can read it</dd>
+                      </div>
+                      <div class="gw-kv__row">
+                        <dt class="gw-kv__key">Format</dt>
+                        <!-- OS protection is on by default where the system has a keyring: name the one that seals the file. -->
+                        <dd class="gw-kv__value">Google Tink keyset, sealed with a key from the macOS Keychain</dd>
+                      </div>
+                    </dl>
+                    <!-- The same optional passphrase as Secrets › Back up master key (pages/secrets.html #dlg-backup-key). -->
+                    <div class="gw-field">
+                      <label class="gw-field__label" for="ob-backup-pass">Encrypt the copy with a passphrase <span class="gw-field__optional">Optional</span></label>
+                      <div class="gw-input-group">
+                        <input class="gw-input" id="ob-backup-pass" type="password" autocomplete="new-password" aria-describedby="ob-backup-pass-hint">
+                        <button class="gw-input-group__addon" type="button" data-gw-reveal aria-pressed="false" aria-label="Show passphrase" aria-controls="ob-backup-pass"><i class="gw-icon" data-lucide="eye"></i><i class="gw-icon" data-lucide="eye-off"></i></button>
+                      </div>
+                      <p class="gw-field__hint" id="ob-backup-pass-hint">Without one, the copy is the plain key: whoever has it and a copy of the database can read every secret. You need the passphrase to restore.</p>
+                    </div>
+                    <p class="gw-text-small gw-fg-secondary" id="ob-backup-hint">A save dialog asks where the copy goes. Pick a place off this computer, such as your password manager or an encrypted drive. Together with the database the copy unlocks your secrets, so guard it like a password.</p>
+                    <!-- The consequence of skipping, right before the choice. "I'll do it later" points here with aria-describedby. -->
+                    <div class="gw-alert gw-alert--warning">
+                      <i class="gw-icon gw-alert__icon" data-lucide="triangle-alert"></i>
+                      <div class="gw-alert__content">
+                        <p class="gw-alert__title">Not backed up yet</p>
+                        <p class="gw-alert__body" id="ob-later-why">Without a copy, a lost or wiped disk takes every stored secret with it: they can't be decrypted, only entered again. You can back up later from Secrets.</p>
+                      </div>
+                    </div>
+                    <!-- Shown while Back up key runs; the busy button points its aria-describedby here. -->
+                    <p class="gw-text-small gw-fg-secondary" id="ob-backup-status" hidden>Waiting for the save dialog: pick where the copy of <span class="gw-mono">master.keyset</span> goes.</p>
+                  </div>
+                </div>
+                <footer class="gw-card__footer gw-card__footer--split">
+                  <button class="gw-btn gw-btn--link" type="button" id="ob-later" aria-describedby="ob-later-why">I'll do it later</button>
+                  <button class="gw-btn gw-btn--primary" type="button" id="ob-backup" aria-describedby="ob-backup-hint">Back up key</button>
+                </footer>
+              </section>
+
+              <!-- Step 2 · Add a connection -->
+              <section class="gw-card" id="ob-panel-2" aria-labelledby="ob-panel-2-title" hidden>
+                <header class="gw-card__header">
+                  <div class="gw-card__heading">
+                    <h3 class="gw-card__title" id="ob-panel-2-title" tabindex="-1"><span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--brand"><i class="gw-icon gw-icon--sm" data-lucide="database"></i></span>Add a connection</h3>
+                    <p class="gw-card__description">Something your agent may use: a database, server, log store, cluster, cloud account or HTTP API.</p>
+                  </div>
+                </header>
+                <div class="gw-card__body">
+                  <p class="gw-text-body-read">PostgreSQL, MySQL, MongoDB, Redis, SSH, logs, Kubernetes, GCP, AWS or any HTTP API. You test it before it is saved, and its password or key is encrypted here and never sent to the agent.</p>
+                </div>
+                <footer class="gw-card__footer gw-card__footer--split">
+                  <button class="gw-btn gw-btn--ghost" type="button" data-ob-go="1"><i class="gw-icon" data-lucide="arrow-left"></i> Back</button>
+                  <a class="gw-btn gw-btn--primary" href="connection-new.html">Choose a connection type</a>
+                </footer>
+              </section>
+
+              <!-- Step 3 · Create an endpoint -->
+              <section class="gw-card" id="ob-panel-3" aria-labelledby="ob-panel-3-title" hidden>
+                <header class="gw-card__header">
+                  <div class="gw-card__heading">
+                    <h3 class="gw-card__title" id="ob-panel-3-title" tabindex="-1"><span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--brand"><i class="gw-icon gw-icon--sm" data-lucide="waypoints"></i></span>Create an endpoint</h3>
+                    <p class="gw-card__description">One MCP URL, such as <code class="gw-code">http://127.0.0.1:7465/mcp/dev</code>.</p>
+                  </div>
+                </header>
+                <div class="gw-card__body">
+                  <p class="gw-text-body-read">Pick the connections and set each tool to Off, Read only or Approval. Tools that change data run only after you approve them, on every environment.</p>
+                </div>
+                <footer class="gw-card__footer gw-card__footer--split">
+                  <button class="gw-btn gw-btn--ghost" type="button" data-ob-go="2"><i class="gw-icon" data-lucide="arrow-left"></i> Back</button>
+                  <a class="gw-btn gw-btn--primary" href="endpoints.html">Create endpoint</a>
+                </footer>
+              </section>
+
+              <!-- Step 4 · Connect your AI app -->
+              <section class="gw-card" id="ob-panel-4" aria-labelledby="ob-panel-4-title" hidden>
+                <header class="gw-card__header">
+                  <div class="gw-card__heading">
+                    <h3 class="gw-card__title" id="ob-panel-4-title" tabindex="-1"><span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--brand"><i class="gw-icon gw-icon--sm" data-lucide="app-window"></i></span>Connect your AI app</h3>
+                    <p class="gw-card__description">Claude Desktop, Codex and Cursor are installed on this computer.</p>
+                  </div>
+                </header>
+                <div class="gw-card__body">
+                  <p class="gw-text-body-read">Before anything is written, you see the exact change to the AI app's config and where the backup goes. Claude Desktop and Codex get a short-lived token on the fly, so no token sits in their config. Cursor keeps a token in plain text in <span class="gw-mono">~/.cursor/mcp.json</span>, or signs in through the browser or goes through the bridge instead.</p>
+                </div>
+                <footer class="gw-card__footer gw-card__footer--split">
+                  <button class="gw-btn gw-btn--ghost" type="button" data-ob-go="3"><i class="gw-icon" data-lucide="arrow-left"></i> Back</button>
+                  <a class="gw-btn gw-btn--primary" href="clients.html">Connect your AI app</a>
+                </footer>
+              </section>
+            </div>
+
+            <!-- Where this leads: setup-map --vertical in its first-run state (elements/setup-map.html), drawn in SETUP
+                 order like the stepper (Secrets & resources, Connections, Policies, Endpoints, AI apps, top to
+                 bottom): step 1 is the first node, step 4 the last. Policies is not a step: safe defaults are on
+                 from the start (mutations always wait for approval, a comment is required on prod), so it is
+                 already Done. The caption and aria-describedby say that a call travels the other way. -->
+            <div class="gw-stack gw-stack--sm">
+              <h3 class="gw-text-h3" id="ob-map-title">Where this leads</h3>
+              <p class="gw-text-small gw-fg-secondary">What you are setting up, in the order of the steps. Each step fills in one part of it.</p>
+              <p class="gw-sr-only" id="ob-map-flow">Set it up top to bottom: step 1 protects secrets and resources, step 2 adds a connection that uses them, policies already have safe defaults, step 3 publishes tools on an endpoint and step 4 connects an AI app to it. An agent's call travels the other way: AI app, endpoint (with a token or OAuth), policy (mode, limits, approval), connection, where the secret is injected. The agent never receives the secret.</p>
+              <ol class="gw-setup-map gw-setup-map--vertical" aria-labelledby="ob-map-title" aria-describedby="ob-map-flow">
+                <li class="gw-setup-map__step" data-state="attention" id="ob-map-secrets">
+                  <div class="gw-card gw-setup-map__node">
+                    <div class="gw-card__body gw-setup-map__body">
+                      <span class="gw-icon-tile gw-icon-tile--warning gw-setup-map__tile"><i class="gw-icon" data-lucide="key-round"></i></span>
+                      <h4 class="gw-card__title gw-setup-map__title">Secrets &amp; resources</h4>
+                      <p class="gw-card__description gw-setup-map__desc">Credentials the agent never sees</p>
+                      <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">Step 1 · master key not backed up</p>
+                      <span class="gw-badge gw-badge--warning gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="triangle-alert"></i>Needs attention</span>
+                      <a class="gw-btn gw-btn--link gw-setup-map__action" href="secrets.html">Configure<span class="gw-sr-only"> secrets</span></a>
+                    </div>
+                  </div>
+                  <span class="gw-setup-map__connector" aria-hidden="true">
+                    <span class="gw-setup-map__line"></span>
+                    <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across" data-lucide="chevron-right"></i>
+                    <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down" data-lucide="chevron-down"></i>
+                  </span>
+                </li>
+                <li class="gw-setup-map__step" data-state="todo">
+                  <div class="gw-card gw-card--dashed gw-setup-map__node">
+                    <div class="gw-card__body gw-setup-map__body">
+                      <span class="gw-icon-tile gw-icon-tile--neutral gw-setup-map__tile"><i class="gw-icon" data-lucide="database"></i></span>
+                      <h4 class="gw-card__title gw-setup-map__title">Connections</h4>
+                      <p class="gw-card__description gw-setup-map__desc">Where tools run: databases, hosts, APIs</p>
+                      <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">Step 2 · none yet</p>
+                      <span class="gw-badge gw-badge--neutral gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="circle-dashed"></i>Not set up</span>
+                      <a class="gw-btn gw-btn--link gw-setup-map__action" href="connections.html">Configure<span class="gw-sr-only"> connections</span></a>
+                    </div>
+                  </div>
+                  <p class="gw-setup-map__note gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--xs" data-lucide="lock-keyhole"></i><span>Secret injected here, never sent to the agent</span></p>
+                  <span class="gw-setup-map__connector" aria-hidden="true">
+                    <span class="gw-setup-map__line"></span>
+                    <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across" data-lucide="chevron-right"></i>
+                    <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down" data-lucide="chevron-down"></i>
+                  </span>
+                </li>
+                <li class="gw-setup-map__step" data-state="done">
+                  <div class="gw-card gw-setup-map__node">
+                    <div class="gw-card__body gw-setup-map__body">
+                      <span class="gw-icon-tile gw-icon-tile--brand gw-setup-map__tile"><i class="gw-icon" data-lucide="shield"></i></span>
+                      <h4 class="gw-card__title gw-setup-map__title">Policies</h4>
+                      <p class="gw-card__description gw-setup-map__desc">Decides each call: mode, limits, approval</p>
+                      <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">Safe defaults on · review any time</p>
+                      <span class="gw-badge gw-badge--success gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="circle-check"></i>Done</span>
+                      <a class="gw-btn gw-btn--link gw-setup-map__action" href="policies.html">Configure<span class="gw-sr-only"> policies</span></a>
+                    </div>
+                  </div>
+                  <span class="gw-setup-map__connector" aria-hidden="true">
+                    <span class="gw-setup-map__line"></span>
+                    <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across" data-lucide="chevron-right"></i>
+                    <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down" data-lucide="chevron-down"></i>
+                  </span>
+                </li>
+                <li class="gw-setup-map__step" data-state="todo">
+                  <div class="gw-card gw-card--dashed gw-setup-map__node">
+                    <div class="gw-card__body gw-setup-map__body">
+                      <span class="gw-icon-tile gw-icon-tile--neutral gw-setup-map__tile"><i class="gw-icon" data-lucide="waypoints"></i></span>
+                      <h4 class="gw-card__title gw-setup-map__title">Endpoints</h4>
+                      <p class="gw-card__description gw-setup-map__desc">One MCP URL, with a token or OAuth</p>
+                      <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">Step 3 · none yet</p>
+                      <span class="gw-badge gw-badge--neutral gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="circle-dashed"></i>Not set up</span>
+                      <a class="gw-btn gw-btn--link gw-setup-map__action" href="endpoints.html">Configure<span class="gw-sr-only"> endpoints</span></a>
+                    </div>
+                  </div>
+                  <span class="gw-setup-map__connector" aria-hidden="true">
+                    <span class="gw-setup-map__line"></span>
+                    <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across" data-lucide="chevron-right"></i>
+                    <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down" data-lucide="chevron-down"></i>
+                  </span>
+                </li>
+                <li class="gw-setup-map__step" data-state="todo">
+                  <div class="gw-card gw-card--dashed gw-setup-map__node">
+                    <div class="gw-card__body gw-setup-map__body">
+                      <span class="gw-icon-tile gw-icon-tile--neutral gw-setup-map__tile"><i class="gw-icon" data-lucide="app-window"></i></span>
+                      <h4 class="gw-card__title gw-setup-map__title">AI apps</h4>
+                      <p class="gw-card__description gw-setup-map__desc">Apps your agent works in</p>
+                      <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">Step 4 · 3 detected</p>
+                      <span class="gw-badge gw-badge--neutral gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="circle-dashed"></i>Not set up</span>
+                      <a class="gw-btn gw-btn--link gw-setup-map__action" href="clients.html">Configure<span class="gw-sr-only"> AI apps</span></a>
+                    </div>
+                  </div>
+                </li>
+              </ol>
+              <p class="gw-text-caption gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--xs" data-lucide="arrow-up-down"></i> Set it up top to bottom. An agent's call travels the other way: AI app, endpoint, policy, connection, where the secret is injected.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <p class="gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i> Everything stays on this computer. The core listens on <span class="gw-mono">127.0.0.1</span> only.</p>
+
+    </div>
+  </main>
+
+</div>
+<script src="../vendor/lucide/lucide.min.js"></script>
+<script src="../assets/kit.js"></script>
+<script>
+/* Demo-only wizard behaviour (no kit.js hook switches stepper steps):
+   - Back up key: in-place loading (aria-busy + aria-disabled + spinner, label kept; aria-describedby points
+     at the status line that says what runs, and goes back to the hint when done); in Electron this is the
+     system save dialog (the demo assumes ~/Downloads was picked). Then step 1 is complete, the Secrets
+     node of the preview turns Done, step 2 opens, and a toast that stays names the full path of the copy
+     and says to delete it from this computer once it is stored elsewhere (as in Secrets).
+   - I'll do it later: step 1 stays not done ("Skipped") and step 2 opens.
+   - Back: returns to the previous step.
+   Every switch keeps the stepper ARIA in sync (data-state, aria-current="step", sr-only state words),
+   moves focus to the new step's title and announces the step. */
+(function () {
+  "use strict";
+  var steps = Array.prototype.slice.call(document.querySelectorAll("#ob-stepper > .gw-stepper__step"));
+  var labels = ["Protect master key", "Add a connection", "Create an endpoint", "Connect your AI app"];
+  var done = [false, false, false, false];
+
+  function render(current) {
+    steps.forEach(function (li, i) {
+      var marker = li.querySelector(".gw-stepper__marker");
+      var label = li.querySelector(".gw-stepper__label");
+      var state = i === current ? "current" : (done[i] ? "complete" : "upcoming");
+      li.setAttribute("data-state", state);
+      if (i === current) li.setAttribute("aria-current", "step"); else li.removeAttribute("aria-current");
+      label.textContent = labels[i];
+      if (state === "complete") {
+        marker.innerHTML = '<i class="gw-icon gw-icon--sm" data-lucide="check"></i>';
+        var sr = document.createElement("span");
+        sr.className = "gw-sr-only";
+        sr.textContent = ", completed";
+        label.appendChild(sr);
+      } else {
+        marker.textContent = String(i + 1);
+      }
+      var panel = document.getElementById("ob-panel-" + (i + 1));
+      if (panel) panel.hidden = i !== current;
+    });
+    if (window.gwIcons) window.gwIcons(document.getElementById("ob-stepper"));
+    var title = document.getElementById("ob-panel-" + (current + 1) + "-title");
+    if (title) title.focus();
+  }
+
+  function go(current, message) {
+    render(current);
+    if (window.gwAnnounce) window.gwAnnounce((message ? message + " " : "") + "Step " + (current + 1) + " of 4: " + labels[current] + ".");
+  }
+
+  var backup = document.getElementById("ob-backup");
+  var status = document.getElementById("ob-backup-status");
+  var pass = document.getElementById("ob-backup-pass");
+  if (backup) {
+    backup.addEventListener("click", function () {
+      if (backup.getAttribute("aria-busy") === "true") return;
+      var spinner = document.createElement("span");
+      spinner.className = "gw-spinner gw-spinner--sm";
+      spinner.setAttribute("aria-hidden", "true");
+      backup.insertBefore(spinner, backup.firstChild);
+      backup.setAttribute("aria-busy", "true");
+      backup.setAttribute("aria-disabled", "true");
+      if (status) status.hidden = false;
+      backup.setAttribute("aria-describedby", "ob-backup-status"); // what is running, while it runs
+      setTimeout(function () {
+        spinner.remove();
+        backup.removeAttribute("aria-busy");
+        backup.removeAttribute("aria-disabled");
+        backup.setAttribute("aria-describedby", "ob-backup-hint");
+        if (status) status.hidden = true;
+        var encrypted = pass && pass.value !== "";
+        if (pass) pass.value = "";
+        done[0] = true;
+        steps[0].querySelector(".gw-stepper__description").textContent = "Backed up just now";
+        var node = document.getElementById("ob-map-secrets");
+        if (node) {
+          node.setAttribute("data-state", "done");
+          node.querySelector(".gw-setup-map__tile").className = "gw-icon-tile gw-icon-tile--brand gw-setup-map__tile";
+          node.querySelector(".gw-setup-map__status").textContent = "Step 1 · master key backed up, no secrets yet";
+          var badge = node.querySelector(".gw-setup-map__state");
+          badge.className = "gw-badge gw-badge--success gw-setup-map__state";
+          badge.innerHTML = '<i class="gw-icon gw-badge__icon" data-lucide="circle-check"></i>Done';
+          if (window.gwIcons) window.gwIcons(node);
+        }
+        go(1, "Master key backed up.");
+        if (window.gwToast) {
+          window.gwToast({
+            tone: "success",
+            title: "Master key backed up" + (encrypted ? ", encrypted with your passphrase" : ""),
+            body: "Saved to ~/Downloads/master-keyset-2026-10-22.json. Move it to your password manager or an encrypted drive, then delete it from this computer.",
+            timeout: 0
+          });
+        }
+      }, 1200);
+    });
+  }
+
+  var later = document.getElementById("ob-later");
+  if (later) {
+    later.addEventListener("click", function () {
+      steps[0].querySelector(".gw-stepper__description").textContent = "Skipped · no backup yet";
+      go(1, "Master key backup skipped.");
+    });
+  }
+
+  document.addEventListener("click", function (e) {
+    var back = e.target.closest("[data-ob-go]");
+    if (!back) return;
+    go(Number(back.getAttribute("data-ob-go")) - 1);
+  });
+})();
+</script>
+</body>
+</html>

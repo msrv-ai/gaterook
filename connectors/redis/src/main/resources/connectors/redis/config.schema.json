@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "object",
+      "title": "Connection",
+      "additionalProperties": false,
+      "required": [
+        "host",
+        "port"
+      ],
+      "x-paste-url": "redis(s)://[user@]host:port/db",
+      "properties": {
+        "host": {
+          "type": "string",
+          "title": "Host",
+          "maxLength": 253
+        },
+        "port": {
+          "type": "integer",
+          "title": "Port",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 6379
+        },
+        "database": {
+          "type": "integer",
+          "title": "Database",
+          "minimum": 0,
+          "maximum": 1023,
+          "default": 0
+        },
+        "tls": {
+          "type": "boolean",
+          "title": "Use TLS",
+          "default": false,
+          "x-env-default": {
+            "prod": true
+          }
+        },
+        "tlsVerify": {
+          "type": "string",
+          "title": "TLS verification",
+          "enum": [
+            "full",
+            "ca"
+          ],
+          "default": "full",
+          "x-forbidden-env-values": {
+            "prod": [
+              "ca"
+            ]
+          },
+          "x-enumTitles": [
+            "Verify the CA and host name",
+            "Verify the CA only"
+          ]
+        },
+        "caCertificate": {
+          "type": "string",
+          "title": "CA certificate (PEM)",
+          "maxLength": 20000,
+          "x-widget": "textarea"
+        }
+      }
+    },
+    "credentials": {
+      "type": "object",
+      "title": "Credentials",
+      "x-gateway-secret": "login",
+      "additionalProperties": false,
+      "properties": {
+        "user": {
+          "type": "string",
+          "title": "ACL user",
+          "maxLength": 256,
+          "description": "Empty: AUTH with the password only (the default user)."
+        },
+        "password": {
+          "type": "string",
+          "title": "Password",
+          "writeOnly": true,
+          "format": "password"
+        }
+      }
+    },
+    "advanced": {
+      "type": "object",
+      "title": "Advanced",
+      "x-collapsed": true,
+      "additionalProperties": false,
+      "properties": {
+        "keyAllowlist": {
+          "type": "array",
+          "title": "Keys the agent may read",
+          "items": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "maxItems": 100,
+          "x-stricter": "intersect",
+          "description": "Redis globs: cache:*, product:*. Empty: every key."
+        },
+        "keyDenylist": {
+          "type": "array",
+          "title": "Keys the agent never reads",
+          "items": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "maxItems": 100,
+          "x-stricter": "union",
+          "examples": [
+            [
+              "session:*",
+              "*token*"
+            ]
+          ]
+        },
+        "commandTimeoutMs": {
+          "type": "integer",
+          "title": "Command timeout",
+          "minimum": 200,
+          "maximum": 30000,
+          "default": 2000,
+          "x-unit": "ms",
+          "x-stricter": "min"
+        },
+        "connectTimeoutMs": {
+          "type": "integer",
+          "title": "Connect timeout",
+          "minimum": 500,
+          "maximum": 30000,
+          "default": 2000,
+          "x-unit": "ms"
+        },
+        "maxValueKb": {
+          "type": "integer",
+          "title": "Max value size",
+          "minimum": 1,
+          "maximum": 1024,
+          "default": 64,
+          "x-unit": "KB",
+          "x-stricter": "min"
+        },
+        "poolSize": {
+          "type": "integer",
+          "title": "Pool size",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 2,
+          "x-unit": "connections"
+        },
+        "noTouch": {
+          "type": "boolean",
+          "title": "Don't touch keys",
+          "default": true,
+          "description": "Reads don't change LRU/LFU (Redis 7.2+, CLIENT NO-TOUCH)."
+        }
+      }
+    }
+  }
+}

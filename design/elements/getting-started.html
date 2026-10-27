@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Getting started · Element · GateRook kit</title>
+<link rel="icon" href="../assets/logo-mark.svg" type="image/svg+xml">
+<script src="../assets/theme-boot.js"></script>
+<link rel="stylesheet" href="../dist/gw-kit.css">
+</head>
+<body>
+<a class="gw-skip-link" href="#main">Skip to content</a>
+<main class="gw-page" id="main" tabindex="-1">
+
+  <header class="gw-page-header">
+    <div class="gw-page-header__row">
+      <div class="gw-page-header__heading">
+        <h1 class="gw-page-header__title">Getting started</h1>
+        <p class="gw-page-header__description">The first-run checklist on Overview and at the end of onboarding: six steps in order, how far the user has got, and the one thing to do next. Done steps fold to a line; once all six are done it shrinks to a calm summary until dismissed.</p>
+      </div>
+      <div class="gw-page-header__actions">
+        <fieldset class="gw-segmented gw-segmented--sm">
+          <legend class="gw-sr-only">Theme</legend>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i>System</span></label>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i>Light</span></label>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i>Dark</span></label>
+        </fieldset>
+      </div>
+    </div>
+  </header>
+
+  <!-- ───────────────────────── Fresh install ───────────────────────── -->
+  <section class="gw-section" aria-labelledby="s-fresh">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-fresh">Fresh install</h2>
+      <p class="gw-section__description">Nothing done yet. Step 1 is current and carries the only primary button; the others are links, so they can be done in any order.</p>
+    </header>
+    <section class="gw-card gw-getting-started" aria-labelledby="gs-fresh-title">
+      <header class="gw-card__header">
+        <div class="gw-card__heading">
+          <h3 class="gw-card__title" id="gs-fresh-title"><span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--brand"><i class="gw-icon gw-icon--sm" data-lucide="list-checks"></i></span>Get started</h3>
+          <p class="gw-card__description">Six steps from install to your agent's first safe call. About 5 minutes.</p>
+        </div>
+        <div class="gw-card__actions">
+          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button"><i class="gw-icon gw-icon--sm" data-lucide="x"></i>Dismiss checklist</button>
+        </div>
+      </header>
+      <div class="gw-card__body gw-getting-started__body">
+        <div class="gw-getting-started__progress">
+          <p class="gw-getting-started__count gw-text-small gw-fg-secondary gw-tabular" id="gs-fresh-count">0 of 6 done</p>
+          <div class="gw-progress gw-progress--sm gw-getting-started__bar" role="progressbar" aria-labelledby="gs-fresh-count" aria-valuemin="0" aria-valuemax="6" aria-valuenow="0" aria-valuetext="0 of 6 steps done" style="--gw-progress: 0">
+            <div class="gw-progress__bar"></div>
+          </div>
+        </div>
+        <ol class="gw-getting-started__steps" aria-label="Setup steps">
+          <li class="gw-getting-started__step" data-state="current" aria-current="step">
+            <span class="gw-getting-started__icon gw-fg-brand" aria-hidden="true"><i class="gw-icon gw-icon--lg" data-lucide="circle-dot"></i></span>
+            <p class="gw-getting-started__title gw-text-h3">Protect your master key</p>
+            <p class="gw-getting-started__why gw-text-small gw-fg-secondary">It encrypts every secret. Keep a copy somewhere other than this computer.</p>
+            <a class="gw-btn gw-btn--primary gw-btn--sm gw-getting-started__action" href="../pages/secrets.html">Back up master key</a>
+          </li>
+          <li class="gw-getting-started__step" data-state="todo">
+            <span class="gw-getting-started__icon gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--lg" data-lucide="circle-dashed"></i></span>
+            <p class="gw-getting-started__title gw-text-body">Add a connection<span class="gw-sr-only">, not done yet</span></p>
+            <p class="gw-getting-started__why gw-text-small gw-fg-secondary">A database, host, cluster or API your agent may use. Its secret stays here.</p>
+            <a class="gw-btn gw-btn--link gw-getting-started__action" href="../pages/connection-new.html">Add connection</a>
+          </li>
+          <li class="gw-getting-started__step" data-state="todo">
+            <span class="gw-getting-started__icon gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--lg" data-lucide="circle-dashed"></i></span>
+            <p class="gw-getting-started__title gw-text-body">Create an endpoint<span class="gw-sr-only">, not done yet</span></p>
+            <p class="gw-getting-started__why gw-text-small gw-fg-secondary">One MCP URL with only the tools and modes you choose.</p>
+            <a class="gw-btn gw-btn--link gw-getting-started__action" href="../pages/endpoints.html">Create endpoint</a>
+          </li>
+          <li class="gw-getting-started__step" data-state="todo">
+            <span class="gw-getting-started__icon gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--lg" data-lucide="circle-dashed"></i></span>
+            <p class="gw-getting-started__title gw-text-body">Connect your AI app<span class="gw-sr-only">, not done yet</span></p>
+            <p class="gw-getting-started__why gw-text-small gw-fg-secondary">Claude Desktop, Codex and Cursor are installed. You see the config change before it is written.</p>
+            <a class="gw-btn gw-btn--link gw-getting-started__action" href="../pages/clients.html">Connect your AI app</a>
+          </li>
+          <li class="gw-getting-started__step" data-state="todo">
+            <span class="gw-getting-started__icon gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--lg" data-lucide="circle-dashed"></i></span>
+            <p class="gw-getting-started__title gw-text-body">Try a tool in Playground<span class="gw-sr-only">, not done yet</span></p>
+            <p class="gw-getting-started__why gw-text-small gw-fg-secondary">Call <code class="gw-code">sql_query</code> the way your agent would and see exactly what comes back.</p>
+            <a class="gw-btn gw-btn--link gw-getting-started__action" href="../pages/playground.html">Open Playground</a>
+          </li>
+          <li class="gw-getting-started__step" data-state="todo">
+            <span class="gw-getting-started__icon gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--lg" data-lucide="circle-dashed"></i></span>
+            <p class="gw-getting-started__title gw-text-body">Set up approval notifications<span class="gw-sr-only">, not done yet</span></p>
+            <p class="gw-getting-started__why gw-text-small gw-fg-secondary">Get approval requests on the desktop, in Slack or in Telegram, not only in this window.</p>
+            <a class="gw-btn gw-btn--link gw-getting-started__action" href="../pages/settings.html">Set up notifications</a>
+          </li>
+        </ol>
+      </div>
+    </section>
+  </section>
+
+  <!-- ───────────────────────── In progress ───────────────────────── -->
+  <section class="gw-section" aria-labelledby="s-progress">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-progress">In progress</h2>
+      <p class="gw-section__description">The demo world's state, as on Overview: five steps done, each folded to one line with what was done. Steps can be done out of order, so Try a tool in Playground is still next after notifications were set up.</p>
+    </header>
+    <section class="gw-card gw-getting-started" aria-labelledby="gs-progress-title">
+      <header class="gw-card__header">
+        <div class="gw-card__heading">
+          <h3 class="gw-card__title" id="gs-progress-title"><span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--brand"><i class="gw-icon gw-icon--sm" data-lucide="list-checks"></i></span>Get started</h3>
+          <p class="gw-card__description">Six steps from install to your agent's first safe call. About 5 minutes.</p>
+        </div>
+        <div class="gw-card__actions">
+          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button"><i class="gw-icon gw-icon--sm" data-lucide="x"></i>Dismiss checklist</button>
+        </div>
+      </header>
+      <div class="gw-card__body gw-getting-started__body">
+        <div class="gw-getting-started__progress">
+          <p class="gw-getting-started__count gw-text-small gw-fg-secondary gw-tabular" id="gs-progress-count">5 of 6 done</p>
+          <div class="gw-progress gw-progress--sm gw-getting-started__bar" role="progressbar" aria-labelledby="gs-progress-count" aria-valuemin="0" aria-valuemax="6" aria-valuenow="5" aria-valuetext="5 of 6 steps done" style="--gw-progress: 0.833">
+            <div class="gw-progress__bar"></div>
+          </div>
+        </div>
+        <ol class="gw-getting-started__steps" aria-label="Setup steps">
+          <li class="gw-getting-started__step" data-state="done">
+            <span class="gw-getting-started__icon gw-fg-success" aria-hidden="true"><i class="gw-icon gw-icon--lg" data-lucide="circle-check"></i></span>
+            <p class="gw-getting-started__title gw-text-body gw-fg-secondary">Protect your master key<span class="gw-sr-only">, done</span></p>
+            <p class="gw-getting-started__meta gw-text-small gw-fg-muted">Backed up 12 days ago</p>
+          </li>
+          <li class="gw-getting-started__step" data-state="done">
+            <span class="gw-getting-started__icon gw-fg-success" aria-hidden="true"><i class="gw-icon gw-icon--lg" data-lucide="circle-check"></i></span>
+            <p class="gw-getting-started__title gw-text-body gw-fg-secondary">Add a connection<span class="gw-sr-only">, done</span></p>
+            <p class="gw-getting-started__meta gw-text-small gw-fg-muted"><span class="gw-mono">dev-db</span> · PostgreSQL 16</p>
+          </li>
+          <li class="gw-getting-started__step" data-state="done">
+            <span class="gw-getting-started__icon gw-fg-success" aria-hidden="true"><i class="gw-icon gw-icon--lg" data-lucide="circle-check"></i></span>
+            <p class="gw-getting-started__title gw-text-body gw-fg-secondary">Create an endpoint<span class="gw-sr-only">, done</span></p>
+            <p class="gw-getting-started__meta gw-text-small gw-fg-muted"><span class="gw-mono">dev</span> · 22 tools</p>
+          </li>
+          <li class="gw-getting-started__step" data-state="done">
+            <span class="gw-getting-started__icon gw-fg-success" aria-hidden="true"><i class="gw-icon gw-icon--lg" data-lucide="circle-check"></i></span>
+            <p class="gw-getting-started__title gw-text-body gw-fg-secondary">Connect a client<span class="gw-sr-only">, done</span></p>
+            <p class="gw-getting-started__meta gw-text-small gw-fg-muted">Claude Desktop, Codex</p>
+          </li>
+          <li class="gw-getting-started__step" data-state="current" aria-current="step">
+            <span class="gw-getting-started__icon gw-fg-brand" aria-hidden="true"><i class="gw-icon gw-icon--lg" data-lucide="circle-dot"></i></span>
+            <p class="gw-getting-started__title gw-text-h3">Try a tool in Playground</p>
+            <p class="gw-getting-started__why gw-text-small gw-fg-secondary">Call <code class="gw-code">sql_query</code> the way your agent would and see exactly what comes back.</p>
+            <a class="gw-btn gw-btn--primary gw-btn--sm gw-getting-started__action" href="../pages/playground.html?tool=sql_query">Open Playground</a>
+          </li>
+          <li class="gw-getting-started__step" data-state="done">
+            <span class="gw-getting-started__icon gw-fg-success" aria-hidden="true"><i class="gw-icon gw-icon--lg" data-lucide="circle-check"></i></span>
+            <p class="gw-getting-started__title gw-text-body gw-fg-secondary">Set up approval notifications<span class="gw-sr-only">, done</span></p>
+            <p class="gw-getting-started__meta gw-text-small gw-fg-muted">Desktop and Slack <span class="gw-mono">#deploy-approvals</span></p>
+          </li>
+        </ol>
+      </div>
+    </section>
+  </section>
+
+  <!-- ───────────────────────── Complete ───────────────────────── -->
+  <section class="gw-section" aria-labelledby="s-complete">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-complete">Complete</h2>
+      <p class="gw-section__description">All six done: a one-card summary with what now works and where to look next. The steps stay one click away.</p>
+    </header>
+    <section class="gw-card gw-getting-started gw-getting-started--complete" aria-labelledby="gs-complete-title">
+      <header class="gw-card__header">
+        <div class="gw-card__heading">
+          <h3 class="gw-card__title" id="gs-complete-title"><span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--success"><i class="gw-icon gw-icon--sm" data-lucide="circle-check"></i></span>Setup complete</h3>
+          <p class="gw-card__description">All 6 steps done. Claude Desktop and Codex use endpoint <code class="gw-code">dev</code>, and every change waits for your approval.</p>
+        </div>
+        <div class="gw-card__actions">
+          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button"><i class="gw-icon gw-icon--sm" data-lucide="x"></i>Dismiss checklist</button>
+        </div>
+      </header>
+      <div class="gw-card__body gw-getting-started__body">
+        <div class="gw-getting-started__summary">
+          <button class="gw-btn gw-btn--ghost gw-btn--sm gw-getting-started__toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="gs-complete-steps">
+            <i class="gw-icon gw-icon--sm gw-getting-started__toggle-icon gw-getting-started__toggle-icon--expand" data-lucide="chevron-down"></i>
+            <i class="gw-icon gw-icon--sm gw-getting-started__toggle-icon gw-getting-started__toggle-icon--collapse" data-lucide="chevron-up"></i>
+            6 completed steps
+          </button>
+          <a class="gw-link gw-text-small" href="../pages/activity.html">See what your agents do in Activity</a>
+        </div>
+        <ol class="gw-getting-started__steps" id="gs-complete-steps" aria-label="Completed setup steps" hidden>
+          <li class="gw-getting-started__step" data-state="done">
+            <span class="gw-getting-started__icon gw-fg-success" aria-hidden="true"><i class="gw-icon gw-icon--lg" data-lucide="circle-check"></i></span>
+            <p class="gw-getting-started__title gw-text-body gw-fg-secondary">Protect your master key<span class="gw-sr-only">, done</span></p>
+            <p class="gw-getting-started__meta gw-text-small gw-fg-muted">Backed up 12 days ago</p>
+          </li>
+          <li class="gw-getting-started__step" data-state="done">
+            <span class="gw-getting-started__icon gw-fg-success" aria-hidden="true"><i class="gw-icon gw-icon--lg" data-lucide="circle-check"></i></span>
+            <p class="gw-getting-started__title gw-text-body gw-fg-secondary">Add a connection<span class="gw-sr-only">, done</span></p>
+            <p class="gw-getting-started__meta gw-text-small gw-fg-muted"><span class="gw-mono">dev-db</span> · PostgreSQL 16</p>
+          </li>
+          <li class="gw-getting-started__step" data-state="done">
+            <span class="gw-getting-started__icon gw-fg-success" aria-hidden="true"><i class="gw-icon gw-icon--lg" data-lucide="circle-check"></i></span>
+            <p class="gw-getting-started__title gw-text-body gw-fg-secondary">Create an endpoint<span class="gw-sr-only">, done</span></p>
+            <p class="gw-getting-started__meta gw-text-small gw-fg-muted"><span class="gw-mono">dev</span> · 22 tools</p>
+          </li>
+          <li class="gw-getting-started__step" data-state="done">
+            <span class="gw-getting-started__icon gw-fg-success" aria-hidden="true"><i class="gw-icon gw-icon--lg" data-lucide="circle-check"></i></span>
+            <p class="gw-getting-started__title gw-text-body gw-fg-secondary">Connect your AI app<span class="gw-sr-only">, done</span></p>
+            <p class="gw-getting-started__meta gw-text-small gw-fg-muted">Claude Desktop, Codex</p>
+          </li>
+          <li class="gw-getting-started__step" data-state="done">
+            <span class="gw-getting-started__icon gw-fg-success" aria-hidden="true"><i class="gw-icon gw-icon--lg" data-lucide="circle-check"></i></span>
+            <p class="gw-getting-started__title gw-text-body gw-fg-secondary">Try a tool in Playground<span class="gw-sr-only">, done</span></p>
+            <p class="gw-getting-started__meta gw-text-small gw-fg-muted"><span class="gw-mono">sql_query</span> · 38 ms</p>
+          </li>
+          <li class="gw-getting-started__step" data-state="done">
+            <span class="gw-getting-started__icon gw-fg-success" aria-hidden="true"><i class="gw-icon gw-icon--lg" data-lucide="circle-check"></i></span>
+            <p class="gw-getting-started__title gw-text-body gw-fg-secondary">Set up approval notifications<span class="gw-sr-only">, done</span></p>
+            <p class="gw-getting-started__meta gw-text-small gw-fg-muted">Desktop and Slack</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+  </section>
+
+</main>
+<script src="../vendor/lucide/lucide.min.js"></script>
+<script src="../assets/kit.js"></script>
+</body>
+</html>

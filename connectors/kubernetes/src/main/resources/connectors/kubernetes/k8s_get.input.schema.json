@@ -1,0 +1,63 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "kind"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 253,
+      "description": "As in kubectl: pods, po, deploy, Deployment, certificates.cert-manager.io"
+    },
+    "name": {
+      "type": "string",
+      "maxLength": 253,
+      "description": "Omit to list. With a name you get the object, its events and rollout status."
+    },
+    "namespace": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+      "maxLength": 63,
+      "description": "Default: the connection's namespace."
+    },
+    "allNamespaces": {
+      "type": "boolean",
+      "default": false,
+      "description": "List across the namespaces this endpoint allows."
+    },
+    "labelSelector": {
+      "type": "string",
+      "maxLength": 1024
+    },
+    "fieldSelector": {
+      "type": "string",
+      "maxLength": 1024
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 500,
+      "default": 50
+    },
+    "cursor": {
+      "type": "string",
+      "maxLength": 4096,
+      "description": "The cursor of the previous page, as k8s_get returned it."
+    },
+    "wide": {
+      "type": "boolean",
+      "default": false,
+      "description": "Add priority-1 columns (Images, Node, IP)."
+    },
+    "events": {
+      "type": "boolean",
+      "default": true
+    }
+  }
+}

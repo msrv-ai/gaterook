@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HTTP egress",
+  "type": "object",
+  "x-policy-section": "http",
+  "additionalProperties": false,
+  "properties": {
+    "writeApproval": {
+      "type": "boolean",
+      "const": true,
+      "default": true,
+      "readOnly": true,
+      "title": "POST, PUT, PATCH and DELETE wait for approval",
+      "description": "Always on (rule <env>.http.write-approval)."
+    },
+    "allowedBaseUrls": {
+      "type": "array",
+      "title": "Allowed base URLs",
+      "uniqueItems": true,
+      "maxItems": 100,
+      "items": {
+        "type": "string",
+        "maxLength": 512,
+        "pattern": "^https?://[^/?#@\\s]+(/[^?#\\s]*)?$"
+      },
+      "default": [],
+      "x-stricter": "intersect",
+      "x-inherit": false,
+      "description": "A request goes out only if it starts with a base URL of its connection and of this list. Never inherited."
+    },
+    "allowedPrivateRanges": {
+      "type": "array",
+      "title": "Allowed private addresses",
+      "maxItems": 100,
+      "default": [],
+      "x-inherit": false,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "cidr"
+        ],
+        "properties": {
+          "cidr": {
+            "type": "string",
+            "maxLength": 49
+          },
+          "connections": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Empty: every HTTP connection of the environment"
+          }
+        }
+      }
+    },
+    "maxResponseKb": {
+      "type": "integer",
+      "title": "Max response size",
+      "minimum": 1,
+      "maximum": 10240,
+      "default": 512,
+      "x-unit": "KB",
+      "x-stricter": "min",
+      "x-env-default": {
+        "stage": 256,
+        "prod": 256
+      }
+    },
+    "toolTimeoutSeconds": {
+      "type": "integer",
+      "title": "Tool timeout",
+      "minimum": 1,
+      "maximum": 60,
+      "default": 10,
+      "x-unit": "s",
+      "x-stricter": "min"
+    },
+    "maxRequestKb": {
+      "type": "integer",
+      "title": "Max request body",
+      "minimum": 1,
+      "maximum": 1024,
+      "default": 256,
+      "x-unit": "KB",
+      "x-stricter": "min",
+      "x-env-default": {
+        "prod": 64
+      }
+    }
+  }
+}

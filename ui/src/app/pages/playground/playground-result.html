@@ -1,0 +1,170 @@
+@let r = run();
+@let c = call();
+@let m = masked();
+
+<ng-template #maskedValue>@if (m.count === 0) {None} @else {{{ m.count }} {{ m.count === 1 ? 'field' : 'fields' }}@if (m.names.length) {: @for (name of m.names; track name; let last = $last) {<span class="gw-mono">{{ name }}</span>@if (!last) {, }}} · <a class="gw-link" [routerLink]="['/policies', policyEnv()]" [fragment]="policyEnv() + '-masking'">by the {{ policyEnv() }} masking rules</a>}</ng-template>
+
+@if (empty()) {
+  <!-- A read that ran and returned nothing (kit #pg-result-empty). -->
+  <dl class="gw-kv gw-kv--inline">
+    <div class="gw-kv__row"><dt class="gw-kv__key">Decision</dt><dd class="gw-kv__value"><span class="gw-badge gw-badge--{{ badge().tone }}"><svg [lucideIcon]="badge().icon" class="gw-icon gw-badge__icon"></svg>{{ badge().text }}</span></dd></div>
+    <div class="gw-kv__row"><dt class="gw-kv__key">Duration</dt><dd class="gw-kv__value gw-tabular">{{ duration() }}</dd></div>
+    <div class="gw-kv__row"><dt class="gw-kv__key">Size</dt><dd class="gw-kv__value gw-tabular">{{ size() }}</dd></div>
+    <div class="gw-kv__row"><dt class="gw-kv__key">Masked</dt><dd class="gw-kv__value"><ng-container [ngTemplateOutlet]="maskedValue" /></dd></div>
+  </dl>
+  <div class="gw-card">
+    <div class="gw-card__body">
+      <div class="gw-empty gw-empty--compact">
+        <span class="gw-empty__icon"><svg lucideIcon="inbox" class="gw-icon"></svg></span>
+        <h3 class="gw-empty__title">Empty result</h3>
+        <p class="gw-empty__text"><code class="gw-code">{{ r.tool }}</code> ran and returned no content. The agent gets an empty result too, not an error.</p>
+        <div class="gw-empty__actions">
+          @if (event(); as e) {
+            <a class="gw-btn gw-btn--sm" routerLink="/activity" [fragment]="'event-' + e.id"><svg lucideIcon="activity" class="gw-icon gw-icon--sm"></svg> Open in Activity</a>
+          } @else {
+            <a class="gw-btn gw-btn--sm" routerLink="/activity" [queryParams]="{ q: 'client:playground' }"><svg lucideIcon="activity" class="gw-icon gw-icon--sm"></svg> Open in Activity</a>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+} @else {
+  <dl class="gw-kv gw-kv--inline">
+    <div class="gw-kv__row"><dt class="gw-kv__key">Decision</dt><dd class="gw-kv__value"><span class="gw-badge gw-badge--{{ badge().tone }}"><svg [lucideIcon]="badge().icon" class="gw-icon gw-badge__icon"></svg>{{ badge().text }}</span></dd></div>
+    <div class="gw-kv__row"><dt class="gw-kv__key">Duration</dt><dd class="gw-kv__value gw-tabular">{{ duration() }}</dd></div>
+    <div class="gw-kv__row"><dt class="gw-kv__key">Size</dt><dd class="gw-kv__value gw-tabular">{{ size() }}</dd></div>
+    <div class="gw-kv__row"><dt class="gw-kv__key">Masked</dt><dd class="gw-kv__value"><ng-container [ngTemplateOutlet]="maskedValue" /></dd></div>
+    @if (traceId(); as trace) {
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key" id="pg-trace-key">Trace id</dt>
+        <dd class="gw-kv__value">
+          <div class="gw-copy-field" role="group" aria-labelledby="pg-trace-key">
+            <code class="gw-copy-field__value" id="pg-trace" [title]="trace">{{ trace }}</code>
+            <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" gwCopyFrom="#pg-trace">
+              <span class="gw-copy-field__copy"><svg lucideIcon="copy" class="gw-icon gw-icon--sm"></svg> Copy<span class="gw-sr-only"> trace id</span></span>
+              <span class="gw-copy-field__copied"><svg lucideIcon="check" class="gw-icon gw-icon--sm"></svg> Copied</span>
+            </button>
+          </div>
+        </dd>
+      </div>
+    }
+  </dl>
+
+  @if (c.approval; as a) {
+    @if (a.status === 'pending' || a.status === 'running') {
+      <!-- The call became an approval request: the person decides in Approvals; the outcome comes back here. -->
+      <div class="gw-alert gw-alert--warning gw-alert--compact" id="pg-pending">
+        <svg lucideIcon="hourglass" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content">
+          <p class="gw-alert__body">Not run yet: request <span class="gw-mono">{{ a.handle }}</span> waits for your decision. Once you decide, the outcome the agent gets shows up here.</p>
+          <div class="gw-alert__actions"><a class="gw-btn gw-btn--sm" [routerLink]="['/approvals', a.handle]">Review request<span class="gw-sr-only"> {{ a.handle }}</span></a></div>
+        </div>
+      </div>
+    }
+  }
+
+  <div class="gw-tabs">
+    <div class="gw-tabs__list" role="tablist" [attr.aria-label]="'Result of ' + r.tool" gwTabs [gwTabsSelected]="firstTab()">
+      <button class="gw-tabs__tab" type="button" role="tab" id="pg-rt-struct" aria-selected="true" aria-controls="pg-rp-struct"><svg lucideIcon="table" class="gw-icon"></svg> Structured@if (table(); as t) { <span class="gw-tabs__count">{{ t.rowCount }}<span class="gw-sr-only"> {{ t.rowCount === 1 ? 'row' : 'rows' }}</span></span>}</button>
+      <button class="gw-tabs__tab" type="button" role="tab" id="pg-rt-text" aria-selected="false" aria-controls="pg-rp-text" tabindex="-1"><svg lucideIcon="text" class="gw-icon"></svg> Text</button>
+      <button class="gw-tabs__tab" type="button" role="tab" id="pg-rt-rpc" aria-selected="false" aria-controls="pg-rp-rpc" tabindex="-1"><svg lucideIcon="braces" class="gw-icon"></svg> JSON-RPC</button>
+    </div>
+
+    <div class="gw-tabs__panel gw-stack gw-stack--sm" role="tabpanel" id="pg-rp-struct" aria-labelledby="pg-rt-struct">
+      @if (table(); as t) {
+        <div class="gw-table-wrap" role="region" aria-labelledby="pg-struct-cap" tabindex="0">
+          <table class="gw-table gw-table--dense">
+            <caption class="gw-sr-only" id="pg-struct-cap">structuredContent of {{ r.tool }}: {{ t.rowCount }} {{ t.rowCount === 1 ? 'row' : 'rows' }}</caption>
+            <thead>
+              <tr>
+                @for (col of t.columns; track $index; let i = $index) {
+                  <th scope="col" [class.gw-table__cell--num]="t.numeric[i]">{{ col }}</th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of t.rows; track $index) {
+                <tr>
+                  @for (v of row; track $index; let i = $index) {
+                    @if (i === 0) {
+                      <th scope="row" [class.gw-table__cell--num]="t.numeric[i]">@if (isMasked(v)) {<code class="gw-code gw-code--secret">{{ v }}</code>} @else {{{ cellText(v) }}}</th>
+                    } @else {
+                      <td [class.gw-table__cell--num]="t.numeric[i]">@if (isMasked(v)) {<code class="gw-code gw-code--secret">{{ v }}</code>} @else {{{ cellText(v) }}}</td>
+                    }
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <p class="gw-text-caption gw-fg-muted"><span class="gw-mono">structuredContent</span> as the agent gets it: {{ t.rowCount }} {{ t.rowCount === 1 ? 'row' : 'rows' }}, {{ t.truncated || c.meta.truncated ? 'cut to the limits of the endpoint' : 'not truncated' }}.@if (m.count) { The values of masked fields never leave the gateway.}</p>
+      } @else if (structuredJson(); as json) {
+        <gw-code-block wrap scroll lang="JSON" filename="structuredContent" language="json" [text]="json" copyLabel="structured content" regionLabel="Structured content of the result" [id]="'pg-struct-pre'" />
+        <p class="gw-text-caption gw-fg-muted"><span class="gw-mono">structuredContent</span> as the agent gets it{{ c.meta.truncated ? ', cut to the limits of the endpoint' : '' }}.@if (m.count) { The values of masked fields never leave the gateway.}</p>
+      } @else {
+        <p class="gw-text-small gw-fg-secondary">No <span class="gw-mono">structuredContent</span> in this answer: a client gets only its text.</p>
+      }
+    </div>
+
+    <div class="gw-tabs__panel gw-stack gw-stack--sm" role="tabpanel" id="pg-rp-text" aria-labelledby="pg-rt-text" hidden>
+      @if (text()) {
+        <gw-code-block scroll lang="Text" filename="content[0].text" [text]="text()" copyLabel="text content" regionLabel="Text content of the result" [id]="'pg-text-pre'" />
+      } @else {
+        <p class="gw-text-small gw-fg-secondary">No text content in this answer.</p>
+      }
+      <p class="gw-text-caption gw-fg-muted">What a client that ignores <span class="gw-mono">structuredContent</span> puts in front of the model.</p>
+    </div>
+
+    <div class="gw-tabs__panel gw-stack gw-stack--sm" role="tabpanel" id="pg-rp-rpc" aria-labelledby="pg-rt-rpc" tabindex="0" hidden>
+      <p class="gw-text-small gw-fg-secondary">MCP revision <span class="gw-mono">{{ revision().revision }}</span>: @for (p of revisionParts(); track $index) {@if (p.code) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</p>
+      <gw-code-block scroll lang="HTTP" [filename]="'Request · POST ' + url().path" language="http" [text]="request()" copyLabel="request" regionLabel="JSON-RPC request" [id]="'pg-req-pre'" />
+      <gw-code-block scroll lang="HTTP" [filename]="responseFilename()" language="http" [text]="response()" copyLabel="response" regionLabel="JSON-RPC response" [id]="'pg-res-pre'" />
+      <p class="gw-text-caption gw-fg-muted">Playground calls carry this app's session instead of an endpoint token; it is masked like any secret.</p>
+    </div>
+  </div>
+
+  <div class="gw-toolbar">
+    <div class="gw-toolbar__start">
+      <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [(expanded)]="eventOpen" aria-controls="pg-event"><svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg> Event details<span class="gw-sr-only"> of this run</span></button>
+      @if (c.callId) {
+        <span class="gw-text-small gw-fg-muted">Policy decision and timing · <span class="gw-mono">{{ c.callId }}</span></span>
+      }
+    </div>
+    <div class="gw-toolbar__end">
+      @if (event(); as e) {
+        <a class="gw-btn gw-btn--sm" routerLink="/activity" [fragment]="'event-' + e.id"><svg lucideIcon="activity" class="gw-icon gw-icon--sm"></svg> Open in Activity</a>
+      } @else {
+        <a class="gw-btn gw-btn--sm" routerLink="/activity" [queryParams]="{ q: 'client:playground' }"><svg lucideIcon="activity" class="gw-icon gw-icon--sm"></svg> Open in Activity</a>
+      }
+    </div>
+  </div>
+
+  <div id="pg-event" hidden>
+    @if (detail(); as d) {
+      <div class="gw-card">
+        <div class="gw-card__body">
+          <article gwEventDetail [detail]="d" [level]="3"></article>
+        </div>
+      </div>
+    } @else if (detailError()) {
+      <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+        <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content">
+          <p class="gw-alert__body">The event of this run didn't load. It is in Activity once the audit wrote it.</p>
+          <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retryDetail()">Try again</button></div>
+        </div>
+      </div>
+    } @else if (eventOpen()) {
+      <div class="gw-card" aria-busy="true">
+        <div class="gw-card__body">
+          <p class="gw-sr-only" role="status">Loading the event of this run</p>
+          <div class="gw-stack gw-stack--sm" aria-hidden="true">
+            <span class="gw-skeleton gw-skeleton--text"></span>
+            <span class="gw-skeleton gw-skeleton--text"></span>
+            <span class="gw-skeleton gw-skeleton--block"></span>
+          </div>
+        </div>
+      </div>
+    }
+  </div>
+}

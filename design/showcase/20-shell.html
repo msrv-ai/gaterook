@@ -1,0 +1,435 @@
+<section class="sc-section" id="shell" data-title="App shell" data-group="Shell">
+  <h2>App shell <code class="gw-code">gw-shell</code> <code class="gw-code">gw-titlebar</code> <code class="gw-code">gw-sidebar</code> <code class="gw-code">gw-nav</code></h2>
+  <p>The one window frame of the app: titlebar across the top, sidebar on the left, main on the right. The window never scrolls as a whole; the sidebar body and main scroll on their own. Every page copies the shell verbatim from <code class="gw-code">pages/_shell.html</code> and changes only the title, <code class="gw-code">aria-current</code> and the page content. Do not build a second navigation, a page-level sidebar or a custom header: sub-navigation inside a page is <code class="gw-code">gw-tabs</code>, settings groups are the <code class="gw-code">settings-layout</code> element.</p>
+
+  <h3>Expanded and collapsed</h3>
+  <p class="sc-lead">Left: the default 240px sidebar. Right: <code class="gw-code">.gw-shell[data-collapsed]</code>, set by the panel button (<code class="gw-code">data-gw-sidebar-toggle</code>; kit.js keeps <code class="gw-code">aria-expanded</code> in sync and remembers the choice across pages) and applied automatically below 960px. Collapsed, labels stay in the accessibility tree, groups are split by hairlines, the Approvals counter becomes an amber dot on the icon, and hovering or tabbing to an icon shows its label beside it. Markup: copy <code class="gw-code">pages/_shell.html</code>.</p>
+  <div class="sc-demo sc-demo--canvas sc-demo--col">
+    <div class="gw-grid gw-grid--2">
+      <div class="gw-card gw-card--flush" style="height: 520px; overflow: hidden">
+        <div class="gw-shell">
+          <header class="gw-titlebar">
+            <span class="gw-titlebar__title">Overview</span>
+            <div class="gw-titlebar__drag"></div>
+            <div class="gw-titlebar__actions">
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Search and commands"><i class="gw-icon" data-lucide="search"></i> Search <kbd class="gw-btn__kbd" aria-hidden="true">⌘K</kbd></button>
+              <a class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" href="#shell" aria-label="Approvals, 3 waiting"><i class="gw-icon" data-lucide="bell"></i><span class="gw-counter gw-counter--attention" aria-hidden="true">3</span></a>
+              <div class="gw-menu-host">
+                <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="sc-a-x-appearance" aria-label="Appearance"><i class="gw-icon" data-lucide="sun-moon"></i></button>
+                <div class="gw-popover gw-popover--right" id="sc-a-x-appearance" role="dialog" aria-labelledby="sc-a-x-appearance-title" hidden>
+                  <div class="gw-popover__header">
+                    <p class="gw-popover__title" id="sc-a-x-appearance-title">Appearance</p>
+                  </div>
+                  <form class="gw-popover__body" method="dialog">
+                    <div class="gw-stack gw-stack--sm">
+                      <p class="gw-text-caption gw-fg-muted" id="sc-a-x-theme">Theme</p>
+                      <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="sc-a-x-theme">
+                        <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i> System</span></label>
+                        <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i> Light</span></label>
+                        <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i> Dark</span></label>
+                      </div>
+                      <p class="gw-text-caption gw-fg-muted" id="sc-a-x-contrast">Contrast</p>
+                      <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="sc-a-x-contrast">
+                        <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="system"><span class="gw-segmented__label">System</span></label>
+                        <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="normal"><span class="gw-segmented__label">Normal</span></label>
+                        <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="more"><span class="gw-segmented__label">High</span></label>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </header>
+          <div class="gw-sidebar" id="sc-a-x-sidebar">
+            <div class="gw-sidebar__header">
+              <a class="gw-logo" href="#shell" aria-label="GateRook, overview">
+                <img class="gw-logo__mark" src="../assets/logo-mark.svg" alt="">
+                <span class="gw-logo__name">GateRook</span>
+              </a>
+              <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-sidebar__toggle" type="button" data-gw-sidebar-toggle aria-controls="sc-a-x-sidebar" aria-expanded="true" aria-label="Collapse sidebar"><i class="gw-icon" data-lucide="panel-left"></i></button>
+            </div>
+            <nav class="gw-sidebar__body gw-nav" aria-label="Main (expanded example)">
+              <div class="gw-nav__group">
+                <ul class="gw-nav__list">
+                  <li><a class="gw-nav__item" href="#shell" aria-current="page"><i class="gw-icon gw-nav__icon" data-lucide="layout-dashboard"></i><span class="gw-nav__label">Overview</span></a></li>
+                  <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="user-check"></i><span class="gw-nav__label">Approvals</span><span class="gw-nav__counter gw-counter gw-counter--attention"><span class="gw-sr-only">, </span>3<span class="gw-sr-only"> waiting</span></span></a></li>
+                </ul>
+              </div>
+              <div class="gw-nav__group" role="group" aria-labelledby="sc-a-x-resources">
+                <p class="gw-nav__group-label" id="sc-a-x-resources">Resources</p>
+                <ul class="gw-nav__list">
+                  <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="database"></i><span class="gw-nav__label">Connections</span></a></li>
+                  <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="puzzle"></i><span class="gw-nav__label">Connectors</span></a></li>
+                  <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="key-round"></i><span class="gw-nav__label">Secrets</span></a></li>
+                </ul>
+              </div>
+              <div class="gw-nav__group" role="group" aria-labelledby="sc-a-x-access">
+                <p class="gw-nav__group-label" id="sc-a-x-access">Access</p>
+                <ul class="gw-nav__list">
+                  <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="waypoints"></i><span class="gw-nav__label">Endpoints</span></a></li>
+                  <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="app-window"></i><span class="gw-nav__label">AI apps</span></a></li>
+                  <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="shield"></i><span class="gw-nav__label">Policies</span></a></li>
+                  <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="flask-conical"></i><span class="gw-nav__label">Playground</span></a></li>
+                </ul>
+              </div>
+              <div class="gw-nav__group" role="group" aria-labelledby="sc-a-x-observe">
+                <p class="gw-nav__group-label" id="sc-a-x-observe">Observe</p>
+                <ul class="gw-nav__list">
+                  <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="activity"></i><span class="gw-nav__label">Activity</span></a></li>
+                  <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="chart-column"></i><span class="gw-nav__label">Insights</span></a></li>
+                </ul>
+              </div>
+              <div class="gw-nav__group gw-nav__group--end">
+                <ul class="gw-nav__list">
+                  <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="settings"></i><span class="gw-nav__label">Settings</span></a></li>
+                </ul>
+              </div>
+            </nav>
+            <div class="gw-sidebar__footer">
+              <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Core running</span></span>
+              <span class="gw-sidebar__meta">127.0.0.1:7465 · v0.4.0</span>
+              <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off</span></span>
+            </div>
+          </div>
+          <div class="gw-shell__main">
+            <div class="gw-page">
+              <header class="gw-page-header">
+                <div class="gw-page-header__row">
+                  <div class="gw-page-header__heading">
+                    <!-- h1 on a real page -->
+                    <p class="gw-page-header__title">Overview</p>
+                    <p class="gw-page-header__description">What is happening now and what is not set up yet.</p>
+                  </div>
+                </div>
+              </header>
+              <div class="gw-stack">
+                <section class="gw-card" aria-labelledby="sc-a-x-wait">
+                  <header class="gw-card__header">
+                    <div class="gw-card__heading">
+                      <h4 class="gw-card__title" id="sc-a-x-wait">Waiting for you</h4>
+                      <p class="gw-card__description">3 approval requests</p>
+                    </div>
+                  </header>
+                  <div class="gw-card__body">
+                    <p class="gw-text-small"><code class="gw-code">sql_execute</code> on <code class="gw-code">dev-db</code> from Codex. Auto-deny in 4:12.</p>
+                  </div>
+                </section>
+                <section class="gw-card" aria-labelledby="sc-a-x-calls">
+                  <header class="gw-card__header">
+                    <div class="gw-card__heading">
+                      <h4 class="gw-card__title" id="sc-a-x-calls">Last 24 hours</h4>
+                      <p class="gw-card__description">1,284 calls · 17 denied by policy · p95 overhead 31 ms</p>
+                    </div>
+                  </header>
+                  <div class="gw-card__body">
+                    <p class="gw-text-small">Main scrolls on its own: the titlebar and sidebar stay put.</p>
+                  </div>
+                </section>
+                <section class="gw-card" aria-labelledby="sc-a-x-health">
+                  <header class="gw-card__header">
+                    <div class="gw-card__heading">
+                      <h4 class="gw-card__title" id="sc-a-x-health">Connection health</h4>
+                      <p class="gw-card__description">9 healthy · 1 slow · 1 unreachable</p>
+                    </div>
+                  </header>
+                  <div class="gw-card__body">
+                    <p class="gw-text-small"><code class="gw-code">billing-api</code> is unreachable. Check the VPN, then test again.</p>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="gw-card gw-card--flush" style="height: 520px; overflow: hidden">
+        <div class="gw-shell" data-collapsed>
+          <header class="gw-titlebar">
+            <span class="gw-titlebar__title">Overview</span>
+            <div class="gw-titlebar__drag"></div>
+            <div class="gw-titlebar__actions">
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Search and commands"><i class="gw-icon" data-lucide="search"></i> Search <kbd class="gw-btn__kbd" aria-hidden="true">⌘K</kbd></button>
+              <a class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" href="#shell" aria-label="Approvals, 3 waiting"><i class="gw-icon" data-lucide="bell"></i><span class="gw-counter gw-counter--attention" aria-hidden="true">3</span></a>
+              <div class="gw-menu-host">
+                <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="sc-a-c-appearance" aria-label="Appearance"><i class="gw-icon" data-lucide="sun-moon"></i></button>
+                <div class="gw-popover gw-popover--right" id="sc-a-c-appearance" role="dialog" aria-labelledby="sc-a-c-appearance-title" hidden>
+                  <div class="gw-popover__header">
+                    <p class="gw-popover__title" id="sc-a-c-appearance-title">Appearance</p>
+                  </div>
+                  <form class="gw-popover__body" method="dialog">
+                    <div class="gw-stack gw-stack--sm">
+                      <p class="gw-text-caption gw-fg-muted" id="sc-a-c-theme">Theme</p>
+                      <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="sc-a-c-theme">
+                        <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i> System</span></label>
+                        <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i> Light</span></label>
+                        <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i> Dark</span></label>
+                      </div>
+                      <p class="gw-text-caption gw-fg-muted" id="sc-a-c-contrast">Contrast</p>
+                      <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="sc-a-c-contrast">
+                        <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="system"><span class="gw-segmented__label">System</span></label>
+                        <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="normal"><span class="gw-segmented__label">Normal</span></label>
+                        <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="more"><span class="gw-segmented__label">High</span></label>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </header>
+          <div class="gw-sidebar" id="sc-a-c-sidebar">
+            <div class="gw-sidebar__header">
+              <a class="gw-logo" href="#shell" aria-label="GateRook, overview">
+                <img class="gw-logo__mark" src="../assets/logo-mark.svg" alt="">
+                <span class="gw-logo__name">GateRook</span>
+              </a>
+              <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-sidebar__toggle" type="button" data-gw-sidebar-toggle aria-controls="sc-a-c-sidebar" aria-expanded="false" aria-label="Collapse sidebar"><i class="gw-icon" data-lucide="panel-left"></i></button>
+            </div>
+            <nav class="gw-sidebar__body gw-nav" aria-label="Main (collapsed example)">
+              <div class="gw-nav__group">
+                <ul class="gw-nav__list">
+                  <li><a class="gw-nav__item" href="#shell" aria-current="page"><i class="gw-icon gw-nav__icon" data-lucide="layout-dashboard"></i><span class="gw-nav__label">Overview</span></a></li>
+                  <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="user-check"></i><span class="gw-nav__label">Approvals</span><span class="gw-nav__counter gw-counter gw-counter--attention"><span class="gw-sr-only">, </span>3<span class="gw-sr-only"> waiting</span></span></a></li>
+                </ul>
+              </div>
+              <div class="gw-nav__group" role="group" aria-labelledby="sc-a-c-resources">
+                <p class="gw-nav__group-label" id="sc-a-c-resources">Resources</p>
+                <ul class="gw-nav__list">
+                  <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="database"></i><span class="gw-nav__label">Connections</span></a></li>
+                  <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="puzzle"></i><span class="gw-nav__label">Connectors</span></a></li>
+                  <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="key-round"></i><span class="gw-nav__label">Secrets</span></a></li>
+                </ul>
+              </div>
+              <div class="gw-nav__group" role="group" aria-labelledby="sc-a-c-access">
+                <p class="gw-nav__group-label" id="sc-a-c-access">Access</p>
+                <ul class="gw-nav__list">
+                  <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="waypoints"></i><span class="gw-nav__label">Endpoints</span></a></li>
+                  <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="app-window"></i><span class="gw-nav__label">AI apps</span></a></li>
+                  <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="shield"></i><span class="gw-nav__label">Policies</span></a></li>
+                  <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="flask-conical"></i><span class="gw-nav__label">Playground</span></a></li>
+                </ul>
+              </div>
+              <div class="gw-nav__group" role="group" aria-labelledby="sc-a-c-observe">
+                <p class="gw-nav__group-label" id="sc-a-c-observe">Observe</p>
+                <ul class="gw-nav__list">
+                  <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="activity"></i><span class="gw-nav__label">Activity</span></a></li>
+                  <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="chart-column"></i><span class="gw-nav__label">Insights</span></a></li>
+                </ul>
+              </div>
+              <div class="gw-nav__group gw-nav__group--end">
+                <ul class="gw-nav__list">
+                  <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="settings"></i><span class="gw-nav__label">Settings</span></a></li>
+                </ul>
+              </div>
+            </nav>
+            <div class="gw-sidebar__footer">
+              <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Core running</span></span>
+              <span class="gw-sidebar__meta">127.0.0.1:7465 · v0.4.0</span>
+              <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off</span></span>
+            </div>
+          </div>
+          <div class="gw-shell__main">
+            <div class="gw-page">
+              <header class="gw-page-header">
+                <div class="gw-page-header__row">
+                  <div class="gw-page-header__heading">
+                    <!-- h1 on a real page -->
+                    <p class="gw-page-header__title">Overview</p>
+                    <p class="gw-page-header__description">What is happening now and what is not set up yet.</p>
+                  </div>
+                </div>
+              </header>
+              <div class="gw-stack">
+                <section class="gw-card" aria-labelledby="sc-a-c-wait">
+                  <header class="gw-card__header">
+                    <div class="gw-card__heading">
+                      <h4 class="gw-card__title" id="sc-a-c-wait">Waiting for you</h4>
+                      <p class="gw-card__description">3 approval requests</p>
+                    </div>
+                  </header>
+                  <div class="gw-card__body">
+                    <p class="gw-text-small"><code class="gw-code">sql_execute</code> on <code class="gw-code">dev-db</code> from Codex. Auto-deny in 4:12.</p>
+                  </div>
+                </section>
+                <section class="gw-card" aria-labelledby="sc-a-c-calls">
+                  <header class="gw-card__header">
+                    <div class="gw-card__heading">
+                      <h4 class="gw-card__title" id="sc-a-c-calls">Last 24 hours</h4>
+                      <p class="gw-card__description">1,284 calls · 17 denied by policy · p95 overhead 31 ms</p>
+                    </div>
+                  </header>
+                  <div class="gw-card__body">
+                    <p class="gw-text-small">Main scrolls on its own: the titlebar and sidebar stay put.</p>
+                  </div>
+                </section>
+                <section class="gw-card" aria-labelledby="sc-a-c-health">
+                  <header class="gw-card__header">
+                    <div class="gw-card__heading">
+                      <h4 class="gw-card__title" id="sc-a-c-health">Connection health</h4>
+                      <p class="gw-card__description">9 healthy · 1 slow · 1 unreachable</p>
+                    </div>
+                  </header>
+                  <div class="gw-card__body">
+                    <p class="gw-text-small"><code class="gw-code">billing-api</code> is unreachable. Check the VPN, then test again.</p>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Without sidebar</h3>
+  <p class="sc-lead">Onboarding and the core status screen use the same frame without <code class="gw-code">gw-sidebar</code>: main spans the full width under the titlebar, usually with a <code class="gw-code">gw-page--narrow</code> inside. Everything app-wide that is not navigation, such as a <code class="gw-code">gw-alert--banner</code>, goes first inside <code class="gw-code">gw-shell__main</code>, never as a fourth child of the grid.</p>
+  <div class="sc-demo sc-demo--canvas sc-demo--col">
+    <div class="gw-card gw-card--flush" style="height: 280px; overflow: hidden">
+      <div class="gw-shell">
+        <header class="gw-titlebar">
+          <span class="gw-titlebar__title">Get started</span>
+          <div class="gw-titlebar__drag"></div>
+        </header>
+        <div class="gw-shell__main">
+          <div class="gw-page gw-page--narrow">
+            <header class="gw-page-header">
+              <div class="gw-page-header__row">
+                <div class="gw-page-header__heading">
+                  <!-- h1 on a real page -->
+                  <p class="gw-page-header__title">Set up GateRook</p>
+                  <p class="gw-page-header__description">Protect the master key, add a connection, create an endpoint and connect an AI app.</p>
+                </div>
+                <div class="gw-page-header__actions">
+                  <button class="gw-btn gw-btn--ghost" type="button">Skip setup</button>
+                  <button class="gw-btn gw-btn--primary" type="button">Start setup</button>
+                </div>
+              </div>
+            </header>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Titlebar</h3>
+  <p class="sc-lead">The whole bar is an Electron drag region; links, buttons, labels and popovers inside opt out automatically. <code class="gw-code">gw-titlebar--mac</code> (second bar) clears the traffic lights with an 80px start inset; on Windows and Linux the Window Controls Overlay area is reserved through <code class="gw-code">env(titlebar-area-*)</code>. Actions: search with its shortcut, the approvals bell with an attention counter, the appearance popover (theme and contrast). The popover title is not a heading: the titlebar comes before the page <code class="gw-code">h1</code>.</p>
+  <div class="sc-demo sc-demo--canvas sc-demo--col" data-sc-code>
+    <header class="gw-titlebar">
+      <span class="gw-titlebar__title">Approvals</span>
+      <div class="gw-titlebar__drag"></div>
+      <div class="gw-titlebar__actions">
+        <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Search and commands"><i class="gw-icon" data-lucide="search"></i> Search <kbd class="gw-btn__kbd" aria-hidden="true">⌘K</kbd></button>
+        <a class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" href="#shell" aria-label="Approvals, 3 waiting"><i class="gw-icon" data-lucide="bell"></i><span class="gw-counter gw-counter--attention" aria-hidden="true">3</span></a>
+        <div class="gw-menu-host">
+          <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="sc-a-tb1-appearance" aria-label="Appearance"><i class="gw-icon" data-lucide="sun-moon"></i></button>
+          <div class="gw-popover gw-popover--right" id="sc-a-tb1-appearance" role="dialog" aria-labelledby="sc-a-tb1-appearance-title" hidden>
+            <div class="gw-popover__header">
+              <p class="gw-popover__title" id="sc-a-tb1-appearance-title">Appearance</p>
+            </div>
+            <form class="gw-popover__body" method="dialog">
+              <div class="gw-stack gw-stack--sm">
+                <p class="gw-text-caption gw-fg-muted" id="sc-a-tb1-theme">Theme</p>
+                <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="sc-a-tb1-theme">
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i> System</span></label>
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i> Light</span></label>
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i> Dark</span></label>
+                </div>
+                <p class="gw-text-caption gw-fg-muted" id="sc-a-tb1-contrast">Contrast</p>
+                <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="sc-a-tb1-contrast">
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="system"><span class="gw-segmented__label">System</span></label>
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="normal"><span class="gw-segmented__label">Normal</span></label>
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="more"><span class="gw-segmented__label">High</span></label>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </header>
+    <header class="gw-titlebar gw-titlebar--mac">
+      <span class="gw-titlebar__title">Approvals</span>
+      <div class="gw-titlebar__drag"></div>
+      <div class="gw-titlebar__actions">
+        <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Search and commands"><i class="gw-icon" data-lucide="search"></i> Search <kbd class="gw-btn__kbd" aria-hidden="true">⌘K</kbd></button>
+        <a class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" href="#shell" aria-label="Approvals, 3 waiting"><i class="gw-icon" data-lucide="bell"></i><span class="gw-counter gw-counter--attention" aria-hidden="true">3</span></a>
+        <div class="gw-menu-host">
+          <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="sc-a-tb2-appearance" aria-label="Appearance"><i class="gw-icon" data-lucide="sun-moon"></i></button>
+          <div class="gw-popover gw-popover--right" id="sc-a-tb2-appearance" role="dialog" aria-labelledby="sc-a-tb2-appearance-title" hidden>
+            <div class="gw-popover__header">
+              <p class="gw-popover__title" id="sc-a-tb2-appearance-title">Appearance</p>
+            </div>
+            <form class="gw-popover__body" method="dialog">
+              <div class="gw-stack gw-stack--sm">
+                <p class="gw-text-caption gw-fg-muted" id="sc-a-tb2-theme">Theme</p>
+                <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="sc-a-tb2-theme">
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i> System</span></label>
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i> Light</span></label>
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i> Dark</span></label>
+                </div>
+                <p class="gw-text-caption gw-fg-muted" id="sc-a-tb2-contrast">Contrast</p>
+                <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="sc-a-tb2-contrast">
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="system"><span class="gw-segmented__label">System</span></label>
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="normal"><span class="gw-segmented__label">Normal</span></label>
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="more"><span class="gw-segmented__label">High</span></label>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </header>
+  </div>
+
+  <h3>Sidebar and navigation</h3>
+  <p class="sc-lead">Items are links with <code class="gw-code">aria-current="page"</code> on the current one: selected fill, primary text, semibold and a 2px brand bar, so the state never rests on colour alone. Groups follow the questions the app answers (Resources: what is connected, Access: who gets in and how, Observe: what agents did) and are <code class="gw-code">role="group"</code> labelled by their overline. Settings sits at the bottom. The footer always shows the local core and the tunnel, in words; the core dot stays still (never <code class="gw-code">gw-status--live</code> here: a dot that pulses on every screen forever fails WCAG 2.2.2).</p>
+  <div class="sc-demo sc-demo--canvas" data-sc-code>
+    <div class="gw-sidebar" style="width: var(--gw-layout-sidebar-width)">
+      <div class="gw-sidebar__header">
+        <a class="gw-logo" href="#shell" aria-label="GateRook, overview">
+          <img class="gw-logo__mark" src="../assets/logo-mark.svg" alt="">
+          <span class="gw-logo__name">GateRook</span>
+        </a>
+      </div>
+      <nav class="gw-sidebar__body gw-nav" aria-label="Main (sidebar example)">
+        <div class="gw-nav__group">
+          <ul class="gw-nav__list">
+            <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="layout-dashboard"></i><span class="gw-nav__label">Overview</span></a></li>
+            <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="user-check"></i><span class="gw-nav__label">Approvals</span><span class="gw-nav__counter gw-counter gw-counter--attention"><span class="gw-sr-only">, </span>3<span class="gw-sr-only"> waiting</span></span></a></li>
+          </ul>
+        </div>
+        <div class="gw-nav__group" role="group" aria-labelledby="sc-a-s-resources">
+          <p class="gw-nav__group-label" id="sc-a-s-resources">Resources</p>
+          <ul class="gw-nav__list">
+            <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="database"></i><span class="gw-nav__label">Connections</span></a></li>
+            <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="puzzle"></i><span class="gw-nav__label">Connectors</span></a></li>
+            <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="key-round"></i><span class="gw-nav__label">Secrets</span></a></li>
+          </ul>
+        </div>
+        <div class="gw-nav__group" role="group" aria-labelledby="sc-a-s-access">
+          <p class="gw-nav__group-label" id="sc-a-s-access">Access</p>
+          <ul class="gw-nav__list">
+            <li><a class="gw-nav__item" href="#shell" aria-current="page"><i class="gw-icon gw-nav__icon" data-lucide="waypoints"></i><span class="gw-nav__label">Endpoints</span></a></li>
+            <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="app-window"></i><span class="gw-nav__label">AI apps</span></a></li>
+            <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="shield"></i><span class="gw-nav__label">Policies</span></a></li>
+            <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="flask-conical"></i><span class="gw-nav__label">Playground</span></a></li>
+          </ul>
+        </div>
+        <div class="gw-nav__group" role="group" aria-labelledby="sc-a-s-observe">
+          <p class="gw-nav__group-label" id="sc-a-s-observe">Observe</p>
+          <ul class="gw-nav__list">
+            <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="activity"></i><span class="gw-nav__label">Activity</span></a></li>
+            <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="chart-column"></i><span class="gw-nav__label">Insights</span></a></li>
+          </ul>
+        </div>
+        <div class="gw-nav__group gw-nav__group--end">
+          <ul class="gw-nav__list">
+            <li><a class="gw-nav__item" href="#shell"><i class="gw-icon gw-nav__icon" data-lucide="settings"></i><span class="gw-nav__label">Settings</span></a></li>
+          </ul>
+        </div>
+      </nav>
+      <div class="gw-sidebar__footer">
+        <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Core running</span></span>
+        <span class="gw-sidebar__meta">127.0.0.1:7465 · v0.4.0</span>
+        <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off</span></span>
+      </div>
+    </div>
+  </div>
+</section>

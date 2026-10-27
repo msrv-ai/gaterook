@@ -1,0 +1,6 @@
+JSON Schemas of the MCP specification, copied unchanged for the golden tests (report 01 §8.2):
+  2025-11-25/schema.json  https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/schema/2025-11-25/schema.json
+  2026-07-28/schema.json  https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/schema/2026-07-28/schema.json
+Fetched 2026-10-24. sha256:
+268a5f82ba70fd7e4b6dc4aa1e64f116f74b4d0edcb69dc046829c79dd4e97e7  2025-11-25/schema.json
+ef70b61f99b6d2e5e3b46863822eab08dff6a45bedc7a08914e0e5b133f40203  2026-07-28/schema.json

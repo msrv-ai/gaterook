@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Logs",
+  "type": "object",
+  "x-policy-section": "logs",
+  "additionalProperties": false,
+  "properties": {
+    "maxRangeHours": {
+      "type": "integer",
+      "title": "Longest time range",
+      "minimum": 1,
+      "maximum": 8760,
+      "default": 168,
+      "x-unit": "h",
+      "x-stricter": "min",
+      "x-env-default": {
+        "prod": 24
+      }
+    },
+    "defaultLimit": {
+      "type": "integer",
+      "title": "Entries per call by default",
+      "minimum": 1,
+      "maximum": 1000,
+      "default": 100,
+      "x-stricter": "min",
+      "x-env-default": {
+        "prod": 50
+      }
+    },
+    "maxTailWaitSeconds": {
+      "type": "integer",
+      "title": "Longest wait of logs_tail",
+      "minimum": 0,
+      "maximum": 8,
+      "default": 8,
+      "x-unit": "s",
+      "x-stricter": "min",
+      "x-env-default": {
+        "prod": 3
+      }
+    }
+  }
+}

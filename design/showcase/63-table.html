@@ -1,0 +1,274 @@
+<section class="sc-section" id="table" data-title="Table" data-group="Code and data">
+  <h2>Table <code class="gw-code">gw-table-wrap</code> <code class="gw-code">gw-table</code></h2>
+  <p>A native <code class="gw-code">&lt;table&gt;</code> for dense, sortable lists of objects with the same fields: calls in Activity, connections, tokens, secrets. Screen readers get real rows and columns; sorting is a button inside <code class="gw-code">th[aria-sort]</code>; selection mirrors to <code class="gw-code">tr[aria-selected]</code>. The wrap is the scroller, so it is a named, focusable region. Do not use a table for one object's facts (a <code class="gw-code">gw-kv</code> list) or for a handful of rich items with actions (cards).</p>
+
+  <h3>Sortable, with row selection</h3>
+  <p class="sc-lead">Click a header to sort; the icon follows <code class="gw-code">aria-sort</code> and the order is announced. The checkbox column uses <code class="gw-code">data-gw-select-all</code> and <code class="gw-code">data-gw-select-row</code>; a selected row gets the selected fill and a brand bar. Decisions are badges with icon and words; environments sit right after the connection name.</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-table-wrap" role="region" aria-labelledby="sc-e-t1-cap" tabindex="0">
+      <table class="gw-table">
+        <caption class="gw-sr-only" id="sc-e-t1-cap">Recent calls</caption>
+        <thead>
+          <tr>
+            <th scope="col" class="gw-table__cell--select"><label class="gw-checkbox"><input class="gw-checkbox__input" type="checkbox" data-gw-select-all aria-label="Select all calls"><span class="gw-checkbox__control" aria-hidden="true"></span></label></th>
+            <th scope="col" aria-sort="descending">
+              <button class="gw-table__sort" type="button">Time
+                <i class="gw-icon gw-icon--sm gw-table__sort-icon gw-table__sort-icon--none" data-lucide="chevrons-up-down"></i>
+                <i class="gw-icon gw-icon--sm gw-table__sort-icon gw-table__sort-icon--asc" data-lucide="chevron-up"></i>
+                <i class="gw-icon gw-icon--sm gw-table__sort-icon gw-table__sort-icon--desc" data-lucide="chevron-down"></i>
+              </button>
+            </th>
+            <th scope="col" aria-sort="none">
+              <button class="gw-table__sort" type="button">Tool
+                <i class="gw-icon gw-icon--sm gw-table__sort-icon gw-table__sort-icon--none" data-lucide="chevrons-up-down"></i>
+                <i class="gw-icon gw-icon--sm gw-table__sort-icon gw-table__sort-icon--asc" data-lucide="chevron-up"></i>
+                <i class="gw-icon gw-icon--sm gw-table__sort-icon gw-table__sort-icon--desc" data-lucide="chevron-down"></i>
+              </button>
+            </th>
+            <th scope="col">AI app</th>
+            <th scope="col">Connection</th>
+            <th scope="col">Decision</th>
+            <th scope="col" class="gw-table__cell--num" aria-sort="none">
+              <button class="gw-table__sort" type="button">Duration
+                <i class="gw-icon gw-icon--sm gw-table__sort-icon gw-table__sort-icon--none" data-lucide="chevrons-up-down"></i>
+                <i class="gw-icon gw-icon--sm gw-table__sort-icon gw-table__sort-icon--asc" data-lucide="chevron-up"></i>
+                <i class="gw-icon gw-icon--sm gw-table__sort-icon gw-table__sort-icon--desc" data-lucide="chevron-down"></i>
+              </button>
+            </th>
+            <th scope="col" class="gw-table__cell--num">Size</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr aria-selected="true">
+            <td class="gw-table__cell--select"><label class="gw-checkbox"><input class="gw-checkbox__input" type="checkbox" data-gw-select-row checked aria-label="Select call sql_query, 2 min ago"><span class="gw-checkbox__control" aria-hidden="true"></span></label></td>
+            <td><time datetime="2026-10-22T14:28:11+02:00" title="2026-10-22 14:28:11">2 min ago</time></td>
+            <th scope="row" class="gw-table__cell--mono">sql_query</th>
+            <td>Codex</td>
+            <td><span class="gw-mono">dev-db</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></td>
+            <td><span class="gw-badge gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>Allowed</span></td>
+            <td class="gw-table__cell--num">38 ms</td>
+            <td class="gw-table__cell--num">2.1 KB</td>
+          </tr>
+          <tr aria-selected="false">
+            <td class="gw-table__cell--select"><label class="gw-checkbox"><input class="gw-checkbox__input" type="checkbox" data-gw-select-row aria-label="Select call ssh_run, 3 min ago"><span class="gw-checkbox__control" aria-hidden="true"></span></label></td>
+            <td><time datetime="2026-10-22T14:27:40+02:00" title="2026-10-22 14:27:40">3 min ago</time></td>
+            <th scope="row" class="gw-table__cell--mono">ssh_run</th>
+            <td>Claude Desktop</td>
+            <td><span class="gw-mono">dev-vm</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></td>
+            <td><span class="gw-badge gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>Allowed</span></td>
+            <td class="gw-table__cell--num">412 ms</td>
+            <td class="gw-table__cell--num">1.3 KB</td>
+          </tr>
+          <tr aria-selected="false">
+            <td class="gw-table__cell--select"><label class="gw-checkbox"><input class="gw-checkbox__input" type="checkbox" data-gw-select-row aria-label="Select call logs_search, 9 min ago"><span class="gw-checkbox__control" aria-hidden="true"></span></label></td>
+            <td><time datetime="2026-10-22T14:21:05+02:00" title="2026-10-22 14:21:05">9 min ago</time></td>
+            <th scope="row" class="gw-table__cell--mono">logs_search</th>
+            <td>Codex</td>
+            <td><span class="gw-mono">app-logs</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></td>
+            <td><span class="gw-badge gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>Allowed</span></td>
+            <td class="gw-table__cell--num">186 ms</td>
+            <td class="gw-table__cell--num">14.8 KB</td>
+          </tr>
+          <tr aria-selected="false">
+            <td class="gw-table__cell--select"><label class="gw-checkbox"><input class="gw-checkbox__input" type="checkbox" data-gw-select-row aria-label="Select call sql_execute, 17 min ago"><span class="gw-checkbox__control" aria-hidden="true"></span></label></td>
+            <td><time datetime="2026-10-22T14:12:52+02:00" title="2026-10-22 14:12:52">17 min ago</time></td>
+            <th scope="row" class="gw-table__cell--mono">sql_execute</th>
+            <td>Claude Desktop</td>
+            <td><span class="gw-mono">prod-replica</span> <span class="gw-env gw-env--prod gw-env--sm">prod</span></td>
+            <td><span class="gw-badge gw-badge--danger"><i class="gw-icon gw-badge__icon" data-lucide="shield-x"></i>Denied by policy</span></td>
+            <td class="gw-table__cell--num">3 ms</td>
+            <td class="gw-table__cell--num">0 B</td>
+          </tr>
+          <tr aria-selected="false">
+            <td class="gw-table__cell--select"><label class="gw-checkbox"><input class="gw-checkbox__input" type="checkbox" data-gw-select-row aria-label="Select call k8s_apply, 31 min ago"><span class="gw-checkbox__control" aria-hidden="true"></span></label></td>
+            <td><time datetime="2026-10-22T13:58:30+02:00" title="2026-10-22 13:58:30">31 min ago</time></td>
+            <th scope="row" class="gw-table__cell--mono">k8s_apply</th>
+            <td>Codex</td>
+            <td><span class="gw-mono">dev-cluster</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></td>
+            <td><span class="gw-badge gw-badge--danger"><i class="gw-icon gw-badge__icon" data-lucide="user-x"></i>Rejected</span></td>
+            <td class="gw-table__cell--num">52 s</td>
+            <td class="gw-table__cell--num">0 B</td>
+          </tr>
+          <tr aria-selected="false">
+            <td class="gw-table__cell--select"><label class="gw-checkbox"><input class="gw-checkbox__input" type="checkbox" data-gw-select-row aria-label="Select call http_request, 50 min ago"><span class="gw-checkbox__control" aria-hidden="true"></span></label></td>
+            <td><time datetime="2026-10-22T13:40:12+02:00" title="2026-10-22 13:40:12">50 min ago</time></td>
+            <th scope="row" class="gw-table__cell--mono">http_request</th>
+            <td>Codex</td>
+            <td><span class="gw-mono">billing-api</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></td>
+            <td><span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="timer-off"></i>Expired</span></td>
+            <td class="gw-table__cell--num">5 min</td>
+            <td class="gw-table__cell--num">0 B</td>
+          </tr>
+          <tr aria-selected="false">
+            <td class="gw-table__cell--select"><label class="gw-checkbox"><input class="gw-checkbox__input" type="checkbox" data-gw-select-row aria-label="Select call redis_get, 56 min ago"><span class="gw-checkbox__control" aria-hidden="true"></span></label></td>
+            <td><time datetime="2026-10-22T13:33:47+02:00" title="2026-10-22 13:33:47">56 min ago</time></td>
+            <th scope="row" class="gw-table__cell--mono">redis_get</th>
+            <td>Claude Desktop</td>
+            <td><span class="gw-mono">cache-redis</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></td>
+            <td><span class="gw-badge gw-badge--danger"><i class="gw-icon gw-badge__icon" data-lucide="circle-alert"></i>Error</span></td>
+            <td class="gw-table__cell--num">2.0 s</td>
+            <td class="gw-table__cell--num">0 B</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <h3>Interactive rows</h3>
+  <p class="sc-lead"><code class="gw-code">--interactive</code>: each row opens the event detail. The link sits in the first cell and stretches over the row; the focus ring is drawn on the row. Row actions stay visible (never on hover only) and remain clickable above the link. Here Time is sorted ascending (oldest first), as a trace reads. The row whose drawer is open carries <code class="gw-code">aria-current="true"</code> on its row link and gets the selected fill and brand bar; <code class="gw-code">tr[aria-selected]</code> is only for checkbox selection. Copy link copies <code class="gw-code">gaterook://activity/events/&lt;id&gt;</code>.</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-table-wrap" role="region" aria-labelledby="sc-e-t2-cap" tabindex="0">
+      <table class="gw-table gw-table--interactive">
+        <caption class="gw-sr-only" id="sc-e-t2-cap">Calls on endpoint dev, oldest first</caption>
+        <thead>
+          <tr>
+            <th scope="col" aria-sort="ascending">
+              <button class="gw-table__sort" type="button">Time
+                <i class="gw-icon gw-icon--sm gw-table__sort-icon gw-table__sort-icon--none" data-lucide="chevrons-up-down"></i>
+                <i class="gw-icon gw-icon--sm gw-table__sort-icon gw-table__sort-icon--asc" data-lucide="chevron-up"></i>
+                <i class="gw-icon gw-icon--sm gw-table__sort-icon gw-table__sort-icon--desc" data-lucide="chevron-down"></i>
+              </button>
+            </th>
+            <th scope="col">Tool</th>
+            <th scope="col">Connection</th>
+            <th scope="col">Decision</th>
+            <th scope="col" class="gw-table__cell--num" aria-sort="none">
+              <button class="gw-table__sort" type="button">Duration
+                <i class="gw-icon gw-icon--sm gw-table__sort-icon gw-table__sort-icon--none" data-lucide="chevrons-up-down"></i>
+                <i class="gw-icon gw-icon--sm gw-table__sort-icon gw-table__sort-icon--asc" data-lucide="chevron-up"></i>
+                <i class="gw-icon gw-icon--sm gw-table__sort-icon gw-table__sort-icon--desc" data-lucide="chevron-down"></i>
+              </button>
+            </th>
+            <th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><a class="gw-table__row-link" href="#table" aria-current="true"><time datetime="2026-10-22T14:02:58+02:00" title="2026-10-22 14:02:58">14:02:58</time><span class="gw-sr-only">, open call sql_execute</span></a></td>
+            <td class="gw-table__cell--mono">sql_execute</td>
+            <td><span class="gw-mono">dev-db</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></td>
+            <td><span class="gw-badge gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="user-check"></i>Approved</span></td>
+            <td class="gw-table__cell--num">47.2 s</td>
+            <td class="gw-table__cell--actions"><button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" data-gw-copy="gaterook://activity/events/ev_9f2b7c10" aria-label="Copy link to call sql_execute at 14:02:58"><i class="gw-icon gw-icon--sm" data-lucide="link"></i></button></td>
+          </tr>
+          <tr>
+            <td><a class="gw-table__row-link" href="#table"><time datetime="2026-10-22T14:25:48+02:00" title="2026-10-22 14:25:48">14:25:48</time><span class="gw-sr-only">, open call k8s_rollout_restart</span></a></td>
+            <td class="gw-table__cell--mono">k8s_rollout_restart</td>
+            <td><span class="gw-mono">dev-cluster</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></td>
+            <td><span class="gw-badge gw-badge--warning"><i class="gw-icon gw-badge__icon" data-lucide="hourglass"></i>Waiting for approval</span></td>
+            <td class="gw-table__cell--num">4 min</td>
+            <td class="gw-table__cell--actions"><button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" data-gw-copy="gaterook://activity/events/ev_9f2a0e31" aria-label="Copy link to call k8s_rollout_restart at 14:25:48"><i class="gw-icon gw-icon--sm" data-lucide="link"></i></button></td>
+          </tr>
+          <tr>
+            <td><a class="gw-table__row-link" href="#table"><time datetime="2026-10-22T14:28:11+02:00" title="2026-10-22 14:28:11">14:28:11</time><span class="gw-sr-only">, open call sql_query</span></a></td>
+            <td class="gw-table__cell--mono">sql_query</td>
+            <td><span class="gw-mono">dev-db</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></td>
+            <td><span class="gw-badge gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>Allowed</span></td>
+            <td class="gw-table__cell--num">38 ms</td>
+            <td class="gw-table__cell--actions"><button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" data-gw-copy="gaterook://activity/events/ev_9f2c1d84" aria-label="Copy link to call sql_query at 14:28:11"><i class="gw-icon gw-icon--sm" data-lucide="link"></i></button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <h3>Dense, sticky header</h3>
+  <p class="sc-lead"><code class="gw-code">--dense</code> (32px rows) for the overview's recent activity; <code class="gw-code">--sticky</code> keeps the header in view while the wrap scrolls. The page sets the height through <code class="gw-code">--gw-table-max-height</code>.</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-table-wrap" role="region" aria-labelledby="sc-e-t3-cap" tabindex="0" style="--gw-table-max-height: calc(var(--gw-size-row-compact) * 6)">
+      <table class="gw-table gw-table--dense gw-table--sticky">
+        <caption class="gw-sr-only" id="sc-e-t3-cap">Recent activity</caption>
+        <thead>
+          <tr>
+            <th scope="col">Time</th>
+            <th scope="col">Tool</th>
+            <th scope="col">Connection</th>
+            <th scope="col">Decision</th>
+            <th scope="col" class="gw-table__cell--num">Duration</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><time datetime="2026-10-22T14:28:11+02:00" title="2026-10-22 14:28:11">2 min ago</time></td><td class="gw-table__cell--mono">sql_query</td><td><span class="gw-mono">dev-db</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></td><td><span class="gw-badge gw-badge--success gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>Allowed</span></td><td class="gw-table__cell--num">38 ms</td></tr>
+          <tr><td><time datetime="2026-10-22T14:27:40+02:00" title="2026-10-22 14:27:40">3 min ago</time></td><td class="gw-table__cell--mono">ssh_run</td><td><span class="gw-mono">dev-vm</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></td><td><span class="gw-badge gw-badge--success gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>Allowed</span></td><td class="gw-table__cell--num">412 ms</td></tr>
+          <tr><td><time datetime="2026-10-22T14:21:05+02:00" title="2026-10-22 14:21:05">9 min ago</time></td><td class="gw-table__cell--mono">logs_search</td><td><span class="gw-mono">app-logs</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></td><td><span class="gw-badge gw-badge--success gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>Allowed</span></td><td class="gw-table__cell--num">186 ms</td></tr>
+          <tr><td><time datetime="2026-10-22T14:12:52+02:00" title="2026-10-22 14:12:52">17 min ago</time></td><td class="gw-table__cell--mono">sql_execute</td><td><span class="gw-mono">prod-replica</span> <span class="gw-env gw-env--prod gw-env--sm">prod</span></td><td><span class="gw-badge gw-badge--danger gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="shield-x"></i>Denied by policy</span></td><td class="gw-table__cell--num">3 ms</td></tr>
+          <tr><td><time datetime="2026-10-22T14:02:58+02:00" title="2026-10-22 14:02:58">27 min ago</time></td><td class="gw-table__cell--mono">sql_execute</td><td><span class="gw-mono">dev-db</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></td><td><span class="gw-badge gw-badge--success gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="user-check"></i>Approved</span></td><td class="gw-table__cell--num">47.2 s</td></tr>
+          <tr><td><time datetime="2026-10-22T13:58:30+02:00" title="2026-10-22 13:58:30">31 min ago</time></td><td class="gw-table__cell--mono">k8s_apply</td><td><span class="gw-mono">dev-cluster</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></td><td><span class="gw-badge gw-badge--danger gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="user-x"></i>Rejected</span></td><td class="gw-table__cell--num">52 s</td></tr>
+          <tr><td><time datetime="2026-10-22T13:40:12+02:00" title="2026-10-22 13:40:12">50 min ago</time></td><td class="gw-table__cell--mono">http_request</td><td><span class="gw-mono">billing-api</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></td><td><span class="gw-badge gw-badge--neutral gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="timer-off"></i>Expired</span></td><td class="gw-table__cell--num">5 min</td></tr>
+          <tr><td><time datetime="2026-10-22T13:33:47+02:00" title="2026-10-22 13:33:47">56 min ago</time></td><td class="gw-table__cell--mono">redis_get</td><td><span class="gw-mono">cache-redis</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></td><td><span class="gw-badge gw-badge--danger gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="circle-alert"></i>Error</span></td><td class="gw-table__cell--num">2.0 s</td></tr>
+          <tr><td><time datetime="2026-10-22T13:29:02+02:00" title="2026-10-22 13:29:02">1 h ago</time></td><td class="gw-table__cell--mono">logs_search</td><td><span class="gw-mono">prod-logs</span> <span class="gw-env gw-env--prod gw-env--sm">prod</span></td><td><span class="gw-badge gw-badge--success gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>Allowed</span></td><td class="gw-table__cell--num">1.1 s</td></tr>
+          <tr><td><time datetime="2026-10-22T13:27:44+02:00" title="2026-10-22 13:27:44">1 h ago</time></td><td class="gw-table__cell--mono">sql_query</td><td><span class="gw-mono">stage-db</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></td><td><span class="gw-badge gw-badge--success gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>Allowed</span></td><td class="gw-table__cell--num">64 ms</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <h3>Narrow window: optional columns, scroll shadows, a pinned action</h3>
+  <p class="sc-lead">Below lg (a window under 1280px) <code class="gw-code">__cell--optional</code> columns drop out, so the main list fits a 960px window. If the table is still wider than its wrap, a soft shade marks the edge that has more behind it. In a full-width alert row the action cell is <code class="gw-code">__cell--sticky-end</code>, so “Test again” stays reachable.</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-table-wrap" role="region" aria-labelledby="sc-e-t5-cap" tabindex="0">
+      <table class="gw-table">
+        <caption class="gw-sr-only" id="sc-e-t5-cap">Connections</caption>
+        <thead>
+          <tr>
+            <th scope="col">Connection</th>
+            <th scope="col" class="gw-table__cell--optional">Type</th>
+            <th scope="col">Host</th>
+            <th scope="col" class="gw-table__cell--optional">Credentials</th>
+            <th scope="col">Health</th>
+            <th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row" class="gw-table__cell--mono">dev-db <span class="gw-env gw-env--dev gw-env--sm">dev</span></th>
+            <td class="gw-table__cell--optional">PostgreSQL 16</td>
+            <td class="gw-table__cell--mono gw-table__cell--truncate" title="db.dev.internal:5432/app">db.dev.internal:5432/app</td>
+            <td class="gw-table__cell--optional">Encrypted here</td>
+            <td><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy · 12 ms</span></span></td>
+            <td class="gw-table__cell--actions"><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button">Test<span class="gw-sr-only"> dev-db</span></button></td>
+          </tr>
+          <tr>
+            <th scope="row" class="gw-table__cell--mono">billing-api <span class="gw-env gw-env--stage gw-env--sm">stage</span></th>
+            <td class="gw-table__cell--optional">HTTP API</td>
+            <td class="gw-table__cell--mono gw-table__cell--truncate" title="https://billing.stage.acme.dev">https://billing.stage.acme.dev</td>
+            <td class="gw-table__cell--optional">Vault reference</td>
+            <td><span class="gw-status gw-status--danger"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Unreachable</span></span></td>
+            <td class="gw-table__cell--actions gw-table__cell--sticky-end"><button class="gw-btn gw-btn--sm" type="button">Test again<span class="gw-sr-only"> billing-api</span></button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <h3>Empty state</h3>
+  <p class="sc-lead">One <code class="gw-code">gw-table__empty</code> cell spans every column; the header stays so the user keeps the context of the filters.</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-table-wrap" role="region" aria-labelledby="sc-e-t4-cap" tabindex="0">
+      <table class="gw-table">
+        <caption class="gw-sr-only" id="sc-e-t4-cap">Calls matching decision:denied env:prod in the last hour</caption>
+        <thead>
+          <tr>
+            <th scope="col">Time</th>
+            <th scope="col">Tool</th>
+            <th scope="col">Connection</th>
+            <th scope="col">Decision</th>
+            <th scope="col" class="gw-table__cell--num">Duration</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="gw-table__empty" colspan="5">
+              <div class="gw-empty gw-empty--compact">
+                <span class="gw-empty__icon"><i class="gw-icon" data-lucide="search-x"></i></span>
+                <h4 class="gw-empty__title">No calls match these filters</h4>
+                <p class="gw-empty__text">Nothing was denied on prod in the last hour. Widen the time range or remove <code class="gw-code">env:prod</code>.</p>
+                <div class="gw-empty__actions"><button class="gw-btn gw-btn--sm" type="button">Clear filters</button></div>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>

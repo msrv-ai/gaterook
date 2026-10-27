@@ -1,0 +1,24 @@
+{
+  "area": "http",
+  "module": "connectors/http",
+  "connectorTypes": ["http"],
+  "description": "Touches of the HTTP API connector for the native smoke (report 15 §6): okhttp's HttpUrl and the request planner without I/O, and the egress guard of Test connection before anything is sent. Neither needs a server; the API with its certificate, the approved POST and the OpenAPI import run in the app's HttpCoreProcessIT.",
+  "touches": [
+    {
+      "name": "url-outside-the-base-denied",
+      "connection": {"type": "http", "env": "dev",
+        "config": {"baseUrls": ["https://api.example.test/v1"], "auth": {"type": "bearer"}},
+        "secrets": {"/auth/token": "smoke-only-0001"}},
+      "call": {"tool": "http_get", "arguments": {"path": "https://elsewhere.example.test/admin"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.http.url-not-allowed"}
+    },
+    {
+      "name": "private-address-refused-before-io",
+      "connection": {"type": "http", "env": "dev",
+        "config": {"baseUrls": ["https://127.0.0.1:1/v1"], "auth": {"type": "bearer"}},
+        "secrets": {"/auth/token": "smoke-only-0001"}},
+      "test": true,
+      "expect": {"ok": false, "errorCode": "http.private-address"}
+    }
+  ]
+}

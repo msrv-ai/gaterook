@@ -1,0 +1,576 @@
+<header class="gw-page-header">
+  <div class="gw-page-header__row">
+    <div class="gw-page-header__heading">
+      <h1 class="gw-page-header__title">Insights</h1>
+      <p class="gw-page-header__description">How agents used the gateway: volume, decisions, approvals, latency and errors, with a link to the calls behind every number.</p>
+    </div>
+    <div class="gw-page-header__actions">
+      <a class="gw-btn" [routerLink]="openInActivity().route" [queryParams]="openInActivity().query"><svg lucideIcon="activity" class="gw-icon"></svg> Open in Activity<span class="gw-sr-only"> with the same range and filters</span></a>
+    </div>
+  </div>
+</header>
+
+<!-- The filter bar: log-explorer rows 1 and 2 (variant "insights"); the same query, range and tags drive every number below. -->
+@if (!data.notAvailable()) {
+  <section gwLogExplorer variant="insights" [(query)]="query" [(range)]="logRange" [status]="status()"></section>
+}
+
+@if (data.notAvailable()) {
+  <!-- This core has no Insights yet (step K5): say so, and where the calls are meanwhile. -->
+  <div class="gw-card">
+    <div class="gw-empty">
+      <span class="gw-empty__icon"><svg lucideIcon="chart-column" class="gw-icon"></svg></span>
+      <h2 class="gw-empty__title">Insights aren't available yet</h2>
+      <p class="gw-empty__text">This version of the gateway core doesn't sum up calls yet. Every call, with its decision and timing, is in Activity.</p>
+      <div class="gw-empty__actions"><a class="gw-btn" routerLink="/activity"><svg lucideIcon="activity" class="gw-icon"></svg> Open Activity</a></div>
+    </div>
+  </div>
+} @else if (data.error(); as e) {
+  <!-- Nothing for this query and range: what happened, what to do, Try again, and the details under a disclosure. -->
+  <div class="gw-alert gw-alert--danger" role="alert">
+    <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+    <div class="gw-alert__content">
+      <p class="gw-alert__title">Insights didn't load</p>
+      <p class="gw-alert__body">{{ errorText(e) }}</p>
+      <div class="gw-alert__actions">
+        <button class="gw-btn gw-btn--sm" type="button" (click)="retry()" [attr.aria-busy]="data.refreshing() ? 'true' : null" [attr.aria-disabled]="data.refreshing() ? 'true' : null">@if (data.refreshing()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Try again</button>
+        <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle aria-controls="insights-error-details">Details <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
+      </div>
+    </div>
+  </div>
+  <gw-code-block [attr.id]="'insights-error-details'" [id]="'insights-error-pre'" hidden wrap lang="Error" [text]="errorDetails(e)" copyLabel="error details" regionLabel="Error details" />
+} @else if (ins(); as i) {
+  @if (data.stale(); as e) {
+    <!-- A refresh failed: the numbers below are the last ones that loaded for this query and range. -->
+    <div class="gw-alert gw-alert--warning gw-alert--compact" role="status">
+      <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">These numbers may be out of date.</p>
+        <p class="gw-alert__body">{{ errorText(e) }}</p>
+      </div>
+      <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retry()" [attr.aria-busy]="data.refreshing() ? 'true' : null" [attr.aria-disabled]="data.refreshing() ? 'true' : null">Try again</button></div>
+    </div>
+  }
+
+  @switch (body()) {
+    @case ('first-run') {
+      <!-- First run: instead of the numbers and charts until the gateway has logged a call (kit #in-first-run). -->
+      <div class="gw-card" id="in-first-run">
+        <div class="gw-empty">
+          <span class="gw-empty__icon"><svg lucideIcon="chart-column" class="gw-icon"></svg></span>
+          <h2 class="gw-empty__title">Charts appear after the first calls</h2>
+          <p class="gw-empty__text">Insights sums up what agents did through the gateway: volume, decisions, approvals, latency and errors. No call has reached the gateway yet.</p>
+          <div class="gw-empty__actions"><a class="gw-btn" routerLink="/playground"><svg lucideIcon="flask-conical" class="gw-icon"></svg> Try a tool in Playground</a></div>
+        </div>
+      </div>
+    }
+    @case ('no-calls') {
+      <!-- Calls exist, but none in this range or for this query: one way out, as Activity's "No calls match". -->
+      <div class="gw-card">
+        <div class="gw-empty">
+          <span class="gw-empty__icon"><svg lucideIcon="search-x" class="gw-icon"></svg></span>
+          @if (shownFiltered()) {
+            <h2 class="gw-empty__title">No calls match these filters</h2>
+            <p class="gw-empty__text">Nothing in the {{ words().span }} matches <code class="gw-code">{{ shownQuery() }}</code>. Remove a filter or widen the time range.</p>
+            <div class="gw-empty__actions"><button class="gw-btn" type="button" (click)="clearFilters()"><svg lucideIcon="filter-x" class="gw-icon"></svg> Clear filters</button></div>
+          } @else {
+            <h2 class="gw-empty__title">No calls in the {{ words().span }}</h2>
+            <p class="gw-empty__text">Agents made no calls through the gateway in this range.@if (wider(); as w) { A longer range shows the calls before it.}</p>
+            @if (wider(); as w) {
+              <div class="gw-empty__actions"><button class="gw-btn" type="button" (click)="widen(w.key)"><svg lucideIcon="calendar-clock" class="gw-icon"></svg> Show the {{ w.span }}</button></div>
+            }
+          }
+        </div>
+      </div>
+    }
+    @default {
+      <!-- ─────────────── KPI row · this range against the one before ─────────────── -->
+      <dl class="gw-grid gw-grid--3" [attr.aria-busy]="data.refreshing() ? 'true' : null">
+        @for (tile of tiles(); track tile.id) {
+          <div class="gw-stat">
+            <dt class="gw-stat__label">{{ tile.label }}</dt>
+            <dd class="gw-stat__value">{{ tile.value }}@if (tile.unit) { <span class="gw-stat__unit">{{ tile.unit }}</span>}</dd>
+            @if (tile.chart; as ch) {
+              <dd class="gw-stat__chart">
+                <svg class="gw-sparkline" viewBox="0 0 230 40" preserveAspectRatio="none" role="img" [attr.aria-label]="ch.label">
+                  <polyline [attr.points]="ch.points"></polyline>
+                </svg>
+              </dd>
+            }
+            @if (tile.delta; as d) {
+              <dd [class]="'gw-stat__delta gw-stat__delta--' + d.dir" [attr.data-sentiment]="d.sentiment"><svg [lucideIcon]="d.icon" class="gw-icon"></svg>{{ d.text }}</dd>
+            }
+            @if (tile.meter; as m) {
+              <dd class="gw-stat__meta">
+                <div class="gw-meter" role="meter" [attr.aria-labelledby]="'in-meter-' + tile.id" aria-valuemin="0" [attr.aria-valuemax]="m.max" [attr.aria-valuenow]="m.now" [attr.aria-valuetext]="m.valueText" [attr.data-level]="m.level" [style.--gw-meter]="m.fraction">
+                  <span class="gw-meter__label" [id]="'in-meter-' + tile.id">{{ m.label }}</span>
+                  <span class="gw-meter__value">@if (m.icon) {<svg [lucideIcon]="m.icon" class="gw-icon"></svg>}{{ m.value }}</span>
+                  <span class="gw-meter__track"><span class="gw-meter__fill"></span></span>
+                </div>
+              </dd>
+            } @else if (tile.meta.length) {
+              <dd class="gw-stat__meta">@for (part of tile.meta; track $index) {@if (part.link; as l) {<a class="gw-link" [routerLink]="l.route" [queryParams]="l.query">{{ part.text }}@if (part.sr) {<span class="gw-sr-only">{{ part.sr }}</span>}</a>} @else if (part.section; as s) {<a class="gw-link" routerLink="/insights" [queryParams]="pageParams()" [fragment]="s" (click)="jump(s)">{{ part.text }}</a>} @else {{{ part.text }}}}</dd>
+            }
+          </div>
+        }
+      </dl>
+
+      <!-- ═══════════════ Unusual activity ═══════════════ -->
+      <section class="gw-section" aria-labelledby="in-unusual-title">
+        <div class="gw-section__header">
+          <h2 class="gw-section__title" id="in-unusual-title">Unusual activity</h2>
+          <p class="gw-section__description">Compared with the last 7 days. Each item opens the calls behind it.</p>
+        </div>
+        @if (unusual().length) {
+          <ul class="gw-stack gw-stack--sm" [attr.aria-label]="'Unusual activity, ' + unusualCount()">
+            @for (u of unusual(); track $index) {
+              <li [class]="'gw-alert gw-alert--compact gw-alert--' + u.tone">
+                <svg [lucideIcon]="u.icon" class="gw-icon gw-alert__icon"></svg>
+                <div class="gw-alert__content"><p class="gw-alert__title"><ng-container [ngTemplateOutlet]="parts" [ngTemplateOutletContext]="{ $implicit: u.title }" /></p>@if (u.body.length) {<p class="gw-alert__body"><ng-container [ngTemplateOutlet]="parts" [ngTemplateOutletContext]="{ $implicit: u.body }" /></p>}</div>
+                @if (u.action; as a) {
+                  <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" [routerLink]="a.link.route" [queryParams]="a.link.query">{{ a.label }}@if (a.sr) {<span class="gw-sr-only">{{ a.sr }}</span>}</a></div>
+                }
+              </li>
+            }
+          </ul>
+        } @else {
+          <div class="gw-empty gw-empty--compact">
+            <span class="gw-empty__icon gw-icon-tile--success"><svg lucideIcon="circle-check" class="gw-icon"></svg></span>
+            <p class="gw-empty__title">Nothing unusual</p>
+            <p class="gw-empty__text">Volume, denials and response times look like the last 7 days.</p>
+          </div>
+        }
+      </section>
+
+      <!-- ═══════════════ Volume ═══════════════ -->
+      <section class="gw-section" aria-labelledby="in-volume-title">
+        <div class="gw-section__header">
+          <h2 class="gw-section__title" id="in-volume-title">Volume</h2>
+          <p class="gw-section__description">How many calls, when, which tools and from which clients.</p>
+        </div>
+        <div class="gw-stack">
+          @if (calls(); as ch) {
+            <section class="gw-card" aria-labelledby="in-calls-title">
+              <header class="gw-card__header">
+                <div class="gw-card__heading">
+                  <h3 class="gw-card__title" id="in-calls-title">Calls over time</h3>
+                  <p class="gw-card__description">{{ ch.description }}</p>
+                </div>
+              </header>
+              <div class="gw-card__body gw-stack">
+                <div class="gw-chart" role="img" [attr.aria-label]="ch.aria">
+                  <div class="gw-chart__plot">
+                    @for (g of ch.gridlines; track g.v) {
+                      <span class="gw-chart__gridline" [style.--v]="g.v"><span class="gw-chart__label">{{ g.label }}</span></span>
+                    }
+                    @for (b of ch.bars; track b.from) {
+                      <span class="gw-chart__bar">@for (s of b.segments; track s.key) {<span [class]="segmentClass(s)" [style.--v]="s.v"></span>}</span>
+                    }
+                  </div>
+                  <div class="gw-chart__axis">
+                    @for (a of ch.axis; track a.v) {
+                      <span class="gw-chart__label" [style.--v]="a.v">{{ a.label }}</span>
+                    }
+                  </div>
+                </div>
+                <ul class="gw-legend" [attr.aria-label]="'Decisions, ' + words().span">
+                  @for (l of ch.legend; track l.key) {
+                    <li class="gw-legend__item"><span [class]="'gw-legend__swatch gw-legend__swatch--' + l.key"></span>{{ l.label }} <span class="gw-legend__value">{{ formatCount(l.value) }}</span></li>
+                  }
+                </ul>
+                <div class="gw-sr-only">
+                  <table>
+                    <caption>Calls per {{ ch.unit }} by decision, {{ words().span }}</caption>
+                    <thead>
+                      <tr><th scope="col">{{ ch.unit === 'hour' ? 'Hour' : 'From' }}</th>@for (l of ch.legend; track l.key) {<th scope="col">{{ l.label }}</th>}<th scope="col">Total</th></tr>
+                    </thead>
+                    <tbody>
+                      @for (r of ch.rows; track $index) {
+                        <tr><th scope="row">{{ r.label }}</th>@for (l of ch.legend; track l.key) {<td>{{ r.counts[l.key] }}</td>}<td>{{ r.total }}</td></tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <footer class="gw-card__footer">
+                <a class="gw-btn gw-btn--link" [routerLink]="allCalls().route" [queryParams]="allCalls().query">View in Activity<span class="gw-sr-only">: all calls in the {{ words().span }}</span></a>
+              </footer>
+            </section>
+          }
+
+          <div class="gw-grid gw-grid--2">
+            @if (tools(); as tt) {
+              <section class="gw-card" aria-labelledby="in-tools-title">
+                <header class="gw-card__header">
+                  <div class="gw-card__heading">
+                    <h3 class="gw-card__title" id="in-tools-title">Top tools</h3>
+                    <p class="gw-card__description"><ng-container [ngTemplateOutlet]="parts" [ngTemplateOutletContext]="{ $implicit: tt.description }" /></p>
+                  </div>
+                </header>
+                <div class="gw-card__body">
+                  <div class="gw-chart gw-chart--hbar" role="img" [attr.aria-label]="tt.aria">
+                    @for (r of tt.rows; track r.label) {
+                      <span class="gw-chart__label" [class.gw-mono]="r.mono">{{ r.label }}</span>
+                      <span class="gw-chart__bar">@for (s of r.segments; track s.key) {<span [class]="segmentClass(s)" [style.--v]="s.v"></span>}</span>
+                      <span class="gw-chart__value">{{ r.value }}</span>
+                    }
+                  </div>
+                  <div class="gw-sr-only">
+                    <table>
+                      <caption>Top tools by calls, {{ words().span }}</caption>
+                      <thead><tr><th scope="col">Tool</th><th scope="col">Calls</th></tr></thead>
+                      <tbody>
+                        @for (x of tt.table; track x.name) {
+                          <tr><th scope="row">{{ x.name }}</th><td>{{ x.count }}</td></tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                @if (tt.footer; as f) {
+                  <footer class="gw-card__footer">
+                    <a class="gw-btn gw-btn--link" [routerLink]="f.link.route" [queryParams]="f.link.query">@for (p of f.parts; track $index) {@if (p.kind === 'code') {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</a>
+                  </footer>
+                }
+              </section>
+            }
+
+            @if (clients(); as cc) {
+              <section class="gw-card" aria-labelledby="in-clients-title">
+                <header class="gw-card__header">
+                  <div class="gw-card__heading">
+                    <h3 class="gw-card__title" id="in-clients-title">By client</h3>
+                    <p class="gw-card__description"><ng-container [ngTemplateOutlet]="parts" [ngTemplateOutletContext]="{ $implicit: cc.description }" /></p>
+                  </div>
+                </header>
+                <div class="gw-card__body gw-stack">
+                  @if (cc.rows.length) {
+                    <div class="gw-chart gw-chart--hbar" role="img" [attr.aria-label]="cc.aria">
+                      @for (r of cc.rows; track r.label) {
+                        <span class="gw-chart__label"><span [gwClientMark]="r.client ?? ''" size="sm"></span> {{ r.label }}</span>
+                        <span class="gw-chart__bar">@for (s of r.segments; track s.key) {<span [class]="segmentClass(s)" [style.--v]="s.v"></span>}</span>
+                        <span class="gw-chart__value">{{ r.value }}</span>
+                      }
+                    </div>
+                    <ul class="gw-legend" aria-label="Decisions by client">
+                      <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--success"></span>Allowed or approved</li>
+                      <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--danger"></span>Denied, rejected or failed</li>
+                      <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--neutral"></span>Expired</li>
+                    </ul>
+                    <div class="gw-sr-only">
+                      <table>
+                        <caption>Calls by client and decision, {{ words().span }}</caption>
+                        <thead><tr><th scope="col">Client</th><th scope="col">Allowed or approved</th><th scope="col">Denied, rejected or failed</th><th scope="col">Expired</th><th scope="col">Total</th></tr></thead>
+                        <tbody>
+                          @for (x of cc.table; track x.name) {
+                            <tr><th scope="row">{{ x.name }}</th><td>{{ x.ok }}</td><td>{{ x.bad }}</td><td>{{ x.expired }}</td><td>{{ x.total }}</td></tr>
+                          }
+                          @if (cc.idle; as idle) {
+                            <tr><th scope="row">{{ idle.names.join(', ') }}</th><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                  }
+                  @if (cc.idle; as idle) {
+                    <div class="gw-empty gw-empty--compact">
+                      <span class="gw-empty__icon"><svg lucideIcon="app-window" class="gw-icon"></svg></span>
+                      <p class="gw-empty__title">{{ idle.title }}</p>
+                      <p class="gw-empty__text">{{ idle.text }}</p>
+                      <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" routerLink="/clients"><svg lucideIcon="app-window" class="gw-icon gw-icon--sm"></svg> Connect a client</a></div>
+                    </div>
+                  }
+                </div>
+                @if (cc.links.length) {
+                  <footer class="gw-card__footer gw-card__footer--split">
+                    @for (l of cc.links; track l.label) {
+                      <a class="gw-btn gw-btn--link" [routerLink]="l.link.route" [queryParams]="l.link.query">{{ l.label }}</a>
+                    }
+                  </footer>
+                }
+              </section>
+            }
+          </div>
+        </div>
+      </section>
+
+      <!-- ═══════════════ Decisions ═══════════════ -->
+      <section class="gw-section" aria-labelledby="in-decisions-title">
+        <div class="gw-section__header">
+          <h2 class="gw-section__title" id="in-decisions-title">Decisions</h2>
+          <p class="gw-section__description">What needed your approval and what the policies stopped.</p>
+        </div>
+        <div class="gw-grid gw-grid--auto" [style.--gw-grid-min]="twoColumnMin">
+          @if (approvals(); as ap) {
+            <section class="gw-card" aria-labelledby="in-approvals-title">
+              <header class="gw-card__header">
+                <div class="gw-card__heading">
+                  <h3 class="gw-card__title" id="in-approvals-title">Approvals</h3>
+                  <p class="gw-card__description">{{ ap.description }}</p>
+                </div>
+              </header>
+              <div class="gw-card__body gw-stack">
+                @if (ap.decided) {
+                  <div class="gw-chart gw-chart--hbar" role="img" [attr.aria-label]="ap.aria">
+                    <span class="gw-chart__label">{{ formatCount(ap.decided) }} decided</span>
+                    <span class="gw-chart__bar">@for (s of ap.segments; track s.key) {<span [class]="segmentClass(s)" [style.--v]="s.v"></span>}</span>
+                    <span class="gw-chart__value">{{ formatCount(ap.decided) }}</span>
+                  </div>
+                  <ul class="gw-legend" aria-label="Approval outcomes">
+                    @for (l of ap.legend; track l.key) {
+                      <li class="gw-legend__item"><span [class]="'gw-legend__swatch gw-legend__swatch--' + l.key"></span>{{ l.label }} <span class="gw-legend__value">{{ formatCount(l.value) }}</span></li>
+                    }
+                  </ul>
+                  <div class="gw-sr-only">
+                    <table>
+                      <caption>Approval requests by outcome, {{ words().span }}</caption>
+                      <thead><tr><th scope="col">Outcome</th><th scope="col">Requests</th><th scope="col">Share</th></tr></thead>
+                      <tbody>
+                        @for (l of ap.legend; track l.key) {
+                          <tr><th scope="row">{{ l.label }}</th><td>{{ l.value }}</td><td>{{ l.share }}</td></tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                  @if (ap.withinMinute || ap.p90) {
+                    <dl class="gw-kv gw-kv--inline">
+                      @if (ap.withinMinute) {
+                        <div class="gw-kv__row"><dt class="gw-kv__key">Decided within 1 min</dt><dd class="gw-kv__value gw-tabular">{{ ap.withinMinute }}</dd></div>
+                      }
+                      @if (ap.p90) {
+                        <div class="gw-kv__row"><dt class="gw-kv__key">p90 wait</dt><dd class="gw-kv__value gw-tabular">{{ ap.p90 }}</dd></div>
+                      }
+                    </dl>
+                  }
+                  @if (ap.slowest.length) {
+                    <h4 class="gw-text-overline" id="in-slowest-title">Slowest decisions</h4>
+                    <div class="gw-table-wrap" role="region" aria-labelledby="in-slowest-title" tabindex="0">
+                      <table class="gw-table gw-table--dense gw-table--interactive">
+                        <caption class="gw-sr-only">Approval requests with the longest wait for your decision, {{ words().span }}</caption>
+                        <thead>
+                          <tr>
+                            <th scope="col">Request</th>
+                            <th scope="col">Outcome</th>
+                            <th scope="col" class="gw-table__cell--num">Wait</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          @for (s of ap.slowest; track $index) {
+                            <tr>
+                              <td>@if (s.link; as l) {<a class="gw-table__row-link gw-mono" [routerLink]="l.route" [fragment]="l.fragment">{{ s.tool }}<span class="gw-sr-only">{{ s.sr }}</span></a>} @else {<span class="gw-mono">{{ s.tool }}</span>}@if (s.env; as env) {{{ ' ' }}<span [class]="'gw-env gw-env--sm gw-env--' + env">{{ env }}</span>}</td>
+                              <td><span [class]="'gw-badge gw-badge--sm gw-badge--' + s.look.tone"><svg [lucideIcon]="s.look.icon" class="gw-icon gw-badge__icon"></svg>{{ s.look.text }}</span> by you</td>
+                              <td class="gw-table__cell--num">{{ s.wait }}</td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                  }
+                } @else {
+                  <div class="gw-empty gw-empty--compact">
+                    <span class="gw-empty__icon"><svg lucideIcon="user-check" class="gw-icon"></svg></span>
+                    <p class="gw-empty__title">No approval requests</p>
+                    <p class="gw-empty__text">Every change an agent asks for waits for you here. None came in the {{ words().span }}.</p>
+                  </div>
+                }
+              </div>
+              <footer class="gw-card__footer gw-card__footer--split">
+                @if (ap.decided) {
+                  <a class="gw-btn gw-btn--link" [routerLink]="ap.link.route" [queryParams]="ap.link.query">View {{ formatCount(ap.decided) }} {{ ap.decided === 1 ? 'request' : 'requests' }} in Activity</a>
+                }
+                <a class="gw-btn gw-btn--sm" routerLink="/approvals"><svg lucideIcon="user-check" class="gw-icon gw-icon--sm"></svg> Open Approvals</a>
+              </footer>
+            </section>
+          }
+
+          @if (denied(); as dn) {
+            <section class="gw-card" aria-labelledby="in-denied-title">
+              <header class="gw-card__header">
+                <div class="gw-card__heading">
+                  <h3 class="gw-card__title" id="in-denied-title" tabindex="-1">Denied by rule</h3>
+                  <p class="gw-card__description"><ng-container [ngTemplateOutlet]="parts" [ngTemplateOutletContext]="{ $implicit: dn.description }" /></p>
+                </div>
+              </header>
+              <div class="gw-card__body">
+                @if (dn.rows.length) {
+                  <div class="gw-table-wrap" role="region" aria-labelledby="in-denied-cap" tabindex="0">
+                    <!-- The rule is the row link (its calls in Activity); the example truncates, so the table fits a half-width card. -->
+                    <table class="gw-table gw-table--dense gw-table--interactive">
+                      <caption class="gw-sr-only" id="in-denied-cap">Calls denied by policy in the {{ words().span }}, by the rule that denied them. Each rule opens its calls in Activity.</caption>
+                      <thead>
+                        <tr>
+                          <th scope="col">Rule</th>
+                          <th scope="col" class="gw-table__cell--num">Calls</th>
+                          <th scope="col">Example</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (r of dn.rows; track r.rule) {
+                          <tr>
+                            <th scope="row" class="gw-table__cell--mono">@if (r.link; as l) {<a class="gw-table__row-link" [routerLink]="l.route" [queryParams]="l.query">{{ r.label }}<span class="gw-sr-only">{{ r.sr }}</span></a>} @else {{{ r.label }}}</th>
+                            <td class="gw-table__cell--num">{{ r.count }}</td>
+                            <td class="gw-table__cell--truncate" [style.--gw-cell-max]="exampleMax" [attr.title]="r.title || null">@if (r.example; as ex) {<ng-container [ngTemplateOutlet]="parts" [ngTemplateOutletContext]="{ $implicit: ex }" />}</td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                } @else {
+                  <div class="gw-empty gw-empty--compact">
+                    <span class="gw-empty__icon gw-icon-tile--success"><svg lucideIcon="shield" class="gw-icon"></svg></span>
+                    <p class="gw-empty__title">Nothing denied</p>
+                    <p class="gw-empty__text">No call broke a rule of the policies in the {{ words().span }}.</p>
+                  </div>
+                }
+              </div>
+              <footer class="gw-card__footer gw-card__footer--split">
+                @if (dn.total) {
+                  <a class="gw-btn gw-btn--link" [routerLink]="dn.link.route" [queryParams]="dn.link.query">View all {{ formatCount(dn.total) }} in Activity</a>
+                }
+                <a class="gw-btn gw-btn--sm" routerLink="/policies"><svg lucideIcon="shield" class="gw-icon gw-icon--sm"></svg> Open policies</a>
+              </footer>
+            </section>
+          }
+        </div>
+      </section>
+
+      <!-- ═══════════════ Latency and errors ═══════════════ -->
+      <section class="gw-section" aria-labelledby="in-health-title">
+        <div class="gw-section__header">
+          <h2 class="gw-section__title" id="in-health-title">Latency and errors</h2>
+          <p class="gw-section__description">Where the time goes and which connections fail.</p>
+        </div>
+        <div class="gw-grid gw-grid--auto" [style.--gw-grid-min]="twoColumnMin">
+          @if (latency(); as lt) {
+            <section class="gw-card" aria-labelledby="in-latency-title">
+              <header class="gw-card__header">
+                <div class="gw-card__heading">
+                  <h3 class="gw-card__title" id="in-latency-title">Latency by connection</h3>
+                  <p class="gw-card__description"><ng-container [ngTemplateOutlet]="parts" [ngTemplateOutletContext]="{ $implicit: lt.description }" /></p>
+                </div>
+              </header>
+              <div class="gw-card__body gw-stack">
+                @if (lt.rows.length) {
+                  <div class="gw-chart gw-chart--hbar" role="img" [attr.aria-label]="lt.aria">
+                    @for (r of lt.rows; track r.label) {
+                      <span class="gw-chart__label gw-mono">{{ r.label }}</span>
+                      <span class="gw-chart__bar">@for (s of r.segments; track s.key) {<span [class]="segmentClass(s)" [style.--v]="s.v"></span>}</span>
+                      <span class="gw-chart__value">{{ r.value }}</span>
+                    }
+                  </div>
+                  <ul class="gw-legend" aria-label="Where the time goes, p95">
+                    <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--neutral"></span>Gateway</li>
+                    <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--brand"></span>Resource</li>
+                  </ul>
+                  <p class="gw-text-caption gw-fg-muted">p95 of each part, axis up to {{ lt.axis }}. Waiting for approval is not counted.</p>
+                  <div class="gw-sr-only">
+                    <table>
+                      <caption>Gateway overhead and resource time per connection, p50 and p95, {{ words().span }}</caption>
+                      <thead><tr><th scope="col">Connection</th><th scope="col">Gateway p50</th><th scope="col">Gateway p95</th><th scope="col">Resource p50</th><th scope="col">Resource p95</th></tr></thead>
+                      <tbody>
+                        @for (r of lt.table; track r.connection) {
+                          <tr><th scope="row">{{ r.connection }}</th><td>{{ latencyText(r.gatewayP50) }}</td><td>{{ latencyText(r.gatewayP95) }}</td><td>{{ latencyText(r.resourceP50) }}</td><td>{{ latencyText(r.resourceP95) }}</td></tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                } @else {
+                  <div class="gw-empty gw-empty--compact">
+                    <span class="gw-empty__icon"><svg lucideIcon="timer" class="gw-icon"></svg></span>
+                    <p class="gw-empty__title">No completed calls</p>
+                    <p class="gw-empty__text">Times appear once a call reaches a connection and comes back.</p>
+                  </div>
+                }
+              </div>
+              @if (lt.rows.length) {
+                <footer class="gw-card__footer">
+                  <a class="gw-btn gw-btn--link" [routerLink]="lt.link.route" [queryParams]="lt.link.query">View calls slower than 1 s in Activity</a>
+                </footer>
+              }
+            </section>
+          }
+
+          @if (errors(); as er) {
+            <section class="gw-card" aria-labelledby="in-errors-title">
+              <header class="gw-card__header">
+                <div class="gw-card__heading">
+                  <h3 class="gw-card__title" id="in-errors-title" tabindex="-1">Errors by connection</h3>
+                  <p class="gw-card__description"><ng-container [ngTemplateOutlet]="parts" [ngTemplateOutletContext]="{ $implicit: er.description }" /></p>
+                </div>
+              </header>
+              <div class="gw-card__body">
+                @if (er.rows.length) {
+                  <div class="gw-table-wrap" role="region" aria-labelledby="in-errors-cap" tabindex="0">
+                    <!-- The connection is the row link (its errors in Activity); the error text truncates (full text in title). -->
+                    <table class="gw-table gw-table--dense gw-table--interactive">
+                      <caption class="gw-sr-only" id="in-errors-cap">Failed calls in the {{ words().span }}, by connection. Each connection opens its errors in Activity.</caption>
+                      <thead>
+                        <tr>
+                          <th scope="col">Connection</th>
+                          <th scope="col" class="gw-table__cell--num">Errors</th>
+                          <th scope="col">Most common error</th>
+                          <th scope="col">Health now</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (r of er.rows; track r.connection) {
+                          <tr>
+                            <th scope="row">@if (r.link; as l) {<a class="gw-table__row-link gw-mono" [routerLink]="l.route" [queryParams]="l.query">{{ r.connection }}<span class="gw-sr-only">{{ r.sr }}</span></a>} @else {<span class="gw-mono">{{ r.connection }}</span>}@if (r.env; as env) {{{ ' ' }}<span class="gw-sr-only">environment</span>{{ ' ' }}<span [class]="'gw-env gw-env--sm gw-env--' + env">{{ env }}</span>}</th>
+                            <td class="gw-table__cell--num">{{ r.count }}</td>
+                            <td class="gw-table__cell--mono gw-table__cell--truncate" [style.--gw-cell-max]="messageMax" [attr.title]="r.message || null">{{ r.message }}</td>
+                            <td><span [class]="'gw-status gw-status--' + r.health.tone"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ r.health.text }}</span></span></td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                } @else {
+                  <div class="gw-empty gw-empty--compact">
+                    <span class="gw-empty__icon gw-icon-tile--success"><svg lucideIcon="circle-check" class="gw-icon"></svg></span>
+                    <p class="gw-empty__title">No errors</p>
+                    <p class="gw-empty__text">Every call that reached a connection in the {{ words().span }} got an answer.</p>
+                  </div>
+                }
+              </div>
+              <footer class="gw-card__footer gw-card__footer--split">
+                @if (er.total) {
+                  <a class="gw-btn gw-btn--link" [routerLink]="er.link.route" [queryParams]="er.link.query">View all {{ formatCount(er.total) }} in Activity</a>
+                }
+                <a class="gw-btn gw-btn--sm" routerLink="/connections"><svg lucideIcon="database" class="gw-icon gw-icon--sm"></svg> Open connections</a>
+              </footer>
+            </section>
+          }
+        </div>
+      </section>
+    }
+  }
+} @else if (slow()) {
+  <!-- The first answer is slow: the page's shape, busy, and one status line for screen readers. -->
+  <p class="gw-sr-only" role="status">Loading insights</p>
+  <div class="gw-grid gw-grid--3" aria-hidden="true">
+    <span class="gw-skeleton gw-skeleton--block"></span>
+    <span class="gw-skeleton gw-skeleton--block"></span>
+    <span class="gw-skeleton gw-skeleton--block"></span>
+    <span class="gw-skeleton gw-skeleton--block"></span>
+    <span class="gw-skeleton gw-skeleton--block"></span>
+    <span class="gw-skeleton gw-skeleton--block"></span>
+  </div>
+  <section class="gw-section" aria-labelledby="in-volume-title" aria-busy="true">
+    <div class="gw-section__header">
+      <h2 class="gw-section__title" id="in-volume-title">Volume</h2>
+    </div>
+    <section class="gw-card" aria-labelledby="in-calls-title" aria-busy="true">
+      <header class="gw-card__header"><div class="gw-card__heading"><h3 class="gw-card__title" id="in-calls-title">Calls over time</h3></div></header>
+      <div class="gw-card__body">
+        <div class="gw-stack gw-stack--sm" aria-hidden="true">
+          <span class="gw-skeleton gw-skeleton--text"></span>
+          <span class="gw-skeleton gw-skeleton--text"></span>
+          <span class="gw-skeleton gw-skeleton--block"></span>
+        </div>
+      </div>
+    </section>
+  </section>
+}
+
+<!-- A sentence with literals (gw-code chips, plain mono names) and environment markers. -->
+<ng-template #parts let-parts>@for (p of parts; track $index) {@switch (p.kind) {@case ('code') {<code class="gw-code">{{ p.text }}</code>} @case ('mono') {<span class="gw-mono">{{ p.text }}</span>} @case ('env') {<span class="gw-sr-only">environment</span>{{ ' ' }}<span [class]="'gw-env gw-env--sm gw-env--' + p.text">{{ p.text }}</span>} @default {{{ p.text }}}}}</ng-template>

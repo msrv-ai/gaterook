@@ -1,0 +1,114 @@
+// =============================================================
+// status-tile · Element
+// -------------------------------------------------------------
+// One compact card that names one thing and says its state, with at
+// most one action: a connection (dev-db · Healthy), an AI app (Cursor ·
+// Not connected · Connect). For pages that answer "what is connected and
+// is it working" at a glance, without opening anything.
+//
+// Where   pages/overview.html (Your connections, AI apps, the first-run guide).
+//         Not for the full client setup (client-card) or long lists (gw-table
+//         on Connections).
+//
+// Composes  gw-card (--interactive, __link), gw-icon-tile / gw-client-mark,
+//           gw-env --sm, gw-status (incl. --checking), gw-btn --sm, gw-mono,
+//           gw-text-* and gw-fg-* utilities, gw-grid for a set of tiles.
+//
+//   <ul class="gw-grid gw-grid--3" role="list" aria-label="Your connections">
+//     <li class="gw-card gw-card--interactive gw-status-tile">
+//       <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="database"></i></span>
+//       <div class="gw-status-tile__main">
+//         <h3 class="gw-status-tile__title gw-text-ui">
+//           <a class="gw-card__link gw-mono" href="connection-new.html?edit=dev-db">dev-db</a>
+//           <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span>
+//         </h3>
+//         <p class="gw-text-caption gw-fg-muted gw-truncate">PostgreSQL 16</p>
+//       </div>
+//       <div class="gw-status-tile__end">
+//         <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span>
+//       </div>
+//     </li>
+//   </ul>
+//
+// Parts   __main   title + one meta line (type, where it connects, what it can use)
+//         __title  the name, as a heading one level below the set's heading (h3 in
+//                  a section, h4 inside a gw-stepper --guide step). With a link
+//                  (gw-card--interactive + .gw-card__link) when the thing has its
+//                  own page; plain text when the tile's action is its only
+//                  destination (Cursor · Connect, Antigravity · How to install)
+//         __end    the state (gw-status, words always) and, under it, at most
+//                  ONE action (gw-btn --sm: Connect, Test again, How to install).
+//                  Only the action sits above the stretched link, so a click on
+//                  the state still opens the tile.
+// States  the gw-status vocabulary (BLUEPRINT §7). Busy: while Test again runs the
+//         button is aria-busy + aria-disabled and the state becomes
+//         gw-status--checking (role=status). Unavailable action: a <button
+//         aria-disabled="true" aria-describedby> pointing at a visible reason
+//         under the set; never a link (middle click would get past the guard).
+// Order   problems and tiles with an action first, working ones next, not
+//         installed last.
+// Layout  icon | text | state (+ action under it). Narrow when the tile's content
+//         box is under 280px (outer about 314px): the state and action drop under
+//         the text side by side, and that row keeps the button height so tiles
+//         with and without an action line up. Sets: gw-grid --3 (connections),
+//         --2 for a fixed set of four (AI apps); a long set shows one row and
+//         a "N more" disclosure placed before the hidden list.
+// Raw values: 280px container breakpoint (narrow tile).
+// =============================================================
+
+@use "../scss/tokens" as *;
+@use "../scss/mixins" as *;
+
+.gw-status-tile {
+  container: gw-status-tile / inline-size;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--gw-space-3);
+  row-gap: var(--gw-space-2);
+  min-width: 0;
+  padding: var(--gw-space-3) var(--gw-space-4);
+
+  &__main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-0-5);
+    min-width: 0;
+  }
+
+  &__title {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--gw-space-1-5);
+    min-width: 0;
+    margin: 0;
+  }
+
+  // State on top, its one action under it: the text keeps the width.
+  &__end {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--gw-space-1-5);
+
+    // only the action sits above the card's stretched link
+    > :where(a, button) {
+      position: relative;
+      z-index: var(--gw-z-raised);
+    }
+  }
+}
+
+// Narrow tile: the state and its action move under the text, on one row that
+// keeps the button height.
+@container gw-status-tile (width < 280px) { // raw: narrow tile, content box (about 314px outer)
+  .gw-status-tile__end {
+    grid-column: 2 / -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gw-space-3);
+    min-height: var(--gw-size-control-sm);
+  }
+}

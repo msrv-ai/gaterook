@@ -1,0 +1,105 @@
+{
+  "type": "object",
+  "required": [
+    "provider",
+    "action",
+    "truncated"
+  ],
+  "properties": {
+    "provider": {
+      "enum": [
+        "gcp",
+        "aws"
+      ]
+    },
+    "action": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string"
+    },
+    "project": {
+      "type": "string"
+    },
+    "from": {
+      "type": "string"
+    },
+    "to": {
+      "type": "string"
+    },
+    "period": {
+      "type": "integer"
+    },
+    "series": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "points": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "t": {
+                  "type": "string"
+                },
+                "v": {}
+              }
+            }
+          },
+          "summary": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "metrics": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object"
+      }
+    },
+    "alerts": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object"
+      }
+    },
+    "alarms": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object"
+      }
+    },
+    "messages": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "nextCursor": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "truncatedReason": {
+      "type": "string"
+    }
+  }
+}

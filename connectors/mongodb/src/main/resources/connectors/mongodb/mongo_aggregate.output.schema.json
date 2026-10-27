@@ -1,0 +1,58 @@
+{
+  "type": "object",
+  "required": [
+    "database",
+    "collection",
+    "documents",
+    "returned",
+    "truncated"
+  ],
+  "properties": {
+    "database": {
+      "type": "string"
+    },
+    "collection": {
+      "type": "string"
+    },
+    "documents": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "Relaxed Extended JSON; Int64 outside ±2^53 as {\"$numberLong\": \"…\"}."
+    },
+    "returned": {
+      "type": "integer"
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "truncatedReason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "doc_limit",
+        "size_limit",
+        "timeout",
+        null
+      ]
+    },
+    "bytes": {
+      "type": "integer"
+    },
+    "elapsedMs": {
+      "type": "integer"
+    },
+    "readPreference": {
+      "type": "string"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

@@ -1,0 +1,107 @@
+<header class="gw-card__header">
+  <div class="gw-card__heading">
+    @if (complete()) {
+      <ng-container [ngTemplateOutlet]="title" [ngTemplateOutletContext]="{ $implicit: 'Setup complete', icon: 'circle-check', tone: 'success' }" />
+      <p class="gw-card__description">
+        All {{ checklist().total }} steps done.
+        @if (clientNames() && endpoint()) {
+          {{ clientNames() }} {{ clients().length === 1 ? 'uses' : 'use' }} endpoint <code class="gw-code">{{ endpoint() }}</code>, and every change waits for your approval.
+        }
+      </p>
+    } @else {
+      <ng-container [ngTemplateOutlet]="title" [ngTemplateOutletContext]="{ $implicit: 'Get started', icon: 'list-checks', tone: 'brand' }" />
+      <p class="gw-card__description">Six steps from install to your agent's first safe call.@if (estimate()) { About 5 minutes.}</p>
+    }
+  </div>
+  <div class="gw-card__actions">
+    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" (click)="dismiss.emit()"><svg lucideIcon="x" class="gw-icon gw-icon--sm"></svg>Dismiss checklist</button>
+  </div>
+</header>
+<div class="gw-card__body gw-getting-started__body">
+  @if (complete()) {
+    <div class="gw-getting-started__summary">
+      <button class="gw-btn gw-btn--ghost gw-btn--sm gw-getting-started__toggle" type="button" gwToggle [attr.aria-controls]="uid + '-steps'">
+        <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-getting-started__toggle-icon gw-getting-started__toggle-icon--expand"></svg>
+        <svg lucideIcon="chevron-up" class="gw-icon gw-icon--sm gw-getting-started__toggle-icon gw-getting-started__toggle-icon--collapse"></svg>
+        {{ checklist().total }} completed steps
+      </button>
+      <a class="gw-link gw-text-small" routerLink="/activity">See what your agents do in Activity</a>
+    </div>
+    <ol class="gw-getting-started__steps" [id]="uid + '-steps'" aria-label="Completed setup steps" hidden>
+      <ng-container [ngTemplateOutlet]="steps" />
+    </ol>
+  } @else {
+    <div class="gw-getting-started__progress">
+      <p class="gw-getting-started__count gw-text-small gw-fg-secondary gw-tabular" [id]="uid + '-count'">{{ checklist().done }} of {{ checklist().total }} done</p>
+      <div
+        class="gw-progress gw-progress--sm gw-getting-started__bar"
+        role="progressbar"
+        [attr.aria-labelledby]="uid + '-count'"
+        aria-valuemin="0"
+        [attr.aria-valuemax]="checklist().total"
+        [attr.aria-valuenow]="checklist().done"
+        [attr.aria-valuetext]="checklist().done + ' of ' + checklist().total + ' steps done'"
+        [style.--gw-progress]="fraction()"
+      >
+        <div class="gw-progress__bar"></div>
+      </div>
+    </div>
+    <ol class="gw-getting-started__steps" aria-label="Setup steps">
+      <ng-container [ngTemplateOutlet]="steps" />
+    </ol>
+  }
+</div>
+
+<ng-template #title let-text let-icon="icon" let-tone="tone">
+  @switch (level()) {
+    @case (3) { <h3 class="gw-card__title" [id]="uid + '-title'"><span [class]="'gw-icon-tile gw-icon-tile--sm gw-icon-tile--' + tone"><svg [lucideIcon]="icon" class="gw-icon gw-icon--sm"></svg></span>{{ text }}</h3> }
+    @default { <h2 class="gw-card__title" [id]="uid + '-title'"><span [class]="'gw-icon-tile gw-icon-tile--sm gw-icon-tile--' + tone"><svg [lucideIcon]="icon" class="gw-icon gw-icon--sm"></svg></span>{{ text }}</h2> }
+  }
+</ng-template>
+
+<ng-template #steps>
+  @for (step of checklist().steps; track step.id) {
+    @let c = copy[step.id];
+    @switch (step.state) {
+      @case ('done') {
+        <li class="gw-getting-started__step" data-state="done">
+          <span class="gw-getting-started__icon gw-fg-success" aria-hidden="true"><svg lucideIcon="circle-check" class="gw-icon gw-icon--lg"></svg></span>
+          <p class="gw-getting-started__title gw-text-body gw-fg-secondary">{{ c.title }}<span class="gw-sr-only">, done</span></p>
+          @if (meta(step); as parts) {
+            @if (parts.length) {
+              <p class="gw-getting-started__meta gw-text-small gw-fg-muted">@for (p of parts; track $index) {@if (p.mono) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</p>
+            }
+          }
+        </li>
+      }
+      @case ('current') {
+        <li class="gw-getting-started__step" data-state="current" aria-current="step">
+          <span class="gw-getting-started__icon gw-fg-brand" aria-hidden="true"><svg lucideIcon="circle-dot" class="gw-icon gw-icon--lg"></svg></span>
+          <p class="gw-getting-started__title gw-text-h3">{{ c.title }}</p>
+          <ng-container *ngTemplateOutlet="why; context: { $implicit: step.id, text: c.why }" />
+          <a class="gw-btn gw-btn--primary gw-btn--sm gw-getting-started__action" [routerLink]="c.route" [fragment]="c.fragment">{{ c.action }}</a>
+        </li>
+      }
+      @default {
+        <li class="gw-getting-started__step" data-state="todo">
+          <span class="gw-getting-started__icon gw-fg-muted" aria-hidden="true"><svg lucideIcon="circle-dashed" class="gw-icon gw-icon--lg"></svg></span>
+          <p class="gw-getting-started__title gw-text-body">{{ c.title }}<span class="gw-sr-only">, not done yet</span></p>
+          <ng-container *ngTemplateOutlet="why; context: { $implicit: step.id, text: c.why }" />
+          <a class="gw-btn gw-btn--link gw-getting-started__action" [routerLink]="c.route" [fragment]="c.fragment">{{ c.action }}</a>
+        </li>
+      }
+    }
+  }
+</ng-template>
+
+<ng-template #why let-id let-text="text">
+  <p class="gw-getting-started__why gw-text-small gw-fg-secondary">
+    @if (id === 'client' && detectedNames()) {
+      {{ detectedNames() }} {{ detected().length === 1 ? 'is' : 'are' }} installed. You see the config change before it is written.
+    } @else if (id === 'playground' && playgroundTool()) {
+      Call <code class="gw-code">{{ playgroundTool() }}</code> the way your agent would and see exactly what comes back.
+    } @else {
+      {{ text }}
+    }
+  </p>
+</ng-template>

@@ -1,0 +1,397 @@
+@let n = node();
+@let f = form();
+@if (!hidden()) {
+  @let id = f.id(n);
+  @let error = f.error(n);
+  @let errId = error ? id + '-err' : null;
+  @let hintId = n.description ? id + '-hint' : null;
+  @let lock = f.lockReason(n);
+  @let lockId = lock ? id + '-lock' : null;
+  @let describedBy = join(errId, hintId, lockId);
+
+  <ng-template #label>{{ n.title }}@if (n.optional) { <span class="gw-field__optional">Optional</span>}@if (n.stricter && f.stricterBadges) { <span class="gw-badge gw-badge--neutral gw-badge--sm">Policy may tighten</span>}</ng-template>
+  <!-- Why options are off on this env (x-forbidden-env): native disabled, as they would weaken prod, with the reason. -->
+  <ng-template #lockLine><p class="gw-field__hint" [id]="lockId">{{ lock }}</p></ng-template>
+  <ng-template #errorLine let-message>
+    <p class="gw-field__error" [id]="errId"><svg lucideIcon="circle-alert" class="gw-icon"></svg>@for (part of errorParts(message); track $index) {@if (part.code) {<span class="gw-mono">{{ part.text }}</span>} @else {<ng-container>{{ part.text }}</ng-container>}}</p>
+  </ng-template>
+
+  @switch (n.kind) {
+    @case ('object') {
+      <fieldset class="gw-field" [attr.aria-describedby]="hintId">
+        <legend class="gw-field__label">{{ n.title }}</legend>
+        <div class="gw-form__rows"><gw-schema-fields [form]="f" [node]="n" /></div>
+        @if (n.description) {
+          <p class="gw-field__hint" [id]="hintId">{{ n.description }}</p>
+        }
+      </fieldset>
+    }
+
+    @case ('checkbox') {
+      <div class="gw-field">
+        <div class="gw-checkbox">
+          <input
+            class="gw-checkbox__input"
+            type="checkbox"
+            [id]="id"
+            [checked]="value() === true"
+            [disabled]="f.locked(n)"
+            [attr.aria-describedby]="describedBy"
+            [attr.aria-invalid]="error ? 'true' : null"
+            (change)="f.set(n, $any($event.target).checked)"
+            (blur)="f.touch(n)"
+          />
+          <span class="gw-checkbox__control" aria-hidden="true"></span>
+          <label class="gw-checkbox__label" [for]="id">{{ n.title }}</label>
+          @if (n.description) {
+            <p class="gw-checkbox__hint" [id]="hintId">{{ n.description }}</p>
+          }
+          @if (lock) {
+            <p class="gw-checkbox__hint" [id]="lockId">{{ lock }}</p>
+          }
+        </div>
+        @if (error) {
+          <ng-container [ngTemplateOutlet]="errorLine" [ngTemplateOutletContext]="{ $implicit: error }" />
+        }
+      </div>
+    }
+
+    @case ('choice-cards') {
+      <fieldset class="gw-field" [attr.aria-describedby]="describedBy">
+        <legend class="gw-field__label"><ng-container [ngTemplateOutlet]="label" /></legend>
+        <div class="gw-grid gw-grid--auto">
+          @for (o of n.options; track $index; let i = $index) {
+            @let off = f.optionForbidden(n, o.value);
+            <label class="gw-choice-card gw-choice-card--compact">
+              <input
+                class="gw-choice-card__input"
+                type="radio"
+                [name]="id"
+                [id]="i === 0 ? id : null"
+                [value]="String(o.value)"
+                [checked]="isChecked(o.value)"
+                [disabled]="off"
+                [attr.aria-labelledby]="id + '-' + i + '-t'"
+                [attr.aria-describedby]="join(o.description ? id + '-' + i + '-d' : null, off ? id + '-' + i + '-r' : null)"
+                [attr.aria-invalid]="error ? 'true' : null"
+                (change)="f.set(n, o.value)"
+              />
+              <span class="gw-choice-card__title" [id]="id + '-' + i + '-t'">{{ o.title }}</span>
+              @if (o.description) {
+                <span class="gw-choice-card__description" [id]="id + '-' + i + '-d'">{{ o.description }}</span>
+              }
+              @if (off) {
+                <span class="gw-choice-card__meta" [id]="id + '-' + i + '-r'">Not allowed on {{ f.env() }}</span>
+              }
+            </label>
+          }
+        </div>
+        @if (error) {
+          <ng-container [ngTemplateOutlet]="errorLine" [ngTemplateOutletContext]="{ $implicit: error }" />
+        }
+        @if (n.description) {
+          <p class="gw-field__hint" [id]="hintId">{{ n.description }}</p>
+        }
+        @if (lock) {
+          <ng-container [ngTemplateOutlet]="lockLine" />
+        }
+      </fieldset>
+    }
+
+    @case ('segmented') {
+      <div class="gw-field">
+        <span class="gw-field__label" [id]="id + '-l'"><ng-container [ngTemplateOutlet]="label" /></span>
+        <div class="gw-segmented" role="radiogroup" [attr.aria-labelledby]="id + '-l'" [attr.aria-describedby]="describedBy">
+          @for (o of n.options; track $index; let i = $index) {
+            @let off = f.optionForbidden(n, o.value);
+            <label class="gw-segmented__option">
+              <input
+                class="gw-segmented__input"
+                type="radio"
+                [name]="id"
+                [id]="i === 0 ? id : null"
+                [value]="String(o.value)"
+                [checked]="isChecked(o.value)"
+                [disabled]="off"
+                [attr.aria-describedby]="off ? lockId : null"
+                (change)="f.set(n, o.value)"
+              /><span class="gw-segmented__label">{{ o.title }}</span>
+            </label>
+          }
+        </div>
+        @if (error) {
+          <ng-container [ngTemplateOutlet]="errorLine" [ngTemplateOutletContext]="{ $implicit: error }" />
+        }
+        @if (n.description) {
+          <p class="gw-field__hint" [id]="hintId">{{ n.description }}</p>
+        }
+        @if (lock) {
+          <ng-container [ngTemplateOutlet]="lockLine" />
+        }
+      </div>
+    }
+
+    @case ('secret') {
+      @let state = f.secretState(n);
+      @let copy = sourceCopy(f.source());
+      @let stored = storedSecret();
+      @let secretHintId = id + '-hint';
+      <div class="gw-field gw-connection-form__secret" [attr.data-source]="copy.kit">
+        @if (state === 'stored' || state === 'reference') {
+          <span class="gw-field__label" [id]="id + '-l'">{{ secretLabel(state) }}</span>
+          <div
+            gwSecret
+            [state]="state"
+            [labelledBy]="id + '-l'"
+            [describedBy]="join(errId, secretHintId)"
+            [fieldName]="lowerFirst(n.title)"
+            [subject]="f.subject()"
+            [version]="stored?.version ?? null"
+            [updatedAt]="stored?.updatedAt ?? null"
+            [canRotate]="stored?.canRotate !== false"
+            [rotateReasonId]="stored?.canRotate === false ? id + '-rotate-why' : null"
+            [provider]="f.source()"
+            [ref]="stored?.name ?? ''"
+            [refNoun]="f.source() === 'dynamic' ? 'role' : 'reference'"
+            changeable
+            (changeRef)="f.replace(n, true)"
+            (replace)="f.replace(n, true)"
+            (rotate)="rotateSecret()"
+            (testReference)="testReference()"
+          ></div>
+        } @else if (reference()) {
+          <label class="gw-field__label" [for]="id">{{ secretLabel(state) }}</label>
+          <div class="gw-secret" data-state="empty">
+            <input
+              class="gw-input gw-input--mono"
+              type="text"
+              [id]="id"
+              [value]="secretTyped()"
+              [attr.placeholder]="referencePlaceholder()"
+              autocomplete="off"
+              spellcheck="false"
+              [attr.aria-describedby]="join(errId, secretHintId)"
+              [attr.aria-invalid]="error ? 'true' : null"
+              (input)="f.setSecret(n, $any($event.target).value)"
+            />
+            <span class="gw-secret__actions"><button class="gw-btn" type="button" (click)="testReference()">{{ copy.test }}</button></span>
+          </div>
+        } @else if (n.multiline) {
+          <!-- A secret over several lines (PEM, base64, kubeconfig, a JSON key): a password input would join its lines. -->
+          <label class="gw-field__label" [for]="id">{{ secretLabel(state) }}</label>
+          <div class="gw-secret" [attr.data-state]="state">
+            <textarea
+              class="gw-textarea gw-textarea--code"
+              [attr.rows]="n.language || n.secret === 'value' ? 8 : 4"
+              [id]="id"
+              [value]="secretTyped()"
+              autocomplete="off"
+              spellcheck="false"
+              [attr.placeholder]="multilinePlaceholder()"
+              [attr.aria-describedby]="join(errId, secretHintId)"
+              [attr.aria-invalid]="error ? 'true' : null"
+              (input)="f.setSecret(n, $any($event.target).value)"
+            ></textarea>
+            @if (state === 'editing') {
+              <span class="gw-secret__actions">
+                <button class="gw-btn gw-btn--ghost" type="button" (click)="f.replace(n, false)">Cancel</button>
+                <button class="gw-btn" type="button" (click)="saveSecret(secretTyped())">Save {{ lowerFirst(n.title) }}<span class="gw-sr-only"> for {{ f.subject() }}</span></button>
+              </span>
+            }
+          </div>
+        } @else {
+          <label class="gw-field__label" [for]="id">{{ secretLabel(state) }}</label>
+          <div
+            gwSecret
+            [state]="state"
+            [inputId]="id"
+            [value]="secretTyped()"
+            (valueChange)="f.setSecret(n, $event)"
+            [placeholder]="state === 'empty' ? 'Paste or type the ' + lowerFirst(n.title) : null"
+            [describedBy]="join(errId, secretHintId)"
+            [invalid]="!!error"
+            [fieldName]="lowerFirst(n.title)"
+            [subject]="f.subject()"
+            (cancel)="f.replace(n, false)"
+            (save)="saveSecret($event)"
+          ></div>
+        }
+        @if (error) {
+          <ng-container [ngTemplateOutlet]="errorLine" [ngTemplateOutletContext]="{ $implicit: error }" />
+        }
+        <p class="gw-field__hint" [id]="secretHintId">{{ secretHint(state) }}</p>
+        @if (state === 'stored' && stored?.canRotate === false && stored?.rotateReason) {
+          <!-- Rotate stays in the Tab order (aria-disabled) and says why here (DESIGN.md §8 "Action hierarchy and disabled behavior"). -->
+          <p class="gw-field__hint" [id]="id + '-rotate-why'">Rotate: {{ stored!.rotateReason }}</p>
+        }
+      </div>
+    }
+
+    @default {
+      <div class="gw-field" [class.gw-connection-form__user]="login() && n.kind === 'text'">
+        @if (n.kind === 'code') {
+          <span class="gw-field__label" [id]="id + '-l'"><ng-container [ngTemplateOutlet]="label" /></span>
+        } @else {
+          <label class="gw-field__label" [for]="id"><ng-container [ngTemplateOutlet]="label" /></label>
+        }
+        @switch (n.kind) {
+          @case ('text') {
+            @if (n.unit) {
+              <div class="gw-input-group">
+                <input
+                  class="gw-input"
+                  [class.gw-input--mono]="n.mono"
+                  [id]="id"
+                  [formField]="textField()"
+                  autocomplete="off"
+                  spellcheck="false"
+                  [attr.aria-describedby]="describedBy"
+                  [attr.aria-invalid]="error ? 'true' : null"
+                />
+                <span class="gw-input-group__affix">{{ n.unit }}</span>
+              </div>
+            } @else {
+              <input
+                class="gw-input"
+                [class.gw-input--mono]="n.mono"
+                [id]="id"
+                [formField]="textField()"
+                autocomplete="off"
+                spellcheck="false"
+                [attr.aria-describedby]="describedBy"
+                [attr.aria-invalid]="error ? 'true' : null"
+              />
+            }
+          }
+          @case ('number') {
+            @if (n.unit) {
+              <div class="gw-input-group">
+                <input
+                  class="gw-input gw-input--mono"
+                  [id]="id"
+                  type="text"
+                  inputmode="numeric"
+                  [value]="numberText()"
+                  autocomplete="off"
+                  [attr.required]="n.required ? '' : null"
+                  [attr.aria-describedby]="describedBy"
+                  [attr.aria-invalid]="error ? 'true' : null"
+                  (input)="setNumber($event)"
+                  (blur)="f.touch(n)"
+                />
+                <span class="gw-input-group__affix">{{ n.unit }}</span>
+              </div>
+            } @else {
+              <input
+                class="gw-input gw-input--mono"
+                [id]="id"
+                type="text"
+                inputmode="numeric"
+                [value]="numberText()"
+                autocomplete="off"
+                [attr.required]="n.required ? '' : null"
+                [attr.aria-describedby]="describedBy"
+                [attr.aria-invalid]="error ? 'true' : null"
+                (input)="setNumber($event)"
+                (blur)="f.touch(n)"
+              />
+            }
+          }
+          @case ('select') {
+            @let options = f.optionsOf(n);
+            @if (n.optionsFrom && !options.length) {
+              <!-- x-options-from with nothing in the metadata yet (no kubeconfig read so far): the name is typed. -->
+              <input
+                class="gw-input gw-input--mono"
+                [id]="id"
+                [formField]="textField()"
+                autocomplete="off"
+                spellcheck="false"
+                [attr.aria-describedby]="describedBy"
+                [attr.aria-invalid]="error ? 'true' : null"
+              />
+            } @else {
+              <select
+                class="gw-select"
+                [id]="id"
+                [attr.aria-describedby]="describedBy"
+                [attr.aria-invalid]="error ? 'true' : null"
+                (change)="setOption($event)"
+                (blur)="f.touch(n)"
+              >
+                @if (value() === null) {
+                  <option value="" selected>Choose…</option>
+                }
+                @for (o of options; track $index) {
+                  <option [value]="String(o.value)" [selected]="isChecked(o.value)" [disabled]="f.optionForbidden(n, o.value)">{{ o.description ? o.title + ' · ' + o.description : o.title }}</option>
+                }
+              </select>
+            }
+          }
+          @case ('tags') {
+            <div
+              gwTagsInput
+              [inputId]="id"
+              [value]="tags()"
+              (valueChange)="f.set(n, $event)"
+              [noun]="noun()"
+              [listLabel]="n.title"
+              [placeholder]="tagPlaceholder()"
+              [describedBy]="describedBy"
+              [invalid]="!!error"
+              (touch)="f.touch(n)"
+            ></div>
+          }
+          @case ('textarea') {
+            <textarea
+              class="gw-textarea"
+              [class.gw-textarea--code]="codeLike()"
+              rows="4"
+              [id]="id"
+              [formField]="textField()"
+              spellcheck="false"
+              [attr.aria-describedby]="describedBy"
+              [attr.aria-invalid]="error ? 'true' : null"
+            ></textarea>
+          }
+          @case ('code') {
+            <!-- CodeMirror loads only when a code field shows (its own chunk); until then the same value in a textarea. -->
+            @defer (on viewport) {
+              <gw-code-editor
+                [value]="codeValue()"
+                (valueChange)="f.set(n, $event)"
+                [language]="language()"
+                [label]="n.title"
+                [describedBy]="describedBy"
+                [invalid]="!!error"
+              />
+            } @placeholder {<textarea class="gw-textarea gw-textarea--code" rows="6" [id]="id" [value]="codeValue()" spellcheck="false" readonly></textarea>}
+          }
+          @default {
+            <!-- A keyword or type this renderer doesn't know: the value as JSON, so a new connector works unchanged. -->
+            <textarea
+              class="gw-textarea gw-textarea--code"
+              rows="6"
+              [id]="id"
+              [value]="f.jsonValue(n)"
+              spellcheck="false"
+              [attr.aria-describedby]="describedBy"
+              [attr.aria-invalid]="error ? 'true' : null"
+              (input)="f.setJson(n, $any($event.target).value)"
+              (blur)="f.touch(n)"
+            ></textarea>
+          }
+        }
+        @if (error) {
+          <ng-container [ngTemplateOutlet]="errorLine" [ngTemplateOutletContext]="{ $implicit: error }" />
+        }
+        @if (n.description) {
+          <p class="gw-field__hint" [id]="hintId">{{ n.description }}</p>
+        }
+        @if (lock) {
+          <ng-container [ngTemplateOutlet]="lockLine" />
+        }
+      </div>
+    }
+  }
+}

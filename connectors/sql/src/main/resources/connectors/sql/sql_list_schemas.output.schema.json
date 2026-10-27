@@ -1,0 +1,67 @@
+{
+  "type": "object",
+  "required": [
+    "schemas",
+    "tables",
+    "truncated"
+  ],
+  "properties": {
+    "schemas": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "tables": {
+            "type": "integer"
+          },
+          "views": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    "tables": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "schema",
+          "name",
+          "kind"
+        ],
+        "properties": {
+          "schema": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "estimatedRows": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "comment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "truncated": {
+      "type": "boolean"
+    }
+  }
+}

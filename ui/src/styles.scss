@@ -1,0 +1,33 @@
+// The design kit is the only source of styles (design/AGENTS.md §0): fonts, tokens of all four themes, reset,
+// typography, every component and every element. Fonts are copied to /assets/fonts by scripts/sync-kit-assets.mjs.
+@use "@gaterook/design-kit/scss" as gw with ($gw-font-path: "/assets/fonts");
+
+// The root component must not add a box between <body> and the kit's skip link and .gw-shell: the shell is a
+// viewport-tall grid capped by its parent (max-height: 100%), exactly as on the kit's pages.
+gw-root {
+  display: contents; // raw: structural, no token for a layout-transparent host
+}
+
+// Hosts that wrap several sibling blocks of the kit's markup (a page stub's header and empty state; a setup map's
+// description, chain and caption; a dialog component, whose closed <dialog> must not become a flex item with a
+// gap; the schema renderer's section, rows and fields, which sit in gw-form__rows): their children belong to the parent's flex column, with its gap, as in the kit.
+gw-page-stub,
+gw-setup-map,
+gw-setup-wiring,
+gw-split-dialog,
+gw-token-issue-dialog,
+gw-command-palette,
+gw-schema-form,
+gw-schema-section,
+gw-schema-fields,
+gw-schema-field {
+  display: contents; // raw: structural, no token for a layout-transparent host
+}
+
+// The kit draws a rule between consecutive form sections (`.gw-form__section + .gw-form__section`); a section the
+// schema renderer draws sits inside its gw-schema-section host, so the sibling rule names the host too.
+:is(gw-schema-section, .gw-form__section) + gw-schema-section > .gw-form__section,
+gw-schema-section + .gw-form__section {
+  padding-block-start: var(--gw-space-8);
+  border-block-start: var(--gw-border-width-default) solid var(--gw-color-border-subtle);
+}

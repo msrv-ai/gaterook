@@ -1,0 +1,1414 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Approval request · Element · GateRook kit</title>
+<link rel="icon" href="../assets/logo-mark.svg" type="image/svg+xml">
+<script src="../assets/theme-boot.js"></script>
+<link rel="stylesheet" href="../dist/gw-kit.css">
+</head>
+<body>
+<a class="gw-skip-link" href="#main">Skip to content</a>
+<main class="gw-page" id="main" tabindex="-1">
+
+  <header class="gw-page-header">
+    <div class="gw-page-header__row">
+      <div class="gw-page-header__heading">
+        <h1 class="gw-page-header__title">Approval request</h1>
+        <p class="gw-page-header__description">The decision UI for one mutation an agent asked for: the exact action, verbatim, with why it needs a human, its impact and the agent's unverified note, then Deny or Approve and run. Used in the Approvals detail pane, in Overview as a compact row, and read-only in the Activity drawer.</p>
+      </div>
+      <div class="gw-page-header__actions">
+        <fieldset class="gw-segmented gw-segmented--sm">
+          <legend class="gw-sr-only">Theme</legend>
+          <label class="gw-segmented__option">
+            <input class="gw-segmented__input" type="radio" name="gw-theme" value="system" checked>
+            <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i>System</span>
+          </label>
+          <label class="gw-segmented__option">
+            <input class="gw-segmented__input" type="radio" name="gw-theme" value="light">
+            <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i>Light</span>
+          </label>
+          <label class="gw-segmented__option">
+            <input class="gw-segmented__input" type="radio" name="gw-theme" value="dark">
+            <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i>Dark</span>
+          </label>
+        </fieldset>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═════════════════════ Pending · SQL (default) ═════════════════════ -->
+  <section class="gw-section" aria-labelledby="s-sql">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-sql">Pending: SQL statement on dev</h2>
+      <p class="gw-section__description">The default state. The statement is shown exactly as it will run; auto-deny counts down from 5 min.</p>
+    </header>
+
+    <article class="gw-card gw-approval-request" data-state="pending" id="ar-sql" aria-labelledby="ar-sql-title">
+      <header class="gw-card__header gw-approval-request__header">
+        <div class="gw-card__heading gw-approval-request__heading">
+          <h3 class="gw-card__title gw-approval-request__title" id="ar-sql-title" tabindex="-1">
+            <code class="gw-code">sql_execute</code> on <span class="gw-approval-request__target"><code class="gw-code">dev-db</code>
+            <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev">dev</span></span>
+          </h3>
+          <dl class="gw-kv gw-kv--inline gw-approval-request__meta">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Mode</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">dev</code></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">AI app</dt><dd class="gw-kv__value"><span class="gw-approval-request__client"><span class="gw-client-mark gw-client-mark--codex gw-client-mark--sm" aria-hidden="true">Cx</span>Codex</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Token</dt><dd class="gw-kv__value"><code class="gw-code">codex-laptop</code></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Requested</dt><dd class="gw-kv__value"><time class="gw-tabular" datetime="2026-10-22T14:29:12+02:00" title="2026-10-22 14:29:12 CEST">48 s ago</time></dd></div>
+          </dl>
+        </div>
+        <div class="gw-approval-request__status">
+          <span class="gw-badge gw-badge--warning"><i class="gw-icon gw-badge__icon" data-lucide="hourglass"></i>Waiting for approval</span>
+          <div class="gw-approval-request__countdown" data-gw-countdown="252" data-gw-countdown-total="300">
+            <p class="gw-approval-request__countdown-text gw-text-small gw-tabular" role="timer"><i class="gw-icon gw-icon--sm gw-fg-warning" data-lucide="timer"></i>Auto-deny in <span data-gw-countdown-text>4:12</span></p>
+            <div class="gw-progress gw-progress--sm gw-progress--warning" aria-hidden="true"><div class="gw-progress__bar"></div></div>
+          </div>
+        </div>
+      </header>
+
+      <div class="gw-card__body gw-approval-request__body">
+        <section class="gw-approval-request__section" aria-labelledby="ar-sql-action">
+          <h4 class="gw-text-h3" id="ar-sql-action">Exact action</h4>
+          <div class="gw-code-block gw-code-block--wrap">
+            <div class="gw-code-block__header">
+              <span class="gw-code-block__lang">SQL</span>
+              <span class="gw-code-block__filename">sql_execute · dev-db · db.dev.internal:5432/app</span>
+              <div class="gw-code-block__actions">
+                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ar-sql-code">
+                  <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> statement for dev-db</span></span>
+                  <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                </button>
+              </div>
+            </div>
+            <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Statement to approve on dev-db">
+<pre class="gw-code-block__pre" id="ar-sql-code"><code><span class="gw-code-block__line"><span class="gw-tok-keyword">UPDATE</span> orders <span class="gw-tok-keyword">SET</span> status <span class="gw-tok-punctuation">=</span> <span class="gw-tok-string">'cancelled'</span> <span class="gw-tok-keyword">WHERE</span> id <span class="gw-tok-punctuation">=</span> <span class="gw-tok-number">48213</span><span class="gw-tok-punctuation">;</span></span></code></pre>
+            </div>
+          </div>
+        </section>
+
+        <div class="gw-approval-request__facts">
+          <section class="gw-approval-request__section" aria-labelledby="ar-sql-why">
+            <h4 class="gw-text-h3" id="ar-sql-why">Why approval is needed</h4>
+            <p class="gw-text-body-read"><code class="gw-code">sql_execute</code> on <code class="gw-code">dev-db</code>: DML requires approval. Statements that change rows always wait for a human.</p>
+            <p class="gw-approval-request__rule gw-text-caption gw-fg-muted">Rule <code class="gw-code">dev.sql.write-approval</code> <a class="gw-link" href="../pages/policies.html">Open in Policies<span class="gw-sr-only">: rule dev.sql.write-approval</span></a></p>
+          </section>
+          <section class="gw-approval-request__section" aria-labelledby="ar-sql-impact">
+            <h4 class="gw-text-h3" id="ar-sql-impact">Impact</h4>
+            <dl class="gw-kv gw-kv--dense">
+              <div class="gw-kv__row"><dt class="gw-kv__key">Target table</dt><dd class="gw-kv__value"><code class="gw-code">orders</code></dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Estimated rows</dt><dd class="gw-kv__value gw-tabular">1 <span class="gw-fg-muted">(from EXPLAIN)</span></dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Transaction</dt><dd class="gw-kv__value">Yes, rolled back on error</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Statement timeout</dt><dd class="gw-kv__value gw-tabular">30 s</dd></div>
+            </dl>
+          </section>
+        </div>
+
+        <section class="gw-approval-request__section" aria-labelledby="ar-sql-note">
+          <div class="gw-approval-request__section-header">
+            <h4 class="gw-text-h3" id="ar-sql-note">Agent's note · unverified</h4>
+            <span class="gw-tooltip gw-tooltip--start">
+              <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm" type="button" aria-label="Why the agent's note is unverified" aria-describedby="ar-sql-note-tip"><i class="gw-icon" data-lucide="info"></i></button>
+              <span class="gw-tooltip__bubble" role="tooltip" id="ar-sql-note-tip">Written by the agent, not checked by the gateway. It can repeat text from data the agent read (tickets, logs, web pages), so decide on the exact action above.</span>
+            </span>
+          </div>
+          <blockquote class="gw-card gw-card--muted gw-approval-request__note">
+            <p class="gw-text-body-read">Customer asked to cancel order 48213 in ticket SUP-1182. Cancelling it so the order sync stops retrying the payment.</p>
+          </blockquote>
+        </section>
+      </div>
+
+      <footer class="gw-card__footer gw-approval-request__footer">
+        <div class="gw-approval-request__decision" role="group" aria-label="Decision on sql_execute on dev-db">
+          <div class="gw-field">
+            <label class="gw-field__label" for="ar-sql-comment">Comment <span class="gw-field__optional">(optional)</span></label>
+            <textarea class="gw-textarea" id="ar-sql-comment" rows="2" aria-describedby="ar-sql-comment-hint"></textarea>
+            <p class="gw-field__hint" id="ar-sql-comment-hint">Sent to Codex with your decision and kept in the audit log.</p>
+          </div>
+          <div class="gw-approval-request__decision-row">
+            <p class="gw-text-caption gw-fg-muted">Runs once, exactly as shown above. Codex gets the result in the same call.</p>
+            <div class="gw-approval-request__buttons">
+              <button class="gw-btn gw-btn--danger" type="button">Deny<span class="gw-sr-only"> sql_execute on dev-db</span></button>
+              <button class="gw-btn gw-btn--approve" type="button">Approve and run<span class="gw-sr-only"> sql_execute on dev-db</span></button>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </article>
+  </section>
+
+  <!-- ═════════════════════ Pending · urgent, command ═════════════════════ -->
+  <section class="gw-section" aria-labelledby="s-k8s">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-k8s">Pending, under a minute left: command without a diff</h2>
+      <p class="gw-section__description">0:48 left of 5 min. Under 60 s kit.js sets <code class="gw-code">data-urgent</code> and switches the bar and timer to danger. At 0 it expires the request in place: the badge reads Expired, the timer says it was denied automatically, and Deny and Approve and run stay focusable but unavailable, with the reason next to them. A restart has nothing to diff, so the action is the command.</p>
+    </header>
+
+    <article class="gw-card gw-approval-request" data-state="pending" id="ar-k8s" aria-labelledby="ar-k8s-title">
+      <header class="gw-card__header gw-approval-request__header">
+        <div class="gw-card__heading gw-approval-request__heading">
+          <h3 class="gw-card__title gw-approval-request__title" id="ar-k8s-title" tabindex="-1">
+            <code class="gw-code">k8s_rollout_restart</code> on <span class="gw-approval-request__target"><code class="gw-code">dev-cluster</code>
+            <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev">dev</span></span>
+          </h3>
+          <dl class="gw-kv gw-kv--inline gw-approval-request__meta">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Mode</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">dev</code></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">AI app</dt><dd class="gw-kv__value"><span class="gw-approval-request__client"><span class="gw-client-mark gw-client-mark--claude gw-client-mark--sm" aria-hidden="true">CD</span>Claude Desktop</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Token</dt><dd class="gw-kv__value">Bridge (.mcpb)</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Requested</dt><dd class="gw-kv__value"><time class="gw-tabular" datetime="2026-10-22T14:25:48+02:00" title="2026-10-22 14:25:48 CEST">4 min ago</time></dd></div>
+          </dl>
+        </div>
+        <div class="gw-approval-request__status">
+          <span class="gw-badge gw-badge--warning"><i class="gw-icon gw-badge__icon" data-lucide="hourglass"></i>Waiting for approval</span>
+          <div class="gw-approval-request__countdown" data-gw-countdown="48" data-gw-countdown-total="300">
+            <p class="gw-approval-request__countdown-text gw-text-small gw-tabular gw-fg-danger" role="timer"><i class="gw-icon gw-icon--sm" data-lucide="timer"></i>Auto-deny in <span data-gw-countdown-text>0:48</span></p>
+            <div class="gw-progress gw-progress--sm gw-progress--danger" aria-hidden="true"><div class="gw-progress__bar"></div></div>
+          </div>
+        </div>
+      </header>
+
+      <div class="gw-card__body gw-approval-request__body">
+        <section class="gw-approval-request__section" aria-labelledby="ar-k8s-action">
+          <h4 class="gw-text-h3" id="ar-k8s-action">Exact action</h4>
+          <div class="gw-code-block gw-code-block--wrap">
+            <div class="gw-code-block__header">
+              <span class="gw-code-block__lang">Command</span>
+              <span class="gw-code-block__filename">k8s_rollout_restart · dev-cluster · namespace app-dev</span>
+              <div class="gw-code-block__actions">
+                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ar-k8s-code">
+                  <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> command for dev-cluster</span></span>
+                  <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                </button>
+              </div>
+            </div>
+            <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Command to approve on dev-cluster">
+<pre class="gw-code-block__pre" id="ar-k8s-code"><code><span class="gw-tok-function">kubectl</span> rollout restart deployment/api <span class="gw-tok-property">--namespace</span> app-dev</code></pre>
+            </div>
+          </div>
+        </section>
+
+        <div class="gw-approval-request__facts">
+          <section class="gw-approval-request__section" aria-labelledby="ar-k8s-why">
+            <h4 class="gw-text-h3" id="ar-k8s-why">Why approval is needed</h4>
+            <p class="gw-text-body-read"><code class="gw-code">k8s_rollout_restart</code> on <code class="gw-code">dev-cluster</code>: restarting a workload requires approval.</p>
+            <p class="gw-approval-request__rule gw-text-caption gw-fg-muted">Rule <code class="gw-code">dev.k8s.write-approval</code> <a class="gw-link" href="../pages/policies.html">Open in Policies<span class="gw-sr-only">: rule dev.k8s.write-approval</span></a></p>
+          </section>
+          <section class="gw-approval-request__section" aria-labelledby="ar-k8s-impact">
+            <h4 class="gw-text-h3" id="ar-k8s-impact">Impact</h4>
+            <dl class="gw-kv gw-kv--dense">
+              <div class="gw-kv__row"><dt class="gw-kv__key">Workload</dt><dd class="gw-kv__value"><code class="gw-code">deployment/api</code> in <code class="gw-code">app-dev</code></dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Pods restarted</dt><dd class="gw-kv__value gw-tabular">3, one at a time</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Expected downtime</dt><dd class="gw-kv__value">None (rolling, max unavailable 0)</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Image</dt><dd class="gw-kv__value"><code class="gw-code">registry.acme.dev/api:1.42.0</code>, unchanged</dd></div>
+            </dl>
+          </section>
+        </div>
+
+        <section class="gw-approval-request__section" aria-labelledby="ar-k8s-note">
+          <div class="gw-approval-request__section-header">
+            <h4 class="gw-text-h3" id="ar-k8s-note">Agent's note · unverified</h4>
+            <span class="gw-tooltip gw-tooltip--start">
+              <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm" type="button" aria-label="Why the agent's note is unverified" aria-describedby="ar-k8s-note-tip"><i class="gw-icon" data-lucide="info"></i></button>
+              <span class="gw-tooltip__bubble" role="tooltip" id="ar-k8s-note-tip">Written by the agent, not checked by the gateway. It can repeat text from data the agent read (tickets, logs, web pages), so decide on the exact action above.</span>
+            </span>
+          </div>
+          <blockquote class="gw-card gw-card--muted gw-approval-request__note">
+            <p class="gw-text-body-read">The api pods still use the old ORDER_SYNC_URL after the ConfigMap change. A restart makes them read it again.</p>
+          </blockquote>
+        </section>
+      </div>
+
+      <footer class="gw-card__footer gw-approval-request__footer">
+        <div class="gw-approval-request__decision" role="group" aria-label="Decision on k8s_rollout_restart on dev-cluster">
+          <div class="gw-field">
+            <label class="gw-field__label" for="ar-k8s-comment">Comment <span class="gw-field__optional">(optional)</span></label>
+            <textarea class="gw-textarea" id="ar-k8s-comment" rows="2" aria-describedby="ar-k8s-comment-hint"></textarea>
+            <p class="gw-field__hint" id="ar-k8s-comment-hint">Sent to Claude Desktop with your decision and kept in the audit log.</p>
+          </div>
+          <div class="gw-approval-request__decision-row">
+            <p class="gw-text-caption gw-fg-muted">Runs once, exactly as shown above. Claude Desktop gets the result in the same call.</p>
+            <div class="gw-approval-request__buttons">
+              <button class="gw-btn gw-btn--danger" type="button">Deny<span class="gw-sr-only"> k8s_rollout_restart on dev-cluster</span></button>
+              <button class="gw-btn gw-btn--approve" type="button">Approve and run<span class="gw-sr-only"> k8s_rollout_restart on dev-cluster</span></button>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </article>
+  </section>
+
+  <!-- ═════════════════════ Pending · HTTP on stage ═════════════════════ -->
+  <section class="gw-section" aria-labelledby="s-http">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-http">Pending: HTTP request with a JSON body on stage</h2>
+      <p class="gw-section__description">Method, URL, headers and body exactly as sent. The credential the gateway injects stays masked. Impact flags that the connection failed its last health check. The stage policy gives 10 min before auto-deny.</p>
+    </header>
+
+    <article class="gw-card gw-approval-request" data-state="pending" id="ar-http" aria-labelledby="ar-http-title">
+      <header class="gw-card__header gw-approval-request__header">
+        <div class="gw-card__heading gw-approval-request__heading">
+          <h3 class="gw-card__title gw-approval-request__title" id="ar-http-title" tabindex="-1">
+            <code class="gw-code">http_request</code> on <span class="gw-approval-request__target"><code class="gw-code">billing-api</code>
+            <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--stage">stage</span></span>
+          </h3>
+          <dl class="gw-kv gw-kv--inline gw-approval-request__meta">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Mode</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">dev</code></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">AI app</dt><dd class="gw-kv__value"><span class="gw-approval-request__client"><span class="gw-client-mark gw-client-mark--codex gw-client-mark--sm" aria-hidden="true">Cx</span>Codex</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Token</dt><dd class="gw-kv__value"><code class="gw-code">codex-laptop</code></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Requested</dt><dd class="gw-kv__value"><time class="gw-tabular" datetime="2026-10-22T14:29:30+02:00" title="2026-10-22 14:29:30 CEST">30 s ago</time></dd></div>
+          </dl>
+        </div>
+        <div class="gw-approval-request__status">
+          <span class="gw-badge gw-badge--warning"><i class="gw-icon gw-badge__icon" data-lucide="hourglass"></i>Waiting for approval</span>
+          <div class="gw-approval-request__countdown" data-gw-countdown="570" data-gw-countdown-total="600">
+            <p class="gw-approval-request__countdown-text gw-text-small gw-tabular" role="timer"><i class="gw-icon gw-icon--sm gw-fg-warning" data-lucide="timer"></i>Auto-deny in <span data-gw-countdown-text>9:30</span></p>
+            <div class="gw-progress gw-progress--sm gw-progress--warning" aria-hidden="true"><div class="gw-progress__bar"></div></div>
+          </div>
+        </div>
+      </header>
+
+      <div class="gw-card__body gw-approval-request__body">
+        <section class="gw-approval-request__section" aria-labelledby="ar-http-action">
+          <h4 class="gw-text-h3" id="ar-http-action">Exact action</h4>
+          <div class="gw-code-block gw-code-block--wrap">
+            <div class="gw-code-block__header">
+              <span class="gw-code-block__lang">HTTP</span>
+              <span class="gw-code-block__filename">http_request · billing-api · billing.stage.acme.dev</span>
+              <div class="gw-code-block__actions">
+                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ar-http-code">
+                  <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> request for billing-api</span></span>
+                  <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                </button>
+              </div>
+            </div>
+            <div class="gw-code-block__body" tabindex="0" role="region" aria-label="HTTP request to approve on billing-api">
+<pre class="gw-code-block__pre" id="ar-http-code"><code><span class="gw-code-block__line"><span class="gw-tok-keyword">POST</span> <span class="gw-tok-string">https://billing.stage.acme.dev/v1/refunds</span></span>
+<span class="gw-code-block__line"><span class="gw-tok-property">Content-Type</span><span class="gw-tok-punctuation">:</span> application/json</span>
+<span class="gw-code-block__line"><span class="gw-tok-property">Idempotency-Key</span><span class="gw-tok-punctuation">:</span> refund-48213</span>
+<span class="gw-code-block__line"><span class="gw-tok-property">Authorization</span><span class="gw-tok-punctuation">:</span> <span class="gw-tok-secret">‹masked›</span></span>
+<span class="gw-code-block__line"></span>
+<span class="gw-code-block__line"><span class="gw-tok-punctuation">{</span></span>
+<span class="gw-code-block__line">  <span class="gw-tok-property">"order_id"</span><span class="gw-tok-punctuation">:</span> <span class="gw-tok-number">48213</span><span class="gw-tok-punctuation">,</span></span>
+<span class="gw-code-block__line">  <span class="gw-tok-property">"amount"</span><span class="gw-tok-punctuation">:</span> <span class="gw-tok-number">1999</span><span class="gw-tok-punctuation">,</span></span>
+<span class="gw-code-block__line">  <span class="gw-tok-property">"currency"</span><span class="gw-tok-punctuation">:</span> <span class="gw-tok-string">"EUR"</span><span class="gw-tok-punctuation">,</span></span>
+<span class="gw-code-block__line">  <span class="gw-tok-property">"reason"</span><span class="gw-tok-punctuation">:</span> <span class="gw-tok-string">"duplicate charge on order 48213"</span></span>
+<span class="gw-code-block__line"><span class="gw-tok-punctuation">}</span></span></code></pre>
+            </div>
+          </div>
+        </section>
+
+        <div class="gw-approval-request__facts">
+          <section class="gw-approval-request__section" aria-labelledby="ar-http-why">
+            <h4 class="gw-text-h3" id="ar-http-why">Why approval is needed</h4>
+            <p class="gw-text-body-read"><code class="gw-code">http_request</code> on <code class="gw-code">billing-api</code>: POST, PUT, PATCH and DELETE require approval.</p>
+            <p class="gw-approval-request__rule gw-text-caption gw-fg-muted">Rule <code class="gw-code">stage.http.write-approval</code> <a class="gw-link" href="../pages/policies.html">Open in Policies<span class="gw-sr-only">: rule stage.http.write-approval</span></a></p>
+          </section>
+          <section class="gw-approval-request__section" aria-labelledby="ar-http-impact">
+            <h4 class="gw-text-h3" id="ar-http-impact">Impact</h4>
+            <dl class="gw-kv gw-kv--dense">
+              <div class="gw-kv__row"><dt class="gw-kv__key">Host</dt><dd class="gw-kv__value"><code class="gw-code">billing.stage.acme.dev</code>, in the allowlist</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Retries</dt><dd class="gw-kv__value">Safe: idempotency key set</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Timeout</dt><dd class="gw-kv__value gw-tabular">10 s</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Connection</dt><dd class="gw-kv__value"><span class="gw-status gw-status--danger"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Unreachable · checked 3 min ago</span></span></dd></div>
+            </dl>
+          </section>
+        </div>
+
+        <section class="gw-approval-request__section" aria-labelledby="ar-http-note">
+          <div class="gw-approval-request__section-header">
+            <h4 class="gw-text-h3" id="ar-http-note">Agent's note · unverified</h4>
+            <span class="gw-tooltip gw-tooltip--start">
+              <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm" type="button" aria-label="Why the agent's note is unverified" aria-describedby="ar-http-note-tip"><i class="gw-icon" data-lucide="info"></i></button>
+              <span class="gw-tooltip__bubble" role="tooltip" id="ar-http-note-tip">Written by the agent, not checked by the gateway. It can repeat text from data the agent read (tickets, logs, web pages), so decide on the exact action above.</span>
+            </span>
+          </div>
+          <blockquote class="gw-card gw-card--muted gw-approval-request__note">
+            <p class="gw-text-body-read">The customer was charged twice for order 48213. Refunding the duplicate charge of 19.99 EUR.</p>
+          </blockquote>
+        </section>
+      </div>
+
+      <footer class="gw-card__footer gw-approval-request__footer">
+        <div class="gw-approval-request__decision" role="group" aria-label="Decision on http_request on billing-api">
+          <div class="gw-field">
+            <label class="gw-field__label" for="ar-http-comment">Comment <span class="gw-field__optional">(optional)</span></label>
+            <textarea class="gw-textarea" id="ar-http-comment" rows="2" aria-describedby="ar-http-comment-hint"></textarea>
+            <p class="gw-field__hint" id="ar-http-comment-hint">Sent to Codex with your decision and kept in the audit log.</p>
+          </div>
+          <div class="gw-approval-request__decision-row">
+            <p class="gw-text-caption gw-fg-muted">Runs once, exactly as shown above. Codex gets the result in the same call.</p>
+            <div class="gw-approval-request__buttons">
+              <button class="gw-btn gw-btn--danger" type="button">Deny<span class="gw-sr-only"> http_request on billing-api</span></button>
+              <button class="gw-btn gw-btn--approve" type="button">Approve and run<span class="gw-sr-only"> http_request on billing-api</span></button>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </article>
+  </section>
+
+  <!-- ═════════════════════ Pending · prod ═════════════════════ -->
+  <section class="gw-section" aria-labelledby="s-prod">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-prod">Pending on production: a runbook</h2>
+      <p class="gw-section__description">A prod connection is reached only through the prod endpoint (<code class="gw-code">incident-prod</code>), and on <code class="gw-code">prod-vm</code> agents run runbooks only. The exact action is the runbook, its parameters and the command it expands to. A danger alert opens the body, the prod marker is red, and the prod policy gives 10 min before auto-deny. <strong>Comment required</strong> (prod default, Settings › Approval rules): the label has no “(optional)” but a required marker, and Approve and run stays <code class="gw-code">aria-disabled</code>, described by “Add a comment to approve on prod”, until the comment has text (kit.js <code class="gw-code">data-gw-enable-when</code>). Deny never needs a comment.</p>
+    </header>
+
+    <article class="gw-card gw-approval-request" data-state="pending" id="ar-prod" aria-labelledby="ar-prod-title">
+      <header class="gw-card__header gw-approval-request__header">
+        <div class="gw-card__heading gw-approval-request__heading">
+          <h3 class="gw-card__title gw-approval-request__title" id="ar-prod-title" tabindex="-1">
+            <code class="gw-code">ssh_run</code> on <span class="gw-approval-request__target"><code class="gw-code">prod-vm</code>
+            <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--prod">prod</span></span>
+          </h3>
+          <dl class="gw-kv gw-kv--inline gw-approval-request__meta">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Mode</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">incident-prod</code></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">AI app</dt><dd class="gw-kv__value"><span class="gw-approval-request__client"><span class="gw-client-mark gw-client-mark--claude gw-client-mark--sm" aria-hidden="true">CD</span>Claude Desktop</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Token</dt><dd class="gw-kv__value">Bridge (.mcpb)</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Requested</dt><dd class="gw-kv__value"><time class="gw-tabular" datetime="2026-10-22T14:29:05+02:00" title="2026-10-22 14:29:05 CEST">55 s ago</time></dd></div>
+          </dl>
+        </div>
+        <div class="gw-approval-request__status">
+          <span class="gw-badge gw-badge--warning"><i class="gw-icon gw-badge__icon" data-lucide="hourglass"></i>Waiting for approval</span>
+          <div class="gw-approval-request__countdown" data-gw-countdown="545" data-gw-countdown-total="600">
+            <p class="gw-approval-request__countdown-text gw-text-small gw-tabular" role="timer"><i class="gw-icon gw-icon--sm gw-fg-warning" data-lucide="timer"></i>Auto-deny in <span data-gw-countdown-text>9:05</span></p>
+            <div class="gw-progress gw-progress--sm gw-progress--warning" aria-hidden="true"><div class="gw-progress__bar"></div></div>
+          </div>
+        </div>
+      </header>
+
+      <div class="gw-card__body gw-approval-request__body">
+        <div class="gw-alert gw-alert--danger">
+          <i class="gw-icon gw-alert__icon" data-lucide="circle-alert"></i>
+          <div class="gw-alert__content">
+            <p class="gw-alert__title">This runs on production</p>
+            <p class="gw-alert__body"><span class="gw-mono">prod-vm</span> serves live traffic. Restarting <span class="gw-mono">api.service</span> drops in-flight requests for about 10 s. Check the runbook; a comment is required to approve.</p>
+          </div>
+        </div>
+
+        <section class="gw-approval-request__section" aria-labelledby="ar-prod-action">
+          <h4 class="gw-text-h3" id="ar-prod-action">Exact action</h4>
+          <div class="gw-code-block gw-code-block--wrap">
+            <div class="gw-code-block__header">
+              <span class="gw-code-block__lang">Runbook</span>
+              <span class="gw-code-block__filename">ssh_run · prod-vm · 10.40.0.21 · runbook restart-api · as deploy</span>
+              <div class="gw-code-block__actions">
+                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ar-prod-code">
+                  <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> runbook command for prod-vm</span></span>
+                  <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                </button>
+              </div>
+            </div>
+            <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Runbook to approve on prod-vm">
+<pre class="gw-code-block__pre" id="ar-prod-code"><code><span class="gw-code-block__line"><span class="gw-tok-comment"># runbook restart-api · parameters: none · expands to:</span></span>
+<span class="gw-code-block__line"><span class="gw-tok-function">sudo</span> systemctl restart api.service</span></code></pre>
+            </div>
+          </div>
+        </section>
+
+        <div class="gw-approval-request__facts">
+          <section class="gw-approval-request__section" aria-labelledby="ar-prod-why">
+            <h4 class="gw-text-h3" id="ar-prod-why">Why approval is needed</h4>
+            <p class="gw-text-body-read"><code class="gw-code">restart-api</code> changes the host. Every runbook that is not read only runs on prod only after a human approves it with a comment.</p>
+            <p class="gw-approval-request__rule gw-text-caption gw-fg-muted">Rule <code class="gw-code">prod.ssh.write-approval</code> <a class="gw-link" href="../pages/policies.html">Open in Policies<span class="gw-sr-only">: rule prod.ssh.write-approval</span></a></p>
+          </section>
+          <section class="gw-approval-request__section" aria-labelledby="ar-prod-impact">
+            <h4 class="gw-text-h3" id="ar-prod-impact">Impact</h4>
+            <dl class="gw-kv gw-kv--dense">
+              <div class="gw-kv__row"><dt class="gw-kv__key">Runbook</dt><dd class="gw-kv__value"><code class="gw-code">restart-api</code> · no parameters</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Host</dt><dd class="gw-kv__value"><code class="gw-code">prod-vm</code> · <code class="gw-code">10.40.0.21</code></dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Runs as</dt><dd class="gw-kv__value"><code class="gw-code">deploy</code>, SSH CA certificate valid 5 min</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Timeout</dt><dd class="gw-kv__value gw-tabular">60 s</dd></div>
+            </dl>
+          </section>
+        </div>
+
+        <section class="gw-approval-request__section" aria-labelledby="ar-prod-note">
+          <div class="gw-approval-request__section-header">
+            <h4 class="gw-text-h3" id="ar-prod-note">Agent's note · unverified</h4>
+            <span class="gw-tooltip gw-tooltip--start">
+              <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm" type="button" aria-label="Why the agent's note is unverified" aria-describedby="ar-prod-note-tip"><i class="gw-icon" data-lucide="info"></i></button>
+              <span class="gw-tooltip__bubble" role="tooltip" id="ar-prod-note-tip">Written by the agent, not checked by the gateway. It can repeat text from data the agent read (tickets, logs, web pages), so decide on the exact action above.</span>
+            </span>
+          </div>
+          <blockquote class="gw-card gw-card--muted gw-approval-request__note">
+            <p class="gw-text-body-read">The api on prod has returned 502 since 13:52, according to prod-logs, and service-status shows it stuck. The runbook for this is restart-api.</p>
+          </blockquote>
+        </section>
+      </div>
+
+      <footer class="gw-card__footer gw-approval-request__footer">
+        <div class="gw-approval-request__decision" role="group" aria-label="Decision on ssh_run on prod-vm">
+          <div class="gw-field">
+            <label class="gw-field__label" for="ar-prod-comment">Comment <span class="gw-field__required"><span aria-hidden="true">*</span><span class="gw-sr-only">required</span></span></label>
+            <textarea class="gw-textarea" id="ar-prod-comment" rows="2" required aria-describedby="ar-prod-comment-hint"></textarea>
+            <p class="gw-field__hint" id="ar-prod-comment-hint">Required on prod to approve: say why this has to run now. Sent to Claude Desktop with your decision and kept in the audit log.</p>
+          </div>
+          <div class="gw-approval-request__decision-row">
+            <p class="gw-text-caption gw-fg-muted"><span id="ar-prod-approve-why">Add a comment to approve on prod.</span> Runs once on production, exactly as shown above.</p>
+            <div class="gw-approval-request__buttons">
+              <button class="gw-btn gw-btn--danger" type="button">Deny<span class="gw-sr-only"> ssh_run on prod-vm</span></button>
+              <button class="gw-btn gw-btn--approve" type="button" aria-disabled="true" aria-describedby="ar-prod-approve-why" data-gw-enable-when="#ar-prod-comment">Approve and run<span class="gw-sr-only"> ssh_run on prod-vm</span></button>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </article>
+  </section>
+
+  <!-- ═════════════════════ Pending · hidden characters ═════════════════════ -->
+  <section class="gw-section" aria-labelledby="s-hidden">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-hidden">Pending: the action contains hidden characters</h2>
+      <p class="gw-section__description">Verbatim is not enough when a character can't be seen. Bidi overrides, zero-width characters, tabs and trailing spaces render as boxed escapes (<code class="gw-code">gw-tok-invisible</code>); a look-alike non-ASCII letter outside a string is boxed as itself (<code class="gw-code">gw-tok-confusable</code>). A warning above the block counts and names them. Long lines wrap, and a wrapped line hangs under its first line.</p>
+    </header>
+
+    <article class="gw-card gw-approval-request" data-state="pending" id="ar-hidden" aria-labelledby="ar-hidden-title">
+      <header class="gw-card__header gw-approval-request__header">
+        <div class="gw-card__heading gw-approval-request__heading">
+          <h3 class="gw-card__title gw-approval-request__title" id="ar-hidden-title" tabindex="-1">
+            <code class="gw-code">sql_execute</code> on <span class="gw-approval-request__target"><code class="gw-code">dev-db</code>
+            <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev">dev</span></span>
+          </h3>
+          <dl class="gw-kv gw-kv--inline gw-approval-request__meta">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Mode</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">dev</code></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">AI app</dt><dd class="gw-kv__value"><span class="gw-approval-request__client"><span class="gw-client-mark gw-client-mark--codex gw-client-mark--sm" aria-hidden="true">Cx</span>Codex</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Token</dt><dd class="gw-kv__value"><code class="gw-code">codex-laptop</code></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Requested</dt><dd class="gw-kv__value"><time class="gw-tabular" datetime="2026-10-22T14:28:56+02:00" title="2026-10-22 14:28:56 CEST">1 min ago</time></dd></div>
+          </dl>
+        </div>
+        <div class="gw-approval-request__status">
+          <span class="gw-badge gw-badge--warning"><i class="gw-icon gw-badge__icon" data-lucide="hourglass"></i>Waiting for approval</span>
+          <div class="gw-approval-request__countdown" data-gw-countdown="236" data-gw-countdown-total="300">
+            <p class="gw-approval-request__countdown-text gw-text-small gw-tabular" role="timer"><i class="gw-icon gw-icon--sm gw-fg-warning" data-lucide="timer"></i>Auto-deny in <span data-gw-countdown-text>3:56</span></p>
+            <div class="gw-progress gw-progress--sm gw-progress--warning" aria-hidden="true"><div class="gw-progress__bar"></div></div>
+          </div>
+        </div>
+      </header>
+
+      <div class="gw-card__body gw-approval-request__body">
+        <section class="gw-approval-request__section" aria-labelledby="ar-hidden-action">
+          <h4 class="gw-text-h3" id="ar-hidden-action">Exact action</h4>
+          <div class="gw-alert gw-alert--warning gw-alert--compact" id="ar-hidden-warning">
+            <i class="gw-icon gw-alert__icon" data-lucide="triangle-alert"></i>
+            <div class="gw-alert__content">
+              <p class="gw-alert__title">Contains 3 hidden characters and 1 look-alike letter</p>
+              <p class="gw-alert__body"><span class="gw-mono">‹U+202E›</span> right-to-left override, <span class="gw-mono">‹U+2066›</span> left-to-right isolate and <span class="gw-mono">‹U+2069›</span> pop directional isolate change how the text reads; the <span class="gw-mono">о</span> in <span class="gw-mono">оrders</span> is Cyrillic (U+043E), not a Latin o. All are shown boxed below. Deny unless you expected them.</p>
+            </div>
+          </div>
+          <div class="gw-code-block gw-code-block--wrap">
+            <div class="gw-code-block__header">
+              <span class="gw-code-block__lang">SQL</span>
+              <span class="gw-code-block__filename">sql_execute · dev-db · db.dev.internal:5432/app · 2 statements</span>
+              <div class="gw-code-block__actions">
+                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ar-hidden-code">
+                  <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> statement with escapes for dev-db</span></span>
+                  <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                </button>
+              </div>
+            </div>
+            <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Statement to approve on dev-db, with hidden characters shown" aria-describedby="ar-hidden-warning">
+<pre class="gw-code-block__pre" id="ar-hidden-code"><code><span class="gw-code-block__line"><span class="gw-tok-keyword">UPDATE</span> <span class="gw-tok-confusable" title="U+043E Cyrillic small letter o">о</span>rders <span class="gw-tok-keyword">SET</span> status <span class="gw-tok-punctuation">=</span> <span class="gw-tok-string">'cancelled'</span>, note <span class="gw-tok-punctuation">=</span> <span class="gw-tok-string">'customer asked in SUP-1190, refund handled by billing'</span> <span class="gw-tok-keyword">WHERE</span> id <span class="gw-tok-punctuation">=</span> <span class="gw-tok-number">48213</span><span class="gw-tok-punctuation">;</span><span class="gw-tok-invisible" title="U+202E right-to-left override">‹U+202E›</span></span>
+<span class="gw-code-block__line"><span class="gw-tok-invisible" title="U+2066 left-to-right isolate">‹U+2066›</span><span class="gw-tok-keyword">DELETE FROM</span> payments <span class="gw-tok-keyword">WHERE</span> order_id <span class="gw-tok-punctuation">=</span> <span class="gw-tok-number">48213</span><span class="gw-tok-punctuation">;</span><span class="gw-tok-invisible" title="U+2069 pop directional isolate">‹U+2069›</span></span></code></pre>
+            </div>
+          </div>
+        </section>
+
+        <div class="gw-approval-request__facts">
+          <section class="gw-approval-request__section" aria-labelledby="ar-hidden-why">
+            <h4 class="gw-text-h3" id="ar-hidden-why">Why approval is needed</h4>
+            <p class="gw-text-body-read"><code class="gw-code">sql_execute</code> on <code class="gw-code">dev-db</code>: DML requires approval. Statements that change rows always wait for a human.</p>
+            <p class="gw-approval-request__rule gw-text-caption gw-fg-muted">Rule <code class="gw-code">dev.sql.write-approval</code> <a class="gw-link" href="../pages/policies.html">Open in Policies<span class="gw-sr-only">: rule dev.sql.write-approval</span></a></p>
+          </section>
+          <section class="gw-approval-request__section" aria-labelledby="ar-hidden-impact">
+            <h4 class="gw-text-h3" id="ar-hidden-impact">Impact</h4>
+            <dl class="gw-kv gw-kv--dense">
+              <div class="gw-kv__row"><dt class="gw-kv__key">Statements</dt><dd class="gw-kv__value">2: UPDATE, DELETE</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Target tables</dt><dd class="gw-kv__value"><code class="gw-code">оrders</code> (not <code class="gw-code">orders</code>), <code class="gw-code">payments</code></dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Transaction</dt><dd class="gw-kv__value">Yes, rolled back on error</dd></div>
+            </dl>
+          </section>
+        </div>
+
+        <section class="gw-approval-request__section" aria-labelledby="ar-hidden-note">
+          <div class="gw-approval-request__section-header">
+            <h4 class="gw-text-h3" id="ar-hidden-note">Agent's note · unverified</h4>
+            <span class="gw-tooltip gw-tooltip--start">
+              <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm" type="button" aria-label="Why the agent's note is unverified" aria-describedby="ar-hidden-note-tip"><i class="gw-icon" data-lucide="info"></i></button>
+              <span class="gw-tooltip__bubble" role="tooltip" id="ar-hidden-note-tip">Written by the agent, not checked by the gateway. It can repeat text from data the agent read (tickets, logs, web pages), so decide on the exact action above.</span>
+            </span>
+          </div>
+          <blockquote class="gw-card gw-card--muted gw-approval-request__note">
+            <p class="gw-text-body-read">Cancelling order 48213 as the customer asked in ticket SUP-1190.</p>
+          </blockquote>
+        </section>
+      </div>
+
+      <footer class="gw-card__footer gw-approval-request__footer">
+        <div class="gw-approval-request__decision" role="group" aria-label="Decision on sql_execute on dev-db, with hidden characters">
+          <div class="gw-field">
+            <label class="gw-field__label" for="ar-hidden-comment">Comment <span class="gw-field__optional">(optional)</span></label>
+            <textarea class="gw-textarea" id="ar-hidden-comment" rows="2" aria-describedby="ar-hidden-comment-hint"></textarea>
+            <p class="gw-field__hint" id="ar-hidden-comment-hint">Sent to Codex with your decision and kept in the audit log.</p>
+          </div>
+          <div class="gw-approval-request__decision-row">
+            <p class="gw-text-caption gw-fg-muted">Runs once, exactly as shown above, hidden characters included.</p>
+            <div class="gw-approval-request__buttons">
+              <button class="gw-btn gw-btn--danger" type="button">Deny<span class="gw-sr-only"> sql_execute on dev-db with hidden characters</span></button>
+              <button class="gw-btn gw-btn--approve" type="button">Approve and run<span class="gw-sr-only"> sql_execute on dev-db with hidden characters</span></button>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </article>
+  </section>
+
+  <!-- ═════════════════════ Partially approved ═════════════════════ -->
+  <section class="gw-section" aria-labelledby="s-partial">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-partial">Server mode preview: approved by 1 of 2</h2>
+      <p class="gw-section__description">Server mode only, with named people and a dev policy that needs 2 approvers. On the desktop there is one local user, and every decision reads “by you”. Priya Nair approved; this is what Alex Morgan sees. The history moves above the decision, the button says whose approval this is and that it runs, and the countdown keeps going. Priya herself sees no buttons, only “You approved · waiting for 1 more approver”: nobody approves twice.</p>
+    </header>
+
+    <article class="gw-card gw-approval-request" data-state="partial" id="ar-partial" aria-labelledby="ar-partial-title">
+      <header class="gw-card__header gw-approval-request__header">
+        <div class="gw-card__heading gw-approval-request__heading">
+          <h3 class="gw-card__title gw-approval-request__title" id="ar-partial-title" tabindex="-1">
+            <code class="gw-code">sql_execute</code> on <span class="gw-approval-request__target"><code class="gw-code">dev-db</code>
+            <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev">dev</span></span>
+          </h3>
+          <dl class="gw-kv gw-kv--inline gw-approval-request__meta">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Mode</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">dev</code></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">AI app</dt><dd class="gw-kv__value"><span class="gw-approval-request__client"><span class="gw-client-mark gw-client-mark--codex gw-client-mark--sm" aria-hidden="true">Cx</span>Codex</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Token</dt><dd class="gw-kv__value"><code class="gw-code">codex-laptop</code></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Requested</dt><dd class="gw-kv__value"><time class="gw-tabular" datetime="2026-10-22T14:29:12+02:00" title="2026-10-22 14:29:12 CEST">48 s ago</time></dd></div>
+          </dl>
+        </div>
+        <div class="gw-approval-request__status">
+          <span class="gw-badge gw-badge--warning"><i class="gw-icon gw-badge__icon" data-lucide="user-check"></i>Approved by 1 of 2</span>
+          <div class="gw-approval-request__countdown" data-gw-countdown="252" data-gw-countdown-total="300">
+            <p class="gw-approval-request__countdown-text gw-text-small gw-tabular" role="timer"><i class="gw-icon gw-icon--sm gw-fg-warning" data-lucide="timer"></i>Auto-deny in <span data-gw-countdown-text>4:12</span></p>
+            <div class="gw-progress gw-progress--sm gw-progress--warning" aria-hidden="true"><div class="gw-progress__bar"></div></div>
+          </div>
+        </div>
+      </header>
+
+      <div class="gw-card__body gw-approval-request__body">
+        <section class="gw-approval-request__section" aria-labelledby="ar-partial-action">
+          <h4 class="gw-text-h3" id="ar-partial-action">Exact action</h4>
+          <div class="gw-code-block gw-code-block--wrap">
+            <div class="gw-code-block__header">
+              <span class="gw-code-block__lang">SQL</span>
+              <span class="gw-code-block__filename">sql_execute · dev-db · db.dev.internal:5432/app</span>
+              <div class="gw-code-block__actions">
+                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ar-partial-code">
+                  <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> statement approved by 1 of 2</span></span>
+                  <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                </button>
+              </div>
+            </div>
+            <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Statement approved by 1 of 2 on dev-db">
+<pre class="gw-code-block__pre" id="ar-partial-code"><code><span class="gw-code-block__line"><span class="gw-tok-keyword">UPDATE</span> orders <span class="gw-tok-keyword">SET</span> status <span class="gw-tok-punctuation">=</span> <span class="gw-tok-string">'cancelled'</span> <span class="gw-tok-keyword">WHERE</span> id <span class="gw-tok-punctuation">=</span> <span class="gw-tok-number">48213</span><span class="gw-tok-punctuation">;</span></span></code></pre>
+            </div>
+          </div>
+        </section>
+
+        <div class="gw-approval-request__facts">
+          <section class="gw-approval-request__section" aria-labelledby="ar-partial-why">
+            <h4 class="gw-text-h3" id="ar-partial-why">Why approval is needed</h4>
+            <p class="gw-text-body-read"><code class="gw-code">sql_execute</code> on <code class="gw-code">dev-db</code>: DML requires approval, and the dev policy needs 2 approvers.</p>
+            <p class="gw-approval-request__rule gw-text-caption gw-fg-muted">Rule <code class="gw-code">dev.sql.write-approval</code> · 2 approvers <a class="gw-link" href="../pages/policies.html">Open in Policies<span class="gw-sr-only">: rule dev.sql.write-approval</span></a></p>
+          </section>
+          <section class="gw-approval-request__section" aria-labelledby="ar-partial-impact">
+            <h4 class="gw-text-h3" id="ar-partial-impact">Impact</h4>
+            <dl class="gw-kv gw-kv--dense">
+              <div class="gw-kv__row"><dt class="gw-kv__key">Target table</dt><dd class="gw-kv__value"><code class="gw-code">orders</code></dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Estimated rows</dt><dd class="gw-kv__value gw-tabular">1 <span class="gw-fg-muted">(from EXPLAIN)</span></dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Transaction</dt><dd class="gw-kv__value">Yes, rolled back on error</dd></div>
+            </dl>
+          </section>
+        </div>
+
+        <section class="gw-approval-request__section" aria-labelledby="ar-partial-note">
+          <div class="gw-approval-request__section-header">
+            <h4 class="gw-text-h3" id="ar-partial-note">Agent's note · unverified</h4>
+            <span class="gw-tooltip gw-tooltip--start">
+              <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm" type="button" aria-label="Why the agent's note is unverified" aria-describedby="ar-partial-note-tip"><i class="gw-icon" data-lucide="info"></i></button>
+              <span class="gw-tooltip__bubble" role="tooltip" id="ar-partial-note-tip">Written by the agent, not checked by the gateway. It can repeat text from data the agent read (tickets, logs, web pages), so decide on the exact action above.</span>
+            </span>
+          </div>
+          <blockquote class="gw-card gw-card--muted gw-approval-request__note">
+            <p class="gw-text-body-read">Customer asked to cancel order 48213 in ticket SUP-1182. Cancelling it so the order sync stops retrying the payment.</p>
+          </blockquote>
+        </section>
+      </div>
+
+      <footer class="gw-card__footer gw-approval-request__footer">
+        <div class="gw-approval-request__history">
+          <h4 class="gw-text-h3">Approvals so far</h4>
+          <ol class="gw-timeline" aria-label="Approvals so far of sql_execute on dev-db">
+            <li class="gw-timeline__item">
+              <span class="gw-timeline__marker gw-timeline__marker--neutral"><i class="gw-icon gw-icon--sm" data-lucide="send"></i></span>
+              <div class="gw-timeline__content">
+                <p class="gw-timeline__title">Requested by Codex</p>
+                <p class="gw-timeline__meta">Token <code class="gw-code">codex-laptop</code> · endpoint <code class="gw-code">dev</code> · needs 2 approvers</p>
+              </div>
+              <time class="gw-timeline__time" datetime="2026-10-22T14:29:12+02:00" title="2026-10-22 14:29:12 CEST">14:29:12</time>
+            </li>
+            <li class="gw-timeline__item">
+              <span class="gw-timeline__marker gw-timeline__marker--success"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i></span>
+              <div class="gw-timeline__content">
+                <p class="gw-timeline__title">Approved by Priya Nair · 1 of 2</p>
+                <p class="gw-timeline__meta">From Slack · after 31 s · approved action SHA-256 <span class="gw-mono">9e0c4f…a71b</span></p>
+              </div>
+              <time class="gw-timeline__time" datetime="2026-10-22T14:29:43+02:00" title="2026-10-22 14:29:43 CEST">14:29:43</time>
+            </li>
+            <li class="gw-timeline__item" aria-current="step">
+              <span class="gw-timeline__marker gw-timeline__marker--warning"><i class="gw-icon gw-icon--sm" data-lucide="hourglass"></i></span>
+              <div class="gw-timeline__content">
+                <p class="gw-timeline__title">Waiting for a second approver</p>
+                <p class="gw-timeline__meta">Alex Morgan or another approver; not Priya Nair again</p>
+              </div>
+              <time class="gw-timeline__time" datetime="2026-10-22T14:29:43+02:00" title="2026-10-22 14:29:43 CEST">Since 14:29</time>
+            </li>
+          </ol>
+        </div>
+        <div class="gw-approval-request__decision" role="group" aria-label="Your decision on sql_execute on dev-db, as the second approver">
+          <div class="gw-field">
+            <label class="gw-field__label" for="ar-partial-comment">Comment <span class="gw-field__optional">(optional)</span></label>
+            <textarea class="gw-textarea" id="ar-partial-comment" rows="2" aria-describedby="ar-partial-comment-hint"></textarea>
+            <p class="gw-field__hint" id="ar-partial-comment-hint">Sent to Codex with the decision and kept in the audit log.</p>
+          </div>
+          <div class="gw-approval-request__decision-row">
+            <p class="gw-text-caption gw-fg-muted">Yours is the second of 2 approvals: it runs once, exactly as shown above. Deny stops it for everyone.</p>
+            <div class="gw-approval-request__buttons">
+              <button class="gw-btn gw-btn--danger" type="button">Deny<span class="gw-sr-only"> sql_execute on dev-db</span></button>
+              <button class="gw-btn gw-btn--approve" type="button">Approve (2 of 2) and run<span class="gw-sr-only"> sql_execute on dev-db</span></button>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </article>
+  </section>
+
+  <!-- ═════════════════════ Approved (running) ═════════════════════ -->
+  <section class="gw-section" aria-labelledby="s-approved">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-approved">Approved, running</h2>
+      <p class="gw-section__description">The decision bar is replaced by the history; the current step is the run itself. On the desktop the decision is yours: “Approved by you”.</p>
+    </header>
+
+    <article class="gw-card gw-approval-request" data-state="approved" id="ar-approved" aria-labelledby="ar-approved-title">
+      <header class="gw-card__header gw-approval-request__header">
+        <div class="gw-card__heading gw-approval-request__heading">
+          <h3 class="gw-card__title gw-approval-request__title" id="ar-approved-title" tabindex="-1">
+            <code class="gw-code">k8s_rollout_restart</code> on <span class="gw-approval-request__target"><code class="gw-code">dev-cluster</code>
+            <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev">dev</span></span>
+          </h3>
+          <dl class="gw-kv gw-kv--inline gw-approval-request__meta">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Mode</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">dev</code></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">AI app</dt><dd class="gw-kv__value"><span class="gw-approval-request__client"><span class="gw-client-mark gw-client-mark--claude gw-client-mark--sm" aria-hidden="true">CD</span>Claude Desktop</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Token</dt><dd class="gw-kv__value">Bridge (.mcpb)</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Requested</dt><dd class="gw-kv__value"><time class="gw-tabular" datetime="2026-10-22T14:27:31+02:00" title="2026-10-22 14:27:31 CEST">2 min ago</time></dd></div>
+          </dl>
+        </div>
+        <div class="gw-approval-request__status">
+          <span class="gw-badge gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="user-check"></i>Approved</span>
+        </div>
+      </header>
+
+      <div class="gw-card__body gw-approval-request__body">
+        <section class="gw-approval-request__section" aria-labelledby="ar-approved-action">
+          <h4 class="gw-text-h3" id="ar-approved-action">Exact action</h4>
+          <div class="gw-code-block gw-code-block--wrap">
+            <div class="gw-code-block__header">
+              <span class="gw-code-block__lang">Command</span>
+              <span class="gw-code-block__filename">k8s_rollout_restart · dev-cluster · namespace app-dev</span>
+              <div class="gw-code-block__actions">
+                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ar-approved-code">
+                  <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> approved command</span></span>
+                  <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                </button>
+              </div>
+            </div>
+            <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Approved command on dev-cluster">
+<pre class="gw-code-block__pre" id="ar-approved-code"><code><span class="gw-code-block__line"><span class="gw-tok-function">kubectl</span> rollout restart deployment/api <span class="gw-tok-property">--namespace</span> app-dev</span></code></pre>
+            </div>
+          </div>
+        </section>
+
+        <div class="gw-approval-request__facts">
+          <section class="gw-approval-request__section" aria-labelledby="ar-approved-why">
+            <h4 class="gw-text-h3" id="ar-approved-why">Why approval is needed</h4>
+            <p class="gw-text-body-read"><code class="gw-code">k8s_rollout_restart</code> on <code class="gw-code">dev-cluster</code>: restarting a workload requires approval.</p>
+            <p class="gw-approval-request__rule gw-text-caption gw-fg-muted">Rule <code class="gw-code">dev.k8s.write-approval</code> <a class="gw-link" href="../pages/policies.html">Open in Policies<span class="gw-sr-only">: rule dev.k8s.write-approval</span></a></p>
+          </section>
+          <section class="gw-approval-request__section" aria-labelledby="ar-approved-impact">
+            <h4 class="gw-text-h3" id="ar-approved-impact">Impact</h4>
+            <dl class="gw-kv gw-kv--dense">
+              <div class="gw-kv__row"><dt class="gw-kv__key">Workload</dt><dd class="gw-kv__value"><code class="gw-code">deployment/api</code> in <code class="gw-code">app-dev</code></dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Pods restarted</dt><dd class="gw-kv__value gw-tabular">3, one at a time</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Expected downtime</dt><dd class="gw-kv__value">None (rolling, max unavailable 0)</dd></div>
+            </dl>
+          </section>
+        </div>
+
+        <section class="gw-approval-request__section" aria-labelledby="ar-approved-note">
+          <div class="gw-approval-request__section-header">
+            <h4 class="gw-text-h3" id="ar-approved-note">Agent's note · unverified</h4>
+            <span class="gw-tooltip gw-tooltip--start">
+              <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm" type="button" aria-label="Why the agent's note is unverified" aria-describedby="ar-approved-note-tip"><i class="gw-icon" data-lucide="info"></i></button>
+              <span class="gw-tooltip__bubble" role="tooltip" id="ar-approved-note-tip">Written by the agent, not checked by the gateway. It can repeat text from data the agent read (tickets, logs, web pages), so decide on the exact action above.</span>
+            </span>
+          </div>
+          <blockquote class="gw-card gw-card--muted gw-approval-request__note">
+            <p class="gw-text-body-read">The api pods still use the old ORDER_SYNC_URL after the ConfigMap change. A restart makes them read it again.</p>
+          </blockquote>
+        </section>
+      </div>
+
+      <footer class="gw-card__footer gw-approval-request__footer">
+        <div class="gw-approval-request__history">
+          <h4 class="gw-text-h3">History</h4>
+          <ol class="gw-timeline" aria-label="Approval history of k8s_rollout_restart on dev-cluster">
+            <li class="gw-timeline__item">
+              <span class="gw-timeline__marker gw-timeline__marker--neutral"><i class="gw-icon gw-icon--sm" data-lucide="send"></i></span>
+              <div class="gw-timeline__content">
+                <p class="gw-timeline__title">Requested by Claude Desktop</p>
+                <p class="gw-timeline__meta">Bridge token (.mcpb) · endpoint <code class="gw-code">dev</code></p>
+              </div>
+              <time class="gw-timeline__time" datetime="2026-10-22T14:27:31+02:00" title="2026-10-22 14:27:31 CEST">14:27:31</time>
+            </li>
+            <li class="gw-timeline__item">
+              <span class="gw-timeline__marker gw-timeline__marker--info"><i class="gw-icon gw-icon--sm" data-lucide="bell"></i></span>
+              <div class="gw-timeline__content">
+                <p class="gw-timeline__title">Notified on the desktop and in Slack</p>
+                <p class="gw-timeline__meta">Sent to you · auto-deny after 5 min</p>
+              </div>
+              <time class="gw-timeline__time" datetime="2026-10-22T14:27:31+02:00" title="2026-10-22 14:27:31 CEST">14:27:31</time>
+            </li>
+            <li class="gw-timeline__item">
+              <span class="gw-timeline__marker gw-timeline__marker--success"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i></span>
+              <div class="gw-timeline__content">
+                <p class="gw-timeline__title">Approved by you</p>
+                <p class="gw-timeline__meta">In the app · after 1 min 49 s</p>
+                <blockquote class="gw-timeline__comment"><p>Config change is merged, restart is expected.</p></blockquote>
+              </div>
+              <time class="gw-timeline__time" datetime="2026-10-22T14:29:20+02:00" title="2026-10-22 14:29:20 CEST">14:29:20</time>
+            </li>
+            <li class="gw-timeline__item" aria-current="step">
+              <span class="gw-timeline__marker gw-timeline__marker--info"><i class="gw-icon gw-icon--sm" data-lucide="loader-circle"></i></span>
+              <div class="gw-timeline__content">
+                <p class="gw-timeline__title">Running on dev-cluster</p>
+                <p class="gw-timeline__meta">2 of 3 pods restarted</p>
+              </div>
+              <time class="gw-timeline__time" datetime="2026-10-22T14:29:20+02:00" title="2026-10-22 14:29:20 CEST">Since 14:29</time>
+            </li>
+          </ol>
+        </div>
+      </footer>
+    </article>
+  </section>
+
+  <!-- ═════════════════════ Rejected (diff) ═════════════════════ -->
+  <section class="gw-section" aria-labelledby="s-rejected">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-rejected">Rejected: manifest diff</h2>
+      <p class="gw-section__description">A human Deny ends as Rejected. The exact action of <code class="gw-code">k8s_apply</code> is a diff; the comment went back to the agent. “Rejected by you”: on the desktop every decision is the local user's.</p>
+    </header>
+
+    <article class="gw-card gw-approval-request" data-state="rejected" id="ar-rejected" aria-labelledby="ar-rejected-title">
+      <header class="gw-card__header gw-approval-request__header">
+        <div class="gw-card__heading gw-approval-request__heading">
+          <h3 class="gw-card__title gw-approval-request__title" id="ar-rejected-title" tabindex="-1">
+            <code class="gw-code">k8s_apply</code> on <span class="gw-approval-request__target"><code class="gw-code">dev-cluster</code>
+            <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev">dev</span></span>
+          </h3>
+          <dl class="gw-kv gw-kv--inline gw-approval-request__meta">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Mode</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">dev</code></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">AI app</dt><dd class="gw-kv__value"><span class="gw-approval-request__client"><span class="gw-client-mark gw-client-mark--claude gw-client-mark--sm" aria-hidden="true">CD</span>Claude Desktop</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Token</dt><dd class="gw-kv__value">Bridge (.mcpb)</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Requested</dt><dd class="gw-kv__value"><time class="gw-tabular" datetime="2026-10-22T13:41:05+02:00" title="2026-10-22 13:41:05 CEST">49 min ago</time></dd></div>
+          </dl>
+        </div>
+        <div class="gw-approval-request__status">
+          <span class="gw-badge gw-badge--danger"><i class="gw-icon gw-badge__icon" data-lucide="user-x"></i>Rejected</span>
+        </div>
+      </header>
+
+      <div class="gw-card__body gw-approval-request__body">
+        <section class="gw-approval-request__section" aria-labelledby="ar-rejected-action">
+          <h4 class="gw-text-h3" id="ar-rejected-action">Exact action</h4>
+          <div class="gw-diff">
+            <div class="gw-diff__header">
+              <span class="gw-diff__filename">k8s_apply · deployment/api · app-dev</span>
+              <span class="gw-diff__summary">2 lines changed</span>
+            </div>
+            <div class="gw-diff__body" tabindex="0" role="region" aria-label="Changes to deployment/api that were rejected">
+              <div class="gw-diff__line gw-diff__line--hunk"><span class="gw-diff__text">@@ -12,4 +12,4 @@ metadata:</span></div>
+              <div class="gw-diff__line gw-diff__line--context">
+                <span class="gw-diff__gutter" aria-hidden="true">12</span><span class="gw-diff__gutter" aria-hidden="true">12</span><span class="gw-diff__marker" aria-hidden="true"></span>
+                <span class="gw-diff__text">spec:</span>
+              </div>
+              <div class="gw-diff__line gw-diff__line--del">
+                <span class="gw-diff__gutter" aria-hidden="true">13</span><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__marker" aria-hidden="true">−</span><span class="gw-sr-only">Removed: </span>
+                <span class="gw-diff__text">  replicas: 2</span>
+              </div>
+              <div class="gw-diff__line gw-diff__line--add">
+                <span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">13</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span>
+                <span class="gw-diff__text">  replicas: 3</span>
+              </div>
+              <div class="gw-diff__line gw-diff__line--context">
+                <span class="gw-diff__gutter" aria-hidden="true">14</span><span class="gw-diff__gutter" aria-hidden="true">14</span><span class="gw-diff__marker" aria-hidden="true"></span>
+                <span class="gw-diff__text">  selector:</span>
+              </div>
+              <div class="gw-diff__line gw-diff__line--hunk"><span class="gw-diff__text">@@ -21,4 +21,4 @@ spec:</span></div>
+              <div class="gw-diff__line gw-diff__line--context">
+                <span class="gw-diff__gutter" aria-hidden="true">21</span><span class="gw-diff__gutter" aria-hidden="true">21</span><span class="gw-diff__marker" aria-hidden="true"></span>
+                <span class="gw-diff__text">      containers:</span>
+              </div>
+              <div class="gw-diff__line gw-diff__line--context">
+                <span class="gw-diff__gutter" aria-hidden="true">22</span><span class="gw-diff__gutter" aria-hidden="true">22</span><span class="gw-diff__marker" aria-hidden="true"></span>
+                <span class="gw-diff__text">        - name: api</span>
+              </div>
+              <div class="gw-diff__line gw-diff__line--del">
+                <span class="gw-diff__gutter" aria-hidden="true">23</span><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__marker" aria-hidden="true">−</span><span class="gw-sr-only">Removed: </span>
+                <span class="gw-diff__text">          image: registry.acme.dev/api:1.42.0</span>
+              </div>
+              <div class="gw-diff__line gw-diff__line--add">
+                <span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">23</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span>
+                <span class="gw-diff__text">          image: registry.acme.dev/api:1.43.1</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="gw-approval-request__facts">
+          <section class="gw-approval-request__section" aria-labelledby="ar-rejected-why">
+            <h4 class="gw-text-h3" id="ar-rejected-why">Why approval is needed</h4>
+            <p class="gw-text-body-read"><code class="gw-code">k8s_apply</code> on <code class="gw-code">dev-cluster</code>: applying a manifest requires approval.</p>
+            <p class="gw-approval-request__rule gw-text-caption gw-fg-muted">Rule <code class="gw-code">dev.k8s.write-approval</code> <a class="gw-link" href="../pages/policies.html">Open in Policies<span class="gw-sr-only">: rule dev.k8s.write-approval</span></a></p>
+          </section>
+          <section class="gw-approval-request__section" aria-labelledby="ar-rejected-impact">
+            <h4 class="gw-text-h3" id="ar-rejected-impact">Impact</h4>
+            <dl class="gw-kv gw-kv--dense">
+              <div class="gw-kv__row"><dt class="gw-kv__key">Workload</dt><dd class="gw-kv__value"><code class="gw-code">deployment/api</code> in <code class="gw-code">app-dev</code></dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Replicas</dt><dd class="gw-kv__value gw-tabular">2 to 3</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Image</dt><dd class="gw-kv__value"><code class="gw-code">api:1.42.0</code> to <code class="gw-code">api:1.43.1</code></dd></div>
+            </dl>
+          </section>
+        </div>
+
+        <section class="gw-approval-request__section" aria-labelledby="ar-rejected-note">
+          <div class="gw-approval-request__section-header">
+            <h4 class="gw-text-h3" id="ar-rejected-note">Agent's note · unverified</h4>
+            <span class="gw-tooltip gw-tooltip--start">
+              <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm" type="button" aria-label="Why the agent's note is unverified" aria-describedby="ar-rejected-note-tip"><i class="gw-icon" data-lucide="info"></i></button>
+              <span class="gw-tooltip__bubble" role="tooltip" id="ar-rejected-note-tip">Written by the agent, not checked by the gateway. It can repeat text from data the agent read (tickets, logs, web pages), so decide on the exact action above.</span>
+            </span>
+          </div>
+          <blockquote class="gw-card gw-card--muted gw-approval-request__note">
+            <p class="gw-text-body-read">Ships 1.43.1 with the order sync fix and adds a replica for the backlog.</p>
+          </blockquote>
+        </section>
+      </div>
+
+      <footer class="gw-card__footer gw-approval-request__footer">
+        <div class="gw-approval-request__history">
+          <h4 class="gw-text-h3">History</h4>
+          <ol class="gw-timeline" aria-label="Approval history of k8s_apply on dev-cluster">
+            <li class="gw-timeline__item">
+              <span class="gw-timeline__marker gw-timeline__marker--neutral"><i class="gw-icon gw-icon--sm" data-lucide="send"></i></span>
+              <div class="gw-timeline__content">
+                <p class="gw-timeline__title">Requested by Claude Desktop</p>
+                <p class="gw-timeline__meta">Bridge token (.mcpb) · endpoint <code class="gw-code">dev</code></p>
+              </div>
+              <time class="gw-timeline__time" datetime="2026-10-22T13:41:05+02:00" title="2026-10-22 13:41:05 CEST">13:41:05</time>
+            </li>
+            <li class="gw-timeline__item">
+              <span class="gw-timeline__marker gw-timeline__marker--info"><i class="gw-icon gw-icon--sm" data-lucide="bell"></i></span>
+              <div class="gw-timeline__content">
+                <p class="gw-timeline__title">Notified on the desktop and in Slack</p>
+                <p class="gw-timeline__meta">Sent to you · auto-deny after 5 min</p>
+              </div>
+              <time class="gw-timeline__time" datetime="2026-10-22T13:41:05+02:00" title="2026-10-22 13:41:05 CEST">13:41:05</time>
+            </li>
+            <li class="gw-timeline__item">
+              <span class="gw-timeline__marker gw-timeline__marker--danger"><i class="gw-icon gw-icon--sm" data-lucide="user-x"></i></span>
+              <div class="gw-timeline__content">
+                <p class="gw-timeline__title">Rejected by you</p>
+                <p class="gw-timeline__meta">From Slack · after 1 min 12 s · the comment was returned to Claude Desktop</p>
+                <blockquote class="gw-timeline__comment"><p>1.43.1 has not passed CI yet. Wait for the green build.</p></blockquote>
+              </div>
+              <time class="gw-timeline__time" datetime="2026-10-22T13:42:17+02:00" title="2026-10-22 13:42:17 CEST">13:42:17</time>
+            </li>
+          </ol>
+        </div>
+      </footer>
+    </article>
+  </section>
+
+  <!-- ═════════════════════ Expired ═════════════════════ -->
+  <section class="gw-section" aria-labelledby="s-expired">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-expired">Expired</h2>
+      <p class="gw-section__description">No one decided in time, so the call was denied. Neutral and read-only: no comment, no buttons.</p>
+    </header>
+
+    <article class="gw-card gw-approval-request" data-state="expired" id="ar-expired" aria-labelledby="ar-expired-title">
+      <header class="gw-card__header gw-approval-request__header">
+        <div class="gw-card__heading gw-approval-request__heading">
+          <h3 class="gw-card__title gw-approval-request__title" id="ar-expired-title" tabindex="-1">
+            <code class="gw-code">http_request</code> on <span class="gw-approval-request__target"><code class="gw-code">billing-api</code>
+            <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--stage">stage</span></span>
+          </h3>
+          <dl class="gw-kv gw-kv--inline gw-approval-request__meta">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Mode</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">dev</code></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">AI app</dt><dd class="gw-kv__value"><span class="gw-approval-request__client"><span class="gw-client-mark gw-client-mark--codex gw-client-mark--sm" aria-hidden="true">Cx</span>Codex</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Token</dt><dd class="gw-kv__value"><code class="gw-code">codex-laptop</code></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Requested</dt><dd class="gw-kv__value"><time class="gw-tabular" datetime="2026-10-22T13:05:40+02:00" title="2026-10-22 13:05:40 CEST">1 h 24 min ago</time></dd></div>
+          </dl>
+        </div>
+        <div class="gw-approval-request__status">
+          <span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="timer-off"></i>Expired</span>
+        </div>
+      </header>
+
+      <div class="gw-card__body gw-approval-request__body">
+        <section class="gw-approval-request__section" aria-labelledby="ar-expired-action">
+          <h4 class="gw-text-h3" id="ar-expired-action">Exact action</h4>
+          <div class="gw-code-block gw-code-block--wrap">
+            <div class="gw-code-block__header">
+              <span class="gw-code-block__lang">HTTP</span>
+              <span class="gw-code-block__filename">http_request · billing-api · not run</span>
+              <div class="gw-code-block__actions">
+                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ar-expired-code">
+                  <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> expired request</span></span>
+                  <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                </button>
+              </div>
+            </div>
+            <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Expired HTTP request on billing-api">
+<pre class="gw-code-block__pre" id="ar-expired-code"><code><span class="gw-code-block__line"><span class="gw-tok-keyword">POST</span> <span class="gw-tok-string">https://billing.stage.acme.dev/v1/invoices/inv_2291/void</span></span>
+<span class="gw-code-block__line"><span class="gw-tok-property">Authorization</span><span class="gw-tok-punctuation">:</span> <span class="gw-tok-secret">‹masked›</span></span></code></pre>
+            </div>
+          </div>
+        </section>
+
+        <div class="gw-approval-request__facts">
+          <section class="gw-approval-request__section" aria-labelledby="ar-expired-why">
+            <h4 class="gw-text-h3" id="ar-expired-why">Why approval is needed</h4>
+            <p class="gw-text-body-read"><code class="gw-code">http_request</code> on <code class="gw-code">billing-api</code>: POST, PUT, PATCH and DELETE require approval.</p>
+            <p class="gw-approval-request__rule gw-text-caption gw-fg-muted">Rule <code class="gw-code">stage.http.write-approval</code> <a class="gw-link" href="../pages/policies.html">Open in Policies<span class="gw-sr-only">: rule stage.http.write-approval</span></a></p>
+          </section>
+          <section class="gw-approval-request__section" aria-labelledby="ar-expired-impact">
+            <h4 class="gw-text-h3" id="ar-expired-impact">Impact</h4>
+            <dl class="gw-kv gw-kv--dense">
+              <div class="gw-kv__row"><dt class="gw-kv__key">Host</dt><dd class="gw-kv__value"><code class="gw-code">billing.stage.acme.dev</code>, in the allowlist</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Retries</dt><dd class="gw-kv__value">Not safe: no idempotency key</dd></div>
+            </dl>
+          </section>
+        </div>
+
+        <section class="gw-approval-request__section" aria-labelledby="ar-expired-note">
+          <div class="gw-approval-request__section-header">
+            <h4 class="gw-text-h3" id="ar-expired-note">Agent's note · unverified</h4>
+            <span class="gw-tooltip gw-tooltip--start">
+              <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm" type="button" aria-label="Why the agent's note is unverified" aria-describedby="ar-expired-note-tip"><i class="gw-icon" data-lucide="info"></i></button>
+              <span class="gw-tooltip__bubble" role="tooltip" id="ar-expired-note-tip">Written by the agent, not checked by the gateway. It can repeat text from data the agent read (tickets, logs, web pages), so decide on the exact action above.</span>
+            </span>
+          </div>
+          <blockquote class="gw-card gw-card--muted gw-approval-request__note">
+            <p class="gw-text-body-read">Invoice inv_2291 was issued for the cancelled order. Voiding it.</p>
+          </blockquote>
+        </section>
+      </div>
+
+      <footer class="gw-card__footer gw-approval-request__footer">
+        <div class="gw-approval-request__history">
+          <div class="gw-alert gw-alert--neutral gw-alert--compact">
+            <i class="gw-icon gw-alert__icon" data-lucide="timer-off"></i>
+            <div class="gw-alert__content">
+              <p class="gw-alert__title">Expired after 10 min</p>
+              <p class="gw-alert__body">The call was denied and Codex was told the request expired. Nothing ran.</p>
+            </div>
+          </div>
+          <h4 class="gw-text-h3">History</h4>
+          <ol class="gw-timeline" aria-label="Approval history of http_request on billing-api">
+            <li class="gw-timeline__item">
+              <span class="gw-timeline__marker gw-timeline__marker--neutral"><i class="gw-icon gw-icon--sm" data-lucide="send"></i></span>
+              <div class="gw-timeline__content">
+                <p class="gw-timeline__title">Requested by Codex</p>
+                <p class="gw-timeline__meta">Token <code class="gw-code">codex-laptop</code> · endpoint <code class="gw-code">dev</code></p>
+              </div>
+              <time class="gw-timeline__time" datetime="2026-10-22T13:05:40+02:00" title="2026-10-22 13:05:40 CEST">13:05:40</time>
+            </li>
+            <li class="gw-timeline__item">
+              <span class="gw-timeline__marker gw-timeline__marker--info"><i class="gw-icon gw-icon--sm" data-lucide="bell"></i></span>
+              <div class="gw-timeline__content">
+                <p class="gw-timeline__title">Notified on the desktop and in Slack</p>
+                <p class="gw-timeline__meta">Sent to you · auto-deny after 10 min (stage)</p>
+              </div>
+              <time class="gw-timeline__time" datetime="2026-10-22T13:05:40+02:00" title="2026-10-22 13:05:40 CEST">13:05:40</time>
+            </li>
+            <li class="gw-timeline__item">
+              <span class="gw-timeline__marker gw-timeline__marker--neutral"><i class="gw-icon gw-icon--sm" data-lucide="timer-off"></i></span>
+              <div class="gw-timeline__content">
+                <p class="gw-timeline__title">Expired</p>
+                <p class="gw-timeline__meta">No decision within 10 min · denied automatically</p>
+              </div>
+              <time class="gw-timeline__time" datetime="2026-10-22T13:15:40+02:00" title="2026-10-22 13:15:40 CEST">13:15:40</time>
+            </li>
+          </ol>
+        </div>
+      </footer>
+    </article>
+  </section>
+
+  <!-- ═════════════════════ Executed ═════════════════════ -->
+  <section class="gw-section" aria-labelledby="s-executed">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-executed">Executed</h2>
+      <p class="gw-section__description">The result summary sits above the history, with a link to the audit event.</p>
+    </header>
+
+    <article class="gw-card gw-approval-request" data-state="executed" id="ar-executed" aria-labelledby="ar-executed-title">
+      <header class="gw-card__header gw-approval-request__header">
+        <div class="gw-card__heading gw-approval-request__heading">
+          <h3 class="gw-card__title gw-approval-request__title" id="ar-executed-title" tabindex="-1">
+            <code class="gw-code">sql_execute</code> on <span class="gw-approval-request__target"><code class="gw-code">dev-db</code>
+            <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev">dev</span></span>
+          </h3>
+          <dl class="gw-kv gw-kv--inline gw-approval-request__meta">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Mode</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">dev</code></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">AI app</dt><dd class="gw-kv__value"><span class="gw-approval-request__client"><span class="gw-client-mark gw-client-mark--codex gw-client-mark--sm" aria-hidden="true">Cx</span>Codex</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Token</dt><dd class="gw-kv__value"><code class="gw-code">codex-laptop</code></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Requested</dt><dd class="gw-kv__value"><time class="gw-tabular" datetime="2026-10-22T12:20:31+02:00" title="2026-10-22 12:20:31 CEST">2 h ago</time></dd></div>
+          </dl>
+        </div>
+        <div class="gw-approval-request__status">
+          <span class="gw-badge gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="user-check"></i>Approved</span>
+        </div>
+      </header>
+
+      <div class="gw-card__body gw-approval-request__body">
+        <section class="gw-approval-request__section" aria-labelledby="ar-executed-action">
+          <h4 class="gw-text-h3" id="ar-executed-action">Exact action</h4>
+          <div class="gw-code-block gw-code-block--wrap">
+            <div class="gw-code-block__header">
+              <span class="gw-code-block__lang">SQL</span>
+              <span class="gw-code-block__filename">sql_execute · dev-db · ran at 12:21:18</span>
+              <div class="gw-code-block__actions">
+                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ar-executed-code">
+                  <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> executed statement</span></span>
+                  <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                </button>
+              </div>
+            </div>
+            <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Executed statement on dev-db">
+<pre class="gw-code-block__pre" id="ar-executed-code"><code><span class="gw-code-block__line"><span class="gw-tok-keyword">UPDATE</span> orders <span class="gw-tok-keyword">SET</span> status <span class="gw-tok-punctuation">=</span> <span class="gw-tok-string">'cancelled'</span> <span class="gw-tok-keyword">WHERE</span> id <span class="gw-tok-punctuation">=</span> <span class="gw-tok-number">48213</span><span class="gw-tok-punctuation">;</span></span></code></pre>
+            </div>
+          </div>
+        </section>
+
+        <div class="gw-approval-request__facts">
+          <section class="gw-approval-request__section" aria-labelledby="ar-executed-why">
+            <h4 class="gw-text-h3" id="ar-executed-why">Why approval is needed</h4>
+            <p class="gw-text-body-read"><code class="gw-code">sql_execute</code> on <code class="gw-code">dev-db</code>: DML requires approval.</p>
+            <p class="gw-approval-request__rule gw-text-caption gw-fg-muted">Rule <code class="gw-code">dev.sql.write-approval</code> <a class="gw-link" href="../pages/policies.html">Open in Policies<span class="gw-sr-only">: rule dev.sql.write-approval</span></a></p>
+          </section>
+          <section class="gw-approval-request__section" aria-labelledby="ar-executed-impact">
+            <h4 class="gw-text-h3" id="ar-executed-impact">Impact</h4>
+            <dl class="gw-kv gw-kv--dense">
+              <div class="gw-kv__row"><dt class="gw-kv__key">Target table</dt><dd class="gw-kv__value"><code class="gw-code">orders</code></dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Estimated rows</dt><dd class="gw-kv__value gw-tabular">1 <span class="gw-fg-muted">(from EXPLAIN)</span></dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Transaction</dt><dd class="gw-kv__value">Yes, rolled back on error</dd></div>
+            </dl>
+          </section>
+        </div>
+
+        <section class="gw-approval-request__section" aria-labelledby="ar-executed-note">
+          <div class="gw-approval-request__section-header">
+            <h4 class="gw-text-h3" id="ar-executed-note">Agent's note · unverified</h4>
+            <span class="gw-tooltip gw-tooltip--start">
+              <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm" type="button" aria-label="Why the agent's note is unverified" aria-describedby="ar-executed-note-tip"><i class="gw-icon" data-lucide="info"></i></button>
+              <span class="gw-tooltip__bubble" role="tooltip" id="ar-executed-note-tip">Written by the agent, not checked by the gateway. It can repeat text from data the agent read (tickets, logs, web pages), so decide on the exact action above.</span>
+            </span>
+          </div>
+          <blockquote class="gw-card gw-card--muted gw-approval-request__note">
+            <p class="gw-text-body-read">Customer asked to cancel order 48213 in ticket SUP-1182. Cancelling it so the order sync stops retrying the payment.</p>
+          </blockquote>
+        </section>
+      </div>
+
+      <footer class="gw-card__footer gw-approval-request__footer">
+        <div class="gw-approval-request__history">
+          <div class="gw-approval-request__result">
+            <div class="gw-alert gw-alert--success">
+              <i class="gw-icon gw-alert__icon" data-lucide="circle-check"></i>
+              <div class="gw-alert__content">
+                <p class="gw-alert__title">Executed in 38 ms</p>
+                <p class="gw-alert__body">1 row affected. Codex received the result in the same call.</p>
+                <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" href="../pages/activity.html#event-ev_7c41e2d0">View event<span class="gw-sr-only"> for sql_execute on dev-db</span></a></div>
+              </div>
+            </div>
+          </div>
+          <h4 class="gw-text-h3">History</h4>
+          <ol class="gw-timeline" aria-label="Approval history of executed sql_execute on dev-db">
+            <li class="gw-timeline__item">
+              <span class="gw-timeline__marker gw-timeline__marker--neutral"><i class="gw-icon gw-icon--sm" data-lucide="send"></i></span>
+              <div class="gw-timeline__content">
+                <p class="gw-timeline__title">Requested by Codex</p>
+                <p class="gw-timeline__meta">Token <code class="gw-code">codex-laptop</code> · endpoint <code class="gw-code">dev</code> · trace <code class="gw-code">4f2a9c</code></p>
+              </div>
+              <time class="gw-timeline__time" datetime="2026-10-22T12:20:31+02:00" title="2026-10-22 12:20:31 CEST">12:20:31</time>
+            </li>
+            <li class="gw-timeline__item">
+              <span class="gw-timeline__marker gw-timeline__marker--info"><i class="gw-icon gw-icon--sm" data-lucide="bell"></i></span>
+              <div class="gw-timeline__content">
+                <p class="gw-timeline__title">Notified on the desktop and in Slack</p>
+                <p class="gw-timeline__meta">Sent to you · auto-deny after 5 min</p>
+              </div>
+              <time class="gw-timeline__time" datetime="2026-10-22T12:20:31+02:00" title="2026-10-22 12:20:31 CEST">12:20:31</time>
+            </li>
+            <li class="gw-timeline__item">
+              <span class="gw-timeline__marker gw-timeline__marker--success"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i></span>
+              <div class="gw-timeline__content">
+                <p class="gw-timeline__title">Approved by you</p>
+                <p class="gw-timeline__meta">In the app, opened from the desktop notification · after 47 s</p>
+                <blockquote class="gw-timeline__comment"><p>Customer asked to cancel order 48213, confirmed in the support ticket.</p></blockquote>
+              </div>
+              <time class="gw-timeline__time" datetime="2026-10-22T12:21:18+02:00" title="2026-10-22 12:21:18 CEST">12:21:18</time>
+            </li>
+            <li class="gw-timeline__item">
+              <span class="gw-timeline__marker gw-timeline__marker--success"><i class="gw-icon gw-icon--sm" data-lucide="circle-check"></i></span>
+              <div class="gw-timeline__content">
+                <p class="gw-timeline__title">Executed in 38 ms</p>
+                <p class="gw-timeline__meta">1 row affected · result returned to Codex</p>
+              </div>
+              <time class="gw-timeline__time" datetime="2026-10-22T12:21:18+02:00" title="2026-10-22 12:21:18 CEST">12:21:18</time>
+            </li>
+          </ol>
+        </div>
+      </footer>
+    </article>
+  </section>
+
+  <!-- ═════════════════════ Failed ═════════════════════ -->
+  <section class="gw-section" aria-labelledby="s-failed">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-failed">Failed after approval</h2>
+      <p class="gw-section__description">The danger alert says what happened and what to do; the raw output is one click away.</p>
+    </header>
+
+    <article class="gw-card gw-approval-request" data-state="failed" id="ar-failed" aria-labelledby="ar-failed-title">
+      <header class="gw-card__header gw-approval-request__header">
+        <div class="gw-card__heading gw-approval-request__heading">
+          <h3 class="gw-card__title gw-approval-request__title" id="ar-failed-title" tabindex="-1">
+            <code class="gw-code">ssh_run</code> on <span class="gw-approval-request__target"><code class="gw-code">dev-vm</code>
+            <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev">dev</span></span>
+          </h3>
+          <dl class="gw-kv gw-kv--inline gw-approval-request__meta">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Mode</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">dev</code></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">AI app</dt><dd class="gw-kv__value"><span class="gw-approval-request__client"><span class="gw-client-mark gw-client-mark--codex gw-client-mark--sm" aria-hidden="true">Cx</span>Codex</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Token</dt><dd class="gw-kv__value"><code class="gw-code">codex-laptop</code></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Requested</dt><dd class="gw-kv__value"><time class="gw-tabular" datetime="2026-10-22T13:58:02+02:00" title="2026-10-22 13:58:02 CEST">32 min ago</time></dd></div>
+          </dl>
+        </div>
+        <div class="gw-approval-request__status">
+          <span class="gw-badge gw-badge--danger"><i class="gw-icon gw-badge__icon" data-lucide="circle-alert"></i>Error</span>
+        </div>
+      </header>
+
+      <div class="gw-card__body gw-approval-request__body">
+        <section class="gw-approval-request__section" aria-labelledby="ar-failed-action">
+          <h4 class="gw-text-h3" id="ar-failed-action">Exact action</h4>
+          <div class="gw-code-block gw-code-block--wrap">
+            <div class="gw-code-block__header">
+              <span class="gw-code-block__lang">Runbook</span>
+              <span class="gw-code-block__filename">ssh_run · dev-vm · 10.20.0.14 · runbook compose-restart · as deploy</span>
+              <div class="gw-code-block__actions">
+                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#ar-failed-code">
+                  <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> failed command</span></span>
+                  <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                </button>
+              </div>
+            </div>
+            <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Runbook that failed on dev-vm">
+<pre class="gw-code-block__pre" id="ar-failed-code"><code><span class="gw-code-block__line"><span class="gw-tok-comment"># runbook compose-restart · service = worker · expands to:</span></span>
+<span class="gw-code-block__line"><span class="gw-tok-function">docker</span> compose restart worker</span></code></pre>
+            </div>
+          </div>
+        </section>
+
+        <div class="gw-approval-request__facts">
+          <section class="gw-approval-request__section" aria-labelledby="ar-failed-why">
+            <h4 class="gw-text-h3" id="ar-failed-why">Why approval is needed</h4>
+            <p class="gw-text-body-read"><code class="gw-code">ssh_run</code> on <code class="gw-code">dev-vm</code>: read-only runbooks run at once, a runbook that changes the host always waits for a human.</p>
+            <p class="gw-approval-request__rule gw-text-caption gw-fg-muted">Rule <code class="gw-code">dev.ssh.write-approval</code> <a class="gw-link" href="../pages/policies.html">Open in Policies<span class="gw-sr-only">: rule dev.ssh.write-approval</span></a></p>
+          </section>
+          <section class="gw-approval-request__section" aria-labelledby="ar-failed-impact">
+            <h4 class="gw-text-h3" id="ar-failed-impact">Impact</h4>
+            <dl class="gw-kv gw-kv--dense">
+              <div class="gw-kv__row"><dt class="gw-kv__key">Runbook</dt><dd class="gw-kv__value"><code class="gw-code">compose-restart</code> · service <code class="gw-code">worker</code></dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Host</dt><dd class="gw-kv__value"><code class="gw-code">dev-vm</code> · <code class="gw-code">10.20.0.14</code></dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Runs as</dt><dd class="gw-kv__value"><code class="gw-code">deploy</code>, SSH CA certificate valid 5 min</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Timeout</dt><dd class="gw-kv__value gw-tabular">60 s</dd></div>
+            </dl>
+          </section>
+        </div>
+
+        <section class="gw-approval-request__section" aria-labelledby="ar-failed-note">
+          <div class="gw-approval-request__section-header">
+            <h4 class="gw-text-h3" id="ar-failed-note">Agent's note · unverified</h4>
+            <span class="gw-tooltip gw-tooltip--start">
+              <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm" type="button" aria-label="Why the agent's note is unverified" aria-describedby="ar-failed-note-tip"><i class="gw-icon" data-lucide="info"></i></button>
+              <span class="gw-tooltip__bubble" role="tooltip" id="ar-failed-note-tip">Written by the agent, not checked by the gateway. It can repeat text from data the agent read (tickets, logs, web pages), so decide on the exact action above.</span>
+            </span>
+          </div>
+          <blockquote class="gw-card gw-card--muted gw-approval-request__note">
+            <p class="gw-text-body-read">The worker container holds a stale connection to cache-redis. Restarting it should clear the timeouts.</p>
+          </blockquote>
+        </section>
+      </div>
+
+      <footer class="gw-card__footer gw-approval-request__footer">
+        <div class="gw-approval-request__history">
+          <div class="gw-approval-request__result">
+            <div class="gw-alert gw-alert--danger">
+              <i class="gw-icon gw-alert__icon" data-lucide="circle-alert"></i>
+              <div class="gw-alert__content">
+                <p class="gw-alert__title">The runbook failed with exit code 1</p>
+                <p class="gw-alert__body">The runbook ran on <span class="gw-mono">dev-vm</span> for 2.4 s and was not retried. Check the container in the output, fix it on the host, then ask the agent to try again.</p>
+                <div class="gw-alert__actions">
+                  <button class="gw-btn gw-btn--sm gw-approval-request__toggle" type="button" data-gw-toggle aria-controls="ar-failed-output" aria-expanded="false"><i class="gw-icon gw-icon--sm gw-approval-request__when-closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-approval-request__when-open" data-lucide="chevron-up"></i>Command output</button>
+                  <a class="gw-btn gw-btn--link" href="../pages/activity.html#event-ev_6b2d40c9">View event<span class="gw-sr-only"> for ssh_run on dev-vm</span></a>
+                </div>
+              </div>
+            </div>
+            <div class="gw-code-block gw-code-block--wrap" id="ar-failed-output" hidden>
+              <div class="gw-code-block__header">
+                <span class="gw-code-block__lang">Output</span>
+                <span class="gw-code-block__filename">stderr · exit code 1</span>
+              </div>
+              <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Output of the failed command">
+<pre class="gw-code-block__pre"><code>Error response from daemon: Cannot restart container app-worker-1: container is marked for removal and cannot be started</code></pre>
+              </div>
+            </div>
+          </div>
+          <h4 class="gw-text-h3">History</h4>
+          <ol class="gw-timeline" aria-label="Approval history of ssh_run on dev-vm">
+            <li class="gw-timeline__item">
+              <span class="gw-timeline__marker gw-timeline__marker--neutral"><i class="gw-icon gw-icon--sm" data-lucide="send"></i></span>
+              <div class="gw-timeline__content">
+                <p class="gw-timeline__title">Requested by Codex</p>
+                <p class="gw-timeline__meta">Token <code class="gw-code">codex-laptop</code> · endpoint <code class="gw-code">dev</code></p>
+              </div>
+              <time class="gw-timeline__time" datetime="2026-10-22T13:58:02+02:00" title="2026-10-22 13:58:02 CEST">13:58:02</time>
+            </li>
+            <li class="gw-timeline__item">
+              <span class="gw-timeline__marker gw-timeline__marker--info"><i class="gw-icon gw-icon--sm" data-lucide="bell"></i></span>
+              <div class="gw-timeline__content">
+                <p class="gw-timeline__title">Notified on the desktop and in Slack</p>
+                <p class="gw-timeline__meta">Sent to you · auto-deny after 5 min</p>
+              </div>
+              <time class="gw-timeline__time" datetime="2026-10-22T13:58:02+02:00" title="2026-10-22 13:58:02 CEST">13:58:02</time>
+            </li>
+            <li class="gw-timeline__item">
+              <span class="gw-timeline__marker gw-timeline__marker--success"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i></span>
+              <div class="gw-timeline__content">
+                <p class="gw-timeline__title">Approved by you</p>
+                <p class="gw-timeline__meta">From Slack · after 1 min 3 s</p>
+              </div>
+              <time class="gw-timeline__time" datetime="2026-10-22T13:59:05+02:00" title="2026-10-22 13:59:05 CEST">13:59:05</time>
+            </li>
+            <li class="gw-timeline__item">
+              <span class="gw-timeline__marker gw-timeline__marker--danger"><i class="gw-icon gw-icon--sm" data-lucide="circle-alert"></i></span>
+              <div class="gw-timeline__content">
+                <p class="gw-timeline__title">Failed with exit code 1</p>
+                <p class="gw-timeline__meta">After 2.4 s · error returned to Codex</p>
+              </div>
+              <time class="gw-timeline__time" datetime="2026-10-22T13:59:07+02:00" title="2026-10-22 13:59:07 CEST">13:59:07</time>
+            </li>
+          </ol>
+        </div>
+      </footer>
+    </article>
+  </section>
+
+  <!-- ═════════════════════ Compact ═════════════════════ -->
+  <section class="gw-section" aria-labelledby="s-compact">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-compact">Compact, in a list</h2>
+      <p class="gw-section__description">Overview "Waiting for you" and the queue: sorted by time to auto-deny. There is no Approve here; Review opens the full request.</p>
+    </header>
+
+    <ul class="gw-stack gw-stack--sm" aria-label="Waiting for approval, 3 requests">
+      <li>
+        <article class="gw-card gw-approval-request gw-approval-request--compact" data-state="pending" aria-labelledby="arc-k8s-title">
+          <span class="gw-client-mark gw-client-mark--claude gw-client-mark--sm" aria-hidden="true">CD</span>
+          <div class="gw-approval-request__summary">
+            <h3 class="gw-text-h3 gw-approval-request__title" id="arc-k8s-title"><code class="gw-code">k8s_rollout_restart</code> on <span class="gw-approval-request__target"><code class="gw-code">dev-cluster</code> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></span> <span class="gw-approval-request__from gw-text-small gw-fg-muted">from Claude Desktop</span></h3>
+            <p class="gw-approval-request__preview gw-text-code-sm gw-fg-secondary gw-truncate" title="kubectl rollout restart deployment/api --namespace app-dev">kubectl rollout restart deployment/api --namespace app-dev</p>
+          </div>
+          <div class="gw-approval-request__end">
+            <div class="gw-approval-request__countdown" data-gw-countdown="48" data-gw-countdown-total="300">
+              <p class="gw-approval-request__countdown-text gw-text-small gw-tabular gw-fg-danger" role="timer"><i class="gw-icon gw-icon--sm" data-lucide="timer"></i>Auto-deny in <span data-gw-countdown-text>0:48</span></p>
+              <div class="gw-progress gw-progress--sm gw-progress--danger" aria-hidden="true"><div class="gw-progress__bar"></div></div>
+            </div>
+            <a class="gw-btn gw-btn--sm" href="#ar-k8s-title">Review<span class="gw-sr-only"> k8s_rollout_restart on dev-cluster</span></a>
+          </div>
+        </article>
+      </li>
+      <li>
+        <article class="gw-card gw-approval-request gw-approval-request--compact" data-state="pending" aria-labelledby="arc-sql-title">
+          <span class="gw-client-mark gw-client-mark--codex gw-client-mark--sm" aria-hidden="true">Cx</span>
+          <div class="gw-approval-request__summary">
+            <h3 class="gw-text-h3 gw-approval-request__title" id="arc-sql-title"><code class="gw-code">sql_execute</code> on <span class="gw-approval-request__target"><code class="gw-code">dev-db</code> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></span> <span class="gw-approval-request__from gw-text-small gw-fg-muted">from Codex</span></h3>
+            <p class="gw-approval-request__preview gw-text-code-sm gw-fg-secondary gw-truncate" title="UPDATE orders SET status = 'cancelled' WHERE id = 48213;">UPDATE orders SET status = 'cancelled' WHERE id = 48213;</p>
+          </div>
+          <div class="gw-approval-request__end">
+            <div class="gw-approval-request__countdown" data-gw-countdown="252" data-gw-countdown-total="300">
+              <p class="gw-approval-request__countdown-text gw-text-small gw-tabular" role="timer"><i class="gw-icon gw-icon--sm gw-fg-warning" data-lucide="timer"></i>Auto-deny in <span data-gw-countdown-text>4:12</span></p>
+              <div class="gw-progress gw-progress--sm gw-progress--warning" aria-hidden="true"><div class="gw-progress__bar"></div></div>
+            </div>
+            <a class="gw-btn gw-btn--sm" href="#ar-sql-title">Review<span class="gw-sr-only"> sql_execute on dev-db</span></a>
+          </div>
+        </article>
+      </li>
+      <li>
+        <article class="gw-card gw-approval-request gw-approval-request--compact" data-state="pending" aria-labelledby="arc-http-title">
+          <span class="gw-client-mark gw-client-mark--codex gw-client-mark--sm" aria-hidden="true">Cx</span>
+          <div class="gw-approval-request__summary">
+            <h3 class="gw-text-h3 gw-approval-request__title" id="arc-http-title"><code class="gw-code">http_request</code> on <span class="gw-approval-request__target"><code class="gw-code">billing-api</code> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></span> <span class="gw-approval-request__from gw-text-small gw-fg-muted">from Codex</span></h3>
+            <p class="gw-approval-request__preview gw-text-code-sm gw-fg-secondary gw-truncate" title="POST https://billing.stage.acme.dev/v1/refunds">POST https://billing.stage.acme.dev/v1/refunds</p>
+          </div>
+          <div class="gw-approval-request__end">
+            <div class="gw-approval-request__countdown" data-gw-countdown="570" data-gw-countdown-total="600">
+              <p class="gw-approval-request__countdown-text gw-text-small gw-tabular" role="timer"><i class="gw-icon gw-icon--sm gw-fg-warning" data-lucide="timer"></i>Auto-deny in <span data-gw-countdown-text>9:30</span></p>
+              <div class="gw-progress gw-progress--sm gw-progress--warning" aria-hidden="true"><div class="gw-progress__bar"></div></div>
+            </div>
+            <a class="gw-btn gw-btn--sm" href="#ar-http-title">Review<span class="gw-sr-only"> http_request on billing-api</span></a>
+          </div>
+        </article>
+      </li>
+    </ul>
+  </section>
+
+</main>
+<script src="../vendor/lucide/lucide.min.js"></script>
+<script src="../assets/kit.js"></script>
+</body>
+</html>

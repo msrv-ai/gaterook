@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Redis (report 05): redis_get and redis_scan over Jedis with a read-only command executor, the SET … NX XX probe
+  and sealed cursors (rgc./rsc.). Native: the resource redis/clients/jedis/pom.properties needs a hint (report 15 §4).
+  Spring only in the .boot subpackage. Built by step C3.
+
+  Tests: unit tests without a server; integration tests against the local redis-server (7.0.15 here, $GW_REDIS_BIN
+  overrides it) on ephemeral ports with data under target/. -Predis-it adds Redis 6.2.11, the binary inside
+  com.github.codemonstur:embedded-redis 1.4.4, downloaded once into ~/.cache/mcp-gateway-test/redis (SHA-256 checked).
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>ai.msrv.gaterook</groupId>
+    <artifactId>mcp-gateway</artifactId>
+    <version>0.4.0-SNAPSHOT</version>
+    <relativePath>../../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>connectors-redis</artifactId>
+  <name>MCP Gateway · Connectors · Redis</name>
+
+  <dependencies>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connector-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connectors-support</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>tools.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+    </dependency>
+    <!-- jedis.version is pinned to 8.0.2 in the root pom; redis-authx-core is excluded there. -->
+    <dependency>
+      <groupId>redis.clients</groupId>
+      <artifactId>jedis</artifactId>
+    </dependency>
+
+    <!-- Registration of the built-in beans, .boot subpackage only (ARCHITECTURE.md §2.3). -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-autoconfigure</artifactId>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- Every answer is checked against the tools' published outputSchema (report 05 §8). -->
+    <dependency>
+      <groupId>com.networknt</groupId>
+      <artifactId>json-schema-validator</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!-- *IT: the connector against a real redis-server started by the test (LocalRedis). -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <!--
+      Redis 6.2.11 next to the local 7.0.15 (Redis62IT; report 05 §8). A module profile with a switch rather than a
+      tag of the root pom: only this module has the test.
+    -->
+    <profile>
+      <id>redis-it</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-failsafe-plugin</artifactId>
+            <configuration>
+              <systemPropertyVariables>
+                <gateway.it.redis62>true</gateway.it.redis62>
+              </systemPropertyVariables>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <!-- Redis 6.2 of the test services (Redis62IT): -Pservices of the root pom, test-services/README.md. -->
+    <profile>
+      <id>services</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-failsafe-plugin</artifactId>
+            <configuration>
+              <systemPropertyVariables>
+                <gateway.it.redis62>true</gateway.it.redis62>
+              </systemPropertyVariables>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>

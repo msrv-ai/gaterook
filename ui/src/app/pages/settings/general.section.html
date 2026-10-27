@@ -1,0 +1,150 @@
+<header class="gw-section__header">
+  <h2 class="gw-section__title" id="st-general-t">General</h2>
+  <p class="gw-section__description">How the app starts, stays up to date, answers the keyboard and where its core listens. Changes apply at once.</p>
+</header>
+<hr class="gw-divider">
+<div class="gw-form">
+  <section class="gw-form__section" aria-labelledby="st-startup-t">
+    <header class="gw-form__section-header">
+      <h3 class="gw-form__legend" id="st-startup-t">Startup</h3>
+      <p class="gw-form__description">The core runs only while the app runs, so agents reach your endpoints only then.</p>
+    </header>
+    <div class="gw-form__rows">
+      <div class="gw-switch">
+        <input class="gw-switch__input" type="checkbox" role="switch" id="st-login" [checked]="openAtLogin()" [attr.aria-busy]="busy() === 'openAtLogin' ? 'true' : null" aria-describedby="st-login-hint" (change)="setGeneral('openAtLogin', $event, 'Start MCP Gateway when you sign in')">
+        <span class="gw-switch__control" aria-hidden="true"></span>
+        <label class="gw-switch__label" for="st-login">Start MCP Gateway when you sign in</label>
+        <p class="gw-switch__hint" id="st-login-hint">Claude Desktop and Codex can call your endpoints as soon as you sign in to this computer.</p>
+      </div>
+      <div class="gw-switch">
+        <input class="gw-switch__input" type="checkbox" role="switch" id="st-minimized" [checked]="startHidden()" [attr.aria-busy]="busy() === 'startHidden' ? 'true' : null" aria-describedby="st-minimized-hint" (change)="setGeneral('startHidden', $event, 'Start minimized')">
+        <span class="gw-switch__control" aria-hidden="true"></span>
+        <label class="gw-switch__label" for="st-minimized">Start minimized</label>
+        <p class="gw-switch__hint" id="st-minimized-hint">Opens in the menu bar on macOS and in the system tray on Windows and Linux. The icon shows how many requests wait for you.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="gw-form__section" aria-labelledby="st-updates-t">
+    <header class="gw-form__section-header">
+      <h3 class="gw-form__legend" id="st-updates-t">Updates</h3>
+      <p class="gw-form__description">Signed releases from GitHub. An update installs when you restart the app, never in the middle of a call.</p>
+    </header>
+    <div class="gw-form__rows">
+      <div class="gw-switch">
+        <input class="gw-switch__input" type="checkbox" role="switch" id="st-updates" [checked]="autoUpdate()" [attr.aria-busy]="busy() === 'autoUpdate' ? 'true' : null" aria-describedby="st-updates-hint" (change)="setGeneral('autoUpdate', $event, 'Check for updates automatically')">
+        <span class="gw-switch__control" aria-hidden="true"></span>
+        <label class="gw-switch__label" for="st-updates">Check for updates automatically</label>
+        <p class="gw-switch__hint" id="st-updates-hint">Once a day. You choose when to restart.</p>
+      </div>
+      @let u = update();
+      <div class="gw-settings-layout__inline">
+        @if (u.tone === 'checking') {
+          <span class="gw-status gw-status--checking" role="status"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span><span class="gw-status__label">{{ u.label }}</span></span>
+        } @else {
+          <span class="gw-status gw-status--{{ u.tone }}"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ u.label }}@if (u.version) { <span class="gw-mono">{{ u.version }}</span>}</span></span>
+        }
+        <button class="gw-btn gw-btn--sm" type="button" id="st-update-check" [attr.aria-disabled]="!desktop.available || u.busy ? 'true' : null" [attr.aria-busy]="u.busy ? 'true' : null" aria-describedby="st-update-checked" (click)="checkNow()">@if (u.busy) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="refresh-cw" class="gw-icon gw-icon--sm"></svg>} Check now</button>
+        <p class="gw-text-caption gw-fg-muted" id="st-update-checked">@if (!desktop.available) {The desktop app checks for updates; this window runs outside it.} @else if (u.error) {{{ u.error }}} @else if (u.lastCheckedAt) {Last checked <time [attr.datetime]="time.iso(u.lastCheckedAt)" [attr.title]="time.absolute(u.lastCheckedAt)">{{ time.relative(u.lastCheckedAt) }}</time>} @else {Not checked yet}</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Single-key shortcuts (WCAG 2.1.4): GwSingleKeysToggle switches the app's "/" hook at once and remembers it;
+       the core keeps the same choice in General. -->
+  <section class="gw-form__section" aria-labelledby="st-keys-t">
+    <header class="gw-form__section-header">
+      <h3 class="gw-form__legend" id="st-keys-t">Keyboard</h3>
+      <p class="gw-form__description">Shortcuts with <kbd class="gw-kbd">⌘</kbd> or <kbd class="gw-kbd">Ctrl</kbd>, such as <kbd class="gw-kbd">⌘</kbd><kbd class="gw-kbd">K</kbd> for the command palette, always work.</p>
+    </header>
+    <div class="gw-form__rows">
+      <div class="gw-switch">
+        <input class="gw-switch__input" type="checkbox" role="switch" id="st-single-keys" data-gw-single-keys-toggle aria-describedby="st-single-keys-hint" (change)="setGeneral('singleKeyShortcuts', $event, 'Single-key shortcuts')">
+        <span class="gw-switch__control" aria-hidden="true"></span>
+        <label class="gw-switch__label" for="st-single-keys">Single-key shortcuts</label>
+        <p class="gw-switch__hint" id="st-single-keys-hint"><kbd class="gw-kbd">/</kbd> jumps to the search or filter field of a page when you aren't typing in a field. Turn this off if you use speech input or a screen reader whose keys clash with it.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="gw-form__section" aria-labelledby="st-core-t">
+    <header class="gw-form__section-header">
+      <h3 class="gw-form__legend" id="st-core-t">Core</h3>
+      <p class="gw-form__description">The local process that serves every endpoint. It listens only on this computer.</p>
+    </header>
+    <div class="gw-form__rows">
+      <div class="gw-field">
+        <label class="gw-field__label" for="st-port">Port</label>
+        <input class="gw-input gw-input--mono" id="st-port" type="text" [value]="port() ?? ''" readonly aria-describedby="st-port-hint">
+        <p class="gw-field__hint" id="st-port-hint">Part of every endpoint URL@if (exampleUrl(); as url) {, for example <span class="gw-mono">{{ url }}</span>}.</p>
+      </div>
+      <div class="gw-settings-layout__inline">
+        <button class="gw-btn" type="button" aria-haspopup="dialog" aria-describedby="st-port-change-hint" (click)="openPort($event)"><svg lucideIcon="ethernet-port" class="gw-icon"></svg> Change port</button>
+        <p class="gw-text-caption gw-fg-muted" id="st-port-change-hint">Restarts the core. Clients set up with the old port need to be connected again.</p>
+      </div>
+      <dl class="gw-kv">
+        @for (r of runtime(); track r.key) {
+          <div class="gw-kv__row"><dt class="gw-kv__key">{{ r.key }}</dt><dd class="gw-kv__value">@for (p of r.value; track $index) {@if (p.mono) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</dd></div>
+        }
+        @if (dataFolder(); as folder) {
+          <div class="gw-kv__row"><dt class="gw-kv__key">Data folder</dt><dd class="gw-kv__value gw-mono">{{ folder }}</dd></div>
+        }
+        @if (logFile(); as log) {
+          <div class="gw-kv__row"><dt class="gw-kv__key">Log file</dt><dd class="gw-kv__value gw-mono">{{ log }}</dd></div>
+        }
+      </dl>
+      <div class="gw-settings-layout__inline">
+        <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" [attr.aria-disabled]="desktop.available ? null : 'true'" [attr.aria-describedby]="desktop.available ? null : 'st-logs-why'" (click)="openLogs()"><svg lucideIcon="folder-open" class="gw-icon gw-icon--sm"></svg> Open logs folder</button>
+        @if (!desktop.available) {
+          <p class="gw-text-caption gw-fg-muted" id="st-logs-why">Opening a folder needs the desktop app.</p>
+        }
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- Change port: risky but reversible, so gw-dialog--warning with a primary confirm; static, the field has focus. -->
+<dialog class="gw-dialog gw-dialog--md gw-dialog--warning" id="st-port-dlg" gwDialog gwDialogStatic #portDialog="gwDialog" aria-labelledby="st-port-dlg-t" aria-describedby="st-port-dlg-d">
+  <form method="dialog" novalidate (submit)="changePort($event)">
+    <header class="gw-dialog__header">
+      <span class="gw-icon-tile"><svg lucideIcon="ethernet-port" class="gw-icon"></svg></span>
+      <h2 class="gw-dialog__title" id="st-port-dlg-t">Change the core port?</h2>
+      <p class="gw-dialog__description" id="st-port-dlg-d">The core restarts on the new port and every endpoint URL changes. Clients set up with the old URL stop reaching it until you connect them again.</p>
+      <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+    </header>
+    <div class="gw-dialog__body">
+      <div class="gw-stack">
+        @let portErr = portFieldError();
+        <div class="gw-field">
+          <label class="gw-field__label" for="st-port-new">New port</label>
+          <input class="gw-input gw-input--mono" id="st-port-new" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" autofocus [formField]="portForm.port" [attr.aria-invalid]="portErr ? 'true' : null" [attr.aria-describedby]="(portErr ? 'st-port-new-err ' : '') + 'st-port-new-hint'">
+          @if (portErr) {
+            <p class="gw-field__error" id="st-port-new-err"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ portErr }}</p>
+          }
+          <p class="gw-field__hint" id="st-port-new-hint">1024 to 65535, free on this computer.</p>
+        </div>
+        <dl class="gw-kv gw-kv--dense">
+          <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint URLs</dt><dd class="gw-kv__value">@for (p of newUrls(); track $index) {@if (p.mono) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key">Connect again</dt><dd class="gw-kv__value">@if (againText(); as again) {{{ again }}, from <a class="gw-link" routerLink="/clients">Clients</a>} @else {No client keeps the old URL in its config}</dd></div>
+          @if (keepText(); as keep) {
+            <div class="gw-kv__row"><dt class="gw-kv__key">Unchanged</dt><dd class="gw-kv__value">{{ keep }}: {{ clients().keep.length === 1 ? 'its bridge asks' : 'their bridges ask' }} MCP Gateway for the address</dd></div>
+          }
+          <div class="gw-kv__row"><dt class="gw-kv__key">During the restart</dt><dd class="gw-kv__value">Calls in flight fail and agents retry.@if (pendingCount() > 0) { The {{ plural(pendingCount(), 'pending approval request') }} {{ pendingCount() === 1 ? 'is' : 'are' }} kept.} @else { Approval requests are kept.}</dd></div>
+        </dl>
+        @if (portError(); as err) {
+          <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+            <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content"><p class="gw-alert__title">The port didn't change</p><p class="gw-alert__body">{{ err }}</p></div>
+          </div>
+        }
+        @if (!desktop.available) {
+          <p class="gw-text-small gw-fg-muted" id="st-port-why">Only the desktop app can restart the core on another port. Change it from there.</p>
+        }
+      </div>
+    </div>
+    <footer class="gw-dialog__footer">
+      <button class="gw-btn" type="button" gwDialogClose>Cancel</button>
+      <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-disabled]="!desktop.available || portBusy() ? 'true' : null" [attr.aria-busy]="portBusy() ? 'true' : null" [attr.aria-describedby]="!desktop.available ? 'st-port-why' : null">@if (portBusy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> }Change port and restart core</button>
+    </footer>
+  </form>
+</dialog>

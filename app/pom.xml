@@ -1,0 +1,340 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The assembly: core + every connector (ARCHITECTURE.md §2.1). Its only code is tests (e2e under
+  src/test/java/ai/msrv/gaterook/e2e/<area>/, native smoke) and the `native` profile. Because this is where the whole
+  classpath meets, this is where the strict dependency rules run: upper bounds, convergence, no duplicate classes.
+
+  JVM:    mvn -pl app -am -DskipTests package && java -jar app/target/app.jar
+  Native: flock ~/.cache/mcp-gateway/native.lock env JAVA_HOME=<Liberica NIK 25> mvn -pl app -am -Pnative -DskipTests package
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>ai.msrv.gaterook</groupId>
+    <artifactId>mcp-gateway</artifactId>
+    <version>0.4.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>app</artifactId>
+  <name>MCP Gateway · App</name>
+
+  <properties>
+    <start-class>ai.msrv.gaterook.core.GatewayApplication</start-class>
+    <spring-boot.run.skip>false</spring-boot.run.skip>
+    <!--
+      The builder's heap. With every connector, the plugin host's admin side and the audit export (K4, K5) 8g runs out
+      of memory in the analysis; 10g peaks at 11.9 GB RSS (GraalVM CE 25.0.2, macOS arm64, 2026-10-26), which a hosted
+      runner of 16 GB holds. Report 15 §3: 6g was too little already for JPA alone.
+    -->
+    <native.builder.xmx>10g</native.builder.xmx>
+    <!-- Desktop CPUs: no AVX2 assumption; the amd64/x86_64 profiles raise it to x86-64-v2. -->
+    <native.march>-march=compatibility</native.march>
+    <!-- platform.BuildFlags.RELEASE, fixed at image build time; the `release` profile turns it on. -->
+    <gateway.release>false</gateway.release>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connectors-sql</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connectors-mongodb</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connectors-redis</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connectors-ssh</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connectors-logs</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connectors-kubernetes</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connectors-gcp</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connectors-aws</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connectors-http</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connectors-mcp-server</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+      <exclusions>
+        <!-- Jedis brings the real org.json; these two carry copies of its classes (banDuplicateClasses). -->
+        <exclusion>
+          <groupId>org.skyscreamer</groupId>
+          <artifactId>jsonassert</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>com.vaadin.external.google</groupId>
+          <artifactId>android-json</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <!-- The gw-bridge jar the clients E2E (profile mcp-clients) puts behind the shim; never in app.jar. -->
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>bridge-cli</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- Fake AWS STS and Secrets Manager for the external stores' touch (S1), on the JVM and in the native image. -->
+    <dependency>
+      <groupId>com.squareup.okhttp3</groupId>
+      <artifactId>mockwebserver3</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- Fake AWS STS and Secrets Manager for the external stores' touch (S1), on the JVM and in the native image. -->
+    <dependency>
+      <groupId>com.squareup.okhttp3</groupId>
+      <artifactId>mockwebserver3</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- Module dependency rules of ARCHITECTURE.md §2.1 over the whole assembled classpath. -->
+    <dependency>
+      <groupId>com.tngtech.archunit</groupId>
+      <artifactId>archunit</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- A real mongod (8.0.23) for the MongoDB e2e and its native touch, without Docker (§10 C2). -->
+    <dependency>
+      <groupId>de.flapdoodle.embed</groupId>
+      <artifactId>de.flapdoodle.embed.mongo</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!--
+      Build order only (e2e/plugins, K6): the plugin host and the catalog's plugin JARs are packaged before the core
+      process of the e2e spawns them; found by path, never on this module's classpath (PF4J stays banned here).
+    -->
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>plugin-host</artifactId>
+      <version>${project.version}</version>
+      <type>pom</type>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>plugins-jira-service-desk</artifactId>
+      <version>${project.version}</version>
+      <type>pom</type>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>plugins-clickhouse</artifactId>
+      <version>${project.version}</version>
+      <type>pom</type>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>plugins-rabbitmq</artifactId>
+      <version>${project.version}</version>
+      <type>pom</type>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion>
+      </exclusions>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>app</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>enforce-assembly</id>
+            <goals><goal>enforce</goal></goals>
+            <configuration>
+              <rules>
+                <requireUpperBoundDeps>
+                  <!--
+                    Jackson stays at the Boot BOM's 3.1.7 (A9): Fabric8 8.0.0 declares 3.2.3 and annotations 2.22, and
+                    runs on 3.1.7 by the RefCheck scan of ARCHITECTURE.md §1. Every other upper bound must hold.
+                  -->
+                  <excludes>
+                    <exclude>tools.jackson.core:jackson-core</exclude>
+                    <exclude>tools.jackson.core:jackson-databind</exclude>
+                    <exclude>tools.jackson.dataformat:jackson-dataformat-yaml</exclude>
+                    <exclude>com.fasterxml.jackson.core:jackson-annotations</exclude>
+                  </excludes>
+                </requireUpperBoundDeps>
+                <dependencyConvergence/>
+                <banDuplicateClasses>
+                  <findAllDuplicates>true</findAllDuplicates>
+                  <ignoreWhenIdentical>true</ignoreWhenIdentical>
+                  <ignoreClasses>
+                    <ignoreClass>module-info</ignoreClass>
+                    <ignoreClass>META-INF.versions.*.module-info</ignoreClass>
+                  </ignoreClasses>
+                </banDuplicateClasses>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <!-- FFM (NativeOs) and the JNI of sqlite-jdbc without "restricted method" warnings when run as `java -jar`. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <configuration>
+          <!--
+            app has no classes of its own, so the jar plugin would find app.jar up to date and keep it; repackage then
+            skips an already repackaged jar, and changes of core or a connector never reach app.jar without `clean`.
+          -->
+          <forceCreation>true</forceCreation>
+          <archive>
+            <manifestEntries>
+              <Enable-Native-Access>ALL-UNNAMED</Enable-Native-Access>
+            </manifestEntries>
+          </archive>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+      <!--
+        *IT: the core as a process (CoreProcessIT), after `package` built app.jar. With
+        -Dgateway.core.binary=<path> the same tests run against the native executable (the native smoke of M1.2).
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <configuration>
+          <systemPropertyVariables>
+            <!-- e2e/plugins (K6): the host the core spawns and the catalog's plugin JARs, by path. -->
+            <gateway.pluginHostJar>${project.basedir}/../plugin-host/target/plugin-host.jar</gateway.pluginHostJar>
+            <gateway.pluginsDir>${project.basedir}/../plugins</gateway.pluginsDir>
+            <gateway.catalogDir>${project.basedir}/../catalog</gateway.catalogDir>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <!--
+      The release binary (A11). Spring Boot's own `native` profile (inherited) adds process-aot and
+      add-reachability-metadata; this one adds the image build itself on `package`.
+    -->
+    <profile>
+      <id>native</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.graalvm.buildtools</groupId>
+            <artifactId>native-maven-plugin</artifactId>
+            <configuration>
+              <imageName>mcp-gateway-core</imageName>
+              <metadataRepository>
+                <enabled>true</enabled>
+              </metadataRepository>
+              <buildArgs>
+                <buildArg>-J-Xmx${native.builder.xmx}</buildArg>
+                <buildArg>--enable-native-access=ALL-UNNAMED</buildArg>
+                <!-- libsqlitejdbc goes next to the binary (signed with it), not into the image. -->
+                <buildArg>-Dorg.sqlite.lib.exportPath=${project.build.directory}/native-libs</buildArg>
+                <buildArg>${native.march}</buildArg>
+                <buildArg>-H:+ReportExceptionStackTraces</buildArg>
+                <!--
+                  The only class of ours initialized at build time (ARCHITECTURE.md §2.4): a release image can't be
+                  switched into its development relaxations at run time. It holds a boolean, no secret.
+                -->
+                <buildArg>--initialize-at-build-time=ai.msrv.gaterook.core.platform.BuildFlags</buildArg>
+                <!--
+                  Hibernate's HQL grammar: its static initializer deserializes the parser's ATN, 60-70 ms of the
+                  native warm start when it runs (the first query of the start pays it). The builder's simulation of
+                  class initializers took it at build time in some images and not in others, so the start differed
+                  by that much between builds; named here, it always does (static grammar tables, no state). Its
+                  tables are ANTLR runtime objects, so the runtime goes with it — all but the parser simulator, whose
+                  initializer reads an environment switch (TURN_OFF_LR_LOOP_ENTRY_BRANCH_OPT) that stays the user's.
+                -->
+                <buildArg>--initialize-at-build-time=org.hibernate.grammars.hql.HqlParser,org.hibernate.grammars.hql.HqlLexer,org.antlr.v4.runtime</buildArg>
+                <buildArg>--initialize-at-run-time=org.antlr.v4.runtime.atn.ParserATNSimulator</buildArg>
+                <!--
+                  The heap's floor, a default of the binary (Electron passes no -XX: flags). The start allocates about
+                  130 MB; with the default floor the serial GC collected twice before the ready line, each time
+                  completely (it has no pause history yet), copying everything live twice — a fifth of the warm start.
+                  From 192 MB its young generation holds 72 MB: one collection, early, while little is live (A/B 21 + 21:
+                  median 392 against 425 ms). RSS at the ready line +12 MB (272 against 260 MB), the same 3 s later; a
+                  higher floor was no faster (the one collection then copies more).
+                -->
+                <buildArg>-R:MinHeapSize=192m</buildArg>
+                <buildArg>-Dgateway.release=${gateway.release}</buildArg>
+              </buildArgs>
+            </configuration>
+            <executions>
+              <execution>
+                <id>build-native</id>
+                <goals><goal>compile-no-fork</goal></goals>
+                <phase>package</phase>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <!-- Release images: `-Pnative,release`. -->
+    <profile>
+      <id>release</id>
+      <properties><gateway.release>true</gateway.release></properties>
+    </profile>
+    <profile>
+      <id>amd64</id>
+      <activation><os><arch>amd64</arch></os></activation>
+      <properties><native.march>-march=x86-64-v2</native.march></properties>
+    </profile>
+    <profile>
+      <!-- macOS Intel reports x86_64 (report 15, ARCHITECTURE.md §2.4). -->
+      <id>x86_64</id>
+      <activation><os><arch>x86_64</arch></os></activation>
+      <properties><native.march>-march=x86-64-v2</native.march></properties>
+    </profile>
+    <profile>
+      <id>aarch64</id>
+      <activation><os><arch>aarch64</arch></os></activation>
+      <properties><native.march>-march=compatibility</native.march></properties>
+    </profile>
+  </profiles>
+</project>

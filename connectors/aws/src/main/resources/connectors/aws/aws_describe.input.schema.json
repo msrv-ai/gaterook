@@ -1,0 +1,69 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "type"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string",
+      "description": "Default: the connection's first region"
+    },
+    "type": {
+      "type": "string",
+      "pattern": "^AWS::[A-Za-z0-9]+::[A-Za-z0-9]+$",
+      "examples": [
+        "AWS::EC2::Instance",
+        "AWS::RDS::DBInstance",
+        "AWS::ECS::Service",
+        "AWS::SQS::Queue"
+      ]
+    },
+    "identifier": {
+      "type": "string",
+      "maxLength": 2048,
+      "description": "Primary identifier from a list result (i-0abc…, stage-orders, ServiceArn|Cluster). Given: full current state of one resource"
+    },
+    "parent": {
+      "type": "object",
+      "maxProperties": 6,
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 2048
+      },
+      "description": "Only for types whose list needs a parent, e.g. {\"LoadBalancerArn\":\"…\"}"
+    },
+    "where": {
+      "type": "object",
+      "maxProperties": 5,
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 256
+      },
+      "description": "Filter after listing: {\"State.Name\":\"running\",\"tags.env\":\"stage\"}; * matches any text"
+    },
+    "properties": {
+      "type": "array",
+      "maxItems": 30,
+      "items": {
+        "type": "string",
+        "maxLength": 128
+      },
+      "description": "Return only these top-level properties"
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 25
+    },
+    "cursor": {
+      "type": "string",
+      "maxLength": 4096
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "sql"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "sql": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100000,
+      "description": "One SELECT, WITH … SELECT, VALUES, TABLE, SHOW or EXPLAIN. Runs in a read-only transaction."
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "default": 50,
+      "description": "Max rows; the endpoint caps it."
+    }
+  }
+}

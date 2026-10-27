@@ -1,0 +1,19 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "table"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "table": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "description": "orders, billing.invoices or \"Mixed\".\"Case\". Without a schema: the connection's default schema."
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "manifestVersion": 1,
+  "id": "fixture-crash",
+  "version": "1.0.0",
+  "name": "Crash fixture",
+  "provider": "MCP Gateway tests",
+  "license": "Apache-2.0",
+  "description": "A plugin that ends its own process mid-call.",
+  "requires": {"gateway": ">=0.0.0", "connectorApi": ">=1.0.0 & <2.0.0"},
+  "connectorClass": "gaterook.plugins.fixtures.CrashConnector",
+  "type": "fixture-crash",
+  "toolNamespace": "crash_",
+  "configSchema": {"type": "object", "properties": {}},
+  "tools": [
+    {"name": "crash_echo", "title": "Echo",
+     "inputSchema": {"type": "object", "properties": {"text": {"type": "string"}}},
+     "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+     "nature": "READ", "resultShape": "TEXT"},
+    {"name": "crash_now", "title": "Crash",
+     "inputSchema": {"type": "object", "properties": {}},
+     "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+     "nature": "READ", "resultShape": "TEXT"}
+  ],
+  "access": {"hosts": [], "commands": [], "files": []},
+  "resources": {"maxHeapMb": 64}
+}

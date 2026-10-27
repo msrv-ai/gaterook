@@ -1,0 +1,48 @@
+// =============================================================
+// .gw-kbd · Keyboard key
+// -------------------------------------------------------------
+// A key the user presses, in running text, menus, help and the command
+// palette: "Press ⌘K to search". One <kbd> per key; adjacent keys of a
+// shortcut sit 2px apart.
+//
+//   Press <kbd class="gw-kbd">⌘</kbd><kbd class="gw-kbd">K</kbd> to search.
+//   <kbd class="gw-kbd">Esc</kbd>
+//   <kbd class="gw-kbd"><i class="gw-icon" data-lucide="arrow-up"></i><span class="gw-sr-only">Up arrow</span></kbd>
+//
+// Keys are text: write "Esc", "Enter", "Shift", "Tab". Arrow and return keys
+// are Lucide icons (arrow-up, arrow-down, corner-down-left) plus sr-only text;
+// glyph arrows are not used in the kit.
+// Inside a button the hint is gw-btn__kbd (it inherits the button colour);
+// inside gw-search it is gw-search__kbd. gw-kbd is the standalone key.
+//
+// Variants  none. Size follows the caption role (12/16 mono).
+// A11y      <kbd> is read as text. Decorative hints next to a labelled control
+//           get aria-hidden="true" (the control's name already says it).
+// Raw       none.
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+.gw-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gw-space-0-5);
+  min-width: var(--gw-size-icon-lg);
+  padding-inline: var(--gw-space-1);
+  @include gw-type(caption);
+  @include gw-mono;
+  font-weight: var(--gw-font-weight-medium);
+  color: var(--gw-color-text-secondary);
+  white-space: nowrap;
+  vertical-align: baseline;
+  background: var(--gw-color-bg-surface);
+  border: var(--gw-border-width-default) solid var(--gw-color-border-strong);
+  border-bottom-width: var(--gw-border-width-strong);
+  border-radius: var(--gw-radius-xs);
+
+  .gw-icon { --gw-icon-size: var(--gw-size-icon-xs); }
+
+  & + & { margin-inline-start: var(--gw-space-0-5); }
+}

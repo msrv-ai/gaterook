@@ -1,0 +1,243 @@
+<header class="gw-card__header gw-approval-request__header">
+  <div class="gw-card__heading gw-approval-request__heading">
+    @switch (level()) {
+      @case (3) { <h3 class="gw-card__title gw-approval-request__title" [id]="uid + '-title'" tabindex="-1" #title><ng-container [ngTemplateOutlet]="titleContent" /></h3> }
+      @case (4) { <h4 class="gw-card__title gw-approval-request__title" [id]="uid + '-title'" tabindex="-1" #title><ng-container [ngTemplateOutlet]="titleContent" /></h4> }
+      @default { <h2 class="gw-card__title gw-approval-request__title" [id]="uid + '-title'" tabindex="-1" #title><ng-container [ngTemplateOutlet]="titleContent" /></h2> }
+    }
+    <dl class="gw-kv gw-kv--inline gw-approval-request__meta">
+      <div class="gw-kv__row"><dt class="gw-kv__key">Mode</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><svg lucideIcon="user-check" class="gw-icon"></svg>Approval</span></dd></div>
+      <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">{{ r().endpoint }}</code></dd></div>
+      <div class="gw-kv__row"><dt class="gw-kv__key">Client</dt><dd class="gw-kv__value"><span class="gw-approval-request__client">@if (r().client) {<span [gwClientMark]="r().client!" size="sm"></span>}{{ clientName() }}</span></dd></div>
+      <div class="gw-kv__row"><dt class="gw-kv__key">Token</dt><dd class="gw-kv__value">@if (token().code) {<code class="gw-code">{{ token().text }}</code>} @else {{{ token().text }}}</dd></div>
+      <div class="gw-kv__row"><dt class="gw-kv__key">Requested</dt><dd class="gw-kv__value"><time class="gw-tabular" [attr.datetime]="iso(r().requestedAt)" [title]="absolute(r().requestedAt)">{{ relative(r().requestedAt) }}</time></dd></div>
+      @if (traceShort(); as trace) {
+        <div class="gw-kv__row"><dt class="gw-kv__key">Trace</dt><dd class="gw-kv__value"><a class="gw-link gw-mono" routerLink="/activity" [queryParams]="{ view: 'traces', q: 'trace:' + trace }">{{ trace }}<span class="gw-sr-only">: open the task in Activity</span></a></dd></div>
+      }
+    </dl>
+  </div>
+  <div class="gw-approval-request__status">
+    <span [class]="'gw-badge gw-badge--' + badge().tone"><svg [lucideIcon]="badge().icon" class="gw-icon gw-badge__icon"></svg>{{ badge().text }}</span>
+    @if (pending()) {
+      <div gwApprovalCountdown [expiresAt]="r().expiresAt" [total]="windowSeconds()" (ended)="onEnded()"></div>
+    }
+  </div>
+</header>
+
+<div class="gw-card__body gw-approval-request__body">
+  @if (envMismatch()) {
+    <div class="gw-alert gw-alert--danger">
+      <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">Prod connection on a {{ endpointEnv() }} endpoint</p>
+        <p class="gw-alert__body"><span class="gw-mono">{{ target() }}</span> is a prod connection, but <span class="gw-mono">{{ r().endpoint }}</span> is a {{ endpointEnv() }} endpoint. Deny it and check the endpoint's connections.</p>
+      </div>
+    </div>
+  } @else if (prod()) {
+    <div class="gw-alert gw-alert--danger">
+      <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">This runs on production</p>
+        <p class="gw-alert__body"><span class="gw-mono">{{ target() }}</span> is a production connection. Check the action{{ commentRequired() ? '; a comment is required to approve' : '' }}.</p>
+      </div>
+    </div>
+  }
+
+  <section class="gw-approval-request__section" [attr.aria-labelledby]="uid + '-action'">
+    <ng-container [ngTemplateOutlet]="heading" [ngTemplateOutletContext]="{ $implicit: 'Exact action', id: uid + '-action' }" />
+    @if (hidden(); as h) {
+      <div class="gw-alert gw-alert--warning gw-alert--compact" [id]="uid + '-warning'">
+        <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content">
+          <p class="gw-alert__title">{{ h.title }}</p>
+          <p class="gw-alert__body">@for (p of h.body; track $index) {@if (p.mono) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</p>
+        </div>
+      </div>
+    }
+    @if (action(); as a) {
+      @if (a.diff; as d) {
+        <gw-diff [diff]="d" [segments]="a.segments" [filename]="filename()" [summary]="diffSummary()" [regionLabel]="regionLabel()" [describedBy]="hidden() ? uid + '-warning' : null" wrap />
+      } @else {
+        <gw-code-block
+          wrap
+          [lineSpans]="true"
+          [segments]="a.segments"
+          [language]="a.language"
+          [lang]="lang()"
+          [filename]="filename()"
+          [copyLabel]="noun().toLowerCase() + ' for ' + target()"
+          [regionLabel]="regionLabel()"
+          [describedBy]="hidden() ? uid + '-warning' : null"
+          [id]="uid + '-code'"
+        />
+      }
+    } @else {
+      <p class="gw-text-body-read gw-fg-muted">The core didn't keep the exact action of this request.</p>
+    }
+  </section>
+
+  @for (w of r().warnings; track $index) {
+    <div class="gw-alert gw-alert--warning gw-alert--compact">
+      <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content"><p class="gw-alert__body">{{ w }}</p></div>
+    </div>
+  }
+
+  <div class="gw-approval-request__facts">
+    <section class="gw-approval-request__section" [attr.aria-labelledby]="uid + '-why'">
+      <ng-container [ngTemplateOutlet]="heading" [ngTemplateOutletContext]="{ $implicit: 'Why approval is needed', id: uid + '-why' }" />
+      <p class="gw-text-body-read">@for (p of why(); track $index) {@if (p.code) {<code class="gw-code">{{ p.text }}</code>} @else {{{ p.text }}}}</p>
+      @if (r().rule; as rule) {
+        <p class="gw-approval-request__rule gw-text-caption gw-fg-muted">Rule <code class="gw-code">{{ rule.id }}</code> @if (ruleLink(); as link) {<a class="gw-link" [routerLink]="link.route" [fragment]="link.fragment">Open in Policies<span class="gw-sr-only">: rule {{ rule.id }}</span></a>}</p>
+      }
+    </section>
+    @if (facts().length) {
+      <section class="gw-approval-request__section" [attr.aria-labelledby]="uid + '-impact'">
+        <ng-container [ngTemplateOutlet]="heading" [ngTemplateOutletContext]="{ $implicit: 'Impact', id: uid + '-impact' }" />
+        <dl class="gw-kv gw-kv--dense">
+          @for (f of facts(); track $index) {
+            <div class="gw-kv__row"><dt class="gw-kv__key">{{ f.label }}</dt><dd class="gw-kv__value">@for (p of f.value; track $index) {@if (p.code) {<code class="gw-code">{{ p.text }}</code>} @else {{{ p.text }}}}</dd></div>
+          }
+        </dl>
+      </section>
+    }
+  </div>
+
+  @if (r().agentNote) {
+    <section class="gw-approval-request__section" [attr.aria-labelledby]="uid + '-note'">
+      <div class="gw-approval-request__section-header">
+        <ng-container [ngTemplateOutlet]="heading" [ngTemplateOutletContext]="{ $implicit: 'Agent\'s note · unverified', id: uid + '-note' }" />
+        <span class="gw-tooltip gw-tooltip--start">
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm" type="button" aria-label="Why the agent's note is unverified" [attr.aria-describedby]="uid + '-note-tip'"><svg lucideIcon="info" class="gw-icon"></svg></button>
+          <span class="gw-tooltip__bubble" role="tooltip" [id]="uid + '-note-tip'">Written by the agent, not checked by the gateway. It can repeat text from data the agent read (tickets, logs, web pages), so decide on the exact action above.</span>
+        </span>
+      </div>
+      <blockquote class="gw-card gw-card--muted gw-approval-request__note">
+        <p class="gw-text-body-read">{{ r().agentNote }}</p>
+      </blockquote>
+    </section>
+  }
+</div>
+
+<footer class="gw-card__footer gw-approval-request__footer">
+  @if (pending()) {
+    <div class="gw-approval-request__decision" role="group" [attr.aria-label]="'Decision on ' + what() + (hidden() ? ', with hidden characters' : '')">
+      <div class="gw-field">
+        <label class="gw-field__label" [for]="uid + '-comment'">Comment @if (commentRequired()) {<span class="gw-field__required"><span aria-hidden="true">*</span><span class="gw-sr-only">required</span></span>} @else {<span class="gw-field__optional">({{ commentRecommended() ? 'recommended' : 'optional' }})</span>}</label>
+        <textarea class="gw-textarea" [id]="uid + '-comment'" rows="2" [required]="commentRequired()" [attr.aria-describedby]="uid + '-comment-hint'" [readOnly]="state() === 'expired'" [value]="comment()" (input)="onComment($event)"></textarea>
+        <p class="gw-field__hint" [id]="uid + '-comment-hint'">{{ commentHint() }}</p>
+      </div>
+      @if (error(); as e) {
+        <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+          <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content"><p class="gw-alert__body">{{ e }}</p></div>
+        </div>
+      }
+      <div class="gw-approval-request__decision-row">
+        @if (commentRequired() && state() === 'pending') {
+          <p class="gw-text-caption gw-fg-muted" [id]="uid + '-caption'"><span [id]="uid + '-approve-why'">Add a comment to approve on {{ r().env }}.</span> {{ caption() }}</p>
+        } @else {
+          <p class="gw-text-caption gw-fg-muted" [id]="uid + '-caption'">{{ caption() }}</p>
+        }
+        <div class="gw-approval-request__buttons">
+          <button
+            class="gw-btn gw-btn--danger"
+            type="button"
+            [attr.aria-disabled]="locked() ? 'true' : null"
+            [attr.aria-busy]="busy() === 'deny' ? 'true' : null"
+            [attr.aria-describedby]="state() === 'expired' ? uid + '-caption' : null"
+            (click)="send('deny')"
+          >@if (busy() === 'deny') {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>Denying…} @else {Deny}<span class="gw-sr-only"> {{ what() }}{{ hidden() ? ' with hidden characters' : '' }}</span></button>
+          <button
+            class="gw-btn gw-btn--approve"
+            type="button"
+            [attr.aria-disabled]="locked() || approveBlocked() ? 'true' : null"
+            [attr.aria-busy]="busy() === 'approve' ? 'true' : null"
+            [attr.aria-describedby]="state() === 'expired' ? uid + '-caption' : approveBlocked() ? uid + '-approve-why' : null"
+            (click)="send('approve')"
+          >@if (busy() === 'approve') {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>Approving…} @else {Approve and run}<span class="gw-sr-only"> {{ what() }}{{ hidden() ? ' with hidden characters' : '' }}</span></button>
+        </div>
+      </div>
+    </div>
+  } @else {
+    <div class="gw-approval-request__history">
+      @switch (state()) {
+        @case ('executed') {
+          <div class="gw-approval-request__result">
+            <div class="gw-alert gw-alert--success">
+              <svg lucideIcon="circle-check" class="gw-icon gw-alert__icon"></svg>
+              <div class="gw-alert__content">
+                <p class="gw-alert__title">{{ ranFor() ? 'Executed in ' + ranFor() : 'Executed' }}</p>
+                <p class="gw-alert__body">{{ affected() ? affected() + '. ' : '' }}{{ clientName() }} received the result in the same call.{{ r().resultExpired ? ' The result was kept for 60 min and is gone now.' : '' }}</p>
+                @if (eventLink()) {
+                  <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" [routerLink]="eventLink()">View event<span class="gw-sr-only"> for {{ what() }}</span></a></div>
+                }
+              </div>
+            </div>
+          </div>
+        }
+        @case ('failed') {
+          <div class="gw-approval-request__result">
+            <div class="gw-alert gw-alert--danger">
+              <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+              <div class="gw-alert__content">
+                <p class="gw-alert__title">{{ r().error ? r().error : 'The call failed after approval' }}</p>
+                <p class="gw-alert__body">It ran on <span class="gw-mono">{{ target() }}</span>{{ ranFor() ? ' for ' + ranFor() : '' }} and was not retried. Check the output, fix the cause, then ask the agent to try again.</p>
+                <div class="gw-alert__actions">
+                  @if (output()) {
+                    <button class="gw-btn gw-btn--sm gw-approval-request__toggle" type="button" gwToggle [attr.aria-controls]="uid + '-output'"><svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-approval-request__when-closed"></svg><svg lucideIcon="chevron-up" class="gw-icon gw-icon--sm gw-approval-request__when-open"></svg>Output</button>
+                  }
+                  @if (eventLink()) {
+                    <a class="gw-btn gw-btn--link" [routerLink]="eventLink()">View event<span class="gw-sr-only"> for {{ what() }}</span></a>
+                  }
+                </div>
+              </div>
+            </div>
+            @if (output()) {
+              <!-- [attr.id]: the host is what Output shows and hides ([id] would name the inner <pre> instead). -->
+              <gw-code-block [attr.id]="uid + '-output'" hidden wrap [copy]="false" lang="Output" [filename]="r().result?.isError ? 'error' : 'result'" [text]="output()" regionLabel="Output of the failed call" />
+            }
+          </div>
+        }
+        @case ('expired') {
+          <div class="gw-alert gw-alert--neutral gw-alert--compact">
+            <svg lucideIcon="timer-off" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content">
+              <p class="gw-alert__title">Expired after {{ windowMinutes() }} min</p>
+              <p class="gw-alert__body">The call was denied and {{ clientName() }} was told the request expired. Nothing ran.</p>
+            </div>
+          </div>
+        }
+      }
+      <ng-container [ngTemplateOutlet]="heading" [ngTemplateOutletContext]="{ $implicit: 'History', id: null }" />
+      <ol class="gw-timeline" [attr.aria-label]="'Approval history of ' + what()">
+        @for (s of history(); track $index) {
+          <li class="gw-timeline__item" [attr.aria-current]="s.current ? 'step' : null">
+            <span [class]="'gw-timeline__marker gw-timeline__marker--' + s.tone"><svg [lucideIcon]="s.icon" class="gw-icon gw-icon--sm"></svg></span>
+            <div class="gw-timeline__content">
+              <p class="gw-timeline__title">{{ s.title }}</p>
+              @if (s.meta.length) {
+                <p class="gw-timeline__meta">@for (p of s.meta; track $index) {@if (p.code) {<code class="gw-code">{{ p.text }}</code>} @else {{{ p.text }}}}</p>
+              }
+              @if (s.comment) {
+                <blockquote class="gw-timeline__comment"><p>{{ s.comment }}</p></blockquote>
+              }
+            </div>
+            <time class="gw-timeline__time" [attr.datetime]="iso(s.at)" [title]="absolute(s.at)">{{ s.since ? since(s.at) : clock(s.at) }}</time>
+          </li>
+        }
+      </ol>
+    </div>
+  }
+</footer>
+
+<ng-template #titleContent><code class="gw-code">{{ r().tool }}</code> on <span class="gw-approval-request__target"><code class="gw-code">{{ target() }}</code>
+  <span class="gw-sr-only">environment</span> <span [class]="'gw-env gw-env--' + r().env">{{ r().env }}</span></span></ng-template>
+
+<ng-template #heading let-text let-id="id">
+  @switch (level()) {
+    @case (3) { <h4 class="gw-text-h3" [attr.id]="id">{{ text }}</h4> }
+    @case (4) { <h5 class="gw-text-h3" [attr.id]="id">{{ text }}</h5> }
+    @default { <h3 class="gw-text-h3" [attr.id]="id">{{ text }}</h3> }
+  }
+</ng-template>

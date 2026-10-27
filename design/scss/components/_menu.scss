@@ -1,0 +1,347 @@
+// =============================================================
+// .gw-menu-host · .gw-menu · .gw-popover · Menus and popovers
+// -------------------------------------------------------------
+// The kit's ONLY dropdown. A trigger button and its floating panel live in
+// one .gw-menu-host (position: relative); the panel is absolute under the
+// trigger and toggled with the `hidden` attribute. The trigger must be a
+// DIRECT child of the host (assets/kit.js finds it as
+// `.gw-menu-host > [aria-haspopup][aria-controls]`).
+//
+//   <div class="gw-menu-host">
+//     <button class="gw-btn gw-btn--ghost gw-btn--icon" type="button"
+//             aria-label="Actions for endpoint dev" aria-haspopup="menu"
+//             aria-expanded="false" aria-controls="m-dev">
+//       <i class="gw-icon" data-lucide="ellipsis"></i>
+//     </button>
+//     <div class="gw-menu gw-menu--right" id="m-dev" role="menu" aria-label="Actions for endpoint dev" hidden>
+//       <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1">
+//         <i class="gw-icon gw-menu__icon" data-lucide="copy"></i>
+//         <span class="gw-menu__label">Copy URL</span>
+//         <kbd class="gw-menu__kbd" aria-hidden="true">C</kbd>
+//       </button>
+//       <div class="gw-menu__divider" role="separator"></div>
+//       <button class="gw-menu__item gw-menu__item--danger" type="button" role="menuitem" tabindex="-1"
+//               data-gw-dialog-open="dlg-delete">…Delete endpoint</button>
+//     </div>
+//   </div>
+//
+// Three kinds of panel, one look:
+//   role="menu"     actions on one object: items role=menuitem (<button>, or <a href>
+//                   when it navigates); a radio group inside: role=group + items
+//                   role=menuitemradio aria-checked + __check
+//   role="listbox"  pick ONE value (sort, time range): items role=option aria-selected
+//                   + a __check icon; the trigger may carry a [data-gw-menu-value]
+//                   span that kit.js fills with the picked label
+//   .gw-popover     role=dialog + aria-labelledby → __title; aria-haspopup="dialog" on
+//                   the trigger: a small form next to its trigger (add filter, columns,
+//                   appearance). Focus moves to its first field; Tab moves inside;
+//                   focus leaving it closes it. Longer than ~2 fields → gw-dialog.
+//
+// .gw-menu
+//   Variants   --right  align to the trigger's end edge (triggers near the end edge)
+//              --wide   320px for items with a second line (__hint inside __label)
+//              --up     opens above the trigger (state class set by kit.js)
+//   Subparts   __group    role=group of items (aria-labelledby → a __note, or aria-label)
+//              __item     32px row: [__check] [__icon] __label [__hint] [__kbd]
+//              __icon     leading Lucide icon, secondary colour
+//              __label    the item text; grows; may hold a block __hint (second line)
+//              __hint     muted caption: block inside __label, or an inline value at
+//                         the end of the row (truncates: put the full value in title)
+//              __check    leading check icon, visible only when the item is
+//                         [aria-selected="true"] / [aria-checked="true"]; keeps its
+//                         space otherwise so labels stay aligned
+//              __kbd      trailing shortcut hint: <kbd aria-hidden="true">, plus
+//                         aria-keyshortcuts on the item when the shortcut is real
+//              __divider  1px rule between groups (role=separator, or <hr>)
+//              __note     muted caption: a group heading (aria-hidden, referenced by
+//                         the group's aria-labelledby) or a footnote
+//              __item--danger   destructive action: danger text, danger wash on hover
+//                               and focus. It OPENS a confirmation (gw-dialog--danger),
+//                               never acts by itself.
+//   States     [hidden] closed · :hover / :focus-visible wash + inset ring (hint and
+//              kbd lift to secondary on the wash: muted on a wash over the dark
+//              overlay is under 4.5:1) · :disabled / [aria-disabled="true"] ·
+//              [aria-selected="true"] / [aria-checked="true"] shows __check
+// .gw-popover
+//   Variants   --right  align to the trigger's end edge
+//              --up     opens above the trigger (state class set by kit.js)
+//   Subparts   __header (title + optional close button) · __title (h2–h4 by
+//              context, or a <p> in the titlebar) · __body (fields, gap 12) ·
+//              __footer (actions, end-aligned, primary last)
+//
+// Behaviour (assets/kit.js): click / Enter / Space on the trigger opens (never
+//   hover or focus); ↑/↓ on the trigger open a menu / listbox at the first / last
+//   item and then move between items; Home / End; Esc closes and returns focus;
+//   Tab or an outside click closes; one panel open at a time; picking an option /
+//   menuitemradio updates aria-selected / aria-checked and closes; a menuitem
+//   closes after its own action (data-gw-copy, data-gw-dialog-open…) runs.
+// a11y   Items carry tabindex="-1" (focus is moved by script). kit.js skips
+//   disabled and aria-disabled items in arrow navigation, so the reason must also
+//   be visible as a __hint. Name the panel (aria-label / aria-labelledby) after
+//   its object: "Actions for endpoint dev".
+// Placement  kit.js opens the panel in the TOP LAYER (Popover API, popover="manual")
+//   and places it with fixed coordinates from the trigger's rect: under the
+//   trigger, aligned to its start (or end with --right), kept 4px inside the
+//   viewport, and flipped above it (--up, set by kit.js) when there is more room
+//   there; it follows scrolling and resizing. So a row menu at the bottom of a
+//   gw-table-wrap, or a menu in a dialog body, is never clipped. The Angular
+//   implementation does the same with a CDK overlay. Without the Popover API the
+//   panel stays absolute inside its host (and --up flips it), so keep hosts near
+//   the top of clipping areas there.
+// Raw values: 220px menu min width, 320px wide menu / popover width, 60vh menu
+//   max height.
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+// Shared floating panel: absolute under the trigger, overlay surface.
+@mixin _floating-panel {
+  position: absolute;
+  top: calc(100% + var(--gw-space-1));
+  inset-inline-start: 0;
+  z-index: var(--gw-z-popover);
+  max-width: calc(100vw - 2 * var(--gw-space-4));
+  @include gw-overlay-surface;
+  color: var(--gw-color-text-primary);
+  text-align: start;
+  white-space: normal;
+
+  @include gw-motion {
+    animation: gw-menu-in var(--gw-motion-duration-base) var(--gw-motion-ease-standard);
+  }
+}
+
+.gw-menu-host {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+}
+
+// ─────────────────── Menu / listbox ───────────────────
+
+.gw-menu {
+  @include _floating-panel;
+  display: flex;
+  flex-direction: column;
+  min-width: 220px; // raw: menu min width, fits a label plus a shortcut hint
+  max-height: 60vh; // raw: share of the viewport; longer lists scroll inside
+  padding: var(--gw-space-1);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  @include gw-type(small);
+  @include gw-scrollbar;
+
+  &--right {
+    inset-inline-start: auto;
+    inset-inline-end: 0;
+  }
+
+  &--wide { width: 320px; } // raw: wide menu for items with a second line
+
+  &--up {
+    top: auto;
+    bottom: calc(100% + var(--gw-space-1));
+  }
+
+  &__group {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: var(--gw-space-2);
+    width: 100%;
+    min-height: var(--gw-size-control-md);
+    margin: 0;
+    padding: var(--gw-space-1-5) var(--gw-space-2);
+    font-family: var(--gw-font-family-sans);
+    @include gw-type(small);
+    color: var(--gw-color-text-primary);
+    text-align: start;
+    text-decoration: none;
+    background: none;
+    border: 0;
+    border-radius: var(--gw-radius-sm);
+    cursor: pointer;
+    user-select: none;
+    @include gw-focus-ring-inset;
+    @include gw-hover-wash;
+
+    // Keyboard position: wash + ring (the ring alone is thin on a busy list).
+    // --active / [data-active] = the same look for the option a combobox points
+    // at with aria-activedescendant while DOM focus stays in the input.
+    &:focus-visible,
+    &--active,
+    &[data-active] { background: var(--gw-color-bg-hover); }
+    &--active,
+    &[data-active] { box-shadow: inset 0 0 0 var(--gw-focus-width) var(--gw-color-border-focus); }
+
+    // Muted text on the wash over the dark overlay drops under 4.5:1: lift it.
+    &:hover:not(:disabled):not([aria-disabled="true"]),
+    &:focus-visible {
+      > .gw-menu__hint,
+      > .gw-menu__kbd,
+      > .gw-menu__label > .gw-menu__hint { color: var(--gw-color-text-secondary); }
+    }
+
+    &:disabled,
+    &[aria-disabled="true"] {
+      color: var(--gw-color-text-disabled);
+      cursor: not-allowed;
+
+      > .gw-menu__icon,
+      > .gw-menu__kbd,
+      > .gw-menu__hint,
+      > .gw-menu__label > .gw-menu__hint { color: inherit; }
+    }
+  }
+
+  &__item--danger {
+    color: var(--gw-color-danger-fg);
+
+    > .gw-menu__icon { color: inherit; }
+
+    &:hover:not(:disabled):not([aria-disabled="true"]),
+    &:focus-visible { background: var(--gw-color-danger-subtle); }
+  }
+
+  &__icon {
+    flex: none;
+    color: var(--gw-color-text-secondary);
+  }
+
+  &__check {
+    flex: none;
+    color: var(--gw-color-brand-fg);
+    visibility: hidden;
+  }
+
+  &__item[aria-selected="true"] > &__check,
+  &__item[aria-checked="true"] > &__check { visibility: visible; }
+
+  &__label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  &__hint {
+    @include gw-type(caption);
+    color: var(--gw-color-text-muted);
+  }
+
+  // Second line under the label (wide menus).
+  &__label > &__hint {
+    display: block;
+    margin-top: var(--gw-space-0-5);
+  }
+
+  // Inline value at the end of the row ("db.dev.internal", "12").
+  &__item > &__hint {
+    flex: 0 1 auto;
+    max-width: 50%;
+    margin-inline-start: auto;
+    @include gw-truncate;
+  }
+
+  &__kbd {
+    flex: none;
+    margin-inline-start: auto;
+    @include gw-type(caption);
+    @include gw-mono;
+    color: var(--gw-color-text-muted);
+  }
+
+  &__hint ~ &__kbd { margin-inline-start: 0; }
+
+  &__divider {
+    flex: none;
+    height: var(--gw-border-width-default);
+    margin: var(--gw-space-1) calc(-1 * var(--gw-space-1));
+    padding: 0;
+    background: var(--gw-color-border-subtle);
+    border: 0;
+  }
+
+  &__note {
+    margin: 0;
+    padding: var(--gw-space-1-5) var(--gw-space-2) var(--gw-space-1);
+    @include gw-type(caption);
+    color: var(--gw-color-text-muted);
+  }
+}
+
+// ─────────────────── Popover ───────────────────
+
+.gw-popover {
+  @include _floating-panel;
+  display: flex;
+  flex-direction: column;
+  width: 320px; // raw: popover width, same as gw-menu--wide
+
+  &--right {
+    inset-inline-start: auto;
+    inset-inline-end: 0;
+  }
+
+  &--up {
+    top: auto;
+    bottom: calc(100% + var(--gw-space-1));
+  }
+
+  &__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--gw-space-2);
+    padding: var(--gw-space-3) var(--gw-space-4) 0;
+  }
+
+  &__title {
+    margin: 0;
+    @include gw-type(h3);
+    color: var(--gw-color-text-primary);
+  }
+
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-3);
+    min-width: 0;
+    padding: var(--gw-space-3) var(--gw-space-4) var(--gw-space-4);
+    @include gw-type(small);
+    color: var(--gw-color-text-secondary);
+  }
+
+  &__footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--gw-space-2);
+    padding: var(--gw-space-3) var(--gw-space-4);
+    border-top: var(--gw-border-width-default) solid var(--gw-color-border-subtle);
+  }
+}
+
+// Top layer (kit.js showPopover): fixed, placed by script from the trigger's
+// rect (inline top / left / max-height); the UA popover box styles are reset.
+.gw-menu[popover],
+.gw-popover[popover] {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+}
+.gw-popover[popover] { padding: 0; }
+
+// Appear: a short drop and fade from the trigger (motion allowed only).
+@keyframes gw-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--gw-space-1)));
+  }
+}

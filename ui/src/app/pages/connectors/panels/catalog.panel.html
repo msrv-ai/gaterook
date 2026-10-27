@@ -1,0 +1,132 @@
+<div class="gw-stack">
+  <h2 class="gw-sr-only">Catalog</h2>
+  @if (data.catalog.notAvailable()) {
+    <!-- The core has no catalog yet (step K6): say so, and keep the way to install from a file or a URL. -->
+    <div class="gw-card">
+      <div class="gw-empty">
+        <span class="gw-empty__icon"><svg lucideIcon="library" class="gw-icon gw-icon--lg"></svg></span>
+        <h3 class="gw-empty__title">The catalog isn't available yet</h3>
+        <p class="gw-empty__text">This build of the gateway core doesn't read the signed catalog. A plugin you have as a file or a URL can still be checked and installed.</p>
+        <div class="gw-empty__actions"><button class="gw-btn" type="button" (click)="act(null, 'install-file', $event)"><svg lucideIcon="upload" class="gw-icon"></svg> Install from file or URL</button></div>
+      </div>
+    </div>
+  } @else if (data.catalog.error(); as e) {
+    <div class="gw-alert gw-alert--danger" role="alert">
+      <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">The catalog didn't load</p>
+        <p class="gw-alert__body">{{ errorText(e) }}</p>
+        <div class="gw-alert__actions">
+          <button class="gw-btn gw-btn--sm" type="button" (click)="retry()" [attr.aria-busy]="data.catalog.loading() ? 'true' : null" [attr.aria-disabled]="data.catalog.loading() ? 'true' : null">@if (data.catalog.loading()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Try again</button>
+          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle aria-controls="catalog-error-details">Details <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
+        </div>
+      </div>
+    </div>
+    <gw-code-block [attr.id]="'catalog-error-details'" hidden wrap lang="Error" [text]="errorDetails(e)" copyLabel="error details" regionLabel="Error details" />
+  } @else if (!views()) {
+    @if (slow()) {
+      <ul class="gw-grid gw-grid--3" aria-busy="true" aria-label="Catalog, loading">
+        @for (i of [1, 2, 3]; track i) {
+          <li aria-hidden="true">
+            <div class="gw-card">
+              <div class="gw-card__body">
+                <div class="gw-stack gw-stack--sm">
+                  <span class="gw-skeleton gw-skeleton--circle"></span>
+                  <span class="gw-skeleton gw-skeleton--text"></span>
+                  <span class="gw-skeleton gw-skeleton--text"></span>
+                </div>
+              </div>
+            </div>
+          </li>
+        }
+      </ul>
+      <p class="gw-sr-only" role="status">Loading the catalog</p>
+    }
+  } @else {
+    @if (signatureFailed()) {
+      <div class="gw-alert gw-alert--warning gw-alert--compact" role="status">
+        <svg lucideIcon="shield-alert" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content">
+          <p class="gw-alert__title">The catalog's signature didn't verify</p>
+          <p class="gw-alert__body">These are the entries of the last index that did. Nothing from the new one is offered.@if (problem()) { {{ problem() }}}</p>
+        </div>
+      </div>
+    } @else if (problem() && views()!.length) {
+      <!-- Review 2026-10-26: the core says why the last check failed (K6 `problem`); the entries are the last good index. -->
+      <div class="gw-alert gw-alert--warning gw-alert--compact" role="status">
+        <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content">
+          <p class="gw-alert__title">The catalog couldn't be checked</p>
+          <p class="gw-alert__body">{{ problem() }} These are the entries of the last index MCP Gateway verified.</p>
+        </div>
+      </div>
+    }
+    @if (data.catalog.stale(); as e) {
+      <div class="gw-alert gw-alert--warning gw-alert--compact" role="status">
+        <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content">
+          <p class="gw-alert__title">This list may be out of date.</p>
+          <p class="gw-alert__body">{{ errorText(e) }}</p>
+        </div>
+        <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retry()">Try again</button></div>
+      </div>
+    }
+    <div class="gw-toolbar">
+      <div class="gw-toolbar__start">
+        <div class="gw-search gw-search--sm" role="search" aria-label="Catalog">
+          <svg lucideIcon="search" class="gw-icon gw-search__icon"></svg>
+          <input class="gw-search__input" type="search" id="catalog-search" #search placeholder="Search the catalog" aria-label="Search the catalog" aria-controls="catalog-grid" autocomplete="off" spellcheck="false" [value]="query()" (input)="onSearch(search.value)">
+          <button class="gw-search__clear" type="button" aria-label="Clear search"><svg lucideIcon="x" class="gw-icon gw-icon--sm"></svg></button>
+        </div>
+        <p class="gw-text-small gw-fg-muted gw-tabular" id="catalog-count" role="status">{{ countText() }}</p>
+      </div>
+      @if (views()!.length) {
+        <!-- Without entries the empty card below offers it, once. -->
+        <div class="gw-toolbar__end">
+          <button class="gw-btn gw-btn--sm" type="button" (click)="act(null, 'install-file', $event)"><svg lucideIcon="upload" class="gw-icon gw-icon--sm"></svg> Install from file or URL</button>
+        </div>
+      }
+    </div>
+
+    <ul class="gw-grid gw-grid--3" id="catalog-grid" aria-label="Catalog" [hidden]="!shown().length">
+      @for (c of shown(); track c.key) {
+        <li>
+          <article gwConnectorCard [card]="c.card" confirmUnsigned="false" [busy]="busyKey() === c.key" (act)="fromCard(c)">
+            <div class="gw-card__actions" gwConnectorCardActions>
+              @switch (c.action) {
+                @case ('open-server') {
+                  <a class="gw-btn gw-btn--sm" routerLink="/connectors" fragment="mcp-servers">Open<span class="gw-sr-only"> {{ c.entry.installed }} in MCP servers</span></a>
+                }
+                @case ('add-connection') {
+                  <a class="gw-btn gw-btn--sm" routerLink="/connections/new" [queryParams]="{ type: c.entry.id }">Add connection<span class="gw-sr-only"> for {{ c.entry.name }}</span></a>
+                }
+              }
+            </div>
+          </article>
+        </li>
+      }
+    </ul>
+
+    @if (!shown().length) {
+      <div class="gw-card">
+        <div class="gw-empty">
+          <span class="gw-empty__icon"><svg lucideIcon="search-x" class="gw-icon gw-icon--lg"></svg></span>
+          @if (views()!.length) {
+            <h3 class="gw-empty__title">Nothing in the catalog matches</h3>
+            <p class="gw-empty__text">Write a template for it, or put an existing MCP server behind the gateway.</p>
+            <div class="gw-empty__actions"><button class="gw-btn" type="button" gwSearchClear="#catalog-search"><svg lucideIcon="x" class="gw-icon"></svg> Clear search</button></div>
+          } @else if (problem()) {
+            <!-- No index was ever accepted: the core says why (no catalog in this build, unreachable, a bad signature). -->
+            <h3 class="gw-empty__title">The catalog isn't available</h3>
+            <p class="gw-empty__text">{{ problem() }} A plugin you have as a file can still be checked and installed.</p>
+            <div class="gw-empty__actions"><button class="gw-btn" type="button" (click)="act(null, 'install-file', $event)"><svg lucideIcon="upload" class="gw-icon"></svg> Install from file or URL</button></div>
+          } @else {
+            <h3 class="gw-empty__title">The catalog is empty</h3>
+            <p class="gw-empty__text">Its index lists no plugins, templates or MCP servers for this core. Write a template, or install a plugin from a file or a URL.</p>
+            <div class="gw-empty__actions"><button class="gw-btn" type="button" (click)="act(null, 'install-file', $event)"><svg lucideIcon="upload" class="gw-icon"></svg> Install from file or URL</button></div>
+          }
+        </div>
+      </div>
+    }
+  }
+</div>

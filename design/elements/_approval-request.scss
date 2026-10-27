@@ -1,0 +1,509 @@
+// =============================================================
+// .gw-approval-request · Element · the approval decision
+// -------------------------------------------------------------
+// THE decision UI: one mutation an agent asked for, shown verbatim, with
+// the context needed to say yes or no. Layout glue only: every visual
+// comes from the components it composes.
+//
+// Used in   pages/approvals.html (detail pane of the queue + history),
+//           pages/overview.html ("Waiting for your approval", --compact),
+//           pages/activity.html (event drawer of an approval, read-only states).
+// Composes  gw-card (+ --muted for the agent's note) · gw-code · gw-env (--sm in
+//           --compact) · gw-mode --approval · gw-kv (--inline, --dense)
+//           · gw-client-mark --sm · gw-badge · gw-progress --sm (--warning,
+//           --danger) · gw-code-block (--wrap) + gw-tok-* · gw-diff · gw-alert
+//           (--danger, --success, --neutral --compact) · gw-tooltip --start
+//           · gw-btn (--danger, --approve, --ghost --icon --sm, --link, --sm)
+//           · gw-field + gw-textarea · gw-timeline · gw-status · gw-link
+//           · text utilities (gw-text-*, gw-fg-*, gw-tabular, gw-truncate, gw-sr-only).
+//
+//   <article class="gw-card gw-approval-request" data-state="pending" aria-labelledby="ar-title">
+//     <header class="gw-card__header gw-approval-request__header">
+//       <div class="gw-card__heading gw-approval-request__heading">
+//         <h2 class="gw-card__title gw-approval-request__title" id="ar-title" tabindex="-1">
+//           <code class="gw-code">sql_execute</code> on <span class="gw-approval-request__target"><code class="gw-code">dev-db</code>
+//           <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev">dev</span></span>
+//         </h2>
+//         <dl class="gw-kv gw-kv--inline gw-approval-request__meta">
+//           <div class="gw-kv__row"><dt class="gw-kv__key">Mode</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval">…user-check… Approval</span></dd></div>
+//           Endpoint (gw-code) · AI app (<span class="gw-approval-request__client">gw-client-mark--sm + name</span>)
+//           · Token (gw-code token name; Claude Desktop: "Bridge (.mcpb)") · Requested (<time datetime title>)
+//         </dl>
+//       </div>
+//       <div class="gw-approval-request__status">
+//         <span class="gw-badge gw-badge--warning"><i class="gw-icon gw-badge__icon" data-lucide="hourglass"></i>Waiting for approval</span>
+//         <div class="gw-approval-request__countdown" data-gw-countdown="252" data-gw-countdown-total="300">
+//           <p class="gw-approval-request__countdown-text gw-text-small gw-tabular" role="timer">
+//             <i class="gw-icon gw-icon--sm gw-fg-warning" data-lucide="timer"></i>Auto-deny in <span data-gw-countdown-text>4:12</span>
+//           </p>
+//           <div class="gw-progress gw-progress--sm gw-progress--warning" aria-hidden="true"><div class="gw-progress__bar"></div></div>
+//         </div>
+//       </div>
+//     </header>
+//     <div class="gw-card__body gw-approval-request__body">
+//       [<div class="gw-alert gw-alert--danger"> "This runs on production" </div>]   prod only, always first
+//       <section class="gw-approval-request__section" aria-labelledby="…">
+//         <h3 class="gw-text-h3">Exact action</h3>  gw-code-block (SQL, command, HTTP) | gw-diff (k8s_apply)
+//       </section>
+//       <div class="gw-approval-request__facts">
+//         <section class="gw-approval-request__section"> <h3>Why approval is needed</h3>
+//           <p class="gw-text-body-read">sql_execute on dev-db: DML requires approval. …</p>
+//           <p class="gw-approval-request__rule gw-text-caption gw-fg-muted">Rule <code class="gw-code">dev.sql.dml-approval</code>
+//             <a class="gw-link" href="policies.html">Open in Policies<span class="gw-sr-only">: rule dev.sql.dml-approval</span></a></p>
+//         </section>
+//         <section class="gw-approval-request__section"> <h3>Impact</h3> <dl class="gw-kv gw-kv--dense">…</dl> </section>
+//       </div>
+//       <section class="gw-approval-request__section">
+//         <div class="gw-approval-request__section-header">
+//           <h3 class="gw-text-h3">Agent's note · unverified</h3>
+//           <span class="gw-tooltip gw-tooltip--start"> gw-btn--ghost --icon --sm (info, aria-label + aria-describedby) + __bubble </span>
+//         </div>
+//         <blockquote class="gw-card gw-card--muted gw-approval-request__note"><p class="gw-text-body-read">…</p></blockquote>
+//       </section>
+//     </div>
+//     <footer class="gw-card__footer gw-approval-request__footer">
+//       <div class="gw-approval-request__decision" role="group" aria-label="Decision on sql_execute on dev-db">
+//         <div class="gw-field">
+//           <label class="gw-field__label" for="c">Comment <span class="gw-field__optional">(optional)</span></label>
+//           <textarea class="gw-textarea" id="c" rows="2" aria-describedby="c-hint"></textarea>
+//           <p class="gw-field__hint" id="c-hint">Sent to Codex with your decision and kept in the audit log.</p>
+//         </div>
+//         <div class="gw-approval-request__decision-row">
+//           <p class="gw-text-caption gw-fg-muted">Runs once, exactly as shown above. …</p>
+//           <div class="gw-approval-request__buttons">
+//             <button class="gw-btn gw-btn--danger" type="button">Deny<span class="gw-sr-only"> sql_execute on dev-db</span></button>
+//             <button class="gw-btn gw-btn--approve" type="button">Approve and run<span class="gw-sr-only"> sql_execute on dev-db</span></button>
+//           </div>
+//         </div>
+//       </div>
+//     </footer>
+//   </article>
+//
+//   Decided states put this in the footer instead of the decision:
+//     <div class="gw-approval-request__history">
+//       [<div class="gw-approval-request__result"> gw-alert (+ output disclosure) </div>]
+//       <h3 class="gw-text-h3">History</h3>
+//       <ol class="gw-timeline" aria-label="Approval history of sql_execute on dev-db">…</ol>
+//     </div>
+//
+// Headings  follow the host: the title is h2 in the Approvals detail pane and
+//           the Activity drawer, the section titles one level below (h3, styled
+//           gw-text-h3). The demo page nests everything one level deeper.
+//
+// Parts
+//   __header __heading __title  title row: tool on connection + env, the meta
+//                       strip under it, the status column at the end
+//   __target            <span> around the connection's gw-code + sr-only
+//                       "environment" + gw-env: kept on one line
+//   __meta              gw-kv--inline strip: Mode · Endpoint · AI app · Token · Requested
+//   __client            client mark + name inside a kv value
+//   __status            badge (+ countdown while pending), end-aligned; drops
+//                       under the heading when the card is narrower than sm (640px)
+//   __countdown         carries data-gw-countdown (+ -total); kit.js writes the time
+//                       into [data-gw-countdown-text] and the 1 → 0 fraction into
+//                       --gw-countdown, which this element feeds to the gw-progress
+//                       inside (--gw-progress)
+//   __countdown-text    timer icon + "Auto-deny in 4:12"
+//   __body              sections stacked 20px apart, in a fixed order: [prod alert]
+//                       → Exact action → Why approval is needed + Impact → Agent's note
+//   __section           one titled block; __section-header = title + tooltip trigger
+//   __facts             "Why" and "Impact" side by side when each gets 256px or more
+//   __rule              rule id (gw-code) + link to Policies
+//   __note              the agent's note: a gw-card--muted blockquote, padded
+//   __footer            card footer, stacked (decision or history)
+//   __decision          role="group": comment field, then __decision-row
+//   __decision-row      one-line caption at the start, __buttons at the end; wraps
+//                       with the buttons kept at the end
+//   __buttons           Deny then Approve and run (always last)
+//   __history           decided states: [__result] + "History" + gw-timeline
+//   __result            outcome: gw-alert, then the output (gw-code-block, hidden)
+//   __toggle __when-closed __when-open   output disclosure (data-gw-toggle): the
+//                       chevron-down / chevron-up pair follows aria-expanded
+//   __summary __preview __end __from     --compact parts (see below)
+//
+// States  data-state on the root: pending (default) | partial | approved |
+//         rejected | expired | executed | failed. The state changes the MARKUP,
+//         never a colour here. Badges and icons follow BLUEPRINT §7:
+//   pending   badge warning hourglass "Waiting for approval" + countdown +
+//             decision; the comment hint says who receives it
+//   partial   the policy needs N approvers (dev: 2) and some approved:
+//             badge warning user-check "Approved by 1 of 2" + countdown; a
+//             __history timeline ABOVE the decision lists who approved; for the
+//             next approver the button reads "Approve (2 of 2) and run" (the
+//             last one) or "Approve (1 of 2)" (not the last: nothing runs yet)
+//             and the caption says what happens; a person who already approved
+//             sees no buttons, only "You approved · waiting for 1 more approver"
+//             (the same person never approves twice)
+//   approved  badge success user-check "Approved"; the decision is replaced by
+//             the history, whose current step (aria-current="step") is the run
+//   rejected  badge danger user-x "Rejected" + history with the approver's
+//             comment. The contract's "denied": a human Deny is recorded as
+//             Rejected; "Denied by policy" never creates a request, so it never
+//             reaches this element (it is an event-detail)
+//   expired   badge neutral timer-off "Expired" + gw-alert--neutral --compact
+//             ("Nothing ran") + history; read-only: no comment, no buttons
+//   executed  badge success "Approved" + gw-alert--success "Executed in 38 ms"
+//             (rows affected, View event) + history
+//   failed    badge danger circle-alert "Error" + gw-alert--danger (what
+//             happened, what to do, output behind a disclosure, View event)
+//             + history
+//   prod      gw-env--prod in the title AND a gw-alert--danger "This runs on
+//             production" as the first thing in the body; the prod policy gives
+//             a 10 min window and, by default, requires a comment (see "comment
+//             required"). A prod connection is reached only through a prod
+//             endpoint (incident-prod), and on prod-vm only runbooks run
+//             (ssh_run): the action shows the runbook, its parameters and the
+//             command it expands to.
+//   comment required  the policy requires a comment to approve (prod default:
+//             Settings › Approval rules "Require a comment on prod"). The label
+//             loses "(optional)" and gets the required marker
+//             (<span class="gw-field__required"><span aria-hidden="true">*</span>
+//             <span class="gw-sr-only">required</span></span>), the textarea is
+//             `required`, and the hint says it is required to approve. Approve and
+//             run carries aria-disabled="true" + aria-describedby → a span at the
+//             start of the decision caption, "Add a comment to approve on prod.",
+//             and data-gw-enable-when="#<comment id>": kit.js keeps it inert
+//             until the comment has text (whitespace does not count). Deny never
+//             needs a comment. Slack and Telegram show no Approve for such a
+//             request (Deny + Open in app); see approval-notification.
+//   env mismatch  the connection's environment is stricter than the endpoint's
+//             (a prod connection on the dev endpoint): a gw-alert--danger
+//             "Prod connection on a dev endpoint" before everything else in the
+//             body, naming both, with a link to the endpoint's connections. It
+//             should not happen (the endpoint refuses it); if it does, say so.
+//   urgent    kit.js sets [data-urgent] on __countdown at 60 s or less and moves
+//             the tone by MARKUP only (no colour in this file): gw-progress--warning
+//             becomes --danger and the colour moves from the icon (gw-fg-warning)
+//             to the whole timer line (gw-fg-danger). The app announces once
+//             through data-gw-countdown-announce ("sql_execute on dev-db
+//             auto-denies in 1 min", assertive).
+//   expiring  at 0 kit.js expires the request in place (no app round trip
+//             needed for a safe UI): data-state="expired", the badge turns
+//             neutral "Expired", the timer line reads "Expired, denied
+//             automatically" (bar hidden), the decision caption says nothing
+//             ran, Deny and Approve and run become aria-disabled (described by
+//             that caption only; kit.js blocks them and drops their
+//             data-gw-enable-when, so a comment can't bring them back), the
+//             comment is read-only, and
+//             `gw-countdown-end` bubbles so a list can move the row to History.
+//             The app then re-renders it as the full expired state.
+//
+// Variant  --compact  one row for lists (Overview "Waiting for your approval", the
+//          queue): client mark · __summary (title: tool on __target, then
+//          <span class="__from gw-text-small gw-fg-muted">from Codex</span>;
+//          then __preview: the first line of the action, mono, truncated,
+//          full line in title) · __end (countdown + a "Review" link to the
+//          full request). There is never an Approve or Deny button in
+//          --compact: a decision needs the exact action on screen. When the
+//          countdown ends the row reads "Expired, denied automatically"; the
+//          list may then move it to History (listen for gw-countdown-end).
+//
+// Safety   The action is the exact text that will run (masked only where the
+//          gateway injects a secret: ‹masked›). The agent's note comes last,
+//          is labelled unverified and never replaces the action. No mode
+//          writes without approval (gw-mode shows Approval).
+//   Visible means visible: verbatim text can still hide its meaning.
+//   - Every Exact action WRAPS (SQL, shell, command, HTTP, and gw-diff lines):
+//     this element forces soft wrap on any gw-code-block / gw-diff inside it,
+//     so a tail like "… OR 1=1" or "; DROP …" is never off the right edge
+//     behind a thin scrollbar. Mark the action up one source line per
+//     gw-code-block__line: a wrapped line then hangs 2ch under its first
+//     line, and a real new line starts at the margin.
+//   - Invisible and deceptive characters render as visible escapes, never as
+//     themselves: control characters, bidi overrides and isolates (U+202A–
+//     U+202E, U+2066–U+2069), zero-width characters (U+200B–U+200D, U+FEFF),
+//     tabs and trailing spaces become <span class="gw-tok-invisible"
+//     title="U+202E right-to-left override">‹U+202E›</span> (‹TAB›, ‹SP›).
+//     A non-ASCII letter outside a string literal (a homoglyph: Cyrillic U+043E
+//     in an identifier that looks like "orders") is wrapped in gw-tok-confusable with its code point in
+//     title. Copy copies what is shown (the escapes).
+//   - Any of these puts a gw-alert--warning --compact above the block, in the
+//     Exact action section: "Contains 2 hidden characters and 1 non-ASCII
+//     letter", naming them. The alert is part of the action, not the note.
+//   - Approved and executed requests record the SHA-256 of the exact action;
+//     event-detail shows it and whether the executed action matches.
+// Keyboard  Tab order: copy, the scrollable action region, the tooltip
+//           trigger, links, comment, Deny, Approve and run. No single-key or
+//           chord shortcut approves, nothing autofocuses Approve, Enter in the
+//           comment adds a line (textarea) and never submits. Opening a
+//           request moves focus to its title (tabindex="-1"), not to a button;
+//           compact "Review" links point at that title.
+// A11y      <article aria-labelledby> the title; repeated controls are unique
+//           via gw-sr-only ("Deny sql_execute on dev-db", "Open in Policies:
+//           rule dev.sql.dml-approval"); the countdown line is role="timer"
+//           (implicitly not live: no announcement every second), the bar is
+//           aria-hidden; the decision is role="group" with a name; the action
+//           region is focusable and named; the env marker has a gw-sr-only
+//           "environment" before it.
+// Layout    The root is an inline-size container (gw-approval-request), so it
+//           adapts to its pane (split detail, drawer, overview list), not to
+//           the window. Give it a definite width (a block, or a stretched flex
+//           or grid item). Long literals wrap (title, kv values) or truncate
+//           (code-block file name, compact preview); the exact action always
+//           wraps (see Safety), it never scrolls sideways. In the title the
+//           connection and its env marker form one __target that never breaks
+//           ("dev-cluster DEV" stays together; "from Claude Desktop" wraps as
+//           a whole after it).
+//           In a gw-split__detail (the Approvals pane) the decision footer is
+//           sticky at the bottom of the pane, on the surface fill, so Deny and
+//           Approve and run stay on screen while the action and the facts scroll
+//           (gw-page--full gives the split the window's remaining height).
+// Raw values 2ch hanging indent of a wrapped action line (columns of code).
+// =============================================================
+
+@use "../scss/tokens" as *;
+@use "../scss/mixins" as *;
+
+.gw-approval-request {
+  container: gw-approval-request / inline-size;
+
+  // ─── Header ───
+  &__header {
+    flex-wrap: wrap;
+    row-gap: var(--gw-space-3);
+  }
+
+  &__heading {
+    flex: 1 1 calc(var(--gw-space-16) * 5);
+    gap: var(--gw-space-3);
+  }
+
+  &__title {
+    flex-wrap: wrap;
+    row-gap: var(--gw-space-1);
+    overflow-wrap: anywhere;
+  }
+
+  // Connection + its env marker: the risk signal never wraps away from the name.
+  &__target {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--gw-space-1-5);
+    white-space: nowrap;
+  }
+
+  &__meta {
+    gap: var(--gw-space-2) var(--gw-space-6);
+  }
+
+  &__client {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--gw-space-1-5);
+  }
+
+  &__status {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--gw-space-2);
+    flex: none;
+    min-inline-size: calc(var(--gw-space-16) * 2.5);
+  }
+
+  &__countdown {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--gw-space-1-5);
+    align-self: stretch;
+
+    // kit.js writes the remaining fraction (1 → 0) as --gw-countdown.
+    .gw-progress { --gw-progress: var(--gw-countdown, 1); }
+  }
+
+  &__countdown-text {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--gw-space-1);
+    white-space: nowrap;
+  }
+
+  // ─── Body ───
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-5);
+  }
+
+  &__section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-2);
+    min-width: 0;
+  }
+
+  // Same height with or without the 28px tooltip trigger.
+  &__section-header {
+    display: flex;
+    align-items: center;
+    gap: var(--gw-space-1);
+    min-height: var(--gw-size-control-sm);
+  }
+
+  &__facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--gw-space-16) * 4)), 1fr));
+    gap: var(--gw-space-5) var(--gw-space-8);
+    align-items: start;
+  }
+
+  &__rule {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gw-space-1) var(--gw-space-2);
+  }
+
+  &__note {
+    padding: var(--gw-space-3) var(--gw-space-4);
+  }
+
+  // ─── Exact action: always wraps (Safety in the header) ───
+  // Applies to every code block and diff in the request, with or without the
+  // component's --wrap modifier, so no host can hide the tail of an action.
+  .gw-code-block__pre {
+    width: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  // One source line per __line: a soft-wrapped line hangs under its first line,
+  // a real new line starts at the margin. (--numbered already tells lines apart
+  // by their numbers and keeps its gutter padding.)
+  .gw-code-block:not(.gw-code-block--numbered) .gw-code-block__line,
+  .gw-diff__line:not(.gw-diff__line--hunk) > .gw-diff__text {
+    padding-inline-start: 2ch; // raw: hanging indent in code columns
+    text-indent: -2ch; // raw: hanging indent in code columns
+  }
+
+  .gw-diff__body {
+    grid-template-columns: max-content max-content max-content minmax(0, 1fr);
+  }
+
+  .gw-diff__text {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  // In the Approvals detail pane the decision stays on screen while the
+  // request scrolls under it.
+  .gw-split__detail &__footer {
+    position: sticky;
+    inset-block-end: 0;
+    z-index: var(--gw-z-raised);
+    background: var(--gw-color-bg-surface);
+    border-end-start-radius: inherit;
+    border-end-end-radius: inherit;
+  }
+
+  // Expired: the bar has nothing left to show (kit.js also sets [hidden]).
+  &[data-state="expired"] &__countdown .gw-progress { display: none; }
+
+  // ─── Footer: decision or history ───
+  &__footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--gw-space-4);
+    padding-block: var(--gw-space-4);
+  }
+
+  &__decision {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-3);
+  }
+
+  &__decision-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--gw-space-2) var(--gw-space-4);
+  }
+
+  &__buttons {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--gw-space-2);
+    margin-inline-start: auto;
+  }
+
+  &__history {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-3);
+  }
+
+  &__result {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-2);
+  }
+
+  // Output disclosure: one chevron per state of aria-expanded (kit.js toggles it).
+  &__toggle[aria-expanded="true"] &__when-closed,
+  &__toggle[aria-expanded="false"] &__when-open {
+    display: none;
+  }
+
+  // ─── Narrow pane (split detail at a 960px window, drawers) ───
+  @container gw-approval-request (width < #{$gw-bp-sm}) {
+    &__status {
+      flex: 1 1 100%;
+      align-items: flex-start;
+      min-inline-size: 0;
+    }
+
+    &__countdown-text { justify-content: flex-start; }
+  }
+
+  // ─── Compact: one row in a list ───
+  &--compact {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gw-space-2) var(--gw-space-3);
+    padding: var(--gw-space-3) var(--gw-space-4);
+  }
+
+  &__summary {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-0-5);
+    flex: 1 1 calc(var(--gw-space-16) * 4);
+    min-width: 0;
+  }
+
+  &--compact &__title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gw-space-1) var(--gw-space-1-5);
+    overflow-wrap: anywhere;
+  }
+
+  // "from Claude Desktop" wraps as one piece after the target.
+  &__from {
+    white-space: nowrap;
+  }
+
+  &__preview {
+    min-width: 0;
+  }
+
+  &__end {
+    display: flex;
+    align-items: center;
+    gap: var(--gw-space-4);
+    margin-inline-start: auto;
+  }
+
+  // As wide as its timer line; the bar stretches under it.
+  &--compact &__countdown {
+    flex: none;
+    align-self: center;
+  }
+}

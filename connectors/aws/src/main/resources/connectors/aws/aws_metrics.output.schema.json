@@ -1,0 +1,235 @@
+{
+  "type": "object",
+  "required": [
+    "provider",
+    "action",
+    "truncated"
+  ],
+  "properties": {
+    "provider": {
+      "const": "aws"
+    },
+    "action": {
+      "enum": [
+        "query",
+        "list_metrics",
+        "alarms"
+      ]
+    },
+    "region": {
+      "type": "string"
+    },
+    "from": {
+      "type": "string"
+    },
+    "to": {
+      "type": "string"
+    },
+    "period": {
+      "type": "integer"
+    },
+    "series": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "points"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "namespace": {
+            "type": "string"
+          },
+          "metric": {
+            "type": "string"
+          },
+          "dimensions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "stat": {
+            "type": "string"
+          },
+          "expression": {
+            "type": "string"
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "t",
+                "v"
+              ],
+              "properties": {
+                "t": {
+                  "type": "string"
+                },
+                "v": {
+                  "type": "number"
+                }
+              }
+            }
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "min": {
+                "type": "number"
+              },
+              "max": {
+                "type": "number"
+              },
+              "avg": {
+                "type": "number"
+              },
+              "last": {
+                "type": "number"
+              }
+            }
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "metrics": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "required": [
+          "namespace",
+          "metric"
+        ],
+        "properties": {
+          "namespace": {
+            "type": "string"
+          },
+          "metric": {
+            "type": "string"
+          },
+          "dimensions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "alarms": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "state"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "arn": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "namespace": {
+            "type": "string"
+          },
+          "metric": {
+            "type": "string"
+          },
+          "dimensions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "threshold": {
+            "type": "number"
+          },
+          "comparison": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "messages": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "metricsRequested": {
+      "type": "integer"
+    },
+    "leftOut": {
+      "type": "integer"
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "truncatedReason": {
+      "type": "string"
+    },
+    "nextCursor": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

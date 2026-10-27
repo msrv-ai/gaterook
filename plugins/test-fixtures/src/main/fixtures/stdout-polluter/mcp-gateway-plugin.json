@@ -1,0 +1,22 @@
+{
+  "manifestVersion": 1,
+  "id": "fixture-stdout-polluter",
+  "version": "1.0.0",
+  "name": "Stdout polluter fixture",
+  "provider": "MCP Gateway tests",
+  "license": "Apache-2.0",
+  "description": "A plugin that writes non-JSON lines to the protocol channel.",
+  "requires": {"gateway": ">=0.0.0", "connectorApi": ">=1.0.0 & <2.0.0"},
+  "connectorClass": "gaterook.plugins.fixtures.StdoutPolluterConnector",
+  "type": "fixture-stdout-polluter",
+  "toolNamespace": "polluter_",
+  "configSchema": {"type": "object", "properties": {}},
+  "tools": [
+    {"name": "polluter_echo", "title": "Pollute and echo",
+     "inputSchema": {"type": "object", "properties": {"lines": {"type": "integer", "minimum": 0, "maximum": 1000}}},
+     "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+     "nature": "READ", "resultShape": "TEXT"}
+  ],
+  "access": {"hosts": [], "commands": [], "files": []},
+  "resources": {"maxHeapMb": 64}
+}

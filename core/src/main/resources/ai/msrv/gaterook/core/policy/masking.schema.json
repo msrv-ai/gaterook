@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Masking",
+  "description": "What the gateway replaces with ‹masked› in every result.",
+  "type": "object",
+  "x-policy-section": "masking",
+  "additionalProperties": false,
+  "properties": {
+    "secrets": {
+      "type": "boolean",
+      "const": true,
+      "default": true,
+      "readOnly": true,
+      "title": "Secrets",
+      "description": "Always masked: tokens, private keys and passwords in connection strings, on every environment."
+    },
+    "entropy": {
+      "type": "boolean",
+      "default": true,
+      "x-stricter": "or",
+      "title": "Strings that look random",
+      "description": "Long random-looking strings are masked as unknown secrets."
+    },
+    "pii": {
+      "type": "array",
+      "title": "Personal data, found by pattern",
+      "uniqueItems": true,
+      "items": {"type": "string", "enum": ["email", "phone", "card", "iban"]},
+      "x-enumTitles": ["Email addresses", "Phone numbers", "Card numbers", "IBANs"],
+      "default": [],
+      "x-env-default": {"prod": ["email", "phone", "card", "iban"]},
+      "x-stricter": "union"
+    },
+    "fields": {
+      "type": "array",
+      "title": "Always mask these fields",
+      "uniqueItems": true,
+      "maxItems": 500,
+      "items": {"type": "string", "maxLength": 200},
+      "default": [],
+      "x-stricter": "union",
+      "description": "table.column, collection.field or a.b.c; * is any one name."
+    }
+  }
+}

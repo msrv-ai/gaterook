@@ -1,0 +1,42 @@
+{
+  "area": "kubernetes",
+  "module": "connectors/kubernetes",
+  "connectorTypes": ["kubernetes"],
+  "description": "Touches of the Kubernetes connector for the native smoke (report 15 §6): the policy and the manifest parser without I/O, Fabric8's JDK HTTP client with the connection's own trust, and Table, JSON trees and the sealed cursor against an API server. The first three need no server; the fourth needs a kube-apiserver (fixture kube-apiserver: the envtest 1.37.0 binaries of -Pkube-api, a service account token bound to a Role that lists pods in app-dev) and lists pods. The rollout restart and the apply with their approvals run in the app's KubernetesCoreProcessIT.",
+  "touches": [
+    {
+      "name": "secrets-denied",
+      "connection": {"type": "kubernetes", "env": "dev",
+        "config": {"auth": "token", "server": "https://127.0.0.1:1", "namespace": "app-dev"},
+        "secrets": {"/token": "smoke-only-0001"}},
+      "call": {"tool": "k8s_get", "arguments": {"kind": "secrets", "name": "db"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.k8s.resource-not-allowed"}
+    },
+    {
+      "name": "apply-rbac-denied",
+      "connection": {"type": "kubernetes", "env": "dev",
+        "config": {"auth": "token", "server": "https://127.0.0.1:1", "namespace": "app-dev"},
+        "secrets": {"/token": "smoke-only-0001"}},
+      "call": {"tool": "k8s_apply", "arguments": {"manifest": "apiVersion: rbac.authorization.k8s.io/v1\nkind: ClusterRoleBinding\nmetadata:\n  name: grab-admin\n"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.k8s.kind-forbidden"}
+    },
+    {
+      "name": "api-server-unreachable",
+      "connection": {"type": "kubernetes", "env": "dev",
+        "config": {"auth": "token", "server": "https://127.0.0.1:1", "namespace": "app-dev"},
+        "secrets": {"/token": "smoke-only-0001"}},
+      "test": true,
+      "expect": {"ok": false, "errorCode": "k8s.unreachable"}
+    },
+    {
+      "name": "list-pods-as-table",
+      "fixture": "kube-apiserver",
+      "connection": {"type": "kubernetes", "env": "dev",
+        "config": {"auth": "token", "server": "${fixture.server}", "namespace": "app-dev",
+                   "caCert": "${fixture.caCertificate}"},
+        "secrets": {"/token": "${fixture.token}"}},
+      "call": {"tool": "k8s_get", "arguments": {"kind": "pods", "limit": 5}},
+      "expect": {"isError": false, "structuredContent": {"mode": "list", "kind": "pods", "namespace": "app-dev"}}
+    }
+  ]
+}

@@ -1,0 +1,734 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Endpoints · GateRook</title>
+<link rel="icon" href="../assets/logo-mark.svg" type="image/svg+xml">
+<script src="../assets/theme-boot.js"></script>
+<link rel="stylesheet" href="../dist/gw-kit.css">
+</head>
+<body>
+<!--
+  CANONICAL APP SHELL · copy this file verbatim for every page in pages/.
+  Change only:
+    1. <title>                      "<Section> · GateRook"
+    2. .gw-titlebar__title          the current section name
+    3. aria-current="page"          move it to the current nav item (exactly one)
+    4. the content of .gw-page      page header (one h1) + page content;
+                                    gw-page--narrow for forms, gw-page--full for Activity / split views
+  npm run check fails when a page's <nav data-gw-nav> differs from overview.html
+  (aria-current excluded). Add gw-titlebar--mac on macOS (Electron: process.platform === "darwin").
+-->
+<a class="gw-skip-link" href="#main">Skip to content</a>
+<div class="gw-shell">
+
+  <header class="gw-titlebar">
+    <span class="gw-titlebar__title">Endpoints</span>
+    <div class="gw-titlebar__drag"></div>
+    <div class="gw-titlebar__actions">
+      <!-- Opens the command palette (#cmdk at the end of <main>, elements/command-palette.html) -->
+      <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Search and commands" aria-haspopup="dialog" aria-keyshortcuts="Meta+K Control+K" data-gw-dialog-open="cmdk"><i class="gw-icon" data-lucide="search"></i> Search <kbd class="gw-btn__kbd" aria-hidden="true">⌘K</kbd></button>
+      <a class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" href="approvals.html" aria-label="Approvals, 3 waiting"><i class="gw-icon" data-lucide="bell"></i><span class="gw-counter gw-counter--attention" aria-hidden="true">3</span></a>
+      <!--
+        Appearance popover. gw-popover belongs to component group D, gw-segmented to group C.
+        The <form method="dialog"> scopes the radio groups (Settings › Appearance has its own
+        gw-theme radios) and never submits outside a <dialog>. kit.js binds name="gw-theme" /
+        name="gw-contrast" to window.gwTheme.
+      -->
+      <div class="gw-menu-host">
+        <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="gw-appearance" aria-label="Appearance"><i class="gw-icon" data-lucide="sun-moon"></i></button>
+        <div class="gw-popover gw-popover--right" id="gw-appearance" role="dialog" aria-labelledby="gw-appearance-title" hidden>
+          <div class="gw-popover__header">
+            <p class="gw-popover__title" id="gw-appearance-title">Appearance</p>
+          </div>
+          <form class="gw-popover__body" method="dialog">
+            <div class="gw-stack gw-stack--sm">
+              <p class="gw-text-caption gw-fg-muted" id="gw-appearance-theme">Theme</p>
+              <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="gw-appearance-theme">
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i> System</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i> Light</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i> Dark</span></label>
+              </div>
+              <p class="gw-text-caption gw-fg-muted" id="gw-appearance-contrast">Contrast</p>
+              <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="gw-appearance-contrast">
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="system"><span class="gw-segmented__label">System</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="normal"><span class="gw-segmented__label">Normal</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="more"><span class="gw-segmented__label">High</span></label>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="gw-sidebar" id="gw-sidebar">
+    <div class="gw-sidebar__header">
+      <a class="gw-logo" href="overview.html" aria-label="GateRook, overview">
+        <img class="gw-logo__mark" src="../assets/logo-mark.svg" alt="">
+        <span class="gw-logo__name">GateRook</span>
+      </a>
+      <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-sidebar__toggle" type="button" data-gw-sidebar-toggle aria-controls="gw-sidebar" aria-expanded="true" aria-label="Collapse sidebar"><i class="gw-icon" data-lucide="panel-left"></i></button>
+    </div>
+
+    <nav class="gw-sidebar__body gw-nav" data-gw-nav aria-label="Main">
+      <div class="gw-nav__group">
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="overview.html"><i class="gw-icon gw-nav__icon" data-lucide="layout-dashboard"></i><span class="gw-nav__label">Overview</span></a></li>
+          <li><a class="gw-nav__item" href="approvals.html"><i class="gw-icon gw-nav__icon" data-lucide="user-check"></i><span class="gw-nav__label">Approvals</span><span class="gw-nav__counter gw-counter gw-counter--attention"><span class="gw-sr-only">, </span>3<span class="gw-sr-only"> waiting</span></span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-resources">
+        <p class="gw-nav__group-label" id="gw-nav-resources">Resources</p>
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="connections.html"><i class="gw-icon gw-nav__icon" data-lucide="database"></i><span class="gw-nav__label">Connections</span></a></li>
+          <li><a class="gw-nav__item" href="connectors.html"><i class="gw-icon gw-nav__icon" data-lucide="puzzle"></i><span class="gw-nav__label">Connectors</span></a></li>
+          <li><a class="gw-nav__item" href="secrets.html"><i class="gw-icon gw-nav__icon" data-lucide="key-round"></i><span class="gw-nav__label">Secrets</span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-access">
+        <p class="gw-nav__group-label" id="gw-nav-access">Access</p>
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="endpoints.html" aria-current="page"><i class="gw-icon gw-nav__icon" data-lucide="waypoints"></i><span class="gw-nav__label">Endpoints</span></a></li>
+          <li><a class="gw-nav__item" href="clients.html"><i class="gw-icon gw-nav__icon" data-lucide="app-window"></i><span class="gw-nav__label">AI apps</span></a></li>
+          <li><a class="gw-nav__item" href="policies.html"><i class="gw-icon gw-nav__icon" data-lucide="shield"></i><span class="gw-nav__label">Policies</span></a></li>
+          <li><a class="gw-nav__item" href="playground.html"><i class="gw-icon gw-nav__icon" data-lucide="flask-conical"></i><span class="gw-nav__label">Playground</span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-observe">
+        <p class="gw-nav__group-label" id="gw-nav-observe">Observe</p>
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="activity.html"><i class="gw-icon gw-nav__icon" data-lucide="activity"></i><span class="gw-nav__label">Activity</span></a></li>
+          <li><a class="gw-nav__item" href="insights.html"><i class="gw-icon gw-nav__icon" data-lucide="chart-column"></i><span class="gw-nav__label">Insights</span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group gw-nav__group--end">
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="settings.html"><i class="gw-icon gw-nav__icon" data-lucide="settings"></i><span class="gw-nav__label">Settings</span></a></li>
+        </ul>
+      </div>
+    </nav>
+
+    <!-- gw-status belongs to component group B. Static on purpose: no gw-status--live in the shell (WCAG 2.2.2).
+         The tunnel status has two faces: gw-status--neutral "Tunnel off" (the demo's state, BLUEPRINT §9) and, while an
+         endpoint is published, gw-status--warning "Tunnel on", together with the app-wide gw-alert--banner --warning
+         "Tunnel is public" (clients.html and settings.html switch both at runtime):
+         <span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel on</span></span> -->
+    <div class="gw-sidebar__footer">
+      <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Core running</span></span>
+      <span class="gw-sidebar__meta">127.0.0.1:7465 · v0.4.0</span>
+      <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off</span></span>
+    </div>
+  </div>
+
+  <main class="gw-shell__main" id="main" tabindex="-1">
+    <!-- App-wide gw-alert--banner (Core stopped, Tunnel is public) goes here, before gw-page -->
+    <div class="gw-page">
+      <header class="gw-page-header">
+        <div class="gw-page-header__row">
+          <div class="gw-page-header__heading">
+            <h1 class="gw-page-header__title">Endpoints</h1>
+            <p class="gw-page-header__description">Each endpoint is one MCP URL with its own connections, tool modes and tokens. Give an agent the smallest endpoint that does the job.</p>
+            <div class="gw-page-header__meta">
+              <span class="gw-tabular">3 endpoints</span>
+              <span class="gw-divider gw-divider--vertical" aria-hidden="true"></span>
+              <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">All running</span></span>
+              <span class="gw-divider gw-divider--vertical" aria-hidden="true"></span>
+              <span>1 published for claude.ai · tunnel off since <time datetime="2026-10-22T12:10:00+02:00" title="2026-10-22 12:10 +02:00">12:10</time></span>
+            </div>
+          </div>
+          <div class="gw-page-header__actions">
+            <button class="gw-btn gw-btn--primary" type="button" data-gw-dialog-open="ep-create"><i class="gw-icon" data-lucide="plus"></i> Create endpoint</button>
+          </div>
+        </div>
+      </header>
+
+      <ul class="gw-stack" aria-label="Endpoints">
+        <li>
+          <article class="gw-card" aria-labelledby="ep-dev-title">
+            <header class="gw-card__header">
+              <div class="gw-card__heading">
+                <h2 class="gw-card__title" id="ep-dev-title"><span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--brand"><i class="gw-icon gw-icon--sm" data-lucide="waypoints"></i></span><a class="gw-link gw-mono" href="endpoint-detail.html"><span class="gw-sr-only">Endpoint </span>dev</a></h2>
+                <p class="gw-card__description">Local development. Agents read freely; anything that changes data waits for your approval.</p>
+              </div>
+              <div class="gw-card__actions">
+                <span class="gw-status gw-status--success" id="ep-dev-status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Running</span></span>
+                <div class="gw-menu-host">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="More actions for endpoint dev" aria-haspopup="menu" aria-expanded="false" aria-controls="ep-dev-menu"><i class="gw-icon" data-lucide="ellipsis"></i></button>
+                  <div class="gw-menu gw-menu--right" id="ep-dev-menu" role="menu" aria-label="Actions for endpoint dev" hidden>
+                    <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-gw-dialog-open="ep-dev-duplicate"><i class="gw-icon gw-menu__icon" data-lucide="copy-plus"></i><span class="gw-menu__label">Duplicate</span></button>
+                    <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ep-disable="dev" data-ep-status="ep-dev-status" data-ep-disable-body="Claude Desktop and Codex get an error on their next call. Tokens and settings are kept."><i class="gw-icon gw-menu__icon" data-lucide="circle-pause"></i><span class="gw-menu__label">Disable</span></button>
+                    <div class="gw-menu__divider" role="separator"></div>
+                    <button class="gw-menu__item gw-menu__item--danger" type="button" role="menuitem" tabindex="-1" data-gw-dialog-open="ep-dev-delete"><i class="gw-icon gw-menu__icon" data-lucide="trash-2"></i><span class="gw-menu__label">Delete endpoint</span></button>
+                  </div>
+                </div>
+              </div>
+            </header>
+            <div class="gw-card__body gw-stack">
+              <dl class="gw-kv gw-kv--grid">
+                <div class="gw-kv__row"><dt class="gw-kv__key">URL</dt><dd class="gw-kv__value"><div class="gw-copy-field" role="group" aria-label="URL of endpoint dev">
+                <code class="gw-copy-field__value" id="ep-dev-url" title="http://127.0.0.1:7465/mcp/dev">http://127.0.0.1:7465/mcp/dev</code>
+                <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" data-gw-copy-from="#ep-dev-url">
+                  <span class="gw-copy-field__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> URL of endpoint dev</span></span>
+                  <span class="gw-copy-field__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                </button>
+              </div></dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Connections</dt><dd class="gw-kv__value"><span class="gw-tabular">8</span> · <span class="gw-tabular">6</span><span class="gw-sr-only"> in</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span> <span class="gw-tabular">2</span><span class="gw-sr-only"> in</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Connection health</dt><dd class="gw-kv__value"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">6 healthy</span></span> <span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">cache-redis slow · 1.8 s</span></span> <span class="gw-status gw-status--danger"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">billing-api unreachable</span></span></dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Tools</dt><dd class="gw-kv__value"><span class="gw-tabular">22</span> · <span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>14 read only</span> <span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>3 approval</span> <span class="gw-mode gw-mode--off"><i class="gw-icon" data-lucide="circle-off"></i>5 off</span></dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">AI apps</dt><dd class="gw-kv__value"><span class="gw-client-mark gw-client-mark--sm gw-client-mark--claude" aria-hidden="true">CD</span> Claude Desktop <span class="gw-client-mark gw-client-mark--sm gw-client-mark--codex" aria-hidden="true">Cx</span> Codex</dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Tokens</dt><dd class="gw-kv__value">2 active · 1 expired <span class="gw-badge gw-badge--warning gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="hourglass"></i>1 expires in 3 days</span></dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Approvals</dt><dd class="gw-kv__value"><a class="gw-link" href="approvals.html"><span class="gw-counter gw-counter--attention">3</span> waiting<span class="gw-sr-only"> for approval on dev</span></a></dd></div>
+              </dl>
+              <div class="gw-alert gw-alert--warning gw-alert--compact gw-risk-callout gw-risk-callout--compact" data-state="present">
+                <i class="gw-icon gw-alert__icon" data-lucide="shield-alert"></i>
+                <div class="gw-alert__content"><p class="gw-alert__title">Risky combination:</p><p class="gw-alert__body">private data + untrusted content + external channel through <code class="gw-code">http_request</code></p></div>
+                <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" href="endpoint-detail.html#ep-risk">Review<span class="gw-sr-only"> the risk in endpoint dev</span></a></div>
+              </div>
+            </div>
+            <footer class="gw-card__footer">
+              <a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?q=endpoint:dev"><i class="gw-icon gw-icon--sm" data-lucide="activity"></i>View activity<span class="gw-sr-only"> of endpoint dev</span></a>
+              <a class="gw-btn gw-btn--ghost gw-btn--sm" href="playground.html?endpoint=dev"><i class="gw-icon gw-icon--sm" data-lucide="flask-conical"></i>Open in Playground<span class="gw-sr-only">: endpoint dev</span></a>
+              <a class="gw-btn gw-btn--sm" href="endpoint-detail.html">Configure<span class="gw-sr-only"> endpoint dev</span></a>
+            </footer>
+          </article>
+        </li>
+        <li>
+          <article class="gw-card" aria-labelledby="ep-stage-readonly-title">
+            <header class="gw-card__header">
+              <div class="gw-card__heading">
+                <h2 class="gw-card__title" id="ep-stage-readonly-title"><span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--brand"><i class="gw-icon gw-icon--sm" data-lucide="waypoints"></i></span><a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=stage-readonly"><span class="gw-sr-only">Endpoint </span>stage-readonly</a></h2>
+                <p class="gw-card__description">Stage data for claude.ai, read only. Nothing on it can change data.</p>
+              </div>
+              <div class="gw-card__actions">
+                <span class="gw-badge gw-badge--info"><i class="gw-icon gw-badge__icon" data-lucide="globe"></i>Published for claude.ai</span>
+              <span class="gw-status gw-status--success" id="ep-stage-readonly-status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Running</span></span>
+                <div class="gw-menu-host">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="More actions for endpoint stage-readonly" aria-haspopup="menu" aria-expanded="false" aria-controls="ep-stage-readonly-menu"><i class="gw-icon" data-lucide="ellipsis"></i></button>
+                  <div class="gw-menu gw-menu--right" id="ep-stage-readonly-menu" role="menu" aria-label="Actions for endpoint stage-readonly" hidden>
+                    <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-gw-dialog-open="ep-stage-readonly-duplicate"><i class="gw-icon gw-menu__icon" data-lucide="copy-plus"></i><span class="gw-menu__label">Duplicate</span></button>
+                    <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ep-disable="stage-readonly" data-ep-status="ep-stage-readonly-status" data-ep-disable-body="claude.ai gets an error on its next call, even with the tunnel on. Settings are kept."><i class="gw-icon gw-menu__icon" data-lucide="circle-pause"></i><span class="gw-menu__label">Disable</span></button>
+                    <div class="gw-menu__divider" role="separator"></div>
+                    <button class="gw-menu__item gw-menu__item--danger" type="button" role="menuitem" tabindex="-1" data-gw-dialog-open="ep-stage-readonly-delete"><i class="gw-icon gw-menu__icon" data-lucide="trash-2"></i><span class="gw-menu__label">Delete endpoint</span></button>
+                  </div>
+                </div>
+              </div>
+            </header>
+            <div class="gw-card__body gw-stack">
+              <dl class="gw-kv gw-kv--grid">
+                <div class="gw-kv__row"><dt class="gw-kv__key">URL</dt><dd class="gw-kv__value"><div class="gw-copy-field" role="group" aria-label="URL of endpoint stage-readonly">
+                <code class="gw-copy-field__value" id="ep-stage-readonly-url" title="http://127.0.0.1:7465/mcp/stage-readonly">http://127.0.0.1:7465/mcp/stage-readonly</code>
+                <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" data-gw-copy-from="#ep-stage-readonly-url">
+                  <span class="gw-copy-field__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> URL of endpoint stage-readonly</span></span>
+                  <span class="gw-copy-field__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                </button>
+              </div></dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Connections</dt><dd class="gw-kv__value"><span class="gw-tabular">3</span> · <span class="gw-tabular">3</span><span class="gw-sr-only"> in</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Connection health</dt><dd class="gw-kv__value"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">2 healthy</span></span> <span class="gw-status gw-status--danger"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">billing-api unreachable</span></span></dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Tools</dt><dd class="gw-kv__value"><span class="gw-tabular">10</span> · <span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>8 read only</span> <span class="gw-mode gw-mode--off"><i class="gw-icon" data-lucide="circle-off"></i>2 off</span></dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">AI apps</dt><dd class="gw-kv__value"><span class="gw-client-mark gw-client-mark--sm gw-client-mark--claudeai" aria-hidden="true">ai</span> claude.ai <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off since 12:10</span></span> <a class="gw-link" href="settings.html#settings-tunnel">Tunnel settings</a></dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Tokens</dt><dd class="gw-kv__value">1 OAuth sign-in you allowed · <a class="gw-link" href="clients.html#cl-ai-sessions">Manage<span class="gw-sr-only"> the claude.ai sign-in to stage-readonly</span></a></dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Approvals</dt><dd class="gw-kv__value">None waiting</dd></div>
+              </dl>
+              <div class="gw-alert gw-alert--warning gw-alert--compact gw-risk-callout gw-risk-callout--compact" data-state="present">
+                <i class="gw-icon gw-alert__icon" data-lucide="shield-alert"></i>
+                <div class="gw-alert__content"><p class="gw-alert__title">Risky combination:</p><p class="gw-alert__body">private data + untrusted content + external channel through <code class="gw-code">http_get</code>, published to the internet</p></div>
+                <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" href="endpoint-detail.html?endpoint=stage-readonly#ep-risk">Review<span class="gw-sr-only"> the risk in endpoint stage-readonly</span></a></div>
+              </div>
+            </div>
+            <footer class="gw-card__footer">
+              <a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?q=endpoint:stage-readonly"><i class="gw-icon gw-icon--sm" data-lucide="activity"></i>View activity<span class="gw-sr-only"> of endpoint stage-readonly</span></a>
+              <a class="gw-btn gw-btn--ghost gw-btn--sm" href="playground.html?endpoint=stage-readonly"><i class="gw-icon gw-icon--sm" data-lucide="flask-conical"></i>Open in Playground<span class="gw-sr-only">: endpoint stage-readonly</span></a>
+              <a class="gw-btn gw-btn--sm" href="endpoint-detail.html?endpoint=stage-readonly">Configure<span class="gw-sr-only"> endpoint stage-readonly</span></a>
+            </footer>
+          </article>
+        </li>
+        <li>
+          <article class="gw-card" aria-labelledby="ep-incident-prod-title">
+            <header class="gw-card__header">
+              <div class="gw-card__heading">
+                <h2 class="gw-card__title" id="ep-incident-prod-title"><span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--brand"><i class="gw-icon gw-icon--sm" data-lucide="waypoints"></i></span><a class="gw-link gw-mono" href="endpoint-detail.html?endpoint=incident-prod"><span class="gw-sr-only">Endpoint </span>incident-prod</a></h2>
+                <p class="gw-card__description">Production incidents: read the replica and the logs, run approved runbooks on prod-vm.</p>
+              </div>
+              <div class="gw-card__actions">
+                <span class="gw-status gw-status--success" id="ep-incident-prod-status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Running</span></span>
+                <div class="gw-menu-host">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="More actions for endpoint incident-prod" aria-haspopup="menu" aria-expanded="false" aria-controls="ep-incident-prod-menu"><i class="gw-icon" data-lucide="ellipsis"></i></button>
+                  <div class="gw-menu gw-menu--right" id="ep-incident-prod-menu" role="menu" aria-label="Actions for endpoint incident-prod" hidden>
+                    <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-gw-dialog-open="ep-incident-prod-duplicate"><i class="gw-icon gw-menu__icon" data-lucide="copy-plus"></i><span class="gw-menu__label">Duplicate</span></button>
+                    <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-ep-disable="incident-prod" data-ep-status="ep-incident-prod-status" data-ep-disable-body="Claude Desktop gets an error on its next call to it. Settings are kept."><i class="gw-icon gw-menu__icon" data-lucide="circle-pause"></i><span class="gw-menu__label">Disable</span></button>
+                    <div class="gw-menu__divider" role="separator"></div>
+                    <button class="gw-menu__item gw-menu__item--danger" type="button" role="menuitem" tabindex="-1" data-gw-dialog-open="ep-incident-prod-delete"><i class="gw-icon gw-menu__icon" data-lucide="trash-2"></i><span class="gw-menu__label">Delete endpoint</span></button>
+                  </div>
+                </div>
+              </div>
+            </header>
+            <div class="gw-card__body gw-stack">
+              <dl class="gw-kv gw-kv--grid">
+                <div class="gw-kv__row"><dt class="gw-kv__key">URL</dt><dd class="gw-kv__value"><div class="gw-copy-field" role="group" aria-label="URL of endpoint incident-prod">
+                <code class="gw-copy-field__value" id="ep-incident-prod-url" title="http://127.0.0.1:7465/mcp/incident-prod">http://127.0.0.1:7465/mcp/incident-prod</code>
+                <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" data-gw-copy-from="#ep-incident-prod-url">
+                  <span class="gw-copy-field__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> URL of endpoint incident-prod</span></span>
+                  <span class="gw-copy-field__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                </button>
+              </div></dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Connections</dt><dd class="gw-kv__value"><span class="gw-tabular">3</span> · <span class="gw-tabular">3</span><span class="gw-sr-only"> in</span> <span class="gw-env gw-env--prod gw-env--sm">prod</span></dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Connection health</dt><dd class="gw-kv__value"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">3 healthy</span></span></dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Tools</dt><dd class="gw-kv__value"><span class="gw-tabular">10</span> · <span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>7 read only</span> <span class="gw-mode gw-mode--off"><i class="gw-icon" data-lucide="circle-off"></i>3 off</span></dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">AI apps</dt><dd class="gw-kv__value"><span class="gw-client-mark gw-client-mark--sm gw-client-mark--claude" aria-hidden="true">CD</span> Claude Desktop</dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Tokens</dt><dd class="gw-kv__value">None · the Claude Desktop bridge gets short-lived ones</dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Approvals</dt><dd class="gw-kv__value">None waiting</dd></div>
+              </dl>
+              <div class="gw-alert gw-alert--info gw-alert--compact gw-risk-callout gw-risk-callout--compact" data-state="limited">
+                <i class="gw-icon gw-alert__icon" data-lucide="shield-check"></i>
+                <div class="gw-alert__content"><p class="gw-alert__title">Contained:</p><p class="gw-alert__body">private data + untrusted content + limited channel (2 fixed runbooks)</p></div>
+                <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" href="endpoint-detail.html?endpoint=incident-prod#ep-risk">Review<span class="gw-sr-only"> the contained risk in endpoint incident-prod</span></a></div>
+              </div>
+            </div>
+            <footer class="gw-card__footer">
+              <a class="gw-btn gw-btn--ghost gw-btn--sm" href="activity.html?q=endpoint:incident-prod"><i class="gw-icon gw-icon--sm" data-lucide="activity"></i>View activity<span class="gw-sr-only"> of endpoint incident-prod</span></a>
+              <a class="gw-btn gw-btn--ghost gw-btn--sm" href="playground.html?endpoint=incident-prod"><i class="gw-icon gw-icon--sm" data-lucide="flask-conical"></i>Open in Playground<span class="gw-sr-only">: endpoint incident-prod</span></a>
+              <a class="gw-btn gw-btn--sm" href="endpoint-detail.html?endpoint=incident-prod">Configure<span class="gw-sr-only"> endpoint incident-prod</span></a>
+            </footer>
+          </article>
+        </li>
+      </ul>
+
+      <section class="gw-section" aria-labelledby="ep-states-title">
+        <header class="gw-section__header">
+          <h2 class="gw-section__title" id="ep-states-title">Empty state</h2>
+          <p class="gw-section__description">Reference for the app: what replaces the list before the first endpoint. The header keeps its Create endpoint.</p>
+          <div class="gw-section__actions">
+            <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="ep-states-panel">Show state <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i></button>
+          </div>
+        </header>
+        <div id="ep-states-panel" hidden>
+          <section class="gw-card" aria-labelledby="ep-empty-title">
+            <div class="gw-empty">
+              <span class="gw-empty__icon"><i class="gw-icon gw-icon--lg" data-lucide="waypoints"></i></span>
+              <h3 class="gw-empty__title" id="ep-empty-title">No endpoints</h3>
+              <p class="gw-empty__text">An endpoint is the one MCP URL you give an agent: pick its connections and tool modes, then connect an AI app. Tools that change data always wait for your approval.</p>
+              <div class="gw-empty__actions"><button class="gw-btn" type="button" data-gw-dialog-open="ep-create"><i class="gw-icon" data-lucide="plus"></i> Create endpoint</button></div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <dialog class="gw-dialog gw-dialog--md" id="ep-create" aria-labelledby="ep-create-title" aria-describedby="ep-create-desc" data-gw-static>
+        <form method="dialog" id="ep-create-form">
+          <header class="gw-dialog__header">
+            <span class="gw-icon-tile gw-icon-tile--brand"><i class="gw-icon" data-lucide="waypoints"></i></span>
+            <h2 class="gw-dialog__title" id="ep-create-title">Create endpoint</h2>
+            <p class="gw-dialog__description" id="ep-create-desc">One MCP URL with its own connections, tool modes and tokens. You add connections and pick modes on the next page.</p>
+            <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+          </header>
+          <div class="gw-dialog__body">
+            <div class="gw-stack">
+              <div class="gw-field">
+                <label class="gw-field__label" for="ep-create-slug">Slug</label>
+                <div class="gw-input-group">
+                  <span class="gw-input-group__affix">/mcp/</span>
+                  <input class="gw-input gw-input--mono" id="ep-create-slug" name="slug" type="text" required maxlength="40" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="payments-dev" autocomplete="off" spellcheck="false" autocapitalize="off" autofocus aria-describedby="ep-create-url ep-create-slug-hint" data-ep-slug data-ep-slug-preview="#ep-create-url-value">
+                </div>
+                <p class="gw-field__hint" id="ep-create-url">URL: <span class="gw-mono" id="ep-create-url-value">http://127.0.0.1:7465/mcp/your-slug</span></p>
+                <p class="gw-field__hint" id="ep-create-slug-hint">Lowercase letters, digits and hyphens. AI apps keep this URL, so pick a name you won't need to change.</p>
+              </div>
+              <div class="gw-field">
+                <label class="gw-field__label" for="ep-create-desc-input">Description <span class="gw-field__optional">Optional</span></label>
+                <input class="gw-input" id="ep-create-desc-input" name="description" type="text" maxlength="120" placeholder="Payments service on dev: database and logs" autocomplete="off" aria-describedby="ep-create-desc-hint">
+                <p class="gw-field__hint" id="ep-create-desc-hint">Shown in this list and in the command palette. Agents don't see it.</p>
+              </div>
+              <fieldset class="gw-field">
+                <legend class="gw-field__label">Start from</legend>
+                <div class="gw-stack gw-stack--sm">
+                  <label class="gw-choice-card gw-choice-card--compact">
+                    <input class="gw-choice-card__input" type="radio" name="template" value="empty" checked aria-labelledby="ep-create-tpl-empty-t" aria-describedby="ep-create-tpl-empty-d ep-create-tpl-empty-m">
+                    <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="square-dashed"></i></span>
+                    <span class="gw-choice-card__title" id="ep-create-tpl-empty-t">Empty</span>
+                    <span class="gw-choice-card__description" id="ep-create-tpl-empty-d">No connections and every tool off. Add only what the agent needs.</span>
+                    <span class="gw-choice-card__meta" id="ep-create-tpl-empty-m">Start from scratch</span>
+                  </label>
+                  <label class="gw-choice-card gw-choice-card--compact">
+                    <input class="gw-choice-card__input" type="radio" name="template" value="readonly-dev" aria-labelledby="ep-create-tpl-readonly-dev-t" aria-describedby="ep-create-tpl-readonly-dev-d ep-create-tpl-readonly-dev-m">
+                    <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="eye"></i></span>
+                    <span class="gw-choice-card__title" id="ep-create-tpl-readonly-dev-t">Read-only dev</span>
+                    <span class="gw-choice-card__description" id="ep-create-tpl-readonly-dev-d">All dev connections with their read-only tools on. Tools that change data stay off.</span>
+                    <span class="gw-choice-card__meta" id="ep-create-tpl-readonly-dev-m">6 dev connections · 12 tools</span>
+                  </label>
+                  <label class="gw-choice-card gw-choice-card--compact">
+                    <input class="gw-choice-card__input" type="radio" name="template" value="incident" aria-labelledby="ep-create-tpl-incident-t" aria-describedby="ep-create-tpl-incident-d ep-create-tpl-incident-m">
+                    <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="siren"></i></span>
+                    <span class="gw-choice-card__title" id="ep-create-tpl-incident-t">Incident response</span>
+                    <span class="gw-choice-card__description" id="ep-create-tpl-incident-d">Prod replica and logs read only, runbooks on prod-vm after approval.</span>
+                    <span class="gw-choice-card__meta" id="ep-create-tpl-incident-m">3 prod connections · stricter prod limits</span>
+                  </label>
+                </div>
+              </fieldset>
+              <div class="gw-alert gw-alert--info gw-alert--compact">
+                <i class="gw-icon gw-alert__icon" data-lucide="user-check"></i>
+                <div class="gw-alert__content"><p class="gw-alert__body">Whatever you start from, a tool that changes data runs only after a person approves the exact action.</p></div>
+              </div>
+            </div>
+          </div>
+          <footer class="gw-dialog__footer">
+            <button class="gw-btn" type="button" data-gw-dialog-close>Cancel</button>
+            <button class="gw-btn gw-btn--primary" type="submit" value="create">Create endpoint</button>
+          </footer>
+        </form>
+      </dialog>
+
+      <dialog class="gw-dialog gw-dialog--sm" id="ep-dev-duplicate" aria-labelledby="ep-dev-duplicate-title" aria-describedby="ep-dev-duplicate-desc" data-gw-static data-ep-duplicate="dev">
+        <form method="dialog">
+          <header class="gw-dialog__header">
+            <span class="gw-icon-tile"><i class="gw-icon" data-lucide="copy-plus"></i></span>
+            <h2 class="gw-dialog__title" id="ep-dev-duplicate-title">Duplicate endpoint dev</h2>
+            <p class="gw-dialog__description" id="ep-dev-duplicate-desc">Copies the connections, tool modes, limits and settings. Tokens and AI app links are not copied: issue new ones for the copy.</p>
+            <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+          </header>
+          <div class="gw-dialog__body">
+            <div class="gw-field">
+              <label class="gw-field__label" for="ep-dev-dup-slug">Slug of the copy</label>
+              <div class="gw-input-group">
+                <span class="gw-input-group__affix">/mcp/</span>
+                <input class="gw-input gw-input--mono" id="ep-dev-dup-slug" type="text" value="dev-copy" required maxlength="40" pattern="[a-z0-9]+(-[a-z0-9]+)*" autocomplete="off" spellcheck="false" autocapitalize="off" autofocus aria-describedby="ep-dev-dup-url ep-dev-dup-hint" data-ep-slug data-ep-slug-preview="#ep-dev-dup-url-value">
+              </div>
+              <p class="gw-field__hint" id="ep-dev-dup-url">URL: <span class="gw-mono" id="ep-dev-dup-url-value">http://127.0.0.1:7465/mcp/dev-copy</span></p>
+              <p class="gw-field__hint" id="ep-dev-dup-hint">Lowercase letters, digits and hyphens.</p>
+            </div>
+          </div>
+          <footer class="gw-dialog__footer">
+            <button class="gw-btn" type="button" data-gw-dialog-close>Cancel</button>
+            <button class="gw-btn gw-btn--primary" type="submit" value="duplicate">Duplicate endpoint dev</button>
+          </footer>
+        </form>
+      </dialog>
+
+      <dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" id="ep-dev-delete" aria-labelledby="ep-dev-delete-title" aria-describedby="ep-dev-delete-desc">
+        <header class="gw-dialog__header">
+          <span class="gw-icon-tile"><i class="gw-icon" data-lucide="trash-2"></i></span>
+          <h2 class="gw-dialog__title" id="ep-dev-delete-title">Delete endpoint dev?</h2>
+          <p class="gw-dialog__description" id="ep-dev-delete-desc">Claude Desktop and Codex lose access at once, its tokens are revoked and the 3 requests waiting for approval are denied. Connections, their secrets and the audit log stay.</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <div class="gw-dialog__body">
+          <dl class="gw-kv gw-kv--dense">
+            <div class="gw-kv__row"><dt class="gw-kv__key">URL</dt><dd class="gw-kv__value gw-mono">http://127.0.0.1:7465/mcp/dev</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">AI apps</dt><dd class="gw-kv__value">Claude Desktop, Codex</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Tokens</dt><dd class="gw-kv__value">codex-laptop, inspector-debug (revoked)</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Waiting</dt><dd class="gw-kv__value">3 approval requests (denied)</dd></div>
+          </dl>
+        </div>
+        <footer class="gw-dialog__footer">
+          <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
+          <button class="gw-btn gw-btn--danger" type="button" data-gw-dialog-close data-gw-toast="Its URL stops answering. The audit log keeps every call." data-gw-toast-title="Endpoint dev deleted" data-gw-toast-tone="success">Delete endpoint dev</button>
+        </footer>
+      </dialog>
+
+      <dialog class="gw-dialog gw-dialog--sm" id="ep-stage-readonly-duplicate" aria-labelledby="ep-stage-readonly-duplicate-title" aria-describedby="ep-stage-readonly-duplicate-desc" data-gw-static data-ep-duplicate="stage-readonly">
+        <form method="dialog">
+          <header class="gw-dialog__header">
+            <span class="gw-icon-tile"><i class="gw-icon" data-lucide="copy-plus"></i></span>
+            <h2 class="gw-dialog__title" id="ep-stage-readonly-duplicate-title">Duplicate endpoint stage-readonly</h2>
+            <p class="gw-dialog__description" id="ep-stage-readonly-duplicate-desc">Copies the connections, tool modes, limits and settings. Tokens and AI app links are not copied: issue new ones for the copy.</p>
+            <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+          </header>
+          <div class="gw-dialog__body">
+            <div class="gw-field">
+              <label class="gw-field__label" for="ep-stage-readonly-dup-slug">Slug of the copy</label>
+              <div class="gw-input-group">
+                <span class="gw-input-group__affix">/mcp/</span>
+                <input class="gw-input gw-input--mono" id="ep-stage-readonly-dup-slug" type="text" value="stage-readonly-copy" required maxlength="40" pattern="[a-z0-9]+(-[a-z0-9]+)*" autocomplete="off" spellcheck="false" autocapitalize="off" autofocus aria-describedby="ep-stage-readonly-dup-url ep-stage-readonly-dup-hint" data-ep-slug data-ep-slug-preview="#ep-stage-readonly-dup-url-value">
+              </div>
+              <p class="gw-field__hint" id="ep-stage-readonly-dup-url">URL: <span class="gw-mono" id="ep-stage-readonly-dup-url-value">http://127.0.0.1:7465/mcp/stage-readonly-copy</span></p>
+              <p class="gw-field__hint" id="ep-stage-readonly-dup-hint">Lowercase letters, digits and hyphens.</p>
+            </div>
+          </div>
+          <footer class="gw-dialog__footer">
+            <button class="gw-btn" type="button" data-gw-dialog-close>Cancel</button>
+            <button class="gw-btn gw-btn--primary" type="submit" value="duplicate">Duplicate endpoint stage-readonly</button>
+          </footer>
+        </form>
+      </dialog>
+
+      <dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" id="ep-stage-readonly-delete" aria-labelledby="ep-stage-readonly-delete-title" aria-describedby="ep-stage-readonly-delete-desc">
+        <header class="gw-dialog__header">
+          <span class="gw-icon-tile"><i class="gw-icon" data-lucide="trash-2"></i></span>
+          <h2 class="gw-dialog__title" id="ep-stage-readonly-delete-title">Delete endpoint stage-readonly?</h2>
+          <p class="gw-dialog__description" id="ep-stage-readonly-delete-desc">claude.ai loses this connector, and the tunnel stops publishing it. Connections, their secrets and the audit log stay.</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <div class="gw-dialog__body">
+          <dl class="gw-kv gw-kv--dense">
+            <div class="gw-kv__row"><dt class="gw-kv__key">URL</dt><dd class="gw-kv__value gw-mono">http://127.0.0.1:7465/mcp/stage-readonly</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">AI apps</dt><dd class="gw-kv__value">claude.ai, through the tunnel</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Tokens</dt><dd class="gw-kv__value">The OAuth sign-in of claude.ai (revoked)</dd></div>
+          </dl>
+        </div>
+        <footer class="gw-dialog__footer">
+          <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
+          <button class="gw-btn gw-btn--danger" type="button" data-gw-dialog-close data-gw-toast="Its URL stops answering. The audit log keeps every call." data-gw-toast-title="Endpoint stage-readonly deleted" data-gw-toast-tone="success">Delete endpoint stage-readonly</button>
+        </footer>
+      </dialog>
+
+      <dialog class="gw-dialog gw-dialog--sm" id="ep-incident-prod-duplicate" aria-labelledby="ep-incident-prod-duplicate-title" aria-describedby="ep-incident-prod-duplicate-desc" data-gw-static data-ep-duplicate="incident-prod">
+        <form method="dialog">
+          <header class="gw-dialog__header">
+            <span class="gw-icon-tile"><i class="gw-icon" data-lucide="copy-plus"></i></span>
+            <h2 class="gw-dialog__title" id="ep-incident-prod-duplicate-title">Duplicate endpoint incident-prod</h2>
+            <p class="gw-dialog__description" id="ep-incident-prod-duplicate-desc">Copies the connections, tool modes, limits and settings. Tokens and AI app links are not copied: issue new ones for the copy.</p>
+            <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+          </header>
+          <div class="gw-dialog__body">
+            <div class="gw-field">
+              <label class="gw-field__label" for="ep-incident-prod-dup-slug">Slug of the copy</label>
+              <div class="gw-input-group">
+                <span class="gw-input-group__affix">/mcp/</span>
+                <input class="gw-input gw-input--mono" id="ep-incident-prod-dup-slug" type="text" value="incident-prod-copy" required maxlength="40" pattern="[a-z0-9]+(-[a-z0-9]+)*" autocomplete="off" spellcheck="false" autocapitalize="off" autofocus aria-describedby="ep-incident-prod-dup-url ep-incident-prod-dup-hint" data-ep-slug data-ep-slug-preview="#ep-incident-prod-dup-url-value">
+              </div>
+              <p class="gw-field__hint" id="ep-incident-prod-dup-url">URL: <span class="gw-mono" id="ep-incident-prod-dup-url-value">http://127.0.0.1:7465/mcp/incident-prod-copy</span></p>
+              <p class="gw-field__hint" id="ep-incident-prod-dup-hint">Lowercase letters, digits and hyphens.</p>
+            </div>
+          </div>
+          <footer class="gw-dialog__footer">
+            <button class="gw-btn" type="button" data-gw-dialog-close>Cancel</button>
+            <button class="gw-btn gw-btn--primary" type="submit" value="duplicate">Duplicate endpoint incident-prod</button>
+          </footer>
+        </form>
+      </dialog>
+
+      <dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" id="ep-incident-prod-delete" aria-labelledby="ep-incident-prod-delete-title" aria-describedby="ep-incident-prod-delete-desc">
+        <header class="gw-dialog__header">
+          <span class="gw-icon-tile"><i class="gw-icon" data-lucide="trash-2"></i></span>
+          <h2 class="gw-dialog__title" id="ep-incident-prod-delete-title">Delete endpoint incident-prod?</h2>
+          <p class="gw-dialog__description" id="ep-incident-prod-delete-desc">Claude Desktop loses access to the prod connections at once, and its URL stops answering. Connections, their secrets and the audit log stay.</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <div class="gw-dialog__body">
+          <dl class="gw-kv gw-kv--dense">
+            <div class="gw-kv__row"><dt class="gw-kv__key">URL</dt><dd class="gw-kv__value gw-mono">http://127.0.0.1:7465/mcp/incident-prod</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">AI apps</dt><dd class="gw-kv__value">Claude Desktop, through its bridge</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Tokens</dt><dd class="gw-kv__value">None stored</dd></div>
+          </dl>
+        </div>
+        <footer class="gw-dialog__footer">
+          <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
+          <button class="gw-btn gw-btn--danger" type="button" data-gw-dialog-close data-gw-toast="Its URL stops answering. The audit log keeps every call." data-gw-toast-title="Endpoint incident-prod deleted" data-gw-toast-tone="success">Delete endpoint incident-prod</button>
+        </footer>
+      </dialog>
+    </div>
+    <!--
+      Command palette (elements/command-palette.html), opened by the titlebar Search button and ⌘K / Ctrl+K.
+      Part of the shell: copy it with the titlebar into every page, at the end of main. kit.js drives it, no page
+      script: data-gw-dialog-open="cmdk" opens it, the .gw-command-palette hook filters the options, moves the
+      active one (arrows, Home / End, pointer), runs it on Enter and resets on close, and the global ⌘K / Ctrl+K
+      listener toggles #cmdk (COMPONENTS.md › command-palette).
+    -->
+    <dialog class="gw-dialog gw-dialog--md gw-command-palette" id="cmdk" aria-labelledby="cmdk-title" aria-describedby="cmdk-keys">
+      <h2 class="gw-sr-only" id="cmdk-title">Command palette</h2>
+      <div class="gw-command-palette__search">
+        <div class="gw-search">
+          <i class="gw-icon gw-search__icon" data-lucide="search"></i>
+          <input class="gw-search__input" type="search" id="cmdk-q" role="combobox" aria-expanded="true" aria-controls="cmdk-list" aria-autocomplete="list" aria-activedescendant="cmdk-o-overview" aria-label="Search pages, connections, endpoints, actions" placeholder="Search pages, connections, endpoints, actions" autocomplete="off" spellcheck="false" autofocus>
+          <button class="gw-search__clear" type="button" aria-label="Clear search"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+        </div>
+      </div>
+      <div class="gw-command-palette__results">
+        <div class="gw-command-palette__list" role="listbox" id="cmdk-list" aria-label="Results">
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-goto">
+            <p class="gw-menu__note" id="cmdk-g-goto" aria-hidden="true">Go to</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-overview" href="overview.html" aria-selected="true" tabindex="-1" data-keywords="home dashboard setup map health">
+              <i class="gw-icon gw-menu__icon" data-lucide="layout-dashboard"></i><span class="gw-menu__label">Overview</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-approvals" href="approvals.html" aria-selected="false" tabindex="-1" data-keywords="requests pending queue decide">
+              <i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approvals <span class="gw-counter gw-counter--attention">3<span class="gw-sr-only"> waiting</span></span></span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-connections" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="databases servers logs clusters">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label">Connections</span><span class="gw-menu__hint">Resources</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-connectors" href="connectors.html" aria-selected="false" tabindex="-1" data-keywords="plugins templates mcp servers catalog">
+              <i class="gw-icon gw-menu__icon" data-lucide="puzzle"></i><span class="gw-menu__label">Connectors</span><span class="gw-menu__hint">Resources</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-secrets" href="secrets.html" aria-selected="false" tabindex="-1" data-keywords="master key vault encryption">
+              <i class="gw-icon gw-menu__icon" data-lucide="key-round"></i><span class="gw-menu__label">Secrets</span><span class="gw-menu__hint">Resources</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-endpoints" href="endpoints.html" aria-selected="false" tabindex="-1" data-keywords="mcp url tools tokens">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label">Endpoints</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-clients" href="clients.html" aria-selected="false" tabindex="-1" data-keywords="clients mcp claude desktop codex cursor antigravity">
+              <i class="gw-icon gw-menu__icon" data-lucide="app-window"></i><span class="gw-menu__label">AI apps</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-policies" href="policies.html" aria-selected="false" tabindex="-1" data-keywords="limits allowlist environments">
+              <i class="gw-icon gw-menu__icon" data-lucide="shield"></i><span class="gw-menu__label">Policies</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-playground" href="playground.html" aria-selected="false" tabindex="-1" data-keywords="try call tool">
+              <i class="gw-icon gw-menu__icon" data-lucide="flask-conical"></i><span class="gw-menu__label">Playground</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-activity" href="activity.html" aria-selected="false" tabindex="-1" data-keywords="log audit calls events traces">
+              <i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">Activity</span><span class="gw-menu__hint">Observe</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-insights" href="insights.html" aria-selected="false" tabindex="-1" data-keywords="analytics charts latency errors">
+              <i class="gw-icon gw-menu__icon" data-lucide="chart-column"></i><span class="gw-menu__label">Insights</span><span class="gw-menu__hint">Observe</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-settings" href="settings.html" aria-selected="false" tabindex="-1" aria-keyshortcuts="Meta+Comma Control+Comma" data-keywords="preferences notifications tunnel authorization appearance">
+              <i class="gw-icon gw-menu__icon" data-lucide="settings"></i><span class="gw-menu__label">Settings</span><kbd class="gw-menu__kbd" aria-hidden="true">⌘ ,</kbd><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+          </div>
+
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-actions">
+            <p class="gw-menu__note" id="cmdk-g-actions" aria-hidden="true">Actions</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-add-connection" href="connection-new.html" aria-selected="false" tabindex="-1" data-keywords="new resource postgres mongodb redis kubernetes">
+              <i class="gw-icon gw-menu__icon" data-lucide="plus"></i><span class="gw-menu__label">Add connection</span><span class="gw-menu__hint">Database, SSH, logs, cluster</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-create-endpoint" href="endpoints.html" aria-selected="false" tabindex="-1" data-keywords="new mcp url">
+              <i class="gw-icon gw-menu__icon" data-lucide="square-plus"></i><span class="gw-menu__label">Create endpoint</span><span class="gw-menu__hint">New MCP URL</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-issue-token" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="new token access key client">
+              <i class="gw-icon gw-menu__icon" data-lucide="key-round"></i><span class="gw-menu__label">Issue token</span><span class="gw-menu__hint">Shown once</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <button class="gw-menu__item" type="button" role="option" id="cmdk-o-copy-dev" aria-selected="false" tabindex="-1" data-gw-copy="http://127.0.0.1:7465/mcp/dev" data-gw-dialog-close data-keywords="clipboard link">
+              <i class="gw-icon gw-menu__icon" data-lucide="copy"></i><span class="gw-menu__label">Copy URL of endpoint <span class="gw-mono">dev</span></span><span class="gw-menu__hint gw-mono">/mcp/dev</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </button>
+            <button class="gw-menu__item" type="button" role="option" id="cmdk-o-theme" aria-selected="false" tabindex="-1" data-cmdk-theme data-gw-dialog-close data-keywords="dark light appearance">
+              <i class="gw-icon gw-menu__icon" data-lucide="sun-moon"></i><span class="gw-menu__label">Toggle theme</span><span class="gw-menu__hint">Light or dark</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </button>
+          </div>
+
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-connections">
+            <p class="gw-menu__note" id="cmdk-g-connections" aria-hidden="true">Connections</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-dev-db" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="postgres sql db.dev.internal">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label"><span class="gw-mono">dev-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></span><span class="gw-menu__hint">PostgreSQL 16</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-stage-db" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="postgres sql vault">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label"><span class="gw-mono">stage-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--stage">stage</span></span><span class="gw-menu__hint">PostgreSQL</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-prod-replica" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="postgres sql replica">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label"><span class="gw-mono">prod-replica</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--prod">prod</span></span><span class="gw-menu__hint">PostgreSQL read replica</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-dev-vm" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="ssh server runbook">
+              <i class="gw-icon gw-menu__icon" data-lucide="terminal"></i><span class="gw-menu__label"><span class="gw-mono">dev-vm</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></span><span class="gw-menu__hint">SSH · <span class="gw-mono">10.20.0.14</span></span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+          </div>
+
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-endpoints">
+            <p class="gw-menu__note" id="cmdk-g-endpoints" aria-hidden="true">Endpoints</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-ep-dev" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="endpoint tools tokens">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label gw-mono">dev</span><span class="gw-menu__hint gw-mono">/mcp/dev</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-ep-stage-readonly" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="endpoint claude.ai tunnel read only">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label gw-mono">stage-readonly</span><span class="gw-menu__hint gw-mono">/mcp/stage-readonly</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-ep-incident-prod" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="endpoint prod logs read only incident">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label gw-mono">incident-prod</span><span class="gw-menu__hint gw-mono">/mcp/incident-prod</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+          </div>
+        </div>
+
+        <div class="gw-empty gw-empty--compact" hidden data-cmdk-empty>
+          <span class="gw-empty__icon"><i class="gw-icon" data-lucide="search-x"></i></span>
+          <p class="gw-empty__title">No results for “<span data-cmdk-query></span>”</p>
+          <p class="gw-empty__text">Search covers pages, actions, connections and endpoints. A resource that isn't here yet starts with a new connection.</p>
+          <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" href="connection-new.html">Add connection</a></div>
+        </div>
+      </div>
+      <footer class="gw-dialog__footer gw-command-palette__footer" id="cmdk-keys">
+        <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd"><i class="gw-icon" data-lucide="arrow-up"></i><span class="gw-sr-only">Up arrow</span></kbd><kbd class="gw-kbd"><i class="gw-icon" data-lucide="arrow-down"></i><span class="gw-sr-only">Down arrow</span></kbd> to move</p>
+        <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd"><i class="gw-icon" data-lucide="corner-down-left"></i><span class="gw-sr-only">Enter</span></kbd> to open</p>
+        <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd">Esc</kbd> to close</p>
+      </footer>
+      <p class="gw-sr-only" role="status" data-cmdk-status></p>
+    </dialog>
+  </main>
+
+</div>
+<script src="../vendor/lucide/lucide.min.js"></script>
+<script src="../assets/kit.js"></script>
+<script>
+/* Demo-only reference behaviour of this page (the app implements the same):
+   slug fields show the endpoint URL as you type; Create and Duplicate confirm with a toast
+   that names the new endpoint; Disable is reversible, so it acts at once and offers Undo in
+   a toast instead of asking first (DESIGN §8), the card's status follows it, and the menu of
+   a disabled endpoint offers Enable instead. */
+(function () {
+  "use strict";
+  var doc = document;
+
+  var BASE = "http://127.0.0.1:7465/mcp/";
+  function toast(o) { if (window.gwToast) window.gwToast(o); }
+  function announce(t) { if (window.gwAnnounce) window.gwAnnounce(t); }
+
+  // ── Slug fields show the endpoint URL as you type ──
+  doc.addEventListener("input", function (e) {
+    var input = e.target.closest && e.target.closest("[data-ep-slug]");
+    if (!input) return;
+    var preview = doc.querySelector(input.getAttribute("data-ep-slug-preview"));
+    if (preview) preview.textContent = BASE + (input.value.trim() || "your-slug");
+  });
+
+  // ── Duplicate: a toast names the copy (on close, so it isn't trapped in the dialog) ──
+  doc.querySelectorAll("dialog[data-ep-duplicate]").forEach(function (d) {
+    d.addEventListener("close", function () {
+      var input = d.querySelector("[data-ep-slug]");
+      var slug = input.value.trim();
+      if (d.returnValue === "duplicate" && slug) {
+        toast({ title: "Endpoint " + slug + " created", body: "A copy of " + d.getAttribute("data-ep-duplicate") + " without tokens or AI app links.", tone: "success" });
+      }
+      d.returnValue = "";
+      d.querySelector("form").reset();
+      doc.querySelector(input.getAttribute("data-ep-slug-preview")).textContent = BASE + input.value;
+    });
+  });
+
+  // ── Disable is reversible: act at once, offer Undo, keep the status in sync. The menu of a disabled
+  //    endpoint offers Enable instead of Disable. ──
+  function setStatus(el, on) {
+    if (!el) return;
+    el.classList.toggle("gw-status--success", on);
+    el.classList.toggle("gw-status--neutral", !on);
+    el.querySelector(".gw-status__label").textContent = on ? "Running" : "Disabled";
+  }
+  function setMenuItem(item, on) {
+    item.setAttribute("data-ep-state", on ? "running" : "disabled");
+    item.querySelector(".gw-menu__label").textContent = on ? "Disable" : "Enable";
+    var icon = item.querySelector(".gw-menu__icon");
+    if (icon) icon.outerHTML = '<i class="gw-icon gw-menu__icon" data-lucide="' + (on ? "circle-pause" : "play") + '"></i>';
+    if (window.gwIcons) window.gwIcons(item);
+  }
+  doc.addEventListener("click", function (e) {
+    var item = e.target.closest("[data-ep-disable]");
+    if (!item) return;
+    var slug = item.getAttribute("data-ep-disable");
+    var statusEl = doc.getElementById(item.getAttribute("data-ep-status"));
+    if (item.getAttribute("data-ep-state") === "disabled") {
+      setStatus(statusEl, true);
+      setMenuItem(item, true);
+      toast({ title: "Endpoint " + slug + " is running again", body: "AI apps can call it from their next call.", tone: "success" });
+      return;
+    }
+    setStatus(statusEl, false);
+    setMenuItem(item, false);
+    toast({
+      title: "Endpoint " + slug + " disabled",
+      body: item.getAttribute("data-ep-disable-body"),
+      tone: "neutral",
+      actions: [{ label: "Undo", onClick: function () { setStatus(statusEl, true); setMenuItem(item, true); announce("Endpoint " + slug + " is running again"); } }]
+    });
+  });
+
+  // ── Create endpoint: toast on close (inside the open dialog it would vanish with it) ──
+  var create = doc.getElementById("ep-create");
+  if (create) {
+    create.addEventListener("close", function () {
+      var slug = doc.getElementById("ep-create-slug").value.trim();
+      if (create.returnValue === "create" && slug) {
+        toast({ title: "Endpoint " + slug + " created", body: "Add its connections and pick tool modes next.", tone: "success" });
+      }
+      create.returnValue = "";
+      doc.getElementById("ep-create-form").reset();
+      doc.getElementById("ep-create-url-value").textContent = BASE + "your-slug";
+    });
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,90 @@
+{
+  "type": "object",
+  "required": [
+    "status",
+    "ok",
+    "method",
+    "url",
+    "truncated"
+  ],
+  "properties": {
+    "status": {
+      "type": "integer"
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "method": {
+      "type": "string"
+    },
+    "url": {
+      "type": "string"
+    },
+    "headers": {
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "contentType": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "json": {},
+    "text": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "binary": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "bytes": {
+          "type": "integer"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      }
+    },
+    "bytes": {
+      "type": "integer"
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "truncatedReason": {
+      "enum": [
+        "size_limit",
+        "timeout",
+        null
+      ]
+    },
+    "redirect": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "elapsedMs": {
+      "type": "integer"
+    },
+    "redirects": {
+      "type": "integer",
+      "description": "Redirects followed (same origin, reads only)."
+    },
+    "headersRemoved": {
+      "type": "integer",
+      "description": "Set-Cookie headers the gateway removed."
+    }
+  }
+}

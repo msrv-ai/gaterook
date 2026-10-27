@@ -1,0 +1,99 @@
+@switch (shown()) {
+  @case ('none') {}
+  @case ('dismissed') {
+    @let d = dismissedBy();
+    <svg lucideIcon="shield-off" class="gw-icon gw-alert__icon"></svg>
+    <div class="gw-alert__content">
+      <p class="gw-alert__title">Risk warning dismissed for {{ slug() }}</p>
+      <p class="gw-alert__body">
+        by {{ d?.by ?? 'you' }}@if (d?.at; as at) {{{ ' ' }}<time [attr.datetime]="iso(at)" [attr.title]="absolute(at)">{{ relative(at) }}</time>}@if (d?.reason; as why) {: “{{ why }}”}@if (changesLink()) { · <a class="gw-link" routerLink="/activity" [queryParams]="{ view: 'changes' }">View in Setup changes</a>}
+      </p>
+    </div>
+    <div class="gw-alert__actions"><button class="gw-btn gw-btn--link" type="button" (click)="restore.emit()">Show warning<span class="gw-sr-only"> for {{ slug() }}</span></button></div>
+  }
+  @default {
+    <svg [lucideIcon]="limited() ? 'shield-check' : 'shield-alert'" class="gw-icon gw-alert__icon"></svg>
+    @if (compact()) {
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">{{ limited() ? 'Contained:' : 'Risky combination:' }}</p>
+        <p class="gw-alert__body">@for (p of line(); track $index) {@if (p.code) {<code class="gw-code">{{ p.text }}</code>} @else {{{ p.text }}}}</p>
+      </div>
+      @if (review() && slug()) {
+        <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" [routerLink]="['/endpoints', slug()]" fragment="ep-risk">Review<span class="gw-sr-only"> the {{ limited() ? 'contained ' : '' }}risk in endpoint {{ slug() }}</span></a></div>
+      }
+    } @else {
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">{{ limited() ? 'Contained combination in ' : 'Risky combination in ' }}{{ where() }}</p>
+        <p class="gw-alert__body">
+          @switch (shown()) {
+            @case ('present') {
+              @if (risk().published) {
+                An agent that reads untrusted text can be steered into sending private data out, and this endpoint is published to claude.ai through the tunnel. Read only is not enough: a GET carries data in its URL.
+              } @else {
+                An agent that reads untrusted text can be steered into sending private data out. This endpoint has all three ingredients@if (channelTool(); as tool) {; approval on <code class="gw-code">{{ tool }}</code> helps only if you read every request body} @else {; approval helps only if you read every request it sends out}.
+              }
+            }
+            @case ('partial') {
+              @switch (missing()) {
+                @case ('untrustedContent') { Private data and a way to send it out. Nothing untrusted is read yet, but one tool that reads rows, logs or web pages would complete the combination. }
+                @case ('privateData') { Untrusted text and a way to send data out. No private data is read yet, but one tool that reads it would complete the combination. }
+                @default { Private data and untrusted text. Nothing can send data out yet, but one tool that can would complete the combination. }
+              }
+            }
+            @default {
+              Private data and untrusted text meet a limited channel: SSH runs only fixed runbooks. A runbook with a free-text parameter, or any HTTP tool, would turn this into a full warning.
+            }
+          }
+        </p>
+        <ul class="gw-risk-callout__ingredients" [attr.aria-label]="'Risk ingredients in ' + (slug() ? 'endpoint ' + slug() : 'the new endpoint')">
+          @for (i of ingredients(); track i.id) {
+            <li class="gw-risk-callout__ingredient" [attr.data-present]="i.present">
+              @if (!$first) {
+                <svg lucideIcon="plus" class="gw-icon gw-icon--xs gw-fg-muted gw-risk-callout__plus"></svg>
+              }
+              <div class="gw-risk-callout__ingredient-body">
+                <span [class]="'gw-badge gw-badge--' + i.tone"><svg [lucideIcon]="i.icon" class="gw-icon gw-badge__icon"></svg>{{ i.label }}@if (i.present) {<span class="gw-sr-only">, present</span>}</span>
+                @if (i.source.length) {
+                  <span class="gw-text-caption gw-fg-secondary">@for (p of i.source; track $index) {@if (p.code) {<code class="gw-code">{{ p.text }}</code>} @else {{{ p.text }}}}</span>
+                }
+              </div>
+            </li>
+          }
+        </ul>
+        <div class="gw-alert__actions">
+          @if (slug()) {
+            <a class="gw-btn gw-btn--secondary gw-btn--sm" [routerLink]="['/endpoints', slug()]" [queryParams]="{ tab: 'tools' }"><svg lucideIcon="list-checks" class="gw-icon gw-icon--sm"></svg>Review tools<span class="gw-sr-only"> of {{ slug() }}</span></a>
+          } @else {
+            <a class="gw-btn gw-btn--secondary gw-btn--sm" [routerLink]="[]" fragment="tools"><svg lucideIcon="list-checks" class="gw-icon gw-icon--sm"></svg>Review tools<span class="gw-sr-only"> of the new endpoint</span></a>
+          }
+          @if (actions() && slug() && shown() === 'present') {
+            <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="split.emit()"><svg lucideIcon="split" class="gw-icon gw-icon--sm"></svg>Split endpoint<span class="gw-sr-only"> {{ slug() }}</span></button>
+            <button class="gw-btn gw-btn--link gw-btn--sm" type="button" [gwDialogOpen]="dismissDialog">Dismiss for this endpoint<span class="gw-sr-only">, {{ slug() }}</span></button>
+          }
+        </div>
+      </div>
+
+      <dialog class="gw-dialog gw-dialog--sm" gwDialog gwDialogStatic #dismissDialog="gwDialog" [attr.aria-labelledby]="uid + '-dismiss-title'" [attr.aria-describedby]="uid + '-dismiss-desc'" (closed)="onDismissClosed($event)">
+        <form method="dialog">
+          <header class="gw-dialog__header">
+            <span class="gw-icon-tile gw-icon-tile--warning"><svg lucideIcon="shield-alert" class="gw-icon"></svg></span>
+            <h2 class="gw-dialog__title" [id]="uid + '-dismiss-title'">Dismiss the warning for {{ slug() }}?</h2>
+            <p class="gw-dialog__description" [id]="uid + '-dismiss-desc'">The tools stay as they are. Your reason goes to the audit log, and the warning comes back when a tool adds to the combination.</p>
+            <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+          </header>
+          <div class="gw-dialog__body">
+            <div class="gw-field">
+              <label class="gw-field__label" [for]="uid + '-reason'">Reason</label>
+              <textarea class="gw-textarea" [id]="uid + '-reason'" rows="3" required [attr.aria-describedby]="uid + '-reason-hint'" autofocus [value]="reason()" (input)="reason.set($any($event.target).value)"></textarea>
+              <p class="gw-field__hint" [id]="uid + '-reason-hint'">Required. Saved to the audit log, in Activity › Setup changes.</p>
+            </div>
+          </div>
+          <footer class="gw-dialog__footer">
+            <button class="gw-btn" type="button" gwDialogClose>Cancel</button>
+            <button class="gw-btn gw-btn--primary" type="submit" value="dismiss">Dismiss warning</button>
+          </footer>
+        </form>
+      </dialog>
+    }
+  }
+}

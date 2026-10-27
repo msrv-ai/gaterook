@@ -1,0 +1,52 @@
+<section class="sc-section" id="kbd-avatar-client-mark" data-title="Keys, avatars, client marks" data-group="Status and data">
+  <h2>Keys, avatars, client marks <code class="gw-code">gw-kbd</code> <code class="gw-code">gw-avatar</code> <code class="gw-code">gw-client-mark</code></h2>
+  <p>Small identity and hint marks. Keys show a shortcut in running text, help and the command palette. Avatars are people (approvers, users in server mode): circles. Client marks are MCP clients: rounded squares with a neutral monogram, never a vendor logo. Official marks come only from vendor press kits, after sign-off.</p>
+
+  <h3>Keyboard keys</h3>
+  <p class="sc-lead">One <code class="gw-code">kbd</code> per key, written as text (Esc, Enter, Shift). Arrows and Return are Lucide icons with screen reader text. Inside a button use <code class="gw-code">gw-btn__kbd</code> instead.</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <p class="gw-text-body-read">Press <kbd class="gw-kbd">⌘</kbd><kbd class="gw-kbd">K</kbd> to search, <kbd class="gw-kbd">Esc</kbd> to close.</p>
+    <p class="gw-text-body-read">Move with <kbd class="gw-kbd"><i class="gw-icon" data-lucide="arrow-up"></i><span class="gw-sr-only">Up arrow</span></kbd><kbd class="gw-kbd"><i class="gw-icon" data-lucide="arrow-down"></i><span class="gw-sr-only">Down arrow</span></kbd>, run with <kbd class="gw-kbd"><i class="gw-icon" data-lucide="corner-down-left"></i><span class="gw-sr-only">Enter</span></kbd>.</p>
+    <p class="gw-text-body-read">Approve the open request with <kbd class="gw-kbd">⌘</kbd><kbd class="gw-kbd">Shift</kbd><kbd class="gw-kbd">Enter</kbd>.</p>
+  </div>
+
+  <h3>Avatars</h3>
+  <p class="sc-lead">Two initials on a neutral circle, or a photo in <code class="gw-code">__img</code>. Next to a visible name the avatar is <code class="gw-code">aria-hidden</code>; alone it is <code class="gw-code">role="img"</code> with the full name. Sizes: <code class="gw-code">--sm</code> 20 (table rows, timelines), default 28, <code class="gw-code">--lg</code> 40 (account, users). People appear only in server mode (Users and roles, a server-mode preview); the desktop app has one local user, so its history says “by you” and needs no avatar.</p>
+  <div class="sc-demo" data-sc-code>
+    <span class="gw-avatar gw-avatar--sm" role="img" aria-label="Alex Morgan">AM</span>
+    <span class="gw-avatar" role="img" aria-label="Alex Morgan">AM</span>
+    <span class="gw-avatar gw-avatar--lg" role="img" aria-label="Alex Morgan">AM</span>
+    <span class="gw-avatar gw-avatar--lg"><img class="gw-avatar__img" src="../assets/logo-mark.svg" alt="GateRook (system)"></span>
+  </div>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <ul class="gw-stack gw-stack--sm" aria-label="Approvers, server mode preview">
+      <li class="gw-text-small"><span class="gw-avatar" aria-hidden="true">PN</span> Priya Nair · Admin, Approver</li>
+      <li class="gw-text-small"><span class="gw-avatar" aria-hidden="true">AM</span> Alex Morgan · Owner</li>
+      <li class="gw-text-small"><span class="gw-avatar" aria-hidden="true">SL</span> Sam Lee · Developer</li>
+      <li class="gw-text-small"><span class="gw-avatar"><img class="gw-avatar__img" src="../assets/logo-mark.svg" alt=""></span> GateRook · expired the request after 5 min</li>
+    </ul>
+  </div>
+
+  <h3>Client marks</h3>
+  <p class="sc-lead">Each app keeps one tile everywhere: client cards, endpoint AI apps, Activity rows. The tone tells apps apart and never carries status; connection state is a <code class="gw-code">gw-status</code> beside it. <code class="gw-code">--generic</code> covers any other app.</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <ul class="gw-grid gw-grid--auto" aria-label="Apps">
+      <li class="gw-text-small"><span class="gw-client-mark gw-client-mark--claude" aria-hidden="true">CD</span> Claude Desktop</li>
+      <li class="gw-text-small"><span class="gw-client-mark gw-client-mark--codex" aria-hidden="true">Cx</span> Codex</li>
+      <li class="gw-text-small"><span class="gw-client-mark gw-client-mark--cursor" aria-hidden="true">Cu</span> Cursor</li>
+      <li class="gw-text-small"><span class="gw-client-mark gw-client-mark--antigravity" aria-hidden="true">Ag</span> Antigravity</li>
+      <li class="gw-text-small"><span class="gw-client-mark gw-client-mark--claudeai" aria-hidden="true">ai</span> claude.ai</li>
+      <li class="gw-text-small"><span class="gw-client-mark gw-client-mark--inspector" aria-hidden="true">In</span> MCP Inspector</li>
+      <li class="gw-text-small"><span class="gw-client-mark gw-client-mark--generic" aria-hidden="true"><i class="gw-icon" data-lucide="app-window"></i></span> Other app</li>
+    </ul>
+  </div>
+  <div class="sc-demo" data-sc-code>
+    <span class="gw-client-mark gw-client-mark--codex gw-client-mark--sm" role="img" aria-label="Codex">Cx</span>
+    <span class="gw-client-mark gw-client-mark--codex" role="img" aria-label="Codex">Cx</span>
+    <span class="gw-client-mark gw-client-mark--codex gw-client-mark--lg" role="img" aria-label="Codex">Cx</span>
+    <span class="gw-client-mark gw-client-mark--claude gw-client-mark--sm" role="img" aria-label="Claude Desktop">CD</span>
+    <span class="gw-client-mark gw-client-mark--claude" role="img" aria-label="Claude Desktop">CD</span>
+    <span class="gw-client-mark gw-client-mark--claude gw-client-mark--lg" role="img" aria-label="Claude Desktop">CD</span>
+    <span class="gw-client-mark gw-client-mark--generic gw-client-mark--lg" role="img" aria-label="Other app"><i class="gw-icon" data-lucide="app-window"></i></span>
+  </div>
+</section>

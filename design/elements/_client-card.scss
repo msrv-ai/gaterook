@@ -1,0 +1,282 @@
+// =============================================================
+// client-card · Element
+// -------------------------------------------------------------
+// One MCP client (Claude Desktop, Codex, Cursor, Antigravity, claude.ai):
+// is it on this machine, is it connected, to which endpoint, through which
+// file or channel, how it authenticates, and the next step. Connecting never
+// writes blind: Connect opens a dialog that shows the exact change to the
+// client's config file and the backup path before anything is written.
+//
+// Where   pages/clients.html (grid of five cards, the claude.ai card with the
+//         tunnel), pages/endpoint-detail.html · AI apps tab (--compact rows),
+//         pages/onboarding.html · Connect your AI app (one card on its own).
+//
+// Composes  gw-card (__header __heading __title __description __body __footer
+//           --split), gw-client-mark --lg/(md), gw-status, gw-kv --dense,
+//           gw-btn (--primary --ghost --danger-ghost --link --sm), gw-alert
+//           (--info --warning --danger, --compact for one-line notes),
+//           gw-dialog --lg / --md --warning / --sm --danger, gw-icon-tile,
+//           gw-field, gw-select, gw-input, gw-form__row, gw-choice-card --compact,
+//           gw-diff --wrap, gw-copy-field (readonly input value), gw-table
+//           --dense, gw-counter, gw-env, gw-code-block, gw-code, gw-link,
+//           gw-mono, gw-stack, gw-grid.
+//
+// Full card
+//   <article class="gw-card gw-client-card" aria-labelledby="cc-codex">
+//     <header class="gw-card__header gw-client-card__header">
+//       <div class="gw-client-card__identity">
+//         <span class="gw-client-mark gw-client-mark--codex gw-client-mark--lg" aria-hidden="true">Cx</span>
+//         <div class="gw-card__heading">
+//           <h3 class="gw-card__title" id="cc-codex">Codex</h3>
+//           <p class="gw-card__description gw-client-card__via gw-mono">~/.codex/config.toml</p>
+//         </div>
+//       </div>
+//       <span class="gw-status gw-status--success gw-client-card__status">
+//         <span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Connected</span>
+//       </span>
+//     </header>
+//     <div class="gw-card__body gw-stack gw-client-card__body">
+//       <dl class="gw-kv gw-kv--dense">
+//         <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt>
+//           <dd class="gw-kv__value"><a class="gw-link gw-mono" href="endpoint-detail.html">http://127.0.0.1:7465/mcp/dev</a></dd></div>
+//         <div class="gw-kv__row"><dt class="gw-kv__key">Auth</dt>
+//           <dd class="gw-kv__value">Access codex-laptop: a 15-minute token handed to
+//             http_headers_helper on the fly, never written to the config</dd></div>
+//       </dl>
+//     </div>
+//     <footer class="gw-card__footer gw-card__footer--split gw-client-card__footer">
+//       <a class="gw-btn gw-btn--link gw-btn--sm" href="activity.html?q=client:codex">View activity<span class="gw-sr-only"> of Codex</span></a>
+//       <div class="gw-client-card__actions">
+//         <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button">Open config<span class="gw-sr-only"> of Codex</span></button>
+//         <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" data-gw-dialog-open="dlg-disconnect-codex">Disconnect<span class="gw-sr-only"> Codex</span></button>
+//       </div>
+//     </footer>
+//   </article>
+//   Several cards: <ul class="gw-grid gw-grid--2" aria-label="AI apps"><li>card</li>…</ul>.
+//
+// Content (BLUEPRINT §9)
+//   __via (how it connects)  "Bridge extension (.mcpb)" (Claude Desktop) · a
+//     config path in mono: ~/.codex/config.toml, ~/.cursor/mcp.json,
+//     ~/.gemini/config/mcp_config.json · "Public URL via tunnel" (claude.ai).
+//   Auth row  Claude Desktop (the .mcpb bridge) and Codex (http_headers_helper
+//     → "gw-bridge headers", access codex-laptop) get 15-minute tokens on the
+//     fly, never written to their configs: there is no token value anywhere to
+//     show. Cursor and Antigravity keep an endpoint token in their config (Cursor's:
+//     cursor-laptop, in plain text in ~/.cursor/mcp.json; Connect says so), or
+//     Cursor signs in through the browser instead. claude.ai: OAuth 2.1.
+//     Token defaults: 7 days; no IP allowlist on desktop tokens (server mode only).
+//   Open config  only for clients set up through a file (Codex, Cursor,
+//     Antigravity); the bridge extension has no file to open.
+//   Several endpoints (Claude Desktop through its bridge: dev and incident-prod)
+//     the card takes the full width and lists one row per endpoint in a
+//     gw-table --dense (endpoint + gw-env, tools, last call, View activity and
+//     Disconnect "from <endpoint>"); the footer has Add endpoint (gw-dialog--sm,
+//     autofocus on the endpoint select) and Remove bridge (danger-ghost →
+//     gw-dialog--danger listing every endpoint that loses access).
+//
+// States (gw-status vocabulary, BLUEPRINT §7; the label always says it)
+//   connected       --success "Connected"; View activity, Open config,
+//                   Disconnect (danger-ghost → gw-dialog--danger "Disconnect Codex")
+//   detected        --info "Detected, not connected"; Open config + Connect
+//   not installed   --neutral "Not installed"; "How to install" link (external)
+//                   + Check again
+//   needs restart   --warning "Needs restart" + gw-alert--warning "Restart Codex
+//                   to load the server" (full alert: the title wraps in a narrow
+//                   card); clears on the client's first call
+//   error           --danger "Error" + gw-alert--danger: what failed (config not
+//                   writable), that nothing was written, the fix as a
+//                   gw-code-block with Copy; Try again
+//   claude.ai       --neutral "Tunnel off" / --success "Tunnel on". Full width:
+//                   "What gets published" (/mcp/stage-readonly, /oauth/*,
+//                   /.well-known/oauth-*; the app UI, admin API, dev and
+//                   incident-prod stay local) · "Who gets in", the three gates in
+//                   order (Anthropic IP ranges, read-only state + link to
+//                   settings.html#settings-tunnel-callers, where the ONE switch
+//                   lives; each sign-in allowed on this computer; the endpoint's own
+//                   modes) · the tunnel history ("Off since 12:10 · public today
+//                   08:40 to 12:10", link to activity.html?view=changes) and what
+//                   claude.ai did meanwhile (19 calls, last 12:08) · "Signed in":
+//                   gw-table --dense of the OAuth grants with Revoke (→ gw-dialog
+//                   --sm --danger). Tunnel on: the public URL in a gw-copy-field
+//                   (readonly input, so the full URL is reachable by keyboard).
+//   Publish         "Publish for claude.ai" never acts at once: it opens a
+//                   gw-dialog--md --warning (risky, reversible) that lists exactly
+//                   what becomes public and the gates; Cancel has autofocus. Turn
+//                   off tunnel acts at once with a toast and NO Undo: turning
+//                   exposure on again always goes through the confirm.
+//   Sign-in request the consent shown on this computer when claude.ai signs in:
+//                   gw-dialog--md --warning with the code to match, what it wants,
+//                   where it comes from; Deny has autofocus (and Esc, the close
+//                   button or no answer deny), "Allow access" is the primary.
+//
+// Connect (one primary per screen level)
+//   In a grid of cards (AI apps page) Connect is a default (secondary) --sm
+//   button. Where the card stands alone (onboarding step, the only detected
+//   client) it is gw-btn--primary. Connect opens a gw-dialog--lg data-gw-static
+//   whose body is __flow: Endpoint (gw-select, autofocus: the dialog's initial
+//   focus) · for Cursor the Sign-in choice (gw-choice-card --compact radios:
+//   "Token in the file" / "Sign in through the browser") and, in token mode, a
+//   __step "Token for Cursor" (Name cursor-laptop, Expires 7 days; no IP
+//   allowlist on the desktop) · __step "What will change" (gw-diff --wrap of the
+//   config file + __backup line) · auth note (a gw-alert--warning when the token
+//   lands in the file in plain text) · restart note where the client needs one.
+//   Footer: Cancel + "Confirm and connect" (--primary, the only one in the
+//   dialog). After writing, a toast confirms and the card shows "Needs restart"
+//   where the client must restart.
+//   One endpoint only: no select; a __step "What <app> can use" (gw-kv
+//   --dense: Connection + gw-env, Tools with their modes, Endpoint) says it
+//   in words. Claude Desktop (.mcpb) has no file: "What will change" is a
+//   gw-kv (Installs, Runs, Config files none, Token none stored) plus "Claude
+//   Desktop asks you to confirm"; the claude_desktop_config.json fallback
+//   (diff, backup, restart) sits behind a disclosure.
+//   Waiting for the app: gw-status--checking "Waiting for <app>". Claude
+//   Desktop (its install prompt): the primary keeps its label, aria-busy +
+//   aria-disabled, described by a line that says what to do in the app.
+//   Cursor (browser sign-in): the entry is already written, so the card shows
+//   "Finish in Cursor", Check that it works, Open config + Disconnect, no
+//   primary.
+//   Inline review (clients ?state=setup): after Connect the card stays and
+//   ends with "Check that it works" (the prompt in a gw-copy-field, Last call
+//   "Waiting for the first request"); focus moves to the card's h3.
+//
+// --compact (endpoint-detail · AI apps)
+//   <ul class="gw-stack gw-stack--sm" aria-label="AI apps of endpoint dev">
+//     <li class="gw-card gw-client-card gw-client-card--compact">
+//       <div class="gw-client-card__row">
+//         <span class="gw-client-mark gw-client-mark--claude" aria-hidden="true">CD</span>
+//         <div class="gw-client-card__main">
+//           <span class="gw-text-ui">Claude Desktop</span>
+//           <span class="gw-text-caption gw-fg-muted">Bridge extension (.mcpb) · last call 14 min ago</span>
+//         </div>
+//         <span class="gw-status gw-status--success gw-client-card__status">…Connected</span>
+//         <div class="gw-client-card__actions">…sm buttons…</div>
+//       </div>
+//     </li>
+//   </ul>
+//   Rows wrap below ~560px: name first, status and actions on the next line.
+//   As a hash target (clients first run / setup) the name is an
+//   h3.gw-text-ui with tabindex="-1". Nothing to connect yet: Connect is a
+//   <button aria-disabled> described by a visible reason under the list.
+//
+// Parts
+//   __header    the gw-card__header: wraps, so the status drops under the name
+//   __identity  client mark + heading, centred on the mark
+//   __via       the card description (how it connects); long paths wrap anywhere
+//   __status    the gw-status in the header or row; never shrinks, one line
+//   __body      grows, so footers line up across a grid row
+//   __footer    split footer that wraps on a narrow card
+//   __actions   end-aligned button group (footer end, compact row end)
+//   __flow      the connect steps, 20px apart (dialog body or inline preview)
+//   __step      one step: heading + its control, 8px apart
+//   __backup    archive icon + "Backup: ~/.codex/config.toml.bak-2026-10-22"
+//   __row       the compact layout: mark · main · status · actions
+//   __main      name + one meta line, takes the free width (basis 200px)
+//
+// A11y   article + aria-labelledby the client name; marks are aria-hidden
+//        next to the name; repeated buttons carry the client in sr-only text
+//        (unique names in a list); the diff body is a focusable region; the
+//        destructive Disconnect confirms in gw-dialog--danger naming the client
+//        with autofocus on Cancel; every dialog names its initial focus; the
+//        external install link says it opens the browser; the caller allowlist
+//        is read-only text with a link, never a second switch.
+// Raw values: none (the 200px basis of __main is 5 × --gw-size-control-lg).
+// =============================================================
+
+@use "../scss/tokens" as *;
+@use "../scss/mixins" as *;
+
+.gw-client-card {
+  // Fill the grid cell (a <li> of gw-grid stretches; the card follows it).
+  height: 100%;
+
+  // Name on the start, status on the end, in every card of a row: the identity
+  // takes the free width (192px basis) and a long config path wraps inside it
+  // (~/.gemini/config/mcp_config.json) instead of pushing the status down. Only
+  // a card narrower than identity + status drops the status under the name.
+  &__header {
+    flex-wrap: wrap;
+    row-gap: var(--gw-space-2);
+  }
+
+  &__identity {
+    display: flex;
+    flex: 1 1 calc(var(--gw-space-16) * 3);
+    align-items: center;
+    gap: var(--gw-space-3);
+    min-width: 0;
+  }
+
+  // how it connects: a config path in mono may be longer than the column
+  &__via {
+    overflow-wrap: anywhere;
+  }
+
+  &__status {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  &__body {
+    flex: 1 1 auto;
+  }
+
+  &__footer {
+    flex-wrap: wrap;
+    row-gap: var(--gw-space-2);
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--gw-space-2);
+    min-width: 0;
+    margin-inline-start: auto;
+  }
+
+  // ─── Connect flow ───
+  &__flow {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-5);
+    min-width: 0;
+  }
+
+  &__step {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-2);
+    min-width: 0;
+  }
+
+  &__backup {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gw-space-1-5);
+    min-width: 0;
+    margin: 0;
+  }
+
+  // ─── Compact (endpoint lists) ───
+  &--compact {
+    height: auto;
+  }
+
+  &__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gw-space-2) var(--gw-space-3);
+    min-width: 0;
+    padding: var(--gw-space-3) var(--gw-space-4);
+  }
+
+  &__main {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 calc(var(--gw-size-control-lg) * 5); // 200px before the row wraps
+    min-width: 0;
+  }
+}

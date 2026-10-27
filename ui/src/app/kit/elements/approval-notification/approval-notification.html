@@ -1,0 +1,123 @@
+@let req = r();
+@switch (kind()) {
+  @case ('desktop') {
+    @if (os() === 'mac') {
+      <div class="gw-card gw-approval-notification__surface gw-approval-notification__os gw-approval-notification__os--mac" inert>
+        <span class="gw-logo gw-logo--lg gw-logo--mark-only"><img class="gw-logo__mark" src="assets/logo-mark.svg" alt=""><span class="gw-logo__name">MCP Gateway</span></span>
+        <div class="gw-approval-notification__text">
+          <p class="gw-text-caption gw-fg-muted">MCP Gateway · now</p>
+          <p class="gw-text-h3">{{ titlePrefix() }}Approval needed · {{ req.tool }} on {{ target() }}</p>
+          <p class="gw-text-small gw-truncate">{{ prod() ? 'Runs on production' : req.env + ' environment' }} · from {{ who() }}</p>
+          <p class="gw-text-code-sm gw-fg-secondary gw-truncate">{{ line() }}</p>
+        </div>
+        <div class="gw-approval-notification__os-actions">
+          <button class="gw-btn gw-btn--sm" type="button">Review</button>
+          <button class="gw-btn gw-btn--sm" type="button">Deny</button>
+        </div>
+      </div>
+    } @else {
+      <div class="gw-card gw-approval-notification__surface gw-approval-notification__os gw-approval-notification__os--win" inert>
+        <p class="gw-approval-notification__app gw-text-caption gw-fg-muted"><span class="gw-logo gw-logo--sm"><img class="gw-logo__mark" src="assets/logo-mark.svg" alt=""><span class="gw-logo__name">MCP Gateway</span></span> now</p>
+        <div class="gw-approval-notification__text">
+          <p class="gw-text-h3">{{ titlePrefix() }}Approval needed · {{ req.tool }} on {{ target() }}</p>
+          <p class="gw-text-code-sm gw-fg-secondary gw-truncate">{{ line() }}</p>
+          <p class="gw-text-caption gw-fg-muted">{{ prod() ? 'Runs on production' : req.env + ' environment' }} · {{ who() }} · auto-deny at {{ deadline() }}</p>
+        </div>
+        <div class="gw-approval-notification__os-actions">
+          <button class="gw-btn gw-btn--sm gw-btn--block" type="button">Review</button>
+          <button class="gw-btn gw-btn--sm gw-btn--block" type="button">Deny</button>
+        </div>
+      </div>
+    }
+    @if (caption()) {
+      <figcaption class="gw-approval-notification__caption gw-text-caption gw-fg-muted">{{ caption() }}<span class="gw-sr-only">: notification from MCP Gateway, "{{ titlePrefix() }}Approval needed · {{ req.tool }} on {{ target() }}", body "{{ line() }}", buttons Review and Deny.</span></figcaption>
+    } @else {
+      <figcaption class="gw-sr-only">Notification from MCP Gateway: "{{ titlePrefix() }}Approval needed · {{ req.tool }} on {{ target() }}", body "{{ line() }}", buttons Review and Deny.</figcaption>
+    }
+  }
+
+  @case ('slack') {
+    <div class="gw-approval-notification__message" inert>
+      <span class="gw-logo gw-logo--lg gw-logo--mark-only"><img class="gw-logo__mark" src="assets/logo-mark.svg" alt=""><span class="gw-logo__name">MCP Gateway</span></span>
+      <div>
+        <p class="gw-approval-notification__byline"><span class="gw-text-h3">MCP Gateway</span><span class="gw-badge gw-badge--sm">App</span><span class="gw-text-caption gw-fg-muted">{{ sent() }}{{ decided() ? ' (edited)' : '' }}</span></p>
+        <div class="gw-approval-notification__blocks">
+          <p class="gw-text-h2">{{ titlePrefix() }}Approval needed: <span class="gw-mono">{{ req.tool }}</span> on <span class="gw-mono">{{ target() }}</span></p>
+          @if (decided()) {
+            <gw-code-block wrap [copy]="false" [segments]="req.action?.segments ?? null" [text]="text()" [language]="req.action?.language ?? null" regionLabel="Action" />
+            @let o = outcome();
+            <p class="gw-approval-notification__actions"><span [class]="'gw-badge gw-badge--' + o.tone"><svg [lucideIcon]="o.icon" class="gw-icon gw-badge__icon"></svg>{{ o.label }}</span><span class="gw-text-small gw-fg-secondary">{{ o.text }}</span></p>
+          } @else {
+            @if (prod()) {
+              <p class="gw-text-small gw-fg-danger"><span class="gw-env gw-env--prod gw-env--sm">prod</span> Runs on production</p>
+            }
+            <dl class="gw-kv gw-kv--inline">
+              @if (req.connection && !prod()) {
+                <div class="gw-kv__row"><dt class="gw-kv__key">Connection</dt><dd class="gw-kv__value"><code class="gw-code">{{ req.connection }}</code> <span [class]="'gw-env gw-env--' + req.env + ' gw-env--sm'">{{ req.env }}</span></dd></div>
+              }
+              <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">{{ req.endpoint }}</code></dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Client</dt><dd class="gw-kv__value">{{ who() }}@if (req.tokenLabel && !prod()) { · <code class="gw-code">{{ req.tokenLabel }}</code>}</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Auto-deny</dt><dd class="gw-kv__value gw-tabular">At {{ deadline() }}</dd></div>
+            </dl>
+            <gw-code-block wrap [copy]="false" [segments]="req.action?.segments ?? null" [text]="text()" [language]="req.action?.language ?? null" regionLabel="Action" />
+            <p class="gw-text-caption gw-fg-muted">
+              @if (req.rule) {Rule <span class="gw-mono">{{ req.rule.id }}</span>}@if (noApprove(); as why) { · {{ why }}} @else if (ruleNote()) { · {{ ruleNote() }}}
+            </p>
+            <div class="gw-approval-notification__actions">
+              @if (approvable()) {
+                <button class="gw-btn gw-btn--approve gw-btn--sm" type="button">Approve</button>
+              }
+              <button class="gw-btn gw-btn--danger gw-btn--sm" type="button">Deny</button>
+              <button class="gw-btn gw-btn--sm" type="button"><svg lucideIcon="external-link" class="gw-icon gw-icon--sm"></svg>Open in app</button>
+            </div>
+          }
+        </div>
+      </div>
+    </div>
+    <figcaption class="gw-sr-only">Slack message{{ slackChannel() ? ' in ' + slackChannel() : '' }} from the MCP Gateway app at {{ sent() }}: "{{ titlePrefix() }}Approval needed: {{ req.tool }} on {{ target() }}". Statement: {{ text() }}@if (decided()) {. {{ outcome().label }} {{ outcome().text }}. No buttons.} @else {. Buttons {{ approvable() ? 'Approve, Deny and Open in app' : 'Deny and Open in app; no Approve' }}.}</figcaption>
+  }
+
+  @case ('telegram') {
+    <div class="gw-approval-notification__chat" inert>
+      <div class="gw-card gw-approval-notification__surface gw-approval-notification__surface--bubble">
+        <p class="gw-text-ui gw-fg-muted">MCP Gateway bot</p>
+        <p class="gw-text-h3">{{ titlePrefix() }}Approval needed</p>
+        @if (prod() && !decided()) {
+          <p class="gw-text-small gw-fg-danger">Runs on production</p>
+        }
+        <p class="gw-text-small"><span class="gw-mono">{{ req.tool }}</span> on <span class="gw-mono">{{ target() }}</span> <span [class]="'gw-env gw-env--' + req.env + ' gw-env--sm'">{{ req.env }}</span> from {{ who() }}@if (!decided()) { · endpoint <span class="gw-mono">{{ req.endpoint }}</span>}</p>
+        <gw-code-block wrap [copy]="false" [segments]="req.action?.segments ?? null" [text]="text()" [language]="req.action?.language ?? null" regionLabel="Action" />
+        @if (decided()) {
+          @let o = outcome();
+          <p class="gw-approval-notification__actions"><span [class]="'gw-badge gw-badge--' + o.tone"><svg [lucideIcon]="o.icon" class="gw-icon gw-badge__icon"></svg>{{ o.label }}</span><span class="gw-text-small gw-fg-secondary">{{ o.text }}</span></p>
+        } @else {
+          <p class="gw-text-caption gw-fg-muted">Auto-deny at {{ deadline() }}@if (noApprove(); as why) { · {{ why }}} @else if (req.rule) { · rule <span class="gw-mono">{{ req.rule.id }}</span>}</p>
+        }
+        <p class="gw-approval-notification__time gw-text-caption gw-fg-muted">{{ sent() }}{{ decided() ? ' (edited)' : '' }}</p>
+      </div>
+      @if (!decided()) {
+        <div class="gw-approval-notification__keyboard">
+          @if (approvable()) {
+            <button class="gw-btn gw-btn--approve gw-btn--sm gw-btn--block gw-approval-notification__key" type="button">Approve</button>
+          }
+          <button class="gw-btn gw-btn--danger gw-btn--sm gw-btn--block gw-approval-notification__key" type="button">Deny</button>
+          <button class="gw-btn gw-btn--sm gw-btn--block gw-approval-notification__key" [class.gw-approval-notification__key--wide]="approvable()" type="button"><svg lucideIcon="external-link" class="gw-icon gw-icon--sm"></svg>Open in app</button>
+        </div>
+      }
+    </div>
+    <figcaption class="gw-sr-only">Telegram message from the MCP Gateway bot at {{ sent() }}: "{{ titlePrefix() }}Approval needed. {{ req.tool }} on {{ target() }}, {{ req.env }}, from {{ who() }}." Statement: {{ text() }}@if (decided()) {. {{ outcome().label }}, {{ outcome().text }}. No buttons.} @else {. Buttons {{ approvable() ? 'Approve, Deny and Open in app' : 'Deny and Open in app; no Approve' }}.}</figcaption>
+  }
+
+  @case ('toast') {
+    <div class="gw-toast gw-toast--warning gw-approval-notification__toast" inert>
+      <svg lucideIcon="hourglass" class="gw-icon gw-toast__icon"></svg>
+      <div class="gw-toast__content">
+        <p class="gw-toast__title">{{ titlePrefix() }}Approval needed</p>
+        <p class="gw-toast__body"><span class="gw-mono">{{ req.tool }}</span> on <span class="gw-mono">{{ target() }}</span> <span class="gw-sr-only">environment</span> <span [class]="'gw-env gw-env--' + req.env + ' gw-env--sm'">{{ req.env }}</span> from {{ who() }}. Auto-deny at {{ deadline() }}.</p>
+        <div class="gw-toast__actions"><button class="gw-btn gw-btn--sm" type="button">Review</button></div>
+      </div>
+      <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-toast__close" type="button" aria-label="Dismiss notification"><svg lucideIcon="x" class="gw-icon gw-icon--sm"></svg></button>
+    </div>
+    <figcaption class="gw-sr-only">Toast: "{{ titlePrefix() }}Approval needed. {{ req.tool }} on {{ target() }}, {{ req.env }}, from {{ who() }}. Auto-deny at {{ deadline() }}." Buttons Review and Dismiss.</figcaption>
+  }
+}

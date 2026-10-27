@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Token issue · Element · GateRook kit</title>
+<link rel="icon" href="../assets/logo-mark.svg" type="image/svg+xml">
+<script src="../assets/theme-boot.js"></script>
+<link rel="stylesheet" href="../dist/gw-kit.css">
+</head>
+<body>
+<a class="gw-skip-link" href="#main">Skip to content</a>
+<main class="gw-page" id="main" tabindex="-1">
+  <header class="gw-page-header">
+    <div class="gw-page-header__row">
+      <div class="gw-page-header__heading">
+        <h1 class="gw-page-header__title">Token issue</h1>
+        <p class="gw-page-header__description">Access tokens of one endpoint: issue a token, show it once, then list it only by its prefix with its lifetime, last use and a revoke that names it. Used on endpoint detail (Tokens) and Settings › Authorization.</p>
+      </div>
+      <div class="gw-page-header__actions">
+        <fieldset class="gw-segmented gw-segmented--sm">
+          <legend class="gw-sr-only">Theme</legend>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i>System</span></label>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i>Light</span></label>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i>Dark</span></label>
+        </fieldset>
+      </div>
+    </div>
+  </header>
+
+  <section class="gw-section" aria-labelledby="tki-table">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="tki-table">Tokens table</h2>
+      <p class="gw-section__description">Only the prefix is listed, never the token. Claude Desktop (the .mcpb bridge) and Codex (the gw-bridge headers helper) never hold a stored token: they get a short-lived one on the fly, so their rows show how, not a prefix, and Revoke ends the AI app's grant. An expiry under 7 days gets a warning badge, “Last used” opens Activity filtered by the token, and Revoke asks for confirmation that names it. Expired and revoked tokens stay listed for the audit trail.</p>
+    </header>
+    <div class="gw-token-issue">
+      <section class="gw-card gw-card--flush" aria-labelledby="tki-tokens-title">
+        <header class="gw-card__header">
+          <div class="gw-card__heading">
+            <h3 class="gw-card__title" id="tki-tokens-title">Tokens</h3>
+            <p class="gw-card__description">Endpoint <span class="gw-mono">dev</span> · 2 active, 1 expired, 1 revoked. Claude Desktop and Codex get a 15-minute token on the fly; issue a named token for any other app, one per app and machine, so each can be revoked alone.</p>
+          </div>
+          <div class="gw-card__actions">
+            <button class="gw-btn gw-btn--primary gw-btn--sm" type="button" data-gw-dialog-open="tki-issue"><i class="gw-icon gw-icon--sm" data-lucide="plus"></i>Issue token</button>
+          </div>
+        </header>
+        <div class="gw-card__body">
+          <div class="gw-table-wrap" role="region" aria-labelledby="tki-tokens-cap" tabindex="0">
+            <table class="gw-table">
+              <caption class="gw-sr-only" id="tki-tokens-cap">Tokens of endpoint dev</caption>
+              <thead><tr><th scope="col">Token</th><th scope="col">Created</th><th scope="col">Expires</th><th scope="col">Last used</th><th scope="col">Status</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th></tr></thead>
+              <tbody>
+                <tr>
+                  <th scope="row" class="gw-table__cell--mono"><span class="gw-token-issue__token"><span>Bridge (.mcpb)</span> <span class="gw-fg-muted">Claude Desktop · issued on the fly</span></span></th>
+                  <td>On every start</td>
+                  <td>After 15 min</td>
+                  <td><a class="gw-link" href="../pages/activity.html?q=endpoint%3Adev%20client%3Aclaude-desktop"><time datetime="2026-10-22T14:16:00+02:00" title="2026-10-22 14:16:00 +02:00">14 min ago</time><span class="gw-sr-only">, view calls of Claude Desktop</span></a></td>
+                  <td><span class="gw-badge gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>Active</span></td>
+                  <td class="gw-table__cell--actions"></td>
+                </tr>
+                <tr>
+                  <th scope="row" class="gw-table__cell--mono"><span class="gw-token-issue__token"><span>codex-laptop</span> <span class="gw-fg-muted">Codex · gw-bridge headers helper, issued on the fly</span></span></th>
+                  <td><time datetime="2026-10-22T13:58:00+02:00" title="2026-10-22 13:58 +02:00">Today</time></td>
+                  <td>After 15 min</td>
+                  <td><a class="gw-link" href="../pages/activity.html?q=token%3Acodex-laptop"><time datetime="2026-10-22T14:28:00+02:00" title="2026-10-22 14:28:00 +02:00">2 min ago</time><span class="gw-sr-only">, view calls with token codex-laptop</span></a></td>
+                  <td><span class="gw-badge gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>Active</span></td>
+                  <td class="gw-table__cell--actions"><button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" data-gw-dialog-open="tki-dlg-revoke-codex-laptop">Revoke<span class="gw-sr-only"> codex-laptop</span></button></td>
+                </tr>
+                <tr>
+                  <th scope="row" class="gw-table__cell--mono"><span class="gw-token-issue__token"><span>inspector-debug</span> <span class="gw-fg-muted">gwt_K9xP…</span></span></th>
+                  <td><time datetime="2026-09-25T10:40:00+02:00" title="2026-09-25 10:40 +02:00">Sep 25</time></td>
+                  <td><span class="gw-token-issue__expires"><time datetime="2026-10-25T10:40:00+01:00" title="2026-10-25 10:40 +01:00">Oct 25</time><span class="gw-badge gw-badge--warning gw-badge--sm">In 3 days</span></span></td>
+                  <td><a class="gw-link" href="../pages/activity.html?q=token%3Ainspector-debug"><time datetime="2026-10-16T18:12:09+02:00" title="2026-10-16 18:12:09 +02:00">6 days ago</time><span class="gw-sr-only">, view calls with token inspector-debug</span></a></td>
+                  <td><span class="gw-badge gw-badge--warning"><i class="gw-icon gw-badge__icon" data-lucide="hourglass"></i>Expiring</span></td>
+                  <td class="gw-table__cell--actions"><button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" data-gw-dialog-open="tki-dlg-revoke-inspector-debug">Revoke<span class="gw-sr-only"> token inspector-debug</span></button></td>
+                </tr>
+                <tr>
+                  <th scope="row" class="gw-table__cell--mono"><span class="gw-token-issue__token"><span>ci-smoke</span> <span class="gw-fg-muted">gwt_2mZa…</span></span></th>
+                  <td><time datetime="2026-09-18T07:00:00+02:00" title="2026-09-18 07:00 +02:00">Sep 18</time></td>
+                  <td><time datetime="2026-10-18T07:00:00+02:00" title="2026-10-18 07:00 +02:00">Oct 18</time></td>
+                  <td><a class="gw-link" href="../pages/activity.html?q=token%3Aci-smoke"><time datetime="2026-10-17T07:02:44+02:00" title="2026-10-17 07:02:44 +02:00">5 days ago</time><span class="gw-sr-only">, view calls with token ci-smoke</span></a></td>
+                  <td><span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="timer-off"></i>Expired</span></td>
+                  <td class="gw-table__cell--actions"></td>
+                </tr>
+                <tr>
+                  <th scope="row" class="gw-table__cell--mono"><span class="gw-token-issue__token"><span>old-claude</span> <span class="gw-fg-muted">gwt_Pq4d…</span></span></th>
+                  <td><time datetime="2026-08-02T11:20:00+02:00" title="2026-08-02 11:20 +02:00">Aug 2</time></td>
+                  <td><time datetime="2026-10-31T11:20:00+01:00" title="2026-10-31 11:20 +01:00">Oct 31</time></td>
+                  <td><a class="gw-link" href="../pages/activity.html?q=token%3Aold-claude"><time datetime="2026-10-10T09:31:15+02:00" title="2026-10-10 09:31:15 +02:00">12 days ago</time><span class="gw-sr-only">, view calls with token old-claude</span></a></td>
+                  <td><span class="gw-badge gw-badge--danger"><i class="gw-icon gw-badge__icon" data-lucide="ban"></i>Revoked</span></td>
+                  <td class="gw-table__cell--actions"></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+      <dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" id="tki-dlg-revoke-codex-laptop" aria-labelledby="tki-dlg-revoke-codex-laptop-title" aria-describedby="tki-dlg-revoke-codex-laptop-desc">
+        <header class="gw-dialog__header">
+          <span class="gw-icon-tile"><i class="gw-icon" data-lucide="key-round"></i></span>
+          <h2 class="gw-dialog__title" id="tki-dlg-revoke-codex-laptop-title">Revoke codex-laptop?</h2>
+          <p class="gw-dialog__description" id="tki-dlg-revoke-codex-laptop-desc">Revokes the helper's grant: the token Codex holds stops working at once and no new tokens are issued to it, so Codex loses access to endpoint <span class="gw-mono">dev</span> on its next call. Connect Codex again under AI apps to restore it.</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <div class="gw-dialog__body">
+          <dl class="gw-kv gw-kv--dense">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Issued by</dt><dd class="gw-kv__value"><span class="gw-mono">gw-bridge headers</span> (http_headers_helper in <span class="gw-mono">~/.codex/config.toml</span>)</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Used by</dt><dd class="gw-kv__value">Codex</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Last used</dt><dd class="gw-kv__value"><time datetime="2026-10-22T14:28:00+02:00" title="2026-10-22 14:28:00 +02:00">2 min ago</time></dd></div>
+          </dl>
+        </div>
+        <footer class="gw-dialog__footer">
+          <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
+          <button class="gw-btn gw-btn--danger" type="button" data-gw-dialog-close data-gw-toast="Codex loses access on its next call. No new tokens are issued to it." data-gw-toast-title="codex-laptop revoked" data-gw-toast-tone="success">Revoke codex-laptop</button>
+        </footer>
+      </dialog>
+      <dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" id="tki-dlg-revoke-inspector-debug" aria-labelledby="tki-dlg-revoke-inspector-debug-title" aria-describedby="tki-dlg-revoke-inspector-debug-desc">
+        <header class="gw-dialog__header">
+          <span class="gw-icon-tile"><i class="gw-icon" data-lucide="key-round"></i></span>
+          <h2 class="gw-dialog__title" id="tki-dlg-revoke-inspector-debug-title">Revoke token inspector-debug?</h2>
+          <p class="gw-dialog__description" id="tki-dlg-revoke-inspector-debug-desc">Apps using it stop working immediately: MCP Inspector loses access to endpoint <span class="gw-mono">dev</span> on its next call. A revoked token can't be restored; issue a new one to reconnect.</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <div class="gw-dialog__body">
+          <dl class="gw-kv gw-kv--dense">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Token</dt><dd class="gw-kv__value gw-mono">gwt_K9xP…</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Used by</dt><dd class="gw-kv__value">MCP Inspector</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Last used</dt><dd class="gw-kv__value"><time datetime="2026-10-16T18:12:09+02:00" title="2026-10-16 18:12:09 +02:00">6 days ago</time></dd></div>
+          </dl>
+        </div>
+        <footer class="gw-dialog__footer">
+          <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
+          <button class="gw-btn gw-btn--danger" type="button" data-gw-dialog-close data-gw-toast="MCP Inspector loses access on its next call." data-gw-toast-title="Token inspector-debug revoked" data-gw-toast-tone="success">Revoke token inspector-debug</button>
+        </footer>
+      </dialog>
+    </div>
+  </section>
+
+  <section class="gw-section" aria-labelledby="tki-dialog">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="tki-dialog">Issue token dialog</h2>
+      <p class="gw-section__description">For apps that need a pasted bearer token (MCP Inspector, Cursor and Antigravity through their config file, scripts); Claude Desktop and Codex never need one, and Cursor and Antigravity can go through the bridge instead. Connect never writes a token into a client's file for a prod endpoint. Name, lifetime (7 days by default) and the fixed endpoint, then the result step with the only copy of the token; its initial focus is Copy. Desktop tokens have no IP allowlist (server mode only: see the preview below). In the app one dialog swaps its body (<code class="gw-code">data-step</code> goes from form to result); here two dialogs are chained. The result step has no close button: Done needs “I've stored this token”. Use the buttons to open each state.</p>
+    </header>
+    <div class="gw-token-issue">
+      <div class="gw-toolbar">
+        <div class="gw-toolbar__start">
+          <button class="gw-btn" type="button" data-gw-dialog-open="tki-issue"><i class="gw-icon" data-lucide="plus"></i>Issue form</button>
+          <button class="gw-btn" type="button" data-gw-dialog-open="tki-err"><i class="gw-icon" data-lucide="circle-alert"></i>Issue form with errors</button>
+          <button class="gw-btn" type="button" data-gw-dialog-open="tki-issued"><i class="gw-icon" data-lucide="key-round"></i>Result step</button>
+        </div>
+      </div>
+      <dialog class="gw-dialog gw-dialog--md" id="tki-issue" aria-labelledby="tki-issue-title" aria-describedby="tki-issue-desc" data-gw-static>
+        <form method="dialog">
+          <header class="gw-dialog__header">
+            <h2 class="gw-dialog__title" id="tki-issue-title">Issue token</h2>
+            <p class="gw-dialog__description" id="tki-issue-desc">An app uses it to call endpoint <span class="gw-mono">dev</span>. You see the full token once, right after this step.</p>
+            <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+          </header>
+          <div class="gw-dialog__body">
+            <div class="gw-token-issue__form" data-step="form">
+              <div class="gw-field">
+                <label class="gw-field__label" for="tki-issue-name">Name</label>
+                <input class="gw-input gw-input--mono" id="tki-issue-name" type="text" value="cursor-laptop" required autocomplete="off" spellcheck="false" aria-describedby="tki-issue-name-hint" autofocus>
+                <p class="gw-field__hint" id="tki-issue-name-hint">Name it after the app and the machine. Activity shows it next to every call.</p>
+              </div>
+              <div class="gw-field">
+                <label class="gw-field__label" for="tki-issue-expires">Expires</label>
+                <select class="gw-select" id="tki-issue-expires" aria-describedby="tki-issue-expires-hint">
+                  <option value="7d" selected>7 days</option>
+                  <option value="30d">30 days</option>
+                  <option value="90d">90 days</option>
+                  <option value="custom">Custom date</option>
+                </select>
+                <p class="gw-field__hint" id="tki-issue-expires-hint">On <time datetime="2026-10-29">Oct 29, 2026</time>. The default; short lifetimes are safer.</p>
+              </div>
+              <p class="gw-text-caption gw-fg-muted">No IP allowlist on the desktop: the gateway listens on <span class="gw-mono">127.0.0.1</span> only, so a token works from this computer. Allowed IPs is a server-mode setting.</p>
+              <div class="gw-field">
+                <label class="gw-field__label" for="tki-issue-endpoint">Endpoint</label>
+                <input class="gw-input gw-input--mono" id="tki-issue-endpoint" type="text" value="dev" readonly aria-describedby="tki-issue-endpoint-hint">
+                <p class="gw-field__hint" id="tki-issue-endpoint-hint">The token works only for <span class="gw-mono">http://127.0.0.1:7465/mcp/dev</span>.</p>
+              </div>
+            </div>
+          </div>
+          <footer class="gw-dialog__footer">
+            <button class="gw-btn" type="button" data-gw-dialog-close>Cancel</button>
+            <button class="gw-btn gw-btn--primary" type="submit" data-gw-dialog-open="tki-issued">Issue token</button>
+          </footer>
+        </form>
+      </dialog>
+      <dialog class="gw-dialog gw-dialog--md" id="tki-err" aria-labelledby="tki-err-title" aria-describedby="tki-err-desc" data-gw-static>
+        <form method="dialog">
+          <header class="gw-dialog__header">
+            <h2 class="gw-dialog__title" id="tki-err-title">Issue token</h2>
+            <p class="gw-dialog__description" id="tki-err-desc">An app uses it to call endpoint <span class="gw-mono">dev</span>. You see the full token once, right after this step.</p>
+            <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+          </header>
+          <div class="gw-dialog__body">
+            <div class="gw-token-issue__form" data-step="form">
+              <div class="gw-field">
+                <label class="gw-field__label" for="tki-err-name">Name</label>
+                <input class="gw-input gw-input--mono" id="tki-err-name" type="text" value="inspector-debug" required autocomplete="off" spellcheck="false" aria-invalid="true" aria-describedby="tki-err-name-err tki-err-name-hint" autofocus>
+                <p class="gw-field__error" id="tki-err-name-err"><i class="gw-icon" data-lucide="circle-alert"></i>Endpoint dev already has a token named inspector-debug. Pick another name, or revoke the old token first.</p>
+                <p class="gw-field__hint" id="tki-err-name-hint">Name it after the app and the machine. Activity shows it next to every call.</p>
+              </div>
+              <div class="gw-field">
+                <label class="gw-field__label" for="tki-err-expires">Expires</label>
+                <select class="gw-select" id="tki-err-expires" aria-describedby="tki-err-expires-hint">
+                  <option value="7d" selected>7 days</option>
+                  <option value="30d">30 days</option>
+                  <option value="90d">90 days</option>
+                  <option value="custom">Custom date</option>
+                </select>
+                <p class="gw-field__hint" id="tki-err-expires-hint">On <time datetime="2026-10-29">Oct 29, 2026</time>. The default; short lifetimes are safer.</p>
+              </div>
+              <p class="gw-text-caption gw-fg-muted">No IP allowlist on the desktop: the gateway listens on <span class="gw-mono">127.0.0.1</span> only, so a token works from this computer. Allowed IPs is a server-mode setting.</p>
+              <div class="gw-field">
+                <label class="gw-field__label" for="tki-err-endpoint">Endpoint</label>
+                <input class="gw-input gw-input--mono" id="tki-err-endpoint" type="text" value="dev" readonly aria-describedby="tki-err-endpoint-hint">
+                <p class="gw-field__hint" id="tki-err-endpoint-hint">The token works only for <span class="gw-mono">http://127.0.0.1:7465/mcp/dev</span>.</p>
+              </div>
+            </div>
+          </div>
+          <footer class="gw-dialog__footer">
+            <button class="gw-btn" type="button" data-gw-dialog-close>Cancel</button>
+            <button class="gw-btn gw-btn--primary" type="button">Issue token</button>
+          </footer>
+        </form>
+      </dialog>
+      <dialog class="gw-dialog gw-dialog--md" id="tki-issued" aria-labelledby="tki-issued-title" aria-describedby="tki-issued-desc" data-gw-static data-gw-dialog-guard>
+        <form method="dialog">
+          <header class="gw-dialog__header">
+            <span class="gw-icon-tile gw-icon-tile--success"><i class="gw-icon" data-lucide="key-round"></i></span>
+            <h2 class="gw-dialog__title" id="tki-issued-title">Token cursor-laptop issued</h2>
+            <p class="gw-dialog__description" id="tki-issued-desc">Paste it into the app as the bearer token for endpoint <span class="gw-mono">dev</span> (Cursor: the <span class="gw-mono">Authorization</span> header in <span class="gw-mono">~/.cursor/mcp.json</span>).</p>
+          </header>
+          <div class="gw-dialog__body">
+            <div class="gw-token-issue__result" data-step="result">
+              <div class="gw-alert gw-alert--warning">
+                <i class="gw-icon gw-alert__icon" data-lucide="triangle-alert"></i>
+                <div class="gw-alert__content">
+                  <p class="gw-alert__title">This is the only time you can see this token</p>
+                  <p class="gw-alert__body">The gateway keeps only its hash, and lists it by the prefix <span class="gw-mono">gwt_Vb8r</span>. If you lose it, revoke it and issue a new one.</p>
+                </div>
+              </div>
+              <div class="gw-field">
+                <p class="gw-field__label" id="tki-token-label">Token</p>
+                <div class="gw-copy-field gw-copy-field--secret-once" role="group" aria-labelledby="tki-token-label">
+                  <code class="gw-copy-field__value" id="tki-token">gwt_Vb8rT2kLq9XwN4cZ7mHs1PdF6yJa3eUg5RiK0oBt</code>
+                  <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" data-gw-copy-from="#tki-token" aria-describedby="tki-token-hint" autofocus>
+                    <span class="gw-copy-field__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> token</span></span>
+                    <span class="gw-copy-field__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                  </button>
+                  <p class="gw-copy-field__hint" id="tki-token-hint"><i class="gw-icon gw-icon--sm" data-lucide="triangle-alert"></i>Shown once. Store it in your password manager.</p>
+                </div>
+              </div>
+              <dl class="gw-kv gw-kv--dense">
+                <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint URL</dt><dd class="gw-kv__value gw-mono">http://127.0.0.1:7465/mcp/dev</dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Expires</dt><dd class="gw-kv__value">In 7 days · <time datetime="2026-10-29T14:30:00+01:00" title="2026-10-29 14:30 +01:00">Oct 29, 2026</time></dd></div>
+              </dl>
+              <div class="gw-checkbox">
+                <input class="gw-checkbox__input" type="checkbox" id="tki-stored" required aria-describedby="tki-stored-hint">
+                <span class="gw-checkbox__control" aria-hidden="true"></span>
+                <label class="gw-checkbox__label" for="tki-stored">I've stored this token</label>
+                <p class="gw-checkbox__hint" id="tki-stored-hint">Required to close. After that the token can't be shown again.</p>
+              </div>
+            </div>
+          </div>
+          <footer class="gw-dialog__footer">
+            <button class="gw-btn gw-btn--primary" type="submit" data-gw-enable-when="#tki-stored" aria-describedby="tki-stored-hint">Done</button>
+          </footer>
+        </form>
+      </dialog>
+    </div>
+  </section>
+
+  <section class="gw-section" aria-labelledby="tki-ips">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="tki-ips">Server mode preview: allowed IPs</h2>
+      <p class="gw-section__description">Only in server mode, where apps call the gateway over the network, does a token get an IP allowlist: tags above an entry row, an invalid entry marked in place. The desktop listens on 127.0.0.1 only and shows no such field.</p>
+    </header>
+    <div class="gw-token-issue">
+      <div class="gw-card">
+        <div class="gw-card__body">
+          <div class="gw-field">
+            <label class="gw-field__label" for="tki-srv-ip">Allowed IPs <span class="gw-field__optional">Optional</span></label>
+            <div class="gw-token-issue__ips">
+              <ul class="gw-tag-list" aria-label="Allowed IPs" aria-describedby="tki-srv-ip-err">
+                <li class="gw-tag gw-tag--mono"><span class="gw-tag__label">10.20.0.0/24</span><button class="gw-tag__remove" type="button" aria-label="Remove 10.20.0.0/24"><i class="gw-icon" data-lucide="x"></i></button></li>
+                <li class="gw-tag gw-tag--mono gw-tag--danger"><i class="gw-icon" data-lucide="circle-alert"></i><span class="gw-tag__label">10.20.0.300</span><button class="gw-tag__remove" type="button" aria-label="Remove 10.20.0.300"><i class="gw-icon" data-lucide="x"></i></button></li>
+              </ul>
+              <div class="gw-token-issue__ip-entry">
+                <input class="gw-input gw-input--mono" id="tki-srv-ip" type="text" placeholder="10.20.0.0/24" autocomplete="off" spellcheck="false" aria-describedby="tki-srv-ip-hint">
+                <button class="gw-btn" type="button"><i class="gw-icon" data-lucide="plus"></i>Add<span class="gw-sr-only"> IP address</span></button>
+              </div>
+            </div>
+            <p class="gw-field__error" id="tki-srv-ip-err"><i class="gw-icon" data-lucide="circle-alert"></i>10.20.0.300 is not a valid IP address. Fix it or remove it.</p>
+            <p class="gw-field__hint" id="tki-srv-ip-hint">An IP or a CIDR range. Leave empty to allow any address that reaches the server.</p>
+          </div>
+          <div class="gw-table-wrap" role="region" aria-labelledby="tki-srv-cap" tabindex="0">
+          <table class="gw-table gw-table--dense">
+            <caption class="gw-sr-only" id="tki-srv-cap">Allowed IPs of a server-mode token, as listed in the tokens table</caption>
+            <thead><tr><th scope="col">Token</th><th scope="col">Allowed IPs</th></tr></thead>
+            <tbody>
+              <tr>
+                <th scope="row" class="gw-table__cell--mono">ci-runner</th>
+                <td class="gw-table__cell--mono"><ul class="gw-token-issue__ips-value" aria-label="Allowed IPs of ci-runner"><li>10.20.0.0/24</li><li>10.40.0.17</li></ul></td>
+              </tr>
+            </tbody>
+          </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="gw-section" aria-labelledby="tki-empty">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="tki-empty">No tokens yet</h2>
+      <p class="gw-section__description">An endpoint without tokens: the empty state says what a token is for and one action issues the first, in the same form with this endpoint filled in.</p>
+    </header>
+    <div class="gw-token-issue">
+      <section class="gw-card gw-card--flush" aria-labelledby="tki-empty-title">
+        <header class="gw-card__header">
+          <div class="gw-card__heading">
+            <h3 class="gw-card__title" id="tki-empty-title">Tokens</h3>
+            <p class="gw-card__description">Endpoint <span class="gw-mono">incident-prod</span></p>
+          </div>
+        </header>
+        <div class="gw-card__body">
+          <div class="gw-empty gw-empty--compact">
+            <span class="gw-empty__icon"><i class="gw-icon" data-lucide="key-round"></i></span>
+            <p class="gw-empty__title">No tokens for this endpoint</p>
+            <p class="gw-empty__text">Claude Desktop and Codex get theirs on the fly when you connect them. Any other app needs a named token: one per app and machine, each shown once.</p>
+            <div class="gw-empty__actions">
+              <button class="gw-btn gw-btn--primary gw-btn--sm" type="button" data-gw-dialog-open="tki-new"><i class="gw-icon gw-icon--sm" data-lucide="plus"></i>Issue token</button>
+            </div>
+          </div>
+        </div>
+      </section>
+      <dialog class="gw-dialog gw-dialog--md" id="tki-new" aria-labelledby="tki-new-title" aria-describedby="tki-new-desc" data-gw-static>
+        <form method="dialog">
+          <header class="gw-dialog__header">
+            <h2 class="gw-dialog__title" id="tki-new-title">Issue token</h2>
+            <p class="gw-dialog__description" id="tki-new-desc">An app uses it to call endpoint <span class="gw-mono">incident-prod</span>. You see the full token once, right after this step.</p>
+            <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+          </header>
+          <div class="gw-dialog__body">
+            <div class="gw-token-issue__form" data-step="form">
+              <div class="gw-field">
+                <label class="gw-field__label" for="tki-new-name">Name</label>
+                <input class="gw-input gw-input--mono" id="tki-new-name" type="text" required autocomplete="off" spellcheck="false" placeholder="inspector-oncall" aria-describedby="tki-new-name-hint" autofocus>
+                <p class="gw-field__hint" id="tki-new-name-hint">Name it after the app and the machine. Activity shows it next to every call.</p>
+              </div>
+              <div class="gw-field">
+                <label class="gw-field__label" for="tki-new-expires">Expires</label>
+                <select class="gw-select" id="tki-new-expires" aria-describedby="tki-new-expires-hint">
+                  <option value="7d" selected>7 days</option>
+                  <option value="30d">30 days</option>
+                  <option value="90d">90 days</option>
+                  <option value="custom">Custom date</option>
+                </select>
+                <p class="gw-field__hint" id="tki-new-expires-hint">On <time datetime="2026-10-29">Oct 29, 2026</time>. The default; short lifetimes are safer.</p>
+              </div>
+              <p class="gw-text-caption gw-fg-muted">No IP allowlist on the desktop: the gateway listens on <span class="gw-mono">127.0.0.1</span> only, so a token works from this computer. Allowed IPs is a server-mode setting.</p>
+              <div class="gw-field">
+                <label class="gw-field__label" for="tki-new-endpoint">Endpoint</label>
+                <input class="gw-input gw-input--mono" id="tki-new-endpoint" type="text" value="incident-prod" readonly aria-describedby="tki-new-endpoint-hint">
+                <p class="gw-field__hint" id="tki-new-endpoint-hint">The token works only for <span class="gw-mono">http://127.0.0.1:7465/mcp/incident-prod</span>.</p>
+              </div>
+            </div>
+          </div>
+          <footer class="gw-dialog__footer">
+            <button class="gw-btn" type="button" data-gw-dialog-close>Cancel</button>
+            <button class="gw-btn gw-btn--primary" type="submit">Issue token</button>
+          </footer>
+        </form>
+      </dialog>
+    </div>
+  </section>
+
+</main>
+<script src="../vendor/lucide/lucide.min.js"></script>
+<script src="../assets/kit.js"></script>
+</body>
+</html>

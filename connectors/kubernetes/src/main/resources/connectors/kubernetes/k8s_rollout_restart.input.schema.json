@@ -1,0 +1,37 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "kind",
+    "name"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "namespace": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+      "maxLength": 63,
+      "description": "Default: the connection's namespace."
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "deployment",
+        "statefulset",
+        "daemonset"
+      ]
+    },
+    "name": {
+      "type": "string",
+      "maxLength": 253
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Why. Shown to the approver as unverified."
+    }
+  }
+}

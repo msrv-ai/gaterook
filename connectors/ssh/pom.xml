@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SSH (report 06, ARCHITECTURE.md A23): ssh_run (runbooks with typed parameters) and ssh_exec over Apache MINA SSHD,
+  a pinned host key verifier, Vault SSH CA, a bastion, the runbook compiler and TemplateKind "ssh-runbook".
+  MINA comes as ai.msrv.gaterook:sshd-nofs (no FileSystemProvider for the native build); its optional originals are
+  excluded here as well. Spring only in the .boot subpackage. Built by step C4.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>ai.msrv.gaterook</groupId>
+    <artifactId>mcp-gateway</artifactId>
+    <version>0.4.0-SNAPSHOT</version>
+    <relativePath>../../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>connectors-ssh</artifactId>
+  <name>MCP Gateway · Connectors · SSH</name>
+
+  <dependencies>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connector-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connectors-support</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>tools.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+    </dependency>
+    <!-- Shaded MINA; the originals must never reach this classpath (MNG-5899). -->
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>sshd-nofs</artifactId>
+      <exclusions>
+        <exclusion>
+          <groupId>org.apache.sshd</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <!--
+      Ed25519 (keys, host keys, CA keys of certificates) and the post-quantum KEX hybrids: MINA 2.x has no Ed25519 of
+      the JDK. Only bcprov: BC is not MINA's JCE provider here (MinaSecurity, ARCHITECTURE.md A23), so the PKIX part
+      (its PEM parser and PKCS#8 decryptor) is never used.
+    -->
+    <dependency>
+      <groupId>org.bouncycastle</groupId>
+      <artifactId>bcprov-jdk18on</artifactId>
+    </dependency>
+
+    <!-- Registration of the built-in beans, .boot subpackage only (ARCHITECTURE.md §2.3). -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-autoconfigure</artifactId>
+      <optional>true</optional>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!-- *IT: the connector against an in-process MINA SshServer (and, with -Popenssh-it / -Pvault-it, the real ones). -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <!--
+      OpenSSH 9.6p1 of Ubuntu 24.04, unpacked from its .deb and run unprivileged (OpenSshIT; report 06 §8). A module
+      profile with a switch rather than a tag of the root pom: only this module has the test.
+    -->
+    <profile>
+      <id>openssh-it</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-failsafe-plugin</artifactId>
+            <configuration>
+              <systemPropertyVariables>
+                <gateway.it.openssh>true</gateway.it.openssh>
+              </systemPropertyVariables>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <!-- OpenSSH of the test services (OpenSshIT): -Pservices of the root pom, test-services/README.md. -->
+    <profile>
+      <id>services</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-failsafe-plugin</artifactId>
+            <configuration>
+              <systemPropertyVariables>
+                <gateway.it.openssh>true</gateway.it.openssh>
+              </systemPropertyVariables>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>

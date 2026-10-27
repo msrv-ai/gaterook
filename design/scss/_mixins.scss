@@ -1,0 +1,267 @@
+// =============================================================
+// GateRook · Mixins
+// -------------------------------------------------------------
+// Components compose with these instead of repeating rules. If the
+// same 3+ declarations appear twice, they become a mixin here.
+// Every value comes from a token (var(--gw-*)); the only raw values
+// are structural (0, 100%, 1 for flex) and carry a `// raw:` note.
+// =============================================================
+
+@use "sass:map";
+@use "sass:list";
+@use "tokens" as *;
+
+// ─────────────────── Typography ───────────────────
+
+/// Apply a role of the type ramp: display | h1 | h2 | h3 | body | body-read |
+/// ui | small | caption | overline | code | code-sm | stat.
+@mixin gw-type($role) {
+  $r: map.get($gw-type, $role);
+  @if not $r { @error "gw-type: unknown role `#{$role}`."; }
+  font-size: map.get($r, size);
+  line-height: map.get($r, line);
+  font-weight: map.get($r, weight);
+  letter-spacing: map.get($r, tracking);
+  @if $role == overline { text-transform: uppercase; }
+  @if $role == code or $role == code-sm { @include gw-mono; }
+}
+
+/// Monospace for literal values. Ligatures stay OFF: what the user
+/// approves must be exactly what runs (`!=` must not render as ≠).
+@mixin gw-mono {
+  font-family: var(--gw-font-family-mono);
+  font-variant-ligatures: none;
+  font-feature-settings: "calt" 0, "liga" 0;
+}
+
+/// Tabular figures for numbers that line up (counts, latency, sizes).
+@mixin gw-tabular { font-variant-numeric: tabular-nums; }
+
+@mixin gw-truncate {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+@mixin gw-line-clamp($lines: 2) {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: $lines;
+  overflow: hidden;
+}
+
+// ─────────────────── Focus ───────────────────
+
+/// Solid 2px ring, 2px off the element, border.focus colour (3:1 on every
+/// surface). Keyboard only (:focus-visible). Every focusable component
+/// includes it. Never remove it without an equal replacement.
+@mixin gw-focus-ring($offset: var(--gw-focus-offset)) {
+  &:focus { outline: none; }
+  &:focus-visible {
+    outline: var(--gw-focus-width) solid var(--gw-color-border-focus);
+    outline-offset: $offset;
+  }
+}
+
+/// Inset variant for items clipped by a scrolling parent (menu items,
+/// table rows, sidebar links).
+@mixin gw-focus-ring-inset {
+  @include gw-focus-ring(calc(-1 * var(--gw-focus-width)));
+}
+
+// ─────────────────── Tone ───────────────────
+
+/// One status vocabulary for every tone-able component (badge, alert,
+/// dot, icon tile, callout, toast, progress). Sets local custom
+/// properties the component paints with:
+///   --gw-tone-fg  --gw-tone-subtle  --gw-tone-border  --gw-tone-solid  --gw-tone-on-solid
+/// Tones: brand | success | warning | danger | info | neutral | dev | stage | prod
+@mixin gw-tone($tone) {
+  $is-env: list.index((dev, stage, prod), $tone) != null;
+  $base: "#{$tone}";
+  @if $is-env { $base: "env-#{$tone}"; }
+  --gw-tone-fg: var(--gw-color-#{$base}-fg);
+  --gw-tone-subtle: var(--gw-color-#{$base}-subtle);
+  --gw-tone-border: var(--gw-color-#{$base}-border);
+  --gw-tone-solid: var(--gw-color-#{$base}-solid);
+  @if $is-env {
+    --gw-tone-on-solid: var(--gw-color-text-on-solid);
+  } @else {
+    --gw-tone-on-solid: var(--gw-color-#{$base}-on-solid);
+  }
+}
+
+/// Emits .<block>--<tone> modifiers for the given tones.
+@mixin gw-tone-modifiers($tones: (brand, success, warning, danger, info, neutral)) {
+  @each $t in $tones {
+    &--#{$t} { @include gw-tone($t); }
+  }
+}
+
+// ─────────────────── Surfaces ───────────────────
+
+/// Card surface: the kit's one container look. Border carries the edge in
+/// dark (shadows are invisible there), the shadow lifts it in light.
+@mixin gw-surface {
+  background: var(--gw-color-bg-surface);
+  border: var(--gw-border-width-default) solid var(--gw-color-border-default);
+  border-radius: var(--gw-radius-md);
+  box-shadow: var(--gw-shadow-sm);
+}
+
+/// Floating layer: menus, popovers, toasts.
+@mixin gw-overlay-surface {
+  background: var(--gw-color-bg-overlay);
+  border: var(--gw-border-width-default) solid var(--gw-color-border-default);
+  border-radius: var(--gw-radius-md);
+  box-shadow: var(--gw-shadow-md);
+}
+
+/// Well inside a surface: code, config previews, read-only values.
+@mixin gw-well {
+  background: var(--gw-color-bg-sunken);
+  border: var(--gw-border-width-default) solid var(--gw-color-border-subtle);
+  border-radius: var(--gw-radius-md);
+}
+
+// ─────────────────── Controls ───────────────────
+
+/// Height + horizontal padding for sm | md | lg controls.
+@mixin gw-control-size($size: md) {
+  @if $size == sm {
+    height: var(--gw-size-control-sm);
+    padding-inline: var(--gw-space-2);
+    gap: var(--gw-space-1-5);
+  } @else if $size == lg {
+    height: var(--gw-size-control-lg);
+    padding-inline: var(--gw-space-4);
+    gap: var(--gw-space-2);
+  } @else {
+    height: var(--gw-size-control-md);
+    padding-inline: var(--gw-space-3);
+    gap: var(--gw-space-2);
+  }
+}
+
+/// Base for every pressable control (buttons, segmented items, chips).
+/// Variants only set colours.
+@mixin gw-pressable($size: md) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  @include gw-control-size($size);
+  border: var(--gw-border-width-default) solid transparent;
+  border-radius: var(--gw-radius-sm);
+  font-family: var(--gw-font-family-sans);
+  @include gw-type(ui);
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard),
+    border-color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard),
+    color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard);
+  @include gw-focus-ring;
+
+  &:disabled,
+  &[aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+}
+
+/// Base for text inputs, selects, textareas.
+@mixin gw-input-base {
+  width: 100%;
+  min-width: 0;
+  height: var(--gw-size-control-md);
+  padding-inline: var(--gw-space-3);
+  font-family: var(--gw-font-family-sans);
+  @include gw-type(body);
+  color: var(--gw-color-text-primary);
+  background: var(--gw-color-bg-field);
+  border: var(--gw-border-width-default) solid var(--gw-color-border-input);
+  border-radius: var(--gw-radius-sm);
+  transition: border-color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard);
+  @include gw-focus-ring(0);
+
+  &::placeholder { color: var(--gw-color-text-placeholder); opacity: 1; }
+  &:hover:not(:disabled):not([readonly]):not([aria-invalid="true"]) { border-color: var(--gw-color-border-focus); }
+  &:disabled {
+    color: var(--gw-color-text-disabled);
+    background: var(--gw-color-bg-raised);
+    border-color: var(--gw-color-border-default);
+    cursor: not-allowed;
+  }
+  &[readonly] { background: var(--gw-color-bg-sunken); }
+  &[aria-invalid="true"] { border-color: var(--gw-color-danger-fg); }
+}
+
+/// Ghost hover / pressed wash for transparent items.
+@mixin gw-hover-wash {
+  &:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--gw-color-bg-hover); }
+  &:active:not(:disabled):not([aria-disabled="true"]) { background: var(--gw-color-bg-active); }
+}
+
+/// Square tile behind an icon: tone tint + tone fg.
+@mixin gw-icon-tile($size: var(--gw-size-icon-2xl)) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: $size;
+  height: $size;
+  border-radius: var(--gw-radius-sm);
+  color: var(--gw-tone-fg, var(--gw-color-text-secondary));
+  background: var(--gw-tone-subtle, var(--gw-color-bg-raised));
+}
+
+// ─────────────────── Accessibility ───────────────────
+
+/// Visually hidden, still read by screen readers (.gw-sr-only).
+/// Use it on a wrapper, never on a <table> (or a list) itself: browsers drop
+/// table semantics from a 1px clipped table box, so a hidden data table (the
+/// numbers behind a chart) goes INSIDE the hidden wrapper:
+///   <div class="gw-sr-only"><table>
+///     <caption>Calls per hour, last 24 hours</caption>…
+///   </table></div>
+@mixin gw-sr-only {
+  position: absolute;
+  width: 1px;   // raw: visually-hidden pattern
+  height: 1px;  // raw: visually-hidden pattern
+  padding: 0;
+  margin: -1px; // raw: visually-hidden pattern
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/// Animate only when the user allows motion.
+@mixin gw-motion {
+  @media (prefers-reduced-motion: no-preference) { @content; }
+}
+
+// ─────────────────── Layout ───────────────────
+
+/// min-width media query: gw-bp-up(md) { … }
+@mixin gw-bp-up($bp) {
+  @media (min-width: map.get((sm: $gw-bp-sm, md: $gw-bp-md, lg: $gw-bp-lg, xl: $gw-bp-xl), $bp)) { @content; }
+}
+
+/// max-width media query (exclusive): gw-bp-down(md) { … }  → width < 960px
+@mixin gw-bp-down($bp) {
+  @media (max-width: calc(#{map.get((sm: $gw-bp-sm, md: $gw-bp-md, lg: $gw-bp-lg, xl: $gw-bp-xl), $bp)} - 0.02px)) { @content; } // raw: exclusive upper bound
+}
+
+/// Electron frameless window: the element drags the window.
+@mixin gw-drag-region { -webkit-app-region: drag; app-region: drag; user-select: none; }
+/// Interactive children of a drag region must opt out or they stop receiving clicks.
+@mixin gw-no-drag { -webkit-app-region: no-drag; app-region: no-drag; }
+
+/// Thin themed scrollbar for panes that own their scroll.
+@mixin gw-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--gw-color-border-strong) transparent;
+}

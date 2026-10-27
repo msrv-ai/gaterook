@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AWS",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "regions",
+    "credentials"
+  ],
+  "properties": {
+    "regions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$"
+      },
+      "examples": [
+        [
+          "eu-central-1"
+        ]
+      ]
+    },
+    "accountId": {
+      "type": "string",
+      "pattern": "^\\d{12}$",
+      "description": "Filled by Test connection; calls fail if the account changes"
+    },
+    "accountAlias": {
+      "type": "string",
+      "maxLength": 63,
+      "examples": [
+        "acme-stage"
+      ],
+      "description": "Display only"
+    },
+    "credentials": {
+      "type": "object",
+      "title": "Credentials",
+      "required": [
+        "source"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "enum": [
+            "accessKey",
+            "profile"
+          ],
+          "default": "accessKey"
+        },
+        "accessKeyId": {
+          "type": "string",
+          "pattern": "^AKIA[A-Z0-9]{16}$",
+          "x-not-secret": true
+        },
+        "secretAccessKey": {
+          "type": "string",
+          "writeOnly": true,
+          "x-gateway-secret": "value",
+          "format": "password"
+        },
+        "profile": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "roleArn": {
+          "type": "string",
+          "pattern": "^arn:aws(-cn|-us-gov)?:iam::\\d{12}:role/[\\w+=,.@/-]{1,512}$",
+          "examples": [
+            "arn:aws:iam::412398765012:role/gw-readonly"
+          ]
+        },
+        "externalId": {
+          "type": "string",
+          "pattern": "^[\\w+=,.@:/-]{2,1224}$",
+          "x-generated": "gw-ext-<12 hex>",
+          "description": "Not a secret. Add it to the role's trust policy as sts:ExternalId"
+        },
+        "sessionSeconds": {
+          "type": "integer",
+          "minimum": 900,
+          "maximum": 3600,
+          "default": 900,
+          "x-unit": "s"
+        },
+        "sessionPolicy": {
+          "enum": [
+            "generated",
+            "none"
+          ],
+          "default": "generated",
+          "x-forbidden-env-values": {
+            "prod": [
+              "none"
+            ]
+          },
+          "x-enumTitles": [
+            "Read only, enforced by AWS (recommended)",
+            "The role's permissions as they are"
+          ]
+        }
+      }
+    }
+  }
+}

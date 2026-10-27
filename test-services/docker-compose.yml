@@ -1,0 +1,354 @@
+# Real servers for the integration tests of the connectors (test-services/README.md). Everything listens on 127.0.0.1
+# only, keeps its data in memory (a restart is a fresh server) and uses the tags, ports and test passwords of .env.
+#
+#   scripts/test-services.sh up sql redis      # or: docker compose -f test-services/docker-compose.yml --profile sql up -d --wait
+#   mvn -B -ntp verify -Pservices              # the ITs connect here instead of starting their own servers
+#
+# Profiles: sql · mongo · redis · logs · aws · vault · ssh · k8s · all
+name: gw-test
+
+x-health: &health
+  interval: 2s
+  timeout: 5s
+  retries: 90
+  start_period: 5s
+
+x-certs: &certs
+  certs:
+    condition: service_completed_successfully
+
+services:
+  # One-shot: the CA and server certificates of run/certs, made the first time only (scripts/gen-certs.sh). Its
+  # profiles are those of the services that need it: a dependency doesn't start with another profile by itself.
+  certs:
+    image: alpine:${GW_ALPINE_TAG}
+    container_name: gw-test-certs
+    profiles: [sql, mongo, redis, vault, all]
+    command: ["/bin/sh", "/scripts/gen-certs.sh", "/out"]
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./run/certs:/out
+
+  # ── SQL ─────────────────────────────────────────────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:${GW_PG_TAG}
+    container_name: gw-test-postgres
+    profiles: [sql, vault, all]
+    depends_on: *certs
+    command: ["/bin/sh", "/scripts/postgres-start.sh"]
+    environment:
+      POSTGRES_PASSWORD: ${GW_PG_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --encoding=UTF8 --locale=C.UTF-8"
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./run/certs:/certs:ro
+    tmpfs:
+      - /var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${GW_PG_PORT}:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres"]
+      <<: *health
+
+  mysql:
+    image: mysql:${GW_MYSQL_TAG}
+    container_name: gw-test-mysql
+    profiles: [sql, all]
+    command: ["--disable-log-bin", "--innodb-buffer-pool-size=64M", "--performance-schema=OFF", "--mysqlx=OFF"]
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+    tmpfs:
+      - /var/lib/mysql
+    ports:
+      - "127.0.0.1:${GW_MYSQL_PORT}:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "--silent"]
+      <<: *health
+
+  mariadb:
+    image: mariadb:${GW_MARIADB_TAG}
+    container_name: gw-test-mariadb
+    profiles: [sql, all]
+    command: ["--innodb-buffer-pool-size=64M"]
+    environment:
+      MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: "1"
+    tmpfs:
+      - /var/lib/mysql
+    ports:
+      - "127.0.0.1:${GW_MARIADB_PORT}:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      <<: *health
+
+  # ── MongoDB ─────────────────────────────────────────────────────────────────────────────────────────────────
+  # Users other than root are made by the tests (LocalMongod), which also drop what a previous run left.
+  mongo:
+    image: mongo:${GW_MONGO_TAG}
+    container_name: gw-test-mongo
+    profiles: [mongo, all]
+    command: ["--setParameter", "enableTestCommands=1", "--wiredTigerCacheSizeGB", "0.25"]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${GW_MONGO_ROOT_PASSWORD}
+    tmpfs:
+      - /data/db
+      - /data/configdb
+    ports:
+      - "127.0.0.1:${GW_MONGO_PORT}:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      <<: *health
+
+  mongo-open:
+    image: mongo:${GW_MONGO_TAG}
+    container_name: gw-test-mongo-open
+    profiles: [mongo, all]
+    command: ["--setParameter", "enableTestCommands=1", "--wiredTigerCacheSizeGB", "0.25"]
+    tmpfs:
+      - /data/db
+      - /data/configdb
+    ports:
+      - "127.0.0.1:${GW_MONGO_OPEN_PORT}:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      <<: *health
+
+  mongo-tls:
+    image: mongo:${GW_MONGO_TAG}
+    container_name: gw-test-mongo-tls
+    profiles: [mongo, all]
+    depends_on: *certs
+    command: ["--setParameter", "enableTestCommands=1", "--wiredTigerCacheSizeGB", "0.25",
+              "--tlsMode", "requireTLS", "--tlsCertificateKeyFile", "/certs/localhost-ip.pem",
+              "--tlsCAFile", "/certs/ca.crt", "--tlsAllowConnectionsWithoutCertificates"]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${GW_MONGO_ROOT_PASSWORD}
+    volumes:
+      - ./run/certs:/certs:ro
+    tmpfs:
+      - /data/db
+      - /data/configdb
+    ports:
+      - "127.0.0.1:${GW_MONGO_TLS_PORT}:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--tls", "--tlsCAFile", "/certs/ca.crt", "--host", "localhost",
+             "--eval", "db.adminCommand('ping').ok"]
+      <<: *health
+
+  mongo7:
+    image: mongo:${GW_MONGO7_TAG}
+    container_name: gw-test-mongo7
+    profiles: [mongo, all]
+    command: ["--setParameter", "enableTestCommands=1", "--wiredTigerCacheSizeGB", "0.25"]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${GW_MONGO_ROOT_PASSWORD}
+    tmpfs:
+      - /data/db
+      - /data/configdb
+    ports:
+      - "127.0.0.1:${GW_MONGO7_PORT}:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      <<: *health
+
+  mongo9:
+    image: mongo:${GW_MONGO9_TAG}
+    container_name: gw-test-mongo9
+    profiles: [mongo, all]
+    command: ["--setParameter", "enableTestCommands=1", "--wiredTigerCacheSizeGB", "0.25"]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${GW_MONGO_ROOT_PASSWORD}
+    tmpfs:
+      - /data/db
+      - /data/configdb
+    ports:
+      - "127.0.0.1:${GW_MONGO9_PORT}:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      <<: *health
+
+  # ── Redis ───────────────────────────────────────────────────────────────────────────────────────────────────
+  # Users of redis/users*.acl, passwords "<user>-pass"; the tests reload them with ACL LOAD before they start.
+  # The machine's own platform: the glob of SCAN MATCH compares bytes as C chars (signed on x86-64, unsigned on arm64
+  # Linux), Test connection finds out which (globChars), and RedisGlobPropertyIT and Redis62IT follow the server.
+  redis:
+    image: redis:${GW_REDIS_TAG}
+    container_name: gw-test-redis
+    profiles: [redis, all]
+    depends_on: *certs
+    command: ["redis-server", "--port", "6379", "--save", "", "--appendonly", "no", "--protected-mode", "no",
+              "--aclfile", "/conf/users.acl",
+              "--tls-port", "6380", "--tls-cert-file", "/certs/localhost.crt", "--tls-key-file", "/certs/localhost.key",
+              "--tls-ca-cert-file", "/certs/ca.crt", "--tls-auth-clients", "no"]
+    volumes:
+      - ./redis:/conf:ro
+      - ./run/certs:/certs:ro
+    ports:
+      - "127.0.0.1:${GW_REDIS_PORT}:6379"
+      - "127.0.0.1:${GW_REDIS_TLS_PORT}:6380"
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "default-pass", "ping"]
+      <<: *health
+
+  redis-replica:
+    image: redis:${GW_REDIS_TAG}
+    container_name: gw-test-redis-replica
+    profiles: [redis, all]
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: ["redis-server", "--port", "6379", "--save", "", "--appendonly", "no", "--protected-mode", "no",
+              "--aclfile", "/conf/users.acl", "--replicaof", "redis", "6379", "--masteruser", "default",
+              "--masterauth", "default-pass", "--replica-read-only", "yes"]
+    volumes:
+      - ./redis:/conf:ro
+    ports:
+      - "127.0.0.1:${GW_REDIS_REPLICA_PORT}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "default-pass", "ping"]
+      <<: *health
+
+  redis-open:
+    image: redis:${GW_REDIS_TAG}
+    container_name: gw-test-redis-open
+    profiles: [redis, all]
+    command: ["redis-server", "--port", "6379", "--save", "", "--appendonly", "no", "--protected-mode", "no",
+              "--aclfile", "/conf/users-open.acl"]
+    volumes:
+      - ./redis:/conf:ro
+    ports:
+      - "127.0.0.1:${GW_REDIS_OPEN_PORT}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      <<: *health
+
+  redis-cluster:
+    image: redis:${GW_REDIS_TAG}
+    container_name: gw-test-redis-cluster
+    profiles: [redis, all]
+    command: ["redis-server", "--port", "6379", "--save", "", "--appendonly", "no", "--protected-mode", "no",
+              "--aclfile", "/conf/users.acl", "--cluster-enabled", "yes", "--cluster-config-file", "/data/nodes.conf"]
+    volumes:
+      - ./redis:/conf:ro
+    tmpfs:
+      - /data
+    ports:
+      - "127.0.0.1:${GW_REDIS_CLUSTER_PORT}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "default-pass", "ping"]
+      <<: *health
+
+  redis62:
+    image: redis:${GW_REDIS62_TAG}
+    container_name: gw-test-redis62
+    profiles: [redis, all]
+    depends_on: *certs
+    command: ["redis-server", "--port", "6379", "--save", "", "--appendonly", "no", "--protected-mode", "no",
+              "--aclfile", "/conf/users62.acl",
+              "--tls-port", "6380", "--tls-cert-file", "/certs/localhost.crt", "--tls-key-file", "/certs/localhost.key",
+              "--tls-ca-cert-file", "/certs/ca.crt", "--tls-auth-clients", "no"]
+    volumes:
+      - ./redis:/conf:ro
+      - ./run/certs:/certs:ro
+    ports:
+      - "127.0.0.1:${GW_REDIS62_PORT}:6379"
+      - "127.0.0.1:${GW_REDIS62_TLS_PORT}:6380"
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "default-pass", "ping"]
+      <<: *health
+
+  # ── Logs and AWS ────────────────────────────────────────────────────────────────────────────────────────────
+  loki:
+    image: grafana/loki:${GW_LOKI_TAG}
+    container_name: gw-test-loki
+    profiles: [logs, all]
+    command: ["-config.file=/etc/loki/gw-loki.yaml"]
+    volumes:
+      - ./loki/loki.yaml:/etc/loki/gw-loki.yaml:ro
+    tmpfs:
+      - /loki:mode=1777
+    ports:
+      - "127.0.0.1:${GW_LOKI_PORT}:3100"
+
+  opensearch:
+    image: opensearchproject/opensearch:${GW_OPENSEARCH_TAG}
+    container_name: gw-test-opensearch
+    profiles: [logs, all]
+    environment:
+      discovery.type: single-node
+      cluster.name: gw-logs-it
+      cluster.routing.allocation.disk.threshold_enabled: "false"
+      DISABLE_SECURITY_PLUGIN: "true"
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    tmpfs:
+      - /usr/share/opensearch/data:uid=1000,gid=1000
+    ports:
+      - "127.0.0.1:${GW_OPENSEARCH_PORT}:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs 'http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=1s'"]
+      <<: *health
+
+  moto:
+    image: motoserver/moto:${GW_MOTO_TAG}
+    container_name: gw-test-moto
+    profiles: [logs, aws, all]
+    ports:
+      - "127.0.0.1:${GW_MOTO_PORT}:5000"
+
+  # ── Secrets and SSH ─────────────────────────────────────────────────────────────────────────────────────────
+  # Dev mode: in memory, unsealed, the root token of .env. Vault reaches PostgreSQL as postgres:5432.
+  vault:
+    image: hashicorp/vault:${GW_VAULT_TAG}
+    container_name: gw-test-vault
+    profiles: [vault, ssh, all]
+    command: ["server", "-dev", "-dev-root-token-id=${GW_VAULT_ROOT_TOKEN}", "-dev-listen-address=0.0.0.0:8200"]
+    cap_add: [IPC_LOCK]
+    environment:
+      VAULT_ADDR: http://127.0.0.1:8200
+    ports:
+      - "127.0.0.1:${GW_VAULT_PORT}:8200"
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      <<: *health
+
+  openssh:
+    build:
+      context: ./openssh
+      args:
+        UBUNTU_TAG: ${GW_UBUNTU_TAG}
+    image: gw-test/openssh:${GW_UBUNTU_TAG}
+    container_name: gw-test-openssh
+    profiles: [ssh, all]
+    volumes:
+      - ./run/openssh:/keys
+    ports:
+      - "127.0.0.1:${GW_OPENSSH_PORT}:22"
+    healthcheck:
+      test: ["CMD", "pgrep", "-x", "sshd"]
+      <<: *health
+
+  # ── Kubernetes ──────────────────────────────────────────────────────────────────────────────────────────────
+  # A one-node k3s with a kubelet (k8s_logs of real pods); its kubeconfig is run/k3s/kubeconfig.yaml.
+  k3s:
+    image: rancher/k3s:${GW_K3S_TAG}
+    container_name: gw-test-k3s
+    profiles: [k8s, all]
+    privileged: true
+    command: ["server", "--disable=traefik,metrics-server,servicelb", "--https-listen-port=${GW_K3S_PORT}",
+              "--tls-san=127.0.0.1", "--write-kubeconfig=/out/kubeconfig.yaml", "--write-kubeconfig-mode=644"]
+    environment:
+      KUBECONFIG: /out/kubeconfig.yaml
+    tmpfs:
+      - /run
+      - /var/run
+    volumes:
+      - ./run/k3s:/out
+    ports:
+      - "127.0.0.1:${GW_K3S_PORT}:${GW_K3S_PORT}"
+    healthcheck:
+      test: ["CMD", "kubectl", "get", "--raw", "/readyz"]
+      <<: *health

@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "sql"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "sql": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100000,
+      "description": "INSERT, UPDATE, DELETE, MERGE or DDL. PostgreSQL: up to 20 statements, run in one transaction. MySQL: one statement. A person approves the exact text."
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Why you need this change. Shown to the approver as unverified."
+    }
+  }
+}

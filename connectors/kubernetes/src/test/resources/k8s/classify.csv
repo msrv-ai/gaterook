@@ -1,0 +1,40 @@
+# env | policy section | tool | arguments (JSON) | expected kind | expected rule ("-": none)
+dev | {} | k8s_get | {"kind":"pods"} | READ | -
+dev | {} | k8s_get | {"kind":"po","name":"api-1"} | READ | -
+dev | {} | k8s_get | {"kind":"deployments.apps","name":"api"} | READ | -
+dev | {} | k8s_get | {"kind":"secrets"} | DENY | dev.k8s.resource-not-allowed
+dev | {"resources":["pods"]} | k8s_get | {"kind":"services"} | DENY | dev.k8s.resource-not-allowed
+dev | {"resources":["secrets"]} | k8s_get | {"kind":"secrets","name":"db","events":false} | READ | -
+dev | {} | k8s_get | {"kind":"nodes"} | DENY | dev.k8s.cluster-scoped
+dev | {"resources":["nodes"]} | k8s_get | {"kind":"nodes"} | READ | -
+dev | {} | k8s_get | {"kind":"pods","namespace":"kube-system"} | DENY | dev.k8s.namespace-not-allowed
+dev | {"namespaces":["app-dev","web"]} | k8s_get | {"kind":"pods","namespace":"web"} | READ | -
+dev | {"namespaces":["app-dev","web"]} | k8s_get | {"kind":"pods","namespace":"kube-system"} | DENY | dev.k8s.namespace-not-allowed
+dev | {"namespaces":["app-dev","web"]} | k8s_get | {"kind":"pods","allNamespaces":true} | READ | -
+dev | {"verbs":["get"]} | k8s_get | {"kind":"pods"} | DENY | dev.k8s.verb-not-allowed
+dev | {"verbs":["get","list"]} | k8s_get | {"kind":"pods","name":"api-1"} | DENY | dev.k8s.verb-not-allowed
+dev | {"verbs":["get","list"]} | k8s_get | {"kind":"pods","name":"api-1","events":false} | READ | -
+dev | {"resources":["pods"]} | k8s_get | {"kind":"pods","name":"api-1"} | DENY | dev.k8s.resource-not-allowed
+dev | {"listMax":100} | k8s_get | {"kind":"pods","limit":200} | DENY | dev.k8s.list-max
+dev | {} | k8s_get | {"kind":"pods/exec"} | DENY | dev.k8s.kind-unknown
+dev | {} | k8s_get | {"kind":"widgets"} | DENY | dev.k8s.kind-unknown
+dev | {} | k8s_get | {"kind":"pods","name":"../secrets"} | READ | -
+dev | {} | k8s_logs | {"pod":"api-1"} | READ | -
+dev | {} | k8s_logs | {"pod":"deployment/api"} | READ | -
+dev | {"logsTailMax":100} | k8s_logs | {"pod":"api-1","tailLines":500} | DENY | dev.k8s.logs-tail-max
+dev | {"verbs":["get","list"]} | k8s_logs | {"pod":"api-1"} | DENY | dev.k8s.verb-not-allowed
+dev | {} | k8s_rollout_restart | {"kind":"deployment","name":"api"} | MUTATION | -
+prod | {"verbs":["get","list","describe","logs"]} | k8s_rollout_restart | {"kind":"deployment","name":"api"} | DENY | prod.k8s.verb-not-allowed
+dev | {} | k8s_rollout_restart | {"kind":"deployment","name":"api","namespace":"other"} | DENY | dev.k8s.namespace-not-allowed
+dev | {} | k8s_apply | {"manifest":"apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cfg\ndata:\n  a: b"} | MUTATION | -
+dev | {} | k8s_apply | {"manifest":"apiVersion: v1\nkind: Secret\nmetadata:\n  name: s\nstringData:\n  a: b"} | DENY | dev.k8s.kind-forbidden
+dev | {} | k8s_apply | {"manifest":"apiVersion: rbac.authorization.k8s.io/v1\nkind: Role\nmetadata:\n  name: r"} | DENY | dev.k8s.kind-forbidden
+dev | {} | k8s_apply | {"manifest":"apiVersion: v1\nkind: Namespace\nmetadata:\n  name: x"} | DENY | dev.k8s.kind-forbidden
+dev | {} | k8s_apply | {"manifest":"apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: c\n  namespace: kube-system"} | DENY | dev.k8s.namespace-not-allowed
+dev | {} | k8s_apply | {"manifest":"apiVersion: v1\nkind: Pod\nmetadata:\n  name: p\nspec:\n  hostNetwork: true\n  containers: []"} | MUTATION | -
+prod | {} | k8s_apply | {"manifest":"apiVersion: v1\nkind: Pod\nmetadata:\n  name: p\nspec:\n  hostNetwork: true\n  containers: []"} | DENY | prod.k8s.privileged-deny
+dev | {"denyPrivileged":true} | k8s_apply | {"manifest":"apiVersion: v1\nkind: Pod\nmetadata:\n  name: p\nspec:\n  containers:\n  - name: c\n    image: x\n    securityContext:\n      privileged: true"} | DENY | dev.k8s.privileged-deny
+dev | {"applyMaxObjects":1} | k8s_apply | {"manifest":"apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: a\n---\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: b"} | DENY | dev.k8s.too-many-objects
+dev | {} | k8s_apply | {"manifest":"a: &x 1\nb: *x"} | MUTATION | -
+dev | {} | k8s_apply | {"manifest":"apiVersion: example.com/v1\nkind: Widget\nmetadata:\n  name: w"} | DENY | dev.k8s.kind-unknown
+dev | {} | k8s_exec | {"pod":"api-1"} | DENY | dev.k8s.unknown-tool

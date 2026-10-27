@@ -1,0 +1,144 @@
+// =============================================================
+// .gw-search · Search field
+// -------------------------------------------------------------
+// A 32px text field with a search icon at the start, a clear button
+// once it has a value and an optional key hint ("/" focuses it).
+// Filters lists and tables, and is the input of the command palette.
+//
+//   <div class="gw-search">
+//     <i class="gw-icon gw-search__icon" data-lucide="search"></i>
+//     <input class="gw-search__input" type="search" id="conn-q"
+//            placeholder="Search connections" aria-label="Search connections">
+//     <button class="gw-search__clear" type="button" aria-label="Clear search"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+//     <kbd class="gw-search__kbd" aria-hidden="true">/</kbd>
+//   </div>
+//
+// Subparts
+//   __icon   decorative, muted; never clickable
+//   __input  type="search"; the placeholder is REQUIRED: the clear button and
+//            the key hint key off :placeholder-shown (empty = placeholder visible)
+//   __clear  shown only when the field has a value and is enabled; clears it
+//            and puts focus back in the input (app behaviour; Esc in a
+//            type="search" field clears it natively). 24 × 24 target, named
+//            "Clear search"
+//   __kbd    shown only while the field is empty and not focused; decorative
+//            (aria-hidden): the shortcut is announced by aria-keyshortcuts="/" on
+//            the input. The key itself is ONE kit.js hook, never a page script: "/"
+//            focuses the visible field with aria-keyshortcuts="/" only when focus is
+//            not in an editable field and no menu is open, and does nothing while
+//            <html data-gw-single-keys="off"> (Settings › General "Single-key
+//            shortcuts", a switch with data-gw-single-keys-toggle; WCAG 2.1.4).
+// Variants   --sm   28px, for dense toolbars next to gw-btn--sm (kit addition):
+//                   14px icon, small type, the same 24px clear target
+// States     :disabled (from the base), [aria-invalid] is not used for search
+// A11y       Name the input (aria-label or a gw-sr-only <label>). For a page-level
+//            search wrap it in <search> / role="search"; result counts go to a
+//            status region ("12 connections").
+// Layout     full width of its container; inside gw-toolbar__start a 240px
+//            basis that grows into the free space (filters stay on the row).
+// Raw values: 240px toolbar basis (6 × --gw-size-control-lg)
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+.gw-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+
+  // In a toolbar row it starts at 240px and grows into the free space, so the
+  // filters stay on its row instead of wrapping under a full-width search.
+  .gw-toolbar__start > & {
+    flex: 1 1 calc(var(--gw-size-control-lg) * 6); // raw: 240px basis in the toolbar row
+    width: auto;
+  }
+
+  &__icon {
+    position: absolute;
+    inset-inline-start: calc(var(--gw-space-2) + var(--gw-border-width-default));
+    color: var(--gw-color-text-muted);
+    pointer-events: none;
+  }
+
+  &__input {
+    @include gw-input-base;
+    -webkit-appearance: none;
+    appearance: none;
+    // icon 16 + 8 on each side
+    padding-inline: var(--gw-space-8);
+
+    &::-webkit-search-cancel-button,
+    &::-webkit-search-decoration {
+      -webkit-appearance: none;
+      appearance: none;
+    }
+  }
+
+  &:has(> .gw-search__input:disabled) > .gw-search__icon { color: var(--gw-color-text-disabled); }
+
+  &__clear {
+    position: absolute;
+    inset-inline-end: var(--gw-space-1);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--gw-size-target-min);
+    height: var(--gw-size-target-min);
+    color: var(--gw-color-text-muted);
+    border-radius: var(--gw-radius-xs);
+    cursor: pointer;
+    transition:
+      background-color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard),
+      color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard);
+    @include gw-hover-wash;
+    @include gw-focus-ring(0);
+
+    &:hover { color: var(--gw-color-text-primary); }
+  }
+
+  &__kbd {
+    position: absolute;
+    inset-inline-end: var(--gw-space-2);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: calc(var(--gw-size-icon-md) + var(--gw-space-1));
+    height: calc(var(--gw-size-icon-md) + var(--gw-space-1));
+    padding-inline: var(--gw-space-1);
+    @include gw-type(caption);
+    @include gw-mono;
+    color: var(--gw-color-text-muted);
+    background: var(--gw-color-bg-raised);
+    border: var(--gw-border-width-default) solid var(--gw-color-border-default);
+    border-radius: var(--gw-radius-xs);
+    pointer-events: none;
+  }
+
+  // ─── Small: dense toolbars ───
+  &--sm {
+    .gw-search__icon { --gw-icon-size: var(--gw-size-icon-sm); }
+    .gw-search__input {
+      height: var(--gw-size-control-sm);
+      // icon 14 + 8 on each side, rounded to the grid
+      padding-inline: calc(var(--gw-space-6) + var(--gw-space-1));
+      @include gw-type(small);
+    }
+    .gw-search__clear { inset-inline-end: var(--gw-space-0-5); }
+    .gw-search__kbd {
+      inset-inline-end: var(--gw-space-1-5);
+      min-width: var(--gw-size-icon-md);
+      height: var(--gw-size-icon-md);
+    }
+  }
+
+  // Empty → key hint; has a value → clear button; focused → no key hint;
+  // disabled → neither.
+  &__input:placeholder-shown ~ &__clear,
+  &__input:disabled ~ &__clear { display: none; }
+  &__input:not(:placeholder-shown) ~ &__kbd,
+  &__input:focus ~ &__kbd,
+  &__input:disabled ~ &__kbd { display: none; }
+}

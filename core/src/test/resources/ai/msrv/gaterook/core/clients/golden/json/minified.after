@@ -1,0 +1,1 @@
+{"mcpServers":{"github":{"command":"npx","args":["-y","x"]}, "gateway-dev": {"url":"http://127.0.0.1:7465/mcp/dev","headers":{"Authorization":"Bearer ‹new token›"}}},"theme":"dark"}

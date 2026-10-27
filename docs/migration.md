@@ -1,50 +1,20 @@
-# Application and design-kit source migration
+# Application source scope and compatibility
 
-**Status: not started.** This checklist describes preparation for adding application source. It does not establish that runtime code, verified builds, or installers are available in this repository.
+This repository contains the full desktop application source, canonical design kit, tests, fixtures, architecture, curated research, and local build inputs. Maven and npm manifests, lockfiles, code and asset generators, and development/test scripts are included so contributors can build from a clone.
 
-## Source scope
+Internal AI work, implementation progress logs, local editor settings, installed dependencies, generated runtime homes, and operational CI/release workflows are excluded. Test-service credentials are deliberately public, disposable fixtures; generated certificates and private keys stay in ignored output directories.
 
-The application uses Electron, Angular, and Java/Spring Boot with a GraalVM native core. Its source includes the UI, desktop main/preload code, core, connectors, plugins, plugin host, and client bridges. The design kit contains canonical tokens, component sources, reusable assets, and interface rules.
+## Compatibility
 
-Include:
+The import preserves the Java package namespace `ai.msrv.gaterook`, dependency versions, resource paths, tests, and application behavior. Some runtime identifiers still use `mcp-gateway`, including npm workspace names, development/runtime paths, and the deep-link scheme. The GateRook naming decision is documented in [product decisions](DECISIONS.md); do not assume the remaining rename has been implemented or silently rewrite stored user data.
 
-- Application runtime source, required runtime metadata, and runtime assets.
-- Canonical design-kit source and reusable assets.
-- Test implementation and sanitized fixtures.
-- Source-facing architecture, decisions, and design instructions.
-- Required third-party licenses and notices.
+The design kit remains the canonical source of tokens, components, fonts, and brand assets. The UI consumes it through a local npm package and an asset synchronization script. Keep third-party notices with their assets. No new application license is selected by this import.
 
-Review mixed directories file by file. Exclude tooling, dependency/build manifests, lockfiles, generators, CI configuration, packaging and deployment configuration, credentials, local user data, caches, and installed dependencies. Preserve required generated runtime assets when their use has been verified.
+## Maintaining the public source tree
 
-Translate imported documentation, comments, and descriptions into English without changing technical meaning. Preserve third-party notices and do not choose the product's license automatically.
-
-## Design-kit continuity
-
-1. Keep tokens, component sources, reusable assets, and design rules together.
-2. Reuse existing components and semantic tokens when adapting the application UI.
-3. Preserve source references, SCSS relationships, asset paths, and the component inventory.
-4. Keep a single canonical set of reusable design sources and avoid manually editing generated assets.
-
-## Compatibility review
-
-Check each identifier and URL individually before renaming it:
-
-- Product display names, icons, and copyright notices.
-- Application IDs, Windows AUMID, deep-link schemes, Java packages, and runtime identifiers.
-- User-data locations, saved client settings, startup behavior, and update compatibility.
-- Public documentation, website, download, and update URLs.
-
-Write the product name as **GateRook** and the technical slug as `gaterook`. Do not perform a global replacement without checking behavior and references.
-
-## Migration checklist
-
-1. Review the source inventory and classify files by purpose.
-2. Add the selected application, design, test, and fixture sources while preserving their relationships.
-3. Review all added content against the publication rules in [AGENTS.md](../AGENTS.md).
-4. Verify runtime resources, existing test coverage, identifiers, data compatibility, and updater behavior.
-5. Check source documentation, links, asset licenses, and the final file inventory.
-6. Update the repository layout and status to match the actual contents. Record only verification that has been completed.
-
-The migration is complete when the intended source is present, compatibility and resource checks are recorded, documentation reflects the actual state, and the published files satisfy the repository's language and publication rules.
-
-Until sources are added, verification is limited to documentation links, the file inventory, and `git diff --check`.
+- Keep all runtime and build dependencies resolvable from repository-relative paths.
+- Keep documentation in English, with links to actual source and commands.
+- Publish architectural decisions and curated findings, not chronological task logs.
+- Place new temporary AI files and research in root `ai/`, and never commit them.
+- Verify source completeness, ignore behavior, documentation links, and the documented build before publishing changes.
+- Treat JVM, native image, signed installer, and release publication checks as distinct outcomes.

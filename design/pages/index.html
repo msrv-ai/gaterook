@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design kit · GateRook</title>
+<link rel="icon" href="../assets/logo-mark.svg" type="image/svg+xml">
+<script src="../assets/theme-boot.js"></script>
+<link rel="stylesheet" href="../dist/gw-kit.css">
+</head>
+<body>
+<a class="gw-skip-link" href="#main">Skip to content</a>
+<main class="gw-page" id="main" tabindex="-1">
+  <div class="gw-stack gw-stack--lg">
+    <header class="gw-page-header">
+      <div class="gw-page-header__row">
+        <div class="gw-page-header__heading">
+          <a class="gw-logo gw-logo--lg" href="index.html" aria-label="GateRook design kit"><img class="gw-logo__mark" src="../assets/logo-mark.svg" alt=""><span class="gw-logo__name">GateRook</span></a>
+          <h1 class="gw-page-header__title">Design kit</h1>
+          <p class="gw-page-header__description">Tokens, components, elements and reference screens of the GateRook desktop app. Every screen below is built only from the kit. Rules: <code class="gw-code">AGENTS.md</code>, style: <code class="gw-code">DESIGN.md</code>, usage: <code class="gw-code">COMPONENTS.md</code>, screen map: <code class="gw-code">BLUEPRINT.md</code>.</p>
+        </div>
+        <div class="gw-page-header__actions">
+          <fieldset class="gw-segmented gw-segmented--sm">
+            <legend class="gw-sr-only">Theme</legend>
+            <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i>System</span></label>
+            <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i>Light</span></label>
+            <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i>Dark</span></label>
+          </fieldset>
+          <a class="gw-btn gw-btn--primary" href="showcase.html"><i class="gw-icon" data-lucide="layout-grid"></i>Open the showcase</a>
+        </div>
+      </div>
+    </header>
+
+    <section class="gw-section" aria-labelledby="ix-g-promo">
+      <div class="gw-section__header">
+        <h2 class="gw-section__title" id="ix-g-promo">GateRook · product story</h2>
+      </div>
+      <article class="gw-card gw-card--interactive" aria-labelledby="ix-gaterook">
+        <div class="gw-card__header">
+          <div class="gw-card__heading">
+            <h3 class="gw-card__title" id="ix-gaterook"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="shield-check"></i></span><a class="gw-card__link" href="gaterook.html">GateRook promo page</a></h3>
+            <p class="gw-card__description">Your #1 tool to connect your stack to AI. A developer-focused landing with an animated integration map and an illustrative access and approval demo, built with the kit.</p>
+          </div>
+        </div>
+      </article>
+    </section>
+
+<!-- @PUBLIC-DOCS:START -->
+<section class="gw-section" aria-labelledby="ix-docs-title"><div class="gw-section__header"><h2 class="gw-section__title" id="ix-docs-title">Public documentation &amp; integrations</h2></div><div class="gw-promo__actions"><a class="gw-btn" href="docs.html">Docs &amp; integration directory</a><a class="gw-btn" href="docs-getting-started.html">Getting started</a></div><div class="gw-grid gw-grid--3"><article class="gw-card gw-card--interactive" data-docs-card data-docs-search="mysql mysql databases connect mysql to an mcp-compatible ai app with gaterook. explore schemas, run read-only sql, review changes and keep database credentials out of prompts. sql_list_schemas sql_describe_table sql_query sql_execute">
+    <div class="gw-card__header"><div class="gw-card__heading"><h3 class="gw-card__title"><span class="gw-icon-tile gw-icon-tile--brand"><i class="gw-icon" data-lucide="database"></i></span><a class="gw-card__link" href="mcp-mysql.html">MySQL</a></h3><p class="gw-card__description">Connect MySQL to an MCP-compatible AI app with GateRook. Explore schemas, run read-only SQL, review changes and keep database credentials out of prompts.</p></div></div>
+    <div class="gw-card__footer"><span class="gw-text-caption gw-fg-muted">Setup, tools &amp; examples</span><i class="gw-icon" data-lucide="arrow-up-right"></i></div>
+  </article><article class="gw-card gw-card--interactive" data-docs-card data-docs-search="postgresql postgres databases connect postgresql to an mcp-compatible ai app with gaterook. explore schemas, run read-only sql, review changes and keep database credentials out of prompts. sql_list_schemas sql_describe_table sql_query sql_execute">
+    <div class="gw-card__header"><div class="gw-card__heading"><h3 class="gw-card__title"><span class="gw-icon-tile gw-icon-tile--brand"><i class="gw-icon" data-lucide="database"></i></span><a class="gw-card__link" href="mcp-postgresql.html">PostgreSQL</a></h3><p class="gw-card__description">Connect PostgreSQL to an MCP-compatible AI app with GateRook. Explore schemas, run read-only SQL, review changes and keep database credentials out of prompts.</p></div></div>
+    <div class="gw-card__footer"><span class="gw-text-caption gw-fg-muted">Setup, tools &amp; examples</span><i class="gw-icon" data-lucide="arrow-up-right"></i></div>
+  </article><article class="gw-card gw-card--interactive" data-docs-card data-docs-search="mariadb mysql databases connect mariadb to an mcp-compatible ai app with gaterook. explore schemas, run read-only sql, review changes and keep database credentials out of prompts. sql_list_schemas sql_describe_table sql_query sql_execute">
+    <div class="gw-card__header"><div class="gw-card__heading"><h3 class="gw-card__title"><span class="gw-icon-tile gw-icon-tile--brand"><i class="gw-icon" data-lucide="database"></i></span><a class="gw-card__link" href="mcp-mariadb.html">MariaDB</a></h3><p class="gw-card__description">Connect MariaDB to an MCP-compatible AI app with GateRook. Explore schemas, run read-only SQL, review changes and keep database credentials out of prompts.</p></div></div>
+    <div class="gw-card__footer"><span class="gw-text-caption gw-fg-muted">Setup, tools &amp; examples</span><i class="gw-icon" data-lucide="arrow-up-right"></i></div>
+  </article><article class="gw-card gw-card--interactive" data-docs-card data-docs-search="redis redis databases connect redis to an ai app through mcp. scan allowed keys, inspect values and ttls, and troubleshoot cache data with the read-only gaterook connector. redis_scan redis_get">
+    <div class="gw-card__header"><div class="gw-card__heading"><h3 class="gw-card__title"><span class="gw-icon-tile gw-icon-tile--brand"><i class="gw-icon" data-lucide="database"></i></span><a class="gw-card__link" href="mcp-redis.html">Redis</a></h3><p class="gw-card__description">Connect Redis to an AI app through MCP. Scan allowed keys, inspect values and TTLs, and troubleshoot cache data with the read-only GateRook connector.</p></div></div>
+    <div class="gw-card__footer"><span class="gw-text-caption gw-fg-muted">Setup, tools &amp; examples</span><i class="gw-icon" data-lucide="arrow-up-right"></i></div>
+  </article><article class="gw-card gw-card--interactive" data-docs-card data-docs-search="mongodb mongodb databases connect mongodb to ai through mcp. find documents, run read-only aggregations and scope collections with gaterook, without putting credentials in prompts. mongo_find mongo_aggregate">
+    <div class="gw-card__header"><div class="gw-card__heading"><h3 class="gw-card__title"><span class="gw-icon-tile gw-icon-tile--brand"><i class="gw-icon" data-lucide="database"></i></span><a class="gw-card__link" href="mcp-mongodb.html">MongoDB</a></h3><p class="gw-card__description">Connect MongoDB to AI through MCP. Find documents, run read-only aggregations and scope collections with GateRook, without putting credentials in prompts.</p></div></div>
+    <div class="gw-card__footer"><span class="gw-text-caption gw-fg-muted">Setup, tools &amp; examples</span><i class="gw-icon" data-lucide="arrow-up-right"></i></div>
+  </article><article class="gw-card gw-card--interactive" data-docs-card data-docs-search="loki logs apis &amp; logs connect loki to ai through mcp. search and follow scoped logs with gaterook, using native queries, bounded time ranges and private credentials. logs_search logs_tail">
+    <div class="gw-card__header"><div class="gw-card__heading"><h3 class="gw-card__title"><span class="gw-icon-tile gw-icon-tile--brand"><i class="gw-icon" data-lucide="scroll-text"></i></span><a class="gw-card__link" href="mcp-loki.html">Loki</a></h3><p class="gw-card__description">Connect Loki to AI through MCP. Search and follow scoped logs with GateRook, using native queries, bounded time ranges and private credentials.</p></div></div>
+    <div class="gw-card__footer"><span class="gw-text-caption gw-fg-muted">Setup, tools &amp; examples</span><i class="gw-icon" data-lucide="arrow-up-right"></i></div>
+  </article><article class="gw-card gw-card--interactive" data-docs-card data-docs-search="aws cloudwatch logs logs apis &amp; logs connect aws cloudwatch logs to ai through mcp. search and follow scoped logs with gaterook, using native queries, bounded time ranges and private credentials. logs_search logs_tail">
+    <div class="gw-card__header"><div class="gw-card__heading"><h3 class="gw-card__title"><span class="gw-icon-tile gw-icon-tile--brand"><i class="gw-icon" data-lucide="scroll-text"></i></span><a class="gw-card__link" href="mcp-cloudwatch.html">AWS CloudWatch Logs</a></h3><p class="gw-card__description">Connect AWS CloudWatch Logs to AI through MCP. Search and follow scoped logs with GateRook, using native queries, bounded time ranges and private credentials.</p></div></div>
+    <div class="gw-card__footer"><span class="gw-text-caption gw-fg-muted">Setup, tools &amp; examples</span><i class="gw-icon" data-lucide="arrow-up-right"></i></div>
+  </article><article class="gw-card gw-card--interactive" data-docs-card data-docs-search="google cloud logging logs apis &amp; logs connect google cloud logging to ai through mcp. search and follow scoped logs with gaterook, using native queries, bounded time ranges and private credentials. logs_search logs_tail">
+    <div class="gw-card__header"><div class="gw-card__heading"><h3 class="gw-card__title"><span class="gw-icon-tile gw-icon-tile--brand"><i class="gw-icon" data-lucide="scroll-text"></i></span><a class="gw-card__link" href="mcp-cloud-logging.html">Google Cloud Logging</a></h3><p class="gw-card__description">Connect Google Cloud Logging to AI through MCP. Search and follow scoped logs with GateRook, using native queries, bounded time ranges and private credentials.</p></div></div>
+    <div class="gw-card__footer"><span class="gw-text-caption gw-fg-muted">Setup, tools &amp; examples</span><i class="gw-icon" data-lucide="arrow-up-right"></i></div>
+  </article><article class="gw-card gw-card--interactive" data-docs-card data-docs-search="opensearch logs apis &amp; logs connect opensearch to ai through mcp. search and follow scoped logs with gaterook, using native queries, bounded time ranges and private credentials. logs_search logs_tail">
+    <div class="gw-card__header"><div class="gw-card__heading"><h3 class="gw-card__title"><span class="gw-icon-tile gw-icon-tile--brand"><i class="gw-icon" data-lucide="scroll-text"></i></span><a class="gw-card__link" href="mcp-opensearch.html">OpenSearch</a></h3><p class="gw-card__description">Connect OpenSearch to AI through MCP. Search and follow scoped logs with GateRook, using native queries, bounded time ranges and private credentials.</p></div></div>
+    <div class="gw-card__footer"><span class="gw-text-caption gw-fg-muted">Setup, tools &amp; examples</span><i class="gw-icon" data-lucide="arrow-up-right"></i></div>
+  </article><article class="gw-card gw-card--interactive" data-docs-card data-docs-search="http api http apis &amp; logs connect a rest or http api to ai through mcp. scope base urls and paths, keep api keys in gaterook, and approve requests that change data. http_get http_request">
+    <div class="gw-card__header"><div class="gw-card__heading"><h3 class="gw-card__title"><span class="gw-icon-tile gw-icon-tile--brand"><i class="gw-icon" data-lucide="globe"></i></span><a class="gw-card__link" href="mcp-http.html">HTTP API</a></h3><p class="gw-card__description">Connect a REST or HTTP API to AI through MCP. Scope base URLs and paths, keep API keys in GateRook, and approve requests that change data.</p></div></div>
+    <div class="gw-card__footer"><span class="gw-text-caption gw-fg-muted">Setup, tools &amp; examples</span><i class="gw-icon" data-lucide="arrow-up-right"></i></div>
+  </article><article class="gw-card gw-card--interactive" data-docs-card data-docs-search="aws aws cloud &amp; infrastructure connect claude, codex or cursor to aws through gaterook. inspect resources and cloudwatch metrics with scoped regions, local credentials and read-only mcp tools. aws_describe aws_metrics">
+    <div class="gw-card__header"><div class="gw-card__heading"><h3 class="gw-card__title"><span class="gw-icon-tile gw-icon-tile--brand"><i class="gw-icon" data-lucide="cloud"></i></span><a class="gw-card__link" href="mcp-aws.html">AWS</a></h3><p class="gw-card__description">Connect Claude, Codex or Cursor to AWS through GateRook. Inspect resources and CloudWatch metrics with scoped regions, local credentials and read-only MCP tools.</p></div></div>
+    <div class="gw-card__footer"><span class="gw-text-caption gw-fg-muted">Setup, tools &amp; examples</span><i class="gw-icon" data-lucide="arrow-up-right"></i></div>
+  </article><article class="gw-card gw-card--interactive" data-docs-card data-docs-search="google cloud gcp cloud &amp; infrastructure use ai with google cloud through gaterook mcp tools. search cloud asset inventory, inspect supported resources live and query cloud monitoring with scoped credentials. gcp_describe gcp_metrics">
+    <div class="gw-card__header"><div class="gw-card__heading"><h3 class="gw-card__title"><span class="gw-icon-tile gw-icon-tile--brand"><i class="gw-icon" data-lucide="cloud"></i></span><a class="gw-card__link" href="mcp-gcp.html">Google Cloud</a></h3><p class="gw-card__description">Use AI with Google Cloud through GateRook MCP tools. Search Cloud Asset inventory, inspect supported resources live and query Cloud Monitoring with scoped credentials.</p></div></div>
+    <div class="gw-card__footer"><span class="gw-text-caption gw-fg-muted">Setup, tools &amp; examples</span><i class="gw-icon" data-lucide="arrow-up-right"></i></div>
+  </article><article class="gw-card gw-card--interactive" data-docs-card data-docs-search="kubernetes kubernetes cloud &amp; infrastructure connect ai to kubernetes with gaterook. inspect pods, events and logs over mcp, restrict namespaces, and review rollout restarts or manifest changes before execution. k8s_get k8s_logs k8s_rollout_restart k8s_apply">
+    <div class="gw-card__header"><div class="gw-card__heading"><h3 class="gw-card__title"><span class="gw-icon-tile gw-icon-tile--brand"><i class="gw-icon" data-lucide="container"></i></span><a class="gw-card__link" href="mcp-kubernetes.html">Kubernetes</a></h3><p class="gw-card__description">Connect AI to Kubernetes with GateRook. Inspect pods, events and logs over MCP, restrict namespaces, and review rollout restarts or manifest changes before execution.</p></div></div>
+    <div class="gw-card__footer"><span class="gw-text-caption gw-fg-muted">Setup, tools &amp; examples</span><i class="gw-icon" data-lucide="arrow-up-right"></i></div>
+  </article><article class="gw-card gw-card--interactive" data-docs-card data-docs-search="ssh ssh cloud &amp; infrastructure use ssh from ai through gaterook mcp runbooks. connect with keys, passwords or vault ssh ca, verify host keys, and approve commands that change your servers. ssh_run ssh_exec">
+    <div class="gw-card__header"><div class="gw-card__heading"><h3 class="gw-card__title"><span class="gw-icon-tile gw-icon-tile--brand"><i class="gw-icon" data-lucide="terminal"></i></span><a class="gw-card__link" href="mcp-ssh.html">SSH</a></h3><p class="gw-card__description">Use SSH from AI through GateRook MCP runbooks. Connect with keys, passwords or Vault SSH CA, verify host keys, and approve commands that change your servers.</p></div></div>
+    <div class="gw-card__footer"><span class="gw-text-caption gw-fg-muted">Setup, tools &amp; examples</span><i class="gw-icon" data-lucide="arrow-up-right"></i></div>
+  </article><article class="gw-card gw-card--interactive" data-docs-card data-docs-search="mcp servers mcp-server mcp servers put an existing stdio or streamable http mcp server behind gaterook. review discovered tools, configure secret injection, choose endpoint modes and audit calls. everything_echo server-defined tools">
+    <div class="gw-card__header"><div class="gw-card__heading"><h3 class="gw-card__title"><span class="gw-icon-tile gw-icon-tile--brand"><i class="gw-icon" data-lucide="plug"></i></span><a class="gw-card__link" href="mcp-mcp-server.html">MCP servers</a></h3><p class="gw-card__description">Put an existing stdio or Streamable HTTP MCP server behind GateRook. Review discovered tools, configure secret injection, choose endpoint modes and audit calls.</p></div></div>
+    <div class="gw-card__footer"><span class="gw-text-caption gw-fg-muted">Setup, tools &amp; examples</span><i class="gw-icon" data-lucide="arrow-up-right"></i></div>
+  </article></div></section>
+<!-- @PUBLIC-DOCS:END -->
+    <section class="gw-section" aria-labelledby="ix-g-start">
+      <div class="gw-section__header">
+        <h2 class="gw-section__title" id="ix-g-start">Start</h2>
+      </div>
+      <ul class="gw-grid gw-grid--3" role="list">
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-overview"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="layout-dashboard"></i></span><a class="gw-card__link" href="overview.html">Overview</a></h3>
+              <p class="gw-card__description">What waits for your approval, your connections and AI apps; a step-by-step guide on first run.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-approvals"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i></span><a class="gw-card__link" href="approvals.html">Approvals</a></h3>
+              <p class="gw-card__description">Queue of pending mutations with the exact action, countdown and your decision; history of what you decided.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-onboarding"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="rocket"></i></span><a class="gw-card__link" href="onboarding.html">Onboarding</a></h3>
+              <p class="gw-card__description">First run: protect the master key, add a connection, create an endpoint, connect an AI app.</p>
+            </div>
+          </div>
+        </li>
+      </ul>
+    </section>
+    <section class="gw-section" aria-labelledby="ix-g-resources">
+      <div class="gw-section__header">
+        <h2 class="gw-section__title" id="ix-g-resources">Resources · what you connect</h2>
+      </div>
+      <ul class="gw-grid gw-grid--3" role="list">
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-connections"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="database"></i></span><a class="gw-card__link" href="connections.html">Connections</a></h3>
+              <p class="gw-card__description">Databases, SSH, logs, Kubernetes, clouds and HTTP APIs with health and environment.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-connection-new"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="plus"></i></span><a class="gw-card__link" href="connection-new.html">Add connection</a></h3>
+              <p class="gw-card__description">Wizard: pick a type, fill the schema form, test, add to an endpoint.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-connectors"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="puzzle"></i></span><a class="gw-card__link" href="connectors.html">Connectors</a></h3>
+              <p class="gw-card__description">Built-in types, no-code templates, signed plugins and external MCP servers.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-secrets"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="key-round"></i></span><a class="gw-card__link" href="secrets.html">Secrets</a></h3>
+              <p class="gw-card__description">Master key, write-only secrets, external stores and short-lived credentials.</p>
+            </div>
+          </div>
+        </li>
+      </ul>
+    </section>
+    <section class="gw-section" aria-labelledby="ix-g-access">
+      <div class="gw-section__header">
+        <h2 class="gw-section__title" id="ix-g-access">Access · who gets what</h2>
+      </div>
+      <ul class="gw-grid gw-grid--3" role="list">
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-endpoints"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="waypoints"></i></span><a class="gw-card__link" href="endpoints.html">Endpoints</a></h3>
+              <p class="gw-card__description">One MCP URL per purpose, with its connections, tools, tokens and risk.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-endpoint-detail"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="waypoints"></i></span><a class="gw-card__link" href="endpoint-detail.html">Endpoint dev</a></h3>
+              <p class="gw-card__description">Wiring, tool modes, tokens, AI apps and settings of one endpoint.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-clients"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="app-window"></i></span><a class="gw-card__link" href="clients.html">AI apps</a></h3>
+              <p class="gw-card__description">One-click connect for Claude Desktop, Codex, Cursor, Antigravity; claude.ai via tunnel.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-policies"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="shield"></i></span><a class="gw-card__link" href="policies.html">Policies</a></h3>
+              <p class="gw-card__description">Guardrails per environment: SQL, SSH, Kubernetes, HTTP egress, limits, approvals.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-playground"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="flask-conical"></i></span><a class="gw-card__link" href="playground.html">Playground</a></h3>
+              <p class="gw-card__description">Call a tool by hand and see exactly what the agent receives.</p>
+            </div>
+          </div>
+        </li>
+      </ul>
+    </section>
+    <section class="gw-section" aria-labelledby="ix-g-observe">
+      <div class="gw-section__header">
+        <h2 class="gw-section__title" id="ix-g-observe">Observe · what agents did</h2>
+      </div>
+      <ul class="gw-grid gw-grid--3" role="list">
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-activity"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="activity"></i></span><a class="gw-card__link" href="activity.html">Activity</a></h3>
+              <p class="gw-card__description">Every call: query, facets, histogram, events, traces and the event drawer; links in with <span class="gw-mono">?q=</span> and <span class="gw-mono">#event-</span>. Plus the log of setup changes.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-insights"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="chart-column"></i></span><a class="gw-card__link" href="insights.html">Insights</a></h3>
+              <p class="gw-card__description">Volumes, decisions, approvals, latency, errors and unusual activity.</p>
+            </div>
+          </div>
+        </li>
+      </ul>
+    </section>
+    <section class="gw-section" aria-labelledby="ix-g-app">
+      <div class="gw-section__header">
+        <h2 class="gw-section__title" id="ix-g-app">App</h2>
+      </div>
+      <ul class="gw-grid gw-grid--3" role="list">
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-settings"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="settings"></i></span><a class="gw-card__link" href="settings.html">Settings</a></h3>
+              <p class="gw-card__description">Authorization, notifications, tunnel, local API, audit retention, backup, appearance.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-core-starting"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="loader-circle"></i></span><a class="gw-card__link" href="core-starting.html">Core starting</a></h3>
+              <p class="gw-card__description">The screen that replaces the app while the local core starts or fails.</p>
+            </div>
+          </div>
+        </li>
+      </ul>
+    </section>
+
+    <section class="gw-section" aria-labelledby="ix-g-elements">
+      <div class="gw-section__header">
+        <h2 class="gw-section__title" id="ix-g-elements">Elements</h2>
+        <p class="gw-section__description">Reusable compositions of components, each with a demo of its states.</p>
+      </div>
+      <ul class="gw-grid gw-grid--3" role="list">
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-el-..-elements-setup-map"><span class="gw-icon-tile gw-icon-tile--neutral gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="blocks"></i></span><a class="gw-card__link" href="../elements/setup-map.html">setup-map</a></h3>
+              <p class="gw-card__description">Light visualisation of what to configure and how it connects, in setup order: secrets and resources, connections, policies, endpoints, AI apps. An agent's call travels the other way.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-el-..-elements-how-it-works"><span class="gw-icon-tile gw-icon-tile--neutral gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="blocks"></i></span><a class="gw-card__link" href="../elements/how-it-works.html">how-it-works</a></h3>
+              <p class="gw-card__description">Compact, collapsible strip of 3–4 numbered steps that explains a mechanism before the user configures it: what happens to a secret, how an AI app is authorized, what one-click Connect writes, three ways to extend connectors.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-el-..-elements-getting-started"><span class="gw-icon-tile gw-icon-tile--neutral gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="blocks"></i></span><a class="gw-card__link" href="../elements/getting-started.html">getting-started</a></h3>
+              <p class="gw-card__description">First-run checklist card with a progress summary ('5 of 6 done' + gw-progress) and six ordered steps: Protect your master key, Add a connection, Create an endpoint, Connect your AI app, Try a tool in Playground, Set up approval notifications.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-el-..-elements-approval-request"><span class="gw-icon-tile gw-icon-tile--neutral gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="blocks"></i></span><a class="gw-card__link" href="../elements/approval-request.html">approval-request</a></h3>
+              <p class="gw-card__description">The decision UI for one mutation an agent asked for: the exact action, then Deny or Approve and run. A comment is required to approve on prod.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-el-..-elements-approval-notification"><span class="gw-icon-tile gw-icon-tile--neutral gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="blocks"></i></span><a class="gw-card__link" href="../elements/approval-notification.html">approval-notification</a></h3>
+              <p class="gw-card__description">Previews of how the same approval request appears outside the window.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-el-..-elements-tool-policy-list"><span class="gw-icon-tile gw-icon-tile--neutral gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="blocks"></i></span><a class="gw-card__link" href="../elements/tool-policy-list.html">tool-policy-list</a></h3>
+              <p class="gw-card__description">What agents may call on one endpoint and how.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-el-..-elements-risk-callout"><span class="gw-icon-tile gw-icon-tile--neutral gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="blocks"></i></span><a class="gw-card__link" href="../elements/risk-callout.html">risk-callout</a></h3>
+              <p class="gw-card__description">Warns about the dangerous combination inside one endpoint: private data + untrusted content + external channel.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-el-..-elements-token-issue"><span class="gw-icon-tile gw-icon-tile--neutral gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="blocks"></i></span><a class="gw-card__link" href="../elements/token-issue.html">token-issue</a></h3>
+              <p class="gw-card__description">Access tokens of one endpoint.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-el-..-elements-client-card"><span class="gw-icon-tile gw-icon-tile--neutral gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="blocks"></i></span><a class="gw-card__link" href="../elements/client-card.html">client-card</a></h3>
+              <p class="gw-card__description">One MCP client (Claude Desktop, Codex, Cursor, Antigravity, claude.ai): whether it is installed and connected, which endpoint it uses, how it connects (bridge extension, config file, public URL via tunnel), how it authenticates, and the next step.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-el-..-elements-connection-form"><span class="gw-icon-tile gw-icon-tile--neutral gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="blocks"></i></span><a class="gw-card__link" href="../elements/connection-form.html">connection-form</a></h3>
+              <p class="gw-card__description">The schema-driven Configure step of Add connection (PostgreSQL demo).</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-el-..-elements-connector-card"><span class="gw-icon-tile gw-icon-tile--neutral gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="blocks"></i></span><a class="gw-card__link" href="../elements/connector-card.html">connector-card</a></h3>
+              <p class="gw-card__description">One connector type in the catalog.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-el-..-elements-event-detail"><span class="gw-icon-tile gw-icon-tile--neutral gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="blocks"></i></span><a class="gw-card__link" href="../elements/event-detail.html">event-detail</a></h3>
+              <p class="gw-card__description">Everything about one logged call, in the order a developer asks about it.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-el-..-elements-log-explorer"><span class="gw-icon-tile gw-icon-tile--neutral gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="blocks"></i></span><a class="gw-card__link" href="../elements/log-explorer.html">log-explorer</a></h3>
+              <p class="gw-card__description">The query and filter zone above the Activity events table, reused as the Insights filter bar.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-el-..-elements-settings-layout"><span class="gw-icon-tile gw-icon-tile--neutral gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="blocks"></i></span><a class="gw-card__link" href="../elements/settings-layout.html">settings-layout</a></h3>
+              <p class="gw-card__description">Grouped settings.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-el-..-elements-status-screen"><span class="gw-icon-tile gw-icon-tile--neutral gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="blocks"></i></span><a class="gw-card__link" href="../elements/status-screen.html">status-screen</a></h3>
+              <p class="gw-card__description">Stands in for the whole window while the gateway core is unavailable: fixed, z status-screen, on the window canvas, no gw-shell.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-el-..-elements-command-palette"><span class="gw-icon-tile gw-icon-tile--neutral gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="blocks"></i></span><a class="gw-card__link" href="../elements/command-palette.html">command-palette</a></h3>
+              <p class="gw-card__description">⌘K / Ctrl+K entry point to the whole app.</p>
+            </div>
+          </div>
+        </li>
+        <li class="gw-card gw-card--interactive">
+          <div class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="ix-el-..-elements-status-tile"><span class="gw-icon-tile gw-icon-tile--neutral gw-icon-tile--sm"><i class="gw-icon gw-icon--sm" data-lucide="blocks"></i></span><a class="gw-card__link" href="../elements/status-tile.html">status-tile</a></h3>
+              <p class="gw-card__description">Compact card per connection or AI app: name, state in words, at most one action.</p>
+            </div>
+          </div>
+        </li>
+      </ul>
+    </section>
+  </div>
+</main>
+<script src="../vendor/lucide/lucide.min.js"></script>
+<script src="../assets/kit.js"></script>
+</body>
+</html>

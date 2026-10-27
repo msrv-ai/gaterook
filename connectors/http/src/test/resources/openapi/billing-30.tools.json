@@ -1,0 +1,334 @@
+[
+  {
+    "opKey": "POST /refunds",
+    "name": "billing_create_refund",
+    "title": "Create a refund",
+    "description": "Create a refund. POST /v1/refunds. Needs approval: a person approves the exact request.",
+    "nature": "MUTATION",
+    "mode": "APPROVAL / prod APPROVAL",
+    "annotations": "readOnly=false destructive=true idempotent=false openWorld=true",
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "Idempotency-Key": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "body": {
+          "allOf": [
+            {
+              "type": "object",
+              "properties": {
+                "amount": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Minor units"
+                },
+                "currency": {
+                  "type": "string",
+                  "enum": [
+                    "EUR",
+                    "USD"
+                  ]
+                }
+              },
+              "required": [
+                "amount",
+                "currency"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "order_id": {
+                  "type": "integer"
+                },
+                "reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 500
+                }
+              },
+              "required": [
+                "order_id"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "body"
+      ]
+    },
+    "binding": {
+      "template": "billing-api v2",
+      "operationId": "createRefund",
+      "opKey": "POST /refunds",
+      "method": "POST",
+      "server": "https://billing.stage.acme.dev/v1",
+      "path": "/refunds",
+      "nature": "mutation",
+      "params": [
+        {
+          "arg": "Idempotency-Key",
+          "in": "header",
+          "name": "Idempotency-Key",
+          "required": false,
+          "style": "simple",
+          "explode": false
+        }
+      ],
+      "body": {
+        "arg": "body",
+        "mediaType": "application/json",
+        "required": true
+      }
+    }
+  },
+  {
+    "opKey": "GET /refunds",
+    "name": "billing_list_refunds",
+    "title": "listRefunds",
+    "description": "GET /v1/refunds.",
+    "nature": "READ",
+    "mode": "READ_ONLY / prod OFF",
+    "annotations": "readOnly=true destructive=false idempotent=true openWorld=true",
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 10
+        },
+        "status": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "pending",
+            "succeeded",
+            "failed",
+            null
+          ]
+        },
+        "created": {
+          "type": "object",
+          "properties": {
+            "gte": {
+              "type": "integer"
+            },
+            "lte": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    },
+    "binding": {
+      "template": "billing-api v2",
+      "operationId": "listRefunds",
+      "opKey": "GET /refunds",
+      "method": "GET",
+      "server": "https://billing.stage.acme.dev/v1",
+      "path": "/refunds",
+      "nature": "read",
+      "params": [
+        {
+          "arg": "limit",
+          "in": "query",
+          "name": "limit",
+          "required": false,
+          "style": "form",
+          "explode": true
+        },
+        {
+          "arg": "status",
+          "in": "query",
+          "name": "status",
+          "required": false,
+          "style": "form",
+          "explode": true
+        },
+        {
+          "arg": "created",
+          "in": "query",
+          "name": "created",
+          "required": false,
+          "style": "deepObject",
+          "explode": true
+        }
+      ]
+    }
+  },
+  {
+    "opKey": "GET /refunds/{refundId}",
+    "name": "billing_get_refund_by_id",
+    "title": "get-refund.by id",
+    "description": "GET /v1/refunds/{refundId}.",
+    "nature": "READ",
+    "mode": "READ_ONLY / prod OFF",
+    "annotations": "readOnly=true destructive=false idempotent=true openWorld=true",
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "refundId": {
+          "type": "string",
+          "pattern": "^re_[A-Za-z0-9]+$"
+        }
+      },
+      "required": [
+        "refundId"
+      ]
+    },
+    "binding": {
+      "template": "billing-api v2",
+      "operationId": "get-refund.by id",
+      "opKey": "GET /refunds/{refundId}",
+      "method": "GET",
+      "server": "https://billing.stage.acme.dev/v1",
+      "path": "/refunds/{refundId}",
+      "nature": "read",
+      "params": [
+        {
+          "arg": "refundId",
+          "in": "path",
+          "name": "refundId",
+          "required": true,
+          "style": "simple",
+          "explode": false
+        }
+      ]
+    }
+  },
+  {
+    "opKey": "DELETE /customers/{id}",
+    "name": "billing_delete_customer",
+    "title": "deleteCustomer",
+    "description": "DELETE /v1/customers/{id}. Needs approval: a person approves the exact request.",
+    "nature": "MUTATION",
+    "mode": "APPROVAL / prod APPROVAL",
+    "annotations": "readOnly=false destructive=true idempotent=true openWorld=true",
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 1
+        },
+        "query_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "binding": {
+      "template": "billing-api v2",
+      "operationId": "deleteCustomer",
+      "opKey": "DELETE /customers/{id}",
+      "method": "DELETE",
+      "server": "https://billing.stage.acme.dev/v1",
+      "path": "/customers/{id}",
+      "nature": "mutation",
+      "params": [
+        {
+          "arg": "id",
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "style": "simple",
+          "explode": false
+        },
+        {
+          "arg": "query_id",
+          "in": "query",
+          "name": "id",
+          "required": false,
+          "style": "form",
+          "explode": true
+        }
+      ]
+    }
+  },
+  {
+    "opKey": "GET /tree",
+    "name": "billing_get_tree",
+    "title": "GET /tree",
+    "description": "GET /v1/tree.",
+    "nature": "READ",
+    "mode": "READ_ONLY / prod OFF",
+    "annotations": "readOnly=true destructive=false idempotent=true openWorld=true",
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+    },
+    "binding": {
+      "template": "billing-api v2",
+      "opKey": "GET /tree",
+      "method": "GET",
+      "server": "https://billing.stage.acme.dev/v1",
+      "path": "/tree",
+      "nature": "read",
+      "params": []
+    }
+  },
+  {
+    "opKey": "PUT /tree",
+    "name": "billing_put_tree",
+    "title": "PUT /tree",
+    "description": "PUT /v1/tree. Needs approval: a person approves the exact request.",
+    "nature": "MUTATION",
+    "mode": "APPROVAL / prod APPROVAL",
+    "annotations": "readOnly=false destructive=true idempotent=true openWorld=true",
+    "inputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "body": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "children": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "description": "Recursive Node"
+              }
+            }
+          }
+        }
+      },
+      "required": [
+        "body"
+      ]
+    },
+    "binding": {
+      "template": "billing-api v2",
+      "opKey": "PUT /tree",
+      "method": "PUT",
+      "server": "https://billing.stage.acme.dev/v1",
+      "path": "/tree",
+      "nature": "mutation",
+      "params": [],
+      "body": {
+        "arg": "body",
+        "mediaType": "application/json",
+        "required": true
+      }
+    }
+  }
+]

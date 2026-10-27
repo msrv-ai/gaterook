@@ -1,0 +1,73 @@
+<section class="sc-section" id="waterfall" data-title="Waterfall" data-group="Code and data">
+  <h2>Waterfall <code class="gw-code">gw-waterfall</code></h2>
+  <p>Where the time of one call went: the gateway's own work (authentication, policy, secret, masking), time inside the resource, and the idle wait for a human decision. Rows are phases in order (<code class="gw-code">&lt;ol&gt;</code>); each reads as "phase, duration", and the bar is decoration. Spans are placed with <code class="gw-code">--start</code> and <code class="gw-code">--len</code> as fractions of the total and are never thinner than 2px. Use it in event details; for latency across many calls use a chart.</p>
+
+  <h3>Read call, allowed</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <p class="gw-text-small gw-fg-secondary" id="sc-e-wf-read-label"><code class="gw-code">sql_query</code> on <code class="gw-code">dev-db</code> · 38 ms in total, 7 ms of it in the gateway</p>
+    <ol class="gw-waterfall" aria-labelledby="sc-e-wf-read-label">
+      <li class="gw-waterfall__row">
+        <span class="gw-waterfall__label">Authenticate token and check policy</span>
+        <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--gateway" style="--start: 0; --len: 0.053"></span></span>
+        <span class="gw-waterfall__value">2 ms</span>
+      </li>
+      <li class="gw-waterfall__row">
+        <span class="gw-waterfall__label">Decrypt secret for <code class="gw-code">dev-db</code></span>
+        <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--gateway" style="--start: 0.053; --len: 0.026"></span></span>
+        <span class="gw-waterfall__value">1 ms</span>
+      </li>
+      <li class="gw-waterfall__row">
+        <span class="gw-waterfall__label">Query on <code class="gw-code">dev-db</code></span>
+        <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--resource" style="--start: 0.079; --len: 0.816"></span></span>
+        <span class="gw-waterfall__value">31 ms</span>
+      </li>
+      <li class="gw-waterfall__row">
+        <span class="gw-waterfall__label">Mask result and respond</span>
+        <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--gateway" style="--start: 0.895; --len: 0.105"></span></span>
+        <span class="gw-waterfall__value">4 ms</span>
+      </li>
+    </ol>
+    <ul class="gw-legend">
+      <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--neutral"></span>Gateway</li>
+      <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--brand"></span>Resource</li>
+    </ul>
+  </div>
+
+  <h3>Mutation, approved</h3>
+  <p class="sc-lead">The approval wait is hatched, in the legend too: idle time, not work. The gateway and resource phases around it are 2px slivers, but they keep their row, label and duration. The legend lists only the phases present.</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <p class="gw-text-small gw-fg-secondary" id="sc-e-wf-approve-label"><code class="gw-code">sql_execute</code> on <code class="gw-code">dev-db</code> · 47.2 s in total, 47.2 s of it waiting for you, executed in 38 ms</p>
+    <ol class="gw-waterfall" aria-labelledby="sc-e-wf-approve-label">
+      <li class="gw-waterfall__row">
+        <span class="gw-waterfall__label">Authenticate token and check policy</span>
+        <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--gateway" style="--start: 0; --len: 0.0001"></span></span>
+        <span class="gw-waterfall__value">3 ms</span>
+      </li>
+      <li class="gw-waterfall__row">
+        <span class="gw-waterfall__label">Waiting for approval</span>
+        <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--approval" style="--start: 0.0001; --len: 0.9990"></span></span>
+        <span class="gw-waterfall__value">47.2 s</span>
+      </li>
+      <li class="gw-waterfall__row">
+        <span class="gw-waterfall__label">Decrypt secret for <code class="gw-code">dev-db</code></span>
+        <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--gateway" style="--start: 0.9991; --len: 0.0001"></span></span>
+        <span class="gw-waterfall__value">1 ms</span>
+      </li>
+      <li class="gw-waterfall__row">
+        <span class="gw-waterfall__label">Execute on <code class="gw-code">dev-db</code></span>
+        <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--resource" style="--start: 0.9992; --len: 0.0008"></span></span>
+        <span class="gw-waterfall__value">38 ms</span>
+      </li>
+      <li class="gw-waterfall__row">
+        <span class="gw-waterfall__label">Mask result and respond</span>
+        <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--gateway" style="--start: 1; --len: 0.0001"></span></span>
+        <span class="gw-waterfall__value">2 ms</span>
+      </li>
+    </ol>
+    <ul class="gw-legend">
+      <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--neutral"></span>Gateway</li>
+      <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--brand"></span>Resource</li>
+      <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--warning gw-legend__swatch--hatch"></span>Waiting for approval</li>
+    </ul>
+  </div>
+</section>

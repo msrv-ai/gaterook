@@ -1,0 +1,4 @@
+user default on nopass ~* &* +@all
+user ro on >ro-pass ~* resetchannels -@all +@read +@connection -@dangerous -dump -xread -lolwut
+user rokeys on >rokeys-pass ~cache:* resetchannels -@all +@read +@connection -@dangerous -dump -xread -lolwut
+user rw on >rw-pass ~* &* +@all -@dangerous

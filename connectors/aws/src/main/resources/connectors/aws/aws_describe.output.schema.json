@@ -1,0 +1,135 @@
+{
+  "type": "object",
+  "required": [
+    "provider",
+    "type",
+    "mode",
+    "truncated"
+  ],
+  "properties": {
+    "provider": {
+      "const": "aws"
+    },
+    "account": {
+      "type": "string"
+    },
+    "region": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string"
+    },
+    "mode": {
+      "enum": [
+        "list",
+        "get"
+      ]
+    },
+    "resources": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "required": [
+          "identifier"
+        ],
+        "properties": {
+          "identifier": {
+            "type": "string"
+          },
+          "arn": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tags": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "properties": {
+            "type": "object"
+          },
+          "complete": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "resource": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "identifier": {
+          "type": "string"
+        },
+        "arn": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tags": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "properties": {
+          "type": "object"
+        },
+        "complete": {
+          "type": "boolean"
+        }
+      }
+    },
+    "count": {
+      "type": "integer"
+    },
+    "hiddenByPolicy": {
+      "type": "integer"
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "truncatedReason": {
+      "type": "string"
+    },
+    "nextCursor": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "masked": {
+      "type": "integer"
+    },
+    "note": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

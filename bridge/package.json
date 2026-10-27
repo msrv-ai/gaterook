@@ -1,0 +1,31 @@
+{
+  "name": "@mcp-gateway/broker",
+  "version": "0.4.0",
+  "private": true,
+  "description": "The token broker Electron's main process runs, and gw-bridge.mjs, the zero-dependency stdio bridge inside MCP Gateway's Claude Desktop extensions (ARCHITECTURE.md §7.2).",
+  "type": "module",
+  "main": "./index.mjs",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.mjs"
+    },
+    "./gw-bridge.mjs": "./gw-bridge.mjs",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.mjs",
+    "index.d.ts",
+    "src/",
+    "gw-bridge.mjs",
+    "dev-broker.mjs",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test \"test/**/*.test.mjs\""
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

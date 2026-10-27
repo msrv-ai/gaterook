@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "transport"
+  ],
+  "properties": {
+    "toolPrefix": {
+      "type": "string",
+      "title": "Tool prefix",
+      "pattern": "^[a-z][a-z0-9]{0,14}_$",
+      "description": "Default: from the name, github-mcp → github_. Agents see github_create_issue."
+    },
+    "transport": {
+      "enum": [
+        "stdio",
+        "http"
+      ],
+      "default": "stdio",
+      "x-enumTitles": [
+        "Command on this computer (stdio)",
+        "URL (Streamable HTTP)"
+      ]
+    },
+    "command": {
+      "type": "array",
+      "title": "Command",
+      "items": {
+        "type": "string",
+        "maxLength": 1024
+      },
+      "minItems": 1,
+      "maxItems": 64,
+      "description": "argv; the UI line is tokenized (quotes only), never run by a shell"
+    },
+    "env": {
+      "type": "array",
+      "title": "Environment variables from secrets",
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "secretRef"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+          },
+          "secretRef": {
+            "type": "string",
+            "writeOnly": true,
+            "x-gateway-secret": "value",
+            "description": "A secret, or a vault:// | gcp-sm:// | aws-sm:// reference"
+          }
+        }
+      }
+    },
+    "inheritEnv": {
+      "type": "array",
+      "title": "Pass these variables of this computer",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "HTTPS_PROXY",
+          "HTTP_PROXY",
+          "NO_PROXY",
+          "NODE_EXTRA_CA_CERTS",
+          "SSL_CERT_FILE",
+          "LANG"
+        ]
+      },
+      "default": []
+    },
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^(https://|http://(127\\.0\\.0\\.1|localhost)[:/])"
+    },
+    "headers": {
+      "type": "array",
+      "title": "Headers from secrets",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "secretRef"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9-]{1,64}$"
+          },
+          "secretRef": {
+            "type": "string",
+            "writeOnly": true,
+            "x-gateway-secret": "value",
+            "description": "A secret, or a vault:// | gcp-sm:// | aws-sm:// reference"
+          }
+        }
+      }
+    },
+    "start": {
+      "enum": [
+        "on-first-call",
+        "with-core"
+      ],
+      "default": "on-first-call"
+    },
+    "idleStopMinutes": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1440,
+      "default": 15,
+      "x-unit": "min",
+      "x-env-default": {
+        "prod": 5
+      }
+    },
+    "startTimeoutSeconds": {
+      "type": "integer",
+      "minimum": 5,
+      "maximum": 300,
+      "default": 30,
+      "x-unit": "s"
+    },
+    "callTimeoutSeconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 300,
+      "default": 60,
+      "x-unit": "s",
+      "x-env-default": {
+        "prod": 30
+      }
+    },
+    "maxInFlight": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 16,
+      "default": 4
+    },
+    "catalogEntry": {
+      "type": "string",
+      "readOnly": true,
+      "description": "github-mcp@0.6.2 when installed from the catalog"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "transport": {
+            "const": "stdio"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "command"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "transport": {
+            "const": "http"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "url"
+        ]
+      }
+    }
+  ]
+}

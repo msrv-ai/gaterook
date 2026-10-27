@@ -1,0 +1,70 @@
+// =============================================================
+// .gw-icon · .gw-icon-tile · .gw-spinner
+// -------------------------------------------------------------
+// Icons are Lucide (pinned, shipped in vendor/lucide; lucide-angular in
+// the app). Markup: <i class="gw-icon" data-lucide="database" aria-hidden="true"></i>
+// The generated <svg> keeps the classes, so sizing and colour apply.
+//
+//   .gw-icon            16px, inherits currentColor
+//   --xs --sm --md --lg --xl --2xl   12 14 16 20 24 32
+//   .gw-icon-tile       tinted square behind an icon (tone-able)
+//     --sm --md --lg    24 32 40;  --<tone> brand success warning danger info neutral dev stage prod
+//   .gw-spinner         indeterminate ring for in-place waits (buttons, test connection).
+//                       Page-level waits use gw-progress --indeterminate instead.
+//     --sm --lg
+// Size the icon to the text beside it, not to the space around it.
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+.gw-icon {
+  --gw-icon-size: var(--gw-size-icon-md);
+  display: inline-block;
+  flex: none;
+  width: var(--gw-icon-size);
+  height: var(--gw-icon-size);
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+  vertical-align: middle;
+
+  &--xs  { --gw-icon-size: var(--gw-size-icon-xs); stroke-width: 2.25; }
+  &--sm  { --gw-icon-size: var(--gw-size-icon-sm); }
+  &--md  { --gw-icon-size: var(--gw-size-icon-md); }
+  &--lg  { --gw-icon-size: var(--gw-size-icon-lg); }
+  &--xl  { --gw-icon-size: var(--gw-size-icon-xl); stroke-width: 1.75; }
+  &--2xl { --gw-icon-size: var(--gw-size-icon-2xl); stroke-width: 1.5; }
+}
+
+.gw-icon-tile {
+  @include gw-icon-tile(var(--gw-size-control-md));
+  @include gw-tone-modifiers((brand, success, warning, danger, info, neutral, dev, stage, prod));
+
+  &--sm { width: var(--gw-size-icon-xl); height: var(--gw-size-icon-xl); border-radius: var(--gw-radius-xs); }
+  &--lg { width: var(--gw-size-control-lg); height: var(--gw-size-control-lg); border-radius: var(--gw-radius-md); }
+}
+
+.gw-spinner {
+  --gw-spinner-size: var(--gw-size-icon-md);
+  display: inline-block;
+  flex: none;
+  width: var(--gw-spinner-size);
+  height: var(--gw-spinner-size);
+  border: var(--gw-border-width-strong) solid currentColor;
+  border-right-color: transparent;
+  border-radius: var(--gw-radius-full);
+  opacity: 0.8;
+  animation: gw-spin 0.7s linear infinite; // raw: one rotation, linear
+
+  &--sm { --gw-spinner-size: var(--gw-size-icon-sm); }
+  &--lg { --gw-spinner-size: var(--gw-size-icon-xl); }
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: gw-pulse 1.6s ease-in-out infinite; // raw: slow opacity pulse instead of rotation
+    border-right-color: currentColor;
+  }
+}
+
+@keyframes gw-spin { to { transform: rotate(1turn); } }
+@keyframes gw-pulse { 50% { opacity: 0.35; } }

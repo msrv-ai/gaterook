@@ -1,0 +1,132 @@
+// =============================================================
+// .gw-stat · KPI tile
+// -------------------------------------------------------------
+// One number that answers a question at a glance (Overview, Insights):
+// label, value with unit, a change with its direction IN WORDS, and an
+// optional note or sparkline. A row of tiles is a <dl>: each tile is a
+// <div> group of a term (label) and its descriptions (value, delta, meta).
+// The tile is a card surface (gw-surface); put tiles in a gw-grid.
+//
+//   <dl class="gw-grid gw-grid--4">
+//     <div class="gw-stat">
+//       <dt class="gw-stat__label">Gateway overhead p95</dt>
+//       <dd class="gw-stat__value">31 <span class="gw-stat__unit">ms</span></dd>
+//       <dd class="gw-stat__delta gw-stat__delta--down" data-sentiment="good">
+//         <i class="gw-icon" data-lucide="trending-down"></i>−4 ms vs yesterday
+//       </dd>
+//       <dd class="gw-stat__meta">Target ≤ 50 ms · within target</dd>
+//     </div>
+//   </dl>
+//
+// Subparts   __label  question-shaped noun phrase ("Calls · 24 h")
+//            __value  stat role (28/36), tabular figures; __unit inside it
+//                     (ms, s, KB), separated by a space in the markup so
+//                     copy-paste and screen readers get "31 ms"
+//            __delta  ALWAYS an icon AND words with a sign or a direction word
+//                     ("+12% vs yesterday", "3 fewer than yesterday").
+//                     Direction modifiers: --up (trending-up) --down
+//                     (trending-down) --flat (minus, "No change vs yesterday")
+//            __meta   one muted caption line: a target, a time range, a link
+//            __chart  end slot of the value row (a <dd>) for a sparkline (the
+//                     label spans the full width above it): gw-sparkline or an
+//                     inline SVG drawn with currentColor (brand fg), 96 × 32;
+//                     the SVG carries role="img" + an aria-label that says
+//                     the trend in words
+// States     data-sentiment="good | bad | neutral" on __delta colours it by
+//            MEANING, independent of direction: more denials is bad even
+//            though it goes up; lower latency is good even though it goes
+//            down. good = success tone, bad = danger tone, neutral / absent
+//            = secondary text; --flat without a sentiment is muted.
+// A11y       Text carries direction and size; colour only adds the judgement.
+//            Where the judgement matters, say it in words too (meta: "within
+//            target", "above target"). Icons are aria-hidden. Tone fg on
+//            surface is a verified 4.5:1 pair.
+// Raw values none.
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+.gw-stat {
+  @include gw-surface;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-content: start;
+  column-gap: var(--gw-space-3);
+  row-gap: var(--gw-space-1);
+  min-width: 0;
+  margin: 0;
+  padding: var(--gw-space-4) var(--gw-space-5);
+
+  > * {
+    grid-column: 1 / -1;
+    min-width: 0;
+    margin: 0;
+  }
+
+  // The label spans the tile, so a long one ("Waiting for approval") never wraps
+  // beside the sparkline and every value in a row starts at the same height.
+  &__label {
+    grid-column: 1 / -1;
+    @include gw-type(small);
+    font-weight: var(--gw-font-weight-medium);
+    color: var(--gw-color-text-muted);
+  }
+
+  &__value {
+    grid-column: 1;
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: var(--gw-space-1);
+    @include gw-type(stat);
+    @include gw-tabular;
+    color: var(--gw-color-text-primary);
+  }
+
+  &__unit {
+    @include gw-type(body);
+    color: var(--gw-color-text-muted);
+  }
+
+  &__delta {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--gw-space-1);
+    @include gw-type(small);
+    @include gw-tabular;
+    color: var(--gw-color-text-secondary);
+
+    .gw-icon { --gw-icon-size: var(--gw-size-icon-sm); }
+
+    &--up,
+    &--down { /* direction lives in the icon and the words; colour comes from data-sentiment */ }
+    &--flat { color: var(--gw-color-text-muted); }
+
+    &[data-sentiment="good"] { @include gw-tone(success); color: var(--gw-tone-fg); }
+    &[data-sentiment="bad"] { @include gw-tone(danger); color: var(--gw-tone-fg); }
+    &[data-sentiment="neutral"] { color: var(--gw-color-text-secondary); }
+  }
+
+  &__meta {
+    @include gw-type(caption);
+    color: var(--gw-color-text-muted);
+  }
+
+  // In the value row, at its end, bottom-aligned with the figures.
+  &__chart {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: end;
+    display: block;
+    width: calc(var(--gw-space-16) + var(--gw-space-8));
+    height: var(--gw-space-8);
+    color: var(--gw-color-brand-fg);
+
+    > svg {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+  }
+}

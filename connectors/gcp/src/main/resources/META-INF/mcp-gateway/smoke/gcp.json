@@ -1,0 +1,40 @@
+{
+  "area": "gcp",
+  "module": "connectors/gcp",
+  "connectorTypes": ["gcp"],
+  "description": "Touches of the GCP connector for the native smoke (report 15 §6): the call checks without I/O (a secret's :access and a filter that picks its own metric are denied), google-auth's key parsing and the error mapping of Test connection, and a search through google-auth's impersonation and java.net.http. The first three need no server; the fourth needs fixture google: a token server, IAM generateAccessToken and Cloud Asset searchAllResources on loopback answering one resource (the app's GcpCoreProcessIT wires the same fakes through gateway.cloud.*).",
+  "touches": [
+    {
+      "name": "secret-access-denied",
+      "connection": {"type": "gcp", "env": "dev",
+        "config": {"scopes": ["projects/acme-dev"], "credentials": {"source": "adc"}}},
+      "call": {"tool": "gcp_describe",
+        "arguments": {"name": "//secretmanager.googleapis.com/projects/acme-dev/secrets/db-password/versions/1:access"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.cloud.bad_name"}
+    },
+    {
+      "name": "filter-picks-the-metric-denied",
+      "connection": {"type": "gcp", "env": "dev",
+        "config": {"scopes": ["projects/acme-dev"], "credentials": {"source": "adc"}}},
+      "call": {"tool": "gcp_metrics",
+        "arguments": {"metric": "run.googleapis.com/request_count", "filter": "metric.type = \"compute.googleapis.com/instance/cpu/utilization\""}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.cloud.filter_scope"}
+    },
+    {
+      "name": "bad-key-unreachable",
+      "connection": {"type": "gcp", "env": "dev",
+        "config": {"scopes": ["projects/acme-dev"], "credentials": {"source": "serviceAccountKey"}},
+        "secrets": {"/credentials/serviceAccountKey": "not a key"}},
+      "test": true,
+      "expect": {"ok": false, "errorCode": "gcp.unreachable"}
+    },
+    {
+      "name": "inventory-search",
+      "fixture": "google",
+      "connection": {"type": "gcp", "env": "dev",
+        "config": {"scopes": ["projects/acme-dev"], "credentials": {"source": "adc", "impersonate": "gw-reader@acme-dev.iam.gserviceaccount.com"}}},
+      "call": {"tool": "gcp_describe", "arguments": {"assetTypes": ["run.googleapis.com/Service"], "limit": 1}},
+      "expect": {"isError": false, "structuredContent": {"provider": "gcp", "mode": "search", "count": 1}}
+    }
+  ]
+}

@@ -1,0 +1,127 @@
+// =============================================================
+// .gw-file-drop · File upload zone
+// -------------------------------------------------------------
+// Upload a PF4J plugin JAR, an OpenAPI document, a kubeconfig. A <label>
+// around a native input type="file": the input is transparent and
+// stretched over the zone, so a click anywhere opens the picker, a
+// dropped file lands on the input natively, and Tab / Enter / Space work
+// without script. The app sets data-state from drag and upload events.
+//
+//   <label class="gw-file-drop" data-state="idle">
+//     <input class="gw-file-drop__input" type="file" accept=".jar" aria-describedby="jar-hint">
+//     <span class="gw-file-drop__icon"><i class="gw-icon gw-icon--lg" data-lucide="upload"></i></span>
+//     <span class="gw-file-drop__title">Drop a plugin JAR here or <span class="gw-fg-link">choose a file</span></span>
+//     <span class="gw-file-drop__hint" id="jar-hint">PF4J plugin, signed, up to 50 MB</span>
+//   </label>
+//
+// data-state  (each state sets its tone; borders and the tile paint with it)
+//   idle       dashed strong border, neutral icon tile
+//   dragover   solid border in brand FG + brand tint (bg.selected), brand icon
+//              ("Drop to upload")
+//   uploaded   solid default border, success icon (file-check); title = file
+//              name in gw-mono, hint = size · signature result. Remove / replace
+//              actions go OUTSIDE the label (no buttons inside a label).
+//   error      danger border + icon (file-x); the hint says what happened and
+//              what to do, in danger text; set aria-invalid="true" on the input
+// States     :disabled on the input (raised fill, muted title)
+// Subparts   __input · __icon (40px tile, tone from the state) · __title · __hint
+// A11y       Focus ring on the whole zone while the input has keyboard focus
+//            (:has(:focus-visible), so a mouse click on the zone does not leave
+//            a ring behind after the picker closes). The input's name is the
+//            label text; the hint is its description. Announce upload results
+//            in a status region. Never colour alone: icon + text change too.
+// Raw values: none
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+.gw-file-drop {
+  @include gw-tone(neutral);
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gw-space-1);
+  min-width: 0;
+  padding: var(--gw-space-6) var(--gw-space-5);
+  color: var(--gw-color-text-primary);
+  text-align: center;
+  background: var(--gw-color-bg-surface);
+  border: var(--gw-border-width-default) dashed var(--gw-color-border-strong);
+  border-radius: var(--gw-radius-md);
+  transition:
+    background-color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard),
+    border-color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard);
+
+  &:hover { border-color: var(--gw-color-border-input); }
+
+  &:has(> .gw-file-drop__input:focus-visible) {
+    outline: var(--gw-focus-width) solid var(--gw-color-border-focus);
+    outline-offset: var(--gw-focus-offset);
+  }
+
+  &__input {
+    position: absolute;
+    inset: 0;
+    z-index: var(--gw-z-raised);
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+
+    &:focus { outline: none; }
+    &:disabled { cursor: not-allowed; }
+  }
+
+  &__icon {
+    @include gw-icon-tile(var(--gw-size-control-lg));
+    margin-block-end: var(--gw-space-2);
+    border-radius: var(--gw-radius-md);
+  }
+
+  &__title {
+    max-width: 100%;
+    @include gw-type(ui);
+    color: var(--gw-color-text-primary);
+    overflow-wrap: anywhere;
+  }
+
+  &__hint {
+    max-width: 100%;
+    @include gw-type(small);
+    color: var(--gw-color-text-muted);
+  }
+
+  // ─── States ───
+  &[data-state="dragover"] {
+    @include gw-tone(brand);
+    border-style: solid;
+    border-color: var(--gw-tone-fg);
+    // = brand.subtle in every theme; title and hint are contrast-checked on it
+    background: var(--gw-color-bg-selected);
+  }
+
+  &[data-state="uploaded"] {
+    @include gw-tone(success);
+    border-style: solid;
+    border-color: var(--gw-color-border-default);
+  }
+
+  &[data-state="error"] {
+    @include gw-tone(danger);
+    border-color: var(--gw-tone-fg);
+
+    .gw-file-drop__hint { color: var(--gw-tone-fg); }
+  }
+
+  &:has(> .gw-file-drop__input:disabled) {
+    background: var(--gw-color-bg-raised);
+    border-color: var(--gw-color-border-default);
+
+    .gw-file-drop__title { color: var(--gw-color-text-muted); }
+  }
+}

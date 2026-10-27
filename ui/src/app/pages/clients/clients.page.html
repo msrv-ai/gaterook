@@ -1,0 +1,163 @@
+<header class="gw-page-header">
+  <div class="gw-page-header__row">
+    <div class="gw-page-header__heading">
+      <h1 class="gw-page-header__title">Clients</h1>
+      <p class="gw-page-header__description">Connect AI apps to an endpoint in one click. You see the exact change to an app's config before anything is written, and Disconnect takes it back.</p>
+      @if (cards().length) {
+        <div class="gw-page-header__meta">
+          @for (c of counts(); track c.text) {
+            <span class="gw-status gw-status--{{ c.tone }}"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ c.text }}</span></span>
+          }
+          @if (scannedAt(); as at) {
+            @if (counts().length) {
+              <span class="gw-divider gw-divider--vertical" aria-hidden="true"></span>
+            }
+            <span class="gw-text-small gw-fg-muted">Scanned this computer <time id="cl-scanned" [attr.datetime]="time.iso(at)" [title]="time.absolute(at)">{{ time.relative(at) }}</time></span>
+          }
+        </div>
+      }
+    </div>
+    <div class="gw-page-header__actions">
+      <button class="gw-btn" type="button" [attr.aria-busy]="data.scanning() === 'page' ? 'true' : null" [attr.aria-disabled]="data.scanning() ? 'true' : null" (click)="scan('page')">@if (data.scanning() === 'page') {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="refresh-cw" class="gw-icon"></svg>} Scan again</button>
+    </div>
+  </div>
+</header>
+
+<!-- How it works (elements/how-it-works.html): what one-click Connect does; open by default, the choice remembered. -->
+<section gwHowItWorks [level]="2" summary="Connect writes one entry into the app's config, with a backup first. The app gets the tools of one endpoint and never a secret." stepsLabel="What one-click Connect does" persist="clients-how-it-works">
+  <li gwHowItWorksStep icon="scan-search" heading="We find the client">Claude Desktop, Codex, Cursor and Antigravity are found by the config files they keep on this computer.</li>
+  <li gwHowItWorksStep icon="file-diff" heading="Show what changes">You see the exact diff of the config file, for example <code class="gw-code">~/.cursor/mcp.json</code>, before anything is written.</li>
+  <li gwHowItWorksStep icon="save" heading="Back up, then write">The file is copied next to itself, then one entry is added. Other MCP servers in it stay untouched.</li>
+  <li gwHowItWorksStep icon="unplug" heading="Disconnect removes the entry and revokes the token">The file goes back to how it was, and the app's token stops working on its next call.</li>
+  <p class="gw-how-it-works__more" gwHowItWorksMore><a class="gw-link gw-text-small" routerLink="/settings/authorization" fragment="settings-authorization">Learn how clients are authorized</a></p>
+</section>
+
+@if (data.stale(); as e) {
+  <!-- A reload failed: what is on screen is the last answer of each part. -->
+  <div class="gw-alert gw-alert--warning gw-alert--compact" role="status">
+    <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+    <div class="gw-alert__content">
+      <p class="gw-alert__title">This page may be out of date.</p>
+      <p class="gw-alert__body">{{ errorText(e) }}</p>
+    </div>
+    <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retry()" [attr.aria-busy]="data.refreshing() ? 'true' : null" [attr.aria-disabled]="data.refreshing() ? 'true' : null">Try again</button></div>
+  </div>
+}
+
+<!-- ─────────────── On this computer (elements/client-card.html) ─────────────── -->
+<section class="gw-section" aria-labelledby="cl-local-t" [attr.aria-busy]="loading() ? 'true' : null">
+  <header class="gw-section__header">
+    <h2 class="gw-section__title" id="cl-local-t">On this computer</h2>
+    <p class="gw-section__description">These apps reach the gateway at <code class="gw-code">{{ core.address() }}</code> directly. Each entry connects one endpoint, and an app can have several; it gets only the tools of its endpoints.</p>
+  </header>
+
+  @if (data.clients().value) {
+    @if (none()) {
+      <!-- The scan found no MCP client: what it looks for, and the ways on. -->
+      <section class="gw-card" aria-labelledby="cl-empty-t">
+        <div class="gw-empty">
+          <span class="gw-empty__icon"><svg lucideIcon="app-window" class="gw-icon gw-icon--lg"></svg></span>
+          <h3 class="gw-empty__title" id="cl-empty-t">No MCP clients found</h3>
+          <p class="gw-empty__text">The scan looks for Claude Desktop, Codex, Cursor and Antigravity by the config files they keep on this computer. Install one and scan again, or point any other app at an endpoint URL by hand.</p>
+          <div class="gw-empty__actions">
+            <button class="gw-btn" type="button" [attr.aria-busy]="data.scanning() === 'page' ? 'true' : null" [attr.aria-disabled]="data.scanning() ? 'true' : null" (click)="scan('page')">@if (data.scanning() === 'page') {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="refresh-cw" class="gw-icon"></svg>} Scan again</button>
+            <a class="gw-btn gw-btn--link" routerLink="/clients" fragment="cl-manual-t" (click)="jump($event, 'cl-manual-t')">Manual setup</a>
+          </div>
+        </div>
+      </section>
+    } @else {
+      <div class="gw-stack">
+        @if (layout().inline; as c) {
+          @let s = data.connectState(c.client);
+          <article gwInlineConnectCard [card]="c" [endpoints]="endpoints()" [preview]="s.preview" [loading]="s.loading" [failure]="s.failure" [connecting]="connecting() === c.client" [canOpenConfig]="desktopApp" (previewRequest)="onPreview(c, $event)" (connect)="onConnect(c, $event.previewId, $event.request)" (openConfig)="onOpenConfig(c.client)"></article>
+        }
+        @for (c of layout().wide; track c.client) {
+          <ng-container [ngTemplateOutlet]="card" [ngTemplateOutletContext]="{ $implicit: c }" />
+        }
+        @if (layout().grid.length) {
+          <ul class="gw-grid gw-grid--2" aria-label="Other apps on this computer">
+            @for (c of layout().grid; track c.client) {
+              <li><ng-container [ngTemplateOutlet]="card" [ngTemplateOutletContext]="{ $implicit: c }" /></li>
+            }
+          </ul>
+        }
+      </div>
+    }
+  } @else if (data.clients().error; as e) {
+    <div class="gw-alert gw-alert--danger" role="alert">
+      <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">The clients of this computer didn't load</p>
+        <p class="gw-alert__body">{{ errorText(e) }}</p>
+        <div class="gw-alert__actions">
+          <button class="gw-btn gw-btn--sm" type="button" (click)="retry()" [attr.aria-busy]="data.refreshing() ? 'true' : null" [attr.aria-disabled]="data.refreshing() ? 'true' : null">Try again</button>
+          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle aria-controls="cl-error-details"><svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg>Details<span class="gw-sr-only"> of the error</span></button>
+        </div>
+      </div>
+    </div>
+    <div id="cl-error-details" hidden>
+      <gw-code-block wrap lang="Error" [text]="errorDetails(e)" copyLabel="error details" regionLabel="Error details" [id]="'cl-error-pre'" />
+    </div>
+  } @else if (data.clients().unavailable) {
+    <p class="gw-text-small gw-fg-secondary">Connecting apps in one click isn't available in this version of the core yet. Point an app at an endpoint URL by hand below.</p>
+  } @else if (slow()) {
+    <!-- The first answer is slow: the cards' shape, busy, and one status line for screen readers. -->
+    <p class="gw-sr-only" role="status">Loading the clients of this computer</p>
+    <div class="gw-stack" aria-hidden="true">
+      <span class="gw-skeleton gw-skeleton--block"></span>
+      <div class="gw-grid gw-grid--2">
+        <span class="gw-skeleton gw-skeleton--block"></span>
+        <span class="gw-skeleton gw-skeleton--block"></span>
+      </div>
+    </div>
+  }
+</section>
+
+<ng-template #card let-c>
+  @let s = data.connectState(c.client);
+  <article gwClientCard page [card]="c" [endpoints]="endpoints()" [entry]="entryOf(c)" [scanning]="data.scanning() === c.client" [canOpenConfig]="desktopApp"
+    [connectPreview]="s.preview" [connectLoading]="s.loading" [connectFailure]="s.written ? null : s.failure" [failure]="s.written ? s.failure : null" [disconnectPreview]="data.disconnectPreviewOf(c.client)"
+    (connectStart)="data.resetConnect($event)" (previewRequest)="onPreviewRequest($event)" (connect)="onConnect(c, $event.previewId, $event.request)"
+    (addEndpoint)="onAddEndpoint(c, $event.endpoint)" (disconnectStart)="onDisconnectStart($event)" (disconnect)="onDisconnect(c, $event.link, $event.previewId)"
+    (removeBridge)="onRemoveBridge(c)" (openConfig)="onOpenConfig($event)" (scan)="scan(c)"></article>
+</ng-template>
+
+<!-- ─────────────── claude.ai through the tunnel ─────────────── -->
+<section class="gw-section" aria-labelledby="cl-web-t">
+  <header class="gw-section__header">
+    <h2 class="gw-section__title" id="cl-web-t">In the browser</h2>
+    <p class="gw-section__description">claude.ai connects from Anthropic's servers, not from this computer, so it can't reach <code class="gw-code">127.0.0.1</code>. Publishing opens a tunnel that gives one endpoint a public HTTPS address; only MCP and OAuth paths go out.</p>
+  </header>
+  <article gwClaudeAiAccess [tunnel]="data.tunnel()" [endpoint]="data.published()" [preview]="data.publishPreview()" [grants]="data.grants().value ?? []" [endpoints]="endpoints()" [busy]="tunnelBusy()" (publish)="onPublish($event)" (stop)="onStopTunnel()" (revoke)="onRevoke($event)"></article>
+</section>
+
+<!-- ─────────────── Manual setup: Inspector and anything else ─────────────── -->
+<section class="gw-section" aria-labelledby="cl-manual-t">
+  <header class="gw-section__header">
+    <h2 class="gw-section__title" id="cl-manual-t">Manual setup</h2>
+    <p class="gw-section__description">For MCP Inspector, scripts and any app not listed above: point it at the endpoint URL and give it a token.</p>
+  </header>
+  @if (data.manual().value; as m) {
+    <div gwManualSetup [manual]="m" [hand]="hand()"></div>
+  } @else if (data.manual().error; as e) {
+    <div class="gw-alert gw-alert--danger">
+      <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">The manual setup didn't load</p>
+        <p class="gw-alert__body">{{ errorText(e) }}</p>
+        <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retry()">Try again</button></div>
+      </div>
+    </div>
+  } @else if (data.endpoints().value && !data.manualSlug()) {
+    <div class="gw-card">
+      <div class="gw-empty">
+        <span class="gw-empty__icon"><svg lucideIcon="waypoints" class="gw-icon gw-icon--lg"></svg></span>
+        <h3 class="gw-empty__title">No endpoint yet</h3>
+        <p class="gw-empty__text">An app connects to an endpoint: the set of tools it may call. Create one, then point the app at its URL.</p>
+        <div class="gw-empty__actions"><a class="gw-btn" routerLink="/endpoints">Create endpoint</a></div>
+      </div>
+    </div>
+  } @else if (slow()) {
+    <span class="gw-skeleton gw-skeleton--block" aria-hidden="true"></span>
+  }
+</section>

@@ -1,0 +1,62 @@
+<section class="sc-section" id="stats" data-title="Stats" data-group="Status and data">
+  <h2>Stats <code class="gw-code">gw-stat</code></h2>
+  <p>A KPI tile answers one question at a glance on Overview and Insights: a label, the value with its unit, how it changed and, if useful, a target or a sparkline. The change always carries an icon <em>and</em> words with a sign or direction ("+12% vs yesterday"); its colour comes from what the change <em>means</em> (<code class="gw-code">data-sentiment</code>), not from its direction. A row of tiles is one <code class="gw-code">&lt;dl&gt;</code>. Do not use a stat for a value without context or comparison: a key-value list says it more quietly.</p>
+
+  <h3>Overview, last 24 hours</h3>
+  <div class="sc-demo sc-demo--canvas sc-demo--col" data-sc-code>
+    <dl class="gw-grid gw-grid--4">
+      <div class="gw-stat">
+        <dt class="gw-stat__label">Calls · 24 h</dt>
+        <dd class="gw-stat__value">1,284</dd>
+        <dd class="gw-stat__chart">
+          <svg viewBox="0 0 96 32" preserveAspectRatio="none" role="img" aria-label="Calls per hour over 24 hours, rising through the afternoon">
+            <polyline fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="0,26 8,25 16,27 24,22 32,23 40,19 48,20 56,15 64,16 72,11 80,13 88,8 96,9"></polyline>
+          </svg>
+        </dd>
+        <dd class="gw-stat__delta gw-stat__delta--up" data-sentiment="neutral"><i class="gw-icon" data-lucide="trending-up"></i>+12% vs yesterday</dd>
+        <dd class="gw-stat__meta">1,201 allowed · 46 approved</dd>
+      </div>
+      <div class="gw-stat">
+        <dt class="gw-stat__label">Waiting for approval</dt>
+        <dd class="gw-stat__value">3</dd>
+        <dd class="gw-stat__delta gw-stat__delta--flat"><i class="gw-icon" data-lucide="minus"></i>No change vs an hour ago</dd>
+        <dd class="gw-stat__meta">Oldest auto-denies in 4:12 · <a class="gw-link" href="#stats">Review approvals</a></dd>
+      </div>
+      <div class="gw-stat">
+        <dt class="gw-stat__label">Denied by policy</dt>
+        <dd class="gw-stat__value">17</dd>
+        <dd class="gw-stat__delta gw-stat__delta--up" data-sentiment="bad"><i class="gw-icon" data-lucide="trending-up"></i>+5 vs yesterday</dd>
+        <dd class="gw-stat__meta"><a class="gw-link" href="#stats">View in Activity</a></dd>
+      </div>
+      <div class="gw-stat">
+        <dt class="gw-stat__label">Gateway overhead p95</dt>
+        <dd class="gw-stat__value">31 <span class="gw-stat__unit">ms</span></dd>
+        <dd class="gw-stat__delta gw-stat__delta--down" data-sentiment="good"><i class="gw-icon" data-lucide="trending-down"></i>−4 ms vs yesterday</dd>
+        <dd class="gw-stat__meta">Target ≤ 50 ms · within target</dd>
+      </div>
+    </dl>
+  </div>
+
+  <h3>Sentiment is meaning, not direction</h3>
+  <div class="sc-demo sc-demo--canvas sc-demo--col" data-sc-code>
+    <dl class="gw-grid gw-grid--3">
+      <div class="gw-stat">
+        <dt class="gw-stat__label">Errors · 24 h</dt>
+        <dd class="gw-stat__value">8</dd>
+        <dd class="gw-stat__delta gw-stat__delta--down" data-sentiment="good"><i class="gw-icon" data-lucide="trending-down"></i>3 fewer than yesterday</dd>
+        <dd class="gw-stat__meta">Most from <code class="gw-code">cache-redis</code> timeouts</dd>
+      </div>
+      <div class="gw-stat">
+        <dt class="gw-stat__label">Median approval wait</dt>
+        <dd class="gw-stat__value">47 <span class="gw-stat__unit">s</span></dd>
+        <dd class="gw-stat__delta gw-stat__delta--up" data-sentiment="bad"><i class="gw-icon" data-lucide="trending-up"></i>+12 s vs yesterday</dd>
+        <dd class="gw-stat__meta">Requests auto-deny after 5 min</dd>
+      </div>
+      <div class="gw-stat">
+        <dt class="gw-stat__label">Expired requests</dt>
+        <dd class="gw-stat__value">3</dd>
+        <dd class="gw-stat__delta gw-stat__delta--flat"><i class="gw-icon" data-lucide="minus"></i>No change vs yesterday</dd>
+      </div>
+    </dl>
+  </div>
+</section>

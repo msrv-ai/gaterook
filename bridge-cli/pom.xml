@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  gw-bridge (A7, report 03 §7.4): the `headers` subcommand prints the Authorization header for Codex's
+  http_headers_helper (endpoint and grant as options); `stdio` bridges stdin/stdout to POST /mcp/<slug>; `sandbox-exec` starts MCP servers under
+  Landlock. JDK only: a jar for tests and the JVM fallback, a native executable in the release. Built by step K1.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>ai.msrv.gaterook</groupId>
+    <artifactId>mcp-gateway</artifactId>
+    <version>0.4.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>bridge-cli</artifactId>
+  <name>MCP Gateway · gw-bridge</name>
+
+  <properties>
+    <start-class>ai.msrv.gaterook.bridge.Main</start-class>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.platform</groupId>
+      <artifactId>junit-platform-launcher</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>gw-bridge</finalName>
+    <plugins>
+      <!-- `java -jar gw-bridge.jar` (the JVM fallback of the shim): Landlock and execve go through FFM. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <configuration>
+          <archive>
+            <manifest>
+              <mainClass>${start-class}</mainClass>
+            </manifest>
+            <manifestEntries>
+              <Enable-Native-Access>ALL-UNNAMED</Enable-Native-Access>
+            </manifestEntries>
+          </archive>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <!-- FFM metadata of sandbox-exec (Landlock, execve) only where Landlock exists, as the core does for prctl. -->
+    <profile>
+      <id>linux-ffm</id>
+      <activation>
+        <os><name>Linux</name></os>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>build-helper-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>linux-native-metadata</id>
+                <goals><goal>add-resource</goal></goals>
+                <configuration>
+                  <resources>
+                    <resource>
+                      <directory>src/main/native-linux</directory>
+                    </resource>
+                  </resources>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <!--
+      macOS: sandbox-exec replaces the bridge with /usr/bin/sandbox-exec through execve, the one downcall it makes there.
+      Without this metadata the native gw-bridge exits 126 and MCP servers run unsandboxed (review K1-5).
+    -->
+    <profile>
+      <id>mac-ffm</id>
+      <activation>
+        <os><family>mac</family></os>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>build-helper-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>mac-native-metadata</id>
+                <goals><goal>add-resource</goal></goals>
+                <configuration>
+                  <resources>
+                    <resource>
+                      <directory>src/main/native-mac</directory>
+                    </resource>
+                  </resources>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
+      <id>native</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.graalvm.buildtools</groupId>
+            <artifactId>native-maven-plugin</artifactId>
+            <configuration>
+              <imageName>gw-bridge</imageName>
+              <mainClass>${start-class}</mainClass>
+              <buildArgs>
+                <buildArg>--enable-native-access=ALL-UNNAMED</buildArg>
+                <buildArg>-H:+ReportExceptionStackTraces</buildArg>
+                <!-- A small binary every client starts often: compatible with any x86-64/arm64 CPU. -->
+                <buildArg>-march=compatibility</buildArg>
+              </buildArgs>
+            </configuration>
+            <executions>
+              <execution>
+                <id>build-native</id>
+                <goals><goal>compile-no-fork</goal></goals>
+                <phase>package</phase>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>

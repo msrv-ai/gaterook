@@ -1,0 +1,645 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Setup map · Element · GateRook kit</title>
+<link rel="icon" href="../assets/logo-mark.svg" type="image/svg+xml">
+<script src="../assets/theme-boot.js"></script>
+<link rel="stylesheet" href="../dist/gw-kit.css">
+</head>
+<body>
+<a class="gw-skip-link" href="#main">Skip to content</a>
+<main class="gw-page" id="main" tabindex="-1">
+
+  <header class="gw-page-header">
+    <div class="gw-page-header__row">
+      <div class="gw-page-header__heading">
+        <h1 class="gw-page-header__title">Setup map</h1>
+        <p class="gw-page-header__description">What to configure and how it connects, in the order you set it up: secrets and resources, connections, policies, endpoints, AI apps (the order of Getting started and onboarding). An agent's call travels the same path the other way, and the secret is injected at the connection, never reaching the agent. Each node says its state in words and links to its page. A chain on Overview and in onboarding, wiring on endpoint detail.</p>
+      </div>
+      <div class="gw-page-header__actions">
+        <fieldset class="gw-segmented gw-segmented--sm">
+          <legend class="gw-sr-only">Theme</legend>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i>System</span></label>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i>Light</span></label>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i>Dark</span></label>
+        </fieldset>
+      </div>
+    </div>
+  </header>
+
+  <!-- The arrows are decorative: every chain points its aria-describedby at one of these sentences.
+       Each map also gets the same words as a visible caption (aria-hidden: read once, through the description). -->
+  <p class="gw-sr-only" id="sm-flow">Set it up left to right: secrets and resources, then connections that use them, policies, endpoints and AI apps. An agent's call travels the other way: AI app, endpoint (with a token or OAuth), policy (mode, limits, approval), connection, where the secret is injected. The agent never receives the secret.</p>
+  <p class="gw-sr-only" id="sm-flow-vertical">Set it up top to bottom: secrets and resources, then connections that use them, policies, endpoints and AI apps. An agent's call travels the other way: AI app, endpoint (with a token or OAuth), policy (mode, limits, approval), connection, where the secret is injected. The agent never receives the secret.</p>
+
+  <!-- ───────────────────────── All done ───────────────────────── -->
+  <section class="gw-section" aria-labelledby="s-done">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-done">All set up</h2>
+      <p class="gw-section__description">Overview after setup, in setup order. Every link works: brand arrows between Done nodes. From lg the chain runs across; narrower windows stack it. The caption under the map says which way a call travels.</p>
+    </header>
+    <ol class="gw-setup-map" aria-label="Setup path" aria-describedby="sm-flow">
+      <li class="gw-setup-map__step" data-state="done">
+        <div class="gw-card gw-setup-map__node">
+          <div class="gw-card__body gw-setup-map__body">
+            <span class="gw-icon-tile gw-icon-tile--brand gw-setup-map__tile"><i class="gw-icon" data-lucide="key-round"></i></span>
+            <h3 class="gw-card__title gw-setup-map__title">Secrets &amp; resources</h3>
+            <p class="gw-card__description gw-setup-map__desc">Credentials the agent never sees</p>
+            <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">Master key backed up · 11 secrets</p>
+            <span class="gw-badge gw-badge--success gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="circle-check"></i>Done</span>
+            <a class="gw-btn gw-btn--link gw-setup-map__action" href="../pages/secrets.html">Configure<span class="gw-sr-only"> secrets</span></a>
+          </div>
+        </div>
+        <span class="gw-setup-map__connector" aria-hidden="true">
+          <span class="gw-setup-map__line"></span>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across" data-lucide="chevron-right"></i>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down" data-lucide="chevron-down"></i>
+        </span>
+      </li>
+      <li class="gw-setup-map__step" data-state="done">
+        <div class="gw-card gw-setup-map__node">
+          <div class="gw-card__body gw-setup-map__body">
+            <span class="gw-icon-tile gw-icon-tile--brand gw-setup-map__tile"><i class="gw-icon" data-lucide="database"></i></span>
+            <h3 class="gw-card__title gw-setup-map__title">Connections</h3>
+            <p class="gw-card__description gw-setup-map__desc">Where tools run: databases, hosts, APIs</p>
+            <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">12 connections · all healthy</p>
+            <span class="gw-badge gw-badge--success gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="circle-check"></i>Done</span>
+            <a class="gw-btn gw-btn--link gw-setup-map__action" href="../pages/connections.html">Configure<span class="gw-sr-only"> connections</span></a>
+          </div>
+        </div>
+        <p class="gw-setup-map__note gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--xs" data-lucide="lock-keyhole"></i><span>Secret injected here, never sent to the agent</span></p>
+        <span class="gw-setup-map__connector" aria-hidden="true">
+          <span class="gw-setup-map__line"></span>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across" data-lucide="chevron-right"></i>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down" data-lucide="chevron-down"></i>
+        </span>
+      </li>
+      <li class="gw-setup-map__step" data-state="done">
+        <div class="gw-card gw-setup-map__node">
+          <div class="gw-card__body gw-setup-map__body">
+            <span class="gw-icon-tile gw-icon-tile--brand gw-setup-map__tile"><i class="gw-icon" data-lucide="shield"></i></span>
+            <h3 class="gw-card__title gw-setup-map__title">Policies</h3>
+            <p class="gw-card__description gw-setup-map__desc">Decides each call: mode, limits, approval</p>
+            <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">3 environments · mutations need approval</p>
+            <span class="gw-badge gw-badge--success gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="circle-check"></i>Done</span>
+            <a class="gw-btn gw-btn--link gw-setup-map__action" href="../pages/policies.html">Configure<span class="gw-sr-only"> policies</span></a>
+          </div>
+        </div>
+        <span class="gw-setup-map__connector" aria-hidden="true">
+          <span class="gw-setup-map__line"></span>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across" data-lucide="chevron-right"></i>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down" data-lucide="chevron-down"></i>
+        </span>
+      </li>
+      <li class="gw-setup-map__step" data-state="done">
+        <div class="gw-card gw-setup-map__node">
+          <div class="gw-card__body gw-setup-map__body">
+            <span class="gw-icon-tile gw-icon-tile--brand gw-setup-map__tile"><i class="gw-icon" data-lucide="waypoints"></i></span>
+            <h3 class="gw-card__title gw-setup-map__title">Endpoints</h3>
+            <p class="gw-card__description gw-setup-map__desc">One MCP URL, with a token or OAuth</p>
+            <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">3 endpoints · 2 active tokens</p>
+            <span class="gw-badge gw-badge--success gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="circle-check"></i>Done</span>
+            <a class="gw-btn gw-btn--link gw-setup-map__action" href="../pages/endpoints.html">Configure<span class="gw-sr-only"> endpoints</span></a>
+          </div>
+        </div>
+        <span class="gw-setup-map__connector" aria-hidden="true">
+          <span class="gw-setup-map__line"></span>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across" data-lucide="chevron-right"></i>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down" data-lucide="chevron-down"></i>
+        </span>
+      </li>
+      <li class="gw-setup-map__step" data-state="done">
+        <div class="gw-card gw-setup-map__node">
+          <div class="gw-card__body gw-setup-map__body">
+            <span class="gw-icon-tile gw-icon-tile--brand gw-setup-map__tile"><i class="gw-icon" data-lucide="app-window"></i></span>
+            <h3 class="gw-card__title gw-setup-map__title">AI apps</h3>
+            <p class="gw-card__description gw-setup-map__desc">Apps your agent works in</p>
+            <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">2 connected · 1 detected</p>
+            <span class="gw-badge gw-badge--success gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="circle-check"></i>Done</span>
+            <a class="gw-btn gw-btn--link gw-setup-map__action" href="../pages/clients.html">Configure<span class="gw-sr-only"> AI apps</span></a>
+          </div>
+        </div>
+      </li>
+    </ol>
+    <p class="gw-text-caption gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--xs" data-lucide="arrow-left-right"></i> Set it up left to right (top to bottom when stacked). An agent's call travels the other way: AI app, endpoint, policy, connection, where the secret is injected.</p>
+  </section>
+
+  <!-- ───────────────────────── First run ───────────────────────── -->
+  <section class="gw-section" aria-labelledby="s-first">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-first">First run</h2>
+      <p class="gw-section__description">Only the master key exists, so the first node is done. Dashed cards and dashed arrows show what is left; each status says what the node waits for, and Connections, the next one, says start here.</p>
+    </header>
+    <ol class="gw-setup-map" aria-label="Setup path" aria-describedby="sm-flow">
+      <li class="gw-setup-map__step" data-state="done">
+        <div class="gw-card gw-setup-map__node">
+          <div class="gw-card__body gw-setup-map__body">
+            <span class="gw-icon-tile gw-icon-tile--brand gw-setup-map__tile"><i class="gw-icon" data-lucide="key-round"></i></span>
+            <h3 class="gw-card__title gw-setup-map__title">Secrets &amp; resources</h3>
+            <p class="gw-card__description gw-setup-map__desc">Credentials the agent never sees</p>
+            <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">Master key ready · no secrets yet</p>
+            <span class="gw-badge gw-badge--success gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="circle-check"></i>Done</span>
+            <a class="gw-btn gw-btn--link gw-setup-map__action" href="../pages/secrets.html">Configure<span class="gw-sr-only"> secrets</span></a>
+          </div>
+        </div>
+        <span class="gw-setup-map__connector" aria-hidden="true">
+          <span class="gw-setup-map__line"></span>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across" data-lucide="chevron-right"></i>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down" data-lucide="chevron-down"></i>
+        </span>
+      </li>
+      <li class="gw-setup-map__step" data-state="todo">
+        <div class="gw-card gw-card--dashed gw-setup-map__node">
+          <div class="gw-card__body gw-setup-map__body">
+            <span class="gw-icon-tile gw-icon-tile--neutral gw-setup-map__tile"><i class="gw-icon" data-lucide="database"></i></span>
+            <h3 class="gw-card__title gw-setup-map__title">Connections</h3>
+            <p class="gw-card__description gw-setup-map__desc">Where tools run: databases, hosts, APIs</p>
+            <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">None yet · start here</p>
+            <span class="gw-badge gw-badge--neutral gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="circle-dashed"></i>Not set up</span>
+            <a class="gw-btn gw-btn--link gw-setup-map__action" href="../pages/connections.html">Configure<span class="gw-sr-only"> connections</span></a>
+          </div>
+        </div>
+        <p class="gw-setup-map__note gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--xs" data-lucide="lock-keyhole"></i><span>Secret injected here, never sent to the agent</span></p>
+        <span class="gw-setup-map__connector" aria-hidden="true">
+          <span class="gw-setup-map__line"></span>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across" data-lucide="chevron-right"></i>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down" data-lucide="chevron-down"></i>
+        </span>
+      </li>
+      <li class="gw-setup-map__step" data-state="todo">
+        <div class="gw-card gw-card--dashed gw-setup-map__node">
+          <div class="gw-card__body gw-setup-map__body">
+            <span class="gw-icon-tile gw-icon-tile--neutral gw-setup-map__tile"><i class="gw-icon" data-lucide="shield"></i></span>
+            <h3 class="gw-card__title gw-setup-map__title">Policies</h3>
+            <p class="gw-card__description gw-setup-map__desc">Decides each call: mode, limits, approval</p>
+            <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">Safe defaults · not reviewed yet</p>
+            <span class="gw-badge gw-badge--neutral gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="circle-dashed"></i>Not set up</span>
+            <a class="gw-btn gw-btn--link gw-setup-map__action" href="../pages/policies.html">Configure<span class="gw-sr-only"> policies</span></a>
+          </div>
+        </div>
+        <span class="gw-setup-map__connector" aria-hidden="true">
+          <span class="gw-setup-map__line"></span>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across" data-lucide="chevron-right"></i>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down" data-lucide="chevron-down"></i>
+        </span>
+      </li>
+      <li class="gw-setup-map__step" data-state="todo">
+        <div class="gw-card gw-card--dashed gw-setup-map__node">
+          <div class="gw-card__body gw-setup-map__body">
+            <span class="gw-icon-tile gw-icon-tile--neutral gw-setup-map__tile"><i class="gw-icon" data-lucide="waypoints"></i></span>
+            <h3 class="gw-card__title gw-setup-map__title">Endpoints</h3>
+            <p class="gw-card__description gw-setup-map__desc">One MCP URL, with a token or OAuth</p>
+            <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">None yet · needs a connection first</p>
+            <span class="gw-badge gw-badge--neutral gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="circle-dashed"></i>Not set up</span>
+            <a class="gw-btn gw-btn--link gw-setup-map__action" href="../pages/endpoints.html">Configure<span class="gw-sr-only"> endpoints</span></a>
+          </div>
+        </div>
+        <span class="gw-setup-map__connector" aria-hidden="true">
+          <span class="gw-setup-map__line"></span>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across" data-lucide="chevron-right"></i>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down" data-lucide="chevron-down"></i>
+        </span>
+      </li>
+      <li class="gw-setup-map__step" data-state="todo">
+        <div class="gw-card gw-card--dashed gw-setup-map__node">
+          <div class="gw-card__body gw-setup-map__body">
+            <span class="gw-icon-tile gw-icon-tile--neutral gw-setup-map__tile"><i class="gw-icon" data-lucide="app-window"></i></span>
+            <h3 class="gw-card__title gw-setup-map__title">AI apps</h3>
+            <p class="gw-card__description gw-setup-map__desc">Apps your agent works in</p>
+            <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">3 detected · needs an endpoint first</p>
+            <span class="gw-badge gw-badge--neutral gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="circle-dashed"></i>Not set up</span>
+            <a class="gw-btn gw-btn--link gw-setup-map__action" href="../pages/clients.html">Configure<span class="gw-sr-only"> AI apps</span></a>
+          </div>
+        </div>
+      </li>
+    </ol>
+    <p class="gw-text-caption gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--xs" data-lucide="arrow-left-right"></i> Set it up left to right (top to bottom when stacked). An agent's call travels the other way: AI app, endpoint, policy, connection, where the secret is injected.</p>
+  </section>
+
+  <!-- ───────────────────────── Needs attention ───────────────────────── -->
+  <section class="gw-section" aria-labelledby="s-attention">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-attention">Needs attention</h2>
+      <p class="gw-section__description"><code class="gw-code">billing-api</code> is unreachable and Cursor needs a restart. The badge says so, the status line names what, and the arrows beside those nodes turn neutral.</p>
+    </header>
+    <ol class="gw-setup-map" aria-label="Setup path" aria-describedby="sm-flow">
+      <li class="gw-setup-map__step" data-state="done">
+        <div class="gw-card gw-setup-map__node">
+          <div class="gw-card__body gw-setup-map__body">
+            <span class="gw-icon-tile gw-icon-tile--brand gw-setup-map__tile"><i class="gw-icon" data-lucide="key-round"></i></span>
+            <h3 class="gw-card__title gw-setup-map__title">Secrets &amp; resources</h3>
+            <p class="gw-card__description gw-setup-map__desc">Credentials the agent never sees</p>
+            <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">Master key backed up · 11 secrets</p>
+            <span class="gw-badge gw-badge--success gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="circle-check"></i>Done</span>
+            <a class="gw-btn gw-btn--link gw-setup-map__action" href="../pages/secrets.html">Configure<span class="gw-sr-only"> secrets</span></a>
+          </div>
+        </div>
+        <span class="gw-setup-map__connector" aria-hidden="true">
+          <span class="gw-setup-map__line"></span>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across" data-lucide="chevron-right"></i>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down" data-lucide="chevron-down"></i>
+        </span>
+      </li>
+      <li class="gw-setup-map__step" data-state="attention">
+        <div class="gw-card gw-setup-map__node">
+          <div class="gw-card__body gw-setup-map__body">
+            <span class="gw-icon-tile gw-icon-tile--warning gw-setup-map__tile"><i class="gw-icon" data-lucide="database"></i></span>
+            <h3 class="gw-card__title gw-setup-map__title">Connections</h3>
+            <p class="gw-card__description gw-setup-map__desc">Where tools run: databases, hosts, APIs</p>
+            <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">12 connections · <span class="gw-mono">billing-api</span> unreachable</p>
+            <span class="gw-badge gw-badge--warning gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="triangle-alert"></i>Needs attention</span>
+            <a class="gw-btn gw-btn--link gw-setup-map__action" href="../pages/connections.html">Configure<span class="gw-sr-only"> connections</span></a>
+          </div>
+        </div>
+        <p class="gw-setup-map__note gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--xs" data-lucide="lock-keyhole"></i><span>Secret injected here, never sent to the agent</span></p>
+        <span class="gw-setup-map__connector" aria-hidden="true">
+          <span class="gw-setup-map__line"></span>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across" data-lucide="chevron-right"></i>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down" data-lucide="chevron-down"></i>
+        </span>
+      </li>
+      <li class="gw-setup-map__step" data-state="done">
+        <div class="gw-card gw-setup-map__node">
+          <div class="gw-card__body gw-setup-map__body">
+            <span class="gw-icon-tile gw-icon-tile--brand gw-setup-map__tile"><i class="gw-icon" data-lucide="shield"></i></span>
+            <h3 class="gw-card__title gw-setup-map__title">Policies</h3>
+            <p class="gw-card__description gw-setup-map__desc">Decides each call: mode, limits, approval</p>
+            <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">3 environments · mutations need approval</p>
+            <span class="gw-badge gw-badge--success gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="circle-check"></i>Done</span>
+            <a class="gw-btn gw-btn--link gw-setup-map__action" href="../pages/policies.html">Configure<span class="gw-sr-only"> policies</span></a>
+          </div>
+        </div>
+        <span class="gw-setup-map__connector" aria-hidden="true">
+          <span class="gw-setup-map__line"></span>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across" data-lucide="chevron-right"></i>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down" data-lucide="chevron-down"></i>
+        </span>
+      </li>
+      <li class="gw-setup-map__step" data-state="done">
+        <div class="gw-card gw-setup-map__node">
+          <div class="gw-card__body gw-setup-map__body">
+            <span class="gw-icon-tile gw-icon-tile--brand gw-setup-map__tile"><i class="gw-icon" data-lucide="waypoints"></i></span>
+            <h3 class="gw-card__title gw-setup-map__title">Endpoints</h3>
+            <p class="gw-card__description gw-setup-map__desc">One MCP URL, with a token or OAuth</p>
+            <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">3 endpoints · 2 active tokens</p>
+            <span class="gw-badge gw-badge--success gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="circle-check"></i>Done</span>
+            <a class="gw-btn gw-btn--link gw-setup-map__action" href="../pages/endpoints.html">Configure<span class="gw-sr-only"> endpoints</span></a>
+          </div>
+        </div>
+        <span class="gw-setup-map__connector" aria-hidden="true">
+          <span class="gw-setup-map__line"></span>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across" data-lucide="chevron-right"></i>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down" data-lucide="chevron-down"></i>
+        </span>
+      </li>
+      <li class="gw-setup-map__step" data-state="attention">
+        <div class="gw-card gw-setup-map__node">
+          <div class="gw-card__body gw-setup-map__body">
+            <span class="gw-icon-tile gw-icon-tile--warning gw-setup-map__tile"><i class="gw-icon" data-lucide="app-window"></i></span>
+            <h3 class="gw-card__title gw-setup-map__title">AI apps</h3>
+            <p class="gw-card__description gw-setup-map__desc">Apps your agent works in</p>
+            <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">3 connected · Cursor needs restart</p>
+            <span class="gw-badge gw-badge--warning gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="triangle-alert"></i>Needs attention</span>
+            <a class="gw-btn gw-btn--link gw-setup-map__action" href="../pages/clients.html">Configure<span class="gw-sr-only"> AI apps</span></a>
+          </div>
+        </div>
+      </li>
+    </ol>
+    <p class="gw-text-caption gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--xs" data-lucide="arrow-left-right"></i> Set it up left to right (top to bottom when stacked). An agent's call travels the other way: AI app, endpoint, policy, connection, where the secret is injected.</p>
+  </section>
+
+  <!-- ───────────────────────── Wiring ───────────────────────── -->
+  <section class="gw-section" aria-labelledby="s-wiring">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-wiring">Wiring on endpoint-detail</h2>
+      <p class="gw-section__description">Endpoint dev in the middle: the AI apps that call it on the left, the connections its tools run on, with their environment and health, on the right.</p>
+    </header>
+    <p class="gw-sr-only" id="sm-wiring-flow">Claude Desktop and Codex call endpoint dev with their tokens; dev runs its tools on eight connections, which inject the secrets.</p>
+    <ol class="gw-setup-map gw-setup-map--wiring" aria-label="How endpoint dev connects" aria-describedby="sm-wiring-flow">
+      <li class="gw-setup-map__step" data-state="done">
+        <div class="gw-card gw-setup-map__node">
+          <header class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title"><span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--brand"><i class="gw-icon gw-icon--sm" data-lucide="app-window"></i></span>AI apps</h3>
+              <p class="gw-card__description">2 connected · 1 detected</p>
+            </div>
+          </header>
+          <div class="gw-card__body">
+            <ul class="gw-setup-map__list gw-text-small" aria-label="AI apps of endpoint dev">
+              <li class="gw-setup-map__item">
+                <span class="gw-client-mark gw-client-mark--sm gw-client-mark--claude" aria-hidden="true">CD</span>
+                <span class="gw-setup-map__name"><span>Claude Desktop</span></span>
+                <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Connected</span></span>
+              </li>
+              <li class="gw-setup-map__item">
+                <span class="gw-client-mark gw-client-mark--sm gw-client-mark--codex" aria-hidden="true">Cx</span>
+                <span class="gw-setup-map__name"><span>Codex</span></span>
+                <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Connected</span></span>
+              </li>
+              <li class="gw-setup-map__item">
+                <span class="gw-client-mark gw-client-mark--sm gw-client-mark--cursor" aria-hidden="true">Cu</span>
+                <span class="gw-setup-map__name"><span>Cursor</span></span>
+                <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Detected</span></span>
+              </li>
+            </ul>
+          </div>
+          <footer class="gw-card__footer gw-card__footer--split">
+            <span class="gw-text-caption gw-fg-muted">Each signs in with its own token</span>
+            <a class="gw-btn gw-btn--link" href="../pages/clients.html">Connect your AI app</a>
+          </footer>
+        </div>
+        <span class="gw-setup-map__connector" aria-hidden="true">
+          <span class="gw-setup-map__line"></span>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across" data-lucide="chevron-right"></i>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down" data-lucide="chevron-down"></i>
+        </span>
+      </li>
+      <li class="gw-setup-map__step" data-state="done">
+        <div class="gw-card gw-setup-map__node">
+          <header class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title"><span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--brand"><i class="gw-icon gw-icon--sm" data-lucide="waypoints"></i></span>Endpoint <code class="gw-code">dev</code></h3>
+              <p class="gw-card__description">22 tools · 8 connections · 3 tokens</p>
+            </div>
+          </header>
+          <div class="gw-card__body gw-setup-map__stack">
+            <div class="gw-copy-field" role="group" aria-label="Endpoint URL">
+              <code class="gw-copy-field__value" id="sm-wiring-url" title="http://127.0.0.1:7465/mcp/dev">http://127.0.0.1:7465/mcp/dev</code>
+              <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" data-gw-copy-from="#sm-wiring-url">
+                <span class="gw-copy-field__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> endpoint URL</span></span>
+                <span class="gw-copy-field__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+              </button>
+            </div>
+            <dl class="gw-kv gw-kv--dense">
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key">Sign-in</dt>
+                <dd class="gw-kv__value"><span class="gw-setup-map__chips"><span class="gw-badge"><i class="gw-icon gw-badge__icon" data-lucide="key-round"></i>Token</span><span class="gw-badge gw-badge--outline">OAuth off</span></span></dd>
+              </div>
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key">Tools</dt>
+                <dd class="gw-kv__value"><span class="gw-setup-map__chips"><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>14 read only</span><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>3 approval</span><span class="gw-mode gw-mode--off"><i class="gw-icon" data-lucide="circle-off"></i>5 off</span></span></dd>
+              </div>
+              <div class="gw-kv__row">
+                <dt class="gw-kv__key">Policy</dt>
+                <dd class="gw-kv__value">dev rules · mutations need approval</dd>
+              </div>
+            </dl>
+          </div>
+          <footer class="gw-card__footer">
+            <a class="gw-btn gw-btn--link" href="../pages/endpoint-detail.html#tools">Review tools and modes</a>
+          </footer>
+        </div>
+        <span class="gw-setup-map__connector" aria-hidden="true">
+          <span class="gw-setup-map__line"></span>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across" data-lucide="chevron-right"></i>
+          <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down" data-lucide="chevron-down"></i>
+        </span>
+      </li>
+      <li class="gw-setup-map__step" data-state="attention">
+        <div class="gw-card gw-setup-map__node">
+          <header class="gw-card__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title"><span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--warning"><i class="gw-icon gw-icon--sm" data-lucide="database"></i></span>Connections</h3>
+              <p class="gw-card__description">8 connections · 1 unreachable · 1 slow</p>
+            </div>
+            <div class="gw-card__actions">
+              <span class="gw-badge gw-badge--warning"><i class="gw-icon gw-badge__icon" data-lucide="triangle-alert"></i>Needs attention</span>
+            </div>
+          </header>
+          <div class="gw-card__body">
+            <ul class="gw-setup-map__list gw-text-small" aria-label="Connections of endpoint dev">
+              <li class="gw-setup-map__item">
+                <span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="database"></i></span>
+                <span class="gw-setup-map__name"><span class="gw-mono" title="dev-db">dev-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm">dev</span></span>
+                <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy · 12 ms</span></span>
+              </li>
+              <li class="gw-setup-map__item">
+                <span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="leaf"></i></span>
+                <span class="gw-setup-map__name"><span class="gw-mono" title="orders-mongo">orders-mongo</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm">dev</span></span>
+                <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span>
+              </li>
+              <li class="gw-setup-map__item">
+                <span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="layers"></i></span>
+                <span class="gw-setup-map__name"><span class="gw-mono" title="cache-redis">cache-redis</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm">dev</span></span>
+                <span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Slow · 1.8 s</span></span>
+              </li>
+              <li class="gw-setup-map__item">
+                <span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="terminal"></i></span>
+                <span class="gw-setup-map__name"><span class="gw-mono" title="dev-vm">dev-vm</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm">dev</span></span>
+                <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span>
+              </li>
+              <li class="gw-setup-map__item">
+                <span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="scroll-text"></i></span>
+                <span class="gw-setup-map__name"><span class="gw-mono" title="app-logs">app-logs</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm">dev</span></span>
+                <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span>
+              </li>
+              <li class="gw-setup-map__item">
+                <span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="ship-wheel"></i></span>
+                <span class="gw-setup-map__name"><span class="gw-mono" title="dev-cluster">dev-cluster</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm">dev</span></span>
+                <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span>
+              </li>
+              <li class="gw-setup-map__item">
+                <span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="cloud"></i></span>
+                <span class="gw-setup-map__name"><span class="gw-mono" title="aws-stage">aws-stage</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm">stage</span></span>
+                <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span>
+              </li>
+              <li class="gw-setup-map__item">
+                <span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="globe"></i></span>
+                <span class="gw-setup-map__name"><span class="gw-mono" title="billing-api">billing-api</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm">stage</span></span>
+                <span class="gw-status gw-status--danger"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Unreachable</span></span>
+              </li>
+            </ul>
+          </div>
+          <footer class="gw-card__footer gw-card__footer--split">
+            <p class="gw-setup-map__note gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--xs" data-lucide="lock-keyhole"></i><span>Secrets injected here, never sent to the agent</span></p>
+            <a class="gw-btn gw-btn--link" href="../pages/connections.html">View connections</a>
+          </footer>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ───────────────────────── Narrow column ───────────────────────── -->
+  <section class="gw-section" aria-labelledby="s-vertical">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-vertical">Narrow column</h2>
+      <p class="gw-section__description"><code class="gw-code">gw-setup-map--vertical</code> keeps the stacked chain at any window width, for the onboarding preview and side panels, so its sentence says top to bottom. Shown at half width: first run and needs attention.</p>
+    </header>
+    <div class="gw-grid gw-grid--2">
+      <ol class="gw-setup-map gw-setup-map--vertical" aria-label="Setup path" aria-describedby="sm-flow-vertical">
+        <li class="gw-setup-map__step" data-state="done">
+          <div class="gw-card gw-setup-map__node">
+            <div class="gw-card__body gw-setup-map__body">
+              <span class="gw-icon-tile gw-icon-tile--brand gw-setup-map__tile"><i class="gw-icon" data-lucide="key-round"></i></span>
+              <h3 class="gw-card__title gw-setup-map__title">Secrets &amp; resources</h3>
+              <p class="gw-card__description gw-setup-map__desc">Credentials the agent never sees</p>
+              <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">Master key ready · no secrets yet</p>
+              <span class="gw-badge gw-badge--success gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="circle-check"></i>Done</span>
+              <a class="gw-btn gw-btn--link gw-setup-map__action" href="../pages/secrets.html">Configure<span class="gw-sr-only"> secrets</span></a>
+            </div>
+          </div>
+          <span class="gw-setup-map__connector" aria-hidden="true">
+            <span class="gw-setup-map__line"></span>
+            <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across" data-lucide="chevron-right"></i>
+            <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down" data-lucide="chevron-down"></i>
+          </span>
+        </li>
+        <li class="gw-setup-map__step" data-state="todo">
+          <div class="gw-card gw-card--dashed gw-setup-map__node">
+            <div class="gw-card__body gw-setup-map__body">
+              <span class="gw-icon-tile gw-icon-tile--neutral gw-setup-map__tile"><i class="gw-icon" data-lucide="database"></i></span>
+              <h3 class="gw-card__title gw-setup-map__title">Connections</h3>
+              <p class="gw-card__description gw-setup-map__desc">Where tools run: databases, hosts, APIs</p>
+              <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">None yet · start here</p>
+              <span class="gw-badge gw-badge--neutral gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="circle-dashed"></i>Not set up</span>
+              <a class="gw-btn gw-btn--link gw-setup-map__action" href="../pages/connections.html">Configure<span class="gw-sr-only"> connections</span></a>
+            </div>
+          </div>
+          <p class="gw-setup-map__note gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--xs" data-lucide="lock-keyhole"></i><span>Secret injected here, never sent to the agent</span></p>
+          <span class="gw-setup-map__connector" aria-hidden="true">
+            <span class="gw-setup-map__line"></span>
+            <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across" data-lucide="chevron-right"></i>
+            <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down" data-lucide="chevron-down"></i>
+          </span>
+        </li>
+        <li class="gw-setup-map__step" data-state="todo">
+          <div class="gw-card gw-card--dashed gw-setup-map__node">
+            <div class="gw-card__body gw-setup-map__body">
+              <span class="gw-icon-tile gw-icon-tile--neutral gw-setup-map__tile"><i class="gw-icon" data-lucide="shield"></i></span>
+              <h3 class="gw-card__title gw-setup-map__title">Policies</h3>
+              <p class="gw-card__description gw-setup-map__desc">Decides each call: mode, limits, approval</p>
+              <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">Safe defaults · not reviewed yet</p>
+              <span class="gw-badge gw-badge--neutral gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="circle-dashed"></i>Not set up</span>
+              <a class="gw-btn gw-btn--link gw-setup-map__action" href="../pages/policies.html">Configure<span class="gw-sr-only"> policies</span></a>
+            </div>
+          </div>
+          <span class="gw-setup-map__connector" aria-hidden="true">
+            <span class="gw-setup-map__line"></span>
+            <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across" data-lucide="chevron-right"></i>
+            <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down" data-lucide="chevron-down"></i>
+          </span>
+        </li>
+        <li class="gw-setup-map__step" data-state="todo">
+          <div class="gw-card gw-card--dashed gw-setup-map__node">
+            <div class="gw-card__body gw-setup-map__body">
+              <span class="gw-icon-tile gw-icon-tile--neutral gw-setup-map__tile"><i class="gw-icon" data-lucide="waypoints"></i></span>
+              <h3 class="gw-card__title gw-setup-map__title">Endpoints</h3>
+              <p class="gw-card__description gw-setup-map__desc">One MCP URL, with a token or OAuth</p>
+              <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">None yet · needs a connection first</p>
+              <span class="gw-badge gw-badge--neutral gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="circle-dashed"></i>Not set up</span>
+              <a class="gw-btn gw-btn--link gw-setup-map__action" href="../pages/endpoints.html">Configure<span class="gw-sr-only"> endpoints</span></a>
+            </div>
+          </div>
+          <span class="gw-setup-map__connector" aria-hidden="true">
+            <span class="gw-setup-map__line"></span>
+            <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across" data-lucide="chevron-right"></i>
+            <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down" data-lucide="chevron-down"></i>
+          </span>
+        </li>
+        <li class="gw-setup-map__step" data-state="todo">
+          <div class="gw-card gw-card--dashed gw-setup-map__node">
+            <div class="gw-card__body gw-setup-map__body">
+              <span class="gw-icon-tile gw-icon-tile--neutral gw-setup-map__tile"><i class="gw-icon" data-lucide="app-window"></i></span>
+              <h3 class="gw-card__title gw-setup-map__title">AI apps</h3>
+              <p class="gw-card__description gw-setup-map__desc">Apps your agent works in</p>
+              <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">3 detected · needs an endpoint first</p>
+              <span class="gw-badge gw-badge--neutral gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="circle-dashed"></i>Not set up</span>
+              <a class="gw-btn gw-btn--link gw-setup-map__action" href="../pages/clients.html">Configure<span class="gw-sr-only"> AI apps</span></a>
+            </div>
+          </div>
+        </li>
+      </ol>
+      <ol class="gw-setup-map gw-setup-map--vertical" aria-label="Setup path" aria-describedby="sm-flow-vertical">
+        <li class="gw-setup-map__step" data-state="done">
+          <div class="gw-card gw-setup-map__node">
+            <div class="gw-card__body gw-setup-map__body">
+              <span class="gw-icon-tile gw-icon-tile--brand gw-setup-map__tile"><i class="gw-icon" data-lucide="key-round"></i></span>
+              <h3 class="gw-card__title gw-setup-map__title">Secrets &amp; resources</h3>
+              <p class="gw-card__description gw-setup-map__desc">Credentials the agent never sees</p>
+              <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">Master key backed up · 11 secrets</p>
+              <span class="gw-badge gw-badge--success gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="circle-check"></i>Done</span>
+              <a class="gw-btn gw-btn--link gw-setup-map__action" href="../pages/secrets.html">Configure<span class="gw-sr-only"> secrets</span></a>
+            </div>
+          </div>
+          <span class="gw-setup-map__connector" aria-hidden="true">
+            <span class="gw-setup-map__line"></span>
+            <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across" data-lucide="chevron-right"></i>
+            <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down" data-lucide="chevron-down"></i>
+          </span>
+        </li>
+        <li class="gw-setup-map__step" data-state="attention">
+          <div class="gw-card gw-setup-map__node">
+            <div class="gw-card__body gw-setup-map__body">
+              <span class="gw-icon-tile gw-icon-tile--warning gw-setup-map__tile"><i class="gw-icon" data-lucide="database"></i></span>
+              <h3 class="gw-card__title gw-setup-map__title">Connections</h3>
+              <p class="gw-card__description gw-setup-map__desc">Where tools run: databases, hosts, APIs</p>
+              <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">12 connections · <span class="gw-mono">billing-api</span> unreachable</p>
+              <span class="gw-badge gw-badge--warning gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="triangle-alert"></i>Needs attention</span>
+              <a class="gw-btn gw-btn--link gw-setup-map__action" href="../pages/connections.html">Configure<span class="gw-sr-only"> connections</span></a>
+            </div>
+          </div>
+          <p class="gw-setup-map__note gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--xs" data-lucide="lock-keyhole"></i><span>Secret injected here, never sent to the agent</span></p>
+          <span class="gw-setup-map__connector" aria-hidden="true">
+            <span class="gw-setup-map__line"></span>
+            <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across" data-lucide="chevron-right"></i>
+            <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down" data-lucide="chevron-down"></i>
+          </span>
+        </li>
+        <li class="gw-setup-map__step" data-state="done">
+          <div class="gw-card gw-setup-map__node">
+            <div class="gw-card__body gw-setup-map__body">
+              <span class="gw-icon-tile gw-icon-tile--brand gw-setup-map__tile"><i class="gw-icon" data-lucide="shield"></i></span>
+              <h3 class="gw-card__title gw-setup-map__title">Policies</h3>
+              <p class="gw-card__description gw-setup-map__desc">Decides each call: mode, limits, approval</p>
+              <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">3 environments · mutations need approval</p>
+              <span class="gw-badge gw-badge--success gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="circle-check"></i>Done</span>
+              <a class="gw-btn gw-btn--link gw-setup-map__action" href="../pages/policies.html">Configure<span class="gw-sr-only"> policies</span></a>
+            </div>
+          </div>
+          <span class="gw-setup-map__connector" aria-hidden="true">
+            <span class="gw-setup-map__line"></span>
+            <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across" data-lucide="chevron-right"></i>
+            <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down" data-lucide="chevron-down"></i>
+          </span>
+        </li>
+        <li class="gw-setup-map__step" data-state="done">
+          <div class="gw-card gw-setup-map__node">
+            <div class="gw-card__body gw-setup-map__body">
+              <span class="gw-icon-tile gw-icon-tile--brand gw-setup-map__tile"><i class="gw-icon" data-lucide="waypoints"></i></span>
+              <h3 class="gw-card__title gw-setup-map__title">Endpoints</h3>
+              <p class="gw-card__description gw-setup-map__desc">One MCP URL, with a token or OAuth</p>
+              <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">3 endpoints · 2 active tokens</p>
+              <span class="gw-badge gw-badge--success gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="circle-check"></i>Done</span>
+              <a class="gw-btn gw-btn--link gw-setup-map__action" href="../pages/endpoints.html">Configure<span class="gw-sr-only"> endpoints</span></a>
+            </div>
+          </div>
+          <span class="gw-setup-map__connector" aria-hidden="true">
+            <span class="gw-setup-map__line"></span>
+            <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across" data-lucide="chevron-right"></i>
+            <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down" data-lucide="chevron-down"></i>
+          </span>
+        </li>
+        <li class="gw-setup-map__step" data-state="attention">
+          <div class="gw-card gw-setup-map__node">
+            <div class="gw-card__body gw-setup-map__body">
+              <span class="gw-icon-tile gw-icon-tile--warning gw-setup-map__tile"><i class="gw-icon" data-lucide="app-window"></i></span>
+              <h3 class="gw-card__title gw-setup-map__title">AI apps</h3>
+              <p class="gw-card__description gw-setup-map__desc">Apps your agent works in</p>
+              <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">3 connected · Cursor needs restart</p>
+              <span class="gw-badge gw-badge--warning gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="triangle-alert"></i>Needs attention</span>
+              <a class="gw-btn gw-btn--link gw-setup-map__action" href="../pages/clients.html">Configure<span class="gw-sr-only"> AI apps</span></a>
+            </div>
+          </div>
+        </li>
+      </ol>
+    </div>
+    <p class="gw-text-caption gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--xs" data-lucide="arrow-up-down"></i> Set it up top to bottom. An agent's call travels the other way: AI app, endpoint, policy, connection, where the secret is injected.</p>
+  </section>
+
+</main>
+<script src="../vendor/lucide/lucide.min.js"></script>
+<script src="../assets/kit.js"></script>
+</body>
+</html>

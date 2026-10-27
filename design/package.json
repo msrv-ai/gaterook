@@ -1,0 +1,66 @@
+{
+  "name": "@gaterook/design-kit",
+  "version": "0.1.0",
+  "description": "GateRook design system: tokens (light, dark, high contrast), SCSS components, elements, app page references and AI consumption rules.",
+  "license": "UNLICENSED",
+  "private": true,
+  "type": "module",
+  "files": [
+    "tokens/",
+    "scss/",
+    "elements/",
+    "dist/",
+    "assets/",
+    "vendor/",
+    "pages/",
+    "manifest.json",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "DESIGN.md",
+    "COMPONENTS.md",
+    "BLUEPRINT.md",
+    "README.md"
+  ],
+  "style": "dist/gw-kit.css",
+  "sass": "scss/index.scss",
+  "exports": {
+    ".": {
+      "sass": "./scss/index.scss",
+      "default": "./dist/gw-kit.css"
+    },
+    "./css": "./dist/gw-kit.css",
+    "./scss": "./scss/index.scss",
+    "./tokens": "./tokens/tokens.json",
+    "./tokens.css": "./tokens/tokens.css",
+    "./theme-boot": "./assets/theme-boot.js",
+    "./manifest": "./manifest.json",
+    "./logo": "./assets/logo.svg",
+    "./logo.png": "./assets/logo.png",
+    "./logo-mark": "./assets/logo-mark.svg",
+    "./logo-mark.png": "./assets/logo-mark.png",
+    "./logo-mark-mono": "./assets/logo-mark-mono.svg"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "node scripts/check.mjs",
+    "verify": "node scripts/build.mjs && node scripts/check.mjs",
+    "build:site": "node scripts/build.mjs && node scripts/export-site.mjs",
+    "check:site": "node scripts/check-site.mjs",
+    "serve": "node scripts/serve.mjs",
+    "icons": "node scripts/icons.mjs"
+  },
+  "devDependencies": {
+    "parse5": "8.0.1",
+    "sass": "1.105.1"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "design-system",
+    "design-tokens",
+    "scss",
+    "mcp",
+    "gateway"
+  ]
+}

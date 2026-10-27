@@ -1,0 +1,63 @@
+// =============================================================
+// GateRook · Reset
+// -------------------------------------------------------------
+// Small modern reset + document defaults. Body text is the `body`
+// role (14/20 regular). Native controls follow the theme through
+// `color-scheme`, set by the tokens per theme.
+// =============================================================
+
+@use "tokens" as *;
+@use "mixins" as *;
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  tab-size: 2;
+}
+
+body {
+  margin: 0;
+  font-family: var(--gw-font-family-sans);
+  @include gw-type(body);
+  // Inter: l with tail (cv05) and I with serifs (cv08) so l / I / 1 never
+  // read alike in hostnames, slugs and token prefixes.
+  font-feature-settings: "cv05", "cv08";
+  color: var(--gw-color-text-primary);
+  background: var(--gw-color-bg-canvas);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4, h5, h6, p, figure, blockquote, dl, dd, pre { margin: 0; }
+h1, h2, h3, h4, h5, h6 { font-weight: var(--gw-font-weight-semibold); }
+ul[role="list"], ol[role="list"], ul[class], ol[class] { margin: 0; padding: 0; list-style: none; }
+
+a { color: var(--gw-color-text-link); text-underline-offset: 0.2em; }
+a:not([class]) { text-decoration: underline; }
+
+img, svg, video, canvas { display: block; max-width: 100%; }
+svg { flex-shrink: 0; }
+
+button, input, select, textarea { font: inherit; color: inherit; letter-spacing: inherit; }
+button { background: none; border: 0; padding: 0; }
+
+code, kbd, samp, pre { @include gw-mono; font-size: 1em; }
+
+table { border-collapse: collapse; border-spacing: 0; }
+
+::selection { background: var(--gw-color-brand-subtle); color: var(--gw-color-text-primary); }
+
+[hidden] { display: none !important; }
+
+// Reduced motion: transitions collapse globally. Animations are each
+// component's job: wrap travel in @include gw-motion { … } and give
+// loading indicators a calm alternative (opacity pulse) instead of none.
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 1ms !important; // raw: reduced-motion kill switch
+    scroll-behavior: auto !important;    // raw: reduced-motion kill switch
+  }
+}

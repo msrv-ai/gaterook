@@ -1,0 +1,6 @@
+# Signing keys never enter the repository (sign-index.mjs reads them from a file or MCP_GATEWAY_CATALOG_KEY).
+*.pem
+*.key
+*.seed
+# What a signing run writes.
+dist/

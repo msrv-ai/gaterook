@@ -1,0 +1,127 @@
+# tool | arguments (the connection is mongodb://127.0.0.1:1/orders) | namespace allowlist (- for none) | expected: READ or the rule
+# ── plain reads ───────────────────────────────────────────────────────────────────────────────────────────────────
+mongo_find | {"collection":"orders"} | - | READ
+mongo_find | {"collection":"orders","filter":{"status":"paid"},"projection":{"status":1},"sort":{"_id":-1},"limit":5} | - | READ
+mongo_find | {"collection":"orders","filter":"{\"_id\": ObjectId('6717a1f2c3b4d5e6f7a8b9c0')}"} | - | READ
+mongo_find | {"collection":"orders","filter":"{created_at: {$gte: ISODate('2026-10-22T00:00:00Z')}}"} | - | READ
+mongo_find | {"collection":"orders","filter":{"created_at":{"$gte":{"$date":"2026-10-22T00:00:00Z"}}}} | - | READ
+mongo_find | {"collection":"orders","filter":{"n":{"$numberLong":"9007199254740993"}}} | - | READ
+mongo_find | {"collection":"orders","filter":{"$expr":{"$gt":["$total","$limit"]}}} | - | READ
+mongo_find | {"collection":"orders","filter":{"note":"$out is just text"}} | - | READ
+mongo_find | {"collection":"orders","filter":{"note":{"$regex":"^\\$where"}}} | - | READ
+mongo_find | {"collection":"orders","database":"inventory"} | - | READ
+mongo_find | {"collection":"orders.archive"} | - | READ
+mongo_find | {"collection":"orders","filter":{"$text":{"$search":"refund"}}} | - | READ
+mongo_find | {"collection":"orders","filter":{"loc":{"$near":{"$geometry":{"type":"Point","coordinates":[13.4,52.5]}}}}} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$match":{"status":"paid"}},{"$group":{"_id":"$customer","n":{"$sum":1}}}]} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$match":{}},{"$sort":{"_id":1}},{"$skip":5},{"$limit":3}]} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$addFields":{"x":1}},{"$set":{"y":2}},{"$unset":"z"},{"$project":{"x":1}}]} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$bucket":{"groupBy":"$total","boundaries":[0,10,100]}},{"$count":"n"}]} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$bucketAuto":{"groupBy":"$total","buckets":4}}]} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$facet":{"a":[{"$match":{}}],"b":[{"$count":"n"}]}}]} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$lookup":{"from":"customers","localField":"customer","foreignField":"_id","as":"c"}}]} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$lookup":{"from":"customers","let":{"c":"$customer"},"pipeline":[{"$match":{"$expr":{"$eq":["$_id","$$c"]}}}],"as":"c"}}]} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$graphLookup":{"from":"orders","startWith":"$parent","connectFromField":"parent","connectToField":"_id","as":"chain"}}]} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$unionWith":"archive"}]} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$unionWith":{"coll":"archive","pipeline":[{"$match":{}}]}}]} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$unionWith":{"pipeline":[{"$documents":[{"x":1}]}]}}]} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$replaceRoot":{"newRoot":"$customer"}},{"$replaceWith":"$$ROOT"}]} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$sample":{"size":3}},{"$sortByCount":"$status"}]} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$unwind":"$items"},{"$redact":"$$DESCEND"}]} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$setWindowFields":{"sortBy":{"t":1},"output":{"s":{"$sum":"$v"}}}}]} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$densify":{"field":"t","range":{"step":1,"bounds":"full"}}},{"$fill":{"output":{"v":{"value":0}}}}]} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$geoNear":{"near":{"type":"Point","coordinates":[0,0]},"distanceField":"d"}}]} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$collStats":{"count":{}}}]} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$indexStats":{}}]} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$listSearchIndexes":{}}]} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$search":{"text":{"query":"x","path":"title"}}},{"$searchMeta":{"count":{"type":"total"}}}]} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$vectorSearch":{"index":"v","path":"e","queryVector":[0.1],"limit":3,"numCandidates":10}}]} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$score":{"score":"$s"}}]} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$rankFusion":{"input":{"pipelines":{"a":[{"$match":{}}],"b":[{"$sort":{"x":1}}]}}}}]} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$scoreFusion":{"input":{"pipelines":{"a":[{"$match":{}}]}}}}]} | - | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$group":{"_id":null,"l":{"$literal":"$out"}}}]} | - | READ
+# ── writes at any depth ───────────────────────────────────────────────────────────────────────────────────────────
+mongo_aggregate | {"collection":"orders","pipeline":[{"$out":"stolen"}]} | - | write-stage
+mongo_aggregate | {"collection":"orders","pipeline":[{"$match":{}},{"$merge":{"into":"stolen"}}]} | - | write-stage
+mongo_aggregate | {"collection":"orders","pipeline":[{"$facet":{"a":[{"$out":"stolen"}]}}]} | - | write-stage
+mongo_aggregate | {"collection":"orders","pipeline":[{"$facet":{"a":[{"$match":{}}],"b":[{"$merge":"stolen"}]}}]} | - | write-stage
+mongo_aggregate | {"collection":"orders","pipeline":[{"$lookup":{"from":"customers","pipeline":[{"$out":"stolen"}],"as":"c"}}]} | - | write-stage
+mongo_aggregate | {"collection":"orders","pipeline":[{"$unionWith":{"coll":"archive","pipeline":[{"$merge":{"into":"stolen"}}]}}]} | - | write-stage
+mongo_aggregate | {"collection":"orders","pipeline":[{"$group":{"_id":null,"x":{"$first":{"$literal":{"$out":"x"}}}}}]} | - | write-stage
+mongo_aggregate | {"collection":"orders","pipeline":[{"$rankFusion":{"input":{"pipelines":{"a":[{"$out":"stolen"}]}}}}]} | - | write-stage
+mongo_find | {"collection":"orders","filter":{"$out":"stolen"}} | - | write-stage
+mongo_find | {"collection":"orders","projection":{"a":{"$merge":1}}} | - | write-stage
+mongo_find | {"collection":"orders","filter":"{a: {b: [{c: {$out: 1}}]}}"} | - | write-stage
+# ── server-side JavaScript ────────────────────────────────────────────────────────────────────────────────────────
+mongo_find | {"collection":"orders","filter":{"$where":"this.total > 100"}} | - | server-js
+mongo_find | {"collection":"orders","filter":"{$where: 'sleep(10000) || true'}"} | - | server-js
+mongo_find | {"collection":"orders","filter":{"$expr":{"$function":{"body":"function(){return true}","args":[],"lang":"js"}}}} | - | server-js
+mongo_find | {"collection":"orders","filter":{"$and":[{"a":1},{"$where":"1"}]}} | - | server-js
+mongo_find | {"collection":"orders","projection":{"x":{"$function":{"body":"f","args":[],"lang":"js"}}}} | - | server-js
+mongo_find | {"collection":"orders","sort":{"$where":1}} | - | server-js
+mongo_aggregate | {"collection":"orders","pipeline":[{"$match":{"$where":"true"}}]} | - | server-js
+mongo_aggregate | {"collection":"orders","pipeline":[{"$group":{"_id":null,"x":{"$accumulator":{"init":"function(){}","accumulate":"f","accumulateArgs":[],"merge":"f","lang":"js"}}}}]} | - | server-js
+mongo_aggregate | {"collection":"orders","pipeline":[{"$lookup":{"from":"customers","pipeline":[{"$match":{"$where":"1"}}],"as":"c"}}]} | - | server-js
+mongo_aggregate | {"collection":"orders","pipeline":[{"$addFields":{"x":{"$function":{"body":"f","args":[],"lang":"js"}}}}]} | - | server-js
+mongo_aggregate | {"collection":"orders","pipeline":[{"$facet":{"a":[{"$project":{"x":{"$function":{"body":"f","args":[],"lang":"js"}}}}]}}]} | - | server-js
+# ── stages the gateway refuses ────────────────────────────────────────────────────────────────────────────────────
+mongo_aggregate | {"collection":"orders","pipeline":[{"$currentOp":{}}]} | - | stage-not-allowed
+mongo_aggregate | {"collection":"orders","pipeline":[{"$changeStream":{}}]} | - | stage-not-allowed
+mongo_aggregate | {"collection":"orders","pipeline":[{"$changeStreamSplitLargeEvent":{}}]} | - | stage-not-allowed
+mongo_aggregate | {"collection":"orders","pipeline":[{"$listLocalSessions":{}}]} | - | stage-not-allowed
+mongo_aggregate | {"collection":"orders","pipeline":[{"$listSessions":{}}]} | - | stage-not-allowed
+mongo_aggregate | {"collection":"orders","pipeline":[{"$listSampledQueries":{}}]} | - | stage-not-allowed
+mongo_aggregate | {"collection":"orders","pipeline":[{"$planCacheStats":{}}]} | - | stage-not-allowed
+mongo_aggregate | {"collection":"orders","pipeline":[{"$querySettings":{}}]} | - | stage-not-allowed
+mongo_aggregate | {"collection":"orders","pipeline":[{"$queryStats":{}}]} | - | stage-not-allowed
+mongo_aggregate | {"collection":"orders","pipeline":[{"$shardedDataDistribution":{}}]} | - | stage-not-allowed
+mongo_aggregate | {"collection":"orders","pipeline":[{"$listClusterCatalog":{}}]} | - | stage-not-allowed
+mongo_aggregate | {"collection":"orders","pipeline":[{"$sql":{"statement":"select 1"}}]} | - | stage-not-allowed
+mongo_aggregate | {"collection":"orders","pipeline":[{"$Out":"stolen"}]} | - | stage-not-allowed
+mongo_aggregate | {"collection":"orders","pipeline":[{"$match":{}},{"$facet":{"a":[{"$currentOp":{}}]}}]} | - | stage-not-allowed
+mongo_aggregate | {"collection":"orders","pipeline":[{"$lookup":{"from":"customers","pipeline":[{"$changeStream":{}}],"as":"c"}}]} | - | stage-not-allowed
+mongo_aggregate | {"collection":"orders","pipeline":[{"$unionWith":{"coll":"archive","pipeline":[{"$planCacheStats":{}}]}}]} | - | stage-not-allowed
+mongo_aggregate | {"collection":"orders","pipeline":[{"match":{}}]} | - | stage-not-allowed
+# ── malformed stages ──────────────────────────────────────────────────────────────────────────────────────────────
+mongo_aggregate | {"collection":"orders","pipeline":[{"$match":{},"$limit":1}]} | - | bad-stage
+mongo_aggregate | {"collection":"orders","pipeline":[{}]} | - | bad-stage
+mongo_aggregate | {"collection":"orders","pipeline":[{"$facet":{"a":{"$match":{}}}}]} | - | bad-stage
+mongo_aggregate | {"collection":"orders","pipeline":[{"$lookup":{"from":5,"localField":"a","foreignField":"b","as":"c"}}]} | - | bad-stage
+# ── namespaces ────────────────────────────────────────────────────────────────────────────────────────────────────
+mongo_find | {"database":"admin","collection":"system.users"} | - | namespace-not-allowed
+mongo_find | {"database":"admin","collection":"anything"} | - | namespace-not-allowed
+mongo_find | {"database":"local","collection":"oplog.rs"} | - | namespace-not-allowed
+mongo_find | {"database":"config","collection":"chunks"} | - | namespace-not-allowed
+mongo_find | {"collection":"system.profile"} | - | namespace-not-allowed
+mongo_find | {"collection":"system.views"} | - | namespace-not-allowed
+mongo_aggregate | {"collection":"orders","pipeline":[{"$lookup":{"from":"system.users","localField":"a","foreignField":"b","as":"c"}}]} | - | namespace-not-allowed
+mongo_aggregate | {"collection":"orders","pipeline":[{"$lookup":{"from":{"db":"admin","coll":"system.users"},"localField":"a","foreignField":"b","as":"c"}}]} | - | namespace-not-allowed
+mongo_aggregate | {"collection":"orders","pipeline":[{"$unionWith":"system.profile"}]} | - | namespace-not-allowed
+mongo_aggregate | {"collection":"orders","pipeline":[{"$graphLookup":{"from":"system.js","startWith":"$a","connectFromField":"a","connectToField":"b","as":"c"}}]} | - | namespace-not-allowed
+mongo_aggregate | {"database":"local","collection":"oplog.rs","pipeline":[{"$match":{}}]} | - | namespace-not-allowed
+mongo_find | {"collection":"orders"} | orders.orders | READ
+mongo_find | {"collection":"customers"} | orders.orders | namespace-not-allowed
+mongo_find | {"collection":"customers"} | orders.* | READ
+mongo_find | {"collection":"system.profile"} | orders.* | namespace-not-allowed
+mongo_find | {"database":"inventory","collection":"items"} | orders.* | namespace-not-allowed
+mongo_find | {"database":"local","collection":"oplog.rs"} | local.oplog.rs | READ
+mongo_find | {"database":"local","collection":"startup_log"} | local.oplog.rs | namespace-not-allowed
+mongo_find | {"database":"admin","collection":"system.users"} | admin.* | namespace-not-allowed
+mongo_aggregate | {"collection":"orders","pipeline":[{"$lookup":{"from":"customers","localField":"a","foreignField":"b","as":"c"}}]} | orders.orders | namespace-not-allowed
+mongo_aggregate | {"collection":"orders","pipeline":[{"$unionWith":{"coll":"archive","pipeline":[]}}]} | orders.orders,orders.archive | READ
+mongo_aggregate | {"collection":"orders","pipeline":[{"$unionWith":{"coll":"archive","pipeline":[{"$lookup":{"from":"secrets","localField":"a","foreignField":"b","as":"s"}}]}}]} | orders.orders,orders.archive | namespace-not-allowed
+# ── arguments the gateway can't read ──────────────────────────────────────────────────────────────────────────────
+mongo_find | {"collection":"orders","filter":"{status: 'paid'"} | - | bad-argument
+mongo_find | {"collection":"orders","filter":"{\"a\":1} {\"$out\":\"x\"}"} | - | bad-argument
+mongo_find | {"collection":"orders","filter":"{a: ObjectId('zz')}"} | - | bad-argument
+mongo_find | {"collection":"orders","filter":"{\"a\": /\"/, \"b\": [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]], \"c\": /\"/}"} | - | bad-argument
+mongo_find | {"collection":"orders","filter":"[1,2]"} | - | bad-argument
+mongo_find | {"collection":"orders","filter":5} | - | bad-argument
+mongo_find | {"collection":"or$ders"} | - | bad-argument
+mongo_find | {"database":"a/b","collection":"orders"} | - | bad-argument
+mongo_find | {"database":"","collection":""} | - | bad-argument
+mongo_find | {"collection":"orders","limit":0} | - | bad-argument
+mongo_find | {"collection":"orders","limit":1001} | - | bad-argument
+mongo_find | {"collection":"orders","skip":-1} | - | bad-argument
+mongo_aggregate | {"collection":"orders","pipeline":[]} | - | bad-argument
+mongo_aggregate | {"collection":"orders","pipeline":{"$match":{}}} | - | bad-argument

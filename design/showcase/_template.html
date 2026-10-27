@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Showcase · GateRook Design Kit</title>
+<link rel="icon" href="../assets/logo-mark.svg" type="image/svg+xml">
+<script src="../assets/theme-boot.js"></script>
+<link rel="stylesheet" href="../dist/gw-kit.css">
+<!-- @GENERATED -->
+<style>
+  /* Showcase layout only (sc-*). Not part of the kit. Colour and type from tokens; layout sizes are local to this page. */
+  .sc-shell { display: grid; grid-template-columns: 248px minmax(0, 1fr); min-height: 100vh; }
+  .sc-side { position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: var(--gw-space-5) var(--gw-space-4); background: var(--gw-color-bg-sidebar); border-right: 1px solid var(--gw-color-border-default); }
+  .sc-side .gw-logo { margin-bottom: var(--gw-space-5); }
+  .sc-nav__group { margin-bottom: var(--gw-space-4); }
+  .sc-nav__label { margin: 0 0 var(--gw-space-1); padding-inline: var(--gw-space-2); font-size: var(--gw-font-size-2xs); line-height: var(--gw-font-line-height-xs); font-weight: var(--gw-font-weight-semibold); letter-spacing: var(--gw-font-tracking-overline); text-transform: uppercase; color: var(--gw-color-text-muted); }
+  .sc-nav__group ul { list-style: none; margin: 0; padding: 0; }
+  .sc-nav__group a { display: block; padding: var(--gw-space-1) var(--gw-space-2); border-radius: var(--gw-radius-sm); color: var(--gw-color-text-secondary); text-decoration: none; font-size: var(--gw-font-size-sm); }
+  .sc-nav__group a:hover { background: var(--gw-color-bg-hover); color: var(--gw-color-text-primary); }
+  .sc-nav__group a:focus-visible { outline: var(--gw-focus-width) solid var(--gw-color-border-focus); outline-offset: calc(-1 * var(--gw-focus-width)); }
+  .sc-main { padding: var(--gw-space-8) var(--gw-space-10) var(--gw-space-16); min-width: 0; }
+  .sc-hero { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--gw-space-6); margin-bottom: var(--gw-space-10); }
+  .sc-hero p { max-width: 720px; margin-top: var(--gw-space-2); }
+  .sc-appearance { display: flex; flex-wrap: wrap; gap: var(--gw-space-4); align-items: center; }
+  .sc-appearance fieldset { display: flex; gap: var(--gw-space-1); margin: 0; padding: var(--gw-space-1); border: 1px solid var(--gw-color-border-default); border-radius: var(--gw-radius-sm); background: var(--gw-color-bg-surface); }
+  .sc-appearance legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .sc-appearance label { display: inline-flex; align-items: center; gap: var(--gw-space-1); padding: var(--gw-space-1) var(--gw-space-2); border-radius: var(--gw-radius-xs); font-size: var(--gw-font-size-sm); cursor: pointer; }
+  .sc-appearance input { accent-color: var(--gw-color-brand-solid); }
+  .sc-appearance label:has(input:checked) { background: var(--gw-color-bg-selected); color: var(--gw-color-brand-fg); font-weight: var(--gw-font-weight-semibold); }
+  .sc-section { margin-bottom: var(--gw-space-16); scroll-margin-top: var(--gw-space-6); }
+  .sc-section > h2 { display: flex; align-items: baseline; gap: var(--gw-space-3); flex-wrap: wrap; margin-bottom: var(--gw-space-2); font-size: var(--gw-font-size-2xl); line-height: var(--gw-font-line-height-xl); letter-spacing: var(--gw-font-tracking-tight); }
+  .sc-section > p, .sc-lead { max-width: 820px; margin-bottom: var(--gw-space-4); color: var(--gw-color-text-secondary); line-height: 22px; }
+  .sc-section h3 { margin: var(--gw-space-6) 0 var(--gw-space-2); font-size: var(--gw-font-size-md); }
+  .sc-demo { display: flex; flex-wrap: wrap; gap: var(--gw-space-3); align-items: center; padding: var(--gw-space-5); background: var(--gw-color-bg-surface); border: 1px solid var(--gw-color-border-default); border-radius: var(--gw-radius-md); }
+  .sc-demo--col { flex-direction: column; flex-wrap: nowrap; align-items: stretch; }
+  .sc-demo--canvas { background: var(--gw-color-bg-canvas); }
+  .sc-demo--static .gw-menu, .sc-demo--static .gw-popover { position: static; }
+  .sc-demo + .sc-demo { margin-top: var(--gw-space-3); }
+  .sc-code { margin-top: var(--gw-space-2); }
+  .sc-code > summary { cursor: pointer; width: fit-content; padding: var(--gw-space-1) 0; font-size: var(--gw-font-size-sm); color: var(--gw-color-text-muted); }
+  .sc-code > summary:focus-visible { outline: var(--gw-focus-width) solid var(--gw-color-border-focus); outline-offset: var(--gw-focus-offset); border-radius: var(--gw-radius-xs); }
+  .sc-code pre { margin-top: var(--gw-space-2); padding: var(--gw-space-3) var(--gw-space-4); overflow: auto; font-size: var(--gw-font-size-xs); line-height: var(--gw-font-line-height-sm); color: var(--gw-color-code-text); background: var(--gw-color-code-bg); border: 1px solid var(--gw-color-border-subtle); border-radius: var(--gw-radius-md); }
+  .sc-themes { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--gw-space-3); }
+  .sc-themes > div { padding: var(--gw-space-5); color: var(--gw-color-text-primary); background: var(--gw-color-bg-canvas); border: 1px solid var(--gw-color-border-default); border-radius: var(--gw-radius-md); }
+  .sc-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: var(--gw-space-3); margin-bottom: var(--gw-space-6); }
+  .sc-swatch { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: var(--gw-space-3); align-items: center; padding: var(--gw-space-2); background: var(--gw-color-bg-surface); border: 1px solid var(--gw-color-border-subtle); border-radius: var(--gw-radius-md); }
+  .sc-swatch__chip { width: 40px; height: 40px; border-radius: var(--gw-radius-sm); border: 1px solid var(--gw-color-border-default); }
+  .sc-swatch__name { font-family: var(--gw-font-family-mono); font-size: var(--gw-font-size-xs); line-height: var(--gw-font-line-height-xs); overflow-wrap: anywhere; }
+  .sc-swatch__val { font-family: var(--gw-font-family-mono); font-size: var(--gw-font-size-2xs); color: var(--gw-color-text-muted); }
+  .sc-ramp { display: grid; gap: var(--gw-space-3); }
+  .sc-ramp__row { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: var(--gw-space-4); align-items: baseline; padding-bottom: var(--gw-space-3); border-bottom: 1px solid var(--gw-color-border-subtle); }
+  .sc-ramp__meta { font-family: var(--gw-font-family-mono); font-size: var(--gw-font-size-xs); color: var(--gw-color-text-muted); }
+  .sc-scale { display: grid; gap: var(--gw-space-2); }
+  .sc-scale__row { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: var(--gw-space-4); align-items: center; }
+  .sc-scale__bar { height: 12px; background: var(--gw-color-brand-solid); border-radius: var(--gw-radius-xs); }
+  .sc-boxes { display: flex; flex-wrap: wrap; gap: var(--gw-space-4); }
+  .sc-box { display: flex; align-items: flex-end; justify-content: center; width: 112px; height: 88px; padding: var(--gw-space-2); font-family: var(--gw-font-family-mono); font-size: var(--gw-font-size-2xs); color: var(--gw-color-text-muted); background: var(--gw-color-bg-surface); border: 1px solid var(--gw-color-border-default); }
+  @media (max-width: 960px) { .sc-shell { grid-template-columns: 1fr; } .sc-side { position: static; height: auto; } .sc-main { padding: var(--gw-space-6) var(--gw-space-4); } }
+</style>
+</head>
+<body>
+<a class="gw-skip-link" href="#main">Skip to content</a>
+<div class="sc-shell">
+  <nav class="sc-side" aria-label="Showcase sections">
+    <a class="gw-logo" href="index.html" aria-label="GateRook design kit, pages index">
+      <img class="gw-logo__mark" src="../assets/logo-mark.svg" alt="">
+      <span class="gw-logo__name">GateRook</span>
+    </a>
+    <!-- @NAV -->
+  </nav>
+  <main class="sc-main" id="main" tabindex="-1">
+    <div class="sc-hero">
+      <div>
+        <p class="gw-text-overline">Design kit</p>
+        <h1 class="gw-text-display">Showcase</h1>
+        <p class="gw-text-body-read">Every foundation and component of the kit, live, in one scroll. Switch the theme to check light, dark and high contrast; each section shows the markup to copy. Generated by <code class="gw-code">npm run build</code> from <code class="gw-code">tokens/tokens.json</code> and <code class="gw-code">showcase/*.html</code>.</p>
+      </div>
+      <div class="sc-appearance">
+        <fieldset>
+          <legend>Theme</legend>
+          <label><input type="radio" name="gw-theme" value="system"> System</label>
+          <label><input type="radio" name="gw-theme" value="light"> Light</label>
+          <label><input type="radio" name="gw-theme" value="dark"> Dark</label>
+        </fieldset>
+        <fieldset>
+          <legend>Contrast</legend>
+          <label><input type="radio" name="gw-contrast" value="system"> System</label>
+          <label><input type="radio" name="gw-contrast" value="normal"> Normal</label>
+          <label><input type="radio" name="gw-contrast" value="more"> High</label>
+        </fieldset>
+      </div>
+    </div>
+
+<!-- @SECTIONS -->
+
+  </main>
+</div>
+<script src="../vendor/lucide/lucide.min.js"></script>
+<script src="../assets/kit.js"></script>
+<script src="../assets/promo-flow.js"></script>
+</body>
+</html>

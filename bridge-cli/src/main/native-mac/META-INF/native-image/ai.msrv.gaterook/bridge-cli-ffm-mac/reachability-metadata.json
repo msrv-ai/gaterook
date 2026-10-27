@@ -1,0 +1,8 @@
+{
+  "foreign": {
+    "downcalls": [
+      { "returnType": "jint", "parameterTypes": ["void*", "void*", "void*"],
+        "options": { "captureCallState": true } }
+    ]
+  }
+}

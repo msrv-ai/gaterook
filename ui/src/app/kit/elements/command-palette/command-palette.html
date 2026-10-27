@@ -1,0 +1,142 @@
+@if (preview()) {
+  <div class="gw-dialog gw-dialog--md gw-command-palette gw-command-palette--preview" role="group" [attr.aria-label]="previewLabel()">
+    <ng-container *ngTemplateOutlet="body" />
+  </div>
+} @else {
+  <dialog
+    #dlg="gwDialog"
+    gwDialog
+    class="gw-dialog gw-dialog--md gw-command-palette"
+    [id]="p()"
+    [attr.aria-labelledby]="p() + '-title'"
+    [attr.aria-describedby]="p() + '-keys'"
+    (closed)="onClosed()"
+  >
+    <h2 class="gw-sr-only" [id]="p() + '-title'">Command palette</h2>
+    <ng-container *ngTemplateOutlet="body" />
+  </dialog>
+}
+
+<ng-template #body>
+  <div class="gw-command-palette__search">
+    <div class="gw-search">
+      <svg lucideIcon="search" class="gw-icon gw-search__icon"></svg>
+      <input
+        #field
+        class="gw-search__input"
+        type="search"
+        [id]="p() + '-q'"
+        role="combobox"
+        [attr.aria-expanded]="visible().length > 0"
+        [attr.aria-controls]="p() + '-list'"
+        aria-autocomplete="list"
+        [attr.aria-activedescendant]="activeId() ? p() + '-o-' + activeId() : null"
+        aria-label="Search pages, connections, endpoints, actions"
+        placeholder="Search pages, connections, endpoints, actions"
+        autocomplete="off"
+        spellcheck="false"
+        [attr.autofocus]="preview() ? null : ''"
+        [value]="query()"
+        (input)="onInput(field.value)"
+        (keydown)="onKeydown($event)"
+      />
+      <button class="gw-search__clear" type="button" aria-label="Clear search">
+        <svg lucideIcon="x" class="gw-icon gw-icon--sm"></svg>
+      </button>
+    </div>
+  </div>
+  <div class="gw-command-palette__results" #results>
+    <div
+      class="gw-command-palette__list"
+      role="listbox"
+      [id]="p() + '-list'"
+      aria-label="Results"
+      [hidden]="visible().length === 0"
+      (mousemove)="onMouseMove($event)"
+    >
+      @for (g of groups; track g.id) {
+        <div class="gw-menu__group" role="group" [attr.aria-labelledby]="p() + '-g-' + g.id" [hidden]="groupHidden(g.id)">
+          <p class="gw-menu__note" [id]="p() + '-g-' + g.id" aria-hidden="true">{{ g.label }}</p>
+          @for (o of options(); track o.id) {
+            @if (o.group === g.id) {
+              @if (o.route) {
+                <a
+                  class="gw-menu__item"
+                  role="option"
+                  [id]="optionId(o)"
+                  [routerLink]="o.route.split('#')[0]"
+                  [fragment]="o.route.split('#')[1]"
+                  [attr.aria-selected]="activeId() === o.id"
+                  [class.gw-menu__item--active]="activeId() === o.id"
+                  [hidden]="!visibleIds().has(o.id)"
+                  tabindex="-1"
+                  [attr.aria-keyshortcuts]="o.keyshortcuts"
+                  (click)="close()"
+                >
+                  <ng-container *ngTemplateOutlet="row; context: { $implicit: o }" />
+                </a>
+              } @else {
+                <button
+                  class="gw-menu__item"
+                  type="button"
+                  role="option"
+                  [id]="optionId(o)"
+                  [attr.aria-selected]="activeId() === o.id"
+                  [class.gw-menu__item--active]="activeId() === o.id"
+                  [hidden]="!visibleIds().has(o.id)"
+                  tabindex="-1"
+                  (click)="run(o)"
+                >
+                  <ng-container *ngTemplateOutlet="row; context: { $implicit: o }" />
+                </button>
+              }
+            }
+          }
+        </div>
+      }
+    </div>
+
+    <div class="gw-empty gw-empty--compact" [hidden]="visible().length > 0">
+      <span class="gw-empty__icon"><svg lucideIcon="search-x" class="gw-icon"></svg></span>
+      <p class="gw-empty__title">No results for “{{ query().trim() }}”</p>
+      <p class="gw-empty__text">
+        Search covers pages, actions, connections and endpoints. A resource that isn't here yet starts with a new connection.
+      </p>
+      <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" routerLink="/connections/new" (click)="close()">Add connection</a></div>
+    </div>
+  </div>
+  <footer class="gw-dialog__footer gw-command-palette__footer" [attr.id]="preview() ? null : p() + '-keys'">
+    <p class="gw-command-palette__hint gw-text-caption gw-fg-muted">
+      <kbd class="gw-kbd"><svg lucideIcon="arrow-up" class="gw-icon"></svg><span class="gw-sr-only">Up arrow</span></kbd
+      ><kbd class="gw-kbd"><svg lucideIcon="arrow-down" class="gw-icon"></svg><span class="gw-sr-only">Down arrow</span></kbd> to move
+    </p>
+    <p class="gw-command-palette__hint gw-text-caption gw-fg-muted">
+      <kbd class="gw-kbd"><svg lucideIcon="corner-down-left" class="gw-icon"></svg><span class="gw-sr-only">Enter</span></kbd> to open
+    </p>
+    <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd">Esc</kbd> to close</p>
+  </footer>
+  <p class="gw-sr-only" role="status">{{ status() }}</p>
+</ng-template>
+
+
+<ng-template #row let-o>
+  <svg [lucideIcon]="o.icon" class="gw-icon gw-menu__icon"></svg>
+  @if (o.env) {
+    <span class="gw-menu__label"
+      ><span class="gw-mono">{{ o.label }}</span> <span class="gw-sr-only">environment</span>
+      <span [class]="'gw-env gw-env--sm gw-env--' + o.env">{{ o.env }}</span></span
+    >
+  } @else if (o.counter) {
+    <span class="gw-menu__label"
+      >{{ o.label }} <span class="gw-counter gw-counter--attention">{{ o.counter }}<span class="gw-sr-only"> waiting</span></span></span
+    >
+  } @else {
+    <span class="gw-menu__label" [class.gw-mono]="o.mono">{{ o.label }}@if (o.labelMono) {{{ ' ' }}<span class="gw-mono">{{ o.labelMono }}</span>}</span>
+  }
+  @if (o.kbd) {
+    <kbd class="gw-menu__kbd" aria-hidden="true">{{ o.kbd }}</kbd>
+  } @else if (o.hint) {
+    <span class="gw-menu__hint" [class.gw-mono]="o.hintMono">{{ o.hint }}</span>
+  }
+  <svg lucideIcon="corner-down-left" class="gw-icon gw-menu__check"></svg>
+</ng-template>

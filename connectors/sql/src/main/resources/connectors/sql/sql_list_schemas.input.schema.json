@@ -1,0 +1,28 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "schema": {
+      "type": "string",
+      "maxLength": 128,
+      "description": "Only this schema (MySQL: database)."
+    },
+    "pattern": {
+      "type": "string",
+      "maxLength": 128,
+      "description": "Table name filter, SQL LIKE syntax: order%"
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "default": 500
+    }
+  }
+}

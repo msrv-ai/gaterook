@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Approval notification · Element · GateRook kit</title>
+<link rel="icon" href="../assets/logo-mark.svg" type="image/svg+xml">
+<script src="../assets/theme-boot.js"></script>
+<link rel="stylesheet" href="../dist/gw-kit.css">
+</head>
+<body>
+<a class="gw-skip-link" href="#main">Skip to content</a>
+<main class="gw-page" id="main" tabindex="-1">
+
+  <header class="gw-page-header">
+    <div class="gw-page-header__row">
+      <div class="gw-page-header__heading">
+        <h1 class="gw-page-header__title">Approval notification</h1>
+        <p class="gw-page-header__description">How one approval request reaches the approver outside the window: the desktop notification, Slack, Telegram and the in-app toast, with the same fields as the request. Used in Approvals (delivery channels) and in Settings · Notifications.</p>
+      </div>
+      <div class="gw-page-header__actions">
+        <fieldset class="gw-segmented gw-segmented--sm">
+          <legend class="gw-sr-only">Theme</legend>
+          <label class="gw-segmented__option">
+            <input class="gw-segmented__input" type="radio" name="gw-theme" value="system" checked>
+            <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i>System</span>
+          </label>
+          <label class="gw-segmented__option">
+            <input class="gw-segmented__input" type="radio" name="gw-theme" value="light">
+            <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i>Light</span>
+          </label>
+          <label class="gw-segmented__option">
+            <input class="gw-segmented__input" type="radio" name="gw-theme" value="dark">
+            <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i>Dark</span>
+          </label>
+        </fieldset>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═════════════════════ Desktop ═════════════════════ -->
+  <section class="gw-section" aria-labelledby="s-desktop">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-desktop">Desktop notification</h2>
+      <p class="gw-section__description">Shown by the OS while the window is in the background. Review and Deny only: nothing is approved blind from a notification.</p>
+    </header>
+
+    <section class="gw-card gw-approval-notification" aria-labelledby="an-desktop">
+      <header class="gw-card__header">
+        <div class="gw-card__heading">
+          <h3 class="gw-card__title" id="an-desktop"><span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--neutral"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i></span>Desktop notification</h3>
+          <p class="gw-card__description">macOS Notification Center and the Windows notification area, sent for <code class="gw-code">sql_execute</code> on <code class="gw-code">dev-db</code>.</p>
+        </div>
+      </header>
+      <div class="gw-card__body gw-approval-notification__stage">
+        <div class="gw-grid gw-grid--2">
+          <figure class="gw-approval-notification__preview">
+            <div class="gw-card gw-approval-notification__surface gw-approval-notification__os gw-approval-notification__os--mac" inert>
+              <span class="gw-logo gw-logo--lg gw-logo--mark-only"><img class="gw-logo__mark" src="../assets/logo-mark.svg" alt=""><span class="gw-logo__name">GateRook</span></span>
+              <div class="gw-approval-notification__text">
+                <p class="gw-text-caption gw-fg-muted">GateRook · now</p>
+                <p class="gw-text-h3">Approval needed · sql_execute on dev-db</p>
+                <p class="gw-text-small gw-truncate">dev environment · from Codex</p>
+                <p class="gw-text-code-sm gw-fg-secondary gw-truncate">UPDATE orders SET status = 'cancelled' WHERE id = 48213;</p>
+              </div>
+              <div class="gw-approval-notification__os-actions">
+                <button class="gw-btn gw-btn--sm" type="button">Review</button>
+                <button class="gw-btn gw-btn--sm" type="button">Deny</button>
+              </div>
+            </div>
+            <figcaption class="gw-approval-notification__caption gw-text-caption gw-fg-muted">macOS<span class="gw-sr-only">: notification from GateRook, "Approval needed · sql_execute on dev-db", subtitle "dev environment · from Codex", body "UPDATE orders SET status = 'cancelled' WHERE id = 48213;", buttons Review and Deny.</span></figcaption>
+          </figure>
+          <figure class="gw-approval-notification__preview">
+            <div class="gw-card gw-approval-notification__surface gw-approval-notification__os gw-approval-notification__os--win" inert>
+              <p class="gw-approval-notification__app gw-text-caption gw-fg-muted"><span class="gw-logo gw-logo--sm"><img class="gw-logo__mark" src="../assets/logo-mark.svg" alt=""><span class="gw-logo__name">GateRook</span></span> now</p>
+              <div class="gw-approval-notification__text">
+                <p class="gw-text-h3">Approval needed · sql_execute on dev-db</p>
+                <p class="gw-text-code-sm gw-fg-secondary gw-truncate">UPDATE orders SET status = 'cancelled' WHERE id = 48213;</p>
+                <p class="gw-text-caption gw-fg-muted">dev environment · Codex · auto-deny at 14:34:12</p>
+              </div>
+              <div class="gw-approval-notification__os-actions">
+                <button class="gw-btn gw-btn--sm gw-btn--block" type="button">Review</button>
+                <button class="gw-btn gw-btn--sm gw-btn--block" type="button">Deny</button>
+              </div>
+            </div>
+            <figcaption class="gw-approval-notification__caption gw-text-caption gw-fg-muted">Windows<span class="gw-sr-only">: notification from GateRook, "Approval needed · sql_execute on dev-db", body "UPDATE orders SET status = 'cancelled' WHERE id = 48213;", "dev environment · Codex · auto-deny at 14:34:12", buttons Review and Deny.</span></figcaption>
+          </figure>
+        </div>
+        <div class="gw-alert gw-alert--info gw-alert--compact">
+          <i class="gw-icon gw-alert__icon" data-lucide="info"></i>
+          <div class="gw-alert__content">
+            <p class="gw-alert__title">Review opens the request in the app</p>
+            <p class="gw-alert__body">There is no Approve button in the notification: approving needs the exact action on screen. Deny works from here.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </section>
+
+  <!-- ═════════════════════ Slack ═════════════════════ -->
+  <section class="gw-section" aria-labelledby="s-slack">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-slack">Slack message</h2>
+      <p class="gw-section__description">Block Kit layout from kit parts: header, fields, the full statement, context and buttons. A direct message to each linked approver is the recommended default: the exact action can hold customer data, and everyone in a channel would see it. This workspace (<span class="gw-mono">acme</span>) posts to the channel <span class="gw-mono">#deploy-approvals</span>, chosen in Settings › Notifications. The agent's note is never sent.</p>
+    </header>
+
+    <section class="gw-card gw-approval-notification" aria-labelledby="an-slack">
+      <header class="gw-card__header">
+        <div class="gw-card__heading">
+          <h3 class="gw-card__title" id="an-slack"><span class="gw-client-mark gw-client-mark--generic gw-client-mark--sm" aria-hidden="true">S</span>Slack</h3>
+          <p class="gw-card__description">Posted by the GateRook app to <span class="gw-mono">#deploy-approvals</span> in the <span class="gw-mono">acme</span> workspace. The buttons act only for you, the linked approver.</p>
+        </div>
+      </header>
+      <div class="gw-card__body gw-approval-notification__stage">
+        <figure class="gw-approval-notification__preview">
+          <div class="gw-approval-notification__message" inert>
+            <span class="gw-logo gw-logo--lg gw-logo--mark-only"><img class="gw-logo__mark" src="../assets/logo-mark.svg" alt=""><span class="gw-logo__name">GateRook</span></span>
+            <div>
+              <p class="gw-approval-notification__byline"><span class="gw-text-h3">GateRook</span><span class="gw-badge gw-badge--sm">App</span><span class="gw-text-caption gw-fg-muted">14:29</span></p>
+              <div class="gw-approval-notification__blocks">
+                <p class="gw-text-h2">Approval needed: <span class="gw-mono">sql_execute</span> on <span class="gw-mono">dev-db</span></p>
+                <dl class="gw-kv gw-kv--inline">
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Connection</dt><dd class="gw-kv__value"><code class="gw-code">dev-db</code> <span class="gw-env gw-env--dev gw-env--sm">dev</span></dd></div>
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">dev</code></dd></div>
+                  <div class="gw-kv__row"><dt class="gw-kv__key">AI app</dt><dd class="gw-kv__value">Codex · <code class="gw-code">codex-laptop</code></dd></div>
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Auto-deny</dt><dd class="gw-kv__value gw-tabular">At 14:34:12</dd></div>
+                </dl>
+                <div class="gw-code-block gw-code-block--wrap">
+                  <div class="gw-code-block__body">
+<pre class="gw-code-block__pre"><code><span class="gw-tok-keyword">UPDATE</span> orders <span class="gw-tok-keyword">SET</span> status <span class="gw-tok-punctuation">=</span> <span class="gw-tok-string">'cancelled'</span> <span class="gw-tok-keyword">WHERE</span> id <span class="gw-tok-punctuation">=</span> <span class="gw-tok-number">48213</span><span class="gw-tok-punctuation">;</span></code></pre>
+                  </div>
+                </div>
+                <p class="gw-text-caption gw-fg-muted">Rule <span class="gw-mono">dev.sql.write-approval</span> · estimated rows 1</p>
+                <div class="gw-approval-notification__actions">
+                  <button class="gw-btn gw-btn--approve gw-btn--sm" type="button">Approve</button>
+                  <button class="gw-btn gw-btn--danger gw-btn--sm" type="button">Deny</button>
+                  <button class="gw-btn gw-btn--sm" type="button"><i class="gw-icon gw-icon--sm" data-lucide="external-link"></i>Open in app</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <figcaption class="gw-sr-only">Slack message in #deploy-approvals from the GateRook app at 14:29: "Approval needed: sql_execute on dev-db". Fields: connection dev-db, dev; endpoint dev; AI app Codex, token codex-laptop; auto-deny at 14:34:12. Statement: UPDATE orders SET status = 'cancelled' WHERE id = 48213; Rule dev.sql.write-approval. Buttons Approve, Deny and Open in app.</figcaption>
+        </figure>
+        <div class="gw-alert gw-alert--info gw-alert--compact">
+          <i class="gw-icon gw-alert__icon" data-lucide="info"></i>
+          <div class="gw-alert__content">
+            <p class="gw-alert__title">Direct messages to linked approvers are recommended</p>
+            <p class="gw-alert__body">Approve and Deny work only for approvers who linked their Slack account in Settings › Notifications. Posting to a channel such as <span class="gw-mono">#deploy-approvals</span> is a choice there, with the hint “Everyone in the channel sees the exact action”; in a channel, anyone who isn't a linked approver gets a private reply with Open in app. A statement over 3,000 characters is not cut: Approve is dropped and Open in app remains, and so it is for every prod request and whenever the policy requires a comment.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </section>
+
+  <!-- ═════════════════════ Telegram ═════════════════════ -->
+  <section class="gw-section" aria-labelledby="s-telegram">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-telegram">Telegram message</h2>
+      <p class="gw-section__description">A bot message with the statement in a code block and an inline keyboard under it. Telegram is not set up in this workspace (Settings › Notifications); this is what each linked approver gets once a bot is added.</p>
+    </header>
+
+    <section class="gw-card gw-approval-notification" aria-labelledby="an-telegram">
+      <header class="gw-card__header">
+        <div class="gw-card__heading">
+          <h3 class="gw-card__title" id="an-telegram"><span class="gw-client-mark gw-client-mark--generic gw-client-mark--sm" aria-hidden="true">T</span>Telegram</h3>
+          <p class="gw-card__description">Sent by the GateRook bot to each linked approver.</p>
+        </div>
+      </header>
+      <div class="gw-card__body gw-approval-notification__stage">
+        <figure class="gw-approval-notification__preview">
+          <div class="gw-approval-notification__chat" inert>
+            <div class="gw-card gw-approval-notification__surface gw-approval-notification__surface--bubble">
+              <p class="gw-text-ui gw-fg-muted">GateRook bot</p>
+              <p class="gw-text-h3">Approval needed</p>
+              <p class="gw-text-small"><span class="gw-mono">sql_execute</span> on <span class="gw-mono">dev-db</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span> from Codex · endpoint <span class="gw-mono">dev</span></p>
+              <div class="gw-code-block gw-code-block--wrap">
+                <div class="gw-code-block__body">
+<pre class="gw-code-block__pre"><code><span class="gw-tok-keyword">UPDATE</span> orders <span class="gw-tok-keyword">SET</span> status <span class="gw-tok-punctuation">=</span> <span class="gw-tok-string">'cancelled'</span> <span class="gw-tok-keyword">WHERE</span> id <span class="gw-tok-punctuation">=</span> <span class="gw-tok-number">48213</span><span class="gw-tok-punctuation">;</span></code></pre>
+                </div>
+              </div>
+              <p class="gw-text-caption gw-fg-muted">Auto-deny at 14:34:12 · rule <span class="gw-mono">dev.sql.write-approval</span></p>
+              <p class="gw-approval-notification__time gw-text-caption gw-fg-muted">14:29</p>
+            </div>
+            <div class="gw-approval-notification__keyboard">
+              <button class="gw-btn gw-btn--approve gw-btn--sm gw-btn--block gw-approval-notification__key" type="button">Approve</button>
+              <button class="gw-btn gw-btn--danger gw-btn--sm gw-btn--block gw-approval-notification__key" type="button">Deny</button>
+              <button class="gw-btn gw-btn--sm gw-btn--block gw-approval-notification__key gw-approval-notification__key--wide" type="button"><i class="gw-icon gw-icon--sm" data-lucide="external-link"></i>Open in app</button>
+            </div>
+          </div>
+          <figcaption class="gw-sr-only">Telegram message from the GateRook bot at 14:29: "Approval needed. sql_execute on dev-db, dev, from Codex, endpoint dev." Statement: UPDATE orders SET status = 'cancelled' WHERE id = 48213; Auto-deny at 14:34:12, rule dev.sql.write-approval. Buttons Approve, Deny and Open in app.</figcaption>
+        </figure>
+        <div class="gw-alert gw-alert--info gw-alert--compact">
+          <i class="gw-icon gw-alert__icon" data-lucide="info"></i>
+          <div class="gw-alert__content">
+            <p class="gw-alert__title">Only linked approvers get this message</p>
+            <p class="gw-alert__body">Each approver starts the bot and confirms the code from Settings · Notifications. Over 4,096 characters the statement is not cut: Approve is dropped and Open in app remains, as it is for every prod request and whenever the policy requires a comment.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </section>
+
+  <!-- ═════════════════════ Prod ═════════════════════ -->
+  <section class="gw-section" aria-labelledby="s-prod">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-prod">A production request, in every channel</h2>
+      <p class="gw-section__description">Prod never hides in a caption or a small chip: every channel titles it “PROD · Approval needed” and the first line says it runs on production. Slack and Telegram never offer Approve for prod, whatever the comment rule: they keep Deny and Open in app, and the decision is made in the app; the desktop notification is always Review and Deny. Same request: runbook <code class="gw-code">restart-api</code> on <code class="gw-code">prod-vm</code> through <code class="gw-code">incident-prod</code>, 10 min before auto-deny.</p>
+    </header>
+
+    <div class="gw-grid gw-grid--auto">
+      <section class="gw-card gw-approval-notification" aria-labelledby="an-prod-desktop">
+        <header class="gw-card__header">
+          <div class="gw-card__heading">
+            <h3 class="gw-card__title" id="an-prod-desktop"><span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--neutral"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i></span>Desktop, prod</h3>
+            <p class="gw-card__description">macOS; Windows uses the same text.</p>
+          </div>
+        </header>
+        <div class="gw-card__body gw-approval-notification__stage">
+          <figure class="gw-approval-notification__preview">
+            <div class="gw-card gw-approval-notification__surface gw-approval-notification__os gw-approval-notification__os--mac" inert>
+              <span class="gw-logo gw-logo--lg gw-logo--mark-only"><img class="gw-logo__mark" src="../assets/logo-mark.svg" alt=""><span class="gw-logo__name">GateRook</span></span>
+              <div class="gw-approval-notification__text">
+                <p class="gw-text-caption gw-fg-muted">GateRook · now</p>
+                <p class="gw-text-h3">PROD · Approval needed · ssh_run on prod-vm</p>
+                <p class="gw-text-small gw-truncate">Runs on production · from Claude Desktop</p>
+                <p class="gw-text-code-sm gw-fg-secondary gw-truncate">runbook restart-api · sudo systemctl restart api.service</p>
+              </div>
+              <div class="gw-approval-notification__os-actions">
+                <button class="gw-btn gw-btn--sm" type="button">Review</button>
+                <button class="gw-btn gw-btn--sm" type="button">Deny</button>
+              </div>
+            </div>
+            <figcaption class="gw-sr-only">macOS notification from GateRook: "PROD · Approval needed · ssh_run on prod-vm", subtitle "Runs on production · from Claude Desktop", body "runbook restart-api · sudo systemctl restart api.service", buttons Review and Deny.</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="gw-card gw-approval-notification" aria-labelledby="an-prod-slack">
+        <header class="gw-card__header">
+          <div class="gw-card__heading">
+            <h3 class="gw-card__title" id="an-prod-slack"><span class="gw-client-mark gw-client-mark--generic gw-client-mark--sm" aria-hidden="true">S</span>Slack, prod</h3>
+            <p class="gw-card__description">In <span class="gw-mono">#deploy-approvals</span>. A prod request is approved only in the app, so the message keeps Deny and Open in app.</p>
+          </div>
+        </header>
+        <div class="gw-card__body gw-approval-notification__stage">
+          <figure class="gw-approval-notification__preview">
+            <div class="gw-approval-notification__message" inert>
+              <span class="gw-logo gw-logo--lg gw-logo--mark-only"><img class="gw-logo__mark" src="../assets/logo-mark.svg" alt=""><span class="gw-logo__name">GateRook</span></span>
+              <div>
+                <p class="gw-approval-notification__byline"><span class="gw-text-h3">GateRook</span><span class="gw-badge gw-badge--sm">App</span><span class="gw-text-caption gw-fg-muted">14:29</span></p>
+                <div class="gw-approval-notification__blocks">
+                  <p class="gw-text-h2">PROD · Approval needed: <span class="gw-mono">ssh_run</span> on <span class="gw-mono">prod-vm</span></p>
+                  <p class="gw-text-small gw-fg-danger"><span class="gw-env gw-env--prod gw-env--sm">prod</span> Runs on production</p>
+                  <dl class="gw-kv gw-kv--inline">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">incident-prod</code></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">AI app</dt><dd class="gw-kv__value">Claude Desktop</dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Auto-deny</dt><dd class="gw-kv__value gw-tabular">At 14:39:05</dd></div>
+                  </dl>
+                  <div class="gw-code-block gw-code-block--wrap">
+                    <div class="gw-code-block__body">
+<pre class="gw-code-block__pre"><code><span class="gw-tok-comment"># runbook restart-api · parameters: none</span>
+<span class="gw-tok-function">sudo</span> systemctl restart api.service</code></pre>
+                    </div>
+                  </div>
+                  <p class="gw-text-caption gw-fg-muted">Rule <span class="gw-mono">prod.ssh.write-approval</span> · Runs on production: approve in the app.</p>
+                  <div class="gw-approval-notification__actions">
+                    <button class="gw-btn gw-btn--danger gw-btn--sm" type="button">Deny</button>
+                    <button class="gw-btn gw-btn--sm" type="button"><i class="gw-icon gw-icon--sm" data-lucide="external-link"></i>Open in app</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <figcaption class="gw-sr-only">Slack message in #deploy-approvals from the GateRook app at 14:29: "PROD · Approval needed: ssh_run on prod-vm", then "prod, Runs on production". Fields: endpoint incident-prod; AI app Claude Desktop; auto-deny at 14:39:05. Action: runbook restart-api, no parameters, sudo systemctl restart api.service. Rule prod.ssh.write-approval, "Runs on production: approve in the app." Buttons Deny and Open in app; no Approve.</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="gw-card gw-approval-notification" aria-labelledby="an-prod-telegram">
+        <header class="gw-card__header">
+          <div class="gw-card__heading">
+            <h3 class="gw-card__title" id="an-prod-telegram"><span class="gw-client-mark gw-client-mark--generic gw-client-mark--sm" aria-hidden="true">T</span>Telegram, prod</h3>
+            <p class="gw-card__description">Prod is approved only in the app, with or without a required comment.</p>
+          </div>
+        </header>
+        <div class="gw-card__body gw-approval-notification__stage">
+          <figure class="gw-approval-notification__preview">
+            <div class="gw-approval-notification__chat" inert>
+              <div class="gw-card gw-approval-notification__surface gw-approval-notification__surface--bubble">
+                <p class="gw-text-ui gw-fg-muted">GateRook bot</p>
+                <p class="gw-text-h3">PROD · Approval needed</p>
+                <p class="gw-text-small gw-fg-danger">Runs on production</p>
+                <p class="gw-text-small"><span class="gw-mono">ssh_run</span> on <span class="gw-mono">prod-vm</span> <span class="gw-env gw-env--prod gw-env--sm">prod</span> from Claude Desktop · endpoint <span class="gw-mono">incident-prod</span></p>
+                <div class="gw-code-block gw-code-block--wrap">
+                  <div class="gw-code-block__body">
+<pre class="gw-code-block__pre"><code><span class="gw-tok-comment"># runbook restart-api · parameters: none</span>
+<span class="gw-tok-function">sudo</span> systemctl restart api.service</code></pre>
+                  </div>
+                </div>
+                <p class="gw-text-caption gw-fg-muted">Auto-deny at 14:39:05 · rule <span class="gw-mono">prod.ssh.write-approval</span></p>
+                <p class="gw-text-caption gw-fg-muted">Runs on production: approve in the app.</p>
+                <p class="gw-approval-notification__time gw-text-caption gw-fg-muted">14:29</p>
+              </div>
+              <div class="gw-approval-notification__keyboard">
+                <button class="gw-btn gw-btn--danger gw-btn--sm gw-btn--block gw-approval-notification__key" type="button">Deny</button>
+                <button class="gw-btn gw-btn--sm gw-btn--block gw-approval-notification__key" type="button"><i class="gw-icon gw-icon--sm" data-lucide="external-link"></i>Open in app</button>
+              </div>
+            </div>
+            <figcaption class="gw-sr-only">Telegram message from the GateRook bot at 14:29: "PROD · Approval needed. Runs on production. ssh_run on prod-vm, prod, from Claude Desktop, endpoint incident-prod." Action: runbook restart-api, no parameters, sudo systemctl restart api.service. "Auto-deny at 14:39:05, rule prod.ssh.write-approval. Runs on production: approve in the app." Buttons Deny and Open in app; no Approve.</figcaption>
+          </figure>
+        </div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ═════════════════════ In-app toast ═════════════════════ -->
+  <section class="gw-section" aria-labelledby="s-toast">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-toast">In-app toast</h2>
+      <p class="gw-section__description">While the window is in front, a toast with Review replaces the OS notification. It stays until it is used or dismissed.</p>
+    </header>
+
+    <section class="gw-card gw-approval-notification" aria-labelledby="an-toast">
+      <header class="gw-card__header">
+        <div class="gw-card__heading">
+          <h3 class="gw-card__title" id="an-toast"><span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--neutral"><i class="gw-icon gw-icon--sm" data-lucide="bell"></i></span>In-app toast</h3>
+          <p class="gw-card__description">Bottom-right of the window; the titlebar bell keeps the count.</p>
+        </div>
+        <div class="gw-card__actions">
+          <button class="gw-btn gw-btn--sm" type="button" id="an-toast-live"><i class="gw-icon gw-icon--sm" data-lucide="bell-ring"></i>Show live toast</button>
+        </div>
+      </header>
+      <div class="gw-card__body gw-approval-notification__stage">
+        <figure class="gw-approval-notification__preview">
+          <div class="gw-toast gw-toast--warning gw-approval-notification__toast" inert>
+            <i class="gw-icon gw-toast__icon" data-lucide="hourglass"></i>
+            <div class="gw-toast__content">
+              <p class="gw-toast__title">Approval needed</p>
+              <p class="gw-toast__body"><span class="gw-mono">sql_execute</span> on <span class="gw-mono">dev-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span> from Codex. Auto-deny at 14:34:12.</p>
+              <div class="gw-toast__actions"><button class="gw-btn gw-btn--sm" type="button">Review</button></div>
+            </div>
+            <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-toast__close" type="button" aria-label="Dismiss notification"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+          </div>
+          <figcaption class="gw-sr-only">Toast: "Approval needed. sql_execute on dev-db, dev, from Codex. Auto-deny at 14:34:12." Buttons Review and Dismiss.</figcaption>
+        </figure>
+        <div class="gw-alert gw-alert--info gw-alert--compact">
+          <i class="gw-icon gw-alert__icon" data-lucide="info"></i>
+          <div class="gw-alert__content">
+            <p class="gw-alert__title">The toast never holds the decision</p>
+            <p class="gw-alert__body">Review opens the request in Approvals. Dismissing the toast leaves the request waiting there.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </section>
+
+  <!-- ═════════════════════ After a decision ═════════════════════ -->
+  <section class="gw-section" aria-labelledby="s-after">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-after">After a decision or a timeout</h2>
+      <p class="gw-section__description">Channel messages are edited in place: the buttons give way to the outcome, so nobody acts on a request that is already closed.</p>
+    </header>
+
+    <div class="gw-grid gw-grid--2">
+      <section class="gw-card gw-approval-notification" aria-labelledby="an-slack-done">
+        <header class="gw-card__header">
+          <div class="gw-card__heading">
+            <h3 class="gw-card__title" id="an-slack-done"><span class="gw-client-mark gw-client-mark--generic gw-client-mark--sm" aria-hidden="true">S</span>Slack, approved in the app</h3>
+            <p class="gw-card__description">An earlier request's message, edited at 12:21:18 when you approved it.</p>
+          </div>
+        </header>
+        <div class="gw-card__body gw-approval-notification__stage">
+          <figure class="gw-approval-notification__preview">
+            <div class="gw-approval-notification__message" inert>
+              <span class="gw-logo gw-logo--lg gw-logo--mark-only"><img class="gw-logo__mark" src="../assets/logo-mark.svg" alt=""><span class="gw-logo__name">GateRook</span></span>
+              <div>
+                <p class="gw-approval-notification__byline"><span class="gw-text-h3">GateRook</span><span class="gw-badge gw-badge--sm">App</span><span class="gw-text-caption gw-fg-muted">12:20 (edited)</span></p>
+                <div class="gw-approval-notification__blocks">
+                  <p class="gw-text-h2">Approval needed: <span class="gw-mono">sql_execute</span> on <span class="gw-mono">dev-db</span></p>
+                  <div class="gw-code-block gw-code-block--wrap">
+                    <div class="gw-code-block__body">
+<pre class="gw-code-block__pre"><code><span class="gw-tok-keyword">UPDATE</span> orders <span class="gw-tok-keyword">SET</span> status <span class="gw-tok-punctuation">=</span> <span class="gw-tok-string">'cancelled'</span> <span class="gw-tok-keyword">WHERE</span> id <span class="gw-tok-punctuation">=</span> <span class="gw-tok-number">48213</span><span class="gw-tok-punctuation">;</span></code></pre>
+                    </div>
+                  </div>
+                  <p class="gw-approval-notification__actions"><span class="gw-badge gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="user-check"></i>Approved</span><span class="gw-text-small gw-fg-secondary">by you in GateRook · executed in 38 ms</span></p>
+                </div>
+              </div>
+            </div>
+            <figcaption class="gw-sr-only">Edited Slack message: "Approval needed: sql_execute on dev-db", the statement, then "Approved by you in GateRook, executed in 38 ms". No buttons.</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="gw-card gw-approval-notification" aria-labelledby="an-telegram-expired">
+        <header class="gw-card__header">
+          <div class="gw-card__heading">
+            <h3 class="gw-card__title" id="an-telegram-expired"><span class="gw-client-mark gw-client-mark--generic gw-client-mark--sm" aria-hidden="true">T</span>Telegram, expired</h3>
+            <p class="gw-card__description">No decision in 10 min (the stage window); the keyboard is removed.</p>
+          </div>
+        </header>
+        <div class="gw-card__body gw-approval-notification__stage">
+          <figure class="gw-approval-notification__preview">
+            <div class="gw-approval-notification__chat" inert>
+              <div class="gw-card gw-approval-notification__surface gw-approval-notification__surface--bubble">
+                <p class="gw-text-ui gw-fg-muted">GateRook bot</p>
+                <p class="gw-text-h3">Approval needed</p>
+                <p class="gw-text-small"><span class="gw-mono">http_request</span> on <span class="gw-mono">billing-api</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span> from Codex</p>
+                <div class="gw-code-block gw-code-block--wrap">
+                  <div class="gw-code-block__body">
+<pre class="gw-code-block__pre"><code><span class="gw-tok-keyword">POST</span> <span class="gw-tok-string">https://billing.stage.acme.dev/v1/invoices/inv_2291/void</span></code></pre>
+                  </div>
+                </div>
+                <p class="gw-approval-notification__actions"><span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="timer-off"></i>Expired</span><span class="gw-text-small gw-fg-secondary">Denied automatically at 13:15:40</span></p>
+                <p class="gw-approval-notification__time gw-text-caption gw-fg-muted">13:05 (edited)</p>
+              </div>
+            </div>
+            <figcaption class="gw-sr-only">Edited Telegram message: "Approval needed. http_request on billing-api, stage, from Codex", the request, then "Expired, denied automatically at 13:15:40". No buttons.</figcaption>
+          </figure>
+        </div>
+      </section>
+    </div>
+  </section>
+
+</main>
+<script src="../vendor/lucide/lucide.min.js"></script>
+<script src="../assets/kit.js"></script>
+<script>
+  // Demo only: gwToast has no declarative hook for actions, so one button calls it.
+  document.getElementById("an-toast-live").addEventListener("click", function () {
+    window.gwToast({
+      title: "Approval needed",
+      body: "sql_execute on dev-db (dev) from Codex. Auto-deny at 14:34:12.",
+      tone: "warning",
+      actions: [{ label: "Review", onClick: function () { window.location.href = "approval-request.html#ar-sql-title"; } }]
+    });
+  });
+</script>
+</body>
+</html>

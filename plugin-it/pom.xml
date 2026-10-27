@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Tests only (ARCHITECTURE.md §2.1, K4): the real plugin-host.jar and plugin fixtures (crash, oom, hang,
+  stdout-polluter, secret-thief) run as child processes, exactly as the core runs them; so do the catalog's plugins
+  Jira, ClickHouse and RabbitMQ (K6) against MockWebServer. The jars are copied into
+  target/ with dependency:copy and never put on this module's classpath: PF4J stays out of every classpath
+  but the host's own (the root ban-pf4j execution stays on here).
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>ai.msrv.gaterook</groupId>
+    <artifactId>mcp-gateway</artifactId>
+    <version>0.4.0-SNAPSHOT</version>
+  </parent>
+
+  <artifactId>plugin-it</artifactId>
+  <name>MCP Gateway · Plugin host integration tests</name>
+
+  <properties>
+    <maven.deploy.skip>true</maven.deploy.skip>
+  </properties>
+
+  <dependencies>
+    <!--
+      Build order only: the host must be packaged before its jar is copied. A pom-type dependency with every
+      transitive excluded adds the reactor edge without putting anything on the classpath.
+    -->
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>plugin-host</artifactId>
+      <version>${project.version}</version>
+      <type>pom</type>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <!-- Build order only: the plugin and fixture jars must be packaged before the tests find them by path. -->
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>plugins-jira-service-desk</artifactId>
+      <version>${project.version}</version>
+      <type>pom</type>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>plugins-test-fixtures</artifactId>
+      <version>${project.version}</version>
+      <type>pom</type>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion>
+      </exclusions>
+    </dependency>
+    <!-- The catalog's plugins (K6): build order only, the jars are found by path like Jira's. -->
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>plugins-clickhouse</artifactId>
+      <version>${project.version}</version>
+      <type>pom</type>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>plugins-rabbitmq</artifactId>
+      <version>${project.version}</version>
+      <type>pom</type>
+      <scope>test</scope>
+      <exclusions>
+        <exclusion><groupId>*</groupId><artifactId>*</artifactId></exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>plugin-protocol</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- Ed25519 signing in the catalog test (same as the kit's publisher): no code here needs it at compile time. -->
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connector-api</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>tools.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.platform</groupId>
+      <artifactId>junit-platform-launcher</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- Jira REST behind the fixture plugin and the signed catalog over HTTPS. -->
+    <dependency>
+      <groupId>com.squareup.okhttp3</groupId>
+      <artifactId>mockwebserver3</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>copy-plugin-host</id>
+            <phase>process-test-resources</phase>
+            <goals><goal>copy</goal></goals>
+            <configuration>
+              <artifactItems>
+                <artifactItem>
+                  <groupId>ai.msrv.gaterook</groupId>
+                  <artifactId>plugin-host</artifactId>
+                  <version>${project.version}</version>
+                  <destFileName>plugin-host.jar</destFileName>
+                </artifactItem>
+              </artifactItems>
+              <outputDirectory>${project.build.directory}/plugin-host</outputDirectory>
+              <excludeTransitive>true</excludeTransitive>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <!-- The host, plugin and fixture jars the integration tests spawn and load; failsafe runs the *IT tests. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <configuration>
+          <systemPropertyVariables>
+            <gateway.pluginHostJar>${project.build.directory}/plugin-host/plugin-host.jar</gateway.pluginHostJar>
+            <gateway.jiraDir>${project.basedir}/../plugins/jira-service-desk/target</gateway.jiraDir>
+            <gateway.fixturesDir>${project.basedir}/../plugins/test-fixtures/target</gateway.fixturesDir>
+            <gateway.pluginsDir>${project.basedir}/../plugins</gateway.pluginsDir>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

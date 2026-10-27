@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Kubernetes",
+  "type": "object",
+  "x-policy-section": "k8s",
+  "additionalProperties": false,
+  "properties": {
+    "verbs": {
+      "type": "array",
+      "title": "Allowed verbs",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "get",
+          "list",
+          "describe",
+          "logs",
+          "rollout-restart",
+          "apply"
+        ]
+      },
+      "default": [
+        "get",
+        "list",
+        "describe",
+        "logs",
+        "rollout-restart",
+        "apply"
+      ],
+      "x-stricter": "intersect",
+      "x-env-default": {
+        "prod": [
+          "get",
+          "list",
+          "describe",
+          "logs"
+        ]
+      }
+    },
+    "resources": {
+      "type": "array",
+      "title": "Allowed resources",
+      "uniqueItems": true,
+      "maxItems": 100,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(\\.[a-z0-9.-]+)?$"
+      },
+      "default": [
+        "deployments",
+        "pods",
+        "services",
+        "configmaps",
+        "events",
+        "jobs"
+      ],
+      "x-stricter": "intersect",
+      "x-env-default": {
+        "prod": [
+          "deployments",
+          "pods",
+          "events"
+        ]
+      },
+      "description": "RBAC names: plural, <plural>.<group> for CRDs. Without secrets, agents can't read Kubernetes Secrets."
+    },
+    "namespaces": {
+      "type": "array",
+      "title": "Namespaces",
+      "uniqueItems": true,
+      "maxItems": 100,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+        "maxLength": 63
+      },
+      "default": [],
+      "x-stricter": "intersect",
+      "x-inherit": false,
+      "description": "Per environment, never inherited."
+    },
+    "applyMaxObjects": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20,
+      "default": 20,
+      "x-stricter": "min"
+    },
+    "logsTailMax": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5000,
+      "default": 5000,
+      "x-stricter": "min"
+    },
+    "listMax": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 500,
+      "default": 500,
+      "x-stricter": "min"
+    },
+    "denyPrivileged": {
+      "type": "boolean",
+      "title": "Deny privileged pods in k8s_apply",
+      "default": false,
+      "x-stricter": "or",
+      "x-env-default": {
+        "prod": true
+      }
+    }
+  }
+}

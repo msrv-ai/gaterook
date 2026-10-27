@@ -1,0 +1,199 @@
+<div class="gw-toolbar">
+  <div class="gw-toolbar__start">
+    <div class="gw-search gw-search--sm">
+      <svg lucideIcon="search" class="gw-icon gw-search__icon"></svg>
+      <input class="gw-search__input" type="search" [id]="uid + '-q'" placeholder="Search tools" [attr.aria-label]="'Search tools on ' + slug()" [value]="query()" (input)="onQuery($event)">
+      <button class="gw-search__clear" type="button" aria-label="Clear search"><svg lucideIcon="x" class="gw-icon gw-icon--sm"></svg></button>
+    </div>
+    @if (showModeFilter() && !picker()) {
+      <div class="gw-menu-host">
+        <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="listbox" aria-expanded="false" [gwMenuTrigger]="filterMenu"><svg lucideIcon="list-filter" class="gw-icon gw-icon--sm"></svg>Mode: <span data-gw-menu-value>{{ filterLabel() }}</span><svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm"></svg></button>
+        <div class="gw-menu" [id]="uid + '-filter-mode'" role="listbox" aria-label="Filter tools by mode" hidden gwMenu #filterMenu="gwMenu" (picked)="onFilter($event)">
+          @for (f of filters; track f.value) {
+            <button class="gw-menu__item" type="button" role="option" [attr.aria-selected]="modeFilter() === f.value" tabindex="-1" [attr.data-value]="f.value"><svg lucideIcon="check" class="gw-icon gw-menu__check"></svg>@if (f.icon) {<svg [lucideIcon]="f.icon" class="gw-icon gw-menu__icon"></svg>}<span class="gw-menu__label">{{ f.label }}</span></button>
+          }
+        </div>
+      </div>
+    }
+  </div>
+  <div class="gw-toolbar__end">
+    <p class="gw-tool-policy-list__summary" [id]="uid + '-summary'" role="status"><span class="gw-text-small gw-fg-secondary">{{ summary() }}@if (chips().length) {<span class="gw-sr-only">:</span>}</span>
+      @for (c of chips(); track c.mode) {
+        <span [class]="'gw-mode ' + modes[c.mode].cls"><svg [lucideIcon]="modes[c.mode].icon" class="gw-icon"></svg>{{ c.text }}</span>
+      }</p>
+  </div>
+</div>
+
+@for (g of shown(); track g.id) {
+  <section class="gw-card gw-card--flush" [attr.aria-labelledby]="g.id">
+    <header class="gw-card__header">
+      <div class="gw-tool-policy-list__group-heading">
+        <span class="gw-icon-tile"><svg [lucideIcon]="g.icon" class="gw-icon"></svg></span>
+        <div class="gw-card__heading">
+          @switch (level()) {
+            @case (2) { <h2 class="gw-card__title" [id]="g.id"><ng-container *ngTemplateOutlet="groupTitle; context: { $implicit: g }" /></h2> }
+            @case (4) { <h4 class="gw-card__title" [id]="g.id"><ng-container *ngTemplateOutlet="groupTitle; context: { $implicit: g }" /></h4> }
+            @default { <h3 class="gw-card__title" [id]="g.id"><ng-container *ngTemplateOutlet="groupTitle; context: { $implicit: g }" /></h3> }
+          }
+          <p class="gw-card__description">{{ g.description }}</p>
+        </div>
+      </div>
+      @if (!picker() && !g.external && !g.builtIn) {
+        <div class="gw-card__actions">
+          <div class="gw-menu-host">
+            <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-haspopup="menu" aria-expanded="false" [gwMenuTrigger]="bulkMenu">Set all to…<span class="gw-sr-only"> for {{ g.title }} tools</span><svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm"></svg></button>
+            <div class="gw-menu gw-menu--right gw-menu--wide" [id]="g.id + '-bulk'" role="menu" [attr.aria-label]="'Set the mode of all ' + g.total + ' ' + g.title + ' tools'" hidden gwMenu #bulkMenu="gwMenu" (picked)="onBulk(g, $event)">
+              <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-value="OFF"><svg lucideIcon="circle-off" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Off<span class="gw-menu__hint">{{ g.hints.off }}</span></span></button>
+              <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-value="READ_ONLY"><svg lucideIcon="eye" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Read only<span class="gw-menu__hint">{{ g.hints.read }}</span></span></button>
+              <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-value="APPROVAL"><svg lucideIcon="user-check" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Approval<span class="gw-menu__hint">{{ g.hints.approval }}</span></span></button>
+            </div>
+          </div>
+        </div>
+      }
+    </header>
+    <div class="gw-card__body">
+      <div class="gw-table-wrap" role="region" [attr.aria-labelledby]="g.id + '-cap'" tabindex="0">
+        <table class="gw-table" [class.gw-table--interactive]="picker()">
+          <caption class="gw-sr-only" [id]="g.id + '-cap'">{{ g.external ? 'Tools of ' + g.title + ' on endpoint ' + slug() : g.builtIn ? 'Tools on the gateway' : 'Tools on ' + g.title }}</caption>
+          <thead><tr><th scope="col">Tool</th><th scope="col">{{ picker() ? 'Mode on ' + slug() : 'Mode' }}</th>@if (!picker() && !g.external) {<th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Limits</span></th>}</tr></thead>
+          <tbody>
+            @for (r of g.rows; track r.key) {
+              <tr class="gw-tool-policy-list__row" [attr.data-mode]="modeValue[r.tool.mode]" [attr.aria-selected]="isSelected(g, r) ? 'true' : null">
+                <th scope="row" class="gw-tool-policy-list__tool">
+                  <div class="gw-tool-policy-list__name">
+                    @if (picker()) {
+                      <a class="gw-table__row-link gw-mono" [routerLink]="pickerRoute()" [queryParams]="{ tool: r.tool.name }" queryParamsHandling="merge" [attr.aria-current]="isSelected(g, r) ? 'true' : null" (click)="onPick(g, r)">{{ r.tool.name }}</a>
+                    } @else {
+                      <code class="gw-code">{{ r.tool.name }}</code>
+                    }
+                    @if (r.tool.annotations.readOnlyHint || r.tool.annotations.destructiveHint || r.tool.annotations.idempotentHint || r.tool.annotations.openWorldHint || r.tool.declaredBy) {
+                      <ul class="gw-tool-policy-list__annotations" [attr.aria-label]="'MCP annotations of ' + r.tool.name">@if (r.tool.annotations.readOnlyHint) {<li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li>}@if (r.tool.annotations.destructiveHint) {<li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--danger" title="destructiveHint">Destructive</li>}@if (r.tool.annotations.idempotentHint) {<li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li>}@if (r.tool.annotations.openWorldHint) {<li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--warning" title="openWorldHint">Open world</li>}@if (r.tool.declaredBy) {<li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--warning" [title]="r.tool.annotations.readOnlyHint || r.tool.annotations.destructiveHint ? 'The server declares these annotations; the gateway can\'t check what the tool does' : 'The server declares no read-only annotation; the gateway can\'t check what the tool does'"><svg lucideIcon="shield-question-mark" class="gw-icon gw-badge__icon"></svg>Declared by {{ r.tool.declaredBy }}, not verified</li>}</ul>
+                    }
+                  </div>
+                  @if (r.description) {
+                    <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">{{ r.description }}</p>
+                  }
+                </th>
+                <td>
+                  @if (picker()) {
+                    <span [class]="'gw-mode ' + modes[r.tool.mode].cls"><svg [lucideIcon]="modes[r.tool.mode].icon" class="gw-icon"></svg>{{ modes[r.tool.mode].text }}</span>
+                  } @else {
+                    <div class="gw-tool-policy-list__mode">
+                      <fieldset class="gw-segmented gw-segmented--sm" [disabled]="r.note?.locked ?? false" [attr.aria-describedby]="r.note ? r.id + '-why' : null">
+                        <legend class="gw-sr-only">Mode for {{ r.tool.name }}</legend>
+                        <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" [name]="r.id + '-mode'" value="off" [checked]="r.tool.mode === 'OFF'" (change)="onMode(g, r, 'off')"><span class="gw-segmented__label"><svg lucideIcon="circle-off" class="gw-icon gw-icon--sm"></svg>Off</span></label>
+                        <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" [name]="r.id + '-mode'" value="read" [checked]="r.tool.mode === 'READ_ONLY'" [disabled]="r.note?.readOnlyDisabled ?? false" [attr.aria-disabled]="r.note?.needsConfirmation ? 'true' : null" [attr.aria-describedby]="r.note?.readOnlyDisabled || r.note?.needsConfirmation ? r.id + '-why' : null" (change)="onMode(g, r, 'read')"><span class="gw-segmented__label"><svg lucideIcon="eye" class="gw-icon gw-icon--sm"></svg>Read only</span></label>
+                        <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" [name]="r.id + '-mode'" value="approval" [checked]="r.tool.mode === 'APPROVAL'" (change)="onMode(g, r, 'approval')"><span class="gw-segmented__label"><svg lucideIcon="user-check" class="gw-icon gw-icon--sm"></svg>Approval</span></label>
+                      </fieldset>
+                      @if (r.note; as n) {
+                        <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" [id]="r.id + '-why'"><svg [lucideIcon]="n.icon" class="gw-icon gw-icon--xs"></svg>{{ n.text }}</p>
+                        @if (n.needsConfirmation && r.tool.definitionHash) {
+                          <button class="gw-btn gw-btn--link gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askConfirm(g, r, $any($event.currentTarget))">Confirm read only<span class="gw-sr-only"> for {{ r.tool.name }}</span></button>
+                        }
+                      }
+                    </div>
+                  }
+                </td>
+                @if (!picker() && !g.external && g.builtIn) {
+                  <!-- The core's own tools answer from the gateway: there is no resource to limit (kit "No limits"). -->
+                  <td class="gw-table__cell--actions">
+                    <span class="gw-text-caption gw-fg-muted">No limits<span class="gw-sr-only"> for {{ r.tool.name }}: it answers from the gateway</span></span>
+                  </td>
+                } @else if (!picker() && !g.external) {
+                  <td class="gw-table__cell--actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm gw-tool-policy-list__limits-toggle" type="button" gwToggle [expanded]="isOpen(r)" [attr.aria-controls]="r.id + '-lim'">Limits<span class="gw-sr-only"> for {{ r.tool.name }}</span>@if (r.overrides) { <span class="gw-counter">{{ r.overrides }}<span class="gw-sr-only"> {{ r.overrides === 1 ? 'override' : 'overrides' }}</span></span>}<svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--closed"></svg><svg lucideIcon="chevron-up" class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--open"></svg></button>
+                  </td>
+                }
+              </tr>
+              @if (!picker() && !g.external && !g.builtIn) {
+                <tr class="gw-tool-policy-list__limits" [id]="r.id + '-lim'" [attr.hidden]="isOpen(r) ? null : ''">
+                  <td colspan="3">
+                    <div class="gw-card gw-card--muted" role="group" [attr.aria-label]="'Limits for ' + r.tool.name">
+                      <div class="gw-card__body">
+                        <div class="gw-tool-policy-list__limits-fields">
+                          @for (f of r.fields; track f.key) {
+                            <div class="gw-field">
+                              <label class="gw-field__label" [for]="r.id + '-' + f.key">{{ f.label }}</label>
+                              <div class="gw-input-group">
+                                <input class="gw-input" [id]="r.id + '-' + f.key" type="text" inputmode="numeric" autocomplete="off" [placeholder]="placeholder(r, f)" [value]="ownValue(r, f) ?? ''" [attr.aria-invalid]="errorOf(r, f) ? 'true' : null" [attr.aria-describedby]="r.id + '-' + f.key + '-hint' + (errorOf(r, f) ? ' ' + r.id + '-' + f.key + '-error' : '')" (change)="onLimit(g, r, f, $event)">
+                                <span class="gw-input-group__affix">{{ f.unit }}</span>
+                              </div>
+                              <p class="gw-field__hint" [id]="r.id + '-' + f.key + '-hint'">{{ hint(r, f) }}</p>
+                              @if (errorOf(r, f); as err) {
+                                <p class="gw-field__error" [id]="r.id + '-' + f.key + '-error'"><svg lucideIcon="circle-alert" class="gw-icon gw-icon--sm"></svg>{{ err }}</p>
+                              }
+                            </div>
+                          }
+                        </div>
+                        <div class="gw-tool-policy-list__limits-footer">
+                          <p class="gw-text-caption gw-fg-muted">Empty fields follow the <a class="gw-link" [routerLink]="['/policies', r.env]">{{ r.env }} policy</a>. An override can only be stricter.</p>
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" [disabled]="!r.overrides" (click)="reset(g, r)"><svg lucideIcon="rotate-ccw" class="gw-icon gw-icon--sm"></svg>Reset to {{ r.env }} policy<span class="gw-sr-only"> for {{ r.tool.name }}</span></button>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+} @empty {
+  <div class="gw-card gw-card--flush">
+    <div class="gw-card__body">
+      <div class="gw-empty gw-empty--compact">
+        <span class="gw-empty__icon"><svg lucideIcon="search-x" class="gw-icon"></svg></span>
+        @switch (level()) {
+          @case (2) { <h2 class="gw-empty__title">{{ emptyTitle() }}</h2> }
+          @case (4) { <h4 class="gw-empty__title">{{ emptyTitle() }}</h4> }
+          @default { <h3 class="gw-empty__title">{{ emptyTitle() }}</h3> }
+        }
+        @if (totalTools()) {
+          <p class="gw-empty__text">Search looks at tool names{{ picker() ? ', connections' : '' }} and descriptions on endpoint <span class="gw-mono">{{ slug() }}</span>. Try another word, or add a connection to the endpoint to give agents more tools.</p>
+          <div class="gw-empty__actions">
+            <button class="gw-btn gw-btn--sm" type="button" (click)="clearFilters()"><svg lucideIcon="x" class="gw-icon gw-icon--sm"></svg>{{ query().trim() ? 'Clear search' : 'Show all modes' }}</button>
+          </div>
+        } @else {
+          <p class="gw-empty__text">Endpoint <span class="gw-mono">{{ slug() }}</span> has no tools yet. Add a connection to it to give agents tools.</p>
+        }
+      </div>
+    </div>
+  </div>
+}
+
+<ng-template #groupTitle let-g>@if (g.connection) {<span class="gw-mono">{{ g.title }}</span>@if (g.source.group.env) { <span class="gw-sr-only">environment</span> <span [class]="'gw-env gw-env--sm gw-env--' + g.source.group.env">{{ g.source.group.env }}</span>}} @else {{{ g.title }}}</ng-template>
+
+<!--
+  Per-tool confirmation before an external tool may run without approval: gw-dialog--warning (risky, reversible:
+  the mode can go back to Approval any time), Cancel autofocus, the primary aria-disabled until the acknowledgement
+  is checked.
+-->
+<dialog class="gw-dialog gw-dialog--md gw-dialog--warning" gwDialog #confirmDialog="gwDialog" gwDialogStatic [attr.aria-labelledby]="confirming() ? uid + '-ro-t' : null" [attr.aria-describedby]="confirming() ? uid + '-ro-d' : null">
+  @if (confirming(); as c) {
+    <header class="gw-dialog__header">
+      <span class="gw-icon-tile"><svg lucideIcon="shield-question-mark" class="gw-icon"></svg></span>
+      <h2 class="gw-dialog__title" [id]="uid + '-ro-t'">Let <span class="gw-mono">{{ c.row.tool.name }}</span> run without approval?</h2>
+      <p class="gw-dialog__description" [id]="uid + '-ro-d'"><span class="gw-mono">{{ c.row.tool.declaredBy }}</span> declares that <span class="gw-mono">{{ c.row.tool.name }}</span> only reads (<span class="gw-mono">readOnlyHint</span>). The gateway can't check what an external server does: in Read only every call runs at once and is only logged.</p>
+      <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+    </header>
+    <div class="gw-dialog__body">
+      <div class="gw-stack">
+        <dl class="gw-kv gw-kv--dense">
+          <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><span class="gw-mono">{{ slug() }}</span>, this tool only</dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key">Server</dt><dd class="gw-kv__value"><span class="gw-mono">{{ c.row.tool.declaredBy }}</span>; an update asks again</dd></div>
+        </dl>
+        <label class="gw-checkbox">
+          <input class="gw-checkbox__input" type="checkbox" [id]="uid + '-ack'" required [checked]="acknowledged()" (change)="onAck($event)">
+          <span class="gw-checkbox__control" aria-hidden="true"></span>
+          <span class="gw-checkbox__label" [id]="uid + '-ack-label'">I checked that {{ c.row.tool.name }} only reads</span>
+        </label>
+      </div>
+    </div>
+    <footer class="gw-dialog__footer">
+      <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
+      <button class="gw-btn gw-btn--primary" type="button" [attr.aria-disabled]="acknowledged() ? null : 'true'" [attr.aria-describedby]="uid + '-ack-label'" (click)="allow()">Allow read only for {{ c.row.tool.name }}</button>
+    </footer>
+  }
+</dialog>

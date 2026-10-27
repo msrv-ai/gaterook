@@ -1,0 +1,138 @@
+<section class="sc-section" id="form" data-title="Form layout" data-group="Forms">
+  <h2>Form layout <code class="gw-code">gw-form</code></h2>
+  <p>Sections of fields, each with a title and one paragraph that says what it controls. Below 1280px everything stacks; from <code class="gw-code">lg</code> the title and description take the left third and the fields the right two thirds. A section is a <code class="gw-code">fieldset</code> whose <code class="gw-code">legend</code> names it; fields that belong together sit side by side in <code class="gw-code">gw-form__row</code>. Forms that save on a button use <code class="gw-code">--sticky-actions</code>: while there are unsaved changes, "Unsaved changes" with Discard and Save floats at the bottom of the scrolling area. Settings that apply at once use <code class="gw-code">gw-switch</code> and need no Save. (The demo form uses <code class="gw-code">method="dialog"</code> so Save does not reload the showcase.)</p>
+
+  <h3>Connection form with sticky actions</h3>
+  <div class="sc-demo sc-demo--col sc-demo--canvas" data-sc-code>
+    <form class="gw-form gw-form--sticky-actions" method="dialog" aria-label="Edit connection dev-db">
+      <fieldset class="gw-form__section">
+        <legend class="gw-form__legend">Connection</legend>
+        <p class="gw-form__description">Where the core reaches the database. It connects from this machine, so your VPN and hosts file apply.</p>
+        <div class="gw-form__rows">
+          <div class="gw-form__row">
+            <div class="gw-field">
+              <label class="gw-field__label" for="sc-c-fm-host">Host</label>
+              <input class="gw-input gw-input--mono" id="sc-c-fm-host" value="db.dev.internal" required autocomplete="off" spellcheck="false">
+            </div>
+            <div class="gw-field">
+              <label class="gw-field__label" for="sc-c-fm-port">Port</label>
+              <input class="gw-input gw-input--mono" id="sc-c-fm-port" value="5432" inputmode="numeric" required autocomplete="off">
+            </div>
+            <div class="gw-field">
+              <label class="gw-field__label" for="sc-c-fm-db">Database</label>
+              <input class="gw-input gw-input--mono" id="sc-c-fm-db" value="app" required autocomplete="off" spellcheck="false">
+            </div>
+          </div>
+          <div class="gw-field">
+            <label class="gw-field__label" for="sc-c-fm-ssl">SSL mode</label>
+            <select class="gw-select" id="sc-c-fm-ssl">
+              <option value="require">Require</option>
+              <option value="verify-full" selected>Verify CA and host name</option>
+            </select>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="gw-form__section">
+        <legend class="gw-form__legend">Credentials</legend>
+        <p class="gw-form__description">The agent never sees these. Use a database user that can only read wherever you can.</p>
+        <div class="gw-form__rows">
+          <div class="gw-field">
+            <label class="gw-field__label" for="sc-c-fm-user">User</label>
+            <input class="gw-input gw-input--mono" id="sc-c-fm-user" value="gw_reader" required autocomplete="off" spellcheck="false">
+          </div>
+          <div class="gw-field">
+            <span class="gw-field__label" id="sc-c-fm-pw-l">Password</span>
+            <div class="gw-secret" data-state="stored" role="group" aria-labelledby="sc-c-fm-pw-l">
+              <span class="gw-secret__status"><i class="gw-icon" data-lucide="lock-keyhole"></i>Encrypted</span>
+              <span class="gw-secret__meta">version <span class="gw-mono">3</span> · updated <time datetime="2026-10-20T09:14:00Z" title="2026-10-20 09:14 UTC">2 days ago</time></span>
+              <span class="gw-secret__actions">
+                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Replace password for dev-db">Replace</button>
+                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Rotate password for dev-db">Rotate</button>
+              </span>
+            </div>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="gw-form__section">
+        <legend class="gw-form__legend">Environment and safety</legend>
+        <p class="gw-form__description">Prod turns on strict defaults: a read-only user check, row limit 100 and an approval for every mutation.</p>
+        <div class="gw-form__rows">
+          <fieldset class="gw-field">
+            <legend class="gw-field__label">Environment</legend>
+            <div class="gw-form__row">
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="sc-c-fm-env" value="dev" checked>
+                <span class="gw-choice-card__title"><span class="gw-env gw-env--dev">dev</span> Development</span>
+              </label>
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="sc-c-fm-env" value="stage">
+                <span class="gw-choice-card__title"><span class="gw-env gw-env--stage">stage</span> Staging</span>
+              </label>
+              <label class="gw-choice-card gw-choice-card--compact">
+                <input class="gw-choice-card__input" type="radio" name="sc-c-fm-env" value="prod">
+                <span class="gw-choice-card__title"><span class="gw-env gw-env--prod">prod</span> Production</span>
+              </label>
+            </div>
+          </fieldset>
+          <div class="gw-field">
+            <label class="gw-field__label" for="sc-c-fm-timeout">Statement timeout</label>
+            <div class="gw-input-group">
+              <input class="gw-input gw-input--mono" id="sc-c-fm-timeout" value="5000" inputmode="numeric" aria-describedby="sc-c-fm-timeout-hint">
+              <span class="gw-input-group__affix">ms</span>
+            </div>
+            <p class="gw-field__hint" id="sc-c-fm-timeout-hint">The database cancels slower statements.</p>
+          </div>
+          <div class="gw-checkbox">
+            <input class="gw-checkbox__input" type="checkbox" id="sc-c-fm-mask" checked aria-describedby="sc-c-fm-mask-hint">
+            <span class="gw-checkbox__control" aria-hidden="true"></span>
+            <label class="gw-checkbox__label" for="sc-c-fm-mask">Mask personal data in results</label>
+            <p class="gw-checkbox__hint" id="sc-c-fm-mask-hint">Emails and phone numbers become ‹masked› before the agent sees them.</p>
+          </div>
+        </div>
+      </fieldset>
+
+      <div class="gw-form__actions">
+        <p class="gw-form__note" role="status"><i class="gw-icon" data-lucide="circle-dot"></i>Unsaved changes</p>
+        <button class="gw-btn" type="reset">Discard</button>
+        <button class="gw-btn gw-btn--primary" type="submit">Save connection</button>
+      </div>
+    </form>
+  </div>
+
+  <h3>Settings section with inline fields</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <form class="gw-form" method="dialog" aria-label="Audit and retention settings">
+      <section class="gw-form__section" aria-labelledby="sc-c-fm-audit-t">
+        <header class="gw-form__section-header">
+          <h4 class="gw-form__legend" id="sc-c-fm-audit-t">Audit and retention</h4>
+          <p class="gw-form__description">Every call is written to an append-only log on this machine. Export it to keep it longer.</p>
+        </header>
+        <div class="gw-form__rows">
+          <div class="gw-field gw-field--inline">
+            <label class="gw-field__label" for="sc-c-fm-keep">Keep events for</label>
+            <div class="gw-field__control">
+              <select class="gw-select" id="sc-c-fm-keep">
+                <option selected>1 year</option>
+                <option>2 years</option>
+                <option>3 years</option>
+                <option>5 years</option>
+              </select>
+            </div>
+          </div>
+          <div class="gw-field gw-field--inline">
+            <label class="gw-field__label" for="sc-c-fm-siem">Syslog target <span class="gw-field__optional">Optional</span></label>
+            <div class="gw-field__control">
+              <input class="gw-input gw-input--mono" id="sc-c-fm-siem" placeholder="siem.acme.internal:6514" aria-describedby="sc-c-fm-siem-hint" spellcheck="false">
+              <p class="gw-field__hint" id="sc-c-fm-siem-hint">TLS syslog (RFC 5425). Leave empty to keep events local.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+      <div class="gw-form__actions">
+        <button class="gw-btn gw-btn--primary" type="submit">Save audit settings</button>
+      </div>
+    </form>
+  </div>
+</section>

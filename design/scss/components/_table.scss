@@ -1,0 +1,356 @@
+// =============================================================
+// .gw-table-wrap · .gw-table   Native data table
+// -------------------------------------------------------------
+// A real <table>: developers sort and scan dense rows, screen readers get
+// row / column semantics for free. Never rebuild a table on <div>s.
+//
+//   <div class="gw-table-wrap" role="region" aria-labelledby="t-cap" tabindex="0">
+//     <table class="gw-table">
+//       <caption class="gw-sr-only" id="t-cap">Recent calls</caption>
+//       <thead><tr>
+//         <th scope="col" aria-sort="descending">
+//           <button class="gw-table__sort" type="button">Time
+//             <i class="gw-icon gw-icon--sm gw-table__sort-icon gw-table__sort-icon--none" data-lucide="chevrons-up-down"></i>
+//             <i class="gw-icon gw-icon--sm gw-table__sort-icon gw-table__sort-icon--asc" data-lucide="chevron-up"></i>
+//             <i class="gw-icon gw-icon--sm gw-table__sort-icon gw-table__sort-icon--desc" data-lucide="chevron-down"></i>
+//           </button>
+//         </th>
+//         <th scope="col">Tool</th>
+//         <th scope="col" class="gw-table__cell--num">Duration</th>
+//       </tr></thead>
+//       <tbody>
+//         <tr><td>2 min ago</td><td class="gw-table__cell--mono">sql_query</td><td class="gw-table__cell--num">38 ms</td></tr>
+//       </tbody>
+//     </table>
+//   </div>
+//
+// .gw-table-wrap   surface frame (border, radius md), scrolls on both axes.
+//   When the table is wider than the wrap, a soft shade marks each edge that
+//   has more columns behind it (scroll shadows, no script).
+//   It is a scroller: role="region" + accessible name + tabindex="0".
+//   Max height for --sticky comes from the page: --gw-table-max-height.
+//   Directly in a gw-card--flush body it drops its own frame (the card is
+//   the frame), keeps the card's inner corners and draws an inset ring.
+// .gw-table        width 100%, small type (13/18), cells nowrap: a long host
+//   or path widens its column and the wrap scrolls sideways. To cap a column,
+//   put the value in a .gw-truncate span with a max-width (and the full
+//   value in title).
+//   thead th       36px, caption type medium, muted, raised fill, sentence case.
+//   tbody td       40px rows, subtle row divider, hover wash.
+//   tbody th[scope=row]  the row's key (primary colour, medium weight).
+// Cell modifiers (on th and td)
+//   __cell--num      right aligned, tabular figures (durations, sizes, counts);
+//                    on a header it right-aligns the header too
+//   __cell--wrap     lets a cell wrap (detail rows, two-line cells, compact alerts)
+//   __cell--truncate caps a long literal at --gw-cell-max (240px default), ellipsis,
+//                    full value in title=
+//   __cell--mono     body literals: tool names, hosts, token prefixes (code-sm,
+//                    12/16 mono next to 13px text). Headers stay sans.
+//   __cell--actions  shrink-to-fit, right aligned: row buttons (gw-btn--sm),
+//                    always visible, never hover-only
+//   __cell--optional a secondary column (Type, Credentials, Version, AI app,
+//                    Duration): hidden below lg (a window under 1280px), so the
+//                    main list fits a 960px window without scrolling sideways.
+//                    Put it on the th AND every td of the column; never on the
+//                    row key, a status or the actions
+//   __cell--sticky-end  pinned to the end edge while the wrap scrolls sideways
+//                    (the action cell of a full-width alert row: "Test again"
+//                    stays reachable); carries the row's fill
+//   __cell--select   shrink-to-fit selection column holding the kit checkbox
+//                    with no visible label (24 × 24 target):
+//                    <label class="gw-checkbox"><input class="gw-checkbox__input" type="checkbox"
+//                      data-gw-select-row aria-label="Select call sql_query, 2 min ago">
+//                      <span class="gw-checkbox__control" aria-hidden="true"></span></label>
+//                    header input: data-gw-select-all. kit.js mirrors the state
+//                    to tr[aria-selected] and sets the header's indeterminate.
+// Sorting   th[aria-sort="none|ascending|descending"] > button.gw-table__sort.
+//   The three __sort-icon--none/--asc/--desc icons are in the markup; CSS shows
+//   the one that matches aria-sort. kit.js cycles and announces the order.
+// Rows
+//   tr[aria-selected="true"]  selected fill + 2px brand bar at inline start. ONLY for
+//                checkbox selection (kit.js mirrors the row checkbox into it).
+//   current row  the row whose drawer / detail is open: aria-current="true" on its
+//                __row-link (never aria-selected on the tr: nothing is "selected").
+//                The row gets the same fill + brand bar:
+//                tbody tr:has(.gw-table__row-link[aria-current="true"]).
+//   __row-link   <a> in the row's key cell; its ::after stretches over the row,
+//                the focus ring is drawn on the row. Other controls in the row
+//                stay clickable above it.
+//   __empty      one cell spanning every column (colspan) for "no results":
+//                centered, roomy; put a gw-empty--compact inside.
+// Variants
+//   --dense        32px rows, 32px header (overview "Recent activity"); row
+//                  actions there are gw-btn--sm gw-btn--icon at most
+//   --interactive  every row opens something (a __row-link per row): pointer
+//                  over the whole row; the hover wash is on every table
+//   --sticky       header stays visible while the wrap scrolls
+// States    th[aria-sort] (icon shows the order, header text turns primary) ·
+//           tr[aria-selected="true"] (fill + bar) · row link [aria-current="true"]
+//           (same fill + bar: the open row) · row link :focus-visible
+//           (ring on the row) · __sort / wrap :focus-visible
+// A11y      Give the table a <caption> (gw-sr-only when a visible heading
+//           names it) and point the wrap's aria-labelledby at it. Only the
+//           sortable headers get aria-sort. tr[aria-selected] mirrors the
+//           row checkbox; the checkbox is the state AT reads. The row link's
+//           text plus a gw-sr-only phrase names the row ("14:28:11, open
+//           call sql_query").
+// Raw values   width: 1% for shrink-to-fit columns (table layout idiom).
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+.gw-table-wrap {
+  @include gw-surface;
+  --gw-table-fill: var(--gw-color-bg-surface);
+  --gw-table-edge: color-mix(in srgb, var(--gw-color-text-primary) 16%, transparent);
+  position: relative;
+  max-width: 100%;
+  max-height: var(--gw-table-max-height, none);
+  overflow: auto;
+  // Scroll shadows: a cut edge shows a soft shade on the side that continues.
+  // The two covers scroll with the content (local) and hide the shades (scroll)
+  // when that edge is reached. Cells are transparent, so the shade shows over
+  // the body rows; the header keeps its raised fill.
+  background:
+    linear-gradient(to right, var(--gw-table-fill) 30%, transparent) left center / var(--gw-space-8) 100% no-repeat local,
+    linear-gradient(to left, var(--gw-table-fill) 30%, transparent) right center / var(--gw-space-8) 100% no-repeat local,
+    linear-gradient(to right, var(--gw-table-edge), transparent) left center / var(--gw-space-3) 100% no-repeat scroll,
+    linear-gradient(to left, var(--gw-table-edge), transparent) right center / var(--gw-space-3) 100% no-repeat scroll,
+    var(--gw-table-fill);
+  @include gw-scrollbar;
+  @include gw-focus-ring;
+}
+
+.gw-card--flush > .gw-card__body > .gw-table-wrap {
+  --gw-table-inner-radius: calc(var(--gw-radius-md) - var(--gw-border-width-default));
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  @include gw-focus-ring-inset;
+}
+// Round only the corners that touch the card's own corners.
+.gw-card--flush > .gw-card__body:first-child > .gw-table-wrap {
+  border-start-start-radius: var(--gw-table-inner-radius);
+  border-start-end-radius: var(--gw-table-inner-radius);
+}
+.gw-card--flush > .gw-card__body:last-child > .gw-table-wrap {
+  border-end-start-radius: var(--gw-table-inner-radius);
+  border-end-end-radius: var(--gw-table-inner-radius);
+}
+
+.gw-table {
+  width: 100%;
+  border-collapse: separate; // sticky headers keep their bottom border
+  border-spacing: 0;
+  @include gw-type(small);
+  color: var(--gw-color-text-secondary);
+
+  th,
+  td {
+    padding-inline: var(--gw-space-3);
+    text-align: start;
+    vertical-align: middle;
+    white-space: nowrap;
+    border-bottom: var(--gw-border-width-default) solid var(--gw-color-border-subtle);
+  }
+
+  thead th {
+    height: calc(var(--gw-size-control-md) + var(--gw-space-1));
+    padding-block: 0;
+    @include gw-type(caption);
+    font-weight: var(--gw-font-weight-medium);
+    color: var(--gw-color-text-muted);
+    background: var(--gw-color-bg-raised);
+    border-bottom-color: var(--gw-color-border-default);
+  }
+
+  tbody td,
+  tbody th {
+    height: var(--gw-size-row);
+    padding-block: var(--gw-space-1);
+  }
+
+  // A cell that may wrap (detail rows, two-line cells, alerts in a full-width row).
+  .gw-table__cell--wrap { white-space: normal; }
+
+  // Column cap: long literals (hosts, paths, commands) truncate with an ellipsis at
+  // --gw-cell-max (default 240px); put the full value in title=. Set the custom
+  // property on the cell to change the cap (style="--gw-cell-max: …" with a token).
+  .gw-table__cell--truncate {
+    max-width: var(--gw-cell-max, calc(var(--gw-size-control-lg) * 6)); // raw: 240px default cap
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  // Body literals in mono. Headers keep the sans caption.
+  :is(tbody, tfoot) .gw-table__cell--mono {
+    @include gw-type(code-sm);
+  }
+
+  // Row key: primary + medium, also when it is a mono literal.
+  tbody th {
+    font-weight: var(--gw-font-weight-medium);
+    color: var(--gw-color-text-primary);
+  }
+  tbody th.gw-table__cell--mono { font-weight: var(--gw-font-weight-medium); }
+
+  tbody tr:last-child > *,
+  tbody tr:not(:has(~ tr:not([hidden]))) > * { border-bottom: 0; } // last visible row, hidden disclosure rows after it ignored
+
+  // Hover wash (an enhancement: nothing is revealed by it).
+  tbody tr:hover > * { background: var(--gw-color-bg-hover); }
+
+  // Selected (checkbox) or current (its drawer is open): fill + brand bar,
+  // never fill alone.
+  tbody tr[aria-selected="true"] > *,
+  tbody tr:has(.gw-table__row-link[aria-current="true"]) > * { background: var(--gw-color-bg-selected); }
+  tbody tr[aria-selected="true"] > :first-child,
+  tbody tr:has(.gw-table__row-link[aria-current="true"]) > :first-child {
+    box-shadow: inset var(--gw-border-width-strong) 0 0 var(--gw-color-brand-fg);
+  }
+  tbody tr[aria-selected="true"]:dir(rtl) > :first-child,
+  tbody tr:has(.gw-table__row-link[aria-current="true"]):dir(rtl) > :first-child {
+    box-shadow: inset calc(-1 * var(--gw-border-width-strong)) 0 0 var(--gw-color-brand-fg);
+  }
+
+  // ─── Cell modifiers ───
+  .gw-table__cell--num {
+    text-align: end;
+    @include gw-tabular;
+  }
+
+  .gw-table__cell--actions {
+    width: 1%; // raw: shrink-to-fit column
+    padding-inline-end: var(--gw-space-2);
+    text-align: end;
+  }
+
+  .gw-table__cell--select {
+    width: 1%; // raw: shrink-to-fit column
+    padding-inline-end: 0;
+  }
+
+  // Secondary column: dropped below lg instead of pushing the table sideways.
+  .gw-table__cell--optional {
+    @include gw-bp-down(lg) { display: none; }
+  }
+
+  // Pinned to the end edge; layered fills so hover / selected still show.
+  .gw-table__cell--sticky-end {
+    position: sticky;
+    inset-inline-end: 0;
+    z-index: var(--gw-z-raised);
+    background: var(--gw-table-fill, var(--gw-color-bg-surface));
+  }
+  tbody tr:hover > .gw-table__cell--sticky-end {
+    background: linear-gradient(var(--gw-color-bg-hover), var(--gw-color-bg-hover)), var(--gw-table-fill, var(--gw-color-bg-surface));
+  }
+  tbody tr[aria-selected="true"] > .gw-table__cell--sticky-end,
+  tbody tr:has(.gw-table__row-link[aria-current="true"]) > .gw-table__cell--sticky-end {
+    background: linear-gradient(var(--gw-color-bg-selected), var(--gw-color-bg-selected)), var(--gw-table-fill, var(--gw-color-bg-surface));
+  }
+
+  // ─── Sorting ───
+  th[aria-sort="ascending"],
+  th[aria-sort="descending"] { color: var(--gw-color-text-primary); }
+
+  // ─── Empty ───
+  .gw-table__empty {
+    height: auto;
+    padding: var(--gw-space-8) var(--gw-space-4);
+    text-align: center;
+    white-space: normal;
+    color: var(--gw-color-text-muted);
+
+    > .gw-empty { padding: 0; } // the cell owns the spacing
+  }
+  tbody tr:has(> .gw-table__empty):hover > * { background: transparent; }
+
+  // ─── Variants ───
+  &--dense {
+    thead th { height: var(--gw-size-control-md); }
+    tbody td,
+    tbody th {
+      height: var(--gw-size-row-compact);
+      padding-block: 0;
+    }
+  }
+
+  &--interactive tbody tr:has(.gw-table__row-link) { cursor: pointer; }
+
+  &--sticky thead th {
+    position: sticky;
+    top: 0;
+    z-index: var(--gw-z-sticky);
+  }
+}
+
+// Sort trigger: the header's text + the icon for the current order.
+.gw-table__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gw-space-1);
+  min-height: var(--gw-size-target-min);
+  margin-inline: calc(-1 * var(--gw-space-1));
+  padding-inline: var(--gw-space-1);
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  border-radius: var(--gw-radius-xs);
+  transition: background-color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard);
+  @include gw-hover-wash;
+  @include gw-focus-ring(0);
+
+  &:hover { color: var(--gw-color-text-primary); }
+
+  .gw-table__cell--num & { flex-direction: row-reverse; }
+
+  .gw-table__sort-icon { display: none; }
+}
+
+th[aria-sort="none"] .gw-table__sort .gw-table__sort-icon--none,
+th[aria-sort="ascending"] .gw-table__sort .gw-table__sort-icon--asc,
+th[aria-sort="descending"] .gw-table__sort .gw-table__sort-icon--desc { display: inline-block; }
+
+// Selection column: the kit checkbox (gw-checkbox) without a visible label;
+// the input carries the aria-label. Its label box is the 24 × 24 target.
+.gw-table__cell--select .gw-checkbox {
+  min-width: var(--gw-size-target-min);
+  vertical-align: middle;
+}
+
+// Stretched row link. The row is the positioning box; the ring is drawn
+// on the row because the link's own box is only the key text.
+.gw-table tbody tr:has(.gw-table__row-link) {
+  position: relative;
+
+  &:has(.gw-table__row-link:focus-visible) {
+    outline: var(--gw-focus-width) solid var(--gw-color-border-focus);
+    outline-offset: calc(-1 * var(--gw-focus-width));
+  }
+
+  // Other controls in the row stay above the stretched link. Choice
+  // components are lifted as a whole (their input is positioned inside).
+  :where(button, select, a:not(.gw-table__row-link), .gw-menu-host, .gw-checkbox, .gw-radio, .gw-switch) {
+    position: relative;
+    z-index: var(--gw-z-raised);
+  }
+}
+
+.gw-table__row-link {
+  font-weight: var(--gw-font-weight-medium);
+  color: var(--gw-color-text-primary);
+  text-decoration: none;
+
+  &:hover { text-decoration: underline; text-underline-offset: 0.2em; }
+  &:focus { outline: none; }
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+}

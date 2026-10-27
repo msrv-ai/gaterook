@@ -1,0 +1,252 @@
+// =============================================================
+// .gw-dialog · .gw-drawer · Modal dialog and side drawer
+// -------------------------------------------------------------
+// Both style the NATIVE <dialog> opened with showModal(): focus moves in
+// and is trapped, Esc closes, the page behind is inert, the panel sits in
+// the top layer above everything (no z-index games), and focus returns to
+// the opener on close. Never rebuild this on a <div>.
+//
+//   <button class="gw-btn gw-btn--danger-ghost" type="button" data-gw-dialog-open="dlg-revoke">Revoke token</button>
+//   <dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" id="dlg-revoke"
+//           aria-labelledby="dlg-revoke-title" aria-describedby="dlg-revoke-desc">
+//     <header class="gw-dialog__header">
+//       <span class="gw-icon-tile"><i class="gw-icon" data-lucide="key-round"></i></span>
+//       <h2 class="gw-dialog__title" id="dlg-revoke-title">Revoke token codex-laptop?</h2>
+//       <p class="gw-dialog__description" id="dlg-revoke-desc">Codex loses access on its next call.</p>
+//       <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button"
+//               aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+//     </header>
+//     <div class="gw-dialog__body">…</div>
+//     <footer class="gw-dialog__footer">
+//       <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
+//       <button class="gw-btn gw-btn--danger" type="button">Revoke token codex-laptop</button>
+//     </footer>
+//   </dialog>
+//
+// .gw-dialog   centred; one question or one short task (confirm, issue a token,
+//              create an endpoint). Radius lg, shadow lg, scrim bg.backdrop.
+//   --sm 400 (confirm) | --md 560 (default, short form) | --lg 720 (longer content)
+//   --warning  risky but reversible confirm (publish the tunnel, change the port,
+//              accept calls from any address): warning icon tile; the confirm
+//              button is NOT --danger; autofocus on Cancel. Installing an unsigned
+//              plugin or reviewing an external MCP server is --danger, not this:
+//              unverified code would run inside the gateway.
+//   --danger   destructive confirm: the header icon tile turns danger; the confirm
+//              button is gw-btn--danger and NAMES the object; put `autofocus` on
+//              Cancel so Enter never destroys by accident.
+// .gw-drawer   pinned to the inline-end edge, full height, no radius: read beside
+//              the list (event detail, trace). The header is a fixed bar with a
+//              bottom rule; the body scrolls under it.
+//   --md 560 (default) | --lg 720; never wider than the viewport
+// Subparts (same for both: gw-dialog__* / gw-drawer__*)
+//   __header       grid: [icon tile] title + description [close]
+//   __title        <h2>, referenced by aria-labelledby on the <dialog>
+//   __description  one-paragraph consequence / context, aria-describedby
+//   __close        icon button aria-label="Close" + data-gw-dialog-close (top end)
+//   __body         the only scrolling part; header and footer stay put (4px of
+//                  top padding keeps a leading control's focus ring unclipped)
+//   __footer       actions end-aligned: secondary first, primary / danger LAST
+// A <form method="dialog"> may wrap header, body and footer: it is display: contents.
+// States   [open] (native). Closed dialogs are display: none by the UA sheet.
+// Motion   dialog: fade + 8px rise and 0.98 scale; drawer: slide from the inline-end
+//          edge (duration-slow). Reduced motion: both only fade, with the backdrop.
+// Behaviour (assets/kit.js): [data-gw-dialog-open="id"] → showModal();
+//   [data-gw-dialog-close] inside → close(); backdrop click closes unless the
+//   <dialog> has data-gw-static (use it for forms with unsaved input).
+// a11y   aria-labelledby → title, aria-describedby → description. EVERY dialog
+//   names its initial focus in the markup with `autofocus`: the first field of a
+//   form, or Cancel in a confirmation (--danger and --warning; a consent request
+//   focuses Deny). A read-only dialog focuses its Close / secondary button. kit.js
+//   returns focus to the opener on close (the menu trigger when the opener was a
+//   menu item).
+// Raw values: 0.98 entry scale (unitless). Widths, heights and the drawer offset
+//   are tokens or viewport-relative (100vw / 100dvh / 100%).
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+// Anatomy shared by gw-dialog and gw-drawer (emits &__header … &__footer).
+@mixin _modal-parts {
+  > form { display: contents; }
+
+  &__header {
+    display: grid;
+    flex: none;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "title close"
+      "description close";
+    align-items: start;
+    column-gap: var(--gw-space-3);
+    padding: var(--gw-space-5) var(--gw-space-5) var(--gw-space-3);
+
+    &:has(> .gw-icon-tile) {
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      grid-template-areas:
+        "icon title close"
+        "icon description close";
+    }
+
+    > .gw-icon-tile { grid-area: icon; }
+  }
+
+  &__title {
+    grid-area: title;
+    margin: 0;
+    @include gw-type(h2);
+    color: var(--gw-color-text-primary);
+    overflow-wrap: anywhere;
+  }
+
+  &__description {
+    grid-area: description;
+    margin: var(--gw-space-1) 0 0;
+    @include gw-type(small);
+    color: var(--gw-color-text-secondary);
+  }
+
+  &__close {
+    grid-area: close;
+    // Optically align the 28px button with the 24px title line, flush to the corner.
+    margin-block-start: calc(-1 * var(--gw-space-0-5));
+    margin-inline-end: calc(-1 * var(--gw-space-1-5));
+  }
+
+  &__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    // The body is the scroller and clips at its padding edge: keep room at the
+    // top for the focus ring of a control that starts the body.
+    padding: var(--gw-space-1) var(--gw-space-5) var(--gw-space-5);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    @include gw-type(body);
+    color: var(--gw-color-text-primary);
+    @include gw-scrollbar;
+  }
+
+  &__footer {
+    display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--gw-space-2);
+    padding: var(--gw-space-3) var(--gw-space-5);
+    border-top: var(--gw-border-width-default) solid var(--gw-color-border-subtle);
+  }
+}
+
+// ─────────────────── Shared shell: UA reset ───────────────────
+
+.gw-dialog,
+.gw-drawer {
+  box-sizing: border-box;
+  padding: 0;
+  color: var(--gw-color-text-primary);
+  background: var(--gw-color-bg-overlay);
+  border: var(--gw-border-width-default) solid var(--gw-color-border-default);
+  box-shadow: var(--gw-shadow-lg);
+  overflow: hidden;
+
+  // Only when open: the UA hides a closed <dialog> with display: none.
+  &[open] {
+    display: flex;
+    flex-direction: column;
+  }
+
+  // Focus always moves to a control inside; the panel itself shows no ring.
+  &:focus { outline: none; }
+
+  &::backdrop { background: var(--gw-color-bg-backdrop); }
+
+  // Reduced motion: a plain fade. Travel is added below inside gw-motion.
+  &[open],
+  &[open]::backdrop {
+    animation: gw-dialog-fade var(--gw-motion-duration-base) var(--gw-motion-ease-standard);
+  }
+}
+
+// ─────────────────── Dialog ───────────────────
+
+.gw-dialog {
+  width: var(--gw-layout-dialog-md);
+  max-width: calc(100vw - 2 * var(--gw-space-4));
+  max-height: calc(100dvh - 2 * var(--gw-space-8));
+  border-radius: var(--gw-radius-lg);
+
+  &--sm { width: var(--gw-layout-dialog-sm); }
+  &--md { width: var(--gw-layout-dialog-md); }
+  &--lg { width: var(--gw-layout-dialog-lg); }
+
+  @include _modal-parts;
+
+  &--danger > .gw-dialog__header > .gw-icon-tile,
+  &--danger > form > .gw-dialog__header > .gw-icon-tile { @include gw-tone(danger); }
+
+  // Risky but reversible confirm (install an unsigned plugin, publish the tunnel):
+  // warning tile; the confirm stays a normal / primary button, never --danger.
+  &--warning > .gw-dialog__header > .gw-icon-tile,
+  &--warning > form > .gw-dialog__header > .gw-icon-tile { @include gw-tone(warning); }
+
+  @include gw-motion {
+    &[open] { animation-name: gw-dialog-rise; }
+  }
+}
+
+// ─────────────────── Drawer ───────────────────
+
+.gw-drawer {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-start: auto;
+  inset-inline-end: 0;
+  width: var(--gw-layout-drawer-md);
+  max-width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
+  margin: 0;
+  border-width: 0;
+  border-inline-start-width: var(--gw-border-width-default);
+  border-radius: 0;
+  --gw-drawer-offset: 100%;
+
+  &--md { width: var(--gw-layout-drawer-md); }
+  &--lg { width: var(--gw-layout-drawer-lg); }
+
+  @include _modal-parts;
+
+  // Long content: the header is a fixed bar above the scrolling body.
+  &__header {
+    padding: var(--gw-space-4) var(--gw-space-5);
+    border-bottom: var(--gw-border-width-default) solid var(--gw-color-border-subtle);
+  }
+
+  &__body { padding: var(--gw-space-5); }
+
+  // Slides in from the inline-end edge (from the left in right-to-left UIs).
+  &:dir(rtl) { --gw-drawer-offset: -100%; }
+
+  @include gw-motion {
+    &[open] {
+      animation: gw-drawer-in var(--gw-motion-duration-slow) var(--gw-motion-ease-standard);
+    }
+    &[open]::backdrop { animation-duration: var(--gw-motion-duration-slow); }
+  }
+}
+
+@keyframes gw-dialog-fade {
+  from { opacity: 0; }
+}
+
+@keyframes gw-dialog-rise {
+  from {
+    opacity: 0;
+    transform: translateY(var(--gw-space-2)) scale(0.98); // raw: subtle entry scale
+  }
+}
+
+@keyframes gw-drawer-in {
+  from { transform: translateX(var(--gw-drawer-offset)); }
+}

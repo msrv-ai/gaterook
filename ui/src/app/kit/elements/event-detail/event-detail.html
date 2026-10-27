@@ -1,0 +1,271 @@
+<ng-template #parts let-list>@for (p of list; track $index) {@if (p.code) {<code class="gw-code">{{ p.text }}</code>} @else {{{ p.text }}}}</ng-template>
+
+<ng-template #sectionTitle let-text let-id="id">
+  @switch (level()) {
+    @case (2) { <h3 class="gw-text-overline" [id]="id">{{ text }}</h3> }
+    @case (4) { <h5 class="gw-text-overline" [id]="id">{{ text }}</h5> }
+    @default { <h4 class="gw-text-overline" [id]="id">{{ text }}</h4> }
+  }
+</ng-template>
+
+<ng-template #titleContent><code class="gw-code">{{ e().tool }}</code>@if (e().connection) { on <code class="gw-code">{{ e().connection }}</code>}@if (e().env; as env) { <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--{{ env }}">{{ env }}</span>}</ng-template>
+
+<header class="gw-event-detail__summary">
+  <div class="gw-event-detail__headline">
+    <span class="gw-badge gw-badge--{{ badge().tone }}" [id]="uid + '-decision'"><svg [lucideIcon]="badge().icon" class="gw-icon gw-badge__icon"></svg>{{ badge().text }}</span>
+    @switch (level()) {
+      @case (2) { <h2 class="gw-event-detail__title gw-text-h3" [id]="uid + '-title'"><ng-container [ngTemplateOutlet]="titleContent" /></h2> }
+      @case (4) { <h4 class="gw-event-detail__title gw-text-h3" [id]="uid + '-title'"><ng-container [ngTemplateOutlet]="titleContent" /></h4> }
+      @default { <h3 class="gw-event-detail__title gw-text-h3" [id]="uid + '-title'"><ng-container [ngTemplateOutlet]="titleContent" /></h3> }
+    }
+  </div>
+  <dl class="gw-kv gw-kv--inline">
+    <div class="gw-kv__row">
+      <dt class="gw-kv__key">Time</dt>
+      <dd class="gw-kv__value"><time [attr.datetime]="time.iso(e().at)" [title]="time.iso(e().at)">{{ time.absolute(e().at).slice(0, 19) }}</time> · {{ time.relative(e().at) }}</dd>
+    </div>
+    @if (duration()) {
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key">Duration</dt>
+        <dd class="gw-kv__value gw-tabular">{{ duration() }}</dd>
+      </div>
+    }
+    @if (showEventId()) {
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key">Event</dt>
+        <dd class="gw-kv__value gw-mono">{{ e().callId }}</dd>
+      </div>
+    }
+  </dl>
+  <div class="gw-event-detail__actions">
+    <button class="gw-btn gw-btn--sm" type="button" [gwCopy]="link()" [gwToast]="'Link to event ' + e().callId + ' copied'" gwToastTone="success"><svg lucideIcon="link" class="gw-icon gw-icon--sm"></svg> Copy link</button>
+    @if (traceQuery(); as q) {
+      <a class="gw-btn gw-btn--sm" routerLink="/activity" [queryParams]="q"><svg lucideIcon="list-tree" class="gw-icon gw-icon--sm"></svg> Open trace</a>
+    }
+    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" [gwExpand]="'#' + uid + '-raw-body'"><svg lucideIcon="braces" class="gw-icon gw-icon--sm"></svg> View raw<span class="gw-sr-only"> event JSON</span></button>
+  </div>
+</header>
+
+@if (error(); as err) {
+  <div class="gw-alert gw-alert--danger">
+    <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+    <div class="gw-alert__content">
+      <p class="gw-alert__title"><ng-container [ngTemplateOutlet]="parts" [ngTemplateOutletContext]="{ $implicit: err.title }" /></p>
+      <p class="gw-alert__body">{{ err.body }}</p>
+      @if (e().connection) {
+        <div class="gw-alert__actions"><a class="gw-btn gw-btn--sm" [routerLink]="['/connections', e().connection]">Open connection {{ e().connection }}</a></div>
+      }
+    </div>
+  </div>
+}
+
+<section class="gw-event-detail__section" [attr.aria-labelledby]="uid + '-request'">
+  <div class="gw-event-detail__section-header">
+    <ng-container [ngTemplateOutlet]="sectionTitle" [ngTemplateOutletContext]="{ $implicit: 'Request', id: uid + '-request' }" />
+    @if (revokeLabel(); as access) {
+      <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="revoke.emit($any($event.currentTarget))"><svg lucideIcon="ban" class="gw-icon gw-icon--sm"></svg> Revoke<span class="gw-sr-only"> {{ access }}</span></button>
+    }
+  </div>
+  <dl class="gw-kv">
+    <div class="gw-kv__row"><dt class="gw-kv__key">Client</dt><dd class="gw-kv__value">@if (e().client; as cl) {<span [gwClientMark]="cl" size="sm"></span> }{{ who() }}</dd></div>
+    <div class="gw-kv__row"><dt class="gw-kv__key">Token</dt><dd class="gw-kv__value"><ng-container [ngTemplateOutlet]="parts" [ngTemplateOutletContext]="{ $implicit: token() }" /></dd></div>
+    <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">{{ e().endpoint }}</code> · <span class="gw-mono">/mcp/{{ e().endpoint }}</span></dd></div>
+    @if (protocol()) {
+      <div class="gw-kv__row"><dt class="gw-kv__key">Protocol</dt><dd class="gw-kv__value">MCP revision <span class="gw-mono">{{ protocol() }}</span> · Streamable HTTP</dd></div>
+    }
+    @if (e().traceId; as trace) {
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key" [id]="uid + '-trace-key'">Trace id</dt>
+        <dd class="gw-kv__value">
+          <div class="gw-copy-field" role="group" [attr.aria-labelledby]="uid + '-trace-key'">
+            <code class="gw-copy-field__value" [id]="uid + '-trace'">{{ trace }}</code>
+            <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" [gwCopyFrom]="'#' + uid + '-trace'">
+              <span class="gw-copy-field__copy"><svg lucideIcon="copy" class="gw-icon gw-icon--sm"></svg> Copy<span class="gw-sr-only"> trace id</span></span>
+              <span class="gw-copy-field__copied"><svg lucideIcon="check" class="gw-icon gw-icon--sm"></svg> Copied</span>
+            </button>
+          </div>
+        </dd>
+      </div>
+    }
+  </dl>
+</section>
+
+<section class="gw-event-detail__section" [attr.aria-labelledby]="uid + '-args'">
+  <div class="gw-event-detail__section-header">
+    <ng-container [ngTemplateOutlet]="sectionTitle" [ngTemplateOutletContext]="{ $implicit: 'Arguments', id: uid + '-args' }" />
+  </div>
+  @if (args(); as a) {
+    <gw-code-block [text]="a.text" language="json" lang="JSON" [filename]="'arguments · ' + e().tool" copyLabel="arguments" [regionLabel]="'Arguments of ' + e().tool" wrap />
+    <p class="gw-text-caption gw-fg-muted">{{ maskedText() }}</p>
+  } @else {
+    <p class="gw-text-small gw-fg-muted">No arguments were recorded for this call.</p>
+  }
+</section>
+
+<section class="gw-event-detail__section" [attr.aria-labelledby]="uid + '-policy'">
+  <div class="gw-event-detail__section-header">
+    <ng-container [ngTemplateOutlet]="sectionTitle" [ngTemplateOutletContext]="{ $implicit: 'Policy decision', id: uid + '-policy' }" />
+    @if (policyEnv(); as env) {
+      <a class="gw-btn gw-btn--link gw-btn--sm" [routerLink]="['/policies', env]">{{ env === 'prod' ? 'Open prod policy' : 'Open policies' }}</a>
+    }
+  </div>
+  <ol class="gw-timeline" [attr.aria-label]="'Rules evaluated for ' + e().tool + (e().connection ? ' on ' + e().connection : '') + ', in order'">
+    @for (s of policy(); track $index) {
+      <li class="gw-timeline__item">
+        @if (s.tone) {
+          <span class="gw-timeline__marker gw-timeline__marker--{{ s.tone }}"><svg [lucideIcon]="s.icon!" class="gw-icon gw-icon--sm"></svg></span>
+        } @else {
+          <span class="gw-timeline__marker"></span>
+        }
+        <div class="gw-timeline__content">
+          <p class="gw-timeline__title"><ng-container [ngTemplateOutlet]="parts" [ngTemplateOutletContext]="{ $implicit: s.title }" />@if (s.matched) { <span class="gw-badge gw-badge--brand gw-badge--sm">Matched rule</span>}</p>
+          <p class="gw-timeline__meta"><ng-container [ngTemplateOutlet]="parts" [ngTemplateOutletContext]="{ $implicit: s.meta }" /></p>
+        </div>
+      </li>
+    }
+  </ol>
+</section>
+
+@if (asked()) {
+  <section class="gw-event-detail__section" [attr.aria-labelledby]="uid + '-approval'">
+    <div class="gw-event-detail__section-header">
+      <ng-container [ngTemplateOutlet]="sectionTitle" [ngTemplateOutletContext]="{ $implicit: 'Approval', id: uid + '-approval' }" />
+      <a class="gw-btn gw-btn--link gw-btn--sm" [routerLink]="['/approvals', e().approvalId ?? rows().received?.approvalId]">Open in Approvals</a>
+    </div>
+    <ol class="gw-timeline" [attr.aria-label]="'Approval history of ' + e().tool + (e().connection ? ' on ' + e().connection : '')">
+      @if (history(); as steps) {
+        @for (s of steps; track $index) {
+          <li class="gw-timeline__item">
+            <span class="gw-timeline__marker gw-timeline__marker--{{ s.tone }}"><svg [lucideIcon]="s.icon" class="gw-icon gw-icon--sm"></svg></span>
+            <div class="gw-timeline__content">
+              <p class="gw-timeline__title">{{ s.title }}</p>
+              <p class="gw-timeline__meta"><ng-container [ngTemplateOutlet]="parts" [ngTemplateOutletContext]="{ $implicit: s.meta }" /></p>
+              @if (s.comment) {
+                <blockquote class="gw-timeline__comment"><p>{{ s.comment }}</p></blockquote>
+              }
+            </div>
+            <time class="gw-timeline__time" [attr.datetime]="time.iso(s.at)" [title]="time.iso(s.at)">{{ time.clock(s.at, true) }}</time>
+          </li>
+        }
+      } @else {
+        @for (s of path(); track $index) {
+          <li class="gw-timeline__item">
+            <span class="gw-timeline__marker gw-timeline__marker--{{ s.tone }}"><svg [lucideIcon]="s.icon" class="gw-icon gw-icon--sm"></svg></span>
+            <div class="gw-timeline__content">
+              <p class="gw-timeline__title">{{ s.title }}</p>
+              <p class="gw-timeline__meta"><ng-container [ngTemplateOutlet]="parts" [ngTemplateOutletContext]="{ $implicit: s.meta }" /></p>
+            </div>
+            <time class="gw-timeline__time" [attr.datetime]="time.iso(s.at)" [title]="time.iso(s.at)">{{ time.clock(s.at, true) }}</time>
+          </li>
+        }
+      }
+    </ol>
+    @if (match().approved; as sha) {
+      <dl class="gw-kv gw-kv--dense">
+        <div class="gw-kv__row">
+          <dt class="gw-kv__key" [id]="uid + '-act-sha-key'">Approved action SHA-256</dt>
+          <dd class="gw-kv__value">
+            <div class="gw-copy-field" role="group" [attr.aria-labelledby]="uid + '-act-sha-key'">
+              <code class="gw-copy-field__value" [id]="uid + '-act-sha'" [title]="sha">{{ sha }}</code>
+              <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" [gwCopyFrom]="'#' + uid + '-act-sha'">
+                <span class="gw-copy-field__copy"><svg lucideIcon="copy" class="gw-icon gw-icon--sm"></svg> Copy<span class="gw-sr-only"> SHA-256 of the approved action</span></span>
+                <span class="gw-copy-field__copied"><svg lucideIcon="check" class="gw-icon gw-icon--sm"></svg> Copied</span>
+              </button>
+            </div>
+          </dd>
+        </div>
+        <div class="gw-kv__row"><dt class="gw-kv__key">Executed action</dt><dd class="gw-kv__value">
+          @switch (match().state) {
+            @case ('match') { <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Matches the approved action, byte for byte</span></span> }
+            @case ('mismatch') { <span class="gw-status gw-status--danger"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Doesn't match the approved action: blocked, not run</span></span> }
+            @default { <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Not executed</span></span> }
+          }
+        </dd></div>
+      </dl>
+    }
+  </section>
+}
+
+<section class="gw-event-detail__section" [attr.aria-labelledby]="uid + '-result'">
+  <div class="gw-event-detail__section-header">
+    <ng-container [ngTemplateOutlet]="sectionTitle" [ngTemplateOutletContext]="{ $implicit: 'Result', id: uid + '-result' }" />
+  </div>
+  <dl class="gw-kv">
+    <div class="gw-kv__row"><dt class="gw-kv__key">Status</dt><dd class="gw-kv__value"><ng-container [ngTemplateOutlet]="parts" [ngTemplateOutletContext]="{ $implicit: status() }" /></dd></div>
+    @if (completed()?.errorKind; as kind) {
+      <div class="gw-kv__row"><dt class="gw-kv__key">Error</dt><dd class="gw-kv__value gw-mono">{{ kind }}</dd></div>
+    }
+    @if (size(); as sz) {
+      <div class="gw-kv__row"><dt class="gw-kv__key">Size</dt><dd class="gw-kv__value gw-tabular">{{ sz }}</dd></div>
+    }
+    @if (completed()?.resultSha256; as sha) {
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key" [id]="uid + '-sha-key'">SHA-256</dt>
+        <dd class="gw-kv__value">
+          <div class="gw-copy-field" role="group" [attr.aria-labelledby]="uid + '-sha-key'">
+            <code class="gw-copy-field__value" [id]="uid + '-sha'" [title]="sha">{{ sha }}</code>
+            <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" [gwCopyFrom]="'#' + uid + '-sha'">
+              <span class="gw-copy-field__copy"><svg lucideIcon="copy" class="gw-icon gw-icon--sm"></svg> Copy<span class="gw-sr-only"> SHA-256 of the result</span></span>
+              <span class="gw-copy-field__copied"><svg lucideIcon="check" class="gw-icon gw-icon--sm"></svg> Copied</span>
+            </button>
+          </div>
+        </dd>
+      </div>
+    }
+    @if (completed(); as done) {
+      <div class="gw-kv__row"><dt class="gw-kv__key">Masked fields</dt><dd class="gw-kv__value gw-tabular">{{ done.maskedCount ?? 0 }}</dd></div>
+    }
+  </dl>
+  @if (approvedResult(); as json) {
+    <gw-code-block [text]="json" language="json" lang="JSON" filename="structuredContent" copyLabel="result" [regionLabel]="'Result returned to ' + who()" wrap />
+    <p class="gw-text-caption gw-fg-muted">What {{ who() }} received, verbatim.</p>
+  } @else if (completed()) {
+    <p class="gw-text-caption gw-fg-muted">The audit log keeps the size and hash of what {{ who() }} received, not the content.</p>
+  }
+</section>
+
+@if (timing(); as tm) {
+  <section class="gw-event-detail__section" [attr.aria-labelledby]="uid + '-timing'">
+    <div class="gw-event-detail__section-header">
+      <ng-container [ngTemplateOutlet]="sectionTitle" [ngTemplateOutletContext]="{ $implicit: 'Timing', id: uid + '-timing' }" />
+    </div>
+    <p class="gw-text-small gw-fg-secondary" [id]="uid + '-timing-label'"><ng-container [ngTemplateOutlet]="parts" [ngTemplateOutletContext]="{ $implicit: tm.summary }" /></p>
+    <ol class="gw-waterfall" [attr.aria-labelledby]="uid + '-timing-label'">
+      @for (r of tm.rows; track $index) {
+        <li class="gw-waterfall__row">
+          <span class="gw-waterfall__label"><ng-container [ngTemplateOutlet]="parts" [ngTemplateOutletContext]="{ $implicit: r.label }" /></span>
+          <span class="gw-waterfall__track" aria-hidden="true"><span class="gw-waterfall__span gw-waterfall__span--{{ r.kind }}" [style.--start]="r.start" [style.--len]="r.len"></span></span>
+          <span class="gw-waterfall__value">{{ r.kind === 'approval' ? elapsed(r.ms) : spanText(r.ms) }}</span>
+        </li>
+      }
+    </ol>
+    <ul class="gw-legend" aria-label="Timing phases">
+      @for (k of tm.kinds; track k) {
+        <li class="gw-legend__item"><span class="gw-legend__swatch {{ legend[k].swatch }}"></span>{{ legend[k].text }}</li>
+      }
+    </ul>
+  </section>
+}
+
+<section class="gw-event-detail__section" [id]="uid + '-raw'" [attr.aria-labelledby]="uid + '-raw-title'">
+  <div class="gw-event-detail__section-header">
+    <ng-container [ngTemplateOutlet]="sectionTitle" [ngTemplateOutletContext]="{ $implicit: 'Raw event', id: uid + '-raw-title' }" />
+    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [attr.aria-controls]="uid + '-raw-body'">
+      <span class="gw-event-detail__when-collapsed"><svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm"></svg> Show JSON</span>
+      <span class="gw-event-detail__when-expanded"><svg lucideIcon="chevron-up" class="gw-icon gw-icon--sm"></svg> Hide JSON</span>
+    </button>
+  </div>
+  <p class="gw-text-caption gw-fg-muted">The record as stored in the append-only audit log, {{ raw().size }}, masked values included.</p>
+  <div [id]="uid + '-raw-body'" hidden>
+    <gw-code-block [text]="raw().text" lang="JSON" [filename]="e().callId + '.json'" copyLabel="raw event" [regionLabel]="'Raw event ' + e().callId" scroll />
+  </div>
+</section>
+
+<hr class="gw-divider">
+<footer class="gw-event-detail__footer">
+  @if (e().tokenLabel; as tok) {
+    <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/activity" [queryParams]="{ q: 'token:' + tok }"><svg lucideIcon="filter" class="gw-icon gw-icon--sm"></svg> Filter by this token<span class="gw-sr-only"> {{ tok }}</span></a>
+  }
+  <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/activity" [queryParams]="{ q: 'tool:' + e().tool }"><svg lucideIcon="filter" class="gw-icon gw-icon--sm"></svg> Filter by this tool<span class="gw-sr-only"> {{ e().tool }}</span></a>
+  <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/insights" [queryParams]="{ q: 'tool:' + e().tool }"><svg lucideIcon="chart-column" class="gw-icon gw-icon--sm"></svg> View in Insights</a>
+</footer>

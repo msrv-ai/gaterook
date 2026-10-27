@@ -1,0 +1,49 @@
+{
+  "area": "aws",
+  "module": "connectors/aws",
+  "connectorTypes": ["aws"],
+  "description": "Touches of the AWS connector for the native smoke (report 15 §6): the call checks without I/O (a type whose read returns secret values and a LAMBDA() expression are denied), a profile that isn't on the computer (the SDK's profile files and the error mapping of Test connection), and with fixture aws — STS (Query/XML), Cloud Control (JSON 1.0) and CloudWatch (Smithy RPCv2 CBOR, timestamps as tag 1) on loopback, as the app's AwsCoreProcessIT wires them through gateway.cloud.* — a list of one type through AssumeRole and one GetMetricData. The first three need no server.",
+  "touches": [
+    {
+      "name": "secret-values-denied",
+      "connection": {"type": "aws", "env": "dev",
+        "config": {"regions": ["eu-central-1"], "credentials": {"source": "profile", "profile": "mcp-gateway-smoke"}}},
+      "call": {"tool": "aws_describe", "arguments": {"type": "AWS::SecretsManager::Secret"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.cloud.sensitive_type"}
+    },
+    {
+      "name": "lambda-expression-denied",
+      "connection": {"type": "aws", "env": "dev",
+        "config": {"regions": ["eu-central-1"], "credentials": {"source": "profile", "profile": "mcp-gateway-smoke"}}},
+      "call": {"tool": "aws_metrics",
+        "arguments": {"metrics": [{"namespace": "AWS/Lambda", "metric": "Errors"}],
+          "expressions": [{"id": "e1", "expression": "LAMBDA(\"orders-fn\", m1)"}]}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.cloud.metric_expression"}
+    },
+    {
+      "name": "missing-profile-unreachable",
+      "connection": {"type": "aws", "env": "dev",
+        "config": {"regions": ["eu-central-1"], "credentials": {"source": "profile", "profile": "mcp-gateway-smoke-no-such-profile"}}},
+      "test": true,
+      "expect": {"ok": false, "errorCode": "aws.unreachable"}
+    },
+    {
+      "name": "cloud-control-list",
+      "fixture": "aws",
+      "connection": {"type": "aws", "env": "dev",
+        "config": {"regions": ["eu-central-1"], "credentials": {"source": "accessKey", "accessKeyId": "AKIAZ7GWSTAGEDEMO000", "roleArn": "arn:aws:iam::412398765012:role/gw-readonly", "externalId": "gw-ext-3f9a1c2b7d4e"}},
+        "secrets": {"/credentials/secretAccessKey": "wJalrXUtnFEMI/K7MDENG/smokeSMOKEsmoke0001"}},
+      "call": {"tool": "aws_describe", "arguments": {"type": "AWS::RDS::DBInstance", "limit": 1}},
+      "expect": {"isError": false, "structuredContent": {"provider": "aws", "mode": "list", "count": 1}}
+    },
+    {
+      "name": "cloudwatch-cbor-query",
+      "fixture": "aws",
+      "connection": {"type": "aws", "env": "dev",
+        "config": {"regions": ["eu-central-1"], "credentials": {"source": "accessKey", "accessKeyId": "AKIAZ7GWSTAGEDEMO000", "roleArn": "arn:aws:iam::412398765012:role/gw-readonly", "externalId": "gw-ext-3f9a1c2b7d4e"}},
+        "secrets": {"/credentials/secretAccessKey": "wJalrXUtnFEMI/K7MDENG/smokeSMOKEsmoke0001"}},
+      "call": {"tool": "aws_metrics", "arguments": {"metrics": [{"namespace": "AWS/RDS", "metric": "CPUUtilization", "dimensions": {"DBInstanceIdentifier": "stage-orders"}}], "from": "-1h"}},
+      "expect": {"isError": false, "structuredContent": {"provider": "aws", "action": "query", "truncated": false}}
+    }
+  ]
+}

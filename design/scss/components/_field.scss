@@ -1,0 +1,160 @@
+// =============================================================
+// .gw-field · Form field wrapper
+// -------------------------------------------------------------
+// One labelled control with its hint, counter and error. Every text
+// control, select, choice group and secret in the kit sits in one.
+// The label is always visible and above the control: a placeholder is
+// an example value, never the label.
+//
+//   <div class="gw-field">
+//     <label class="gw-field__label" for="host">Host</label>
+//     <input class="gw-input gw-input--mono" id="host" aria-describedby="host-hint" required>
+//     <p class="gw-field__hint" id="host-hint">Hostname or IP the core can reach.</p>
+//   </div>
+//
+//   Group of choices: <fieldset class="gw-field"> + <legend class="gw-field__label">.
+//   The legend floats so it becomes a grid row like any label, while
+//   still naming the fieldset for screen readers.
+//
+// Order of children: __label → control → __error → __hint → __counter.
+// A hint followed by a counter shares the last row with it (hint left,
+// counter right); otherwise the hint takes the full width.
+//
+// Subparts
+//   __label     <label for> / <legend>. Visible, sentence case, no colon.
+//   __optional  "Optional" after the label text. Preferred: in a dev tool most
+//               fields are required, so mark the few that are not.
+//   __required  "Required" when a form is mostly optional, or an asterisk:
+//               <span class="gw-field__required"><span aria-hidden="true">*</span>
+//               <span class="gw-sr-only">required</span></span>. The control
+//               still carries `required` / aria-required="true".
+//   __hint      one line under the control; tie it with aria-describedby.
+//   __error     circle-alert icon + text "what happened + what to do"; tie it
+//               with aria-describedby and set aria-invalid="true" on the control.
+//               Shown after a submit attempt, not while the user types.
+//   __counter   "212 / 2,000" characters, tabular. [data-over] when over the
+//               limit; the text then says so too ("7 over"), never colour only.
+//   __control   right column of --inline (control + error + hint + counter);
+//               optional in the stacked layout.
+// Variants
+//   --inline    label in a left column (1/3) ≥ md, for settings rows; stacked
+//               below md. Put everything except the label in __control.
+//   --nested    kit addition: a dependent group indented under the choice that
+//               controls it ("All 3 tools" → the tools). Aligns with the parent
+//               choice's label text. Give it role="group" + a name.
+// States      control [aria-invalid="true"] + __error · __counter[data-over]
+// A11y
+//   The control's accessible name is the label; hint and error are its
+//   description (aria-describedby="err hint"). Required is programmatic
+//   (`required`), not only the word. Errors use text + icon + red border.
+// Raw values: none
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+// Rows stack full width; a hint shares its row with a following counter.
+@mixin field-stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-content: start;
+  row-gap: var(--gw-space-1-5);
+  column-gap: var(--gw-space-3);
+  min-width: 0;
+
+  > * { grid-column: 1 / -1; min-width: 0; }
+  > .gw-field__hint:has(+ .gw-field__counter) { grid-column: 1; }
+  > .gw-field__counter { grid-column: 2; }
+}
+
+.gw-field {
+  @include field-stack;
+
+  // <fieldset class="gw-field"> for checkbox / radio / segmented / card groups
+  margin: 0;
+  padding: 0;
+  border: 0;
+
+  &__label {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--gw-space-1-5);
+    justify-self: start;
+    max-width: 100%;
+    padding: 0;
+    @include gw-type(ui);
+    color: var(--gw-color-text-primary);
+  }
+
+  &__required,
+  &__optional {
+    @include gw-type(caption);
+    color: var(--gw-color-text-muted);
+  }
+
+  &__hint {
+    @include gw-type(small);
+    color: var(--gw-color-text-muted);
+  }
+
+  &__error {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--gw-space-1-5);
+    @include gw-type(small);
+    color: var(--gw-color-danger-fg);
+
+    > .gw-icon {
+      --gw-icon-size: var(--gw-size-icon-sm);
+      margin-block-start: var(--gw-space-0-5); // centre a 14px icon on the 18px line
+    }
+  }
+
+  &__counter {
+    justify-self: end;
+    @include gw-type(caption);
+    @include gw-tabular;
+    color: var(--gw-color-text-muted);
+    text-align: end;
+    white-space: nowrap;
+
+    &[data-over] {
+      color: var(--gw-color-danger-fg);
+      font-weight: var(--gw-font-weight-semibold);
+    }
+  }
+
+  &__control {
+    @include field-stack;
+  }
+
+  // ─── Inline: label column on the left (settings) ───
+  &--inline {
+    @include gw-bp-up(md) {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+      column-gap: var(--gw-space-6);
+      align-items: start;
+
+      > .gw-field__label {
+        grid-column: 1;
+        // centre the 20px label line on a 32px control
+        padding-block-start: var(--gw-space-1-5);
+      }
+      > .gw-field__control { grid-column: 2; }
+    }
+  }
+
+  // ─── Nested: dependent choices under their parent choice ───
+  // 16px box + 8px gap of gw-checkbox / gw-radio = where the parent label starts.
+  &--nested {
+    padding-inline-start: calc(var(--gw-size-icon-md) + var(--gw-space-2));
+  }
+}
+
+// A floated legend is not the "rendered legend": it becomes a grid row
+// like a <label>, and it still names its fieldset.
+legend.gw-field__label {
+  float: left;
+  width: 100%;
+}

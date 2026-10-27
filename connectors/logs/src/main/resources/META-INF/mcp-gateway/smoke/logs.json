@@ -1,0 +1,40 @@
+{
+  "area": "logs",
+  "module": "connectors/logs",
+  "connectorTypes": ["logs"],
+  "description": "Touches of the Logs connector for the native smoke (report 15 §6): the call checks without I/O, java.net.http with its error mapping, and the sealed cursor. The first three need no server; the fourth needs a Loki (fixture loki: the Loki 3.7.9 binary of -Plogs-it, multi-tenant, an entry pushed to {app=\"smoke\"} for the tenant before the call) and exercises a search, the merge of streams and the cursor. Cloud Logging and CloudWatch touch google-auth and the AWS SDK through the app's LogsCoreProcessIT.",
+  "touches": [
+    {
+      "name": "opensearch-dsl-denied",
+      "connection": {"type": "logs", "env": "dev",
+        "config": {"backend": "opensearch", "url": "http://127.0.0.1:1", "indices": ["logs-app-*"],
+                   "auth": {"mode": "none"}}},
+      "call": {"tool": "logs_search", "arguments": {"query": "{\"terms\":{\"user\":{\"index\":\"secrets\",\"id\":\"1\"}}}"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.logs.os_dsl"}
+    },
+    {
+      "name": "insights-source-command-denied",
+      "connection": {"type": "logs", "env": "dev",
+        "config": {"backend": "cloudwatch", "region": "eu-central-1", "logGroups": ["/aws/ecs/api"],
+                   "searchApi": "insights", "credentials": {"source": "accessKey", "accessKeyId": "AKIAIOSFODNN7EXAMPLE"}},
+        "secrets": {"/credentials/secretAccessKey": "smoke-only-0001"}},
+      "call": {"tool": "logs_search", "arguments": {"query": "SOURCE '/aws/rds/billing' | fields @message"}},
+      "expect": {"isError": true, "textStartsWith": "Denied by policy dev.logs.cw_source_command"}
+    },
+    {
+      "name": "loki-unreachable",
+      "connection": {"type": "logs", "env": "dev",
+        "config": {"backend": "loki", "url": "http://127.0.0.1:1", "tenant": "smoke", "auth": {"mode": "none"}}},
+      "test": true,
+      "expect": {"ok": false, "errorCode": "logs.unreachable"}
+    },
+    {
+      "name": "loki-search-with-cursor",
+      "fixture": "loki",
+      "connection": {"type": "logs", "env": "dev",
+        "config": {"backend": "loki", "url": "${fixture.url}", "tenant": "${fixture.tenant}", "auth": {"mode": "none"}}},
+      "call": {"tool": "logs_search", "arguments": {"query": "{app=\"smoke\"}", "from": "-1h", "limit": 1}},
+      "expect": {"isError": false, "structuredContent": {"backend": "loki", "count": 1}}
+    }
+  ]
+}

@@ -1,0 +1,276 @@
+<section class="sc-section" id="charts" data-title="Charts" data-group="Code and data">
+  <h2>Charts <code class="gw-code">gw-chart</code> <code class="gw-code">gw-legend</code> <code class="gw-code">gw-sparkline</code></h2>
+  <p>Lightweight charts in HTML, CSS and inline SVG, no library: a stacked histogram of calls over time, a horizontal bar list for top tools, a sparkline inside a stat. Data enters as unitless custom properties (<code class="gw-code">style="--v: 0.42"</code>, value ÷ axis max). Every chart is <code class="gw-code">role="img"</code> with an <code class="gw-code">aria-label</code> that states the finding, and the numbers sit next to it in a visually hidden table. Series differ by more than colour: legend words, a fixed stack order and 1px gaps. Marks paint with tone FG tokens or <code class="gw-code">--gw-color-chart-1…6</code>, never solids. Use a chart when the shape matters (a spike, a ranking); when one number matters, use a <code class="gw-code">gw-stat</code>; when exact values matter, use a table.</p>
+
+  <h3>Calls over time, stacked by decision</h3>
+  <div class="sc-demo sc-demo--canvas sc-demo--col" data-sc-code>
+    <section class="gw-card" aria-labelledby="sc-e-ch-calls-title">
+      <header class="gw-card__header">
+        <div class="gw-card__heading">
+          <h4 class="gw-card__title" id="sc-e-ch-calls-title">Calls over time</h4>
+          <p class="gw-card__description">Last 24 hours, per hour, by decision</p>
+        </div>
+      </header>
+      <div class="gw-card__body gw-stack">
+        <div class="gw-chart" role="img" aria-label="Calls per hour, last 24 hours. 1,284 calls finished: 1,247 allowed or approved, 34 denied, rejected or failed, 3 expired; 3 more are waiting for approval. Peak of 166 calls at 11:00. Most denials came between 09:00 and 11:00.">
+          <div class="gw-chart__plot">
+            <span class="gw-chart__gridline" style="--v: 0.25"><span class="gw-chart__label">50</span></span>
+            <span class="gw-chart__gridline" style="--v: 0.5"><span class="gw-chart__label">100</span></span>
+            <span class="gw-chart__gridline" style="--v: 0.75"><span class="gw-chart__label">150</span></span>
+            <span class="gw-chart__gridline" style="--v: 1"><span class="gw-chart__label">200</span></span>
+            <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.475"></span><span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.005"></span></span>
+            <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.555"></span><span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.02"></span><span class="gw-chart__segment gw-chart__segment--neutral" style="--v: 0.005"></span></span>
+            <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.51"></span><span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.01"></span></span>
+            <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.34"></span></span>
+            <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.19"></span></span>
+            <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.1"></span></span>
+            <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.07"></span></span>
+            <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.05"></span></span>
+            <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.035"></span></span>
+            <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.015"></span></span>
+            <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.005"></span></span>
+            <span class="gw-chart__bar"></span>
+            <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.005"></span></span>
+            <span class="gw-chart__bar"></span>
+            <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.015"></span></span>
+            <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.045"></span></span>
+            <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.12"></span></span>
+            <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.27"></span><span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.01"></span></span>
+            <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.49"></span><span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.03"></span></span>
+            <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.705"></span><span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.045"></span></span>
+            <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.8"></span><span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.025"></span><span class="gw-chart__segment gw-chart__segment--neutral" style="--v: 0.005"></span></span>
+            <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.45"></span></span>
+            <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.585"></span><span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.015"></span><span class="gw-chart__segment gw-chart__segment--neutral" style="--v: 0.005"></span></span>
+            <span class="gw-chart__bar"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.405"></span><span class="gw-chart__segment gw-chart__segment--warning" style="--v: 0.015"></span><span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.01"></span></span>
+          </div>
+          <div class="gw-chart__axis">
+            <span class="gw-chart__label" style="--v: 0">15:00</span>
+            <span class="gw-chart__label" style="--v: 0.25">21:00</span>
+            <span class="gw-chart__label" style="--v: 0.5">03:00</span>
+            <span class="gw-chart__label" style="--v: 0.75">09:00</span>
+            <span class="gw-chart__label" style="--v: 1">Now</span>
+          </div>
+        </div>
+        <ul class="gw-legend">
+          <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--success"></span>Allowed or approved <span class="gw-legend__value">1,247</span></li>
+          <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--warning"></span>Waiting for approval <span class="gw-legend__value">3</span></li>
+          <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--danger"></span>Denied, rejected or failed <span class="gw-legend__value">34</span></li>
+          <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--neutral"></span>Expired <span class="gw-legend__value">3</span></li>
+        </ul>
+        <div class="gw-sr-only"><table>
+          <caption>Calls per hour by decision, last 24 hours</caption>
+          <thead>
+            <tr><th scope="col">Hour</th><th scope="col">Allowed or approved</th><th scope="col">Waiting for approval</th><th scope="col">Denied, rejected or failed</th><th scope="col">Expired</th><th scope="col">Total</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">15:00</th><td>95</td><td>0</td><td>1</td><td>0</td><td>96</td></tr>
+            <tr><th scope="row">16:00</th><td>111</td><td>0</td><td>4</td><td>1</td><td>116</td></tr>
+            <tr><th scope="row">17:00</th><td>102</td><td>0</td><td>2</td><td>0</td><td>104</td></tr>
+            <tr><th scope="row">18:00</th><td>68</td><td>0</td><td>0</td><td>0</td><td>68</td></tr>
+            <tr><th scope="row">19:00</th><td>38</td><td>0</td><td>0</td><td>0</td><td>38</td></tr>
+            <tr><th scope="row">20:00</th><td>20</td><td>0</td><td>0</td><td>0</td><td>20</td></tr>
+            <tr><th scope="row">21:00</th><td>14</td><td>0</td><td>0</td><td>0</td><td>14</td></tr>
+            <tr><th scope="row">22:00</th><td>10</td><td>0</td><td>0</td><td>0</td><td>10</td></tr>
+            <tr><th scope="row">23:00</th><td>7</td><td>0</td><td>0</td><td>0</td><td>7</td></tr>
+            <tr><th scope="row">00:00</th><td>3</td><td>0</td><td>0</td><td>0</td><td>3</td></tr>
+            <tr><th scope="row">01:00</th><td>1</td><td>0</td><td>0</td><td>0</td><td>1</td></tr>
+            <tr><th scope="row">02:00</th><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+            <tr><th scope="row">03:00</th><td>1</td><td>0</td><td>0</td><td>0</td><td>1</td></tr>
+            <tr><th scope="row">04:00</th><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+            <tr><th scope="row">05:00</th><td>3</td><td>0</td><td>0</td><td>0</td><td>3</td></tr>
+            <tr><th scope="row">06:00</th><td>9</td><td>0</td><td>0</td><td>0</td><td>9</td></tr>
+            <tr><th scope="row">07:00</th><td>24</td><td>0</td><td>0</td><td>0</td><td>24</td></tr>
+            <tr><th scope="row">08:00</th><td>54</td><td>0</td><td>2</td><td>0</td><td>56</td></tr>
+            <tr><th scope="row">09:00</th><td>98</td><td>0</td><td>6</td><td>0</td><td>104</td></tr>
+            <tr><th scope="row">10:00</th><td>141</td><td>0</td><td>9</td><td>0</td><td>150</td></tr>
+            <tr><th scope="row">11:00</th><td>160</td><td>0</td><td>5</td><td>1</td><td>166</td></tr>
+            <tr><th scope="row">12:00</th><td>90</td><td>0</td><td>0</td><td>0</td><td>90</td></tr>
+            <tr><th scope="row">13:00</th><td>117</td><td>0</td><td>3</td><td>1</td><td>121</td></tr>
+            <tr><th scope="row">14:00</th><td>81</td><td>3</td><td>2</td><td>0</td><td>86</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+      <footer class="gw-card__footer">
+        <a class="gw-btn gw-btn--link" href="#table">View in Activity</a>
+      </footer>
+    </section>
+  </div>
+
+  <h3>Top tools, horizontal bars</h3>
+  <p class="sc-lead"><code class="gw-code">--hbar</code>: label, bar and value as direct children of one grid, so the columns line up. Without a modifier a segment uses <code class="gw-code">--gw-color-chart-1</code>.</p>
+  <div class="sc-demo sc-demo--canvas sc-demo--col" data-sc-code>
+    <section class="gw-card" aria-labelledby="sc-e-ch-tools-title">
+      <header class="gw-card__header">
+        <div class="gw-card__heading">
+          <h4 class="gw-card__title" id="sc-e-ch-tools-title">Top tools</h4>
+          <p class="gw-card__description">Calls in the last 24 hours</p>
+        </div>
+      </header>
+      <div class="gw-card__body">
+        <div class="gw-chart gw-chart--hbar" role="img" aria-label="Top tools by calls, last 24 hours: sql_query leads with 512, then logs_search 341, k8s_get 156, ssh_run 98, http_request 61 and sql_execute 47.">
+          <span class="gw-chart__label gw-mono">sql_query</span>
+          <span class="gw-chart__bar"><span class="gw-chart__segment" style="--v: 1"></span></span>
+          <span class="gw-chart__value">512</span>
+          <span class="gw-chart__label gw-mono">logs_search</span>
+          <span class="gw-chart__bar"><span class="gw-chart__segment" style="--v: 0.666"></span></span>
+          <span class="gw-chart__value">341</span>
+          <span class="gw-chart__label gw-mono">k8s_get</span>
+          <span class="gw-chart__bar"><span class="gw-chart__segment" style="--v: 0.305"></span></span>
+          <span class="gw-chart__value">156</span>
+          <span class="gw-chart__label gw-mono">ssh_run</span>
+          <span class="gw-chart__bar"><span class="gw-chart__segment" style="--v: 0.191"></span></span>
+          <span class="gw-chart__value">98</span>
+          <span class="gw-chart__label gw-mono">http_request</span>
+          <span class="gw-chart__bar"><span class="gw-chart__segment" style="--v: 0.119"></span></span>
+          <span class="gw-chart__value">61</span>
+          <span class="gw-chart__label gw-mono">sql_execute</span>
+          <span class="gw-chart__bar"><span class="gw-chart__segment" style="--v: 0.092"></span></span>
+          <span class="gw-chart__value">47</span>
+        </div>
+        <div class="gw-sr-only"><table>
+          <caption>Top tools by calls, last 24 hours</caption>
+          <thead><tr><th scope="col">Tool</th><th scope="col">Calls</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">sql_query</th><td>512</td></tr>
+            <tr><th scope="row">logs_search</th><td>341</td></tr>
+            <tr><th scope="row">k8s_get</th><td>156</td></tr>
+            <tr><th scope="row">ssh_run</th><td>98</td></tr>
+            <tr><th scope="row">http_request</th><td>61</td></tr>
+            <tr><th scope="row">sql_execute</th><td>47</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+    </section>
+  </div>
+
+  <h3>Share of a whole, categorical series</h3>
+  <p class="sc-lead">Categories without a status meaning use <code class="gw-code">--series-1…6</code> on segments and swatches.</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-chart gw-chart--hbar" role="img" aria-label="Calls by AI app, last 24 hours: Codex 782 (61%), Claude Desktop 502 (39%).">
+      <span class="gw-chart__label">All calls</span>
+      <span class="gw-chart__bar">
+        <span class="gw-chart__segment gw-chart__segment--series-1" style="--v: 0.609"></span>
+        <span class="gw-chart__segment gw-chart__segment--series-2" style="--v: 0.391"></span>
+      </span>
+      <span class="gw-chart__value">1,284</span>
+    </div>
+    <ul class="gw-legend">
+      <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--series-1"></span>Codex <span class="gw-legend__value">782</span></li>
+      <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--series-2"></span>Claude Desktop <span class="gw-legend__value">502</span></li>
+    </ul>
+    <div class="gw-sr-only"><table>
+      <caption>Calls by AI app, last 24 hours</caption>
+      <thead><tr><th scope="col">AI app</th><th scope="col">Calls</th><th scope="col">Share</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Codex</th><td>782</td><td>61%</td></tr>
+        <tr><th scope="row">Claude Desktop</th><td>502</td><td>39%</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <h3>Interactive histogram</h3>
+  <p class="sc-lead">In the log explorer a column narrows the time range. Then the bars are buttons with an <code class="gw-code">aria-label</code> each: the labels carry the numbers (they replace the hidden table), so the root is a <code class="gw-code">role="group"</code>, not an image. <code class="gw-code">aria-pressed="true"</code> marks the selected range with a fill and a brand bar on top; hover washes the column and focus rings it. Columns may get narrower than 24px, so the time-range picker next to the histogram stays the equivalent control.</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-chart" role="group" aria-label="Calls per hour since 03:00. Select an hour to filter the log." style="--gw-chart-height: var(--gw-space-16)">
+      <div class="gw-chart__plot">
+        <span class="gw-chart__gridline" style="--v: 0.5"><span class="gw-chart__label">100</span></span>
+        <span class="gw-chart__gridline" style="--v: 1"><span class="gw-chart__label">200</span></span>
+        <button class="gw-chart__bar" type="button" aria-pressed="false" aria-label="03:00 to 04:00, 1 call"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.005"></span></button>
+        <button class="gw-chart__bar" type="button" aria-pressed="false" aria-label="04:00 to 05:00, no calls"></button>
+        <button class="gw-chart__bar" type="button" aria-pressed="false" aria-label="05:00 to 06:00, 3 calls"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.015"></span></button>
+        <button class="gw-chart__bar" type="button" aria-pressed="false" aria-label="06:00 to 07:00, 9 calls"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.045"></span></button>
+        <button class="gw-chart__bar" type="button" aria-pressed="false" aria-label="07:00 to 08:00, 24 calls"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.12"></span></button>
+        <button class="gw-chart__bar" type="button" aria-pressed="false" aria-label="08:00 to 09:00, 56 calls, 2 denied or failed"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.27"></span><span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.01"></span></button>
+        <button class="gw-chart__bar" type="button" aria-pressed="false" aria-label="09:00 to 10:00, 104 calls, 6 denied or failed"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.49"></span><span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.03"></span></button>
+        <button class="gw-chart__bar" type="button" aria-pressed="true" aria-label="10:00 to 11:00, 150 calls, 9 denied or failed"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.705"></span><span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.045"></span></button>
+        <button class="gw-chart__bar" type="button" aria-pressed="false" aria-label="11:00 to 12:00, 166 calls, 5 denied or failed, 1 expired"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.8"></span><span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.025"></span><span class="gw-chart__segment gw-chart__segment--neutral" style="--v: 0.005"></span></button>
+        <button class="gw-chart__bar" type="button" aria-pressed="false" aria-label="12:00 to 13:00, 90 calls"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.45"></span></button>
+        <button class="gw-chart__bar" type="button" aria-pressed="false" aria-label="13:00 to 14:00, 121 calls, 3 denied or failed, 1 expired"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.585"></span><span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.015"></span><span class="gw-chart__segment gw-chart__segment--neutral" style="--v: 0.005"></span></button>
+        <button class="gw-chart__bar" type="button" aria-pressed="false" aria-label="14:00 to now, 86 calls, 3 waiting for approval, 2 denied or failed"><span class="gw-chart__segment gw-chart__segment--success" style="--v: 0.405"></span><span class="gw-chart__segment gw-chart__segment--warning" style="--v: 0.015"></span><span class="gw-chart__segment gw-chart__segment--danger" style="--v: 0.01"></span></button>
+      </div>
+      <div class="gw-chart__axis">
+        <span class="gw-chart__label" style="--v: 0">03:00</span>
+        <span class="gw-chart__label" style="--v: 0.5">09:00</span>
+        <span class="gw-chart__label" style="--v: 1">Now</span>
+      </div>
+    </div>
+  </div>
+
+  <h3>Legend</h3>
+  <p class="sc-lead">The swatch takes the same modifiers as a segment: decision tones for status series, <code class="gw-code">--series-1…6</code> for categories, and <code class="gw-code">--hatch</code> for idle time (the approval wait in a waterfall). A waterfall legend names its phases with the span tones: <code class="gw-code">--neutral</code> Gateway, <code class="gw-code">--brand</code> Resource. The words carry the meaning; an optional <code class="gw-code">gw-legend__value</code> gives the total.</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <ul class="gw-legend" aria-label="Status and phase swatches">
+      <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--success"></span>Allowed or approved</li>
+      <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--warning"></span>Waiting for approval</li>
+      <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--danger"></span>Denied, rejected or failed</li>
+      <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--neutral"></span>Expired</li>
+      <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--warning gw-legend__swatch--hatch"></span>Idle, waiting for a decision</li>
+    </ul>
+    <ul class="gw-legend" aria-label="Calls by resource type, last 24 hours">
+      <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--series-1"></span>PostgreSQL <span class="gw-legend__value">559</span></li>
+      <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--series-2"></span>Logs <span class="gw-legend__value">341</span></li>
+      <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--series-3"></span>Kubernetes <span class="gw-legend__value">156</span></li>
+      <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--series-4"></span>SSH <span class="gw-legend__value">98</span></li>
+      <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--series-5"></span>MongoDB and Redis <span class="gw-legend__value">69</span></li>
+      <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--series-6"></span>HTTP API <span class="gw-legend__value">61</span></li>
+    </ul>
+  </div>
+
+  <h3>Sparkline in a stat</h3>
+  <p class="sc-lead">An inline SVG polyline in <code class="gw-code">currentColor</code> with a non-scaling stroke: it stretches to any slot without thickening. Brand fg by default; tone it with a modifier. It is an image with its own label when it says something the number does not (the trend); <code class="gw-code">aria-hidden</code> when the text beside it already does.</p>
+  <div class="sc-demo sc-demo--canvas sc-demo--col" data-sc-code>
+    <dl class="gw-grid gw-grid--2">
+      <div class="gw-stat">
+        <dt class="gw-stat__label">Calls · 24 h</dt>
+        <dd class="gw-stat__value">1,284</dd>
+        <dd class="gw-stat__chart">
+          <svg class="gw-sparkline" viewBox="0 0 230 40" preserveAspectRatio="none" role="img" aria-label="Calls per hour: quiet overnight, peak of 166 at 11:00">
+            <polyline points="0,18.3 10,14.2 20,16.7 30,24.1 40,30.2 50,33.9 60,35.1 70,36.0 80,36.6 90,37.4 100,37.8 110,38.0 120,37.8 130,38.0 140,37.4 150,36.2 160,33.1 170,26.5 180,16.7 190,7.3 200,4.0 210,19.6 220,13.2 230,20.4"></polyline>
+          </svg>
+        </dd>
+        <dd class="gw-stat__delta gw-stat__delta--up" data-sentiment="neutral"><i class="gw-icon" data-lucide="trending-up"></i>+12% vs yesterday</dd>
+      </div>
+      <div class="gw-stat">
+        <dt class="gw-stat__label">Denied, rejected or failed · 24 h</dt>
+        <dd class="gw-stat__value">34</dd>
+        <dd class="gw-stat__chart">
+          <svg class="gw-sparkline gw-sparkline--danger" viewBox="0 0 230 40" preserveAspectRatio="none" role="img" aria-label="Denials per hour: none overnight, peak of 9 at 10:00">
+            <polyline points="0,34.2 10,22.9 20,30.4 30,38 40,38 50,38 60,38 70,38 80,38 90,38 100,38 110,38 120,38 130,38 140,38 150,38 160,38 170,30.4 180,15.3 190,4.0 200,19.1 210,38 220,26.7 230,30.4"></polyline>
+          </svg>
+        </dd>
+        <dd class="gw-stat__delta gw-stat__delta--up" data-sentiment="bad"><i class="gw-icon" data-lucide="trending-up"></i>9 more than yesterday</dd>
+      </div>
+    </dl>
+  </div>
+
+  <h3>Sparkline tones</h3>
+  <p class="sc-lead">One size (24px tall, full width of its slot); the colour says what the series is, the shape says the trend.</p>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <dl class="gw-kv">
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key"><code class="gw-code">gw-sparkline (brand)</code></dt>
+        <dd class="gw-kv__value"><svg class="gw-sparkline" viewBox="0 0 230 40" preserveAspectRatio="none" aria-hidden="true" focusable="false"><polyline points="0,30 23,28 46,31 69,24 92,26 115,18 138,20 161,12 184,14 207,8 230,9"></polyline></svg></dd>
+      </div>
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key"><code class="gw-code">gw-sparkline--success</code></dt>
+        <dd class="gw-kv__value"><svg class="gw-sparkline gw-sparkline--success" viewBox="0 0 230 40" preserveAspectRatio="none" aria-hidden="true" focusable="false"><polyline points="0,20 23,22 46,19 69,21 92,20 115,22 138,19 161,20 184,21 207,19 230,20"></polyline></svg></dd>
+      </div>
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key"><code class="gw-code">gw-sparkline--warning</code></dt>
+        <dd class="gw-kv__value"><svg class="gw-sparkline gw-sparkline--warning" viewBox="0 0 230 40" preserveAspectRatio="none" aria-hidden="true" focusable="false"><polyline points="0,32 23,31 46,30 69,26 92,22 115,18 138,15 161,12 184,10 207,9 230,6"></polyline></svg></dd>
+      </div>
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key"><code class="gw-code">gw-sparkline--danger</code></dt>
+        <dd class="gw-kv__value"><svg class="gw-sparkline gw-sparkline--danger" viewBox="0 0 230 40" preserveAspectRatio="none" aria-hidden="true" focusable="false"><polyline points="0,34 23,22 46,30 69,38 92,38 115,38 138,30 161,15 184,4 207,19 230,30"></polyline></svg></dd>
+      </div>
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key"><code class="gw-code">gw-sparkline--info</code></dt>
+        <dd class="gw-kv__value"><svg class="gw-sparkline gw-sparkline--info" viewBox="0 0 230 40" preserveAspectRatio="none" aria-hidden="true" focusable="false"><polyline points="0,10 23,14 46,12 69,18 92,16 115,22 138,20 161,26 184,24 207,30 230,28"></polyline></svg></dd>
+      </div>
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key"><code class="gw-code">gw-sparkline--neutral</code></dt>
+        <dd class="gw-kv__value"><svg class="gw-sparkline gw-sparkline--neutral" viewBox="0 0 230 40" preserveAspectRatio="none" aria-hidden="true" focusable="false"><polyline points="0,22 23,22 46,21 69,23 92,22 115,22 138,21 161,22 184,23 207,22 230,22"></polyline></svg></dd>
+      </div>
+    </dl>
+  </div>
+</section>

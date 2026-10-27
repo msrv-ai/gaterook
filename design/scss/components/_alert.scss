@@ -1,0 +1,174 @@
+// =============================================================
+// .gw-alert · Inline alert, banner, compact notice
+// -------------------------------------------------------------
+// A message about a state that holds while it is true: inside a section or
+// a form ("This user can write. Use a read-only user for prod."), or as a
+// banner above the page for app-wide state (Core stopped, Tunnel is
+// public). Says what happened and what to do; the action sits right in it.
+// Not for the result of an action that just finished (gw-toast), not for a
+// question that needs an answer before continuing (gw-dialog).
+//
+//   <div class="gw-alert gw-alert--warning">
+//     <i class="gw-icon gw-alert__icon" data-lucide="triangle-alert"></i>
+//     <div class="gw-alert__content">
+//       <p class="gw-alert__title">This user can write</p>
+//       <p class="gw-alert__body">app_rw has INSERT and UPDATE on 14 tables. Use a read-only user for prod.</p>
+//       <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button">Use another user</button></div>
+//     </div>
+//   </div>
+//
+// Tones     --info | --success | --warning | --danger | --neutral (default) | --brand.
+//           Background tone subtle, border tone border, icon tone fg; text stays
+//           primary / secondary so it reads in every theme.
+//           Icons: info info · success circle-check · warning triangle-alert ·
+//           danger circle-alert · neutral circle-help · brand lightbulb; or the
+//           status icon from BLUEPRINT §7 when the alert is about that status
+//           (hourglass for waiting / expiring, user-check for approval).
+// Variants  --banner   full-width strip, no radius, only a bottom rule, page-gutter
+//                      padding; title and body run on one line; actions at the end
+//                      (below sm they move under the text). Lives at the top of
+//                      gw-shell__main, above gw-page, never inside a card.
+//           --compact  one line (32px min) inside a card, table cell or form row;
+//                      title and body run inline and wrap only when space runs out.
+//                      Actions are gw-btn--link or gw-btn--sm; a link button gets
+//                      a 24px target here.
+// Subparts  __icon __content __title __body __actions. __actions inside __content
+//           sits under the text; as a direct child of .gw-alert it sits at the end
+//           of the row (banner, compact).
+// a11y   A static alert needs no role. One that appears in response to something
+//   gets role="status" (or role="alert" when it blocks work: Core stopped), once.
+//   The tone is never the only cue: icon + title words say it.
+// Raw values: none.
+// Contrast: text.primary / text.secondary on every tone subtle fill pass 4.5:1 in
+//   all four themes (checked, not yet listed in tokens/contrast-pairs.json).
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+.gw-alert {
+  @include gw-tone(neutral);
+  @include gw-tone-modifiers((brand, success, warning, danger, info, neutral));
+  display: flex;
+  align-items: flex-start;
+  gap: var(--gw-space-3);
+  min-width: 0;
+  padding: var(--gw-space-3) var(--gw-space-4);
+  color: var(--gw-color-text-primary);
+  background: var(--gw-tone-subtle);
+  border: var(--gw-border-width-default) solid var(--gw-tone-border);
+  border-radius: var(--gw-radius-md);
+
+  &__icon {
+    flex: none;
+    margin-top: var(--gw-space-0-5);
+    color: var(--gw-tone-fg);
+  }
+
+  &__content {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: var(--gw-space-0-5);
+    min-width: 0;
+  }
+
+  &__title {
+    margin: 0;
+    @include gw-type(h3);
+    color: var(--gw-color-text-primary);
+  }
+
+  &__body {
+    margin: 0;
+    @include gw-type(body);
+    color: var(--gw-color-text-secondary);
+    overflow-wrap: anywhere;
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gw-space-2);
+  }
+
+  &__content > &__actions { margin-top: var(--gw-space-2); }
+
+  > .gw-alert__actions {
+    flex: none;
+    align-self: center;
+    margin-inline-start: auto;
+  }
+
+  // A link-style action is only as tall as its text: give it the 24px target.
+  &__actions > .gw-btn--link { min-height: var(--gw-size-target-min); }
+
+  // ─── Banner: page-level state ───
+  &--banner {
+    align-items: center;
+    min-height: var(--gw-size-control-lg);
+    padding: var(--gw-space-2) var(--gw-layout-page-gutter);
+    border-width: 0 0 var(--gw-border-width-default);
+    border-radius: 0;
+
+    > .gw-alert__icon { margin-top: 0; }
+
+    > .gw-alert__content {
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: baseline;
+      column-gap: var(--gw-space-2);
+    }
+
+    .gw-alert__body { @include gw-type(small); }
+
+    @include gw-bp-down(md) {
+      padding-inline: var(--gw-layout-page-gutter-sm);
+    }
+
+    // Narrow window: icon + text on the first line, actions under the text.
+    @include gw-bp-down(sm) {
+      flex-wrap: wrap;
+
+      > .gw-alert__content { flex-basis: 0; }
+
+      > .gw-alert__actions {
+        flex: 1 1 100%;
+        padding-inline-start: calc(var(--gw-size-icon-md) + var(--gw-space-3));
+      }
+    }
+  }
+
+  // ─── Compact: one line ───
+  &--compact {
+    align-items: center;
+    gap: var(--gw-space-2);
+    min-height: var(--gw-size-control-md);
+    padding: var(--gw-space-1) var(--gw-space-3);
+    border-radius: var(--gw-radius-sm);
+
+    > .gw-alert__icon { margin-top: 0; }
+
+    > .gw-alert__content {
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: baseline;
+      column-gap: var(--gw-space-1-5);
+      row-gap: 0;
+      @include gw-type(small);
+    }
+
+    .gw-alert__title {
+      flex: 0 1 auto;
+      min-width: 0;
+      @include gw-type(ui);
+      font-weight: var(--gw-font-weight-semibold);
+    }
+
+    .gw-alert__body {
+      min-width: 0;
+      @include gw-type(small);
+    }
+  }
+}

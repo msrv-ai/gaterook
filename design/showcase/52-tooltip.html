@@ -1,0 +1,36 @@
+<section class="sc-section" id="tooltip" data-title="Tooltip" data-group="Overlays">
+  <h2>Tooltip <code class="gw-code">gw-tooltip</code></h2>
+  <p>A short, non-essential hint next to its trigger: the name of an icon-only button, the absolute time behind "3 min ago", why a control is unavailable. CSS only: it shows on hover (after a beat) and at once on keyboard focus, and the pointer can move onto it. When the tooltip <em>is</em> the name, point <code class="gw-code">aria-labelledby</code> at it; when it adds information, use <code class="gw-code">aria-describedby</code>. Never put links, buttons or anything needed to finish a task in a tooltip (it is not interactive and not reachable by touch): use a popover or inline text instead.</p>
+
+  <h3>Placement</h3>
+  <div class="sc-demo" data-sc-code>
+    <span class="gw-tooltip">
+      <button class="gw-btn gw-btn--ghost gw-btn--icon" type="button" aria-labelledby="sc-d-tip-copy" data-gw-copy="http://127.0.0.1:7465/mcp/dev"><i class="gw-icon" data-lucide="copy"></i></button>
+      <span class="gw-tooltip__bubble" role="tooltip" id="sc-d-tip-copy">Copy endpoint URL</span>
+    </span>
+
+    <span class="gw-tooltip gw-tooltip--bottom">
+      <time class="gw-tabular" datetime="2026-10-22T14:07:31+02:00" tabindex="0" aria-describedby="sc-d-tip-time">3 min ago</time>
+      <span class="gw-tooltip__bubble" role="tooltip" id="sc-d-tip-time">2026-10-22 14:07:31 CEST</span>
+    </span>
+
+    <span class="gw-tooltip gw-tooltip--start">
+      <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm" type="button" aria-label="About gateway overhead" aria-describedby="sc-d-tip-p95"><i class="gw-icon" data-lucide="circle-help"></i></button>
+      <span class="gw-tooltip__bubble" role="tooltip" id="sc-d-tip-p95">Time the gateway adds on top of the resource: policy check, masking and the audit write. Target 50 ms or less.</span>
+    </span>
+
+    <span class="gw-tooltip gw-tooltip--bottom gw-tooltip--end">
+      <button class="gw-btn gw-btn--ghost gw-btn--icon" type="button" aria-labelledby="sc-d-tip-bell"><i class="gw-icon" data-lucide="bell"></i></button>
+      <span class="gw-tooltip__bubble" role="tooltip" id="sc-d-tip-bell">Approvals: 3 waiting</span>
+    </span>
+  </div>
+
+  <h3>Explain an unavailable control</h3>
+  <div class="sc-demo" data-sc-code>
+    <span class="gw-tooltip">
+      <button class="gw-btn gw-btn--sm" type="button" aria-disabled="true" aria-describedby="sc-d-tip-rotate"><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw-key"></i> Rotate secret</button>
+      <span class="gw-tooltip__bubble" role="tooltip" id="sc-d-tip-rotate"><span class="gw-mono">stage-db</span> reads its password from <span class="gw-mono">vault://kv/stage/db#password</span>. Rotate it in Vault.</span>
+    </span>
+    <p class="gw-text-caption gw-fg-muted"><code class="gw-code">aria-disabled</code>, not <code class="gw-code">disabled</code>: the button stays focusable, so keyboard users get the reason too. When the reason matters to the task (a tool mode that is unavailable), write it next to the control instead.</p>
+  </div>
+</section>

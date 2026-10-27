@@ -1,0 +1,185 @@
+// =============================================================
+// token-issue · Element (E3 · Endpoint access control)
+// -------------------------------------------------------------
+// Everything about the access tokens of one endpoint: the tokens table,
+// the "Issue token" dialog, its one-time result step and the revoke
+// confirmation. A token is shown ONCE, in full, right after it is issued;
+// the gateway keeps only its hash, and from then on the UI knows it by its
+// name and prefix (gwt_K9xP…). There is no "show token" anywhere.
+// Helper rows: Claude Desktop (the .mcpb bridge) and Codex (http_headers_helper
+// → `gw-bridge headers`) never hold a stored token. The app issues them a
+// 15-minute token on the fly, nothing is written to a config, and nothing can be
+// pasted. Their rows name the mechanism instead of a prefix ("Bridge (.mcpb) ·
+// issued on the fly"; "codex-laptop · gw-bridge headers helper, issued on the
+// fly"), Expires reads "After 15 min", and Revoke (Codex) ends the client's grant:
+// the current token stops working and no new one is issued. A pasted, named
+// token is only for other clients (MCP Inspector, Cursor / Antigravity through
+// their config file, scripts); the issue dialog's result says "Paste it into the
+// app…", never into Codex.
+//
+// Used in   pages/endpoint-detail.html (Tokens tab) ·
+//           pages/settings.html (Security › Authorization: tokens across endpoints;
+//           the table gains an Endpoint column, the dialog an Endpoint select)
+// Composes  gw-card--flush · gw-table-wrap + gw-table (__cell--mono, __cell--actions) ·
+//           gw-badge (--success --warning --neutral --danger, --sm) · gw-link · <time> ·
+//           gw-dialog (--md form and result; --sm --danger revoke) · gw-icon-tile ·
+//           gw-field (+ __optional, __error) · gw-input (--mono, readonly) · gw-select ·
+//           gw-tag-list + gw-tag--mono (--danger) · gw-btn (--primary, --danger,
+//           --danger-ghost, --sm) · gw-alert--warning · gw-copy-field--secret-once ·
+//           gw-checkbox (with __hint) · gw-kv--dense · gw-empty--compact · gw-toolbar
+//           (demo triggers) · gw-toast (after a revoke, via data-gw-toast)
+//
+//   <div class="gw-token-issue">                        one instance: table + its dialogs
+//     <section class="gw-card gw-card--flush">…header: title, "Endpoint dev · 2 active", Issue token…
+//       <table class="gw-table">…
+//         <tr>
+//           <th scope="row" class="gw-table__cell--mono">
+//             <span class="gw-token-issue__token"><span>inspector-debug</span>
+//               <span class="gw-fg-muted">gwt_K9xP…</span></span></th>
+//           <td><time datetime="…" title="2026-09-25 10:40 +02:00">Sep 25</time></td>
+//           <td><span class="gw-token-issue__expires"><time …>Oct 25</time>
+//             <span class="gw-badge gw-badge--warning gw-badge--sm">In 3 days</span></span></td>
+//           <td><a class="gw-link" href="activity.html?q=token%3Ainspector-debug"><time …>6 days ago</time>
+//             <span class="gw-sr-only">, view calls with token inspector-debug</span></a></td>
+//           (server mode only: an "Allowed IPs" cell <td class="gw-table__cell--mono">
+//             <ul class="gw-token-issue__ips-value" aria-label="Allowed IPs of ci-runner">…</ul></td>;
+//             the desktop has no such column)
+//           <td><span class="gw-badge gw-badge--warning"><i class="gw-icon gw-badge__icon" data-lucide="hourglass"></i>Expiring</span></td>
+//           <td class="gw-table__cell--actions"><button class="gw-btn gw-btn--danger-ghost gw-btn--sm"
+//             type="button" data-gw-dialog-open="dlg-revoke-inspector-debug">Revoke<span class="gw-sr-only"> token inspector-debug</span></button></td>
+//         </tr>…
+//     </section>
+//     <dialog class="gw-dialog gw-dialog--md" id="dlg-issue" data-gw-static aria-labelledby aria-describedby>
+//       <form method="dialog">
+//         <header class="gw-dialog__header">…Issue token + close…</header>
+//         <div class="gw-dialog__body"><div class="gw-token-issue__form" data-step="form">
+//           Name (gw-input--mono, required, autofocus) · Expires (gw-select: 7 (default) /
+//           30 / 90 days / Custom date; hint "On Oct 29, 2026. The default; short lifetimes
+//           are safer.") · desktop: a caption "No IP allowlist on the desktop…"; server
+//           mode: Allowed IPs (<label for> the entry input; __ips: gw-tag-list +
+//           __ip-entry) · Endpoint (gw-input--mono readonly + the URL in the hint)
+//         </div></div>
+//         <footer class="gw-dialog__footer">Cancel · Issue token (primary, submit)</footer>
+//       </form>
+//     </dialog>
+//     <dialog class="gw-dialog gw-dialog--md" id="dlg-issued" data-gw-static data-gw-dialog-guard …>  result step
+//       <form method="dialog">…header WITHOUT a close button…
+//         <div class="gw-token-issue__result" data-step="result">
+//           gw-alert--warning "This is the only time you can see this token" ·
+//           gw-copy-field--secret-once (full value, Copy with autofocus: the step's
+//           initial focus, __hint "Shown once…") · gw-kv--dense (Endpoint URL, Expires;
+//           server mode adds Allowed IPs) ·
+//           gw-checkbox (required) "I've stored this token"
+//         </div>… Done (primary, submit, data-gw-enable-when="#stored" + aria-describedby
+//         → the checkbox hint "Required to close…": aria-disabled until checked)</form>
+//     </dialog>
+//     <dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" id="dlg-revoke-inspector-debug">…
+//       "Revoke token inspector-debug?" · what stops working · gw-kv--dense (prefix, used by,
+//       last used) · Cancel (autofocus) · Revoke token inspector-debug (--danger)</dialog>
+//       (a helper row: "Revoke codex-laptop?" · "Revokes the helper's grant; no new tokens
+//       are issued to it" · Issued by gw-bridge headers · Revoke codex-laptop)
+//   </div>
+//
+// Parts     __form        the issue form inside gw-dialog__body: fields stacked 16px apart
+//           __ips         (server mode only) allowed IPs in the form: gw-tag-list above
+//                         the entry row. Desktop tokens have no IP allowlist: the gateway
+//                         listens on 127.0.0.1 only.
+//           __ip-entry    entry input + "Add" button on one row
+//           __result      the result step: warning, one-time value, facts, confirmation
+//           __token       table row header: token name over its prefix (both mono)
+//           __expires     expiry date + "In N days" warning badge on one line
+//           __ips-value   (server mode only) <ul> of allowed IPs in a cell: wraps between entries (never
+//                         inside one), capped at 120px so the column stays narrow
+// Steps     In the app it is ONE <dialog>: data-step="form" → "result". On success the
+//           body swaps, focus moves to the result title, there is no close button, and
+//           the dialog ignores Esc (cancel event) until "I've stored this token" is
+//           checked. The demo chains two <dialog>s with data-gw-dialog-open on the
+//           submit button; the result dialog uses data-gw-dialog-guard (Esc and the
+//           backdrop can't close it while the checkbox is unchecked) and Done uses
+//           data-gw-enable-when. kit.js has no step swap (the app swaps the body).
+// States    form: idle · invalid (aria-invalid + gw-field__error on a taken name,
+//           focus on the first invalid field; gw-tag--danger + circle-alert + a field
+//           error naming the bad IP) · issuing (aria-busy + gw-spinner on Issue token,
+//           app only) · result: Done blocked until the required checkbox is checked.
+//           Table rows (BLUEPRINT §7): Active (success, check) · Expiring (warning,
+//           hourglass; expiry badge "In N days" under 7 days) · Expired (neutral,
+//           timer-off) · Revoked (danger, ban). Expired and revoked rows have no action.
+//           Helper rows (bridge, gw-bridge headers): Active while the client is
+//           connected; the bridge row has no action (disconnect under AI apps).
+//           Empty: gw-empty--compact in the card body, one primary "Issue token".
+// A11y      Dialogs are native (focus trap, Esc, return focus). Destructive confirm:
+//           Cancel has autofocus, the confirm names the token, a toast confirms.
+//           Each Revoke names its token (gw-sr-only). Times: relative text, ISO in
+//           datetime and title. "Last used" links to Activity filtered by the token.
+//           The one-time value is a role=group named "Token"; Copy is described by
+//           the "Shown once" hint.
+// Responsive  Seven columns need about 860px: they fit a 960px element demo and a
+//           1280px window with the sidebar; in a 960px window with the sidebar the
+//           table wrap scrolls sideways (never the page). The token value in the
+//           result step wraps anywhere, the endpoint URL in the facts wraps too.
+// Raw values  none
+// =============================================================
+
+@use "../scss/tokens" as *;
+@use "../scss/mixins" as *;
+
+.gw-token-issue {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gw-space-4);
+  min-width: 0;
+
+  // ─── Dialog steps ───
+  &__form,
+  &__result {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-4);
+    min-width: 0;
+  }
+
+  // Allowed IPs inside the form field: tags, then the entry row.
+  &__ips {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-2);
+    min-width: 0;
+  }
+
+  &__ip-entry {
+    display: flex;
+    align-items: center;
+    gap: var(--gw-space-2);
+    min-width: 0;
+
+    > .gw-input { flex: 1 1 auto; }
+  }
+
+  // ─── Table cells ───
+  &__token {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  &__expires {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--gw-space-1-5);
+  }
+
+  // Allowed IPs in a cell: one entry per item, wrapping between entries.
+  &__ips-value {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 var(--gw-space-2);
+    max-width: calc(var(--gw-size-control-lg) * 3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    white-space: normal;
+
+    > li { overflow-wrap: anywhere; }
+  }
+}

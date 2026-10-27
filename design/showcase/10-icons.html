@@ -1,0 +1,63 @@
+<section class="sc-section" id="icons" data-title="Icons and logo" data-group="Foundations">
+  <h2>Icons and logo <code class="gw-code">gw-icon</code> <code class="gw-code">gw-icon-tile</code> <code class="gw-code">gw-logo</code></h2>
+  <p>Lucide only, pinned and shipped in <code class="gw-code">vendor/lucide</code> (the app uses <code class="gw-code">lucide-angular</code> at the same version). Icons are decorative by default (<code class="gw-code">aria-hidden</code>): the text next to them carries the meaning. Check a name with <code class="gw-code">npm run icons -- --search shield</code>; <code class="gw-code">npm run check</code> fails on a name that does not exist.</p>
+
+  <h3>Sizes</h3>
+  <div class="sc-demo" data-sc-code>
+    <i class="gw-icon gw-icon--xs" data-lucide="database"></i>
+    <i class="gw-icon gw-icon--sm" data-lucide="database"></i>
+    <i class="gw-icon" data-lucide="database"></i>
+    <i class="gw-icon gw-icon--lg" data-lucide="database"></i>
+    <i class="gw-icon gw-icon--xl" data-lucide="database"></i>
+    <i class="gw-icon gw-icon--2xl" data-lucide="database"></i>
+  </div>
+
+  <h3>Icon tiles carry a tone</h3>
+  <div class="sc-demo" data-sc-code>
+    <span class="gw-icon-tile gw-icon-tile--brand"><i class="gw-icon" data-lucide="waypoints"></i></span>
+    <span class="gw-icon-tile gw-icon-tile--success"><i class="gw-icon" data-lucide="check"></i></span>
+    <span class="gw-icon-tile gw-icon-tile--warning"><i class="gw-icon" data-lucide="hourglass"></i></span>
+    <span class="gw-icon-tile gw-icon-tile--danger"><i class="gw-icon" data-lucide="shield-x"></i></span>
+    <span class="gw-icon-tile gw-icon-tile--info"><i class="gw-icon" data-lucide="eye"></i></span>
+    <span class="gw-icon-tile gw-icon-tile--neutral"><i class="gw-icon" data-lucide="circle-off"></i></span>
+    <span class="gw-icon-tile gw-icon-tile--dev gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="database"></i></span>
+    <span class="gw-icon-tile gw-icon-tile--stage gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="database"></i></span>
+    <span class="gw-icon-tile gw-icon-tile--prod gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="database"></i></span>
+  </div>
+
+  <h3>Section and resource icons</h3>
+  <div class="sc-demo">
+    <span class="gw-icon-tile gw-icon-tile--neutral" title="Overview"><i class="gw-icon" data-lucide="layout-dashboard"></i></span>
+    <span class="gw-icon-tile gw-icon-tile--neutral" title="Approvals"><i class="gw-icon" data-lucide="user-check"></i></span>
+    <span class="gw-icon-tile gw-icon-tile--neutral" title="Connections"><i class="gw-icon" data-lucide="database"></i></span>
+    <span class="gw-icon-tile gw-icon-tile--neutral" title="Connectors"><i class="gw-icon" data-lucide="puzzle"></i></span>
+    <span class="gw-icon-tile gw-icon-tile--neutral" title="Secrets"><i class="gw-icon" data-lucide="key-round"></i></span>
+    <span class="gw-icon-tile gw-icon-tile--neutral" title="Endpoints"><i class="gw-icon" data-lucide="waypoints"></i></span>
+    <span class="gw-icon-tile gw-icon-tile--neutral" title="AI apps"><i class="gw-icon" data-lucide="app-window"></i></span>
+    <span class="gw-icon-tile gw-icon-tile--neutral" title="Policies"><i class="gw-icon" data-lucide="shield"></i></span>
+    <span class="gw-icon-tile gw-icon-tile--neutral" title="Playground"><i class="gw-icon" data-lucide="flask-conical"></i></span>
+    <span class="gw-icon-tile gw-icon-tile--neutral" title="Activity"><i class="gw-icon" data-lucide="activity"></i></span>
+    <span class="gw-icon-tile gw-icon-tile--neutral" title="Insights"><i class="gw-icon" data-lucide="chart-column"></i></span>
+    <span class="gw-icon-tile gw-icon-tile--neutral" title="SSH"><i class="gw-icon" data-lucide="terminal"></i></span>
+    <span class="gw-icon-tile gw-icon-tile--neutral" title="Logs"><i class="gw-icon" data-lucide="scroll-text"></i></span>
+    <span class="gw-icon-tile gw-icon-tile--neutral" title="Kubernetes"><i class="gw-icon" data-lucide="ship-wheel"></i></span>
+    <span class="gw-icon-tile gw-icon-tile--neutral" title="Cloud"><i class="gw-icon" data-lucide="cloud"></i></span>
+    <span class="gw-icon-tile gw-icon-tile--neutral" title="HTTP API"><i class="gw-icon" data-lucide="globe"></i></span>
+    <span class="gw-icon-tile gw-icon-tile--neutral" title="MCP server"><i class="gw-icon" data-lucide="plug"></i></span>
+  </div>
+
+  <h3>Spinner (in-place waits)</h3>
+  <div class="sc-demo" data-sc-code>
+    <span class="gw-spinner gw-spinner--sm" role="status" aria-label="Checking"></span>
+    <span class="gw-spinner" role="status" aria-label="Checking"></span>
+    <span class="gw-spinner gw-spinner--lg" role="status" aria-label="Checking"></span>
+  </div>
+
+  <h3>Logo</h3>
+  <div class="sc-demo" data-sc-code>
+    <a class="gw-logo gw-logo--sm" href="#icons" aria-label="GateRook"><img class="gw-logo__mark" src="../assets/logo-mark.svg" alt=""><span class="gw-logo__name">GateRook</span></a>
+    <a class="gw-logo" href="#icons" aria-label="GateRook"><img class="gw-logo__mark" src="../assets/logo-mark.svg" alt=""><span class="gw-logo__name">GateRook</span></a>
+    <a class="gw-logo gw-logo--lg" href="#icons" aria-label="GateRook"><img class="gw-logo__mark" src="../assets/logo-mark.svg" alt=""><span class="gw-logo__name">GateRook</span></a>
+    <a class="gw-logo gw-logo--mark-only" href="#icons" aria-label="GateRook"><img class="gw-logo__mark" src="../assets/logo-mark.svg" alt=""><span class="gw-logo__name">GateRook</span></a>
+  </div>
+</section>

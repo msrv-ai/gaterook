@@ -1,0 +1,165 @@
+<section class="sc-section" id="menus" data-title="Menus and popovers" data-group="Overlays">
+  <h2>Menus and popovers <code class="gw-code">gw-menu-host</code> <code class="gw-code">gw-menu</code> <code class="gw-code">gw-popover</code></h2>
+  <p>The kit's only dropdown. A <strong>menu</strong> holds actions on one object; a <strong>listbox</strong> picks one value and shows a check; a <strong>popover</strong> holds a small form next to its trigger (add a filter). All three open on click, Enter or Space, never on hover or focus. Arrows move, Home and End jump, Esc closes and returns focus to the trigger, Tab or a click outside closes. A danger item never acts by itself: it opens a confirmation. Do not use a menu to move between pages, to hide the one main action of a view, or to choose between two or three always-visible options (<code class="gw-code">gw-segmented</code>).</p>
+
+  <h3>Actions on one object</h3>
+  <div class="sc-demo" data-sc-code>
+    <div class="gw-menu-host">
+      <button class="gw-btn gw-btn--ghost gw-btn--icon" type="button" aria-label="Actions for endpoint dev" aria-haspopup="menu" aria-expanded="false" aria-controls="sc-d-menu-endpoint"><i class="gw-icon" data-lucide="ellipsis"></i></button>
+      <div class="gw-menu" id="sc-d-menu-endpoint" role="menu" aria-label="Actions for endpoint dev" hidden>
+        <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-gw-copy="http://127.0.0.1:7465/mcp/dev"><i class="gw-icon gw-menu__icon" data-lucide="copy"></i><span class="gw-menu__label">Copy URL</span><kbd class="gw-menu__kbd" aria-hidden="true">C</kbd></button>
+        <a class="gw-menu__item" role="menuitem" tabindex="-1" href="#menus"><i class="gw-icon gw-menu__icon" data-lucide="flask-conical"></i><span class="gw-menu__label">Open in Playground</span></a>
+        <a class="gw-menu__item" role="menuitem" tabindex="-1" href="#menus"><i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">View activity</span></a>
+        <div class="gw-menu__divider" role="separator"></div>
+        <button class="gw-menu__item gw-menu__item--danger" type="button" role="menuitem" tabindex="-1" data-gw-dialog-open="sc-d-dlg-delete-endpoint"><i class="gw-icon gw-menu__icon" data-lucide="trash-2"></i><span class="gw-menu__label">Delete endpoint</span></button>
+      </div>
+    </div>
+    <dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" id="sc-d-dlg-delete-endpoint" aria-labelledby="sc-d-dlg-delete-endpoint-title" aria-describedby="sc-d-dlg-delete-endpoint-desc">
+      <header class="gw-dialog__header">
+        <span class="gw-icon-tile"><i class="gw-icon" data-lucide="trash-2"></i></span>
+        <h2 class="gw-dialog__title" id="sc-d-dlg-delete-endpoint-title">Delete endpoint dev?</h2>
+        <p class="gw-dialog__description" id="sc-d-dlg-delete-endpoint-desc">Claude Desktop and Codex lose access at once and its 3 tokens are revoked. The 8 connections stay.</p>
+        <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+      </header>
+      <footer class="gw-dialog__footer">
+        <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
+        <button class="gw-btn gw-btn--danger" type="button" data-gw-dialog-close>Delete endpoint dev</button>
+      </footer>
+    </dialog>
+
+    <div class="gw-menu-host">
+      <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="sc-d-menu-add"><i class="gw-icon gw-icon--sm" data-lucide="plus"></i> Add to endpoint <i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+      <div class="gw-menu gw-menu--wide" id="sc-d-menu-add" role="menu" aria-label="Add dev-db to endpoint" hidden>
+        <div class="gw-menu__group" role="group" aria-labelledby="sc-d-menu-add-group">
+          <div class="gw-menu__note" id="sc-d-menu-add-group" aria-hidden="true">Endpoints</div>
+          <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label"><span class="gw-mono">dev</span><span class="gw-menu__hint">8 connections · 14 tools · Claude Desktop, Codex</span></span></button>
+          <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label"><span class="gw-mono">stage-readonly</span><span class="gw-menu__hint">Read only · published for claude.ai</span></span></button>
+          <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" aria-disabled="true"><i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label"><span class="gw-mono">incident-prod</span><span class="gw-menu__hint">Accepts prod connections only</span></span></button>
+        </div>
+        <div class="gw-menu__divider" role="separator"></div>
+        <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="plus"></i><span class="gw-menu__label">Create endpoint</span></button>
+      </div>
+    </div>
+  </div>
+
+  <h3>Pick one value: listbox with a check</h3>
+  <div class="sc-demo" data-sc-code>
+    <div class="gw-menu-host">
+      <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="sc-d-menu-sort"><i class="gw-icon gw-icon--sm" data-lucide="arrow-down-up"></i> Sort: <span data-gw-menu-value>Newest first</span> <i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+      <div class="gw-menu" id="sc-d-menu-sort" role="listbox" aria-label="Sort events" hidden>
+        <button class="gw-menu__item" type="button" role="option" aria-selected="true" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Newest first</span></button>
+        <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Oldest first</span></button>
+        <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Slowest first</span></button>
+        <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Largest response</span></button>
+      </div>
+    </div>
+
+    <div class="gw-menu-host">
+      <button class="gw-btn gw-btn--sm gw-btn--ghost" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="sc-d-menu-range"><i class="gw-icon gw-icon--sm" data-lucide="calendar-clock"></i> <span data-gw-menu-value>Last 24 hours</span> <i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+      <div class="gw-menu gw-menu--right" id="sc-d-menu-range" role="listbox" aria-label="Time range" hidden>
+        <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Last 15 minutes</span></button>
+        <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Last hour</span></button>
+        <button class="gw-menu__item" type="button" role="option" aria-selected="true" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Last 24 hours</span></button>
+        <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Last 7 days</span></button>
+      </div>
+    </div>
+  </div>
+
+  <h3>Popover: a small form next to its trigger</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-toolbar">
+      <div class="gw-toolbar__start">
+        <div class="gw-menu-host">
+          <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="sc-d-pop-filter"><i class="gw-icon gw-icon--sm" data-lucide="list-filter"></i> Add filter</button>
+          <div class="gw-popover" id="sc-d-pop-filter" role="dialog" aria-labelledby="sc-d-pop-filter-title" hidden>
+            <div class="gw-popover__header">
+              <h4 class="gw-popover__title" id="sc-d-pop-filter-title">Add filter</h4>
+            </div>
+            <div class="gw-popover__body">
+              <div class="gw-field">
+                <label class="gw-field__label" for="sc-d-pop-filter-field">Field</label>
+                <select class="gw-select" id="sc-d-pop-filter-field">
+                  <option selected>Decision</option>
+                  <option>Tool</option>
+                  <option>AI app</option>
+                  <option>Endpoint</option>
+                  <option>Connection</option>
+                  <option>Env</option>
+                </select>
+              </div>
+              <div class="gw-field">
+                <label class="gw-field__label" for="sc-d-pop-filter-value">Value</label>
+                <input class="gw-input gw-input--mono" id="sc-d-pop-filter-value" type="text" value="denied" aria-describedby="sc-d-pop-filter-hint" spellcheck="false" autocomplete="off">
+                <p class="gw-field__hint" id="sc-d-pop-filter-hint">Same as typing <code class="gw-code">decision:denied</code> in the query.</p>
+              </div>
+            </div>
+            <div class="gw-popover__footer">
+              <button class="gw-btn gw-btn--primary gw-btn--sm" type="button">Apply filter</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="gw-toolbar__end">
+        <div class="gw-menu-host">
+          <button class="gw-btn gw-btn--sm gw-btn--ghost" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="sc-d-pop-columns"><i class="gw-icon gw-icon--sm" data-lucide="columns-3"></i> Columns</button>
+          <div class="gw-popover gw-popover--right" id="sc-d-pop-columns" role="dialog" aria-labelledby="sc-d-pop-columns-title" hidden>
+            <div class="gw-popover__header">
+              <h4 class="gw-popover__title" id="sc-d-pop-columns-title">Columns</h4>
+            </div>
+            <div class="gw-popover__body">
+              <fieldset class="gw-field">
+                <legend class="gw-field__label">Show in the events table</legend>
+                <label class="gw-checkbox"><input class="gw-checkbox__input" type="checkbox" checked><span class="gw-checkbox__control" aria-hidden="true"></span><span class="gw-checkbox__label">AI app</span></label>
+                <label class="gw-checkbox"><input class="gw-checkbox__input" type="checkbox" checked><span class="gw-checkbox__control" aria-hidden="true"></span><span class="gw-checkbox__label">Endpoint</span></label>
+                <label class="gw-checkbox"><input class="gw-checkbox__input" type="checkbox" checked><span class="gw-checkbox__control" aria-hidden="true"></span><span class="gw-checkbox__label">Connection and env</span></label>
+                <label class="gw-checkbox"><input class="gw-checkbox__input" type="checkbox"><span class="gw-checkbox__control" aria-hidden="true"></span><span class="gw-checkbox__label">Token</span></label>
+                <label class="gw-checkbox"><input class="gw-checkbox__input" type="checkbox"><span class="gw-checkbox__control" aria-hidden="true"></span><span class="gw-checkbox__label">Trace id</span></label>
+              </fieldset>
+            </div>
+            <div class="gw-popover__footer">
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button">Reset columns</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="gw-text-caption gw-fg-muted">Focus moves to the first field; Esc, a click outside or tabbing out of the popover closes it. <code class="gw-code">gw-popover--right</code> aligns the panel to the end of a trigger that sits near the right edge.</p>
+  </div>
+
+  <h3>Anatomy (rendered in place)</h3>
+  <div class="sc-demo sc-demo--static sc-demo--canvas" data-sc-code>
+    <div class="gw-menu" role="menu" aria-label="Example: actions for connection dev-db">
+      <div class="gw-menu__group" role="group" aria-labelledby="sc-d-anat-conn">
+        <div class="gw-menu__note" id="sc-d-anat-conn" aria-hidden="true">Connection</div>
+        <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="plug-zap"></i><span class="gw-menu__label">Test connection</span><kbd class="gw-menu__kbd" aria-hidden="true">T</kbd></button>
+        <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="copy"></i><span class="gw-menu__label">Copy host</span><span class="gw-menu__hint gw-mono" title="db.dev.internal:5432/app">db.dev.internal:5432/app</span></button>
+        <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="pencil"></i><span class="gw-menu__label">Edit connection</span></button>
+        <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" aria-disabled="true"><i class="gw-icon gw-menu__icon" data-lucide="rotate-ccw-key"></i><span class="gw-menu__label">Rotate secret<span class="gw-menu__hint">Rotation runs in Vault for this secret</span></span></button>
+      </div>
+      <div class="gw-menu__divider" role="separator"></div>
+      <div class="gw-menu__group" role="group" aria-labelledby="sc-d-anat-env">
+        <div class="gw-menu__note" id="sc-d-anat-env" aria-hidden="true">Environment</div>
+        <button class="gw-menu__item" type="button" role="menuitemradio" aria-checked="true" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">dev</span></button>
+        <button class="gw-menu__item" type="button" role="menuitemradio" aria-checked="false" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">stage</span></button>
+        <button class="gw-menu__item" type="button" role="menuitemradio" aria-checked="false" tabindex="-1"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">prod</span></button>
+      </div>
+      <div class="gw-menu__divider" role="separator"></div>
+      <button class="gw-menu__item gw-menu__item--danger" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="trash-2"></i><span class="gw-menu__label">Delete connection</span></button>
+      <div class="gw-menu__note" aria-hidden="true">Used by endpoints dev and stage-readonly.</div>
+    </div>
+
+    <div class="gw-popover" role="dialog" aria-labelledby="sc-d-anat-pop-title">
+      <div class="gw-popover__header">
+        <h4 class="gw-popover__title" id="sc-d-anat-pop-title">Popover title</h4>
+        <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm" type="button" aria-label="Close popover"><i class="gw-icon" data-lucide="x"></i></button>
+      </div>
+      <div class="gw-popover__body">
+        <p>Body: one or two fields, a short explanation. Anything longer belongs in a dialog.</p>
+      </div>
+      <div class="gw-popover__footer">
+        <button class="gw-btn gw-btn--sm" type="button">Reset</button>
+        <button class="gw-btn gw-btn--primary gw-btn--sm" type="button">Apply</button>
+      </div>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "x-card": {
+    "description": "Pods, logs and events; rollouts and apply with approval."
+  },
+  "additionalProperties": false,
+  "required": [
+    "auth",
+    "namespace"
+  ],
+  "properties": {
+    "auth": {
+      "type": "string",
+      "enum": [
+        "token",
+        "kubeconfig",
+        "kubeconfig-file"
+      ],
+      "default": "token",
+      "title": "Sign in with",
+      "x-enumTitles": [
+        "Server URL and token",
+        "Paste kubeconfig",
+        "kubeconfig file on this computer"
+      ]
+    },
+    "server": true,
+    "token": true,
+    "caCert": {
+      "type": "string",
+      "title": "CA certificate (PEM)",
+      "x-widget": "textarea",
+      "maxLength": 20000,
+      "description": "Empty: the OS trust store"
+    },
+    "insecureSkipTlsVerify": {
+      "type": "boolean",
+      "title": "Skip TLS verification",
+      "default": false,
+      "x-forbidden-env": [
+        "prod"
+      ]
+    },
+    "kubeconfig": true,
+    "kubeconfigPath": true,
+    "context": true,
+    "allowExecPlugin": true,
+    "namespace": {
+      "type": "string",
+      "default": "default",
+      "title": "Default namespace",
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+      "maxLength": 63
+    },
+    "requestTimeoutMs": {
+      "type": "integer",
+      "title": "Request timeout",
+      "default": 10000,
+      "minimum": 1000,
+      "maximum": 60000,
+      "x-unit": "ms"
+    },
+    "proxy": {
+      "type": "string",
+      "title": "HTTPS proxy",
+      "description": "Empty: direct connection"
+    },
+    "pinnedCluster": true,
+    "trustedExec": true
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "auth": {
+            "const": "token"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "server",
+          "token"
+        ],
+        "properties": {
+          "server": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://",
+            "title": "API server",
+            "examples": [
+              "https://k8s.dev.internal:6443"
+            ]
+          },
+          "token": {
+            "type": "string",
+            "title": "Bearer token",
+            "writeOnly": true,
+            "x-gateway-secret": "value"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "auth": {
+            "const": "kubeconfig"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "kubeconfig"
+        ],
+        "properties": {
+          "kubeconfig": {
+            "type": "string",
+            "title": "kubeconfig",
+            "writeOnly": true,
+            "x-gateway-secret": "value",
+            "x-widget": "code",
+            "x-language": "yaml"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "auth": {
+            "const": "kubeconfig-file"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "kubeconfigPath",
+          "context"
+        ],
+        "properties": {
+          "kubeconfigPath": {
+            "type": "string",
+            "title": "kubeconfig file",
+            "default": "~/.kube/config"
+          },
+          "pinnedCluster": {
+            "type": "object",
+            "title": "Trusted cluster",
+            "readOnly": true,
+            "description": "Set by Test connection when you trust the cluster a kubeconfig file points to. Calls stop if the file points elsewhere.",
+            "additionalProperties": false,
+            "properties": {
+              "serverUrl": {
+                "type": "string",
+                "maxLength": 2048
+              },
+              "caSha256": {
+                "type": "string",
+                "pattern": "^([0-9a-f]{64})?$"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "auth": {
+            "enum": [
+              "kubeconfig",
+              "kubeconfig-file"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "context": {
+            "type": "string",
+            "title": "Context",
+            "x-options-from": "metadata.kubeconfigContexts",
+            "description": "Required for a kubeconfig file. Empty for a pasted kubeconfig: its current context."
+          },
+          "allowExecPlugin": {
+            "type": "boolean",
+            "default": false,
+            "title": "Run the credential command from kubeconfig",
+            "x-confirm": "warning",
+            "description": "gke-gcloud-auth-plugin, aws eks get-token, kubelogin. Runs on this computer with your user rights."
+          },
+          "trustedExec": {
+            "type": "string",
+            "title": "Allowed credential command",
+            "readOnly": true,
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Set by Test connection when you allow the kubeconfig's credential command; a changed command needs your approval again."
+          }
+        }
+      }
+    }
+  ],
+  "$comment": "Each sign-in mode declares its own fields in its then branch (the form shows them only for that mode); the properties above name them with true, so additionalProperties still refuses other keys."
+}

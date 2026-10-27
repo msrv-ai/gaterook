@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "файлы": {
+      "command": "/Users/zoë/bin/fs-server",
+      "args": ["--root", "/Users/zoë/Проекты"]
+    },
+    "gateway-dev": {
+      "url": "http://127.0.0.1:7465/mcp/dev",
+      "headers": {
+        "Authorization": "Bearer ‹new token›"
+      }
+    }
+  }
+}

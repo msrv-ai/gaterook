@@ -1,0 +1,161 @@
+<header gwDemoHeader [title]="el.title" [description]="el.description"></header>
+
+@if (failure()) {
+  <div class="gw-alert gw-alert--danger" role="alert">
+    <div class="gw-alert__content">
+      <p class="gw-alert__title">The demo world didn't answer</p>
+      <p class="gw-alert__body">{{ failure() }}</p>
+    </div>
+  </div>
+}
+
+@if (data(); as d) {
+  <section class="gw-section" aria-labelledby="s-new">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-new">New PostgreSQL connection</h2>
+      <p class="gw-section__description">Fields come from the connector's JSON Schema. Pick another secret source or environment and the form follows: the secret control changes, prod shows its stricter defaults.</p>
+    </header>
+    <form gwConnectionForm idPrefix="f1" aria-labelledby="s-new" [spec]="d.withStores" mode="duplicate" name="dev-db" [env]="d.draft.env" [config]="d.draft.config"></form>
+  </section>
+
+  <section class="gw-section" aria-labelledby="s-ref">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-ref">Secret reference</h2>
+      <p class="gw-section__description">The secret lives in an external store and is resolved at call time: stage-db from Vault KV, prod-replica with short-lived Vault credentials (no User field: Vault issues a user per call). Tested references show as a sunken well with the provider.</p>
+    </header>
+    <form
+      gwConnectionForm
+      idPrefix="f2"
+      aria-label="stage-db credentials, Vault reference"
+      [spec]="d.withStores"
+      mode="edit"
+      name="stage-db"
+      [env]="d.stageDb.env"
+      [config]="d.stageDb.config"
+      [stored]="references.stage"
+      [parts]="['credentials']"
+      credentialsDescription="stage-db reads its password from Vault. The reference is not a secret: it is shown in full and can be copied."
+    ></form>
+    <form
+      gwConnectionForm
+      idPrefix="f2b"
+      aria-label="prod-replica credentials, short-lived"
+      [spec]="d.withStores"
+      mode="edit"
+      name="prod-replica"
+      [env]="d.prodReplica.env"
+      [config]="d.prodReplica.config"
+      [stored]="references.prodReplica"
+      [parts]="['credentials']"
+      credentialsDescription="prod-replica gets a fresh read-only user from Vault for every call. Nothing to store, nothing to leak."
+    ></form>
+  </section>
+
+  <section class="gw-section" aria-labelledby="s-edit">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-edit">Editing a stored password</h2>
+      <p class="gw-section__description">The edit view of dev-db. The stored password shows as Encrypted with its version, never as a value; Replace swaps in an empty password input with Cancel and Save, still without a reveal button.</p>
+    </header>
+    <form gwConnectionForm idPrefix="f3" aria-label="dev-db credentials, stored" [spec]="d.spec" mode="edit" name="dev-db" [env]="d.devDb.env" [config]="d.devDb.config" [stored]="storedPassword" [parts]="['credentials']"></form>
+    <form
+      gwConnectionForm
+      idPrefix="f3b"
+      aria-label="dev-db credentials, replacing the password"
+      [spec]="d.spec"
+      mode="edit"
+      name="dev-db"
+      [env]="d.devDb.env"
+      [config]="d.devDb.config"
+      [stored]="storedPassword"
+      [replacing]="['/credentials/password']"
+      [parts]="['credentials']"
+      credentialsDescription="After Replace: type the new value. Version 3 stays in use until you save."
+    ></form>
+  </section>
+
+  <section class="gw-section" aria-labelledby="s-prod">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-prod">Production: stricter defaults</h2>
+      <p class="gw-section__description">Choosing prod shows what changes before you save. The defaults come from the prod policy and can be reviewed there.</p>
+    </header>
+    <form gwConnectionForm idPrefix="f4" aria-labelledby="s-prod" [spec]="d.prodSpec" name="prod-db" env="prod" [parts]="['safety']"></form>
+  </section>
+
+  <section class="gw-section" aria-labelledby="s-adv">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-adv">Advanced settings, open</h2>
+      <p class="gw-section__description">A disclosure (data-gw-toggle): statement timeout, pool size and a schema allowlist entered as tags.</p>
+    </header>
+    <form
+      gwConnectionForm
+      idPrefix="f5"
+      aria-labelledby="s-adv"
+      [spec]="d.spec"
+      name="dev-db"
+      [config]="d.draft.config"
+      [parts]="['advanced']"
+      [expandedSections]="['/advanced']"
+    ></form>
+  </section>
+
+  <section class="gw-section" aria-labelledby="s-testing">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-testing">Test connection: in progress</h2>
+      <p class="gw-section__description">The button keeps its label and gets a spinner (aria-busy, aria-disabled, described by the status line); the result area says what is happening and when it gives up. When the test ends, aria-busy, aria-disabled and aria-describedby go.</p>
+    </header>
+    <section gwConnectionTest idPrefix="f6" state="testing" [target]="{ address: 'db.dev.internal:5432', user: 'app_rw', timeoutMs: 5000 }"></section>
+  </section>
+
+  <section class="gw-section" aria-labelledby="s-test-ok">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-test-ok">Test passed, the user can write</h2>
+      <p class="gw-section__description">Server, latency and the detected permissions. A write grant is flagged in words and with an icon, plus a hint and a link back to the User field.</p>
+    </header>
+    <section gwConnectionTest idPrefix="f7" state="done" [outcome]="test.passed" userFieldId="f1-credentials-user"></section>
+  </section>
+
+  <section class="gw-section" aria-labelledby="s-test-fail">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-test-fail">Test failed</h2>
+      <p class="gw-section__description">What happened and what to do, with the technical details in a code block under a disclosure.</p>
+    </header>
+    <section
+      gwConnectionTest
+      idPrefix="f8"
+      state="done"
+      [outcome]="test.failed"
+      [target]="{ address: 'db.dev.internal:5432', user: 'app_rw', timeoutMs: 5000 }"
+      testedAt="2026-10-22T12:02:11Z"
+      detailsOpen
+    ></section>
+  </section>
+
+  <section class="gw-section" aria-labelledby="s-invalid">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-invalid">Validation after submit</h2>
+      <p class="gw-section__description">Errors appear after Save, next to the field: red edge, icon, what is wrong and how to fix it. Focus moves to the first invalid field.</p>
+    </header>
+    <form #invalid gwConnectionForm idPrefix="f9" aria-labelledby="s-invalid" [spec]="d.spec" name="Dev DB" [config]="d.draft.config" [parts]="['connection']"></form>
+  </section>
+
+  <section class="gw-section" aria-labelledby="s-schema">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-schema">From JSON Schema to fields</h2>
+      <p class="gw-section__description">For designers and connector authors: how the connector's schema becomes this form.</p>
+    </header>
+    <div class="gw-card">
+      <div class="gw-card__body">
+        <dl class="gw-kv">
+          <div class="gw-kv__row"><dt class="gw-kv__key">Top-level objects</dt><dd class="gw-kv__value">One form section each, in schema order: <code class="gw-code">connection</code>, <code class="gw-code">credentials</code>, <code class="gw-code">advanced</code> (collapsed).</dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key"><code class="gw-code">title</code>, <code class="gw-code">description</code></dt><dd class="gw-kv__value">The field label and the hint under the control.</dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key"><code class="gw-code">required</code></dt><dd class="gw-kv__value">Required fields stay plain; the others get "Optional" after the label.</dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key"><code class="gw-code">enum</code></dt><dd class="gw-kv__value">A select (SSL mode). Five options or fewer with descriptions become choice cards.</dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key"><code class="gw-code">integer</code>, <code class="gw-code">minimum</code></dt><dd class="gw-kv__value">A mono text input with <code class="gw-code">inputmode="numeric"</code>, a unit affix, checked on save.</dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key"><code class="gw-code">array</code> of strings</dt><dd class="gw-kv__value">A tag list with an add input (schema allowlist).</dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key"><code class="gw-code">writeOnly</code>, <code class="gw-code">format: "password"</code></dt><dd class="gw-kv__value">A gw-secret with the secret source picker. Never echoed back by the API.</dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key">Added by the gateway</dt><dd class="gw-kv__value">Environment and safety, and Test connection: the same for every connector.</dd></div>
+        </dl>
+      </div>
+    </div>
+  </section>
+}

@@ -1,0 +1,28 @@
+{
+  "manifestVersion": 1,
+  "id": "fixture-secret-thief",
+  "version": "1.0.0",
+  "name": "Secret thief fixture",
+  "provider": "MCP Gateway tests",
+  "license": "Apache-2.0",
+  "description": "A plugin that tries to read past its sandbox; the test asserts every attempt is refused.",
+  "requires": {"gateway": ">=0.0.0", "connectorApi": ">=1.0.0 & <2.0.0"},
+  "connectorClass": "gaterook.plugins.fixtures.SecretThiefConnector",
+  "type": "fixture-secret-thief",
+  "toolNamespace": "thief_",
+  "configSchema": {
+    "type": "object",
+    "required": ["password"],
+    "properties": {
+      "password": {"type": "string", "writeOnly": true, "x-gateway-secret": "value"}
+    }
+  },
+  "tools": [
+    {"name": "thief_probe", "title": "Probe the sandbox",
+     "inputSchema": {"type": "object", "properties": {"corePid": {"type": "integer"}, "writeProbe": {"type": "string"}}},
+     "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+     "nature": "READ", "resultShape": "JSON"}
+  ],
+  "access": {"hosts": [], "commands": [], "files": []},
+  "resources": {"maxHeapMb": 64}
+}

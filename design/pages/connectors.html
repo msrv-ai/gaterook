@@ -1,0 +1,1701 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connectors · GateRook</title>
+<link rel="icon" href="../assets/logo-mark.svg" type="image/svg+xml">
+<script src="../assets/theme-boot.js"></script>
+<link rel="stylesheet" href="../dist/gw-kit.css">
+</head>
+<body>
+<!--
+  CANONICAL APP SHELL · copy this file verbatim for every page in pages/.
+  Change only:
+    1. <title>                      "<Section> · GateRook"
+    2. .gw-titlebar__title          the current section name
+    3. aria-current="page"          move it to the current nav item (exactly one)
+    4. the content of .gw-page      page header (one h1) + page content;
+                                    gw-page--narrow for forms, gw-page--full for Activity / split views
+  npm run check fails when a page's <nav data-gw-nav> differs from overview.html
+  (aria-current excluded). Add gw-titlebar--mac on macOS (Electron: process.platform === "darwin").
+-->
+<a class="gw-skip-link" href="#main">Skip to content</a>
+<div class="gw-shell">
+
+  <header class="gw-titlebar">
+    <span class="gw-titlebar__title">Connectors</span>
+    <div class="gw-titlebar__drag"></div>
+    <div class="gw-titlebar__actions">
+      <!-- Opens the command palette (#cmdk at the end of <main>, elements/command-palette.html) -->
+      <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Search and commands" aria-haspopup="dialog" aria-keyshortcuts="Meta+K Control+K" data-gw-dialog-open="cmdk"><i class="gw-icon" data-lucide="search"></i> Search <kbd class="gw-btn__kbd" aria-hidden="true">⌘K</kbd></button>
+      <a class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" href="approvals.html" aria-label="Approvals, 3 waiting"><i class="gw-icon" data-lucide="bell"></i><span class="gw-counter gw-counter--attention" aria-hidden="true">3</span></a>
+      <!--
+        Appearance popover. gw-popover belongs to component group D, gw-segmented to group C.
+        The <form method="dialog"> scopes the radio groups (Settings › Appearance has its own
+        gw-theme radios) and never submits outside a <dialog>. kit.js binds name="gw-theme" /
+        name="gw-contrast" to window.gwTheme.
+      -->
+      <div class="gw-menu-host">
+        <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="gw-appearance" aria-label="Appearance"><i class="gw-icon" data-lucide="sun-moon"></i></button>
+        <div class="gw-popover gw-popover--right" id="gw-appearance" role="dialog" aria-labelledby="gw-appearance-title" hidden>
+          <div class="gw-popover__header">
+            <p class="gw-popover__title" id="gw-appearance-title">Appearance</p>
+          </div>
+          <form class="gw-popover__body" method="dialog">
+            <div class="gw-stack gw-stack--sm">
+              <p class="gw-text-caption gw-fg-muted" id="gw-appearance-theme">Theme</p>
+              <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="gw-appearance-theme">
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i> System</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i> Light</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i> Dark</span></label>
+              </div>
+              <p class="gw-text-caption gw-fg-muted" id="gw-appearance-contrast">Contrast</p>
+              <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="gw-appearance-contrast">
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="system"><span class="gw-segmented__label">System</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="normal"><span class="gw-segmented__label">Normal</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="more"><span class="gw-segmented__label">High</span></label>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="gw-sidebar" id="gw-sidebar">
+    <div class="gw-sidebar__header">
+      <a class="gw-logo" href="overview.html" aria-label="GateRook, overview">
+        <img class="gw-logo__mark" src="../assets/logo-mark.svg" alt="">
+        <span class="gw-logo__name">GateRook</span>
+      </a>
+      <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-sidebar__toggle" type="button" data-gw-sidebar-toggle aria-controls="gw-sidebar" aria-expanded="true" aria-label="Collapse sidebar"><i class="gw-icon" data-lucide="panel-left"></i></button>
+    </div>
+
+    <nav class="gw-sidebar__body gw-nav" data-gw-nav aria-label="Main">
+      <div class="gw-nav__group">
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="overview.html"><i class="gw-icon gw-nav__icon" data-lucide="layout-dashboard"></i><span class="gw-nav__label">Overview</span></a></li>
+          <li><a class="gw-nav__item" href="approvals.html"><i class="gw-icon gw-nav__icon" data-lucide="user-check"></i><span class="gw-nav__label">Approvals</span><span class="gw-nav__counter gw-counter gw-counter--attention"><span class="gw-sr-only">, </span>3<span class="gw-sr-only"> waiting</span></span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-resources">
+        <p class="gw-nav__group-label" id="gw-nav-resources">Resources</p>
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="connections.html"><i class="gw-icon gw-nav__icon" data-lucide="database"></i><span class="gw-nav__label">Connections</span></a></li>
+          <li><a class="gw-nav__item" href="connectors.html" aria-current="page"><i class="gw-icon gw-nav__icon" data-lucide="puzzle"></i><span class="gw-nav__label">Connectors</span></a></li>
+          <li><a class="gw-nav__item" href="secrets.html"><i class="gw-icon gw-nav__icon" data-lucide="key-round"></i><span class="gw-nav__label">Secrets</span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-access">
+        <p class="gw-nav__group-label" id="gw-nav-access">Access</p>
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="endpoints.html"><i class="gw-icon gw-nav__icon" data-lucide="waypoints"></i><span class="gw-nav__label">Endpoints</span></a></li>
+          <li><a class="gw-nav__item" href="clients.html"><i class="gw-icon gw-nav__icon" data-lucide="app-window"></i><span class="gw-nav__label">AI apps</span></a></li>
+          <li><a class="gw-nav__item" href="policies.html"><i class="gw-icon gw-nav__icon" data-lucide="shield"></i><span class="gw-nav__label">Policies</span></a></li>
+          <li><a class="gw-nav__item" href="playground.html"><i class="gw-icon gw-nav__icon" data-lucide="flask-conical"></i><span class="gw-nav__label">Playground</span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-observe">
+        <p class="gw-nav__group-label" id="gw-nav-observe">Observe</p>
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="activity.html"><i class="gw-icon gw-nav__icon" data-lucide="activity"></i><span class="gw-nav__label">Activity</span></a></li>
+          <li><a class="gw-nav__item" href="insights.html"><i class="gw-icon gw-nav__icon" data-lucide="chart-column"></i><span class="gw-nav__label">Insights</span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group gw-nav__group--end">
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="settings.html"><i class="gw-icon gw-nav__icon" data-lucide="settings"></i><span class="gw-nav__label">Settings</span></a></li>
+        </ul>
+      </div>
+    </nav>
+
+    <!-- gw-status belongs to component group B. Static on purpose: no gw-status--live in the shell (WCAG 2.2.2) -->
+    <div class="gw-sidebar__footer">
+      <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Core running</span></span>
+      <span class="gw-sidebar__meta">127.0.0.1:7465 · v0.4.0</span>
+      <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off</span></span>
+    </div>
+  </div>
+
+  <main class="gw-shell__main" id="main" tabindex="-1">
+    <!-- App-wide gw-alert--banner (Core stopped, Tunnel is public) goes here, before gw-page -->
+    <div class="gw-page">
+      <header class="gw-page-header">
+        <div class="gw-page-header__row">
+          <div class="gw-page-header__heading">
+            <h1 class="gw-page-header__title">Connectors</h1>
+            <p class="gw-page-header__description">The types of resource the gateway can reach and the tools each one brings. Add a type without rebuilding: a template, a plugin or an MCP server.</p>
+          </div>
+          <div class="gw-page-header__actions">
+            <div class="gw-menu-host">
+              <button class="gw-btn gw-btn--primary" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-add-connector"><i class="gw-icon" data-lucide="plus"></i> Add connector <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i></button>
+              <div class="gw-menu gw-menu--right gw-menu--wide" id="menu-add-connector" role="menu" aria-label="Add connector" hidden>
+                <a class="gw-menu__item" role="menuitem" tabindex="-1" href="#templates"><i class="gw-icon gw-menu__icon" data-lucide="file-code"></i><span class="gw-menu__label">New template<span class="gw-menu__hint">SQL query, SSH runbook or OpenAPI import. No code.</span></span></a>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-gw-dialog-open="dlg-install-plugin"><i class="gw-icon gw-menu__icon" data-lucide="puzzle"></i><span class="gw-menu__label">Install plugin<span class="gw-menu__hint">Java plugin from a JAR file or a URL</span></span></button>
+                <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-gw-dialog-open="dlg-add-mcp"><i class="gw-icon gw-menu__icon" data-lucide="plug"></i><span class="gw-menu__label">Add MCP server<span class="gw-menu__hint">Any MCP server over stdio or HTTP</span></span></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- how-it-works: the three levels of connectors -->
+      <section class="gw-card gw-card--muted gw-how-it-works" aria-labelledby="hiw-title">
+        <div class="gw-card__body gw-how-it-works__body">
+          <div class="gw-how-it-works__header">
+            <div class="gw-card__heading">
+              <h2 class="gw-card__title" id="hiw-title">How it works</h2>
+              <p class="gw-card__description">Three levels of connectors. Whatever the level, every tool goes through tokens, modes, approvals and audit.</p>
+            </div>
+            <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-how-it-works__toggle" type="button" data-gw-toggle data-gw-toggle-persist="connectors-how-it-works" aria-expanded="true" aria-controls="hiw-panel" aria-labelledby="hiw-title">
+              <i class="gw-icon gw-how-it-works__toggle-icon gw-how-it-works__toggle-icon--collapse" data-lucide="chevron-up"></i>
+              <i class="gw-icon gw-how-it-works__toggle-icon gw-how-it-works__toggle-icon--expand" data-lucide="chevron-down"></i>
+            </button>
+          </div>
+          <div class="gw-how-it-works__panel" id="hiw-panel">
+            <ol class="gw-how-it-works__steps" aria-label="Levels of connectors">
+              <li class="gw-how-it-works__step">
+                <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="package"></i></span>
+                <span class="gw-how-it-works__arrow gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="chevron-right"></i></span>
+                <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">1</span>Built-in</p>
+                <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">SQL, MongoDB, Redis, SSH, logs, Kubernetes, clouds and HTTP ship with the core. Add a connection and go.</p>
+              </li>
+              <li class="gw-how-it-works__step">
+                <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="file-code"></i></span>
+                <span class="gw-how-it-works__arrow gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="chevron-right"></i></span>
+                <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">2</span>Templates without code</p>
+                <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">A named SQL query, an SSH runbook or an OpenAPI file becomes a tool with typed parameters. No restart.</p>
+              </li>
+              <li class="gw-how-it-works__step">
+                <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="puzzle"></i></span>
+                <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">3</span>Plugins and MCP servers</p>
+                <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">A Java plugin adds a new resource type in its own plugin process; an MCP server runs as its own process. Check the signature first.</p>
+              </li>
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      <div class="gw-tabs">
+        <div class="gw-tabs__list" role="tablist" aria-label="Connectors">
+          <button class="gw-tabs__tab" type="button" role="tab" id="tab-installed" aria-selected="true" aria-controls="installed"><i class="gw-icon" data-lucide="package-check"></i> Installed <span class="gw-tabs__count">12<span class="gw-sr-only"> connectors</span></span></button>
+          <button class="gw-tabs__tab" type="button" role="tab" id="tab-catalog" aria-selected="false" aria-controls="catalog" tabindex="-1"><i class="gw-icon" data-lucide="library"></i> Catalog <span class="gw-tabs__count">5<span class="gw-sr-only"> connectors</span></span></button>
+          <button class="gw-tabs__tab" type="button" role="tab" id="tab-templates" aria-selected="false" aria-controls="templates" tabindex="-1"><i class="gw-icon" data-lucide="file-code"></i> Templates <span class="gw-tabs__count">7<span class="gw-sr-only"> templates</span></span></button>
+          <button class="gw-tabs__tab" type="button" role="tab" id="tab-mcp" aria-selected="false" aria-controls="mcp-servers" tabindex="-1"><i class="gw-icon" data-lucide="plug"></i> MCP servers <span class="gw-tabs__count">1<span class="gw-sr-only"> server</span></span></button>
+        </div>
+
+        <!-- ───────────────────────── Installed ───────────────────────── -->
+        <div class="gw-tabs__panel" role="tabpanel" id="installed" aria-labelledby="tab-installed" tabindex="0">
+          <div class="gw-stack">
+            <h2 class="gw-sr-only">Installed connectors</h2>
+            <div class="gw-toolbar">
+              <div class="gw-toolbar__start">
+                <div class="gw-search gw-search--sm" role="search" aria-label="Installed connectors">
+                  <i class="gw-icon gw-search__icon" data-lucide="search"></i>
+                  <input class="gw-search__input" type="search" id="installed-search" placeholder="Search installed connectors" aria-label="Search installed connectors" aria-controls="installed-grid" data-filter-list="#installed-grid" data-filter-empty="#installed-empty" data-filter-count="#installed-count" data-filter-noun="installed connectors">
+                  <button class="gw-search__clear" type="button" aria-label="Clear search"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+                </div>
+                <p class="gw-text-small gw-fg-muted gw-tabular" id="installed-count" role="status" data-filter-all="10 built-in, 1 plugin, 1 MCP server">10 built-in, 1 plugin, 1 MCP server</p>
+              </div>
+            </div>
+
+            <ul class="gw-grid gw-grid--3" id="installed-grid" aria-label="Installed connectors">
+              <li>
+                <article class="gw-card gw-connector-card" aria-labelledby="ci-pg-t">
+                  <header class="gw-card__header">
+                    <div class="gw-connector-card__identity">
+                      <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="database"></i></span>
+                      <div class="gw-card__heading">
+                        <h3 class="gw-card__title" id="ci-pg-t">PostgreSQL</h3>
+                        <p class="gw-connector-card__meta">
+                          <span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="package"></i>Built-in</span>
+                          <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v0.4.0</span></span>
+                        </p>
+                      </div>
+                    </div>
+                  </header>
+                  <div class="gw-card__body gw-connector-card__body">
+                    <div class="gw-stack gw-stack--sm">
+                      <p class="gw-text-small gw-fg-secondary">Schemas, tables and queries on PostgreSQL 12 and later. Writes wait for approval.</p>
+                      <p class="gw-text-caption gw-fg-muted"><a class="gw-link" href="connections.html?type=postgresql">3 connections<span class="gw-sr-only"> use PostgreSQL</span></a> · <a class="gw-link" href="activity.html?q=connection:dev-db%20connection:stage-db%20connection:prod-replica">View activity<span class="gw-sr-only"> for PostgreSQL</span></a></p>
+                    </div>
+                  </div>
+                  <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+                    <span class="gw-connector-card__tools gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="wrench"></i>4 tools</span>
+                    <a class="gw-btn gw-btn--sm" href="connection-new.html?type=postgresql">Add connection<span class="gw-sr-only"> for PostgreSQL</span></a>
+                  </footer>
+                </article>
+              </li>
+              <li>
+                <article class="gw-card gw-connector-card" aria-labelledby="ci-my-t">
+                  <header class="gw-card__header">
+                    <div class="gw-connector-card__identity">
+                      <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="database"></i></span>
+                      <div class="gw-card__heading">
+                        <h3 class="gw-card__title" id="ci-my-t">MySQL</h3>
+                        <p class="gw-connector-card__meta">
+                          <span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="package"></i>Built-in</span>
+                          <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v0.4.0</span></span>
+                        </p>
+                      </div>
+                    </div>
+                  </header>
+                  <div class="gw-card__body gw-connector-card__body">
+                    <div class="gw-stack gw-stack--sm">
+                      <p class="gw-text-small gw-fg-secondary">MySQL 8 and MariaDB: schemas, tables and queries. Writes wait for approval.</p>
+                      <p class="gw-text-caption gw-fg-muted">No connections yet</p>
+                    </div>
+                  </div>
+                  <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+                    <span class="gw-connector-card__tools gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="wrench"></i>4 tools</span>
+                    <a class="gw-btn gw-btn--sm" href="connection-new.html?type=mysql">Add connection<span class="gw-sr-only"> for MySQL</span></a>
+                  </footer>
+                </article>
+              </li>
+              <li>
+                <article class="gw-card gw-connector-card" aria-labelledby="ci-mg-t">
+                  <header class="gw-card__header">
+                    <div class="gw-connector-card__identity">
+                      <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="leaf"></i></span>
+                      <div class="gw-card__heading">
+                        <h3 class="gw-card__title" id="ci-mg-t">MongoDB</h3>
+                        <p class="gw-connector-card__meta">
+                          <span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="package"></i>Built-in</span>
+                          <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v0.4.0</span></span>
+                        </p>
+                      </div>
+                    </div>
+                  </header>
+                  <div class="gw-card__body gw-connector-card__body">
+                    <div class="gw-stack gw-stack--sm">
+                      <p class="gw-text-small gw-fg-secondary">Find and aggregate over collections. Read only.</p>
+                      <p class="gw-text-caption gw-fg-muted"><a class="gw-link" href="connections.html?type=mongodb">1 connection<span class="gw-sr-only"> uses MongoDB</span></a> · <a class="gw-link" href="activity.html?q=connection:orders-mongo">View activity<span class="gw-sr-only"> for MongoDB</span></a></p>
+                    </div>
+                  </div>
+                  <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+                    <span class="gw-connector-card__tools gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="wrench"></i>2 tools</span>
+                    <a class="gw-btn gw-btn--sm" href="connection-new.html?type=mongodb">Add connection<span class="gw-sr-only"> for MongoDB</span></a>
+                  </footer>
+                </article>
+              </li>
+              <li>
+                <article class="gw-card gw-connector-card" aria-labelledby="ci-rd-t">
+                  <header class="gw-card__header">
+                    <div class="gw-connector-card__identity">
+                      <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="layers"></i></span>
+                      <div class="gw-card__heading">
+                        <h3 class="gw-card__title" id="ci-rd-t">Redis</h3>
+                        <p class="gw-connector-card__meta">
+                          <span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="package"></i>Built-in</span>
+                          <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v0.4.0</span></span>
+                        </p>
+                      </div>
+                    </div>
+                  </header>
+                  <div class="gw-card__body gw-connector-card__body">
+                    <div class="gw-stack gw-stack--sm">
+                      <p class="gw-text-small gw-fg-secondary">Read keys and scan by pattern. Read only.</p>
+                      <p class="gw-text-caption gw-fg-muted"><a class="gw-link" href="connections.html?type=redis">1 connection<span class="gw-sr-only"> uses Redis</span></a> · <a class="gw-link" href="activity.html?q=connection:cache-redis">View activity<span class="gw-sr-only"> for Redis</span></a></p>
+                    </div>
+                  </div>
+                  <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+                    <span class="gw-connector-card__tools gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="wrench"></i>2 tools</span>
+                    <a class="gw-btn gw-btn--sm" href="connection-new.html?type=redis">Add connection<span class="gw-sr-only"> for Redis</span></a>
+                  </footer>
+                </article>
+              </li>
+              <li>
+                <article class="gw-card gw-connector-card" aria-labelledby="ci-ssh-t">
+                  <header class="gw-card__header">
+                    <div class="gw-connector-card__identity">
+                      <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="terminal"></i></span>
+                      <div class="gw-card__heading">
+                        <h3 class="gw-card__title" id="ci-ssh-t">SSH</h3>
+                        <p class="gw-connector-card__meta">
+                          <span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="package"></i>Built-in</span>
+                          <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v0.4.0</span></span>
+                        </p>
+                      </div>
+                    </div>
+                  </header>
+                  <div class="gw-card__body gw-connector-card__body">
+                    <div class="gw-stack gw-stack--sm">
+                      <p class="gw-text-small gw-fg-secondary">Runbooks with typed parameters. Any other command needs its own permission and approval.</p>
+                      <p class="gw-text-caption gw-fg-muted"><a class="gw-link" href="connections.html?type=ssh">2 connections<span class="gw-sr-only"> use SSH</span></a> · <a class="gw-link" href="activity.html?q=connection:dev-vm%20connection:prod-vm">View activity<span class="gw-sr-only"> for SSH</span></a></p>
+                    </div>
+                  </div>
+                  <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+                    <span class="gw-connector-card__tools gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="wrench"></i>2 tools</span>
+                    <a class="gw-btn gw-btn--sm" href="connection-new.html?type=ssh">Add connection<span class="gw-sr-only"> for SSH</span></a>
+                  </footer>
+                </article>
+              </li>
+              <li>
+                <article class="gw-card gw-connector-card" aria-labelledby="ci-logs-t">
+                  <header class="gw-card__header">
+                    <div class="gw-connector-card__identity">
+                      <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="scroll-text"></i></span>
+                      <div class="gw-card__heading">
+                        <h3 class="gw-card__title" id="ci-logs-t">Logs</h3>
+                        <p class="gw-connector-card__meta">
+                          <span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="package"></i>Built-in</span>
+                          <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v0.4.0</span></span>
+                        </p>
+                      </div>
+                    </div>
+                  </header>
+                  <div class="gw-card__body gw-connector-card__body">
+                    <div class="gw-stack gw-stack--sm">
+                      <p class="gw-text-small gw-fg-secondary">Loki, GCP Cloud Logging, AWS CloudWatch and OpenSearch, searched with the same tools.</p>
+                      <p class="gw-text-caption gw-fg-muted"><a class="gw-link" href="connections.html?type=logs">2 connections<span class="gw-sr-only"> use Logs</span></a> · <a class="gw-link" href="activity.html?q=connection:app-logs%20connection:prod-logs">View activity<span class="gw-sr-only"> for Logs</span></a></p>
+                    </div>
+                  </div>
+                  <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+                    <span class="gw-connector-card__tools gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="wrench"></i>2 tools</span>
+                    <a class="gw-btn gw-btn--sm" href="connection-new.html?type=logs">Add connection<span class="gw-sr-only"> for Logs</span></a>
+                  </footer>
+                </article>
+              </li>
+              <li>
+                <article class="gw-card gw-connector-card" aria-labelledby="ci-k8s-t">
+                  <header class="gw-card__header">
+                    <div class="gw-connector-card__identity">
+                      <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="ship-wheel"></i></span>
+                      <div class="gw-card__heading">
+                        <h3 class="gw-card__title" id="ci-k8s-t">Kubernetes</h3>
+                        <p class="gw-connector-card__meta">
+                          <span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="package"></i>Built-in</span>
+                          <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v0.4.0</span></span>
+                        </p>
+                      </div>
+                    </div>
+                  </header>
+                  <div class="gw-card__body gw-connector-card__body">
+                    <div class="gw-stack gw-stack--sm">
+                      <p class="gw-text-small gw-fg-secondary">Read resources, events and pod logs. Rollouts and apply wait for approval.</p>
+                      <p class="gw-text-caption gw-fg-muted"><a class="gw-link" href="connections.html?type=kubernetes">1 connection<span class="gw-sr-only"> uses Kubernetes</span></a> · <a class="gw-link" href="activity.html?q=connection:dev-cluster">View activity<span class="gw-sr-only"> for Kubernetes</span></a></p>
+                    </div>
+                  </div>
+                  <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+                    <span class="gw-connector-card__tools gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="wrench"></i>4 tools</span>
+                    <a class="gw-btn gw-btn--sm" href="connection-new.html?type=kubernetes">Add connection<span class="gw-sr-only"> for Kubernetes</span></a>
+                  </footer>
+                </article>
+              </li>
+              <li>
+                <article class="gw-card gw-connector-card" aria-labelledby="ci-gcp-t">
+                  <header class="gw-card__header">
+                    <div class="gw-connector-card__identity">
+                      <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="cloud"></i></span>
+                      <div class="gw-card__heading">
+                        <h3 class="gw-card__title" id="ci-gcp-t">GCP</h3>
+                        <p class="gw-connector-card__meta">
+                          <span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="package"></i>Built-in</span>
+                          <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v0.4.0</span></span>
+                        </p>
+                      </div>
+                    </div>
+                  </header>
+                  <div class="gw-card__body gw-connector-card__body">
+                    <div class="gw-stack gw-stack--sm">
+                      <p class="gw-text-small gw-fg-secondary">Resources, statuses and metrics, read through service account impersonation.</p>
+                      <p class="gw-text-caption gw-fg-muted">No connections yet</p>
+                    </div>
+                  </div>
+                  <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+                    <span class="gw-connector-card__tools gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="wrench"></i>2 tools</span>
+                    <a class="gw-btn gw-btn--sm" href="connection-new.html?type=gcp">Add connection<span class="gw-sr-only"> for GCP</span></a>
+                  </footer>
+                </article>
+              </li>
+              <li>
+                <article class="gw-card gw-connector-card" aria-labelledby="ci-aws-t">
+                  <header class="gw-card__header">
+                    <div class="gw-connector-card__identity">
+                      <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="cloud"></i></span>
+                      <div class="gw-card__heading">
+                        <h3 class="gw-card__title" id="ci-aws-t">AWS</h3>
+                        <p class="gw-connector-card__meta">
+                          <span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="package"></i>Built-in</span>
+                          <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v0.4.0</span></span>
+                        </p>
+                      </div>
+                    </div>
+                  </header>
+                  <div class="gw-card__body gw-connector-card__body">
+                    <div class="gw-stack gw-stack--sm">
+                      <p class="gw-text-small gw-fg-secondary">Resources, statuses and metrics, read with AssumeRole.</p>
+                      <p class="gw-text-caption gw-fg-muted"><a class="gw-link" href="connections.html?type=aws">1 connection<span class="gw-sr-only"> uses AWS</span></a> · <a class="gw-link" href="activity.html?q=connection:aws-stage">View activity<span class="gw-sr-only"> for AWS</span></a></p>
+                    </div>
+                  </div>
+                  <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+                    <span class="gw-connector-card__tools gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="wrench"></i>2 tools</span>
+                    <a class="gw-btn gw-btn--sm" href="connection-new.html?type=aws">Add connection<span class="gw-sr-only"> for AWS</span></a>
+                  </footer>
+                </article>
+              </li>
+              <li>
+                <article class="gw-card gw-connector-card" aria-labelledby="ci-http-t">
+                  <header class="gw-card__header">
+                    <div class="gw-connector-card__identity">
+                      <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="globe"></i></span>
+                      <div class="gw-card__heading">
+                        <h3 class="gw-card__title" id="ci-http-t">HTTP API</h3>
+                        <p class="gw-connector-card__meta">
+                          <span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="package"></i>Built-in</span>
+                          <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v0.4.0</span></span>
+                        </p>
+                      </div>
+                    </div>
+                  </header>
+                  <div class="gw-card__body gw-connector-card__body">
+                    <div class="gw-stack gw-stack--sm">
+                      <p class="gw-text-small gw-fg-secondary">One base URL with an allowlist. GET reads; every other method waits for approval.</p>
+                      <p class="gw-text-caption gw-fg-muted"><a class="gw-link" href="connections.html?type=http">1 connection<span class="gw-sr-only"> uses HTTP API</span></a> · <a class="gw-link" href="activity.html?q=connection:billing-api">View activity<span class="gw-sr-only"> for HTTP API</span></a></p>
+                    </div>
+                  </div>
+                  <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+                    <span class="gw-connector-card__tools gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="wrench"></i>2 tools</span>
+                    <a class="gw-btn gw-btn--sm" href="connection-new.html?type=http">Add connection<span class="gw-sr-only"> for HTTP API</span></a>
+                  </footer>
+                </article>
+              </li>
+              <li>
+                <article class="gw-card gw-connector-card" aria-labelledby="ci-jira-t">
+                  <header class="gw-card__header">
+                    <div class="gw-connector-card__identity">
+                      <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="puzzle"></i></span>
+                      <div class="gw-card__heading">
+                        <h3 class="gw-card__title" id="ci-jira-t">Jira Service Desk</h3>
+                        <p class="gw-connector-card__meta">
+                          <span class="gw-badge gw-badge--outline"><i class="gw-icon gw-badge__icon" data-lucide="puzzle"></i>Plugin</span>
+                          <span class="gw-badge gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="badge-check"></i>Signed<span class="gw-sr-only"> by the catalog</span></span>
+                          <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v1.2.0</span></span>
+                        </p>
+                      </div>
+                    </div>
+                  </header>
+                  <div class="gw-card__body gw-connector-card__body">
+                    <div class="gw-stack gw-stack--sm">
+                      <p class="gw-text-small gw-fg-secondary">Search requests and read queues. Comments and transitions wait for approval.</p>
+                      <p class="gw-text-caption gw-fg-muted">5 tools · no connections yet · <a class="gw-link" href="connection-new.html?type=jira-service-desk">Add connection<span class="gw-sr-only"> for Jira Service Desk</span></a></p>
+                    </div>
+                  </div>
+                  <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+                    <span class="gw-status gw-status--info" data-jira-status><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Update available · <span class="gw-mono">v1.3.0</span></span></span>
+                    <div class="gw-card__actions">
+                      <button class="gw-btn gw-btn--sm" type="button" data-gw-dialog-open="dlg-update-jira"><i class="gw-icon gw-icon--sm" data-lucide="circle-arrow-up"></i>Update<span class="gw-sr-only"> Jira Service Desk to v1.3.0</span></button>
+                      <div class="gw-menu-host">
+                        <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="More actions for Jira Service Desk" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-jira"><i class="gw-icon" data-lucide="ellipsis"></i></button>
+                        <div class="gw-menu gw-menu--right" id="menu-jira" role="menu" aria-label="More actions for Jira Service Desk" hidden>
+                          <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-plugin-disable="Jira Service Desk"><i class="gw-icon gw-menu__icon" data-lucide="power-off"></i><span class="gw-menu__label">Disable plugin<span class="gw-menu__hint">Unload now. Its tools stop until you enable it.</span></span></button>
+                          <div class="gw-menu__divider" role="separator"></div>
+                          <button class="gw-menu__item gw-menu__item--danger" type="button" role="menuitem" tabindex="-1" data-gw-dialog-open="dlg-uninstall-jira"><i class="gw-icon gw-menu__icon" data-lucide="trash-2"></i><span class="gw-menu__label">Uninstall plugin</span></button>
+                        </div>
+                      </div>
+                    </div>
+                  </footer>
+                </article>
+              </li>
+              <li>
+                <article class="gw-card gw-connector-card" aria-labelledby="ci-gh-t">
+                  <header class="gw-card__header">
+                    <div class="gw-connector-card__identity">
+                      <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="plug"></i></span>
+                      <div class="gw-card__heading">
+                        <h3 class="gw-card__title" id="ci-gh-t">github-mcp</h3>
+                        <p class="gw-connector-card__meta">
+                          <span class="gw-badge gw-badge--outline"><i class="gw-icon gw-badge__icon" data-lucide="plug"></i>MCP server</span>
+                          <span class="gw-badge gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="badge-check"></i>Signed<span class="gw-sr-only"> by the catalog</span></span>
+                          <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v0.6.2</span></span>
+                        </p>
+                      </div>
+                    </div>
+                  </header>
+                  <div class="gw-card__body gw-connector-card__body">
+                    <div class="gw-stack gw-stack--sm">
+                      <p class="gw-text-small gw-fg-secondary">Issues, pull requests and code search from the GitHub MCP server, run over stdio.</p>
+                      <p class="gw-text-caption gw-fg-muted"><a class="gw-link" href="#mcp-servers">Running<span class="gw-sr-only">, see github-mcp in MCP servers</span></a> · not on an endpoint yet</p>
+                    </div>
+                  </div>
+                  <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+                    <span class="gw-connector-card__tools gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="wrench"></i>26 tools</span>
+                    <a class="gw-btn gw-btn--sm" href="endpoint-detail.html?endpoint=dev">Add to endpoint<span class="gw-sr-only"> github-mcp tools</span></a>
+                  </footer>
+                </article>
+              </li>
+            </ul>
+
+            <!-- Empty state: shown by the page script when the search matches nothing -->
+            <div class="gw-card" id="installed-empty" hidden>
+              <div class="gw-empty">
+                <span class="gw-empty__icon"><i class="gw-icon gw-icon--lg" data-lucide="search-x"></i></span>
+                <h3 class="gw-empty__title">No installed connector matches</h3>
+                <p class="gw-empty__text">Check the spelling, or look for it in the catalog and install it.</p>
+                <div class="gw-empty__actions"><button class="gw-btn" type="button" data-gw-search-clear="#installed-search"><i class="gw-icon" data-lucide="x"></i> Clear search</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ───────────────────────── Catalog ───────────────────────── -->
+        <div class="gw-tabs__panel" role="tabpanel" id="catalog" aria-labelledby="tab-catalog" tabindex="0" hidden>
+          <div class="gw-stack">
+            <h2 class="gw-sr-only">Catalog</h2>
+            <div class="gw-toolbar">
+              <div class="gw-toolbar__start">
+                <div class="gw-search gw-search--sm" role="search" aria-label="Catalog">
+                  <i class="gw-icon gw-search__icon" data-lucide="search"></i>
+                  <input class="gw-search__input" type="search" id="catalog-search" placeholder="Search the catalog" aria-label="Search the catalog" aria-controls="catalog-grid" data-filter-list="#catalog-grid" data-filter-empty="#catalog-empty" data-filter-count="#catalog-count" data-filter-noun="catalog connectors">
+                  <button class="gw-search__clear" type="button" aria-label="Clear search"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+                </div>
+                <p class="gw-text-small gw-fg-muted gw-tabular" id="catalog-count" role="status" data-filter-all="For core v0.4.0 · checked 3 h ago">For core v0.4.0 · checked 3 h ago</p>
+              </div>
+              <div class="gw-toolbar__end">
+                <button class="gw-btn gw-btn--sm" type="button" data-gw-dialog-open="dlg-install-plugin"><i class="gw-icon gw-icon--sm" data-lucide="upload"></i> Install from file or URL</button>
+              </div>
+            </div>
+
+            <ul class="gw-grid gw-grid--3" id="catalog-grid" aria-label="Catalog">
+              <li>
+                <article class="gw-card gw-connector-card" aria-labelledby="cc-jira-t">
+                  <header class="gw-card__header">
+                    <div class="gw-connector-card__identity">
+                      <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="puzzle"></i></span>
+                      <div class="gw-card__heading">
+                        <h3 class="gw-card__title" id="cc-jira-t">Jira Service Desk</h3>
+                        <p class="gw-connector-card__meta">
+                          <span class="gw-badge gw-badge--outline"><i class="gw-icon gw-badge__icon" data-lucide="puzzle"></i>Plugin</span>
+                          <span class="gw-badge gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="badge-check"></i>Signed<span class="gw-sr-only"> by the catalog</span></span>
+                          <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v1.3.0</span></span>
+                        </p>
+                      </div>
+                    </div>
+                  </header>
+                  <div class="gw-card__body gw-connector-card__body">
+                    <p class="gw-text-small gw-fg-secondary">You run <span class="gw-mono">v1.2.0</span>. This release adds SLA timers: one new read-only tool, no new hosts.</p>
+                  </div>
+                  <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+                    <span class="gw-status gw-status--info"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Update available · <span class="gw-mono">v1.3.0</span></span></span>
+                    <button class="gw-btn gw-btn--sm" type="button" data-gw-dialog-open="dlg-update-jira"><i class="gw-icon gw-icon--sm" data-lucide="circle-arrow-up"></i>Update<span class="gw-sr-only"> Jira Service Desk to v1.3.0 from the catalog</span></button>
+                  </footer>
+                </article>
+              </li>
+              <li>
+                <article class="gw-card gw-connector-card" aria-labelledby="cc-ch-t">
+                  <header class="gw-card__header">
+                    <div class="gw-connector-card__identity">
+                      <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="database"></i></span>
+                      <div class="gw-card__heading">
+                        <h3 class="gw-card__title" id="cc-ch-t">ClickHouse</h3>
+                        <p class="gw-connector-card__meta">
+                          <span class="gw-badge gw-badge--outline"><i class="gw-icon gw-badge__icon" data-lucide="puzzle"></i>Plugin</span>
+                          <span class="gw-badge gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="badge-check"></i>Signed<span class="gw-sr-only"> by the catalog</span></span>
+                          <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v0.6.1</span></span>
+                        </p>
+                      </div>
+                    </div>
+                  </header>
+                  <div class="gw-card__body gw-connector-card__body">
+                    <p class="gw-text-small gw-fg-secondary">Analytics queries with row and time limits. Read only.</p>
+                  </div>
+                  <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+                    <span class="gw-connector-card__tools gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="wrench"></i>6 tools</span>
+                    <button class="gw-btn gw-btn--sm" type="button" data-gw-dialog-open="dlg-review-clickhouse">Install<span class="gw-sr-only"> ClickHouse plugin</span></button>
+                  </footer>
+                </article>
+              </li>
+              <li>
+                <article class="gw-card gw-connector-card" aria-labelledby="cc-rmq-t">
+                  <header class="gw-card__header">
+                    <div class="gw-connector-card__identity">
+                      <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="puzzle"></i></span>
+                      <div class="gw-card__heading">
+                        <h3 class="gw-card__title" id="cc-rmq-t">RabbitMQ</h3>
+                        <p class="gw-connector-card__meta">
+                          <span class="gw-badge gw-badge--outline"><i class="gw-icon gw-badge__icon" data-lucide="puzzle"></i>Plugin</span>
+                          <span class="gw-badge gw-badge--warning"><i class="gw-icon gw-badge__icon" data-lucide="shield-alert"></i>Unsigned</span>
+                          <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v0.3.0</span></span>
+                        </p>
+                      </div>
+                    </div>
+                  </header>
+                  <div class="gw-card__body gw-connector-card__body">
+                    <p class="gw-text-small gw-fg-secondary">Queue depth, consumers and dead letters. Community code, not reviewed.</p>
+                  </div>
+                  <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+                    <span class="gw-connector-card__tools gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="wrench"></i>4 tools</span>
+                    <button class="gw-btn gw-btn--sm" type="button" data-gw-dialog-open="dlg-review-rabbitmq">Install<span class="gw-sr-only"> unsigned RabbitMQ plugin</span></button>
+                  </footer>
+                </article>
+              </li>
+              <li>
+                <article class="gw-card gw-connector-card" aria-labelledby="cc-slow-t">
+                  <header class="gw-card__header">
+                    <div class="gw-connector-card__identity">
+                      <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="file-code"></i></span>
+                      <div class="gw-card__heading">
+                        <h3 class="gw-card__title" id="cc-slow-t">PostgreSQL slow queries</h3>
+                        <p class="gw-connector-card__meta">
+                          <span class="gw-badge gw-badge--outline"><i class="gw-icon gw-badge__icon" data-lucide="file-code"></i>Template</span>
+                          <span class="gw-badge gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="badge-check"></i>Signed<span class="gw-sr-only"> by the catalog</span></span>
+                          <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v1.0.0</span></span>
+                        </p>
+                      </div>
+                    </div>
+                  </header>
+                  <div class="gw-card__body gw-connector-card__body">
+                    <p class="gw-text-small gw-fg-secondary"><code class="gw-code">pg_slow_queries</code> and <code class="gw-code">pg_locks</code> as read-only SQL tools. No code runs.</p>
+                  </div>
+                  <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+                    <span class="gw-connector-card__tools gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="wrench"></i>2 tools</span>
+                    <button class="gw-btn gw-btn--sm" type="button" data-gw-toast="pg_slow_queries and pg_locks are Off until you add them to an endpoint." data-gw-toast-title="Template PostgreSQL slow queries installed" data-gw-toast-tone="success">Install<span class="gw-sr-only"> PostgreSQL slow queries template</span></button>
+                  </footer>
+                </article>
+              </li>
+              <li>
+                <article class="gw-card gw-connector-card" aria-labelledby="cc-gh-t">
+                  <header class="gw-card__header">
+                    <div class="gw-connector-card__identity">
+                      <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="plug"></i></span>
+                      <div class="gw-card__heading">
+                        <h3 class="gw-card__title" id="cc-gh-t">GitHub</h3>
+                        <p class="gw-connector-card__meta">
+                          <span class="gw-badge gw-badge--outline"><i class="gw-icon gw-badge__icon" data-lucide="plug"></i>MCP server</span>
+                          <span class="gw-badge gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="badge-check"></i>Signed<span class="gw-sr-only"> by the catalog</span></span>
+                          <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v0.6.2</span></span>
+                        </p>
+                      </div>
+                    </div>
+                  </header>
+                  <div class="gw-card__body gw-connector-card__body">
+                    <p class="gw-text-small gw-fg-secondary">Issues, pull requests and code search. Needs a GitHub token.</p>
+                  </div>
+                  <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+                    <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Installed as <span class="gw-mono">github-mcp</span></span></span>
+                    <a class="gw-btn gw-btn--sm" href="#mcp-servers">Open<span class="gw-sr-only"> github-mcp in MCP servers</span></a>
+                  </footer>
+                </article>
+              </li>
+            </ul>
+
+            <div class="gw-card" id="catalog-empty" hidden>
+              <div class="gw-empty">
+                <span class="gw-empty__icon"><i class="gw-icon gw-icon--lg" data-lucide="search-x"></i></span>
+                <h3 class="gw-empty__title">Nothing in the catalog matches</h3>
+                <p class="gw-empty__text">Write a template for it, or put an existing MCP server behind the gateway.</p>
+                <div class="gw-empty__actions"><button class="gw-btn" type="button" data-gw-search-clear="#catalog-search"><i class="gw-icon" data-lucide="x"></i> Clear search</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ───────────────────────── Templates ───────────────────────── -->
+        <div class="gw-tabs__panel" role="tabpanel" id="templates" aria-labelledby="tab-templates" tabindex="0" hidden>
+          <div class="gw-stack gw-stack--lg">
+            <h2 class="gw-sr-only">Templates</h2>
+            <div class="gw-stack">
+              <div class="gw-toolbar">
+                <div class="gw-toolbar__start">
+                  <p class="gw-text-small gw-fg-secondary">A template turns a query, a runbook or an API description into tools with typed parameters. No code runs in the core.</p>
+                </div>
+                <div class="gw-toolbar__end">
+                  <div class="gw-menu-host">
+                    <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-new-template"><i class="gw-icon gw-icon--sm" data-lucide="plus"></i> New template <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i></button>
+                    <div class="gw-menu gw-menu--right gw-menu--wide" id="menu-new-template" role="menu" aria-label="New template" hidden>
+                      <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label">SQL query<span class="gw-menu__hint">A named SELECT or statement with :parameters</span></span></button>
+                      <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="terminal"></i><span class="gw-menu__label">SSH runbook<span class="gw-menu__hint">A fixed command with validated parameters</span></span></button>
+                      <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1"><i class="gw-icon gw-menu__icon" data-lucide="globe"></i><span class="gw-menu__label">OpenAPI import<span class="gw-menu__hint">One tool per operation of an HTTP API</span></span></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- The template name opens its editor (the demo has one: orders_by_status); the menu holds the rest. Kind and update time sit under the name, so the table fits a 1440 window without scrolling sideways. -->
+              <div class="gw-table-wrap" role="region" aria-labelledby="tpl-list-cap" tabindex="0">
+                <table class="gw-table">
+                  <caption class="gw-sr-only" id="tpl-list-cap">Your templates</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Template</th>
+                      <th scope="col">Runs on</th>
+                      <th scope="col">Tools and default mode</th>
+                      <th scope="col">On endpoints</th>
+                      <th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr id="template-orders_by_status">
+                      <th scope="row">
+                        <a class="gw-link gw-mono" href="#template-editor">orders_by_status(status, since)<span class="gw-sr-only">, edit template orders_by_status</span></a>
+                        <div class="gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--xs" data-lucide="database"></i> SQL query · updated <time datetime="2026-10-20T16:41:00+02:00" title="2026-10-20 16:41 +02:00">2 days ago</time></div>
+                      </th>
+                      <td><span class="gw-mono">dev-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></td>
+                      <td class="gw-table__cell--wrap"><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span> · 1 tool</td>
+                      <td>None yet</td>
+                      <td class="gw-table__cell--actions">
+                        <div class="gw-menu-host">
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="More actions for template orders_by_status" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-tpl-orders-by-status"><i class="gw-icon" data-lucide="ellipsis"></i></button>
+                          <div class="gw-menu gw-menu--right" id="menu-tpl-orders-by-status" role="menu" aria-label="More actions for template orders_by_status" hidden>
+                            <a class="gw-menu__item" role="menuitem" tabindex="-1" href="playground.html"><i class="gw-icon gw-menu__icon" data-lucide="flask-conical"></i><span class="gw-menu__label">Try in Playground</span></a>
+                            <a class="gw-menu__item" role="menuitem" tabindex="-1" href="endpoint-detail.html?endpoint=dev"><i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label">Add to an endpoint</span></a>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr id="template-compose-ps">
+                      <th scope="row">
+                        <a class="gw-link gw-mono" href="#template-editor">compose-ps<span class="gw-sr-only">, edit runbook compose-ps</span></a>
+                        <div class="gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--xs" data-lucide="terminal"></i> SSH runbook · updated <time datetime="2026-10-01T10:12:00+02:00" title="2026-10-01 10:12 +02:00">3 weeks ago</time></div>
+                      </th>
+                      <td><span class="gw-mono">dev-vm</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></td>
+                      <td class="gw-table__cell--wrap"><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span> · via <code class="gw-code">ssh_run</code></td>
+                      <td><span class="gw-mono">dev</span></td>
+                      <td class="gw-table__cell--actions">
+                        <div class="gw-menu-host">
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="More actions for runbook compose-ps" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-tpl-compose-ps"><i class="gw-icon" data-lucide="ellipsis"></i></button>
+                          <div class="gw-menu gw-menu--right" id="menu-tpl-compose-ps" role="menu" aria-label="More actions for runbook compose-ps" hidden>
+                            <a class="gw-menu__item" role="menuitem" tabindex="-1" href="activity.html?q=runbook:compose-ps"><i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">View activity<span class="gw-menu__hint gw-mono">runbook:compose-ps</span></span></a>
+                            <a class="gw-menu__item" role="menuitem" tabindex="-1" href="playground.html"><i class="gw-icon gw-menu__icon" data-lucide="flask-conical"></i><span class="gw-menu__label">Try in Playground</span></a>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr id="template-compose-logs">
+                      <th scope="row">
+                        <a class="gw-link gw-mono" href="#template-editor">compose-logs<span class="gw-sr-only">, edit runbook compose-logs</span></a>
+                        <div class="gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--xs" data-lucide="terminal"></i> SSH runbook · updated <time datetime="2026-10-01T10:16:00+02:00" title="2026-10-01 10:16 +02:00">3 weeks ago</time></div>
+                      </th>
+                      <td><span class="gw-mono">dev-vm</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></td>
+                      <td class="gw-table__cell--wrap"><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span> · via <code class="gw-code">ssh_run</code></td>
+                      <td><span class="gw-mono">dev</span></td>
+                      <td class="gw-table__cell--actions">
+                        <div class="gw-menu-host">
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="More actions for runbook compose-logs" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-tpl-compose-logs"><i class="gw-icon" data-lucide="ellipsis"></i></button>
+                          <div class="gw-menu gw-menu--right" id="menu-tpl-compose-logs" role="menu" aria-label="More actions for runbook compose-logs" hidden>
+                            <a class="gw-menu__item" role="menuitem" tabindex="-1" href="activity.html?q=runbook:compose-logs"><i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">View activity<span class="gw-menu__hint gw-mono">runbook:compose-logs</span></span></a>
+                            <a class="gw-menu__item" role="menuitem" tabindex="-1" href="playground.html"><i class="gw-icon gw-menu__icon" data-lucide="flask-conical"></i><span class="gw-menu__label">Try in Playground</span></a>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr id="template-compose-restart">
+                      <th scope="row">
+                        <a class="gw-link gw-mono" href="#template-editor">compose-restart<span class="gw-sr-only">, edit runbook compose-restart</span></a>
+                        <div class="gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--xs" data-lucide="terminal"></i> SSH runbook · updated <time datetime="2026-10-01T10:21:00+02:00" title="2026-10-01 10:21 +02:00">3 weeks ago</time></div>
+                      </th>
+                      <td><span class="gw-mono">dev-vm</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></td>
+                      <td class="gw-table__cell--wrap"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> · via <code class="gw-code">ssh_run</code>, changes state</td>
+                      <td><span class="gw-mono">dev</span></td>
+                      <td class="gw-table__cell--actions">
+                        <div class="gw-menu-host">
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="More actions for runbook compose-restart" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-tpl-compose-restart"><i class="gw-icon" data-lucide="ellipsis"></i></button>
+                          <div class="gw-menu gw-menu--right" id="menu-tpl-compose-restart" role="menu" aria-label="More actions for runbook compose-restart" hidden>
+                            <a class="gw-menu__item" role="menuitem" tabindex="-1" href="activity.html?q=runbook:compose-restart"><i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">View activity<span class="gw-menu__hint gw-mono">runbook:compose-restart</span></span></a>
+                            <a class="gw-menu__item" role="menuitem" tabindex="-1" href="playground.html"><i class="gw-icon gw-menu__icon" data-lucide="flask-conical"></i><span class="gw-menu__label">Try in Playground</span></a>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr id="template-service-status">
+                      <th scope="row">
+                        <a class="gw-link gw-mono" href="#template-editor">service-status<span class="gw-sr-only">, edit runbook service-status</span></a>
+                        <div class="gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--xs" data-lucide="terminal"></i> SSH runbook · updated <time datetime="2026-09-18T11:30:00+02:00" title="2026-09-18 11:30 +02:00">Sep 18</time></div>
+                      </th>
+                      <td><span class="gw-mono">prod-vm</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--prod gw-env--sm">prod</span></td>
+                      <td class="gw-table__cell--wrap"><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span> · via <code class="gw-code">ssh_run</code></td>
+                      <td><span class="gw-mono">incident-prod</span></td>
+                      <td class="gw-table__cell--actions">
+                        <div class="gw-menu-host">
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="More actions for runbook service-status" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-tpl-service-status"><i class="gw-icon" data-lucide="ellipsis"></i></button>
+                          <div class="gw-menu gw-menu--right" id="menu-tpl-service-status" role="menu" aria-label="More actions for runbook service-status" hidden>
+                            <a class="gw-menu__item" role="menuitem" tabindex="-1" href="activity.html?q=runbook:service-status"><i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">View activity<span class="gw-menu__hint gw-mono">runbook:service-status</span></span></a>
+                            <a class="gw-menu__item" role="menuitem" tabindex="-1" href="playground.html"><i class="gw-icon gw-menu__icon" data-lucide="flask-conical"></i><span class="gw-menu__label">Try in Playground</span></a>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr id="template-restart-api">
+                      <th scope="row">
+                        <a class="gw-link gw-mono" href="#template-editor">restart-api<span class="gw-sr-only">, edit runbook restart-api</span></a>
+                        <div class="gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--xs" data-lucide="terminal"></i> SSH runbook · updated <time datetime="2026-09-18T11:34:00+02:00" title="2026-09-18 11:34 +02:00">Sep 18</time></div>
+                      </th>
+                      <td><span class="gw-mono">prod-vm</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--prod gw-env--sm">prod</span></td>
+                      <td class="gw-table__cell--wrap"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> · via <code class="gw-code">ssh_run</code>, changes state</td>
+                      <td><span class="gw-mono">incident-prod</span></td>
+                      <td class="gw-table__cell--actions">
+                        <div class="gw-menu-host">
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="More actions for runbook restart-api" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-tpl-restart-api"><i class="gw-icon" data-lucide="ellipsis"></i></button>
+                          <div class="gw-menu gw-menu--right" id="menu-tpl-restart-api" role="menu" aria-label="More actions for runbook restart-api" hidden>
+                            <a class="gw-menu__item" role="menuitem" tabindex="-1" href="activity.html?q=runbook:restart-api"><i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">View activity<span class="gw-menu__hint gw-mono">runbook:restart-api</span></span></a>
+                            <a class="gw-menu__item" role="menuitem" tabindex="-1" href="playground.html"><i class="gw-icon gw-menu__icon" data-lucide="flask-conical"></i><span class="gw-menu__label">Try in Playground</span></a>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr id="template-billing-api-v2">
+                      <th scope="row">
+                        <a class="gw-link gw-mono" href="#template-editor">billing-api v2<span class="gw-sr-only">, edit OpenAPI import billing-api v2</span></a>
+                        <div class="gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--xs" data-lucide="globe"></i> OpenAPI import · updated <time datetime="2026-10-17T09:05:00+02:00" title="2026-10-17 09:05 +02:00">5 days ago</time></div>
+                      </th>
+                      <td><span class="gw-mono">billing-api</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></td>
+                      <td class="gw-table__cell--wrap"><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>9 read only</span> <span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>5 approval</span> · 14 operations</td>
+                      <td>None yet</td>
+                      <td class="gw-table__cell--actions">
+                        <div class="gw-menu-host">
+                          <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="More actions for OpenAPI import billing-api v2" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-tpl-billing-api-v2"><i class="gw-icon" data-lucide="ellipsis"></i></button>
+                          <div class="gw-menu gw-menu--right" id="menu-tpl-billing-api-v2" role="menu" aria-label="More actions for OpenAPI import billing-api v2" hidden>
+                            <a class="gw-menu__item" role="menuitem" tabindex="-1" href="playground.html"><i class="gw-icon gw-menu__icon" data-lucide="flask-conical"></i><span class="gw-menu__label">Try in Playground</span></a>
+                            <a class="gw-menu__item" role="menuitem" tabindex="-1" href="endpoint-detail.html?endpoint=stage-readonly"><i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label">Add to an endpoint</span></a>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Template editor: SQL query with :param placeholders → typed parameters → the tool the agent sees -->
+            <section class="gw-card" id="template-editor" aria-labelledby="tpl-title">
+              <header class="gw-card__header">
+                <div class="gw-card__heading">
+                  <h3 class="gw-card__title" id="tpl-title">Edit template <span class="gw-mono">orders_by_status</span></h3>
+                  <p class="gw-card__description">SQL query on <span class="gw-mono">dev-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span>. The agent calls it with typed arguments and never sees or writes this SQL.</p>
+                </div>
+                <div class="gw-card__actions">
+                  <a class="gw-btn gw-btn--sm" href="playground.html"><i class="gw-icon gw-icon--sm" data-lucide="flask-conical"></i> Try in Playground</a>
+                </div>
+              </header>
+              <div class="gw-card__body">
+                <form class="gw-form" method="dialog" aria-labelledby="tpl-title" data-toast-title="Template orders_by_status saved" data-toast-body="Add it to an endpoint to let agents call it.">
+                  <fieldset class="gw-form__section">
+                    <legend class="gw-form__legend">Query</legend>
+                    <p class="gw-form__description">What the tool is called, where it runs and the SQL behind it.</p>
+                    <div class="gw-form__rows">
+                      <div class="gw-form__row">
+                        <div class="gw-field">
+                          <label class="gw-field__label" for="tpl-name">Tool name</label>
+                          <input class="gw-input gw-input--mono" id="tpl-name" type="text" value="orders_by_status" required pattern="[a-z][a-z0-9_]*" spellcheck="false" autocomplete="off" aria-describedby="tpl-name-hint">
+                          <p class="gw-field__hint" id="tpl-name-hint">What the agent calls. Lowercase letters, digits and <span class="gw-mono">_</span>.</p>
+                        </div>
+                        <div class="gw-field">
+                          <label class="gw-field__label" for="tpl-conn">Runs on</label>
+                          <select class="gw-select" id="tpl-conn" aria-describedby="tpl-conn-hint">
+                            <option value="dev-db" selected>dev-db · PostgreSQL · dev</option>
+                            <option value="stage-db">stage-db · PostgreSQL · stage</option>
+                            <option value="prod-replica">prod-replica · PostgreSQL · prod</option>
+                          </select>
+                          <p class="gw-field__hint" id="tpl-conn-hint">PostgreSQL connections. The secret stays with the connection.</p>
+                        </div>
+                      </div>
+                      <div class="gw-field">
+                        <label class="gw-field__label" for="tpl-desc">Description for the agent</label>
+                        <textarea class="gw-textarea" id="tpl-desc" rows="2" aria-describedby="tpl-desc-hint">Orders with one status created after a point in time, newest first. Returns at most 200 rows.</textarea>
+                        <p class="gw-field__hint" id="tpl-desc-hint">The agent reads this to decide when to call the tool.</p>
+                      </div>
+                      <div class="gw-field">
+                        <label class="gw-field__label" for="tpl-sql">SQL</label>
+                        <textarea class="gw-textarea gw-textarea--code" id="tpl-sql" rows="7" required spellcheck="false" autocapitalize="off" aria-describedby="tpl-sql-check tpl-sql-hint">SELECT id, status, total, created_at
+FROM orders
+WHERE status = :status
+  AND created_at &gt;= :since
+ORDER BY created_at DESC
+LIMIT 200</textarea>
+                        <p class="gw-field__hint" id="tpl-sql-hint">Write <span class="gw-mono">:name</span> for a parameter. Values are bound by the driver, never pasted into the SQL.</p>
+                        <span class="gw-status gw-status--success" id="tpl-sql-check" role="status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Parsed as SELECT, read only · 2 parameters: <span class="gw-mono">:status</span>, <span class="gw-mono">:since</span></span></span>
+                      </div>
+                    </div>
+                  </fieldset>
+
+                  <fieldset class="gw-form__section">
+                    <legend class="gw-form__legend">Parameters</legend>
+                    <p class="gw-form__description">Typed and validated before the query runs. The agent sees them as the input schema of the tool.</p>
+                    <div class="gw-form__rows">
+                      <div class="gw-table-wrap" role="region" aria-labelledby="tpl-params-cap" tabindex="0">
+                        <table class="gw-table">
+                          <caption class="gw-sr-only" id="tpl-params-cap">Parameters of orders_by_status</caption>
+                          <thead>
+                            <tr>
+                              <th scope="col">Name</th>
+                              <th scope="col">Type</th>
+                              <th scope="col">Required</th>
+                              <th scope="col">Allowed values</th>
+                              <th scope="col">Default</th>
+                              <th scope="col">Description</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <th scope="row" class="gw-table__cell--mono">:status</th>
+                              <td>
+                                <select class="gw-select gw-select--sm" aria-label="Type of parameter status">
+                                  <option>String</option>
+                                  <option selected>Enum</option>
+                                  <option>Integer</option>
+                                  <option>Number</option>
+                                  <option>Boolean</option>
+                                  <option>Timestamp</option>
+                                  <option>Date</option>
+                                </select>
+                              </td>
+                              <td class="gw-table__cell--select"><label class="gw-checkbox"><input class="gw-checkbox__input" type="checkbox" checked aria-label="Parameter status is required"><span class="gw-checkbox__control" aria-hidden="true"></span></label></td>
+                              <td><input class="gw-input gw-input--sm gw-input--mono" type="text" value="pending, paid, shipped, cancelled" spellcheck="false" aria-label="Allowed values of status"></td>
+                              <td><input class="gw-input gw-input--sm gw-input--mono" type="text" placeholder="None" spellcheck="false" aria-label="Default of status"></td>
+                              <td><input class="gw-input gw-input--sm" type="text" value="Order status to match" aria-label="Description of status"></td>
+                            </tr>
+                            <tr>
+                              <th scope="row" class="gw-table__cell--mono">:since</th>
+                              <td>
+                                <select class="gw-select gw-select--sm" aria-label="Type of parameter since">
+                                  <option>String</option>
+                                  <option>Enum</option>
+                                  <option>Integer</option>
+                                  <option>Number</option>
+                                  <option>Boolean</option>
+                                  <option selected>Timestamp</option>
+                                  <option>Date</option>
+                                </select>
+                              </td>
+                              <td class="gw-table__cell--select"><label class="gw-checkbox"><input class="gw-checkbox__input" type="checkbox" aria-label="Parameter since is required"><span class="gw-checkbox__control" aria-hidden="true"></span></label></td>
+                              <td><input class="gw-input gw-input--sm gw-input--mono" type="text" placeholder="Any" spellcheck="false" aria-label="Allowed values of since"></td>
+                              <td><input class="gw-input gw-input--sm gw-input--mono" type="text" value="-PT24H" spellcheck="false" aria-label="Default of since" aria-describedby="tpl-params-hint"></td>
+                              <td><input class="gw-input gw-input--sm" type="text" value="Earliest created_at, ISO 8601" aria-label="Description of since"></td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      <p class="gw-field__hint" id="tpl-params-hint">A default can be a time or an ISO 8601 duration relative to now: <span class="gw-mono">-PT24H</span> means 24 hours ago.</p>
+                    </div>
+                  </fieldset>
+
+                  <section class="gw-form__section" aria-labelledby="tpl-preview-title">
+                    <div class="gw-form__section-header">
+                      <h4 class="gw-form__legend" id="tpl-preview-title">What the agent sees</h4>
+                      <p class="gw-form__description">Generated from the fields above. This is the whole tool; the SQL and the connection secret stay in the gateway.</p>
+                    </div>
+                    <div class="gw-form__rows">
+                      <dl class="gw-kv">
+                        <div class="gw-kv__row"><dt class="gw-kv__key">Tool</dt><dd class="gw-kv__value"><code class="gw-code">orders_by_status</code></dd></div>
+                        <div class="gw-kv__row"><dt class="gw-kv__key">Description</dt><dd class="gw-kv__value">Orders with one status created after a point in time, newest first. Returns at most 200 rows.</dd></div>
+                        <div class="gw-kv__row"><dt class="gw-kv__key">Annotations</dt><dd class="gw-kv__value"><span class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</span> <span class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</span></dd></div>
+                        <div class="gw-kv__row"><dt class="gw-kv__key">Default mode</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span> <span class="gw-text-caption gw-fg-muted">From the SELECT. An endpoint can set it to Off or Approval.</span></dd></div>
+                      </dl>
+                      <div class="gw-code-block">
+                        <div class="gw-code-block__header">
+                          <span class="gw-code-block__lang">JSON</span>
+                          <span class="gw-code-block__filename">inputSchema · orders_by_status</span>
+                          <div class="gw-code-block__actions">
+                            <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#tpl-schema">
+                              <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> input schema</span></span>
+                              <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                            </button>
+                          </div>
+                        </div>
+                        <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Input schema of orders_by_status">
+<pre class="gw-code-block__pre" id="tpl-schema"><code><span class="gw-tok-punctuation">{</span>
+  <span class="gw-tok-property">"type"</span><span class="gw-tok-punctuation">:</span> <span class="gw-tok-string">"object"</span><span class="gw-tok-punctuation">,</span>
+  <span class="gw-tok-property">"properties"</span><span class="gw-tok-punctuation">: {</span>
+    <span class="gw-tok-property">"status"</span><span class="gw-tok-punctuation">: {</span>
+      <span class="gw-tok-property">"type"</span><span class="gw-tok-punctuation">:</span> <span class="gw-tok-string">"string"</span><span class="gw-tok-punctuation">,</span>
+      <span class="gw-tok-property">"enum"</span><span class="gw-tok-punctuation">: [</span><span class="gw-tok-string">"pending"</span><span class="gw-tok-punctuation">,</span> <span class="gw-tok-string">"paid"</span><span class="gw-tok-punctuation">,</span> <span class="gw-tok-string">"shipped"</span><span class="gw-tok-punctuation">,</span> <span class="gw-tok-string">"cancelled"</span><span class="gw-tok-punctuation">],</span>
+      <span class="gw-tok-property">"description"</span><span class="gw-tok-punctuation">:</span> <span class="gw-tok-string">"Order status to match"</span>
+    <span class="gw-tok-punctuation">},</span>
+    <span class="gw-tok-property">"since"</span><span class="gw-tok-punctuation">: {</span>
+      <span class="gw-tok-property">"type"</span><span class="gw-tok-punctuation">:</span> <span class="gw-tok-string">"string"</span><span class="gw-tok-punctuation">,</span>
+      <span class="gw-tok-property">"format"</span><span class="gw-tok-punctuation">:</span> <span class="gw-tok-string">"date-time"</span><span class="gw-tok-punctuation">,</span>
+      <span class="gw-tok-property">"description"</span><span class="gw-tok-punctuation">:</span> <span class="gw-tok-string">"Earliest created_at, ISO 8601. Default: 24 hours ago"</span>
+    <span class="gw-tok-punctuation">}</span>
+  <span class="gw-tok-punctuation">},</span>
+  <span class="gw-tok-property">"required"</span><span class="gw-tok-punctuation">: [</span><span class="gw-tok-string">"status"</span><span class="gw-tok-punctuation">]</span>
+<span class="gw-tok-punctuation">}</span></code></pre>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  <div class="gw-form__actions">
+                    <p class="gw-form__note" role="status"><i class="gw-icon" data-lucide="circle-dot"></i>Unsaved changes</p>
+                    <button class="gw-btn" type="reset">Discard</button>
+                    <button class="gw-btn gw-btn--primary" type="submit">Save template</button>
+                  </div>
+                </form>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <!-- ───────────────────────── MCP servers ───────────────────────── -->
+        <div class="gw-tabs__panel" role="tabpanel" id="mcp-servers" aria-labelledby="tab-mcp" tabindex="0" hidden>
+          <div class="gw-stack">
+            <h2 class="gw-sr-only">MCP servers</h2>
+            <div class="gw-toolbar">
+              <div class="gw-toolbar__start">
+                <p class="gw-text-small gw-fg-secondary">Each server runs as its own process and gets only the variables you pass. Its tools go through modes, approvals and audit like any other.</p>
+              </div>
+              <div class="gw-toolbar__end">
+                <button class="gw-btn gw-btn--sm" type="button" data-gw-dialog-open="dlg-add-mcp"><i class="gw-icon gw-icon--sm" data-lucide="plus"></i> Add MCP server</button>
+              </div>
+            </div>
+
+            <!-- Trust and the pinned version sit under the server name; the command truncates (full value in title), so the table fits at 1440. -->
+            <div class="gw-table-wrap" role="region" aria-labelledby="mcp-cap" tabindex="0">
+              <table class="gw-table">
+                <caption class="gw-sr-only" id="mcp-cap">External MCP servers</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Server</th>
+                    <th scope="col">Command or URL</th>
+                    <th scope="col">Secrets passed</th>
+                    <th scope="col" class="gw-table__cell--num">Tools</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th scope="row">
+                      <span class="gw-mono">github-mcp</span>
+                      <div class="gw-text-caption gw-fg-muted"><span class="gw-badge gw-badge--success gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="badge-check"></i>Signed<span class="gw-sr-only"> catalog entry</span></span> stdio · pinned <span class="gw-mono">v0.6.2</span></div>
+                    </th>
+                    <!-- A catalog server runs as the core resolved it: node and the package's bin, installed by npm ci with install
+                         scripts off from the signed entry's lockfile, never through npx (ARCHITECTURE §7.5, §8.6.7). -->
+                    <td class="gw-table__cell--mono gw-table__cell--truncate" title="node /Users/me/.gaterook/mcp/github-mcp/dist/index.js">node /Users/me/.gaterook/mcp/github-mcp/dist/index.js</td>
+                    <td><span class="gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="lock-keyhole"></i></span> <a class="gw-link gw-mono" href="secrets.html#stored-secrets" title="Value from the secret github-mcp/token">GITHUB_PERSONAL_ACCESS_TOKEN<span class="gw-sr-only">, value from the secret github-mcp/token</span></a></td>
+                    <td class="gw-table__cell--num">26</td>
+                    <td><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Running</span></span></td>
+                    <td class="gw-table__cell--actions">
+                      <span class="gw-tooltip"><button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-labelledby="tip-restart-github-mcp" data-gw-toast="Tools listed again: 26, same as before." data-gw-toast-title="github-mcp restarted" data-gw-toast-tone="success"><i class="gw-icon gw-icon--sm" data-lucide="rotate-cw"></i></button><span class="gw-tooltip__bubble" role="tooltip" id="tip-restart-github-mcp">Restart github-mcp</span></span>
+                      <div class="gw-menu-host">
+                        <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="More actions for github-mcp" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-github-mcp"><i class="gw-icon" data-lucide="ellipsis"></i></button>
+                        <div class="gw-menu gw-menu--right" id="menu-github-mcp" role="menu" aria-label="More actions for github-mcp" hidden>
+                          <a class="gw-menu__item" role="menuitem" tabindex="-1" href="activity.html?q=tool:github_*"><i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">View activity<span class="gw-menu__hint gw-mono">tool:github_*</span></span></a>
+                          <a class="gw-menu__item" role="menuitem" tabindex="-1" href="endpoint-detail.html?endpoint=dev"><i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label">Add tools to an endpoint</span></a>
+                          <div class="gw-menu__divider" role="separator"></div>
+                          <button class="gw-menu__item gw-menu__item--danger" type="button" role="menuitem" tabindex="-1" data-gw-dialog-open="dlg-remove-mcp"><i class="gw-icon gw-menu__icon" data-lucide="trash-2"></i><span class="gw-menu__label">Remove MCP server</span></button>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="gw-alert gw-alert--info gw-alert--compact">
+              <i class="gw-icon gw-alert__icon" data-lucide="info"></i>
+              <div class="gw-alert__content">
+                <p class="gw-alert__title">The 26 tools of <span class="gw-mono">github-mcp</span> are Off until you add them to an endpoint</p>
+                <p class="gw-alert__body">There each starts as Approval. <span class="gw-mono">github-mcp</span> declares no annotations, so none of its tools is declared read only: each stays approval or off.</p>
+              </div>
+              <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" href="endpoint-detail.html?endpoint=dev">Add to endpoint<span class="gw-sr-only"> github-mcp tools</span></a></div>
+            </div>
+
+            <section class="gw-card gw-card--muted" aria-labelledby="mcp-proc-title">
+              <header class="gw-card__header">
+                <div class="gw-card__heading">
+                  <h3 class="gw-card__title" id="mcp-proc-title">How <span class="gw-mono">github-mcp</span> runs</h3>
+                  <p class="gw-card__description">Process, variables, logs and protocol.</p>
+                </div>
+                <div class="gw-card__actions">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" data-gw-toggle aria-expanded="false" aria-controls="mcp-proc-body" aria-labelledby="mcp-proc-title"><i class="gw-icon" data-lucide="chevron-down"></i></button>
+                </div>
+              </header>
+              <div class="gw-card__body" id="mcp-proc-body" hidden>
+                <dl class="gw-kv">
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Package</dt><dd class="gw-kv__value"><span class="gw-mono">@modelcontextprotocol/server-github@0.6.2</span>, pinned. npm checks its integrity hash against the signed catalog entry on every start.</dd></div>
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Trust</dt><dd class="gw-kv__value">The signature says which package this is, not that its code was reviewed. It runs as your user, without a sandbox: it can reach the network and the files your account can.</dd></div>
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Process</dt><dd class="gw-kv__value">Started by the core on the first call, stopped after 15 min without calls. Running for 2 h. A crash never stops the core.</dd></div>
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Working directory</dt><dd class="gw-kv__value gw-mono">~/.gaterook/mcp/github-mcp</dd></div>
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Variables passed</dt><dd class="gw-kv__value"><span class="gw-mono">GITHUB_PERSONAL_ACCESS_TOKEN</span> from the secret <a class="gw-link gw-mono" href="secrets.html#stored-secrets">github-mcp/token</a>, and <span class="gw-mono">PATH</span>, <span class="gw-mono">HOME</span> and basic user variables. Nothing else from your shell. The process keeps them in its environment while it runs.</dd></div>
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Tool names</dt><dd class="gw-kv__value">Prefixed with <code class="gw-code">github_</code>, for example <code class="gw-code">github_search_issues</code></dd></div>
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Protocol</dt><dd class="gw-kv__value">MCP <span class="gw-mono">2025-11-25</span></dd></div>
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Log</dt><dd class="gw-kv__value gw-mono">~/.gaterook/logs/mcp/github-mcp.log</dd></div>
+                </dl>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+
+      <!-- ───────────────────────── Dialogs ───────────────────────── -->
+
+      <!-- Install plugin, step 1: a JAR file or a URL. "Check plugin" opens the check result (demo: the RabbitMQ JAR, unsigned). -->
+      <dialog class="gw-dialog gw-dialog--md" id="dlg-install-plugin" aria-labelledby="dlg-install-plugin-t" aria-describedby="dlg-install-plugin-d" data-gw-static>
+        <form method="dialog" data-gw-dialog-next="dlg-review-rabbitmq">
+          <header class="gw-dialog__header">
+            <span class="gw-icon-tile"><i class="gw-icon" data-lucide="puzzle"></i></span>
+            <h2 class="gw-dialog__title" id="dlg-install-plugin-t">Install plugin</h2>
+            <p class="gw-dialog__description" id="dlg-install-plugin-d">A Java plugin adds a resource type with its own tools. It loads without a restart, in its own plugin process.</p>
+            <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+          </header>
+          <div class="gw-dialog__body">
+            <div class="gw-stack">
+              <label class="gw-file-drop" data-state="idle">
+                <input class="gw-file-drop__input" type="file" accept=".jar" autofocus aria-describedby="plugin-file-hint">
+                <span class="gw-file-drop__icon"><i class="gw-icon gw-icon--lg" data-lucide="upload"></i></span>
+                <span class="gw-file-drop__title" data-gw-file-name>Drop a plugin JAR here or <span class="gw-fg-link">choose a file</span></span>
+                <span class="gw-file-drop__hint" id="plugin-file-hint">One PF4J plugin JAR, up to 50 MB</span>
+              </label>
+              <div class="gw-field">
+                <label class="gw-field__label" for="plugin-url">Or a URL <span class="gw-field__optional">Optional</span></label>
+                <input class="gw-input gw-input--mono" id="plugin-url" type="url" placeholder="https://releases.acme.internal/gw-plugin-1.0.0.jar" spellcheck="false" autocomplete="off" aria-describedby="plugin-url-hint">
+                <p class="gw-field__hint" id="plugin-url-hint">HTTPS only. The file is downloaded and checked the same way.</p>
+              </div>
+              <div class="gw-alert gw-alert--info gw-alert--compact">
+                <i class="gw-icon gw-alert__icon" data-lucide="info"></i>
+                <div class="gw-alert__content"><p class="gw-alert__body">Nothing loads before the check of the signature and the manifest (tools, hosts and commands it needs). Signed by the catalog: review and install. Unsigned: you confirm the risk first.</p></div>
+              </div>
+            </div>
+          </div>
+          <footer class="gw-dialog__footer">
+            <button class="gw-btn" type="button" data-gw-dialog-close>Cancel</button>
+            <button class="gw-btn gw-btn--primary" type="submit"><i class="gw-icon" data-lucide="shield-check"></i> Check plugin</button>
+          </footer>
+        </form>
+      </dialog>
+
+      <!-- Check result: unsigned. Danger dialog, explicit confirmation, Cancel focused. Also opened by Install on the RabbitMQ catalog card. -->
+      <dialog class="gw-dialog gw-dialog--md gw-dialog--danger" id="dlg-review-rabbitmq" aria-labelledby="dlg-review-rabbitmq-t" aria-describedby="dlg-review-rabbitmq-d" data-gw-static>
+        <form method="dialog">
+          <header class="gw-dialog__header">
+            <span class="gw-icon-tile"><i class="gw-icon" data-lucide="shield-alert"></i></span>
+            <h2 class="gw-dialog__title" id="dlg-review-rabbitmq-t">Install unsigned plugin RabbitMQ?</h2>
+            <p class="gw-dialog__description" id="dlg-review-rabbitmq-d">Nobody has verified this code. It runs as your user in a separate process and gets only its connection's secrets during a call.</p>
+            <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+          </header>
+          <div class="gw-dialog__body">
+            <div class="gw-stack">
+              <dl class="gw-kv gw-kv--dense">
+                <div class="gw-kv__row"><dt class="gw-kv__key">Signature</dt><dd class="gw-kv__value"><span class="gw-badge gw-badge--warning"><i class="gw-icon gw-badge__icon" data-lucide="shield-alert"></i>Unsigned</span> No signature from the catalog key</dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Package</dt><dd class="gw-kv__value"><span class="gw-mono">gw-rabbitmq-0.3.0.jar</span> · 1.4 MB</dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">SHA-256</dt><dd class="gw-kv__value gw-mono">5d41c0f2a9e83b7c1f6e04d2b8a97c3e61f0d5b2e4a8c7f9013b6d2e5a4c8f71</dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Manifest</dt><dd class="gw-kv__value">id <span class="gw-mono">rabbitmq</span>, version <span class="gw-mono">0.3.0</span></dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Connection form</dt><dd class="gw-kv__value">Host, port, virtual host, user and password, from its config schema</dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Tools</dt><dd class="gw-kv__value"><code class="gw-code">rabbitmq_queues</code> <code class="gw-code">rabbitmq_consumers</code> <code class="gw-code">rabbitmq_dead_letters</code> <code class="gw-code">rabbitmq_publish</code>, Off until you add them to an endpoint. There each starts as Approval: the plugin declares its own annotations.</dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Needs access to</dt><dd class="gw-kv__value">The host of each connection, port <span class="gw-mono">15672</span></dd></div>
+                <!-- ARCHITECTURE §7.5: where the OS has no sandbox for the plugin process, the review says so. -->
+                <div class="gw-kv__row"><dt class="gw-kv__key">Runs as</dt><dd class="gw-kv__value">Your user, in a separate plugin process. Not sandboxed on this system: it can read everything your account can, including GateRook's data.</dd></div>
+              </dl>
+              <label class="gw-checkbox">
+                <input class="gw-checkbox__input" type="checkbox" id="ack-rabbitmq" required>
+                <span class="gw-checkbox__control" aria-hidden="true"></span>
+                <span class="gw-checkbox__label" id="ack-rabbitmq-label">I understand this code is not verified and runs on this computer as my user</span>
+              </label>
+            </div>
+          </div>
+          <footer class="gw-dialog__footer">
+            <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
+            <button class="gw-btn gw-btn--danger" type="button" aria-disabled="true" data-gw-enable-when="#ack-rabbitmq" aria-describedby="ack-rabbitmq-label" data-gw-dialog-close data-gw-toast="Its 4 tools are Off until you add them to an endpoint. There each starts as Approval." data-gw-toast-title="Unsigned plugin RabbitMQ installed" data-gw-toast-tone="warning">Install unsigned plugin RabbitMQ</button>
+          </footer>
+        </form>
+      </dialog>
+
+      <!-- Check result: signed by the catalog -->
+      <dialog class="gw-dialog gw-dialog--md" id="dlg-review-clickhouse" aria-labelledby="dlg-review-clickhouse-t" aria-describedby="dlg-review-clickhouse-d">
+        <header class="gw-dialog__header">
+          <span class="gw-icon-tile gw-icon-tile--success"><i class="gw-icon" data-lucide="badge-check"></i></span>
+          <h2 class="gw-dialog__title" id="dlg-review-clickhouse-t">Install ClickHouse plugin</h2>
+          <p class="gw-dialog__description" id="dlg-review-clickhouse-d">It loads without a restart, in its own plugin process. Its 6 tools start Off.</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <div class="gw-dialog__body">
+          <dl class="gw-kv gw-kv--dense">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Signature</dt><dd class="gw-kv__value"><span class="gw-badge gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="badge-check"></i>Signed</span> by the catalog key, matches the published package</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Package</dt><dd class="gw-kv__value"><span class="gw-mono">gw-clickhouse-0.6.1.jar</span> · 2.3 MB</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">SHA-256</dt><dd class="gw-kv__value gw-mono">9b2e7d41c05a8f3e6d17b4c2a90e5f8d3c61b7a4e2f09d5c8a1b36e7f4d20c95</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Manifest</dt><dd class="gw-kv__value">id <span class="gw-mono">clickhouse</span>, version <span class="gw-mono">0.6.1</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Connection form</dt><dd class="gw-kv__value">Host, port, database, user and password, from its config schema</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Tools</dt><dd class="gw-kv__value">6, all read only <span class="gw-badge gw-badge--outline gw-badge--sm gw-badge--warning" title="The plugin declares these annotations; the gateway can't check what the tools do"><i class="gw-icon gw-badge__icon" data-lucide="shield-question-mark"></i>Declared by clickhouse, not verified</span>. On an endpoint each starts as Approval; Read only needs your confirmation per tool.</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Needs access to</dt><dd class="gw-kv__value">The host of each connection, ports <span class="gw-mono">8443</span> and <span class="gw-mono">9440</span></dd></div>
+          </dl>
+        </div>
+        <footer class="gw-dialog__footer">
+          <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
+          <button class="gw-btn gw-btn--primary" type="button" data-gw-dialog-close data-gw-toast="Its 6 tools are Off until you add them to an endpoint. There each starts as Approval." data-gw-toast-title="ClickHouse plugin installed" data-gw-toast-tone="success">Install ClickHouse plugin</button>
+        </footer>
+      </dialog>
+
+      <!-- Add MCP server: stdio command or HTTP URL; variables are names + secret references only.
+           Nothing starts here: "Review and start" opens the review (dlg-review-mcp), which starts it. -->
+      <dialog class="gw-dialog gw-dialog--lg" id="dlg-add-mcp" aria-labelledby="dlg-add-mcp-t" aria-describedby="dlg-add-mcp-d" data-gw-static>
+        <form method="dialog" data-gw-dialog-next="dlg-review-mcp">
+          <header class="gw-dialog__header">
+            <span class="gw-icon-tile"><i class="gw-icon" data-lucide="plug"></i></span>
+            <h2 class="gw-dialog__title" id="dlg-add-mcp-t">Add MCP server</h2>
+            <p class="gw-dialog__description" id="dlg-add-mcp-d">Put any MCP server behind the gateway. It runs as its own process; its tools get modes, approvals and audit.</p>
+            <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+          </header>
+          <div class="gw-dialog__body">
+            <div class="gw-stack">
+              <div class="gw-field">
+                <label class="gw-field__label" for="mcp-name">Name</label>
+                <input class="gw-input gw-input--mono" id="mcp-name" type="text" autofocus required pattern="[a-z][a-z0-9-]*" placeholder="sentry-mcp" spellcheck="false" autocomplete="off" aria-describedby="mcp-name-hint">
+                <p class="gw-field__hint" id="mcp-name-hint">Lowercase letters, digits and <span class="gw-mono">-</span>. It also prefixes the tool names.</p>
+              </div>
+              <fieldset class="gw-field" aria-describedby="mcp-transport-hint">
+                <legend class="gw-field__label">Transport</legend>
+                <div class="gw-segmented">
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="mcp-transport" value="stdio" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="terminal"></i>stdio</span></label>
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="mcp-transport" value="http"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="globe"></i>HTTP</span></label>
+                </div>
+                <p class="gw-field__hint" id="mcp-transport-hint">stdio: the gateway starts a command on this computer. HTTP: it calls a URL with Streamable HTTP.</p>
+              </fieldset>
+              <div class="gw-field" id="mcp-stdio-group">
+                <label class="gw-field__label" for="mcp-command">Command</label>
+                <input class="gw-input gw-input--mono" id="mcp-command" type="text" required placeholder="npx -y @scope/mcp-server@1.2.3" spellcheck="false" autocomplete="off" aria-describedby="mcp-command-hint">
+                <p class="gw-field__hint" id="mcp-command-hint">Runs without a shell, from <span class="gw-mono">~/.gaterook/mcp/</span> and the server name. Pin a version (<span class="gw-mono">@1.2.3</span>): without one, npx can fetch new code on every start.</p>
+              </div>
+              <div class="gw-field" id="mcp-http-group" hidden>
+                <label class="gw-field__label" for="mcp-url">URL</label>
+                <input class="gw-input gw-input--mono" id="mcp-url" type="url" required disabled placeholder="https://mcp.acme.internal/sentry/mcp" spellcheck="false" autocomplete="off" aria-describedby="mcp-url-hint">
+                <p class="gw-field__hint" id="mcp-url-hint">HTTPS, or <span class="gw-mono">http://127.0.0.1</span> for a server on this computer.</p>
+              </div>
+              <fieldset class="gw-field">
+                <legend class="gw-field__label" id="mcp-env-label">Variables or headers</legend>
+                <div class="gw-form__row">
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="mcp-env-name">Name</label>
+                    <input class="gw-input gw-input--mono" id="mcp-env-name" type="text" placeholder="SENTRY_AUTH_TOKEN" spellcheck="false" autocomplete="off">
+                  </div>
+                  <div class="gw-field">
+                    <label class="gw-field__label" for="mcp-env-secret">Value from secret</label>
+                    <select class="gw-select" id="mcp-env-secret" aria-describedby="mcp-env-hint">
+                      <option value="" selected>Choose a secret</option>
+                      <option value="github-mcp/token">github-mcp/token · Encrypted here</option>
+                      <option value="new">Store a new secret</option>
+                    </select>
+                  </div>
+                </div>
+                <p class="gw-field__hint" id="mcp-env-hint">Values always come from Secrets, never typed here. Only these reach the process, and the agent never sees them.</p>
+                <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button"><i class="gw-icon gw-icon--sm" data-lucide="plus"></i>Add variable</button></div>
+              </fieldset>
+            </div>
+          </div>
+          <footer class="gw-dialog__footer">
+            <button class="gw-btn" type="button" data-gw-dialog-close>Cancel</button>
+            <button class="gw-btn gw-btn--primary" type="submit"><i class="gw-icon" data-lucide="shield-check"></i> Review and start</button>
+          </footer>
+        </form>
+      </dialog>
+
+      <!-- Review before the first start of an MCP server: what runs, which version, which secrets go in.
+           The page script fills it from the Add MCP server form; static content shows a pinned stdio server. -->
+      <dialog class="gw-dialog gw-dialog--md gw-dialog--danger" id="dlg-review-mcp" aria-labelledby="dlg-review-mcp-t" aria-describedby="dlg-review-mcp-d" data-gw-static>
+        <form method="dialog" id="mcp-review-form">
+          <header class="gw-dialog__header">
+            <span class="gw-icon-tile"><i class="gw-icon" data-lucide="shield-alert"></i></span>
+            <h2 class="gw-dialog__title" id="dlg-review-mcp-t"><span data-mcp="verb">Start</span> MCP server <span class="gw-mono" data-mcp="name">sentry-mcp</span>?</h2>
+            <p class="gw-dialog__description" id="dlg-review-mcp-d" data-mcp="risk">This code runs on your computer with these secrets. Nobody has verified it: it can read them and reach anything your user account can.</p>
+            <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+          </header>
+          <div class="gw-dialog__body">
+            <div class="gw-stack">
+              <dl class="gw-kv gw-kv--dense">
+                <div class="gw-kv__row"><dt class="gw-kv__key" data-mcp="target-key">Command</dt><dd class="gw-kv__value"><code class="gw-code" data-mcp="target">npx -y @sentry/mcp-server@0.17.0</code></dd></div>
+                <div class="gw-kv__row" data-mcp="version-row"><dt class="gw-kv__key">Version</dt><dd class="gw-kv__value">
+                  <span data-mcp="pinned">Pinned to <span class="gw-mono" data-mcp="version">0.17.0</span>. npm checks the package integrity on every start.</span>
+                  <span data-mcp="unpinned" hidden><span class="gw-badge gw-badge--warning gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="triangle-alert"></i>Not pinned</span> npx can fetch new code on every start, with these secrets. Add <span class="gw-mono">@version</span> to the package.</span>
+                </dd></div>
+                <!-- ARCHITECTURE §7.5: where the OS has no sandbox for the process, the review says so. -->
+                <div class="gw-kv__row" data-mcp="runs-row"><dt class="gw-kv__key">Runs as</dt><dd class="gw-kv__value">Your user, without a shell or a sandbox, from <span class="gw-mono">~/.gaterook/mcp/<span data-mcp="name">sentry-mcp</span></span>. Not sandboxed on this system: it can read everything your account can, including GateRook's data.</dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Secrets passed</dt><dd class="gw-kv__value" data-mcp="secrets"><span class="gw-mono">SENTRY_AUTH_TOKEN</span> from the secret <span class="gw-mono">sentry-mcp/token</span></dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Tools</dt><dd class="gw-kv__value">Listed after the start and Off everywhere. On an endpoint each starts as Approval: the server declares its own annotations and the gateway can't verify them.</dd></div>
+              </dl>
+              <label class="gw-checkbox">
+                <input class="gw-checkbox__input" type="checkbox" id="ack-mcp" required>
+                <span class="gw-checkbox__control" aria-hidden="true"></span>
+                <span class="gw-checkbox__label" id="ack-mcp-label">I trust this code with these secrets on this computer</span>
+              </label>
+            </div>
+          </div>
+          <footer class="gw-dialog__footer">
+            <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
+            <button class="gw-btn gw-btn--danger" type="submit" aria-disabled="true" data-gw-enable-when="#ack-mcp" aria-describedby="ack-mcp-label"><span data-mcp="verb">Start</span> MCP server <span data-mcp="name">sentry-mcp</span></button>
+          </footer>
+        </form>
+      </dialog>
+
+      <!-- Update of an installed plugin: the same checks as an install, plus what changes in its manifest. Only the confirm loads the new code. -->
+      <dialog class="gw-dialog gw-dialog--lg" id="dlg-update-jira" aria-labelledby="dlg-update-jira-t" aria-describedby="dlg-update-jira-d">
+        <header class="gw-dialog__header">
+          <span class="gw-icon-tile gw-icon-tile--success"><i class="gw-icon" data-lucide="badge-check"></i></span>
+          <h2 class="gw-dialog__title" id="dlg-update-jira-t">Update Jira Service Desk to v1.3.0</h2>
+          <p class="gw-dialog__description" id="dlg-update-jira-d">Loads without a restart, in a new plugin process; calls in flight finish on v1.2.0. New tools start Off on every endpoint.</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <div class="gw-dialog__body">
+          <div class="gw-stack">
+            <dl class="gw-kv gw-kv--dense">
+              <div class="gw-kv__row"><dt class="gw-kv__key">Version</dt><dd class="gw-kv__value"><span class="gw-mono">v1.2.0</span> to <span class="gw-mono">v1.3.0</span></dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Signature</dt><dd class="gw-kv__value"><span class="gw-badge gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="badge-check"></i>Signed</span> by the catalog key, matches the published package</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Package</dt><dd class="gw-kv__value"><span class="gw-mono">gw-jira-service-desk-1.3.0.jar</span> · 1.6 MB</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">SHA-256</dt><dd class="gw-kv__value gw-mono">c4e19a07b3d25f8e61a0c9d7e42b58f13a6d09e7c25b81f4d3a96e0b7c18f52d</dd></div>
+            </dl>
+            <div class="gw-diff">
+              <div class="gw-diff__header">
+                <span class="gw-diff__filename">Manifest · jira-service-desk</span>
+                <span class="gw-diff__summary">1 tool added · annotations, hosts and commands unchanged</span>
+              </div>
+              <div class="gw-diff__body" tabindex="0" role="region" aria-label="Changes to the manifest of Jira Service Desk">
+                <div class="gw-diff__line gw-diff__line--hunk"><span class="gw-diff__text">@@ -1,11 +1,12 @@</span></div>
+                <div class="gw-diff__line gw-diff__line--del">
+                  <span class="gw-diff__gutter" aria-hidden="true">2</span><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__marker" aria-hidden="true">&#8722;</span><span class="gw-sr-only">Removed: </span>
+                  <span class="gw-diff__text">version: 1.2.0</span>
+                </div>
+                <div class="gw-diff__line gw-diff__line--add">
+                  <span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">2</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span>
+                  <span class="gw-diff__text">version: 1.3.0</span>
+                </div>
+                <div class="gw-diff__line gw-diff__line--context">
+                  <span class="gw-diff__gutter" aria-hidden="true">3</span><span class="gw-diff__gutter" aria-hidden="true">3</span><span class="gw-diff__marker" aria-hidden="true"></span>
+                  <span class="gw-diff__text">tools:</span>
+                </div>
+                <div class="gw-diff__line gw-diff__line--context">
+                  <span class="gw-diff__gutter" aria-hidden="true">4</span><span class="gw-diff__gutter" aria-hidden="true">4</span><span class="gw-diff__marker" aria-hidden="true"></span>
+                  <span class="gw-diff__text">  jira_search_requests     readOnly</span>
+                </div>
+                <div class="gw-diff__line gw-diff__line--add">
+                  <span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">5</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span>
+                  <span class="gw-diff__text">  jira_request_sla         readOnly</span>
+                </div>
+                <div class="gw-diff__line gw-diff__line--context">
+                  <span class="gw-diff__gutter" aria-hidden="true">5</span><span class="gw-diff__gutter" aria-hidden="true">6</span><span class="gw-diff__marker" aria-hidden="true"></span>
+                  <span class="gw-diff__text">  jira_get_request         readOnly</span>
+                </div>
+                <div class="gw-diff__line gw-diff__line--context">
+                  <span class="gw-diff__gutter" aria-hidden="true">6</span><span class="gw-diff__gutter" aria-hidden="true">7</span><span class="gw-diff__marker" aria-hidden="true"></span>
+                  <span class="gw-diff__text">  jira_list_queues         readOnly</span>
+                </div>
+                <div class="gw-diff__line gw-diff__line--context">
+                  <span class="gw-diff__gutter" aria-hidden="true">7</span><span class="gw-diff__gutter" aria-hidden="true">8</span><span class="gw-diff__marker" aria-hidden="true"></span>
+                  <span class="gw-diff__text">  jira_add_comment         writes</span>
+                </div>
+                <div class="gw-diff__line gw-diff__line--context">
+                  <span class="gw-diff__gutter" aria-hidden="true">8</span><span class="gw-diff__gutter" aria-hidden="true">9</span><span class="gw-diff__marker" aria-hidden="true"></span>
+                  <span class="gw-diff__text">  jira_transition_request  writes</span>
+                </div>
+                <div class="gw-diff__line gw-diff__line--context">
+                  <span class="gw-diff__gutter" aria-hidden="true">9</span><span class="gw-diff__gutter" aria-hidden="true">10</span><span class="gw-diff__marker" aria-hidden="true"></span>
+                  <span class="gw-diff__text">hosts:</span>
+                </div>
+                <div class="gw-diff__line gw-diff__line--context">
+                  <span class="gw-diff__gutter" aria-hidden="true">10</span><span class="gw-diff__gutter" aria-hidden="true">11</span><span class="gw-diff__marker" aria-hidden="true"></span>
+                  <span class="gw-diff__text">  {connection.host}:443</span>
+                </div>
+                <div class="gw-diff__line gw-diff__line--context">
+                  <span class="gw-diff__gutter" aria-hidden="true">11</span><span class="gw-diff__gutter" aria-hidden="true">12</span><span class="gw-diff__marker" aria-hidden="true"></span>
+                  <span class="gw-diff__text">commands: none</span>
+                </div>
+              </div>
+            </div>
+            <p class="gw-text-small gw-fg-secondary"><code class="gw-code">jira_request_sla</code> starts Off on every endpoint; added to one, it starts as Approval: its read-only annotation is declared by the plugin, not verified. The 5 existing tools keep their modes; no connection uses the plugin yet.</p>
+          </div>
+        </div>
+        <footer class="gw-dialog__footer">
+          <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
+          <button class="gw-btn gw-btn--primary" type="button" data-gw-dialog-close data-plugin-updated="Jira Service Desk">Update Jira Service Desk to v1.3.0</button>
+        </footer>
+      </dialog>
+
+      <!-- Uninstall a plugin: danger confirm naming the object and what stops working -->
+      <dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" id="dlg-uninstall-jira" aria-labelledby="dlg-uninstall-jira-t" aria-describedby="dlg-uninstall-jira-d">
+        <header class="gw-dialog__header">
+          <span class="gw-icon-tile"><i class="gw-icon" data-lucide="trash-2"></i></span>
+          <h2 class="gw-dialog__title" id="dlg-uninstall-jira-t">Uninstall plugin Jira Service Desk?</h2>
+          <p class="gw-dialog__description" id="dlg-uninstall-jira-d">Its code is unloaded and the JAR deleted. No connection uses it and its 5 tools are on no endpoint, so nothing stops working. Install it again from the catalog to use it.</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <footer class="gw-dialog__footer">
+          <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
+          <button class="gw-btn gw-btn--danger" type="button" data-gw-dialog-close data-gw-toast="Past calls stay in Activity." data-gw-toast-title="Plugin Jira Service Desk uninstalled" data-gw-toast-tone="success">Uninstall plugin Jira Service Desk</button>
+        </footer>
+      </dialog>
+
+      <!-- Remove MCP server: danger confirm naming the object -->
+      <dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" id="dlg-remove-mcp" aria-labelledby="dlg-remove-mcp-t" aria-describedby="dlg-remove-mcp-d">
+        <header class="gw-dialog__header">
+          <span class="gw-icon-tile"><i class="gw-icon" data-lucide="trash-2"></i></span>
+          <h2 class="gw-dialog__title" id="dlg-remove-mcp-t">Remove MCP server github-mcp?</h2>
+          <p class="gw-dialog__description" id="dlg-remove-mcp-d">The process stops and its 26 tools are removed. No endpoint uses them yet. The secret <span class="gw-mono">github-mcp/token</span> stays in Secrets.</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <footer class="gw-dialog__footer">
+          <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
+          <button class="gw-btn gw-btn--danger" type="button" data-gw-dialog-close data-gw-toast="Its process stopped. Past calls stay in Activity." data-gw-toast-title="MCP server github-mcp removed" data-gw-toast-tone="success">Remove MCP server github-mcp</button>
+        </footer>
+      </dialog>
+    </div>
+    <!--
+      Command palette (elements/command-palette.html), opened by the titlebar Search button and ⌘K / Ctrl+K.
+      Part of the shell: copy it with the titlebar into every page, at the end of main. kit.js drives it, no page
+      script: data-gw-dialog-open="cmdk" opens it, the .gw-command-palette hook filters the options, moves the
+      active one (arrows, Home / End, pointer), runs it on Enter and resets on close, and the global ⌘K / Ctrl+K
+      listener toggles #cmdk (COMPONENTS.md › command-palette).
+    -->
+    <dialog class="gw-dialog gw-dialog--md gw-command-palette" id="cmdk" aria-labelledby="cmdk-title" aria-describedby="cmdk-keys">
+      <h2 class="gw-sr-only" id="cmdk-title">Command palette</h2>
+      <div class="gw-command-palette__search">
+        <div class="gw-search">
+          <i class="gw-icon gw-search__icon" data-lucide="search"></i>
+          <input class="gw-search__input" type="search" id="cmdk-q" role="combobox" aria-expanded="true" aria-controls="cmdk-list" aria-autocomplete="list" aria-activedescendant="cmdk-o-overview" aria-label="Search pages, connections, endpoints, actions" placeholder="Search pages, connections, endpoints, actions" autocomplete="off" spellcheck="false" autofocus>
+          <button class="gw-search__clear" type="button" aria-label="Clear search"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+        </div>
+      </div>
+      <div class="gw-command-palette__results">
+        <div class="gw-command-palette__list" role="listbox" id="cmdk-list" aria-label="Results">
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-goto">
+            <p class="gw-menu__note" id="cmdk-g-goto" aria-hidden="true">Go to</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-overview" href="overview.html" aria-selected="true" tabindex="-1" data-keywords="home dashboard setup map health">
+              <i class="gw-icon gw-menu__icon" data-lucide="layout-dashboard"></i><span class="gw-menu__label">Overview</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-approvals" href="approvals.html" aria-selected="false" tabindex="-1" data-keywords="requests pending queue decide">
+              <i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approvals <span class="gw-counter gw-counter--attention">3<span class="gw-sr-only"> waiting</span></span></span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-connections" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="databases servers logs clusters">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label">Connections</span><span class="gw-menu__hint">Resources</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-connectors" href="connectors.html" aria-selected="false" tabindex="-1" data-keywords="plugins templates mcp servers catalog">
+              <i class="gw-icon gw-menu__icon" data-lucide="puzzle"></i><span class="gw-menu__label">Connectors</span><span class="gw-menu__hint">Resources</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-secrets" href="secrets.html" aria-selected="false" tabindex="-1" data-keywords="master key vault encryption">
+              <i class="gw-icon gw-menu__icon" data-lucide="key-round"></i><span class="gw-menu__label">Secrets</span><span class="gw-menu__hint">Resources</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-endpoints" href="endpoints.html" aria-selected="false" tabindex="-1" data-keywords="mcp url tools tokens">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label">Endpoints</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-clients" href="clients.html" aria-selected="false" tabindex="-1" data-keywords="clients mcp claude desktop codex cursor antigravity">
+              <i class="gw-icon gw-menu__icon" data-lucide="app-window"></i><span class="gw-menu__label">AI apps</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-policies" href="policies.html" aria-selected="false" tabindex="-1" data-keywords="limits allowlist environments">
+              <i class="gw-icon gw-menu__icon" data-lucide="shield"></i><span class="gw-menu__label">Policies</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-playground" href="playground.html" aria-selected="false" tabindex="-1" data-keywords="try call tool">
+              <i class="gw-icon gw-menu__icon" data-lucide="flask-conical"></i><span class="gw-menu__label">Playground</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-activity" href="activity.html" aria-selected="false" tabindex="-1" data-keywords="log audit calls events traces">
+              <i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">Activity</span><span class="gw-menu__hint">Observe</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-insights" href="insights.html" aria-selected="false" tabindex="-1" data-keywords="analytics charts latency errors">
+              <i class="gw-icon gw-menu__icon" data-lucide="chart-column"></i><span class="gw-menu__label">Insights</span><span class="gw-menu__hint">Observe</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-settings" href="settings.html" aria-selected="false" tabindex="-1" aria-keyshortcuts="Meta+Comma Control+Comma" data-keywords="preferences notifications tunnel authorization appearance">
+              <i class="gw-icon gw-menu__icon" data-lucide="settings"></i><span class="gw-menu__label">Settings</span><kbd class="gw-menu__kbd" aria-hidden="true">⌘ ,</kbd><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+          </div>
+
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-actions">
+            <p class="gw-menu__note" id="cmdk-g-actions" aria-hidden="true">Actions</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-add-connection" href="connection-new.html" aria-selected="false" tabindex="-1" data-keywords="new resource postgres mongodb redis kubernetes">
+              <i class="gw-icon gw-menu__icon" data-lucide="plus"></i><span class="gw-menu__label">Add connection</span><span class="gw-menu__hint">Database, SSH, logs, cluster</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-create-endpoint" href="endpoints.html" aria-selected="false" tabindex="-1" data-keywords="new mcp url">
+              <i class="gw-icon gw-menu__icon" data-lucide="square-plus"></i><span class="gw-menu__label">Create endpoint</span><span class="gw-menu__hint">New MCP URL</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-issue-token" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="new token access key client">
+              <i class="gw-icon gw-menu__icon" data-lucide="key-round"></i><span class="gw-menu__label">Issue token</span><span class="gw-menu__hint">Shown once</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <button class="gw-menu__item" type="button" role="option" id="cmdk-o-copy-dev" aria-selected="false" tabindex="-1" data-gw-copy="http://127.0.0.1:7465/mcp/dev" data-gw-dialog-close data-keywords="clipboard link">
+              <i class="gw-icon gw-menu__icon" data-lucide="copy"></i><span class="gw-menu__label">Copy URL of endpoint <span class="gw-mono">dev</span></span><span class="gw-menu__hint gw-mono">/mcp/dev</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </button>
+            <button class="gw-menu__item" type="button" role="option" id="cmdk-o-theme" aria-selected="false" tabindex="-1" data-cmdk-theme data-gw-dialog-close data-keywords="dark light appearance">
+              <i class="gw-icon gw-menu__icon" data-lucide="sun-moon"></i><span class="gw-menu__label">Toggle theme</span><span class="gw-menu__hint">Light or dark</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </button>
+          </div>
+
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-connections">
+            <p class="gw-menu__note" id="cmdk-g-connections" aria-hidden="true">Connections</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-dev-db" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="postgres sql db.dev.internal">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label"><span class="gw-mono">dev-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></span><span class="gw-menu__hint">PostgreSQL 16</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-stage-db" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="postgres sql vault">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label"><span class="gw-mono">stage-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--stage">stage</span></span><span class="gw-menu__hint">PostgreSQL</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-prod-replica" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="postgres sql replica">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label"><span class="gw-mono">prod-replica</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--prod">prod</span></span><span class="gw-menu__hint">PostgreSQL read replica</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-dev-vm" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="ssh server runbook">
+              <i class="gw-icon gw-menu__icon" data-lucide="terminal"></i><span class="gw-menu__label"><span class="gw-mono">dev-vm</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></span><span class="gw-menu__hint">SSH · <span class="gw-mono">10.20.0.14</span></span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+          </div>
+
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-endpoints">
+            <p class="gw-menu__note" id="cmdk-g-endpoints" aria-hidden="true">Endpoints</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-ep-dev" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="endpoint tools tokens">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label gw-mono">dev</span><span class="gw-menu__hint gw-mono">/mcp/dev</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-ep-stage-readonly" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="endpoint claude.ai tunnel read only">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label gw-mono">stage-readonly</span><span class="gw-menu__hint gw-mono">/mcp/stage-readonly</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-ep-incident-prod" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="endpoint prod logs read only incident">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label gw-mono">incident-prod</span><span class="gw-menu__hint gw-mono">/mcp/incident-prod</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+          </div>
+        </div>
+
+        <div class="gw-empty gw-empty--compact" hidden data-cmdk-empty>
+          <span class="gw-empty__icon"><i class="gw-icon" data-lucide="search-x"></i></span>
+          <p class="gw-empty__title">No results for “<span data-cmdk-query></span>”</p>
+          <p class="gw-empty__text">Search covers pages, actions, connections and endpoints. A resource that isn't here yet starts with a new connection.</p>
+          <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" href="connection-new.html">Add connection</a></div>
+        </div>
+      </div>
+      <footer class="gw-dialog__footer gw-command-palette__footer" id="cmdk-keys">
+        <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd"><i class="gw-icon" data-lucide="arrow-up"></i><span class="gw-sr-only">Up arrow</span></kbd><kbd class="gw-kbd"><i class="gw-icon" data-lucide="arrow-down"></i><span class="gw-sr-only">Down arrow</span></kbd> to move</p>
+        <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd"><i class="gw-icon" data-lucide="corner-down-left"></i><span class="gw-sr-only">Enter</span></kbd> to open</p>
+        <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd">Esc</kbd> to close</p>
+      </footer>
+      <p class="gw-sr-only" role="status" data-cmdk-status></p>
+    </dialog>
+  </main>
+
+</div>
+<script src="../vendor/lucide/lucide.min.js"></script>
+<script src="../assets/kit.js"></script>
+<script>
+/* Page-local demo behaviour for connectors.html (kit.js covers tab selection from #hash links,
+   menus, dialogs, dialog steps, enable-when and the empty-state clear buttons):
+   1. search fields with data-filter-list filter a card grid and show its empty state
+   2. Add MCP server: the transport radios swap the command and URL fields; its review
+      (dlg-review-mcp) is filled from the form, flags an unpinned package, and starts the server
+   3. plugin lifecycle: Disable unloads at once with an Undo toast; Update confirms from its review
+   4. forms with data-toast-title confirm a valid submit with a toast */
+(function () {
+  "use strict";
+  var doc = document;
+  var toast = window.gwToast || function () {};
+
+  doc.querySelectorAll("input[data-filter-list]").forEach(function (input) {
+    var list = doc.querySelector(input.getAttribute("data-filter-list"));
+    var empty = doc.querySelector(input.getAttribute("data-filter-empty"));
+    var count = doc.querySelector(input.getAttribute("data-filter-count"));
+    var noun = input.getAttribute("data-filter-noun");
+    var items = Array.prototype.slice.call(list.children);
+    input.addEventListener("input", function () {
+      var q = input.value.trim().toLowerCase();
+      var shown = 0;
+      items.forEach(function (li) {
+        var hit = !q || li.textContent.toLowerCase().indexOf(q) !== -1;
+        li.hidden = !hit;
+        if (hit) shown++;
+      });
+      list.hidden = shown === 0;
+      empty.hidden = shown !== 0;
+      count.textContent = q ? shown + " of " + items.length + " " + noun : count.getAttribute("data-filter-all");
+    });
+  });
+
+  // ───── Add MCP server → review → start ─────
+  var stdio = doc.getElementById("mcp-stdio-group");
+  var http = doc.getElementById("mcp-http-group");
+  doc.querySelectorAll('input[name="mcp-transport"]').forEach(function (radio) {
+    radio.addEventListener("change", function () {
+      var isHttp = radio.value === "http" && radio.checked;
+      stdio.hidden = isHttp;
+      http.hidden = !isHttp;
+      doc.getElementById("mcp-command").disabled = isHttp;
+      doc.getElementById("mcp-url").disabled = !isHttp;
+    });
+  });
+  var review = doc.getElementById("dlg-review-mcp");
+  function put(key, text) { review.querySelectorAll('[data-mcp="' + key + '"]').forEach(function (n) { n.textContent = text; }); }
+  function part(key) { return review.querySelector('[data-mcp="' + key + '"]'); }
+  // The npm package of an npx / pnpm dlx / bunx command, and its pinned version if any
+  function npmPackage(command) {
+    var words = command.trim().split(/\s+/);
+    if (!/^(npx|pnpx|bunx)$/.test(words[0]) && !(words[0] === "pnpm" && words[1] === "dlx")) return null;
+    var pkg = words.slice(1).filter(function (w) { return w.charAt(0) !== "-" && w !== "dlx"; })[0] || "";
+    var at = pkg.lastIndexOf("@");
+    var version = at > 0 ? pkg.slice(at + 1) : "";
+    return { name: pkg, version: /^\d/.test(version) ? version : "" }; // "@latest" or a range is not a pin
+  }
+  // Capture phase: the review is filled before kit.js opens it
+  doc.addEventListener("submit", function (e) {
+    if (!e.target.matches || !e.target.matches("#dlg-add-mcp form")) return;
+    var name = doc.getElementById("mcp-name").value.trim();
+    var isHttp = doc.querySelector('input[name="mcp-transport"]:checked').value === "http";
+    put("name", name);
+    put("verb", isHttp ? "Connect" : "Start");
+    put("target-key", isHttp ? "URL" : "Command");
+    put("target", isHttp ? doc.getElementById("mcp-url").value.trim() : doc.getElementById("mcp-command").value.trim());
+    put("risk", isHttp
+      ? "Every call sends these secrets to this URL. Nobody has verified the server behind it."
+      : "This code runs on your computer with these secrets. Nobody has verified it: it can read them and reach anything your user account can.");
+    var pkg = isHttp ? null : npmPackage(doc.getElementById("mcp-command").value);
+    part("version-row").hidden = !pkg;
+    part("runs-row").hidden = isHttp;
+    if (pkg) {
+      part("pinned").hidden = !pkg.version;
+      part("unpinned").hidden = !!pkg.version;
+      put("version", pkg.version);
+    }
+    var envName = doc.getElementById("mcp-env-name").value.trim();
+    var secret = doc.getElementById("mcp-env-secret").value;
+    var secrets = part("secrets");
+    secrets.textContent = "";
+    if (envName && secret) {
+      var n = doc.createElement("span");
+      n.className = "gw-mono";
+      n.textContent = envName;
+      var v = doc.createElement("span");
+      v.className = "gw-mono";
+      v.textContent = secret === "new" ? name + "/token" : secret;
+      secrets.appendChild(n);
+      secrets.appendChild(doc.createTextNode(" from the secret "));
+      secrets.appendChild(v);
+    } else {
+      secrets.textContent = "None";
+    }
+    var ack = doc.getElementById("ack-mcp");
+    ack.checked = false;
+    ack.dispatchEvent(new Event("change", { bubbles: true })); // kit.js: the start button waits for it again
+  }, true);
+  doc.getElementById("mcp-review-form").addEventListener("submit", function () {
+    var name = part("name").textContent;
+    // after the dialog closes, so the toast lands on the page and not inside the closing dialog
+    setTimeout(function () {
+      toast({ tone: "success", title: "MCP server " + name + (part("verb").textContent === "Connect" ? " connected" : " started"), body: "Its tools are listed and Off until you add them to an endpoint. There each starts as Approval." });
+    }, 0);
+  });
+
+  // ───── Plugin lifecycle ─────
+  doc.addEventListener("click", function (e) {
+    var off = e.target.closest("[data-plugin-disable]");
+    if (off) {
+      var plugin = off.getAttribute("data-plugin-disable");
+      var status = doc.querySelector("[data-jira-status]");
+      var before = status.cloneNode(true);
+      var label = status.querySelector(".gw-status__label");
+      status.className = "gw-status gw-status--neutral";
+      label.textContent = "Disabled";
+      toast({
+        tone: "neutral",
+        icon: "power-off",
+        title: plugin + " disabled",
+        body: "Unloaded. Its tools are unavailable on every endpoint until you enable it.",
+        actions: [{ label: "Undo", onClick: function () {
+          status.replaceWith(before);
+          window.gwAnnounce && window.gwAnnounce(plugin + " enabled again");
+        } }]
+      });
+      return;
+    }
+    var upd = e.target.closest("[data-plugin-updated]");
+    if (upd) {
+      var name = upd.getAttribute("data-plugin-updated");
+      toast({ tone: "success", title: name + " updated to v1.3.0", body: "Loaded without a restart. jira_request_sla is Off on every endpoint." });
+    }
+  });
+
+  doc.addEventListener("submit", function (e) {
+    var form = e.target;
+    if (!form.hasAttribute("data-toast-title")) return;
+    // after the dialog closes, so the toast lands on the page and not inside the closing dialog
+    setTimeout(function () {
+      toast({ title: form.getAttribute("data-toast-title"), body: form.getAttribute("data-toast-body"), tone: "success" });
+    }, 0);
+  });
+})();
+</script>
+</body>
+</html>

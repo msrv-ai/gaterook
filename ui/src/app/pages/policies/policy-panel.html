@@ -1,0 +1,424 @@
+@let env = this.env();
+@let p = policy();
+<div class="gw-stack gw-stack--lg">
+  @if (!p.verified) {
+    <!-- The stored row doesn't verify: this environment (and every one that inherits it) denies every call. -->
+    <div class="gw-alert gw-alert--warning" role="status">
+      <svg lucideIcon="shield-alert" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">The {{ env }} policy was changed outside MCP Gateway</p>
+        <p class="gw-alert__body">Calls on {{ env }}@for (c of inheritorNames(); track c) { and {{ c }}} are denied until you review it. Keep it as stored if you made the change yourself, or reset it to {{ p.inherits ? p.inherits : 'its defaults' }}. The values below are what {{ env }} would have without it.</p>
+        <div class="gw-alert__actions">
+          <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askKeep($event)">Review and keep<span class="gw-sr-only"> the {{ env }} policy</span></button>
+          <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askReset($event)"><svg lucideIcon="rotate-ccw" class="gw-icon gw-icon--sm"></svg> {{ reset().trigger }}</button>
+        </div>
+      </div>
+    </div>
+  } @else if (unverifiedParent(); as parent) {
+    <div class="gw-alert gw-alert--warning" role="status">
+      <svg lucideIcon="shield-alert" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">{{ env }} inherits the {{ parent }} policy, which was changed outside MCP Gateway</p>
+        <p class="gw-alert__body">Calls on {{ env }} are denied until you review the {{ parent }} policy.</p>
+        <div class="gw-alert__actions"><a class="gw-btn gw-btn--link gw-btn--sm" [routerLink]="['/policies', parent]">Review the {{ parent }} policy</a></div>
+      </div>
+    </div>
+  }
+
+  <div class="gw-toolbar">
+    <div class="gw-toolbar__start">
+      <dl class="gw-kv gw-kv--inline">
+        <div class="gw-kv__row"><dt class="gw-kv__key">Applies to</dt><dd class="gw-kv__value">@for (name of applies(); track name) {@if (!$first) { }<code class="gw-code">{{ name }}</code>} @empty {No {{ env }} connections yet}</dd></div>
+        <div class="gw-kv__row"><dt class="gw-kv__key">Values</dt><dd class="gw-kv__value" [id]="pre() + '-values'">{{ valuesText() }}</dd></div>
+      </dl>
+    </div>
+    <div class="gw-toolbar__end">
+      <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/activity" [queryParams]="activityQuery('env:' + env)"><svg lucideIcon="activity" class="gw-icon gw-icon--sm"></svg> View {{ env }} activity</a>
+      @if (canReset() && p.verified) {
+        <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askReset($event)"><svg lucideIcon="rotate-ccw" class="gw-icon gw-icon--sm"></svg> {{ reset().trigger }}</button>
+      }
+    </div>
+  </div>
+
+  <form class="gw-form" [class.gw-form--sticky-actions]="dirty()" [id]="pre() + '-form'" novalidate [attr.aria-label]="'Policy for ' + env" (submit)="save($event)" (reset)="discard($event)">
+    @for (s of sections(); track s.name) {
+      <section class="gw-form__section" [id]="s.id" [attr.aria-labelledby]="s.titleId">
+        <header class="gw-form__section-header">
+          <h2 class="gw-form__legend" [id]="s.titleId">{{ s.title }}</h2>
+          <p class="gw-form__description"><span [gwHintParts]="s.description"></span></p>
+        </header>
+        <div class="gw-form__rows">
+          @if (s.empty; as e) {
+            <!-- No connection of this kind on the environment: the rules it will have, read only (kit stage SSH, prod Kubernetes). -->
+            <div class="gw-card gw-card--muted">
+              <div class="gw-empty gw-empty--compact">
+                <span class="gw-empty__icon"><svg [lucideIcon]="e.icon" class="gw-icon"></svg></span>
+                <p class="gw-empty__title">{{ e.title }}</p>
+                <p class="gw-empty__text"><span [gwHintParts]="e.text"></span></p>
+                <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" routerLink="/connections/new" [queryParams]="{ type: e.type }"><svg lucideIcon="plus" class="gw-icon gw-icon--sm"></svg> Add connection<span class="gw-sr-only">{{ e.addLabel }}</span></a></div>
+              </div>
+            </div>
+            <dl class="gw-kv">
+              @if (s.approval; as a) {
+                <div class="gw-kv__row"><dt class="gw-kv__key">{{ a.key }}</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><svg lucideIcon="user-check" class="gw-icon"></svg>Approval</span> <span class="gw-text-caption gw-fg-muted"><span [gwHintParts]="a.caption"></span></span></dd></div>
+              }
+              @for (r of s.summary; track r.key) {
+                <div class="gw-kv__row"><dt class="gw-kv__key">{{ r.key }}</dt><dd class="gw-kv__value" [class.gw-tabular]="r.tabular">@if (r.mono) {<span class="gw-mono"><span [gwHintParts]="r.value"></span></span>} @else {<span [gwHintParts]="r.value"></span>}@if (r.suffix) { <span class="gw-fg-muted">· {{ r.suffix }}</span>}</dd></div>
+              }
+            </dl>
+          } @else {
+            @switch (s.name) {
+              @case ('sql') {
+                <dl class="gw-kv gw-kv--dense">
+                  @if (s.approval; as a) {
+                    <div class="gw-kv__row"><dt class="gw-kv__key">{{ a.key }}</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><svg lucideIcon="user-check" class="gw-icon"></svg>Approval</span> <span class="gw-text-caption gw-fg-muted"><span [gwHintParts]="a.caption"></span></span></dd></div>
+                  }
+                  <!-- ARCHITECTURE §8.6.3: a lock, not a checkbox — reads always run READ ONLY and end with ROLLBACK. -->
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Run queries in a read-only transaction</dt><dd class="gw-kv__value"><span class="gw-badge"><svg lucideIcon="lock" class="gw-icon gw-badge__icon"></svg>Always on</span> <span class="gw-text-caption gw-fg-muted"><span class="gw-mono">sql_query</span> opens READ ONLY transactions, so the database refuses a SELECT that calls a function that writes</span></dd></div>
+                </dl>
+                <div class="gw-form__row">
+                  @if (has('sql.statementTimeoutMs')) {
+                    <div gwPolicyNumber [view]="view('sql.statementTimeoutMs')" [field]="textField('sql.statementTimeoutMs')" [unit]="unit('sql.statementTimeoutMs')" [placeholder]="placeholder('sql.statementTimeoutMs')"></div>
+                  }
+                  @if (has('sql.rowLimit')) {
+                    <div gwPolicyNumber [view]="view('sql.rowLimit')" [field]="textField('sql.rowLimit')" [unit]="unit('sql.rowLimit')" [placeholder]="placeholder('sql.rowLimit')"></div>
+                  }
+                </div>
+                @if (has('sql.allowlist')) {
+                  <ng-container *ngTemplateOutlet="tagsField; context: { $implicit: 'sql.allowlist' }" />
+                }
+                @if (has('sql.denyDdl')) {
+                  <div gwPolicyCheckbox [view]="view('sql.denyDdl')" [field]="boolField('sql.denyDdl')"></div>
+                  @if (bool('sql.denyDdl')) {
+                    <p class="gw-text-caption"><a class="gw-link" routerLink="/activity" [queryParams]="activityQuery('tool:sql_execute decision:denied env:' + env)">View statements denied on {{ env }}</a></p>
+                  }
+                }
+              }
+              @case ('ssh') {
+                @if (s.approval; as a) {
+                  <dl class="gw-kv gw-kv--dense">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">{{ a.key }}</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><svg lucideIcon="user-check" class="gw-icon"></svg>Approval</span> <span class="gw-text-caption gw-fg-muted"><span [gwHintParts]="a.caption"></span></span></dd></div>
+                  </dl>
+                }
+                @if (has('ssh.allowExec')) {
+                  <div gwPolicyCheckbox [view]="view('ssh.allowExec')" [field]="boolField('ssh.allowExec')" [confirmFirst]="execNeedsConfirm()" (confirm)="askExec($event)"></div>
+                }
+                @if (envRunbooks().length) {
+                  <ul class="gw-stack gw-stack--sm" [attr.aria-label]="'Runbooks on ' + env">
+                    @for (r of envRunbooks(); track r.id) {
+                      <li class="gw-card gw-card--muted">
+                        <div class="gw-card__header">
+                          <div class="gw-card__heading">
+                            <h3 class="gw-card__title"><code class="gw-code">{{ r.name }}</code></h3>
+                            @if (r.description) {
+                              <p class="gw-card__description">{{ r.description }}</p>
+                            }
+                          </div>
+                          <div class="gw-card__actions">@if (r.status !== 'active') {<span class="gw-badge gw-badge--neutral"><svg lucideIcon="circle-off" class="gw-icon gw-badge__icon"></svg>{{ r.status === 'disabled' ? 'Disabled' : 'Not valid' }}</span> }@if (r.mode === 'read') {<span class="gw-mode gw-mode--read"><svg lucideIcon="eye" class="gw-icon"></svg>Read only</span> } @else if (r.mode === 'approval') {<span class="gw-mode gw-mode--approval"><svg lucideIcon="user-check" class="gw-icon"></svg>Approval</span> }<a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/connectors" [fragment]="'template-' + r.id"><svg lucideIcon="pencil" class="gw-icon gw-icon--sm"></svg>Edit<span class="gw-sr-only"> runbook {{ r.name }}</span> in Connectors</a></div>
+                        </div>
+                        <div class="gw-card__body">
+                          <dl class="gw-kv gw-kv--dense">
+                            @if (r.command) {
+                              <div class="gw-kv__row"><dt class="gw-kv__key">Command</dt><dd class="gw-kv__value"><code class="gw-code">{{ r.command }}</code></dd></div>
+                            }
+                            @if (r.params.length) {
+                              <div class="gw-kv__row"><dt class="gw-kv__key">Parameters</dt><dd class="gw-kv__value">@for (part of r.params; track $index) {@if (part.code) {<code class="gw-code">{{ part.text }}</code>} @else {{{ part.text }}}}</dd></div>
+                            }
+                            @if (sshConnections().length > 1) {
+                              <div class="gw-kv__row"><dt class="gw-kv__key">Runs on</dt><dd class="gw-kv__value"><code class="gw-code">{{ r.connection }}</code></dd></div>
+                            }
+                            <div class="gw-kv__row"><dt class="gw-kv__key">Last run</dt><dd class="gw-kv__value">@if (r.lastRunAt; as at) {<time [attr.datetime]="time.iso(at)" [title]="time.absolute(at)">{{ time.relative(at) }}</time> · <a class="gw-link" routerLink="/activity" [queryParams]="activityQuery('tool:ssh_run connection:' + r.connection)">View runbook activity<span class="gw-sr-only"> on {{ r.connection }}</span></a>} @else {Never}</dd></div>
+                          </dl>
+                        </div>
+                      </li>
+                    }
+                  </ul>
+                }
+                <div><a class="gw-btn gw-btn--sm" routerLink="/connectors" fragment="templates"><svg lucideIcon="plus" class="gw-icon gw-icon--sm"></svg> New runbook<span class="gw-sr-only"> for {{ s.connections.join(', ') }}</span></a></div>
+                <div class="gw-form__row">
+                  @if (has('ssh.commandTimeoutSeconds')) {
+                    <div gwPolicyNumber [view]="view('ssh.commandTimeoutSeconds')" [field]="textField('ssh.commandTimeoutSeconds')" [unit]="unit('ssh.commandTimeoutSeconds')" [placeholder]="placeholder('ssh.commandTimeoutSeconds')"></div>
+                  }
+                  @if (has('ssh.maxOutputKb')) {
+                    <div gwPolicyNumber [view]="view('ssh.maxOutputKb')" [field]="textField('ssh.maxOutputKb')" [unit]="unit('ssh.maxOutputKb')" [placeholder]="placeholder('ssh.maxOutputKb')"></div>
+                  }
+                </div>
+              }
+              @case ('k8s') {
+                @if (s.approval; as a) {
+                  <dl class="gw-kv gw-kv--dense">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">{{ a.key }}</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><svg lucideIcon="user-check" class="gw-icon"></svg>Approval</span> <span class="gw-text-caption gw-fg-muted"><span [gwHintParts]="a.caption"></span></span></dd></div>
+                  </dl>
+                }
+                @for (id of ['k8s.verbs', 'k8s.resources', 'k8s.namespaces']; track id) {
+                  @if (has(id)) {
+                    <ng-container *ngTemplateOutlet="tagsField; context: { $implicit: id }" />
+                  }
+                }
+              }
+              @case ('cloud') {
+                @if (s.approval; as a) {
+                  <dl class="gw-kv gw-kv--dense">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">{{ a.key }}</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><svg lucideIcon="user-check" class="gw-icon"></svg>Approval</span> <span class="gw-text-caption gw-fg-muted"><span [gwHintParts]="a.caption"></span></span></dd></div>
+                  </dl>
+                }
+                @for (id of ['cloud.allowedServices', 'cloud.regions', 'cloud.resources']; track id) {
+                  @if (has(id)) {
+                    <ng-container *ngTemplateOutlet="tagsField; context: { $implicit: id }" />
+                  }
+                }
+              }
+              @case ('http') {
+                @if (s.approval; as a) {
+                  <dl class="gw-kv gw-kv--dense">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">{{ a.key }}</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><svg lucideIcon="user-check" class="gw-icon"></svg>Approval</span> <span class="gw-text-caption gw-fg-muted"><span [gwHintParts]="a.caption"></span></span></dd></div>
+                  </dl>
+                }
+                @if (has('http.allowedBaseUrls')) {
+                  <ng-container *ngTemplateOutlet="tagsField; context: { $implicit: 'http.allowedBaseUrls' }" />
+                }
+                @if (risk(); as r) {
+                  <!-- The allowlist is a way out for endpoints that mix private data and untrusted content (risk-callout, compact). -->
+                  <div class="gw-alert gw-alert--warning gw-alert--compact gw-risk-callout gw-risk-callout--compact" data-state="present">
+                    <svg lucideIcon="shield-alert" class="gw-icon gw-alert__icon"></svg>
+                    <div class="gw-alert__content"><p class="gw-alert__title">Risky combination:</p><p class="gw-alert__body">{{ r.endpoints.length === 1 ? 'endpoint' : 'endpoints' }} @for (e of r.endpoints; track e.slug) {@if (!$first) {{{ $last ? ' and ' : ', ' }}}<span class="gw-mono">{{ e.slug }}</span> (@for (part of e.line; track $index) {@if (part.code) {<span class="gw-mono">{{ part.text }}</span>} @else {{{ part.text }}}})} can send data to @for (h of r.hosts; track h) {@if (!$first) {{{ $last ? ' and ' : ', ' }}}<span class="gw-mono">{{ h }}</span>} through this allowlist.</p></div>
+                    <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" routerLink="/endpoints">Review endpoints<span class="gw-sr-only">@for (e of r.endpoints; track e.slug) {{{ $first ? ' ' : $last ? ' and ' : ', ' }}{{ e.slug }}}</span></a></div>
+                  </div>
+                }
+                <fieldset class="gw-field">
+                  <legend class="gw-field__label">Blocked addresses</legend>
+                  <dl class="gw-kv gw-kv--dense">
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Cloud metadata</dt><dd class="gw-kv__value"><span class="gw-badge"><svg lucideIcon="lock" class="gw-icon gw-badge__icon"></svg>Always blocked</span> <span class="gw-mono">169.254.169.254</span>, <span class="gw-mono">fd00:ec2::254</span> <span class="gw-text-caption gw-fg-muted">· on every environment: these addresses hand out cloud credentials</span></dd></div>
+                    <!-- No switch for private networks in the core: they are blocked unless a range below allows them. -->
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Private networks</dt><dd class="gw-kv__value"><span class="gw-badge"><svg lucideIcon="lock" class="gw-icon gw-badge__icon"></svg>Blocked</span> unless allowed below <span class="gw-text-caption gw-fg-muted">· <span class="gw-mono">10.0.0.0/8</span>, <span class="gw-mono">172.16.0.0/12</span>, <span class="gw-mono">192.168.0.0/16</span> and <span class="gw-mono">127.0.0.0/8</span>, checked after DNS resolution so a public name can't point inside</span></dd></div>
+                  </dl>
+                </fieldset>
+                @if (has('http.allowedPrivateRanges')) {
+                  <ng-container *ngTemplateOutlet="tagsField; context: { $implicit: 'http.allowedPrivateRanges' }" />
+                }
+              }
+              @case ('masking') {
+                <dl class="gw-kv gw-kv--dense">
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Secrets</dt><dd class="gw-kv__value"><span class="gw-badge"><svg lucideIcon="lock" class="gw-icon gw-badge__icon"></svg>Always masked</span> <span class="gw-text-caption gw-fg-muted">tokens, private keys and passwords in connection strings, on every environment</span></dd></div>
+                </dl>
+                @if (has('masking.pii')) {
+                  <fieldset gwPolicyChecks [view]="view('masking.pii')" [options]="options('masking.pii')" [formField]="listField('masking.pii')"></fieldset>
+                }
+                @if (has('masking.fields')) {
+                  <ng-container *ngTemplateOutlet="tagsField; context: { $implicit: 'masking.fields' }" />
+                }
+              }
+              @case ('limits') {
+                <div class="gw-form__row">
+                  <div class="gw-stack gw-stack--sm">
+                    @if (has('limits.rateLimitPerToken')) {
+                      <div gwPolicyNumber [view]="view('limits.rateLimitPerToken')" [field]="textField('limits.rateLimitPerToken')" [unit]="unit('limits.rateLimitPerToken')" [placeholder]="placeholder('limits.rateLimitPerToken')"></div>
+                    }
+                    @if (tokenMeter(); as m) {
+                      <div class="gw-meter" role="meter" [attr.aria-labelledby]="pre() + '-lim-token-use'" aria-valuemin="0" [attr.aria-valuemax]="m.max" [attr.aria-valuenow]="m.value" [attr.aria-valuetext]="m.valueText" [attr.data-level]="m.level" [style.--gw-meter]="m.fraction">
+                        <span class="gw-meter__label" [id]="pre() + '-lim-token-use'">@if (m.busiest; as b) {Busiest token <span class="gw-mono">{{ b.name }}</span>} @else {No calls in the last minute}</span>
+                        <span class="gw-meter__value">@if (m.icon) {<svg [lucideIcon]="m.icon" class="gw-icon"></svg>}{{ m.value }} / {{ m.max }}</span>
+                        <span class="gw-meter__track"><span class="gw-meter__fill"></span></span>
+                      </div>
+                    }
+                  </div>
+                  <div class="gw-stack gw-stack--sm">
+                    @if (has('limits.rateLimitPerTool')) {
+                      <div gwPolicyNumber [view]="view('limits.rateLimitPerTool')" [field]="textField('limits.rateLimitPerTool')" [unit]="unit('limits.rateLimitPerTool')" [placeholder]="placeholder('limits.rateLimitPerTool')"></div>
+                    }
+                    @if (toolMeter(); as m) {
+                      <div class="gw-meter" role="meter" [attr.aria-labelledby]="pre() + '-lim-tool-use'" aria-valuemin="0" [attr.aria-valuemax]="m.max" [attr.aria-valuenow]="m.value" [attr.aria-valuetext]="m.valueText" [attr.data-level]="m.level" [style.--gw-meter]="m.fraction">
+                        <span class="gw-meter__label" [id]="pre() + '-lim-tool-use'">@if (m.busiest; as b) {Busiest tool <span class="gw-mono">{{ b.name }}</span>@if (b.connection) { on <span class="gw-mono">{{ b.connection }}</span>}} @else {No calls in the last minute}</span>
+                        <span class="gw-meter__value">@if (m.icon) {<svg [lucideIcon]="m.icon" class="gw-icon"></svg>}{{ m.value }} / {{ m.max }}</span>
+                        <span class="gw-meter__track"><span class="gw-meter__fill"></span></span>
+                      </div>
+                      @if (m.busiest; as b) {
+                        <p class="gw-text-caption"><a class="gw-link" routerLink="/activity" [queryParams]="activityQuery('tool:' + b.name + ' env:' + env)">View <span class="gw-mono">{{ b.name }}</span> activity<span class="gw-sr-only"> on {{ env }}</span></a></p>
+                      }
+                    }
+                  </div>
+                </div>
+                <div class="gw-form__row">
+                  @for (id of ['limits.maxResponseKb', 'limits.toolTimeoutSeconds', 'limits.logLines']; track id) {
+                    @if (has(id)) {
+                      <div gwPolicyNumber [view]="view(id)" [field]="textField(id)" [unit]="unit(id)" [placeholder]="placeholder(id)"></div>
+                    }
+                  }
+                </div>
+              }
+              @case ('approvals') {
+                <div class="gw-form__row">
+                  @if (has('approvals.timeoutMinutes')) {
+                    <div gwPolicySelect [view]="view('approvals.timeoutMinutes')" [field]="textField('approvals.timeoutMinutes')" [options]="options('approvals.timeoutMinutes')" [follow]="follow('approvals.timeoutMinutes')"></div>
+                  }
+                  <div class="gw-field">
+                    <p class="gw-field__label" [id]="pre() + '-apr-count-l'">Approvals needed</p>
+                    <div class="gw-segmented" role="radiogroup" [attr.aria-labelledby]="pre() + '-apr-count-l'" [attr.aria-describedby]="pre() + '-apr-count-hint'">
+                      <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="pre() + '-apr-count'" value="1" checked /><span class="gw-segmented__label">1 person</span></label>
+                      <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="pre() + '-apr-count'" value="2" aria-disabled="true" [attr.aria-describedby]="pre() + '-apr-count-hint'" /><span class="gw-segmented__label">2 people</span></label>
+                    </div>
+                    <p class="gw-field__hint" [id]="pre() + '-apr-count-hint'">{{ env === 'dev' ? '2 people is server mode only: on this desktop you are the one approver.' : (p.inherits ? 'Inherited from ' + p.inherits + '. ' : '') + '2 people is server mode only.' }}</p>
+                  </div>
+                  @if (has('approvals.comment')) {
+                    <div gwPolicySelect [view]="view('approvals.comment')" [field]="textField('approvals.comment')" [options]="options('approvals.comment')" [follow]="follow('approvals.comment')"></div>
+                  }
+                </div>
+                <dl class="gw-kv gw-kv--dense">
+                  <div class="gw-kv__row"><dt class="gw-kv__key">When the time runs out</dt><dd class="gw-kv__value"><span class="gw-badge"><svg lucideIcon="timer-off" class="gw-icon gw-badge__icon"></svg>Denied</span> <span class="gw-text-caption gw-fg-muted">always · recorded as Expired, nothing runs</span></dd></div>
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Who can approve</dt><dd class="gw-kv__value">You (local user) <span class="gw-badge gw-badge--neutral gw-badge--sm">Server mode only</span> <span class="gw-text-caption gw-fg-muted">named approvers and roles; on this desktop every decision is signed “by you”</span></dd></div>
+                </dl>
+                @if (has('approvals.announceIn')) {
+                  <fieldset gwPolicyChecks [view]="view('approvals.announceIn')" [options]="options('approvals.announceIn')" [hide]="channelsNotSetUp()" [formField]="listField('approvals.announceIn')">
+                    @for (ch of channelsNotSetUp(); track ch) {
+                      @if (!listValue('approvals.announceIn').includes(ch)) {
+                        <p class="gw-text-small gw-fg-muted">{{ channelName(ch) }} is not set up. <a class="gw-link" routerLink="/settings/notifications">Set it up in Settings</a></p>
+                      }
+                    }
+                  </fieldset>
+                }
+              }
+              @default {
+                <!-- A section the kit doesn't lay out (Logs, a plugin's): its locks, then its settings from the schema. -->
+                @if (s.approval || s.locks.length) {
+                  <dl class="gw-kv gw-kv--dense">
+                    @if (s.approval; as a) {
+                      <div class="gw-kv__row"><dt class="gw-kv__key">{{ a.key }}</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><svg lucideIcon="user-check" class="gw-icon"></svg>Approval</span> <span class="gw-text-caption gw-fg-muted"><span [gwHintParts]="a.caption"></span></span></dd></div>
+                    }
+                    @for (l of s.locks; track l.key) {
+                      <div class="gw-kv__row"><dt class="gw-kv__key">{{ l.key }}</dt><dd class="gw-kv__value"><span class="gw-badge"><svg lucideIcon="lock" class="gw-icon gw-badge__icon"></svg>Always on</span> <span class="gw-text-caption gw-fg-muted">{{ l.text }}</span></dd></div>
+                    }
+                  </dl>
+                }
+                <ng-container *ngTemplateOutlet="keysBlock; context: { $implicit: s.generic, section: s.name }" />
+              }
+            }
+            @if (s.extras.length) {
+              <!-- Settings the core has beyond the kit's layout, out of the way until asked for. -->
+              <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" [attr.aria-expanded]="moreOpen().has(s.name)" [attr.aria-controls]="s.id + '-more'" (click)="toggleMore(s.name)">{{ moreLabel(s) }} <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button></div>
+              <div class="gw-form__rows" [id]="s.id + '-more'" [hidden]="!moreOpen().has(s.name)">
+                <ng-container *ngTemplateOutlet="keysBlock; context: { $implicit: s.extras, section: s.name }" />
+              </div>
+            }
+          }
+        </div>
+      </section>
+    }
+
+    @if (dirty()) {
+      <!-- Rendered only while this form has unsaved changes (gw-form--sticky-actions). -->
+      <div class="gw-form__actions">
+        @if (saveError(); as m) {
+          <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert" tabindex="-1">
+            <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content"><p class="gw-alert__title">The {{ env }} policy wasn't saved.</p><p class="gw-alert__body">{{ m }}</p></div>
+          </div>
+        }
+        <p class="gw-form__note" role="status" [id]="pre() + '-unsaved'"><svg lucideIcon="circle-dot" class="gw-icon"></svg>{{ note() }}</p>
+        <button class="gw-btn" type="reset" [attr.aria-disabled]="busy() ? 'true' : null">Discard</button>
+        <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="busy() ? 'true' : null" [attr.aria-disabled]="busy() || !p.verified ? 'true' : null" [attr.aria-describedby]="!p.verified ? pre() + '-save-why' : null">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Save {{ env }} policy</button>
+        @if (!p.verified) {
+          <span class="gw-sr-only" [id]="pre() + '-save-why'">Review the change made outside MCP Gateway first</span>
+        }
+      </div>
+    }
+  </form>
+</div>
+
+<!-- A list field: tags over an add input (kit allowlists). -->
+<ng-template #tagsField let-id>
+  @let i = info(id);
+  @if (i?.spec?.tags; as tags) {
+    <div gwPolicyTags [view]="view(id)" [spec]="tags" [schema]="schemaOf(id)" [env]="env" [empty]="emptyText(id)" [formField]="listField(id)"></div>
+  }
+</ng-template>
+
+<!-- Keys from the schema in their own layout: numbers side by side, then the rest one per row. -->
+<ng-template #keysBlock let-keys let-section="section">
+  @let numbers = numbersOf(keys, section);
+  @if (numbers.length) {
+    <div class="gw-form__row">
+      @for (id of numbers; track id) {
+        <div gwPolicyNumber [view]="view(id)" [field]="textField(id)" [unit]="unit(id)" [placeholder]="placeholder(id)"></div>
+      }
+    </div>
+  }
+  @for (id of othersOf(keys, section); track id) {
+    @let i = info(id)!;
+    @switch (i.kind) {
+      @case ('boolean') {
+        <div gwPolicyCheckbox [view]="view(id)" [field]="boolField(id)"></div>
+      }
+      @case ('select') {
+        <div gwPolicySelect [view]="view(id)" [field]="textField(id)" [options]="options(id)" [follow]="follow(id)"></div>
+      }
+      @case ('list') {
+        @if (i.ks.items?.enum) {
+          <fieldset gwPolicyChecks [view]="view(id)" [options]="options(id)" [formField]="listField(id)"></fieldset>
+        } @else if (i.spec.tags) {
+          <ng-container *ngTemplateOutlet="tagsField; context: { $implicit: id }" />
+        }
+      }
+    }
+  }
+</ng-template>
+
+<!-- Destructive: reset an environment. The danger button names the object; Cancel has the focus. -->
+<dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" gwDialog #resetDialog="gwDialog" [id]="'pol-dlg-reset-' + env" [attr.aria-labelledby]="'pol-dlg-reset-' + env + '-title'" [attr.aria-describedby]="'pol-dlg-reset-' + env + '-desc'" (closed)="onResetClosed($event)">
+  <header class="gw-dialog__header">
+    <span class="gw-icon-tile"><svg lucideIcon="rotate-ccw" class="gw-icon"></svg></span>
+    <h2 class="gw-dialog__title" [id]="'pol-dlg-reset-' + env + '-title'">{{ reset().title }}</h2>
+    <p class="gw-dialog__description" [id]="'pol-dlg-reset-' + env + '-desc'">{{ reset().description }}</p>
+    <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+  </header>
+  @if (resetError(); as m) {
+    <div class="gw-dialog__body">
+      <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+        <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content"><p class="gw-alert__title">The {{ env }} policy wasn't reset.</p><p class="gw-alert__body">{{ m }}</p></div>
+      </div>
+    </div>
+  }
+  <footer class="gw-dialog__footer">
+    <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
+    <button class="gw-btn gw-btn--danger" type="button" [attr.aria-busy]="busy() ? 'true' : null" [attr.aria-disabled]="busy() ? 'true' : null" (click)="confirmReset()">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}{{ reset().button }}</button>
+  </footer>
+</dialog>
+
+@if (execNeedsConfirm()) {
+  <!-- Allowing arbitrary shell is the most dangerous permission: turning it on asks first. Keep it off has the focus. -->
+  <dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" gwDialog #execDialog="gwDialog" [id]="'pol-dlg-' + env + '-exec'" [attr.aria-labelledby]="'pol-dlg-' + env + '-exec-title'" [attr.aria-describedby]="'pol-dlg-' + env + '-exec-desc'" (closed)="onExecClosed($event)">
+    <header class="gw-dialog__header">
+      <span class="gw-icon-tile"><svg lucideIcon="terminal" class="gw-icon"></svg></span>
+      <h2 class="gw-dialog__title" [id]="'pol-dlg-' + env + '-exec-title'">{{ execText().title }}</h2>
+      <p class="gw-dialog__description" [id]="'pol-dlg-' + env + '-exec-desc'">Agents could ask to run anything on @for (h of execText().hosts; track h) {@if (!$first) {{{ $last ? ' and ' : ', ' }}}<span class="gw-mono">{{ h }}</span>} @empty {{{ env }} hosts}, {{ execText().runbooks }}. Every command still waits for your approval with a comment, but a long command is easy to approve by mistake.</p>
+      <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+    </header>
+    <footer class="gw-dialog__footer">
+      <button class="gw-btn" type="button" gwDialogClose autofocus>Keep it off</button>
+      <button class="gw-btn gw-btn--danger" type="button" gwDialogClose="allow">Allow ssh_exec on {{ env }}</button>
+    </footer>
+  </dialog>
+}
+
+<!-- Changed outside MCP Gateway: keeping it is reversible (Reset), so a warning dialog; Cancel has the focus. -->
+<dialog class="gw-dialog gw-dialog--md gw-dialog--warning" gwDialog #keepDialog="gwDialog" [id]="'pol-dlg-keep-' + env" [attr.aria-labelledby]="'pol-dlg-keep-' + env + '-title'" [attr.aria-describedby]="'pol-dlg-keep-' + env + '-desc'" (closed)="onKeepClosed($event)">
+  <header class="gw-dialog__header">
+    <span class="gw-icon-tile"><svg lucideIcon="shield-alert" class="gw-icon"></svg></span>
+    <h2 class="gw-dialog__title" [id]="'pol-dlg-keep-' + env + '-title'">Keep the {{ env }} policy as stored?</h2>
+    <p class="gw-dialog__description" [id]="'pol-dlg-keep-' + env + '-desc'">Someone changed it outside MCP Gateway. Keep it only if you made that change; MCP Gateway then decides calls on {{ env }} by it again.</p>
+    <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+  </header>
+  <div class="gw-dialog__body gw-stack gw-stack--sm">
+    <p class="gw-text-small">@if (stored().length) {What it sets: {{ stored().join(', ') }}.} @else {It sets nothing: {{ env }} follows {{ p.inherits ?? 'its defaults' }}.}</p>
+    @if (keepError(); as m) {
+      <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+        <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content"><p class="gw-alert__title">The {{ env }} policy wasn't kept.</p><p class="gw-alert__body">{{ m }}@if (keepConfirm()) { Keep it again to confirm.}</p></div>
+      </div>
+    }
+  </div>
+  <footer class="gw-dialog__footer">
+    <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
+    <button class="gw-btn gw-btn--primary" type="button" [attr.aria-busy]="busy() ? 'true' : null" [attr.aria-disabled]="busy() ? 'true' : null" (click)="confirmKeep()">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Keep {{ env }} policy as stored</button>
+  </footer>
+</dialog>

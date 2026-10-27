@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GCP",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "scopes",
+    "credentials"
+  ],
+  "properties": {
+    "scopes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20,
+      "uniqueItems": true,
+      "title": "Projects, folders or organizations",
+      "items": {
+        "type": "string",
+        "pattern": "^(projects/([a-z][a-z0-9-]{4,28}[a-z0-9]|\\d{1,19})|folders/\\d{1,19}|organizations/\\d{1,19})$"
+      },
+      "examples": [
+        [
+          "projects/acme-stage"
+        ]
+      ]
+    },
+    "metricsProjects": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$"
+      },
+      "description": "Default: the projects in scopes"
+    },
+    "credentials": {
+      "type": "object",
+      "title": "Credentials",
+      "required": [
+        "source"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "enum": [
+            "adc",
+            "serviceAccountKey"
+          ],
+          "default": "adc",
+          "x-enumTitles": [
+            "Google sign-in on this computer (gcloud auth application-default login)",
+            "Service account key (JSON)"
+          ]
+        },
+        "serviceAccountKey": {
+          "type": "string",
+          "writeOnly": true,
+          "x-gateway-secret": "value",
+          "x-widget": "textarea",
+          "maxLength": 10000
+        },
+        "impersonate": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]+@[a-z0-9-]+\\.iam\\.gserviceaccount\\.com$",
+          "examples": [
+            "gw-reader@acme-stage.iam.gserviceaccount.com"
+          ]
+        },
+        "delegates": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "string"
+          }
+        },
+        "lifetimeSeconds": {
+          "type": "integer",
+          "minimum": 300,
+          "maximum": 3600,
+          "default": 900,
+          "x-unit": "s"
+        },
+        "quotaProject": {
+          "type": "string",
+          "description": "Billed project (x-goog-user-project); needs serviceusage.services.use"
+        }
+      }
+    },
+    "liveGet": {
+      "type": "boolean",
+      "default": true,
+      "title": "Read current state from service APIs"
+    }
+  }
+}

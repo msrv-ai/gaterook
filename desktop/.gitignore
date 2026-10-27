@@ -1,0 +1,2 @@
+# The development home of `npm run dev -w desktop` (its core's database, logs, keys).
+/.dev/

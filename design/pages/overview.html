@@ -1,0 +1,803 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overview · GateRook</title>
+<link rel="icon" href="../assets/logo-mark.svg" type="image/svg+xml">
+<script src="../assets/theme-boot.js"></script>
+<link rel="stylesheet" href="../dist/gw-kit.css">
+</head>
+<body>
+<!--
+  OVERVIEW · the home screen, as little noise as possible, in three states (see the comment at the top of
+  .gw-page). In use: Waiting for your approval (quick access, only while requests wait) → Your connections
+  (status-tile, problems first) → AI apps (status-tile, 2 × 2) → one line about Activity. First run / setup:
+  a gw-stepper --guide card (Add a connection → Connect your AI app → Check that it works).
+  First run's Add connection opens the wizard's first-run state (connection-new.html?state=first-run).
+  Links into AI apps carry the demo state (clients.html?state=setup#cl-<app>-t, ?state=first-run#cl-ag-t; the app
+  links clients.html#cl-<app>-t). In setup AI apps opens the Connect review of Claude Desktop, Codex or Cursor and
+  #cl-ag-t focuses the Antigravity row; in first run each hash focuses the app's row.
+  Demo data: BLUEPRINT §9, "now" is 2026-10-22 14:30 CEST.
+-->
+<a class="gw-skip-link" href="#main">Skip to content</a>
+<div class="gw-shell">
+
+  <header class="gw-titlebar">
+    <span class="gw-titlebar__title">Overview</span>
+    <div class="gw-titlebar__drag"></div>
+    <div class="gw-titlebar__actions">
+      <!-- Opens the command palette (#cmdk at the end of <main>, elements/command-palette.html) -->
+      <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Search and commands" aria-haspopup="dialog" aria-keyshortcuts="Meta+K Control+K" data-gw-dialog-open="cmdk"><i class="gw-icon" data-lucide="search"></i> Search <kbd class="gw-btn__kbd" aria-hidden="true">⌘K</kbd></button>
+      <a class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" href="approvals.html" aria-label="Approvals, 3 waiting"><i class="gw-icon" data-lucide="bell"></i><span class="gw-counter gw-counter--attention" aria-hidden="true">3</span></a>
+      <!--
+        Appearance popover. gw-popover belongs to component group D, gw-segmented to group C.
+        The <form method="dialog"> scopes the radio groups (Settings › Appearance has its own
+        gw-theme radios) and never submits outside a <dialog>. kit.js binds name="gw-theme" /
+        name="gw-contrast" to window.gwTheme.
+      -->
+      <div class="gw-menu-host">
+        <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="gw-appearance" aria-label="Appearance"><i class="gw-icon" data-lucide="sun-moon"></i></button>
+        <div class="gw-popover gw-popover--right" id="gw-appearance" role="dialog" aria-labelledby="gw-appearance-title" hidden>
+          <div class="gw-popover__header">
+            <p class="gw-popover__title" id="gw-appearance-title">Appearance</p>
+          </div>
+          <form class="gw-popover__body" method="dialog">
+            <div class="gw-stack gw-stack--sm">
+              <p class="gw-text-caption gw-fg-muted" id="gw-appearance-theme">Theme</p>
+              <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="gw-appearance-theme">
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i> System</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i> Light</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i> Dark</span></label>
+              </div>
+              <p class="gw-text-caption gw-fg-muted" id="gw-appearance-contrast">Contrast</p>
+              <div class="gw-segmented gw-segmented--sm gw-segmented--block" role="radiogroup" aria-labelledby="gw-appearance-contrast">
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="system"><span class="gw-segmented__label">System</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="normal"><span class="gw-segmented__label">Normal</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-contrast" value="more"><span class="gw-segmented__label">High</span></label>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="gw-sidebar" id="gw-sidebar">
+    <div class="gw-sidebar__header">
+      <a class="gw-logo" href="overview.html" aria-label="GateRook, overview">
+        <img class="gw-logo__mark" src="../assets/logo-mark.svg" alt="">
+        <span class="gw-logo__name">GateRook</span>
+      </a>
+      <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-sidebar__toggle" type="button" data-gw-sidebar-toggle aria-controls="gw-sidebar" aria-expanded="true" aria-label="Collapse sidebar"><i class="gw-icon" data-lucide="panel-left"></i></button>
+    </div>
+
+    <nav class="gw-sidebar__body gw-nav" data-gw-nav aria-label="Main">
+      <div class="gw-nav__group">
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="overview.html" aria-current="page"><i class="gw-icon gw-nav__icon" data-lucide="layout-dashboard"></i><span class="gw-nav__label">Overview</span></a></li>
+          <li><a class="gw-nav__item" href="approvals.html"><i class="gw-icon gw-nav__icon" data-lucide="user-check"></i><span class="gw-nav__label">Approvals</span><span class="gw-nav__counter gw-counter gw-counter--attention"><span class="gw-sr-only">, </span>3<span class="gw-sr-only"> waiting</span></span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-resources">
+        <p class="gw-nav__group-label" id="gw-nav-resources">Resources</p>
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="connections.html"><i class="gw-icon gw-nav__icon" data-lucide="database"></i><span class="gw-nav__label">Connections</span></a></li>
+          <li><a class="gw-nav__item" href="connectors.html"><i class="gw-icon gw-nav__icon" data-lucide="puzzle"></i><span class="gw-nav__label">Connectors</span></a></li>
+          <li><a class="gw-nav__item" href="secrets.html"><i class="gw-icon gw-nav__icon" data-lucide="key-round"></i><span class="gw-nav__label">Secrets</span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-access">
+        <p class="gw-nav__group-label" id="gw-nav-access">Access</p>
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="endpoints.html"><i class="gw-icon gw-nav__icon" data-lucide="waypoints"></i><span class="gw-nav__label">Endpoints</span></a></li>
+          <li><a class="gw-nav__item" href="clients.html"><i class="gw-icon gw-nav__icon" data-lucide="app-window"></i><span class="gw-nav__label">AI apps</span></a></li>
+          <li><a class="gw-nav__item" href="policies.html"><i class="gw-icon gw-nav__icon" data-lucide="shield"></i><span class="gw-nav__label">Policies</span></a></li>
+          <li><a class="gw-nav__item" href="playground.html"><i class="gw-icon gw-nav__icon" data-lucide="flask-conical"></i><span class="gw-nav__label">Playground</span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group" role="group" aria-labelledby="gw-nav-observe">
+        <p class="gw-nav__group-label" id="gw-nav-observe">Observe</p>
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="activity.html"><i class="gw-icon gw-nav__icon" data-lucide="activity"></i><span class="gw-nav__label">Activity</span></a></li>
+          <li><a class="gw-nav__item" href="insights.html"><i class="gw-icon gw-nav__icon" data-lucide="chart-column"></i><span class="gw-nav__label">Insights</span></a></li>
+        </ul>
+      </div>
+      <div class="gw-nav__group gw-nav__group--end">
+        <ul class="gw-nav__list">
+          <li><a class="gw-nav__item" href="settings.html"><i class="gw-icon gw-nav__icon" data-lucide="settings"></i><span class="gw-nav__label">Settings</span></a></li>
+        </ul>
+      </div>
+    </nav>
+
+    <!-- gw-status belongs to component group B. Static on purpose: no gw-status--live in the shell (WCAG 2.2.2) -->
+    <div class="gw-sidebar__footer">
+      <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Core running</span></span>
+      <span class="gw-sidebar__meta">127.0.0.1:7465 · v0.4.0</span>
+      <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off</span></span>
+    </div>
+  </div>
+
+  <main class="gw-shell__main" id="main" tabindex="-1">
+    <!-- App-wide gw-alert--banner (Core stopped, Tunnel is public) goes here, before gw-page -->
+    <div class="gw-page">
+      <!--
+        OVERVIEW · the home screen, as little noise as possible. Three states; the app renders one,
+        this reference page shows all three (overview.html?state=first-run | setup, or the line at the bottom):
+          in use     Waiting for your approval (quick access, only while requests wait; a quiet line when none)
+                     → Your connections (status-tile, problems first, one row + "N more")
+                     → AI apps (status-tile, 2 × 2) → one line about Activity
+          first-run  nothing set up: a gw-stepper --guide card, 1 Add a connection · 2 Connect your AI app · 3 Check that it works
+          setup      a connection exists, no AI app yet: step 1 done, step 2 current
+        Blocks carry data-ov-show with their states; the page script removes the blocks of the other states
+        before kit.js starts (no hidden timers, no duplicate headings). Demo data: BLUEPRINT §9, "now" is 14:30.
+      -->
+      <header class="gw-page-header">
+        <div class="gw-page-header__row">
+          <div class="gw-page-header__heading">
+            <h1 class="gw-page-header__title">Overview</h1>
+            <p class="gw-page-header__description" data-ov-show="in-use">What waits for your approval and what is connected.</p>
+            <p class="gw-page-header__description" data-ov-show="first-run setup" hidden>Let your AI apps use your databases and servers without ever seeing a password.</p>
+          </div>
+          <div class="gw-page-header__actions" data-ov-show="in-use">
+            <a class="gw-btn" href="connection-new.html"><i class="gw-icon" data-lucide="plus"></i> Add connection</a>
+          </div>
+        </div>
+      </header>
+
+      <!-- ═══════════════ IN USE ═══════════════ -->
+
+      <!-- Quick access: the only thing on this screen that expires. When the last request goes, the section
+           gives way to the quiet line below it (page script on gw-countdown-end; the app does the same). -->
+      <section class="gw-section" aria-labelledby="ov-wait-title" id="ov-wait" data-ov-show="in-use">
+        <header class="gw-section__header">
+          <h2 class="gw-section__title" id="ov-wait-title">Waiting for your approval <span class="gw-counter gw-counter--attention" id="ov-wait-count"><span class="gw-sr-only">, </span>3<span class="gw-sr-only"> requests</span></span></h2>
+          <p class="gw-section__description">Your AI apps asked to change something. Open a request to see exactly what will run, then approve or deny it.</p>
+          <div class="gw-section__actions">
+            <a class="gw-btn gw-btn--ghost gw-btn--sm" href="approvals.html">All approvals</a>
+          </div>
+        </header>
+        <ul class="gw-stack gw-stack--sm" role="list" id="ov-wait-list" aria-label="Waiting for approval, 3 requests">
+          <li>
+            <article class="gw-card gw-approval-request gw-approval-request--compact" data-state="pending" aria-labelledby="wait-k8s-title">
+              <span class="gw-client-mark gw-client-mark--claude gw-client-mark--sm" aria-hidden="true">CD</span>
+              <div class="gw-approval-request__summary">
+                <h3 class="gw-text-h3 gw-approval-request__title" id="wait-k8s-title"><code class="gw-code">k8s_rollout_restart</code> on <span class="gw-approval-request__target"><code class="gw-code">dev-cluster</code> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></span> <span class="gw-approval-request__from gw-text-small gw-fg-muted">from Claude Desktop</span></h3>
+                <p class="gw-approval-request__preview gw-text-code-sm gw-fg-secondary gw-truncate" title="kubectl rollout restart deployment/api --namespace app-dev">kubectl rollout restart deployment/api --namespace app-dev</p>
+              </div>
+              <div class="gw-approval-request__end">
+                <!-- 60 s or less: urgent. The danger tone moves from the icon to the whole timer line (markup, not colour).
+                     Each request announces its last minute once; at zero kit.js shows it as expired. -->
+                <div class="gw-approval-request__countdown" data-gw-countdown="48" data-gw-countdown-total="300" data-gw-countdown-announce="k8s_rollout_restart on dev-cluster is denied automatically in less than a minute">
+                  <p class="gw-approval-request__countdown-text gw-text-small gw-tabular gw-fg-danger" role="timer"><i class="gw-icon gw-icon--sm" data-lucide="timer"></i>Auto-deny in <span data-gw-countdown-text>0:48</span></p>
+                  <div class="gw-progress gw-progress--sm gw-progress--danger" aria-hidden="true"><div class="gw-progress__bar"></div></div>
+                </div>
+                <a class="gw-btn gw-btn--sm" href="approvals.html#ap-k8s">Review<span class="gw-sr-only"> k8s_rollout_restart on dev-cluster</span></a>
+              </div>
+            </article>
+          </li>
+          <li>
+            <article class="gw-card gw-approval-request gw-approval-request--compact" data-state="pending" aria-labelledby="wait-sql-title">
+              <span class="gw-client-mark gw-client-mark--codex gw-client-mark--sm" aria-hidden="true">Cx</span>
+              <div class="gw-approval-request__summary">
+                <h3 class="gw-text-h3 gw-approval-request__title" id="wait-sql-title"><code class="gw-code">sql_execute</code> on <span class="gw-approval-request__target"><code class="gw-code">dev-db</code> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></span> <span class="gw-approval-request__from gw-text-small gw-fg-muted">from Codex</span></h3>
+                <p class="gw-approval-request__preview gw-text-code-sm gw-fg-secondary gw-truncate" title="UPDATE orders SET status = 'cancelled' WHERE id = 48213;">UPDATE orders SET status = 'cancelled' WHERE id = 48213;</p>
+              </div>
+              <div class="gw-approval-request__end">
+                <div class="gw-approval-request__countdown" data-gw-countdown="252" data-gw-countdown-total="300" data-gw-countdown-announce="sql_execute on dev-db is denied automatically in less than a minute">
+                  <p class="gw-approval-request__countdown-text gw-text-small gw-tabular" role="timer"><i class="gw-icon gw-icon--sm gw-fg-warning" data-lucide="timer"></i>Auto-deny in <span data-gw-countdown-text>4:12</span></p>
+                  <div class="gw-progress gw-progress--sm gw-progress--warning" aria-hidden="true"><div class="gw-progress__bar"></div></div>
+                </div>
+                <a class="gw-btn gw-btn--sm" href="approvals.html#ap-sql">Review<span class="gw-sr-only"> sql_execute on dev-db</span></a>
+              </div>
+            </article>
+          </li>
+          <li>
+            <!-- stage approval window is 10 minutes (9:30 left of 10:00) -->
+            <article class="gw-card gw-approval-request gw-approval-request--compact" data-state="pending" aria-labelledby="wait-http-title">
+              <span class="gw-client-mark gw-client-mark--codex gw-client-mark--sm" aria-hidden="true">Cx</span>
+              <div class="gw-approval-request__summary">
+                <h3 class="gw-text-h3 gw-approval-request__title" id="wait-http-title"><code class="gw-code">http_request</code> on <span class="gw-approval-request__target"><code class="gw-code">billing-api</code> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></span> <span class="gw-approval-request__from gw-text-small gw-fg-muted">from Codex</span></h3>
+                <p class="gw-approval-request__preview gw-text-code-sm gw-fg-secondary gw-truncate" title="POST https://billing.stage.acme.dev/v1/refunds">POST https://billing.stage.acme.dev/v1/refunds</p>
+              </div>
+              <div class="gw-approval-request__end">
+                <div class="gw-approval-request__countdown" data-gw-countdown="570" data-gw-countdown-total="600" data-gw-countdown-announce="http_request on billing-api is denied automatically in less than a minute">
+                  <p class="gw-approval-request__countdown-text gw-text-small gw-tabular" role="timer"><i class="gw-icon gw-icon--sm gw-fg-warning" data-lucide="timer"></i>Auto-deny in <span data-gw-countdown-text>9:30</span></p>
+                  <div class="gw-progress gw-progress--sm gw-progress--warning" aria-hidden="true"><div class="gw-progress__bar"></div></div>
+                </div>
+                <a class="gw-btn gw-btn--sm" href="approvals.html#ap-http">Review<span class="gw-sr-only"> http_request on billing-api</span></a>
+              </div>
+            </article>
+          </li>
+        </ul>
+      </section>
+      <p class="gw-text-small gw-fg-muted" id="ov-wait-none" data-ov-show="in-use" hidden><i class="gw-icon gw-icon--sm" data-lucide="circle-check"></i> Nothing waits for your approval. When an AI app asks to change data, the request appears here and as a desktop notification.</p>
+
+      <!-- What the AI apps can use: problems first, one row, the rest behind one disclosure. -->
+      <section class="gw-section" aria-labelledby="ov-conn-title" data-ov-show="in-use">
+        <header class="gw-section__header">
+          <h2 class="gw-section__title" id="ov-conn-title">Your connections</h2>
+          <p class="gw-section__description">12 connections: 10 healthy, 1 slow, 1 unreachable. The tag shows each one's environment: dev, stage or prod.</p>
+          <div class="gw-section__actions">
+            <a class="gw-btn gw-btn--ghost gw-btn--sm" href="connections.html">All connections</a>
+          </div>
+        </header>
+        <div class="gw-stack">
+          <ul class="gw-grid gw-grid--3" role="list" aria-label="Connections that need attention first">
+            <li class="gw-card gw-card--interactive gw-status-tile">
+              <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="globe"></i></span>
+              <div class="gw-status-tile__main">
+                <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=billing-api">billing-api</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></h3>
+                <p class="gw-text-caption gw-fg-muted">HTTP API · <span class="gw-mono">billing.stage.acme.dev</span></p>
+              </div>
+              <div class="gw-status-tile__end">
+                <span class="gw-status gw-status--danger" id="ov-retest-state"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Unreachable</span></span>
+                <button class="gw-btn gw-btn--sm" type="button" id="ov-retest">Test again<span class="gw-sr-only"> billing-api</span></button>
+              </div>
+            </li>
+            <li class="gw-card gw-card--interactive gw-status-tile">
+              <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="layers"></i></span>
+              <div class="gw-status-tile__main">
+                <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=cache-redis">cache-redis</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></h3>
+                <p class="gw-text-caption gw-fg-muted gw-truncate">Redis 7</p>
+              </div>
+              <div class="gw-status-tile__end">
+                <span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Slow · 1.8 s</span></span>
+              </div>
+            </li>
+            <li class="gw-card gw-card--interactive gw-status-tile">
+              <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="database"></i></span>
+              <div class="gw-status-tile__main">
+                <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=dev-db">dev-db</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></h3>
+                <p class="gw-text-caption gw-fg-muted gw-truncate">PostgreSQL 16</p>
+              </div>
+              <div class="gw-status-tile__end">
+                <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span>
+              </div>
+            </li>
+          </ul>
+          <div>
+            <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="ov-conn-more">9 more connections, all healthy <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i></button>
+          </div>
+          <ul class="gw-grid gw-grid--3" role="list" id="ov-conn-more" aria-label="More connections, all healthy" hidden>
+            <li class="gw-card gw-card--interactive gw-status-tile">
+              <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="leaf"></i></span>
+              <div class="gw-status-tile__main">
+                <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=orders-mongo">orders-mongo</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></h3>
+                <p class="gw-text-caption gw-fg-muted gw-truncate">MongoDB</p>
+              </div>
+              <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+            </li>
+            <li class="gw-card gw-card--interactive gw-status-tile">
+              <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="ship-wheel"></i></span>
+              <div class="gw-status-tile__main">
+                <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=dev-cluster">dev-cluster</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></h3>
+                <p class="gw-text-caption gw-fg-muted gw-truncate">Kubernetes · namespace app-dev</p>
+              </div>
+              <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+            </li>
+            <li class="gw-card gw-card--interactive gw-status-tile">
+              <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="terminal"></i></span>
+              <div class="gw-status-tile__main">
+                <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=dev-vm">dev-vm</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></h3>
+                <p class="gw-text-caption gw-fg-muted gw-truncate">SSH server</p>
+              </div>
+              <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+            </li>
+            <li class="gw-card gw-card--interactive gw-status-tile">
+              <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="scroll-text"></i></span>
+              <div class="gw-status-tile__main">
+                <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=app-logs">app-logs</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></h3>
+                <p class="gw-text-caption gw-fg-muted gw-truncate">Loki logs</p>
+              </div>
+              <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+            </li>
+            <li class="gw-card gw-card--interactive gw-status-tile">
+              <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="database"></i></span>
+              <div class="gw-status-tile__main">
+                <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=stage-db">stage-db</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></h3>
+                <p class="gw-text-caption gw-fg-muted gw-truncate">PostgreSQL 16</p>
+              </div>
+              <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+            </li>
+            <li class="gw-card gw-card--interactive gw-status-tile">
+              <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="cloud"></i></span>
+              <div class="gw-status-tile__main">
+                <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=aws-stage">aws-stage</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></h3>
+                <p class="gw-text-caption gw-fg-muted gw-truncate">AWS · eu-central-1</p>
+              </div>
+              <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+            </li>
+            <li class="gw-card gw-card--interactive gw-status-tile">
+              <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="database"></i></span>
+              <div class="gw-status-tile__main">
+                <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=prod-replica">prod-replica</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--prod gw-env--sm">prod</span></h3>
+                <p class="gw-text-caption gw-fg-muted gw-truncate">PostgreSQL read replica</p>
+              </div>
+              <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+            </li>
+            <li class="gw-card gw-card--interactive gw-status-tile">
+              <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="scroll-text"></i></span>
+              <div class="gw-status-tile__main">
+                <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=prod-logs">prod-logs</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--prod gw-env--sm">prod</span></h3>
+                <p class="gw-text-caption gw-fg-muted gw-truncate">GCP Cloud Logging</p>
+              </div>
+              <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+            </li>
+            <li class="gw-card gw-card--interactive gw-status-tile">
+              <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="terminal"></i></span>
+              <div class="gw-status-tile__main">
+                <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=prod-vm">prod-vm</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--prod gw-env--sm">prod</span></h3>
+                <p class="gw-text-caption gw-fg-muted gw-truncate">SSH server · runbooks only</p>
+              </div>
+              <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Which AI apps use the gateway, 2 × 2. The full connect flow (the change to the app's settings, the backup)
+           lives on AI apps. Antigravity, not installed, stays on AI apps: here it would be noise. -->
+      <section class="gw-section" aria-labelledby="ov-apps-title" data-ov-show="in-use">
+        <header class="gw-section__header">
+          <h2 class="gw-section__title" id="ov-apps-title">AI apps</h2>
+          <p class="gw-section__description">Apps that use your connections through GateRook. Each one reaches only the connections you gave it.</p>
+          <div class="gw-section__actions">
+            <a class="gw-btn gw-btn--ghost gw-btn--sm" href="clients.html">All AI apps</a>
+          </div>
+        </header>
+        <ul class="gw-grid gw-grid--2" role="list" aria-label="AI apps, the one to connect first">
+          <li class="gw-card gw-status-tile">
+            <span class="gw-client-mark gw-client-mark--cursor" aria-hidden="true">Cu</span>
+            <div class="gw-status-tile__main">
+              <h3 class="gw-status-tile__title gw-text-ui">Cursor</h3>
+              <p class="gw-text-caption gw-fg-muted gw-truncate">Found on this computer</p>
+            </div>
+            <div class="gw-status-tile__end">
+              <span class="gw-status gw-status--info"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Not connected</span></span>
+              <a class="gw-btn gw-btn--sm" href="clients.html#cl-cu-t">Connect<span class="gw-sr-only"> Cursor</span></a>
+            </div>
+          </li>
+          <li class="gw-card gw-card--interactive gw-status-tile">
+            <span class="gw-client-mark gw-client-mark--claude" aria-hidden="true">CD</span>
+            <div class="gw-status-tile__main">
+              <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link" href="clients.html#cl-cd-t">Claude Desktop</a></h3>
+              <p class="gw-text-caption gw-fg-muted gw-truncate">Can use 11 connections, 3 of them prod</p>
+            </div>
+            <div class="gw-status-tile__end">
+              <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Connected</span></span>
+            </div>
+          </li>
+          <li class="gw-card gw-card--interactive gw-status-tile">
+            <span class="gw-client-mark gw-client-mark--codex" aria-hidden="true">Cx</span>
+            <div class="gw-status-tile__main">
+              <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link" href="clients.html#cl-cx-t">Codex</a></h3>
+              <p class="gw-text-caption gw-fg-muted gw-truncate">Can use 8 connections</p>
+            </div>
+            <div class="gw-status-tile__end">
+              <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Connected</span></span>
+            </div>
+          </li>
+          <li class="gw-card gw-card--interactive gw-status-tile">
+            <span class="gw-client-mark gw-client-mark--claudeai" aria-hidden="true">ai</span>
+            <div class="gw-status-tile__main">
+              <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link" href="clients.html#cl-ai-t">claude.ai</a></h3>
+              <p class="gw-text-caption gw-fg-muted gw-truncate">In the browser · used until 12:10</p>
+            </div>
+            <div class="gw-status-tile__end">
+              <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off</span></span>
+            </div>
+          </li>
+        </ul>
+      </section>
+
+      <p class="gw-text-small gw-fg-muted" data-ov-show="in-use"><i class="gw-icon gw-icon--sm" data-lucide="activity"></i> 1,287 calls from your AI apps in the last 24 hours, 17 denied by policy. Each one is in <a class="gw-link" href="activity.html">Activity</a>.</p>
+
+      <!-- ═══════════════ FIRST RUN: nothing set up yet ═══════════════ -->
+      <section class="gw-card" aria-labelledby="ov-first-title" data-ov-show="first-run" hidden>
+        <header class="gw-card__header">
+          <div class="gw-card__heading">
+            <h2 class="gw-card__title" id="ov-first-title">Get started</h2>
+            <p class="gw-card__description">Your AI app asks GateRook, and GateRook works with your database or server for it. Passwords stay on this computer.</p>
+          </div>
+        </header>
+        <div class="gw-card__body">
+          <ol class="gw-stepper gw-stepper--guide" aria-labelledby="ov-first-title">
+            <li class="gw-stepper__step" data-state="current" aria-current="step">
+              <span class="gw-stepper__marker" aria-hidden="true">1</span>
+              <h3 class="gw-stepper__label">Add your first connection</h3>
+              <p class="gw-stepper__description">A connection is something your AI can work with: a database, a server, logs or an API. Choose its type, for example PostgreSQL, enter its address and password, and test it.</p>
+              <div class="gw-stepper__content gw-stack gw-stack--sm">
+                <div><a class="gw-btn gw-btn--primary" href="connection-new.html?state=first-run"><i class="gw-icon" data-lucide="plus"></i> Add connection</a></div>
+                <p class="gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--xs" data-lucide="shield-check"></i> Your AI can read right away. Anything that changes data waits for your approval.</p>
+              </div>
+            </li>
+            <li class="gw-stepper__step" data-state="upcoming">
+              <span class="gw-stepper__marker" aria-hidden="true">2</span>
+              <h3 class="gw-stepper__label">Connect your AI app</h3>
+              <p class="gw-stepper__description">Choose the app you use and click Connect. We show what changes before anything is written, and back up any file we change.</p>
+              <div class="gw-stepper__content gw-stack gw-stack--sm">
+                <ul class="gw-grid gw-grid--2" role="list" aria-label="AI apps on this computer">
+                  <li class="gw-card gw-status-tile">
+                    <span class="gw-client-mark gw-client-mark--claude" aria-hidden="true">CD</span>
+                    <div class="gw-status-tile__main">
+                      <h4 class="gw-status-tile__title gw-text-ui">Claude Desktop</h4>
+                      <p class="gw-text-caption gw-fg-muted gw-truncate">Found on this computer</p>
+                    </div>
+                    <div class="gw-status-tile__end">
+                      <span class="gw-status gw-status--info"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Not connected</span></span>
+                      <button class="gw-btn gw-btn--sm" type="button" aria-disabled="true" aria-describedby="ov-first-why">Connect<span class="gw-sr-only"> Claude Desktop</span></button>
+                    </div>
+                  </li>
+                  <li class="gw-card gw-status-tile">
+                    <span class="gw-client-mark gw-client-mark--codex" aria-hidden="true">Cx</span>
+                    <div class="gw-status-tile__main">
+                      <h4 class="gw-status-tile__title gw-text-ui">Codex</h4>
+                      <p class="gw-text-caption gw-fg-muted gw-truncate">Found on this computer</p>
+                    </div>
+                    <div class="gw-status-tile__end">
+                      <span class="gw-status gw-status--info"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Not connected</span></span>
+                      <button class="gw-btn gw-btn--sm" type="button" aria-disabled="true" aria-describedby="ov-first-why">Connect<span class="gw-sr-only"> Codex</span></button>
+                    </div>
+                  </li>
+                  <li class="gw-card gw-status-tile">
+                    <span class="gw-client-mark gw-client-mark--cursor" aria-hidden="true">Cu</span>
+                    <div class="gw-status-tile__main">
+                      <h4 class="gw-status-tile__title gw-text-ui">Cursor</h4>
+                      <p class="gw-text-caption gw-fg-muted gw-truncate">Found on this computer</p>
+                    </div>
+                    <div class="gw-status-tile__end">
+                      <span class="gw-status gw-status--info"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Not connected</span></span>
+                      <button class="gw-btn gw-btn--sm" type="button" aria-disabled="true" aria-describedby="ov-first-why">Connect<span class="gw-sr-only"> Cursor</span></button>
+                    </div>
+                  </li>
+                  <li class="gw-card gw-status-tile">
+                    <span class="gw-client-mark gw-client-mark--antigravity" aria-hidden="true">Ag</span>
+                    <div class="gw-status-tile__main">
+                      <h4 class="gw-status-tile__title gw-text-ui">Antigravity</h4>
+                      <p class="gw-text-caption gw-fg-muted gw-truncate">Not found on this computer</p>
+                    </div>
+                    <div class="gw-status-tile__end">
+                      <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Not installed</span></span>
+                      <a class="gw-btn gw-btn--sm gw-btn--link" href="clients.html?state=first-run#cl-ag-t">How to install<span class="gw-sr-only"> Antigravity</span></a>
+                    </div>
+                  </li>
+                </ul>
+                <p class="gw-text-caption gw-fg-muted" id="ov-first-why"><i class="gw-icon gw-icon--xs" data-lucide="lock"></i> Add a connection first: your AI app needs something to work with.</p>
+              </div>
+            </li>
+            <li class="gw-stepper__step" data-state="upcoming">
+              <span class="gw-stepper__marker" aria-hidden="true">3</span>
+              <h3 class="gw-stepper__label">Check that it works</h3>
+              <p class="gw-stepper__description">Restart your AI app if GateRook says so, then ask it: “Show me the tables in my database”. Its first request shows up here.</p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- ═══════════════ SETUP: one connection, no AI app yet ═══════════════ -->
+      <section class="gw-card" aria-labelledby="ov-setup-title" data-ov-show="setup" hidden>
+        <header class="gw-card__header">
+          <div class="gw-card__heading">
+            <h2 class="gw-card__title" id="ov-setup-title">Almost done</h2>
+            <p class="gw-card__description">Your connection works. Connect the AI app you use, and it can start reading <span class="gw-mono">dev-db</span>.</p>
+          </div>
+        </header>
+        <div class="gw-card__body">
+          <ol class="gw-stepper gw-stepper--guide" aria-labelledby="ov-setup-title">
+            <li class="gw-stepper__step" data-state="complete">
+              <span class="gw-stepper__marker" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
+              <h3 class="gw-stepper__label">Add your first connection<span class="gw-sr-only">, completed</span></h3>
+              <p class="gw-stepper__description"><a class="gw-link gw-mono" href="connection-new.html?edit=dev-db">dev-db</a> · PostgreSQL 16 · changes need your approval · <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></p>
+              <div class="gw-stepper__content gw-stack gw-stack--sm">
+                <p class="gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--xs" data-lucide="key-round"></i> The password is encrypted with a key kept on this computer. <a class="gw-link" href="secrets.html#master-key">Back up the key</a> so you can restore it. · <a class="gw-link" href="connection-new.html">Add another connection</a></p>
+              </div>
+            </li>
+            <li class="gw-stepper__step" data-state="current" aria-current="step">
+              <span class="gw-stepper__marker" aria-hidden="true">2</span>
+              <h3 class="gw-stepper__label">Connect your AI app</h3>
+              <p class="gw-stepper__description">Choose the app you use and click Connect. We show what changes before anything is written, and back up any file we change.</p>
+              <div class="gw-stepper__content">
+                <ul class="gw-grid gw-grid--2" role="list" aria-label="AI apps on this computer">
+                  <li class="gw-card gw-status-tile">
+                    <span class="gw-client-mark gw-client-mark--claude" aria-hidden="true">CD</span>
+                    <div class="gw-status-tile__main">
+                      <h4 class="gw-status-tile__title gw-text-ui">Claude Desktop</h4>
+                      <p class="gw-text-caption gw-fg-muted gw-truncate">Found on this computer</p>
+                    </div>
+                    <div class="gw-status-tile__end">
+                      <span class="gw-status gw-status--info"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Not connected</span></span>
+                      <a class="gw-btn gw-btn--sm" href="clients.html?state=setup#cl-cd-t">Connect<span class="gw-sr-only"> Claude Desktop</span></a>
+                    </div>
+                  </li>
+                  <li class="gw-card gw-status-tile">
+                    <span class="gw-client-mark gw-client-mark--codex" aria-hidden="true">Cx</span>
+                    <div class="gw-status-tile__main">
+                      <h4 class="gw-status-tile__title gw-text-ui">Codex</h4>
+                      <p class="gw-text-caption gw-fg-muted gw-truncate">Found on this computer</p>
+                    </div>
+                    <div class="gw-status-tile__end">
+                      <span class="gw-status gw-status--info"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Not connected</span></span>
+                      <a class="gw-btn gw-btn--sm" href="clients.html?state=setup#cl-cx-t">Connect<span class="gw-sr-only"> Codex</span></a>
+                    </div>
+                  </li>
+                  <li class="gw-card gw-status-tile">
+                    <span class="gw-client-mark gw-client-mark--cursor" aria-hidden="true">Cu</span>
+                    <div class="gw-status-tile__main">
+                      <h4 class="gw-status-tile__title gw-text-ui">Cursor</h4>
+                      <p class="gw-text-caption gw-fg-muted gw-truncate">Found on this computer</p>
+                    </div>
+                    <div class="gw-status-tile__end">
+                      <span class="gw-status gw-status--info"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Not connected</span></span>
+                      <a class="gw-btn gw-btn--sm" href="clients.html?state=setup#cl-cu-t">Connect<span class="gw-sr-only"> Cursor</span></a>
+                    </div>
+                  </li>
+                  <li class="gw-card gw-status-tile">
+                    <span class="gw-client-mark gw-client-mark--antigravity" aria-hidden="true">Ag</span>
+                    <div class="gw-status-tile__main">
+                      <h4 class="gw-status-tile__title gw-text-ui">Antigravity</h4>
+                      <p class="gw-text-caption gw-fg-muted gw-truncate">Not found on this computer</p>
+                    </div>
+                    <div class="gw-status-tile__end">
+                      <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Not installed</span></span>
+                      <a class="gw-btn gw-btn--sm gw-btn--link" href="clients.html?state=setup#cl-ag-t">How to install<span class="gw-sr-only"> Antigravity</span></a>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+            </li>
+            <li class="gw-stepper__step" data-state="upcoming">
+              <span class="gw-stepper__marker" aria-hidden="true">3</span>
+              <h3 class="gw-stepper__label">Check that it works</h3>
+              <p class="gw-stepper__description">Restart your AI app if GateRook says so, then ask it: “Show me the tables in dev-db”. Its first request shows up here.</p>
+              <div class="gw-stepper__content">
+                <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Waiting for the first request</span></span>
+              </div>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- Demo only: the other states of this page. Not part of the app. -->
+      <p class="gw-text-caption gw-fg-muted">Demo only, this page in other states:
+        <a class="gw-link" href="overview.html" data-ov-ref="in-use">In use</a> ·
+        <a class="gw-link" href="overview.html?state=first-run" data-ov-ref="first-run">Nothing set up yet</a> ·
+        <a class="gw-link" href="overview.html?state=setup" data-ov-ref="setup">One connection, no AI app</a>
+      </p>
+
+    </div>
+    <!--
+      Command palette (elements/command-palette.html), opened by the titlebar Search button and ⌘K / Ctrl+K.
+      Part of the shell: copy it with the titlebar into every page, at the end of main. kit.js drives it, no page
+      script: data-gw-dialog-open="cmdk" opens it, the .gw-command-palette hook filters the options, moves the
+      active one (arrows, Home / End, pointer), runs it on Enter and resets on close, and the global ⌘K / Ctrl+K
+      listener toggles #cmdk (COMPONENTS.md › command-palette).
+    -->
+    <dialog class="gw-dialog gw-dialog--md gw-command-palette" id="cmdk" aria-labelledby="cmdk-title" aria-describedby="cmdk-keys">
+      <h2 class="gw-sr-only" id="cmdk-title">Command palette</h2>
+      <div class="gw-command-palette__search">
+        <div class="gw-search">
+          <i class="gw-icon gw-search__icon" data-lucide="search"></i>
+          <input class="gw-search__input" type="search" id="cmdk-q" role="combobox" aria-expanded="true" aria-controls="cmdk-list" aria-autocomplete="list" aria-activedescendant="cmdk-o-overview" aria-label="Search pages, connections, endpoints, actions" placeholder="Search pages, connections, endpoints, actions" autocomplete="off" spellcheck="false" autofocus>
+          <button class="gw-search__clear" type="button" aria-label="Clear search"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
+        </div>
+      </div>
+      <div class="gw-command-palette__results">
+        <div class="gw-command-palette__list" role="listbox" id="cmdk-list" aria-label="Results">
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-goto">
+            <p class="gw-menu__note" id="cmdk-g-goto" aria-hidden="true">Go to</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-overview" href="overview.html" aria-selected="true" tabindex="-1" data-keywords="home dashboard setup map health">
+              <i class="gw-icon gw-menu__icon" data-lucide="layout-dashboard"></i><span class="gw-menu__label">Overview</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-approvals" href="approvals.html" aria-selected="false" tabindex="-1" data-keywords="requests pending queue decide">
+              <i class="gw-icon gw-menu__icon" data-lucide="user-check"></i><span class="gw-menu__label">Approvals <span class="gw-counter gw-counter--attention">3<span class="gw-sr-only"> waiting</span></span></span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-connections" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="databases servers logs clusters">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label">Connections</span><span class="gw-menu__hint">Resources</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-connectors" href="connectors.html" aria-selected="false" tabindex="-1" data-keywords="plugins templates mcp servers catalog">
+              <i class="gw-icon gw-menu__icon" data-lucide="puzzle"></i><span class="gw-menu__label">Connectors</span><span class="gw-menu__hint">Resources</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-secrets" href="secrets.html" aria-selected="false" tabindex="-1" data-keywords="master key vault encryption">
+              <i class="gw-icon gw-menu__icon" data-lucide="key-round"></i><span class="gw-menu__label">Secrets</span><span class="gw-menu__hint">Resources</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-endpoints" href="endpoints.html" aria-selected="false" tabindex="-1" data-keywords="mcp url tools tokens">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label">Endpoints</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-clients" href="clients.html" aria-selected="false" tabindex="-1" data-keywords="clients mcp claude desktop codex cursor antigravity">
+              <i class="gw-icon gw-menu__icon" data-lucide="app-window"></i><span class="gw-menu__label">AI apps</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-policies" href="policies.html" aria-selected="false" tabindex="-1" data-keywords="limits allowlist environments">
+              <i class="gw-icon gw-menu__icon" data-lucide="shield"></i><span class="gw-menu__label">Policies</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-playground" href="playground.html" aria-selected="false" tabindex="-1" data-keywords="try call tool">
+              <i class="gw-icon gw-menu__icon" data-lucide="flask-conical"></i><span class="gw-menu__label">Playground</span><span class="gw-menu__hint">Access</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-activity" href="activity.html" aria-selected="false" tabindex="-1" data-keywords="log audit calls events traces">
+              <i class="gw-icon gw-menu__icon" data-lucide="activity"></i><span class="gw-menu__label">Activity</span><span class="gw-menu__hint">Observe</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-insights" href="insights.html" aria-selected="false" tabindex="-1" data-keywords="analytics charts latency errors">
+              <i class="gw-icon gw-menu__icon" data-lucide="chart-column"></i><span class="gw-menu__label">Insights</span><span class="gw-menu__hint">Observe</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-settings" href="settings.html" aria-selected="false" tabindex="-1" aria-keyshortcuts="Meta+Comma Control+Comma" data-keywords="preferences notifications tunnel authorization appearance">
+              <i class="gw-icon gw-menu__icon" data-lucide="settings"></i><span class="gw-menu__label">Settings</span><kbd class="gw-menu__kbd" aria-hidden="true">⌘ ,</kbd><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+          </div>
+
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-actions">
+            <p class="gw-menu__note" id="cmdk-g-actions" aria-hidden="true">Actions</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-add-connection" href="connection-new.html" aria-selected="false" tabindex="-1" data-keywords="new resource postgres mongodb redis kubernetes">
+              <i class="gw-icon gw-menu__icon" data-lucide="plus"></i><span class="gw-menu__label">Add connection</span><span class="gw-menu__hint">Database, SSH, logs, cluster</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-create-endpoint" href="endpoints.html" aria-selected="false" tabindex="-1" data-keywords="new mcp url">
+              <i class="gw-icon gw-menu__icon" data-lucide="square-plus"></i><span class="gw-menu__label">Create endpoint</span><span class="gw-menu__hint">New MCP URL</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-issue-token" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="new token access key client">
+              <i class="gw-icon gw-menu__icon" data-lucide="key-round"></i><span class="gw-menu__label">Issue token</span><span class="gw-menu__hint">Shown once</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <button class="gw-menu__item" type="button" role="option" id="cmdk-o-copy-dev" aria-selected="false" tabindex="-1" data-gw-copy="http://127.0.0.1:7465/mcp/dev" data-gw-dialog-close data-keywords="clipboard link">
+              <i class="gw-icon gw-menu__icon" data-lucide="copy"></i><span class="gw-menu__label">Copy URL of endpoint <span class="gw-mono">dev</span></span><span class="gw-menu__hint gw-mono">/mcp/dev</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </button>
+            <button class="gw-menu__item" type="button" role="option" id="cmdk-o-theme" aria-selected="false" tabindex="-1" data-cmdk-theme data-gw-dialog-close data-keywords="dark light appearance">
+              <i class="gw-icon gw-menu__icon" data-lucide="sun-moon"></i><span class="gw-menu__label">Toggle theme</span><span class="gw-menu__hint">Light or dark</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </button>
+          </div>
+
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-connections">
+            <p class="gw-menu__note" id="cmdk-g-connections" aria-hidden="true">Connections</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-dev-db" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="postgres sql db.dev.internal">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label"><span class="gw-mono">dev-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></span><span class="gw-menu__hint">PostgreSQL 16</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-stage-db" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="postgres sql vault">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label"><span class="gw-mono">stage-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--stage">stage</span></span><span class="gw-menu__hint">PostgreSQL</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-prod-replica" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="postgres sql replica">
+              <i class="gw-icon gw-menu__icon" data-lucide="database"></i><span class="gw-menu__label"><span class="gw-mono">prod-replica</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--prod">prod</span></span><span class="gw-menu__hint">PostgreSQL read replica</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-dev-vm" href="connections.html" aria-selected="false" tabindex="-1" data-keywords="ssh server runbook">
+              <i class="gw-icon gw-menu__icon" data-lucide="terminal"></i><span class="gw-menu__label"><span class="gw-mono">dev-vm</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span></span><span class="gw-menu__hint">SSH · <span class="gw-mono">10.20.0.14</span></span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+          </div>
+
+          <div class="gw-menu__group" role="group" aria-labelledby="cmdk-g-endpoints">
+            <p class="gw-menu__note" id="cmdk-g-endpoints" aria-hidden="true">Endpoints</p>
+            <a class="gw-menu__item" role="option" id="cmdk-o-ep-dev" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="endpoint tools tokens">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label gw-mono">dev</span><span class="gw-menu__hint gw-mono">/mcp/dev</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-ep-stage-readonly" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="endpoint claude.ai tunnel read only">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label gw-mono">stage-readonly</span><span class="gw-menu__hint gw-mono">/mcp/stage-readonly</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+            <a class="gw-menu__item" role="option" id="cmdk-o-ep-incident-prod" href="endpoint-detail.html" aria-selected="false" tabindex="-1" data-keywords="endpoint prod logs read only incident">
+              <i class="gw-icon gw-menu__icon" data-lucide="waypoints"></i><span class="gw-menu__label gw-mono">incident-prod</span><span class="gw-menu__hint gw-mono">/mcp/incident-prod</span><i class="gw-icon gw-menu__check" data-lucide="corner-down-left"></i>
+            </a>
+          </div>
+        </div>
+
+        <div class="gw-empty gw-empty--compact" hidden data-cmdk-empty>
+          <span class="gw-empty__icon"><i class="gw-icon" data-lucide="search-x"></i></span>
+          <p class="gw-empty__title">No results for “<span data-cmdk-query></span>”</p>
+          <p class="gw-empty__text">Search covers pages, actions, connections and endpoints. A resource that isn't here yet starts with a new connection.</p>
+          <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" href="connection-new.html">Add connection</a></div>
+        </div>
+      </div>
+      <footer class="gw-dialog__footer gw-command-palette__footer" id="cmdk-keys">
+        <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd"><i class="gw-icon" data-lucide="arrow-up"></i><span class="gw-sr-only">Up arrow</span></kbd><kbd class="gw-kbd"><i class="gw-icon" data-lucide="arrow-down"></i><span class="gw-sr-only">Down arrow</span></kbd> to move</p>
+        <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd"><i class="gw-icon" data-lucide="corner-down-left"></i><span class="gw-sr-only">Enter</span></kbd> to open</p>
+        <p class="gw-command-palette__hint gw-text-caption gw-fg-muted"><kbd class="gw-kbd">Esc</kbd> to close</p>
+      </footer>
+      <p class="gw-sr-only" role="status" data-cmdk-status></p>
+    </dialog>
+  </main>
+
+</div>
+<script src="../vendor/lucide/lucide.min.js"></script>
+<script src="../assets/kit.js"></script>
+<script>
+/* Demo-only behaviour no kit.js hook covers:
+   1. Reference states: overview.html?state=first-run | setup. The page removes the blocks of the other
+      states before kit.js starts (the app renders one state), so no hidden countdown runs and no heading is
+      doubled. Outside "in use" nothing waits yet: the shell's approval counters go, and the command palette
+      offers only what exists (nothing in first run; dev-db and endpoint dev in setup).
+   2. Quick access follows the queue: a request that expires (kit.js gw-countdown-end) leaves the list, the
+      counters and names follow, and after the last one the quiet "Nothing waits" line takes its place.
+   3. Test again (billing-api): the button is busy (aria-busy + aria-disabled + spinner, label kept) and the
+      tile's state is gw-status--checking while it runs, then the result comes as a toast. */
+(function () {
+  "use strict";
+  var doc = document;
+  var STATES = ["in-use", "first-run", "setup"];
+  var state = new URLSearchParams(window.location.search).get("state");
+  if (STATES.indexOf(state) < 0) state = "in-use";
+
+  doc.querySelectorAll("[data-ov-show]").forEach(function (el) {
+    if (el.getAttribute("data-ov-show").split(/\s+/).indexOf(state) < 0) el.remove();
+    else if (el.id !== "ov-wait-none") el.hidden = false;
+  });
+  doc.querySelectorAll("[data-ov-ref]").forEach(function (a) {
+    if (a.getAttribute("data-ov-ref") !== state) return;
+    var current = doc.createElement("span");
+    current.setAttribute("aria-current", "page");
+    current.textContent = a.textContent;
+    a.replaceWith(current);
+  });
+
+  function setWaiting(n) {
+    doc.querySelectorAll(".gw-titlebar .gw-counter, .gw-nav__counter, #cmdk .gw-counter").forEach(function (c) {
+      c.childNodes.forEach(function (node) { if (node.nodeType === 3 && /\d/.test(node.nodeValue)) node.nodeValue = String(n); });
+      c.hidden = !n;
+    });
+    var bell = doc.querySelector('.gw-titlebar a[href="approvals.html"]');
+    if (bell) bell.setAttribute("aria-label", n ? "Approvals, " + n + " waiting" : "Approvals, none waiting");
+  }
+
+  if (state !== "in-use") {
+    setWaiting(0);
+    // only what exists: nothing in first run; dev-db and endpoint dev in setup (the same rule as on AI apps)
+    var keep = state === "setup" ? ["cmdk-o-dev-db", "cmdk-o-ep-dev"] : [];
+    ["cmdk-g-connections", "cmdk-g-endpoints"].forEach(function (id) {
+      var group = doc.querySelector('#cmdk [aria-labelledby="' + id + '"]');
+      if (!group) return;
+      group.querySelectorAll(".gw-menu__item").forEach(function (o) { if (keep.indexOf(o.id) < 0) o.remove(); });
+      if (!group.querySelector(".gw-menu__item")) group.remove();
+    });
+    if (state === "first-run") {
+      ["cmdk-o-copy-dev", "cmdk-o-issue-token"].forEach(function (id) { var o = doc.getElementById(id); if (o) o.remove(); });
+      ["#cmdk-o-add-connection", "#cmdk .gw-empty__actions a"].forEach(function (sel) { var a = doc.querySelector(sel); if (a) a.setAttribute("href", "connection-new.html?state=first-run"); });
+    }
+  }
+
+  // ── Quick access follows the queue ──
+  var list = doc.getElementById("ov-wait-list");
+  if (list) {
+    doc.addEventListener("gw-countdown-end", function (e) {
+      var li = e.target.closest && e.target.closest("#ov-wait-list > li");
+      if (!li) return;
+      li.remove();
+      var n = list.children.length;
+      var label = n + (n === 1 ? " request" : " requests");
+      var count = doc.getElementById("ov-wait-count");
+      if (count) count.innerHTML = '<span class="gw-sr-only">, </span>' + n + '<span class="gw-sr-only">' + (n === 1 ? " request" : " requests") + "</span>";
+      list.setAttribute("aria-label", "Waiting for approval, " + label);
+      setWaiting(n);
+      if (!n) {
+        var section = doc.getElementById("ov-wait");
+        var none = doc.getElementById("ov-wait-none");
+        if (section) section.remove();
+        if (none) none.hidden = false;
+      }
+      if (window.gwAnnounce) window.gwAnnounce(n ? label + " waiting for your approval" : "Nothing waits for your approval");
+    });
+  }
+
+  // ── Test again ──
+  var retest = doc.getElementById("ov-retest");
+  var stateEl = doc.getElementById("ov-retest-state");
+  if (retest && stateEl) {
+    var before = stateEl.outerHTML;
+    retest.addEventListener("click", function () {
+      if (retest.getAttribute("aria-busy") === "true") return;
+      var spinner = doc.createElement("span");
+      spinner.className = "gw-spinner gw-spinner--sm";
+      spinner.setAttribute("aria-hidden", "true");
+      retest.insertBefore(spinner, retest.firstChild);
+      retest.setAttribute("aria-busy", "true");
+      retest.setAttribute("aria-disabled", "true");
+      var checking = doc.getElementById("ov-retest-state");
+      checking.outerHTML = '<span class="gw-status gw-status--checking" id="ov-retest-state" role="status"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span><span class="gw-status__label">Checking…<span class="gw-sr-only"> billing-api</span></span></span>';
+      retest.setAttribute("aria-describedby", "ov-retest-state");
+      setTimeout(function () {
+        spinner.remove();
+        retest.removeAttribute("aria-busy");
+        retest.removeAttribute("aria-disabled");
+        retest.removeAttribute("aria-describedby");
+        doc.getElementById("ov-retest-state").outerHTML = before;
+        if (window.gwToast) {
+          window.gwToast({ title: "billing-api is still unreachable", body: "billing.stage.acme.dev did not answer. Check the VPN or the host, then test again.", tone: "danger" });
+        }
+      }, 1600);
+    });
+  }
+})();
+</script>
+</body>
+</html>

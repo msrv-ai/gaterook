@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connector card · Element · GateRook kit</title>
+<link rel="icon" href="../assets/logo-mark.svg" type="image/svg+xml">
+<script src="../assets/theme-boot.js"></script>
+<link rel="stylesheet" href="../dist/gw-kit.css">
+</head>
+<body>
+<a class="gw-skip-link" href="#main">Skip to content</a>
+<main class="gw-page" id="main" tabindex="-1">
+
+  <header class="gw-page-header">
+    <div class="gw-page-header__row">
+      <div class="gw-page-header__heading">
+        <h1 class="gw-page-header__title">Connector card</h1>
+        <p class="gw-page-header__description">One connector type: what it connects to, where it comes from, whether the catalog signed it, how many tools it brings and the one thing to do next. Catalog cards fill the grid on Connectors; radio cards grouped by category are step 1 of Add connection.</p>
+      </div>
+      <div class="gw-page-header__actions">
+        <fieldset class="gw-segmented gw-segmented--sm">
+          <legend class="gw-sr-only">Theme</legend>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i>System</span></label>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i>Light</span></label>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i>Dark</span></label>
+        </fieldset>
+      </div>
+    </div>
+  </header>
+
+  <!-- ───────────────────────── Catalog grid ───────────────────────── -->
+  <section class="gw-section" aria-labelledby="s-catalog">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-catalog">Catalog cards</h2>
+      <p class="gw-section__description">As on Connectors: every action state in one grid. Actions are small secondary buttons, so no card outshouts the others; the footer lines up across a row. Install on the unsigned plugin asks first, in a <code class="gw-code">gw-dialog--danger</code> (unverified code runs on this computer as your user), with an acknowledgement before the install button works and focus on Cancel.</p>
+    </header>
+
+    <ul class="gw-grid gw-grid--3" aria-label="Connectors">
+      <!-- Built-in, ready: Add connection -->
+      <li>
+        <article class="gw-card gw-connector-card" aria-labelledby="cn-pg-t">
+          <header class="gw-card__header">
+            <div class="gw-connector-card__identity">
+              <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="database"></i></span>
+              <div class="gw-card__heading">
+                <h3 class="gw-card__title" id="cn-pg-t">PostgreSQL</h3>
+                <p class="gw-connector-card__meta">
+                  <span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="package"></i>Built-in</span>
+                  <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v1.4.0</span></span>
+                </p>
+              </div>
+            </div>
+          </header>
+          <div class="gw-card__body gw-connector-card__body">
+            <p class="gw-text-small gw-fg-secondary">Queries, schema and EXPLAIN. Writes wait for approval.</p>
+          </div>
+          <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+            <span class="gw-connector-card__tools gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="wrench"></i>4 tools</span>
+            <a class="gw-btn gw-btn--sm" href="../pages/connection-new.html?type=postgresql">Add connection<span class="gw-sr-only"> for PostgreSQL</span></a>
+          </footer>
+        </article>
+      </li>
+
+      <!-- Template, signed: Install -->
+      <li>
+        <article class="gw-card gw-connector-card" aria-labelledby="cn-tpl-t">
+          <header class="gw-card__header">
+            <div class="gw-connector-card__identity">
+              <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="file-code"></i></span>
+              <div class="gw-card__heading">
+                <h3 class="gw-card__title" id="cn-tpl-t">PostgreSQL slow queries</h3>
+                <p class="gw-connector-card__meta">
+                  <span class="gw-badge gw-badge--outline"><i class="gw-icon gw-badge__icon" data-lucide="file-code"></i>Template</span>
+                  <span class="gw-badge gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="badge-check"></i>Signed<span class="gw-sr-only"> by the catalog</span></span>
+                  <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v1.0.0</span></span>
+                </p>
+              </div>
+            </div>
+          </header>
+          <div class="gw-card__body gw-connector-card__body">
+            <p class="gw-text-small gw-fg-secondary"><code class="gw-code">pg_slow_queries</code> and <code class="gw-code">pg_locks</code> as read-only SQL tools.</p>
+          </div>
+          <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+            <span class="gw-connector-card__tools gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="wrench"></i>2 tools</span>
+            <button class="gw-btn gw-btn--sm" type="button">Install<span class="gw-sr-only"> PostgreSQL slow queries</span></button>
+          </footer>
+        </article>
+      </li>
+
+      <!-- Plugin, signed: Install -->
+      <li>
+        <article class="gw-card gw-connector-card" aria-labelledby="cn-ch-t">
+          <header class="gw-card__header">
+            <div class="gw-connector-card__identity">
+              <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="database"></i></span>
+              <div class="gw-card__heading">
+                <h3 class="gw-card__title" id="cn-ch-t">ClickHouse</h3>
+                <p class="gw-connector-card__meta">
+                  <span class="gw-badge gw-badge--outline"><i class="gw-icon gw-badge__icon" data-lucide="puzzle"></i>Plugin</span>
+                  <span class="gw-badge gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="badge-check"></i>Signed<span class="gw-sr-only"> by the catalog</span></span>
+                  <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v0.6.1</span></span>
+                </p>
+              </div>
+            </div>
+          </header>
+          <div class="gw-card__body gw-connector-card__body">
+            <p class="gw-text-small gw-fg-secondary">Analytics queries with row and time limits. Read only.</p>
+          </div>
+          <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+            <span class="gw-connector-card__tools gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="wrench"></i>6 tools</span>
+            <button class="gw-btn gw-btn--sm" type="button">Install<span class="gw-sr-only"> ClickHouse plugin</span></button>
+          </footer>
+        </article>
+      </li>
+
+      <!-- Plugin, unsigned: Install (asks first) -->
+      <li>
+        <article class="gw-card gw-connector-card" aria-labelledby="cn-rmq-t">
+          <header class="gw-card__header">
+            <div class="gw-connector-card__identity">
+              <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="puzzle"></i></span>
+              <div class="gw-card__heading">
+                <h3 class="gw-card__title" id="cn-rmq-t">RabbitMQ</h3>
+                <p class="gw-connector-card__meta">
+                  <span class="gw-badge gw-badge--outline"><i class="gw-icon gw-badge__icon" data-lucide="puzzle"></i>Plugin</span>
+                  <span class="gw-badge gw-badge--warning"><i class="gw-icon gw-badge__icon" data-lucide="shield-alert"></i>Unsigned</span>
+                  <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v0.3.0</span></span>
+                </p>
+              </div>
+            </div>
+          </header>
+          <div class="gw-card__body gw-connector-card__body">
+            <p class="gw-text-small gw-fg-secondary">Queue depth, consumers and dead letters. Community code, not reviewed.</p>
+          </div>
+          <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+            <span class="gw-connector-card__tools gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="wrench"></i>4 tools</span>
+            <button class="gw-btn gw-btn--sm" type="button" data-gw-dialog-open="dlg-install-rmq">Install<span class="gw-sr-only"> unsigned RabbitMQ plugin</span></button>
+          </footer>
+        </article>
+      </li>
+
+      <!-- MCP server: Configure -->
+      <li>
+        <article class="gw-card gw-connector-card" aria-labelledby="cn-gh-t">
+          <header class="gw-card__header">
+            <div class="gw-connector-card__identity">
+              <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="plug"></i></span>
+              <div class="gw-card__heading">
+                <h3 class="gw-card__title" id="cn-gh-t">GitHub</h3>
+                <p class="gw-connector-card__meta">
+                  <span class="gw-badge gw-badge--outline"><i class="gw-icon gw-badge__icon" data-lucide="plug"></i>MCP server</span>
+                  <span class="gw-badge gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="badge-check"></i>Signed<span class="gw-sr-only"> by the catalog</span></span>
+                  <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v0.6.2</span></span>
+                </p>
+              </div>
+            </div>
+          </header>
+          <div class="gw-card__body gw-connector-card__body">
+            <p class="gw-text-small gw-fg-secondary">Issues, pull requests and code search. Needs a GitHub token.</p>
+          </div>
+          <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+            <span class="gw-connector-card__tools gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="wrench"></i>26 tools</span>
+            <button class="gw-btn gw-btn--sm" type="button">Configure<span class="gw-sr-only"> GitHub MCP server</span></button>
+          </footer>
+        </article>
+      </li>
+
+      <!-- Installed plugin, update available -->
+      <li>
+        <article class="gw-card gw-connector-card" aria-labelledby="cn-jira-t">
+          <header class="gw-card__header">
+            <div class="gw-connector-card__identity">
+              <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="puzzle"></i></span>
+              <div class="gw-card__heading">
+                <h3 class="gw-card__title" id="cn-jira-t">Jira Service Desk</h3>
+                <p class="gw-connector-card__meta">
+                  <span class="gw-badge gw-badge--outline"><i class="gw-icon gw-badge__icon" data-lucide="puzzle"></i>Plugin</span>
+                  <span class="gw-badge gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="badge-check"></i>Signed<span class="gw-sr-only"> by the catalog</span></span>
+                  <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v1.2.0</span></span>
+                </p>
+              </div>
+            </div>
+          </header>
+          <div class="gw-card__body gw-connector-card__body">
+            <p class="gw-text-small gw-fg-secondary">Search requests and read queues. Comments and transitions wait for approval. 5 tools.</p>
+          </div>
+          <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+            <span class="gw-status gw-status--info"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Update available · <span class="gw-mono">v1.3.0</span></span></span>
+            <button class="gw-btn gw-btn--sm" type="button"><i class="gw-icon gw-icon--sm" data-lucide="circle-arrow-up"></i>Update<span class="gw-sr-only"> Jira Service Desk to v1.3.0</span></button>
+          </footer>
+        </article>
+      </li>
+    </ul>
+
+    <!-- Install an unsigned plugin: gw-dialog--danger (not --warning: unverified code runs as your user, in its own plugin process).
+         It names the plugin and the risk, the install button is aria-disabled until the acknowledgement is
+         checked (kit.js data-gw-enable-when; its aria-describedby is the acknowledgement), focus starts on Cancel. -->
+    <dialog class="gw-dialog gw-dialog--md gw-dialog--danger" id="dlg-install-rmq" aria-labelledby="dlg-install-rmq-t" aria-describedby="dlg-install-rmq-d" data-gw-static>
+      <header class="gw-dialog__header">
+        <span class="gw-icon-tile"><i class="gw-icon" data-lucide="shield-alert"></i></span>
+        <h2 class="gw-dialog__title" id="dlg-install-rmq-t">Install unsigned plugin RabbitMQ?</h2>
+        <p class="gw-dialog__description" id="dlg-install-rmq-d">Nobody has verified this code. It runs as your user in a separate process and gets only its connection's secrets during a call.</p>
+        <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+      </header>
+      <div class="gw-dialog__body">
+        <div class="gw-stack">
+          <dl class="gw-kv gw-kv--dense">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Signature</dt><dd class="gw-kv__value"><span class="gw-badge gw-badge--warning"><i class="gw-icon gw-badge__icon" data-lucide="shield-alert"></i>Unsigned</span> No signature from the catalog key</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Package</dt><dd class="gw-kv__value"><span class="gw-mono">gw-rabbitmq-0.3.0.jar</span> · 1.4 MB</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">SHA-256</dt><dd class="gw-kv__value gw-mono">5d41c0f2a9e83b7c1f6e04d2b8a97c3e61f0d5b2e4a8c7f9013b6d2e5a4c8f71</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Tools</dt><dd class="gw-kv__value">4, Off until you add them to an endpoint; added, they start in Approval</dd></div>
+            <!-- ARCHITECTURE §7.5: where the OS has no sandbox for the plugin process, the confirmation says so. -->
+            <div class="gw-kv__row"><dt class="gw-kv__key">Runs as</dt><dd class="gw-kv__value">Your user, in a separate plugin process. Not sandboxed on this system: it can read everything your account can, including GateRook's data.</dd></div>
+          </dl>
+          <label class="gw-checkbox">
+            <input class="gw-checkbox__input" type="checkbox" id="ack-rmq" required>
+            <span class="gw-checkbox__control" aria-hidden="true"></span>
+            <span class="gw-checkbox__label" id="ack-rmq-label">I understand this code is not verified and runs on this computer as my user</span>
+          </label>
+        </div>
+      </div>
+      <footer class="gw-dialog__footer">
+        <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
+        <button class="gw-btn gw-btn--danger" type="button" aria-disabled="true" aria-describedby="ack-rmq-label" data-gw-enable-when="#ack-rmq" data-gw-dialog-close data-gw-toast="Its 4 tools are Off until you add them to an endpoint." data-gw-toast-title="Unsigned plugin RabbitMQ installed" data-gw-toast-tone="warning">Install unsigned plugin RabbitMQ</button>
+      </footer>
+    </dialog>
+  </section>
+
+  <!-- ───────────────────────── Badge vocabulary ───────────────────────── -->
+  <section class="gw-section" aria-labelledby="s-badges">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-badges">Kind and trust</h2>
+      <p class="gw-section__description">The same words, tones and icons on every card. Built-in connectors carry one badge: kind and trust are the same fact.</p>
+    </header>
+    <div class="gw-card">
+      <div class="gw-card__body">
+        <dl class="gw-kv">
+          <div class="gw-kv__row">
+            <dt class="gw-kv__key"><span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="package"></i>Built-in</span></dt>
+            <dd class="gw-kv__value">Ships with the core and updates with it. No separate trust badge.</dd>
+          </div>
+          <div class="gw-kv__row">
+            <dt class="gw-kv__key"><span class="gw-badge gw-badge--outline"><i class="gw-icon gw-badge__icon" data-lucide="file-code"></i>Template</span></dt>
+            <dd class="gw-kv__value">Declarative tools (SQL or a command with typed parameters). No code runs.</dd>
+          </div>
+          <div class="gw-kv__row">
+            <dt class="gw-kv__key"><span class="gw-badge gw-badge--outline"><i class="gw-icon gw-badge__icon" data-lucide="puzzle"></i>Plugin</span></dt>
+            <dd class="gw-kv__value">A Java plugin, run by the gateway in its own process. Runs code: check the signature.</dd>
+          </div>
+          <div class="gw-kv__row">
+            <dt class="gw-kv__key"><span class="gw-badge gw-badge--outline"><i class="gw-icon gw-badge__icon" data-lucide="plug"></i>MCP server</span></dt>
+            <dd class="gw-kv__value">An external MCP server behind the gateway: its tools get modes, approvals and audit.</dd>
+          </div>
+          <div class="gw-kv__row">
+            <dt class="gw-kv__key"><span class="gw-badge gw-badge--success"><i class="gw-icon gw-badge__icon" data-lucide="badge-check"></i>Signed</span></dt>
+            <dd class="gw-kv__value">The catalog key verified the package. Install without extra steps.</dd>
+          </div>
+          <div class="gw-kv__row">
+            <dt class="gw-kv__key"><span class="gw-badge gw-badge--warning"><i class="gw-icon gw-badge__icon" data-lucide="shield-alert"></i>Unsigned</span></dt>
+            <dd class="gw-kv__value">No valid signature. Install asks in a danger confirmation that names the risk and needs an explicit acknowledgement. Tools of plugins and MCP servers say “Declared by &lt;server&gt;, not verified” next to their annotations.</dd>
+          </div>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── Picker ───────────────────────── -->
+  <section class="gw-section" aria-labelledby="s-picker">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-picker">Picker: Add connection, step 1</h2>
+      <p class="gw-section__description">Radio cards grouped by category, as in step 1 of Add connection. One radio group across all categories, so arrow keys move through every type. Built-in types say so with their tool count (the Logs back ends Loki, GCP Cloud Logging, AWS CloudWatch and OpenSearch are built in, not plugins); installed plugins and templates carry their kind and trust badges. A catalog plugin that is not installed yet (ClickHouse) stays visible and focusable but unavailable: <code class="gw-code">aria-disabled</code>, its reason in the description.</p>
+    </header>
+
+    <fieldset class="gw-connector-card__picker">
+      <legend class="gw-sr-only">Connector type</legend>
+
+      <div class="gw-connector-card__group" role="group" aria-labelledby="pk-g-db">
+        <h3 class="gw-connector-card__group-title gw-text-overline" id="pk-g-db">Databases</h3>
+        <div class="gw-grid gw-grid--auto">
+          <label class="gw-choice-card gw-connector-card__option">
+            <input class="gw-choice-card__input" type="radio" name="pk-type" value="postgresql" checked aria-labelledby="pk-pg-t" aria-describedby="pk-pg-d pk-pg-m">
+            <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="database"></i></span>
+            <span class="gw-choice-card__title" id="pk-pg-t">PostgreSQL</span>
+            <span class="gw-choice-card__description" id="pk-pg-d">Read queries, schema, EXPLAIN. Writes wait for approval.</span>
+            <span class="gw-choice-card__meta" id="pk-pg-m">Built-in · 4 tools</span>
+          </label>
+          <label class="gw-choice-card gw-connector-card__option">
+            <input class="gw-choice-card__input" type="radio" name="pk-type" value="mysql" aria-labelledby="pk-my-t" aria-describedby="pk-my-d pk-my-m">
+            <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="database"></i></span>
+            <span class="gw-choice-card__title" id="pk-my-t">MySQL</span>
+            <span class="gw-choice-card__description" id="pk-my-d">MySQL 8 and MariaDB. Read queries, schema, EXPLAIN.</span>
+            <span class="gw-choice-card__meta" id="pk-my-m">Built-in · 4 tools</span>
+          </label>
+          <label class="gw-choice-card gw-connector-card__option">
+            <input class="gw-choice-card__input" type="radio" name="pk-type" value="mongodb" aria-labelledby="pk-mg-t" aria-describedby="pk-mg-d pk-mg-m">
+            <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="leaf"></i></span>
+            <span class="gw-choice-card__title" id="pk-mg-t">MongoDB</span>
+            <span class="gw-choice-card__description" id="pk-mg-d">Find and aggregate over collections. Read only.</span>
+            <span class="gw-choice-card__meta" id="pk-mg-m">Built-in · 2 tools</span>
+          </label>
+          <label class="gw-choice-card gw-connector-card__option">
+            <input class="gw-choice-card__input" type="radio" name="pk-type" value="redis" aria-labelledby="pk-rd-t" aria-describedby="pk-rd-d pk-rd-m">
+            <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="layers"></i></span>
+            <span class="gw-choice-card__title" id="pk-rd-t">Redis</span>
+            <span class="gw-choice-card__description" id="pk-rd-d">Read keys and scan by pattern. Read only.</span>
+            <span class="gw-choice-card__meta" id="pk-rd-m">Built-in · 2 tools</span>
+          </label>
+          <label class="gw-choice-card gw-connector-card__option">
+            <input class="gw-choice-card__input" type="radio" name="pk-type" value="clickhouse" aria-disabled="true" aria-labelledby="pk-ch-t" aria-describedby="pk-ch-d pk-ch-m">
+            <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="database"></i></span>
+            <span class="gw-choice-card__title" id="pk-ch-t">ClickHouse <span class="gw-badge gw-badge--outline gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="puzzle"></i>Plugin</span></span>
+            <span class="gw-choice-card__description" id="pk-ch-d">Not installed. Install it from the catalog in Connectors first.</span>
+            <span class="gw-choice-card__meta" id="pk-ch-m"><span class="gw-badge gw-badge--success gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="badge-check"></i>Signed<span class="gw-sr-only"> by the catalog</span></span>6 tools</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="gw-connector-card__group" role="group" aria-labelledby="pk-g-remote">
+        <h3 class="gw-connector-card__group-title gw-text-overline" id="pk-g-remote">Remote access</h3>
+        <div class="gw-grid gw-grid--auto">
+          <label class="gw-choice-card gw-connector-card__option">
+            <input class="gw-choice-card__input" type="radio" name="pk-type" value="ssh" aria-labelledby="pk-ssh-t" aria-describedby="pk-ssh-d pk-ssh-m">
+            <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="terminal"></i></span>
+            <span class="gw-choice-card__title" id="pk-ssh-t">SSH</span>
+            <span class="gw-choice-card__description" id="pk-ssh-d">Runbooks with typed parameters, through an SSH CA or a key.</span>
+            <span class="gw-choice-card__meta" id="pk-ssh-m">Built-in · 2 tools</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="gw-connector-card__group" role="group" aria-labelledby="pk-g-logs">
+        <h3 class="gw-connector-card__group-title gw-text-overline" id="pk-g-logs">Logs</h3>
+        <div class="gw-grid gw-grid--auto">
+          <label class="gw-choice-card gw-connector-card__option">
+            <input class="gw-choice-card__input" type="radio" name="pk-type" value="gcp-logging" aria-labelledby="pk-gcl-t" aria-describedby="pk-gcl-d pk-gcl-m">
+            <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="scroll-text"></i></span>
+            <span class="gw-choice-card__title" id="pk-gcl-t">GCP Cloud Logging</span>
+            <span class="gw-choice-card__description" id="pk-gcl-d">Search logs with service account impersonation.</span>
+            <span class="gw-choice-card__meta" id="pk-gcl-m">Built-in Logs · 2 tools</span>
+          </label>
+          <label class="gw-choice-card gw-connector-card__option">
+            <input class="gw-choice-card__input" type="radio" name="pk-type" value="cloudwatch" aria-labelledby="pk-cw-t" aria-describedby="pk-cw-d pk-cw-m">
+            <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="scroll-text"></i></span>
+            <span class="gw-choice-card__title" id="pk-cw-t">AWS CloudWatch</span>
+            <span class="gw-choice-card__description" id="pk-cw-d">Logs Insights queries with AssumeRole.</span>
+            <span class="gw-choice-card__meta" id="pk-cw-m">Built-in Logs · 2 tools</span>
+          </label>
+          <label class="gw-choice-card gw-connector-card__option">
+            <input class="gw-choice-card__input" type="radio" name="pk-type" value="loki" aria-labelledby="pk-loki-t" aria-describedby="pk-loki-d pk-loki-m">
+            <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="scroll-text"></i></span>
+            <span class="gw-choice-card__title" id="pk-loki-t">Loki</span>
+            <span class="gw-choice-card__description" id="pk-loki-d">LogQL search and label browsing.</span>
+            <span class="gw-choice-card__meta" id="pk-loki-m">Built-in Logs · 2 tools</span>
+          </label>
+          <label class="gw-choice-card gw-connector-card__option">
+            <input class="gw-choice-card__input" type="radio" name="pk-type" value="opensearch" aria-labelledby="pk-os-t" aria-describedby="pk-os-d pk-os-m">
+            <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="scroll-text"></i></span>
+            <span class="gw-choice-card__title" id="pk-os-t">OpenSearch</span>
+            <span class="gw-choice-card__description" id="pk-os-d">Lucene query search over log indices.</span>
+            <span class="gw-choice-card__meta" id="pk-os-m">Built-in Logs · 2 tools</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="gw-connector-card__group" role="group" aria-labelledby="pk-g-k8s">
+        <h3 class="gw-connector-card__group-title gw-text-overline" id="pk-g-k8s">Kubernetes</h3>
+        <div class="gw-grid gw-grid--auto">
+          <label class="gw-choice-card gw-connector-card__option">
+            <input class="gw-choice-card__input" type="radio" name="pk-type" value="kubernetes" aria-labelledby="pk-k8s-t" aria-describedby="pk-k8s-d pk-k8s-m">
+            <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="ship-wheel"></i></span>
+            <span class="gw-choice-card__title" id="pk-k8s-t">Kubernetes</span>
+            <span class="gw-choice-card__description" id="pk-k8s-d">Pods, logs and events; rollouts and apply with approval.</span>
+            <span class="gw-choice-card__meta" id="pk-k8s-m">Built-in · 4 tools</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="gw-connector-card__group" role="group" aria-labelledby="pk-g-cloud">
+        <h3 class="gw-connector-card__group-title gw-text-overline" id="pk-g-cloud">Cloud</h3>
+        <div class="gw-grid gw-grid--auto">
+          <label class="gw-choice-card gw-connector-card__option">
+            <input class="gw-choice-card__input" type="radio" name="pk-type" value="gcp" aria-labelledby="pk-gcp-t" aria-describedby="pk-gcp-d pk-gcp-m">
+            <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
+            <span class="gw-choice-card__title" id="pk-gcp-t">GCP</span>
+            <span class="gw-choice-card__description" id="pk-gcp-d">Resources, statuses and metrics, read through service account impersonation.</span>
+            <span class="gw-choice-card__meta" id="pk-gcp-m">Built-in · 2 tools</span>
+          </label>
+          <label class="gw-choice-card gw-connector-card__option">
+            <input class="gw-choice-card__input" type="radio" name="pk-type" value="aws" aria-labelledby="pk-aws-t" aria-describedby="pk-aws-d pk-aws-m">
+            <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
+            <span class="gw-choice-card__title" id="pk-aws-t">AWS</span>
+            <span class="gw-choice-card__description" id="pk-aws-d">Resources, statuses and metrics, read with AssumeRole.</span>
+            <span class="gw-choice-card__meta" id="pk-aws-m">Built-in · 2 tools</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="gw-connector-card__group" role="group" aria-labelledby="pk-g-http">
+        <h3 class="gw-connector-card__group-title gw-text-overline" id="pk-g-http">HTTP and MCP</h3>
+        <div class="gw-grid gw-grid--auto">
+          <label class="gw-choice-card gw-connector-card__option">
+            <input class="gw-choice-card__input" type="radio" name="pk-type" value="http" aria-labelledby="pk-http-t" aria-describedby="pk-http-d pk-http-m">
+            <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="globe"></i></span>
+            <span class="gw-choice-card__title" id="pk-http-t">HTTP API</span>
+            <span class="gw-choice-card__description" id="pk-http-d">One base URL with an allowlist. GET reads; every other method waits for approval.</span>
+            <span class="gw-choice-card__meta" id="pk-http-m">Built-in · 2 tools</span>
+          </label>
+          <label class="gw-choice-card gw-connector-card__option">
+            <input class="gw-choice-card__input" type="radio" name="pk-type" value="openapi" aria-labelledby="pk-oa-t" aria-describedby="pk-oa-d pk-oa-m">
+            <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="file-code"></i></span>
+            <span class="gw-choice-card__title" id="pk-oa-t">OpenAPI import <span class="gw-badge gw-badge--outline gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="file-code"></i>Template</span></span>
+            <span class="gw-choice-card__description" id="pk-oa-d">Turn an OpenAPI 3 file into one tool per operation.</span>
+            <span class="gw-choice-card__meta" id="pk-oa-m">Tools from the file</span>
+          </label>
+          <label class="gw-choice-card gw-connector-card__option">
+            <input class="gw-choice-card__input" type="radio" name="pk-type" value="jira-service-desk" aria-labelledby="pk-jira-t" aria-describedby="pk-jira-d pk-jira-m">
+            <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="puzzle"></i></span>
+            <span class="gw-choice-card__title" id="pk-jira-t">Jira Service Desk <span class="gw-badge gw-badge--outline gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="puzzle"></i>Plugin</span></span>
+            <span class="gw-choice-card__description" id="pk-jira-d">Search requests and read queues. Comments and transitions wait for approval.</span>
+            <span class="gw-choice-card__meta" id="pk-jira-m"><span class="gw-badge gw-badge--success gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="badge-check"></i>Signed<span class="gw-sr-only"> by the catalog</span></span>v1.2.0 · 5 tools</span>
+          </label>
+          <label class="gw-choice-card gw-connector-card__option">
+            <input class="gw-choice-card__input" type="radio" name="pk-type" value="mcp" aria-labelledby="pk-mcp-t" aria-describedby="pk-mcp-d pk-mcp-m">
+            <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="plug"></i></span>
+            <span class="gw-choice-card__title" id="pk-mcp-t">External MCP server</span>
+            <span class="gw-choice-card__description" id="pk-mcp-d">Put any MCP server behind modes, approvals and audit.</span>
+            <span class="gw-choice-card__meta" id="pk-mcp-m">Tools from the server</span>
+          </label>
+        </div>
+      </div>
+    </fieldset>
+  </section>
+
+  <!-- ───────────────────────── Picker: nothing chosen ───────────────────────── -->
+  <section class="gw-section" aria-labelledby="s-picker-error">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-picker-error">Picker: nothing chosen</h2>
+      <p class="gw-section__description">After Continue with no type picked: every card gets the danger edge and the group says what to do.</p>
+    </header>
+
+    <fieldset class="gw-connector-card__picker" aria-describedby="pk2-err">
+      <legend class="gw-sr-only">Connector type</legend>
+      <div class="gw-connector-card__group" role="group" aria-labelledby="pk2-g-db">
+        <h3 class="gw-connector-card__group-title gw-text-overline" id="pk2-g-db">Databases</h3>
+        <div class="gw-grid gw-grid--auto">
+          <label class="gw-choice-card gw-connector-card__option">
+            <input class="gw-choice-card__input" type="radio" name="pk2-type" value="postgresql" required aria-invalid="true" aria-labelledby="pk2-pg-t" aria-describedby="pk2-pg-d pk2-err">
+            <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="database"></i></span>
+            <span class="gw-choice-card__title" id="pk2-pg-t">PostgreSQL</span>
+            <span class="gw-choice-card__description" id="pk2-pg-d">Read queries, schema, EXPLAIN. Writes wait for approval.</span>
+            <span class="gw-choice-card__meta">Built-in · 4 tools</span>
+          </label>
+          <label class="gw-choice-card gw-connector-card__option">
+            <input class="gw-choice-card__input" type="radio" name="pk2-type" value="mongodb" required aria-invalid="true" aria-labelledby="pk2-mg-t" aria-describedby="pk2-mg-d pk2-err">
+            <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="leaf"></i></span>
+            <span class="gw-choice-card__title" id="pk2-mg-t">MongoDB</span>
+            <span class="gw-choice-card__description" id="pk2-mg-d">Find and aggregate over collections. Read only.</span>
+            <span class="gw-choice-card__meta">Built-in · 2 tools</span>
+          </label>
+          <label class="gw-choice-card gw-connector-card__option">
+            <input class="gw-choice-card__input" type="radio" name="pk2-type" value="redis" required aria-invalid="true" aria-labelledby="pk2-rd-t" aria-describedby="pk2-rd-d pk2-err">
+            <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="layers"></i></span>
+            <span class="gw-choice-card__title" id="pk2-rd-t">Redis</span>
+            <span class="gw-choice-card__description" id="pk2-rd-d">Read keys and scan by pattern. Read only.</span>
+            <span class="gw-choice-card__meta">Built-in · 2 tools</span>
+          </label>
+        </div>
+      </div>
+      <p class="gw-field__error" id="pk2-err"><i class="gw-icon" data-lucide="circle-alert"></i>Choose a connector type to continue.</p>
+    </fieldset>
+  </section>
+
+</main>
+<script src="../vendor/lucide/lucide.min.js"></script>
+<script src="../assets/kit.js"></script>
+</body>
+</html>

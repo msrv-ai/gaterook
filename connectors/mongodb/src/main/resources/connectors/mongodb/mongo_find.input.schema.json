@@ -1,0 +1,55 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "collection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "database": {
+      "type": "string",
+      "maxLength": 64,
+      "description": "Default: the database in the connection string."
+    },
+    "collection": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "filter": {
+      "type": [
+        "object",
+        "string"
+      ],
+      "default": {},
+      "description": "Extended JSON: {\"_id\":{\"$oid\":\"…\"}}, {\"created_at\":{\"$gte\":{\"$date\":\"2026-10-22T00:00:00Z\"}}}. A string may use mongosh literals: ObjectId('…'), ISODate('…')."
+    },
+    "projection": {
+      "type": [
+        "object",
+        "string"
+      ]
+    },
+    "sort": {
+      "type": [
+        "object",
+        "string"
+      ]
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "default": 50
+    },
+    "skip": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100000,
+      "default": 0
+    }
+  }
+}

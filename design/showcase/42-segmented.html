@@ -1,0 +1,143 @@
+<section class="sc-section" id="segmented" data-title="Segmented control" data-group="Forms">
+  <h2>Segmented control <code class="gw-code">gw-segmented</code></h2>
+  <p>A real radio group drawn as joined segments: Tab lands on the checked option, arrow keys move and select, the value submits with the form, no script. The main case is the tool mode <strong>Off · Read only · Approval</strong>; there is no "allow writes" mode anywhere. The checked option takes its tone from <code class="gw-code">data-tone</code> (off neutral, read info, approval warning, or any tone name such as dev, stage, prod) with an edge in the tone colour, semibold text and its own icon, so the choice never rests on a tint alone. Without <code class="gw-code">data-tone</code> it is brand, for plain view switches. For a mutating tool <strong>Read only</strong> is disabled and the reason is visible next to the control and linked with <code class="gw-code">aria-describedby</code>. Not for switching views of a panel (that is <code class="gw-code">gw-tabs--contained</code>) or for more than four options (use <code class="gw-code">gw-select</code>).</p>
+
+  <h3>Tool mode</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-field gw-field--inline">
+      <span class="gw-field__label"><code class="gw-code">sql_query</code> <span class="gw-badge gw-badge--outline gw-badge--sm">readOnly</span></span>
+      <div class="gw-field__control">
+        <fieldset class="gw-segmented">
+          <legend class="gw-sr-only">Mode for sql_query</legend>
+          <label class="gw-segmented__option" data-tone="off">
+            <input class="gw-segmented__input" type="radio" name="sc-c-mode-query" value="off">
+            <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span>
+          </label>
+          <label class="gw-segmented__option" data-tone="read">
+            <input class="gw-segmented__input" type="radio" name="sc-c-mode-query" value="read" checked>
+            <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span>
+          </label>
+          <label class="gw-segmented__option" data-tone="approval">
+            <input class="gw-segmented__input" type="radio" name="sc-c-mode-query" value="approval">
+            <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span>
+          </label>
+        </fieldset>
+      </div>
+    </div>
+    <div class="gw-field gw-field--inline">
+      <span class="gw-field__label"><code class="gw-code">sql_execute</code> <span class="gw-badge gw-badge--danger gw-badge--outline gw-badge--sm">destructive</span></span>
+      <div class="gw-field__control">
+        <fieldset class="gw-segmented" aria-describedby="sc-c-mode-exec-why">
+          <legend class="gw-sr-only">Mode for sql_execute</legend>
+          <label class="gw-segmented__option" data-tone="off">
+            <input class="gw-segmented__input" type="radio" name="sc-c-mode-exec" value="off">
+            <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span>
+          </label>
+          <label class="gw-segmented__option" data-tone="read">
+            <input class="gw-segmented__input" type="radio" name="sc-c-mode-exec" value="read" disabled aria-describedby="sc-c-mode-exec-why">
+            <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span>
+          </label>
+          <label class="gw-segmented__option" data-tone="approval">
+            <input class="gw-segmented__input" type="radio" name="sc-c-mode-exec" value="approval" checked>
+            <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span>
+          </label>
+        </fieldset>
+        <p class="gw-field__hint" id="sc-c-mode-exec-why">Read only is unavailable: <code class="gw-code">sql_execute</code> changes data, so it runs only after an approval.</p>
+      </div>
+    </div>
+    <div class="gw-field gw-field--inline">
+      <span class="gw-field__label"><code class="gw-code">sql_query</code> <span class="gw-env gw-env--sm gw-env--prod">prod</span></span>
+      <div class="gw-field__control">
+        <fieldset class="gw-segmented" disabled aria-describedby="sc-c-mode-prod-why">
+          <legend class="gw-sr-only">Mode for sql_query on prod-replica</legend>
+          <label class="gw-segmented__option" data-tone="off">
+            <input class="gw-segmented__input" type="radio" name="sc-c-mode-prod" value="off">
+            <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span>
+          </label>
+          <label class="gw-segmented__option" data-tone="read">
+            <input class="gw-segmented__input" type="radio" name="sc-c-mode-prod" value="read" checked>
+            <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span>
+          </label>
+          <label class="gw-segmented__option" data-tone="approval">
+            <input class="gw-segmented__input" type="radio" name="sc-c-mode-prod" value="approval">
+            <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span>
+          </label>
+        </fieldset>
+        <p class="gw-field__hint" id="sc-c-mode-prod-why">Locked by the prod policy of endpoint <code class="gw-code">incident-prod</code>: <code class="gw-code">prod-replica</code> is read only.</p>
+      </div>
+    </div>
+  </div>
+
+  <h3>Small, other tones and no tone</h3>
+  <div class="sc-demo" data-sc-code>
+    <fieldset class="gw-segmented gw-segmented--sm">
+      <legend class="gw-sr-only">Mode for logs_search</legend>
+      <label class="gw-segmented__option" data-tone="off">
+        <input class="gw-segmented__input" type="radio" name="sc-c-mode-logs" value="off">
+        <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span>
+      </label>
+      <label class="gw-segmented__option" data-tone="read">
+        <input class="gw-segmented__input" type="radio" name="sc-c-mode-logs" value="read" checked>
+        <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span>
+      </label>
+      <label class="gw-segmented__option" data-tone="approval">
+        <input class="gw-segmented__input" type="radio" name="sc-c-mode-logs" value="approval">
+        <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span>
+      </label>
+    </fieldset>
+    <div class="gw-segmented gw-segmented--sm" role="radiogroup" aria-label="Environment">
+      <label class="gw-segmented__option" data-tone="dev">
+        <input class="gw-segmented__input" type="radio" name="sc-c-pg-env" value="dev" checked>
+        <span class="gw-segmented__label">dev</span>
+      </label>
+      <label class="gw-segmented__option" data-tone="stage">
+        <input class="gw-segmented__input" type="radio" name="sc-c-pg-env" value="stage">
+        <span class="gw-segmented__label">stage</span>
+      </label>
+      <label class="gw-segmented__option" data-tone="prod">
+        <input class="gw-segmented__input" type="radio" name="sc-c-pg-env" value="prod">
+        <span class="gw-segmented__label">prod</span>
+      </label>
+    </div>
+    <div class="gw-segmented gw-segmented--sm" role="radiogroup" aria-label="Time range">
+      <label class="gw-segmented__option">
+        <input class="gw-segmented__input" type="radio" name="sc-c-range" value="1h">
+        <span class="gw-segmented__label">1h</span>
+      </label>
+      <label class="gw-segmented__option">
+        <input class="gw-segmented__input" type="radio" name="sc-c-range" value="24h" checked>
+        <span class="gw-segmented__label">24h</span>
+      </label>
+      <label class="gw-segmented__option">
+        <input class="gw-segmented__input" type="radio" name="sc-c-range" value="7d">
+        <span class="gw-segmented__label">7d</span>
+      </label>
+      <label class="gw-segmented__option">
+        <input class="gw-segmented__input" type="radio" name="sc-c-range" value="30d">
+        <span class="gw-segmented__label">30d</span>
+      </label>
+    </div>
+  </div>
+
+  <h3>Block (fills its container)</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <fieldset class="gw-field">
+      <legend class="gw-field__label">Default mode for new tools</legend>
+      <div class="gw-segmented gw-segmented--block">
+        <label class="gw-segmented__option" data-tone="off">
+          <input class="gw-segmented__input" type="radio" name="sc-c-mode-default" value="off" checked>
+          <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span>
+        </label>
+        <label class="gw-segmented__option" data-tone="read">
+          <input class="gw-segmented__input" type="radio" name="sc-c-mode-default" value="read">
+          <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span>
+        </label>
+        <label class="gw-segmented__option" data-tone="approval">
+          <input class="gw-segmented__input" type="radio" name="sc-c-mode-default" value="approval">
+          <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span>
+        </label>
+      </div>
+      <p class="gw-field__hint">Tools a connector adds later start in this mode. Off is the safest default.</p>
+    </fieldset>
+  </div>
+</section>

@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "x-card": {
+    "description": "MySQL 8 and MariaDB. Read queries, schema, EXPLAIN."
+  },
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "credentials"
+  ],
+  "properties": {
+    "connection": {
+      "type": "object",
+      "title": "Connection",
+      "description": "Where the core reaches the database. It connects from this machine, so your VPN and hosts file apply.",
+      "additionalProperties": false,
+      "required": [
+        "host",
+        "port"
+      ],
+      "properties": {
+        "host": {
+          "type": "string",
+          "title": "Host",
+          "maxLength": 253,
+          "pattern": "^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$|^\\d{1,3}(?:\\.\\d{1,3}){3}$|^\\[[0-9A-Fa-f:.]+\\]$"
+        },
+        "port": {
+          "type": "integer",
+          "title": "Port",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 3306
+        },
+        "database": {
+          "type": "string",
+          "title": "Database",
+          "pattern": "^[A-Za-z0-9_$.-]{1,63}$",
+          "description": "The default database. Empty: none; qualify tables with their database."
+        },
+        "sslMode": {
+          "type": "string",
+          "title": "SSL mode",
+          "enum": [
+            "disable",
+            "require",
+            "verify-ca",
+            "verify-full"
+          ],
+          "default": "verify-full",
+          "x-enumTitles": [
+            "Off (disable)",
+            "Encrypt, don't verify (require)",
+            "Verify the CA (verify-ca)",
+            "Verify the CA and host name (verify-full)"
+          ],
+          "description": "verify-full checks the certificate and the host name. Lower it only for a database without TLS on a network you trust."
+        },
+        "caCertificate": {
+          "type": "string",
+          "title": "CA certificate (PEM)",
+          "maxLength": 20000,
+          "x-widget": "textarea",
+          "description": "Only for a private CA. Empty: the system trust store."
+        }
+      }
+    },
+    "credentials": {
+      "type": "object",
+      "title": "Credentials",
+      "x-gateway-secret": "login",
+      "additionalProperties": false,
+      "required": [
+        "user",
+        "password"
+      ],
+      "properties": {
+        "user": {
+          "type": "string",
+          "title": "User",
+          "maxLength": 63,
+          "description": "Use a user that can only read wherever you can. The test below shows what it may do."
+        },
+        "password": {
+          "type": "string",
+          "title": "Password",
+          "writeOnly": true,
+          "format": "password"
+        }
+      }
+    },
+    "advanced": {
+      "type": "object",
+      "title": "Advanced",
+      "x-collapsed": true,
+      "additionalProperties": false,
+      "description": "Timeouts, pool and schema allowlist. Policies can tighten them per environment.",
+      "properties": {
+        "statementTimeoutMs": {
+          "type": "integer",
+          "title": "Statement timeout",
+          "minimum": 100,
+          "maximum": 600000,
+          "x-unit": "ms",
+          "x-stricter": "min",
+          "description": "The database cancels slower statements. Empty: the environment policy."
+        },
+        "poolSize": {
+          "type": "integer",
+          "title": "Pool size",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 2,
+          "x-unit": "connections"
+        },
+        "schemaAllowlist": {
+          "type": "array",
+          "title": "Database allowlist",
+          "uniqueItems": true,
+          "maxItems": 100,
+          "x-stricter": "intersect",
+          "items": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "allowedFunctions": {
+          "type": "array",
+          "title": "Functions reads may call",
+          "uniqueItems": true,
+          "maxItems": 200,
+          "items": {
+            "type": "string",
+            "maxLength": 200,
+            "pattern": "^[A-Za-z_][A-Za-z0-9_$]*(\\.[A-Za-z_][A-Za-z0-9_$]*)?$"
+          },
+          "description": "Your own functions that only read, as name or database.name. Reads may call built-in functions; any other one waits for approval, and on prod it is refused."
+        },
+        "connectTimeoutMs": {
+          "type": "integer",
+          "title": "Connect timeout",
+          "minimum": 1000,
+          "maximum": 30000,
+          "default": 5000,
+          "x-unit": "ms"
+        },
+        "allowPublicKeyRetrieval": {
+          "type": "boolean",
+          "title": "Allow public key retrieval",
+          "default": false,
+          "description": "Lets a fake server capture the password; prefer TLS. Needed without TLS for caching_sha2_password users."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,184 @@
+// =============================================================
+// .gw-form · Form layout
+// -------------------------------------------------------------
+// Sections of fields with a title and a one-paragraph explanation.
+// Below lg: one column (title → description → rows). From lg: the title
+// and description take the left third, the rows the right two thirds,
+// so a long settings page reads as a list of topics. Inside a gw-dialog or
+// gw-drawer the sections always stay in one column.
+//
+//   <form class="gw-form gw-form--sticky-actions" aria-labelledby="page-title">
+//     <fieldset class="gw-form__section">
+//       <legend class="gw-form__legend">Connection</legend>
+//       <p class="gw-form__description">Where the core reaches the database.</p>
+//       <div class="gw-form__rows">
+//         <div class="gw-form__row"> gw-field × 3 </div>
+//         <div class="gw-field">…</div>
+//       </div>
+//     </fieldset>
+//     <div class="gw-form__actions">
+//       <p class="gw-form__note" role="status"><i class="gw-icon" data-lucide="circle-dot"></i>Unsaved changes</p>
+//       <button class="gw-btn" type="button">Discard</button>
+//       <button class="gw-btn gw-btn--primary" type="submit">Save connection</button>
+//     </div>
+//   </form>
+//
+//   A section that holds nested fieldsets (or must appear in the heading
+//   outline) is a <section aria-labelledby> with __section-header around an
+//   <h2 class="gw-form__legend"> and the __description.
+//
+// Subparts
+//   __section         <fieldset> (legend = its name) or <section>
+//   __section-header  wraps heading + description in the <section> form
+//   __legend          section title (h2 type). As <legend> it floats so it joins
+//                     the grid and still names the fieldset.
+//   __description     what the section controls, in secondary text
+//   __rows            the fields, stacked with --gw-space-4
+//   __row             fields side by side (Host · Port · Database), each at least
+//                     160px, wrapping on narrow widths. Kit addition to the
+//                     BLUEPRINT contract. A row of gw-choice-card stretches them
+//                     to one height.
+//   __actions         Save / Discard, right aligned, primary last
+//   __note            status text at the start of __actions ("Unsaved changes");
+//                     kit addition. Give it role="status" so its appearance is
+//                     announced.
+// Variants
+//   --sticky-actions  __actions floats at the bottom of the scrolling main area
+//                     as a bar (overlay surface) while the form is in view, with a
+//                     canvas band under it (content never peeks out below the bar).
+//                     Render it only while the form has unsaved changes.
+// Sections are divided by a subtle rule and --gw-space-8 on both sides.
+// A11y     One legend per fieldset; errors: focus the first invalid field on
+//          submit (DESIGN §8 Forms). Primary submit is a type="submit" button.
+// Raw values: __row minimum field width 160px (4 × --gw-size-control-lg)
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+.gw-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gw-space-8);
+  min-width: 0;
+
+  &__section {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+
+    & + & {
+      padding-block-start: var(--gw-space-8);
+      border-block-start: var(--gw-border-width-default) solid var(--gw-color-border-subtle);
+    }
+
+    > .gw-form__description { margin-block-start: var(--gw-space-1); }
+    > .gw-form__rows { margin-block-start: var(--gw-space-4); }
+  }
+
+  &__section-header {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-1);
+    min-width: 0;
+  }
+
+  &__legend {
+    margin: 0;
+    padding: 0;
+    @include gw-type(h2);
+    color: var(--gw-color-text-primary);
+  }
+
+  &__description {
+    margin: 0;
+    @include gw-type(small);
+    color: var(--gw-color-text-secondary);
+  }
+
+  &__rows {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-4);
+    min-width: 0;
+  }
+
+  &__row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--gw-size-control-lg) * 4)), 1fr)); // raw: 160px minimum field width
+    gap: var(--gw-space-4);
+    align-items: start;
+    min-width: 0;
+
+    // A row of choice cards (Environment: dev · stage · prod) is one even group.
+    &:has(> .gw-choice-card) { align-items: stretch; }
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--gw-space-2);
+    min-width: 0;
+  }
+
+  &__note {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--gw-space-1-5);
+    margin: 0;
+    margin-inline-end: auto;
+    @include gw-type(small);
+    color: var(--gw-color-text-secondary);
+
+    > .gw-icon {
+      --gw-icon-size: var(--gw-size-icon-sm);
+      color: var(--gw-color-warning-fg);
+    }
+  }
+
+  // ─── Sticky action bar ───
+  &--sticky-actions > .gw-form__actions {
+    position: sticky;
+    inset-block-end: var(--gw-space-4);
+    z-index: var(--gw-z-sticky);
+    @include gw-overlay-surface;
+    // A canvas band fills the gap under the floating bar, so rows scrolling
+    // past don't show through below it.
+    box-shadow: 0 var(--gw-space-4) 0 var(--gw-color-bg-canvas), var(--gw-shadow-md);
+    padding: var(--gw-space-2);
+    padding-inline-start: var(--gw-space-4);
+  }
+}
+
+// ─── Two columns from lg: title + description left, rows right ───
+// A dialog or drawer is narrow at any window width: its sections stay stacked.
+@include gw-bp-up(lg) {
+  .gw-form__section:not(:is(.gw-dialog, .gw-drawer) .gw-form__section) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    // the last row absorbs the height of the rows column
+    grid-template-rows: auto auto 1fr;
+    column-gap: var(--gw-space-8);
+
+    > .gw-form__legend { grid-column: 1; grid-row: 1; }
+    > .gw-form__description { grid-column: 1; grid-row: 2; }
+    > .gw-form__section-header { grid-column: 1; grid-row: 1 / span 2; }
+    > .gw-form__rows {
+      grid-column: 2;
+      grid-row: 1 / span 3;
+      margin-block-start: 0;
+    }
+  }
+}
+
+// A floated legend is not the "rendered legend": it becomes a grid item
+// and still names its fieldset.
+legend.gw-form__legend {
+  float: left;
+  width: 100%;
+}

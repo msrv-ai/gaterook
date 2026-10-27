@@ -1,0 +1,27 @@
+{
+  "jsonrpc" : "2.0",
+  "id" : 63,
+  "result" : {
+    "ok" : true,
+    "latencyMs" : 182,
+    "serverVersion" : "5.25.0",
+    "identity" : "svc-gateway@acme.com",
+    "permissions" : {
+      "level" : "WRITE",
+      "read" : "Browse projects",
+      "write" : "Add comments",
+      "admin" : [ ]
+    },
+    "hints" : [ {
+      "severity" : "WARNING",
+      "code" : "can-write",
+      "text" : "This account can comment on requests. Use a read-only account for prod."
+    } ],
+    "checks" : [ {
+      "name" : "servicedeskapi/info",
+      "ok" : true,
+      "ms" : 40,
+      "detail" : "5.25.0"
+    } ]
+  }
+}

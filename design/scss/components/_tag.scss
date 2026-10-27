@@ -1,0 +1,163 @@
+// =============================================================
+// .gw-tag · .gw-tag-list
+// -------------------------------------------------------------
+// A value as a token: an allowlist entry (host, IP, CIDR, schema), an
+// active filter of the log explorer (decision:denied), a scope. 24px tall,
+// square-ish corners (radius xs) and a full border so it never reads as a
+// status pill (.gw-badge). A tag is not a button: when it can be removed,
+// the remove control is a real <button> inside it.
+//
+//   <ul class="gw-tag-list" aria-label="Allowed hosts">
+//     <li class="gw-tag gw-tag--mono">
+//       <span class="gw-tag__label">db.dev.internal</span>
+//       <button class="gw-tag__remove" type="button" aria-label="Remove db.dev.internal">
+//         <i class="gw-icon" data-lucide="x"></i>
+//       </button>
+//     </li>
+//   </ul>
+//
+// Modifiers  --mono     literal values (hosts, IPs, schemas, tool globs,
+//                       structured filters): JetBrains Mono, no ligatures
+//            --<tone>   brand success warning danger info neutral dev stage prod:
+//                       tint + tone text + tone border (e.g. --danger for an entry
+//                       that failed validation, --prod for a prod-only scope).
+//                       Default look: raised fill, default border, primary text.
+// Subparts   __label    the value; truncates with an ellipsis when the row is
+//                       narrow. Put the full value in title="" for the pointer;
+//                       for the keyboard the label wraps in full while focus
+//                       is inside the tag (:focus-within on the remove button).
+//                       A truncatable tag without a remove button must show
+//                       its full value elsewhere on the page.
+//            __remove   24 × 24 icon button flush with the end edge: always a
+//                       <button type="button"> with aria-label "Remove <value>"
+//            leading .gw-icon (optional, 12px): a second cue for an entry's
+//                       state, e.g. circle-alert on an invalid entry, lock on a
+//                       locked one
+// States     __remove :hover wash, :active, :focus-visible ring.
+//            :focus-within on the tag: label un-truncates (may grow the tag).
+//            __remove [aria-disabled="true"] (preferred: stays focusable, so
+//            aria-describedby can say why) or :disabled: entry required by
+//            policy; the reason is written nearby.
+//            Invalid entry: --danger + circle-alert icon + a field error that
+//            names the value.
+// A11y       Remove target 24 × 24 (WCAG 2.5.8) with the standard focus ring;
+//            never revealed on hover only. After removal, move focus to the
+//            next tag's remove button, or to the input that adds tags.
+//            Text and tone pairs are the verified fg-on-subtle ones; the full
+//            border keeps the shape in forced-colors mode.
+//
+// .gw-tag-list  Wrapping row of tags with a 6px gap, on a <ul> (list
+//               semantics: "Allowed hosts, list, 3 items") or a <div>.
+// Raw values none (icon stroke width matches .gw-icon--xs).
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+.gw-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gw-space-1);
+  max-width: 100%;
+  min-width: 0;
+  // As tall as the minimum target, so the remove button fits without growing it.
+  height: var(--gw-size-target-min);
+  padding-inline: var(--gw-space-2);
+  @include gw-type(caption);
+  white-space: nowrap;
+  vertical-align: middle;
+  color: var(--gw-color-text-primary);
+  background: var(--gw-color-bg-raised);
+  border: var(--gw-border-width-default) solid var(--gw-color-border-default);
+  border-radius: var(--gw-radius-xs);
+
+  &__label {
+    @include gw-truncate;
+  }
+
+  // Keyboard path to a truncated value (title="" is pointer-only): while
+  // focus is inside the tag (its remove button), the label wraps in full.
+  &:focus-within {
+    height: auto;
+    min-height: var(--gw-size-target-min);
+    padding-block: var(--gw-space-0-5);
+
+    .gw-tag__label {
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
+    // Absorb the padding so a one-line tag keeps its 24px height (no jump).
+    .gw-tag__remove {
+      margin-block: calc(-1 * (var(--gw-space-0-5) + var(--gw-border-width-default)));
+    }
+  }
+
+  // Optional leading state icon (circle-alert, lock): same 12px as badge icons.
+  > .gw-icon {
+    --gw-icon-size: var(--gw-size-icon-xs);
+    stroke-width: 2.25;
+    margin-inline-start: calc(-1 * var(--gw-space-0-5));
+  }
+
+  // The button is 24 × 24 inside a 24px tag: it overlaps the 1px border so
+  // the target keeps its full size, and sits flush with the end edge.
+  &__remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: var(--gw-size-target-min);
+    height: var(--gw-size-target-min);
+    margin-block: calc(-1 * var(--gw-border-width-default));
+    margin-inline-start: calc(-1 * var(--gw-space-0-5));
+    margin-inline-end: calc(-1 * (var(--gw-space-2) + var(--gw-border-width-default)));
+    padding: 0;
+    color: inherit;
+    background: transparent;
+    border: 0;
+    border-radius: var(--gw-radius-xs);
+    cursor: pointer;
+    transition: background-color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard);
+    @include gw-hover-wash;
+    @include gw-focus-ring;
+
+    .gw-icon {
+      --gw-icon-size: var(--gw-size-icon-xs);
+      stroke-width: 2.25;
+    }
+
+    &:disabled,
+    &[aria-disabled="true"] {
+      color: var(--gw-color-text-disabled);
+      cursor: not-allowed;
+    }
+  }
+
+  // ─── Modifiers ───
+  &--mono {
+    @include gw-type(code-sm);
+  }
+
+  // Explicit paint per tone (not var() fallbacks on the base): a tag inside a
+  // toned container (alert, toast) must not inherit that container's tone.
+  @each $t in (brand, success, warning, danger, info, neutral, dev, stage, prod) {
+    &--#{$t} {
+      @include gw-tone($t);
+      color: var(--gw-tone-fg);
+      background: var(--gw-tone-subtle);
+      border-color: var(--gw-tone-border);
+    }
+  }
+}
+
+.gw-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gw-space-1-5);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

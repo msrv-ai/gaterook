@@ -1,0 +1,133 @@
+# The core's fixed configuration (ARCHITECTURE.md §2.4, report 14 §4.1). Nothing here is edited by people: Settings
+# live in the database, ports come from the bootstrap line on stdin (Electron's desktop.json).
+spring:
+  application:
+    name: mcp-gateway
+  main:
+    banner-mode: off
+  threads:
+    virtual:
+      enabled: true
+  lifecycle:
+    timeout-per-shutdown-phase: 10s
+  autoconfigure:
+    # Start-up cost without a use here (ARCHITECTURE.md §10, M1.7): MCP calls get their SERVER spans from
+    # platform.CallTracing, not from an observation per HTTP request (that filter also pulled the whole observation,
+    # metrics and tracing graph into the web server's setup); repository call timers and Spring Data's MVC argument
+    # resolvers (no controller takes a Pageable) are not needed either.
+    exclude:
+      - org.springframework.boot.webmvc.autoconfigure.WebMvcObservationAutoConfiguration
+      - org.springframework.boot.data.autoconfigure.metrics.DataRepositoryMetricsAutoConfiguration
+      - org.springframework.boot.data.autoconfigure.web.DataWebAutoConfiguration
+      # Nothing here uses them, and each of their beans was created, bound and walked by every by-type lookup at
+      # start (M1.7 review): the gateway database is JPA over the core's own pools (decision 3) — no JdbcTemplate or
+      # JdbcClient, no schema.sql, the JPA transaction manager, Flyway migrating — so neither Boot's DataSource nor its
+      # JDBC conveniences; no @Repository class to translate exceptions for (Spring Data translates its
+      # repositories itself); no JTA, @Scheduled, availability probes or build-info. JVM, system, Logback, Tomcat,
+      # pool, task and startup meters describe a JVM the native image isn't (its GC has no notifications), and no
+      # screen shows them; OTLP logs and exemplars aren't exported (A17).
+      - org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
+      - org.springframework.boot.jdbc.autoconfigure.DataSourceInitializationAutoConfiguration
+      - org.springframework.boot.jdbc.autoconfigure.DataSourceTransactionManagerAutoConfiguration
+      - org.springframework.boot.jdbc.autoconfigure.JdbcClientAutoConfiguration
+      - org.springframework.boot.jdbc.autoconfigure.JdbcTemplateAutoConfiguration
+      - org.springframework.boot.jdbc.autoconfigure.metrics.DataSourcePoolMetricsAutoConfiguration
+      - org.springframework.boot.persistence.autoconfigure.PersistenceExceptionTranslationAutoConfiguration
+      - org.springframework.boot.transaction.jta.autoconfigure.JtaAutoConfiguration
+      - org.springframework.boot.autoconfigure.task.TaskSchedulingAutoConfiguration
+      - org.springframework.boot.autoconfigure.availability.ApplicationAvailabilityAutoConfiguration
+      - org.springframework.boot.autoconfigure.info.ProjectInfoAutoConfiguration
+      - org.springframework.boot.micrometer.metrics.autoconfigure.jvm.JvmMetricsAutoConfiguration
+      - org.springframework.boot.micrometer.metrics.autoconfigure.system.SystemMetricsAutoConfiguration
+      - org.springframework.boot.micrometer.metrics.autoconfigure.logging.logback.LogbackMetricsAutoConfiguration
+      - org.springframework.boot.micrometer.metrics.autoconfigure.ssl.SslMetricsAutoConfiguration
+      - org.springframework.boot.micrometer.metrics.autoconfigure.startup.StartupTimeMetricsListenerAutoConfiguration
+      - org.springframework.boot.micrometer.metrics.autoconfigure.task.TaskExecutorMetricsAutoConfiguration
+      - org.springframework.boot.micrometer.observation.autoconfigure.ScheduledTasksObservationAutoConfiguration
+      - org.springframework.boot.micrometer.tracing.autoconfigure.otlp.OtlpExemplarsAutoConfiguration
+      - org.springframework.boot.opentelemetry.autoconfigure.logging.OpenTelemetryLoggingAutoConfiguration
+      - org.springframework.boot.opentelemetry.autoconfigure.logging.otlp.OtlpLoggingAutoConfiguration
+      - org.springframework.boot.tomcat.autoconfigure.metrics.TomcatMetricsAutoConfiguration
+  aop:
+    # No @Aspect anywhere: the transaction advisor needs only the infrastructure auto-proxy creator that
+    # @EnableTransactionManagement registers, not the AspectJ one that asks every bean whether it is an aspect.
+    auto: false
+  jpa:
+    open-in-view: false
+    # Hibernate builds the persistence unit on the task executor while the web server is set up (platform.db).
+    bootstrap: async
+    hibernate:
+      # The schema is Flyway's; Hibernate only checks its mapping against it, on every start (decision 3), the native
+      # smoke included. It runs with the rest of the persistence unit on the bootstrap executor, beside the web
+      # server's setup, so it stays off the warm start's critical path. No database-platform: SQLiteDialect is
+      # resolved from JDBC metadata, a class name here breaks the native start (report 15 rule 15).
+      ddl-auto: validate
+  flyway:
+    locations: classpath:db/migration
+    validate-migration-naming: true
+    # Steps own version ranges (ARCHITECTURE.md §4: M1 V1–V9, K2 V30…, K4 V50…, K5 V80…) and merge in any order, so a
+    # database can hold a later range and meet an earlier range's new migration: apply it instead of refusing to start.
+    out-of-order: true
+  web:
+    resources:
+      # The core serves no static files (the UI is Electron's app:// scheme); no resource handlers to set up.
+      add-mappings: false
+
+server:
+  # Always 127.0.0.1 (LocalWebConfig enforces it in code as well); the port is the bootstrap's.
+  address: 127.0.0.1
+  port: 7465
+  shutdown: graceful
+  tomcat:
+    max-connections: 200
+    connection-timeout: 20s
+  error:
+    whitelabel:
+      enabled: false
+    include-stacktrace: never
+    include-message: never
+    include-binding-errors: never
+    include-exception: false
+
+management:
+  server:
+    port: -1
+  otlp:
+    metrics:
+      export:
+        # Otherwise micrometer-registry-otlp pushes to localhost:4318 every minute (report 14 §1).
+        enabled: false
+  tracing:
+    sampling:
+      probability: 1.0
+
+logging:
+  file:
+    name: ${gateway.home}/logs/core.log
+  # %mask (platform.MaskingLogs): secret rules over every message and stack trace, in the file and on stderr.
+  pattern:
+    file: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %5p [%t] %-40.40logger{39} : %mask(%m%n%wEx)"
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %5p [%t] %-40.40logger{39} : %mask(%m%n%wEx)"
+  logback:
+    rollingpolicy:
+      max-file-size: 10MB
+      total-size-cap: 50MB
+      max-history: 7
+  level:
+    org.hibernate.orm.deprecation: error
+    # The MCP SDK client of external servers (C10) logs whole messages below warn: arguments and results stay out.
+    io.modelcontextprotocol: warn
+
+gateway:
+  # ~/.mcp-gateway: database, logs, backups, keys. Tests and dev runs point it elsewhere (-Dgateway.home=./.dev).
+  home: ${user.home}/.mcp-gateway
+  # The tunnel listener; the bootstrap overrides it.
+  public-port: 7466
+  # Development relaxations (JVM builds only, never honoured by a release, see platform.BuildFlags).
+  dev: false
+  db:
+    reader-pool-size: 3
+    busy-timeout: 5s
+    connection-timeout: 10s
+  events:
+    heartbeat: 15s

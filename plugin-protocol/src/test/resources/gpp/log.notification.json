@@ -1,0 +1,10 @@
+{
+  "jsonrpc" : "2.0",
+  "method" : "log",
+  "params" : {
+    "level" : "debug",
+    "logger" : "io.acme.jsm.Http",
+    "callId" : "tc_01JBA7Q2",
+    "message" : "GET /rest/servicedeskapi/request/SD-123/sla 200 212 ms"
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SQL",
+  "type": "object",
+  "x-policy-section": "sql",
+  "additionalProperties": false,
+  "properties": {
+    "readOnlyTransactions": {
+      "type": "boolean",
+      "const": true,
+      "default": true,
+      "readOnly": true,
+      "title": "Run queries in a read-only transaction",
+      "description": "Always on: every read runs in a READ ONLY transaction that ends with ROLLBACK."
+    },
+    "statementTimeoutMs": {
+      "type": "integer",
+      "title": "Statement timeout",
+      "minimum": 100,
+      "maximum": 600000,
+      "default": 5000,
+      "x-unit": "ms",
+      "x-stricter": "min",
+      "x-env-default": {
+        "prod": 3000
+      }
+    },
+    "rowLimit": {
+      "type": "integer",
+      "title": "Row limit",
+      "minimum": 1,
+      "maximum": 100000,
+      "default": 1000,
+      "x-unit": "rows",
+      "x-stricter": "min",
+      "x-env-default": {
+        "prod": 100
+      }
+    },
+    "denyDdl": {
+      "type": "boolean",
+      "title": "Block DDL",
+      "default": false,
+      "x-stricter": "or",
+      "x-env-default": {
+        "stage": true,
+        "prod": true
+      },
+      "description": "CREATE, ALTER, DROP and TRUNCATE are denied instead of waiting for approval."
+    },
+    "allowlist": {
+      "type": "array",
+      "title": "Tables agents may use",
+      "uniqueItems": true,
+      "maxItems": 500,
+      "x-stricter": "intersect",
+      "items": {
+        "type": "string",
+        "maxLength": 200
+      },
+      "description": "schema.table or schema.*. Empty: every table the user can read."
+    },
+    "deniedFunctions": {
+      "type": "array",
+      "title": "More denied functions",
+      "uniqueItems": true,
+      "maxItems": 500,
+      "x-stricter": "union",
+      "items": {
+        "type": "string",
+        "maxLength": 128
+      },
+      "description": "Added to the built-in denylist."
+    },
+    "maxResponseKb": {
+      "type": "integer",
+      "title": "Max response size",
+      "minimum": 1,
+      "maximum": 10240,
+      "default": 512,
+      "x-unit": "KB",
+      "x-stricter": "min"
+    }
+  }
+}

@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Core starting · GateRook</title>
+<link rel="icon" href="../assets/logo-mark.svg" type="image/svg+xml">
+<script src="../assets/theme-boot.js"></script>
+<link rel="stylesheet" href="../dist/gw-kit.css">
+</head>
+<body>
+<!--
+  CORE STATUS SCREEN · status-screen element (elements/status-screen.html).
+  No gw-shell, no sidebar: until the core answers on 127.0.0.1:7465 nothing in the app works, so this
+  screen IS the window. The Electron renderer shows it before the first successful health call and
+  again whenever the core exits (it then covers the app shell: position fixed, z status-screen).
+
+  Live state: starting. The other states (port in use, master key not found, stopped, didn't start) are
+  reachable with the demo switcher at the bottom; in the app the core's state picks the card and the
+  switcher does not exist. In the app each state's title is the page h1; here only the live state's
+  title is an h1 (one h1 per page) and the alternative cards use h2 with the same h1 look.
+
+  The core is a native binary (decision 2, ARCHITECTURE §8.6.1): its first step is "Native core", not a
+  Java runtime; Java runs only in the plugin host, started for Java plugins. A locked core (master key
+  missing or not the one the secrets were encrypted with) has migrated its database and listens on its
+  port (§7.1 case b), so the steps after Master key are complete (§8.6.18).
+-->
+<main class="gw-status-screen" id="main" data-state="starting" aria-labelledby="core-start-t">
+  <div class="gw-status-screen__drag" aria-hidden="true"></div>
+  <div class="gw-status-screen__column">
+    <span class="gw-logo gw-logo--xl">
+      <img class="gw-logo__mark" src="../assets/logo-mark.svg" alt="">
+      <span class="gw-logo__name">GateRook</span>
+    </span>
+
+    <!-- ═════════════ Starting (live state) ═════════════ -->
+    <div class="gw-tabs__panel" role="tabpanel" id="core-p-starting" aria-labelledby="core-t-starting" tabindex="0" data-state="starting" data-title="core-start-t">
+      <section class="gw-card gw-status-screen__card" aria-labelledby="core-start-t">
+        <div class="gw-card__body gw-status-screen__body">
+          <div class="gw-status-screen__intro">
+            <div class="gw-status-screen__text">
+              <h1 class="gw-text-h1" id="core-start-t">Starting the gateway core</h1>
+              <p class="gw-text-body-read">Starting the native core and the local API on <span class="gw-mono">127.0.0.1:7465</span>. This usually takes about a second.</p>
+            </div>
+          </div>
+          <div class="gw-progress gw-progress--indeterminate" role="progressbar" aria-labelledby="core-start-t">
+            <div class="gw-progress__bar"></div>
+          </div>
+          <ol class="gw-stepper gw-stepper--vertical" aria-label="Start-up steps">
+            <li class="gw-stepper__step" data-state="complete">
+              <span class="gw-stepper__marker" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
+              <span class="gw-stepper__label">Native core<span class="gw-sr-only">, completed</span></span>
+              <span class="gw-stepper__description">Native image · 0.1 s</span>
+            </li>
+            <li class="gw-stepper__step" data-state="complete">
+              <span class="gw-stepper__marker" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
+              <span class="gw-stepper__label">Master key<span class="gw-sr-only">, completed</span></span>
+              <span class="gw-stepper__description">Loaded <span class="gw-mono">~/.gaterook/master.keyset</span></span>
+            </li>
+            <li class="gw-stepper__step" data-state="complete">
+              <span class="gw-stepper__marker" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
+              <span class="gw-stepper__label">Database migrations<span class="gw-sr-only">, completed</span></span>
+              <span class="gw-stepper__description">Up to date · 2 applied in 0.4 s</span>
+            </li>
+            <li class="gw-stepper__step" data-state="current" aria-current="step">
+              <span class="gw-stepper__marker" aria-hidden="true"><span class="gw-spinner gw-spinner--sm"></span></span>
+              <span class="gw-stepper__label">Local API<span class="gw-sr-only">, in progress</span></span>
+              <span class="gw-stepper__description">Binding <span class="gw-mono">127.0.0.1:7465</span></span>
+            </li>
+          </ol>
+          <p class="gw-sr-only" role="status">Starting the gateway core: local API, step 4 of 4.</p>
+        </div>
+      </section>
+    </div>
+
+    <!-- ═════════════ Failed: port in use ═════════════ -->
+    <div class="gw-tabs__panel" role="tabpanel" id="core-p-port" aria-labelledby="core-t-port" hidden data-state="failed" data-title="core-port-t">
+      <section class="gw-card gw-status-screen__card" aria-labelledby="core-port-t">
+        <div class="gw-card__body gw-status-screen__body">
+          <div class="gw-status-screen__intro">
+            <span class="gw-icon-tile gw-icon-tile--lg gw-icon-tile--danger"><i class="gw-icon gw-icon--lg" data-lucide="ethernet-port"></i></span>
+            <div class="gw-status-screen__text">
+              <h2 class="gw-text-h1" id="core-port-t">Port 7465 is already in use</h2>
+              <p class="gw-text-body-read">Another process is listening on <span class="gw-mono">127.0.0.1:7465</span>, so the core can't start its local API. Stop that process and reopen GateRook, or start the core on another port: every endpoint URL changes, so AI apps with the URL in their config, such as Codex and Cursor, need to be connected again.</p>
+            </div>
+          </div>
+          <ol class="gw-stepper gw-stepper--vertical" aria-label="Start-up steps">
+            <li class="gw-stepper__step" data-state="complete">
+              <span class="gw-stepper__marker" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
+              <span class="gw-stepper__label">Native core<span class="gw-sr-only">, completed</span></span>
+            </li>
+            <li class="gw-stepper__step" data-state="complete">
+              <span class="gw-stepper__marker" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
+              <span class="gw-stepper__label">Master key<span class="gw-sr-only">, completed</span></span>
+            </li>
+            <li class="gw-stepper__step" data-state="complete">
+              <span class="gw-stepper__marker" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
+              <span class="gw-stepper__label">Database migrations<span class="gw-sr-only">, completed</span></span>
+            </li>
+            <li class="gw-stepper__step" data-state="error" aria-current="step">
+              <span class="gw-stepper__marker" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></span>
+              <span class="gw-stepper__label">Local API<span class="gw-sr-only">, failed</span></span>
+              <span class="gw-stepper__description">Address already in use: <span class="gw-mono">127.0.0.1:7465</span></span>
+            </li>
+          </ol>
+          <div class="gw-status-screen__details">
+            <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="true" aria-controls="core-port-help"><i class="gw-icon gw-icon--sm" data-lucide="square-terminal"></i> Find the process</button>
+            <div class="gw-stack gw-stack--sm" id="core-port-help">
+              <div class="gw-code-block">
+                <div class="gw-code-block__header">
+                  <span class="gw-code-block__lang">Shell</span>
+                  <span class="gw-code-block__filename">macOS and Linux</span>
+                  <div class="gw-code-block__actions">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#core-port-lsof">
+                      <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> command</span></span>
+                      <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Command that finds the process on port 7465">
+<pre class="gw-code-block__pre" id="core-port-lsof"><code>lsof -nP -iTCP:7465 -sTCP:LISTEN</code></pre>
+                </div>
+              </div>
+              <p class="gw-text-caption gw-fg-muted">On Windows: <code class="gw-code">netstat -ano | findstr :7465</code></p>
+            </div>
+          </div>
+          <p class="gw-sr-only" role="alert">The core failed to start: port 7465 is already in use.</p>
+        </div>
+        <footer class="gw-card__footer">
+          <button class="gw-btn" type="button">Quit</button>
+          <button class="gw-btn gw-btn--primary" type="button" data-gw-dialog-open="core-port-dlg">Use another port</button>
+        </footer>
+      </section>
+    </div>
+
+    <!-- ═════════════ Failed: master key not found ═════════════ -->
+    <div class="gw-tabs__panel" role="tabpanel" id="core-p-key" aria-labelledby="core-t-key" hidden data-state="failed" data-title="core-key-t">
+      <section class="gw-card gw-status-screen__card" aria-labelledby="core-key-t">
+        <div class="gw-card__body gw-status-screen__body">
+          <div class="gw-status-screen__intro">
+            <span class="gw-icon-tile gw-icon-tile--lg gw-icon-tile--danger"><i class="gw-icon gw-icon--lg" data-lucide="key-round"></i></span>
+            <div class="gw-status-screen__text">
+              <h2 class="gw-text-h1" id="core-key-t">Master key not found</h2>
+              <p class="gw-text-body-read">The core can't find <span class="gw-mono">~/.gaterook/master.keyset</span>, so it can't decrypt the 8 secrets stored here. Restore the key from your backup: the last copy was made 12 days ago.</p>
+            </div>
+          </div>
+          <ol class="gw-stepper gw-stepper--vertical" aria-label="Start-up steps">
+            <li class="gw-stepper__step" data-state="complete">
+              <span class="gw-stepper__marker" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
+              <span class="gw-stepper__label">Native core<span class="gw-sr-only">, completed</span></span>
+            </li>
+            <li class="gw-stepper__step" data-state="error" aria-current="step">
+              <span class="gw-stepper__marker" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></span>
+              <span class="gw-stepper__label">Master key<span class="gw-sr-only">, failed</span></span>
+              <span class="gw-stepper__description">No file at <span class="gw-mono">~/.gaterook/master.keyset</span></span>
+            </li>
+            <li class="gw-stepper__step" data-state="complete">
+              <span class="gw-stepper__marker" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
+              <span class="gw-stepper__label">Database migrations<span class="gw-sr-only">, completed</span></span>
+            </li>
+            <li class="gw-stepper__step" data-state="complete">
+              <span class="gw-stepper__marker" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
+              <span class="gw-stepper__label">Local API<span class="gw-sr-only">, completed</span></span>
+            </li>
+          </ol>
+          <div class="gw-alert gw-alert--danger">
+            <i class="gw-icon gw-alert__icon" data-lucide="circle-alert"></i>
+            <div class="gw-alert__content">
+              <p class="gw-alert__title">Without the backup, a new key can't read your secrets</p>
+              <p class="gw-alert__body">The 8 secrets encrypted here become unreadable (6 connections, the <span class="gw-mono">github-mcp</span> server token and the Vault sign-in), and you enter each one again. The 3 secret references to Vault, GCP and AWS keep working.</p>
+              <div class="gw-alert__actions">
+                <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" data-gw-dialog-open="core-newkey-dlg">Create a new key</button>
+              </div>
+            </div>
+          </div>
+          <p class="gw-sr-only" role="alert">The core failed to start: the master key was not found.</p>
+        </div>
+        <footer class="gw-card__footer">
+          <button class="gw-btn" type="button">Quit</button>
+          <button class="gw-btn gw-btn--primary" type="button" data-gw-dialog-open="core-restore-dlg"><i class="gw-icon" data-lucide="archive-restore"></i> Restore from backup</button>
+        </footer>
+      </section>
+    </div>
+
+    <!-- ═════════════ Stopped unexpectedly ═════════════ -->
+    <div class="gw-tabs__panel" role="tabpanel" id="core-p-stopped" aria-labelledby="core-t-stopped" hidden data-state="stopped" data-title="core-stop-t">
+      <section class="gw-card gw-status-screen__card" aria-labelledby="core-stop-t">
+        <div class="gw-card__body gw-status-screen__body">
+          <div class="gw-status-screen__intro">
+            <span class="gw-icon-tile gw-icon-tile--lg gw-icon-tile--danger"><i class="gw-icon gw-icon--lg" data-lucide="power"></i></span>
+            <div class="gw-status-screen__text">
+              <h2 class="gw-text-h1" id="core-stop-t">Core stopped unexpectedly</h2>
+              <p class="gw-text-body-read">The gateway core exited at <time datetime="2026-10-22T14:29:52+02:00" title="2026-10-22 14:29:52 +02:00">14:29</time>. Agents can't reach your endpoints until it runs again. The 3 pending approval requests are kept and expire as usual.</p>
+            </div>
+          </div>
+          <dl class="gw-kv gw-kv--dense">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Exit code</dt><dd class="gw-kv__value gw-mono">3</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Reason</dt><dd class="gw-kv__value gw-mono">java.lang.OutOfMemoryError: Java heap space</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Uptime</dt><dd class="gw-kv__value">3 h 12 min</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Log file</dt><dd class="gw-kv__value gw-mono">~/.gaterook/logs/core.log</dd></div>
+          </dl>
+          <div class="gw-status-screen__details">
+            <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="core-stop-log"><i class="gw-icon gw-icon--sm" data-lucide="scroll-text"></i> Show the last log lines</button>
+            <div class="gw-code-block gw-code-block--wrap" id="core-stop-log" hidden>
+              <div class="gw-code-block__header">
+                <span class="gw-code-block__lang">Log</span>
+                <span class="gw-code-block__filename">core.log · last 4 lines</span>
+                <div class="gw-code-block__actions">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#core-stop-lines">
+                    <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> log lines</span></span>
+                    <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                  </button>
+                </div>
+              </div>
+              <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Last log lines">
+<pre class="gw-code-block__pre" id="core-stop-lines"><code>14:29:51.981 WARN  c.g.audit.Writer     - Audit queue at 92% (46,080 events)
+14:29:52.402 ERROR c.g.core.Main        - Uncaught in worker-7: java.lang.OutOfMemoryError: Java heap space
+14:29:52.405 INFO  c.g.core.Main        - Shutting down: 3 pending approval requests kept
+14:29:52.411 INFO  c.g.core.Main        - Terminating (exit 3)</code></pre>
+              </div>
+            </div>
+          </div>
+          <p class="gw-sr-only" role="alert">The gateway core stopped unexpectedly.</p>
+        </div>
+        <footer class="gw-card__footer">
+          <button class="gw-btn" type="button"><i class="gw-icon" data-lucide="file-text"></i> Open logs</button>
+          <button class="gw-btn gw-btn--primary" type="button"><i class="gw-icon" data-lucide="rotate-cw"></i> Restart core</button>
+        </footer>
+      </section>
+    </div>
+
+    <!-- ═════════════ Didn't start: any other ready:false reason ═════════════ -->
+    <!-- The core stopped before its local API was ready for a reason that has no card of its own (ARCHITECTURE §7.1,
+         §8.6.18): the title says the reason in words, the facts are the stopped card's. A second core on the same
+         home stops at the database lock before any step, so this card has no stepper; a failure after a step shows
+         the stepper with that step failed. -->
+    <div class="gw-tabs__panel" role="tabpanel" id="core-p-failed" aria-labelledby="core-t-failed" hidden data-state="failed" data-title="core-failed-t">
+      <section class="gw-card gw-status-screen__card" aria-labelledby="core-failed-t">
+        <div class="gw-card__body gw-status-screen__body">
+          <div class="gw-status-screen__intro">
+            <span class="gw-icon-tile gw-icon-tile--lg gw-icon-tile--danger"><i class="gw-icon gw-icon--lg" data-lucide="lock"></i></span>
+            <div class="gw-status-screen__text">
+              <h2 class="gw-text-h1" id="core-failed-t">Another core is using the database</h2>
+              <p class="gw-text-body-read">Another GateRook core on this computer holds the database, so this one stopped. Quit the other GateRook, then restart the core. Agents can't reach your endpoints until it runs.</p>
+            </div>
+          </div>
+          <dl class="gw-kv gw-kv--dense">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Exit code</dt><dd class="gw-kv__value gw-mono">2</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Reason</dt><dd class="gw-kv__value gw-mono">DB_LOCKED: Another GateRook core is using ~/.gaterook (core.lock is locked)</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Log file</dt><dd class="gw-kv__value gw-mono">~/.gaterook/logs/core.log</dd></div>
+          </dl>
+          <div class="gw-status-screen__details">
+            <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="core-failed-log"><i class="gw-icon gw-icon--sm" data-lucide="scroll-text"></i> Show the last log lines</button>
+            <div class="gw-code-block gw-code-block--wrap" id="core-failed-log" hidden>
+              <div class="gw-code-block__header">
+                <span class="gw-code-block__lang">Log</span>
+                <span class="gw-code-block__filename">core.log · last 2 lines</span>
+                <div class="gw-code-block__actions">
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#core-failed-lines">
+                    <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> log lines</span></span>
+                    <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+                  </button>
+                </div>
+              </div>
+              <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Last log lines of the failed start">
+<pre class="gw-code-block__pre" id="core-failed-lines"><code>14:29:58.121 ERROR c.g.core.Main        - DB_LOCKED: Another GateRook core is using ~/.gaterook (core.lock is locked)
+14:29:58.124 INFO  c.g.core.Main        - Terminating (exit 2)</code></pre>
+              </div>
+            </div>
+          </div>
+          <p class="gw-sr-only" role="alert">The core failed to start: another core is using the database.</p>
+        </div>
+        <footer class="gw-card__footer">
+          <button class="gw-btn" type="button"><i class="gw-icon" data-lucide="file-text"></i> Open logs</button>
+          <button class="gw-btn gw-btn--primary" type="button"><i class="gw-icon" data-lucide="rotate-cw"></i> Restart core</button>
+        </footer>
+      </section>
+    </div>
+
+    <p class="gw-status-screen__meta gw-text-caption gw-fg-muted">GateRook 0.4.0 · core on <span class="gw-mono">127.0.0.1:7465</span> · log <span class="gw-mono">~/.gaterook/logs/core.log</span></p>
+
+    <!-- Demo switcher: reference pages only, never in the app -->
+    <div class="gw-stack gw-stack--sm">
+      <p class="gw-text-caption gw-fg-muted" id="core-demo-l">Demo only: preview the other states of this screen</p>
+      <div class="gw-tabs gw-tabs--contained">
+        <div class="gw-tabs__list" role="tablist" aria-labelledby="core-demo-l">
+          <button class="gw-tabs__tab" type="button" role="tab" id="core-t-starting" aria-selected="true" aria-controls="core-p-starting">Starting</button>
+          <button class="gw-tabs__tab" type="button" role="tab" id="core-t-port" aria-selected="false" aria-controls="core-p-port" tabindex="-1">Port in use</button>
+          <button class="gw-tabs__tab" type="button" role="tab" id="core-t-key" aria-selected="false" aria-controls="core-p-key" tabindex="-1">Master key not found</button>
+          <button class="gw-tabs__tab" type="button" role="tab" id="core-t-stopped" aria-selected="false" aria-controls="core-p-stopped" tabindex="-1">Stopped</button>
+          <button class="gw-tabs__tab" type="button" role="tab" id="core-t-failed" aria-selected="false" aria-controls="core-p-failed" tabindex="-1">Didn't start</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Use another port: risky but reversible, so gw-dialog--warning with a primary confirm. The candidate is ten
+       above the taken port (7475): 7466 is the tunnel's public listener. Claude Desktop's bridge asks the app for the
+       URL on every token, so it follows the new port; the AI apps with the URL in their config file are connected
+       again. A claude.ai row ("the tunnel's public URL stays the same") appears only for a named tunnel or an ngrok
+       domain: a quick tunnel, as here, gets a new address each time it starts anyway (§8.6.9). -->
+  <dialog class="gw-dialog gw-dialog--md gw-dialog--warning" id="core-port-dlg" aria-labelledby="core-port-dlg-t" aria-describedby="core-port-dlg-d" data-gw-static>
+    <form method="dialog">
+      <header class="gw-dialog__header">
+        <span class="gw-icon-tile"><i class="gw-icon" data-lucide="ethernet-port"></i></span>
+        <h2 class="gw-dialog__title" id="core-port-dlg-t">Start the core on another port?</h2>
+        <p class="gw-dialog__description" id="core-port-dlg-d">Every endpoint URL changes. AI apps set up with the old URL stop reaching the core until you connect them again.</p>
+        <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+      </header>
+      <div class="gw-dialog__body">
+        <div class="gw-stack">
+          <div class="gw-field">
+            <label class="gw-field__label" for="core-port-new">Port</label>
+            <input class="gw-input gw-input--mono" id="core-port-new" type="text" inputmode="numeric" value="7475" required pattern="[0-9]{4,5}" autocomplete="off" spellcheck="false" autofocus aria-describedby="core-port-new-hint">
+            <p class="gw-field__hint" id="core-port-new-hint">1024 to 65535. 7475 is free on this computer.</p>
+          </div>
+          <dl class="gw-kv gw-kv--dense">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint URLs</dt><dd class="gw-kv__value"><span class="gw-mono">http://127.0.0.1:7475/mcp/dev</span>, <span class="gw-mono">/mcp/stage-readonly</span> and <span class="gw-mono">/mcp/incident-prod</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Connect again</dt><dd class="gw-kv__value">AI apps with the URL in their config (Codex, Cursor, Antigravity), from AI apps once the core runs</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Unchanged</dt><dd class="gw-kv__value">Claude Desktop: its bridge asks the app for the new URL</dd></div>
+          </dl>
+        </div>
+      </div>
+      <footer class="gw-dialog__footer">
+        <button class="gw-btn" type="button" data-gw-dialog-close>Cancel</button>
+        <button class="gw-btn gw-btn--primary" type="submit">Start on this port</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Restore from backup: Secrets › Back up master key the other way round (ARCHITECTURE §8.6.18). The passphrase
+       comes first because the file dialog's token is single-use; then the system open dialog picks the copy, and
+       the core gets only that dialog's one-time token, never a path. Initial focus: the passphrase. -->
+  <dialog class="gw-dialog gw-dialog--md" id="core-restore-dlg" aria-labelledby="core-restore-t" aria-describedby="core-restore-d" data-gw-static>
+    <form method="dialog">
+      <header class="gw-dialog__header">
+        <span class="gw-icon-tile"><i class="gw-icon" data-lucide="archive-restore"></i></span>
+        <h2 class="gw-dialog__title" id="core-restore-t">Restore master key</h2>
+        <p class="gw-dialog__description" id="core-restore-d">Choose the copy you saved with Back up master key: the key that encrypted the 8 secrets stored here.</p>
+        <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+      </header>
+      <div class="gw-dialog__body">
+        <div class="gw-stack">
+          <dl class="gw-kv gw-kv--dense">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Key file</dt><dd class="gw-kv__value gw-mono">~/.gaterook/master.keyset</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Last backup</dt><dd class="gw-kv__value"><time datetime="2026-10-10T18:20:00+02:00" title="2026-10-10 18:20:00 +02:00">12 days ago</time></dd></div>
+          </dl>
+          <div class="gw-field">
+            <label class="gw-field__label" for="core-restore-pass">Passphrase of the copy <span class="gw-field__optional">Optional</span></label>
+            <div class="gw-input-group">
+              <input class="gw-input" id="core-restore-pass" type="password" autofocus autocomplete="off" spellcheck="false" aria-describedby="core-restore-pass-hint">
+              <button class="gw-input-group__addon" type="button" data-gw-reveal aria-pressed="false" aria-label="Show passphrase" aria-controls="core-restore-pass"><i class="gw-icon" data-lucide="eye"></i><i class="gw-icon" data-lucide="eye-off"></i></button>
+            </div>
+            <p class="gw-field__hint" id="core-restore-pass-hint">Only if you encrypted the copy with one when you backed it up.</p>
+          </div>
+          <div class="gw-alert gw-alert--info gw-alert--compact">
+            <i class="gw-icon gw-alert__icon" data-lucide="info"></i>
+            <div class="gw-alert__content"><p class="gw-alert__body">A file dialog asks for the copy. The core checks that it opens the secrets stored here before it replaces anything, and starts working without a restart.</p></div>
+          </div>
+        </div>
+      </div>
+      <footer class="gw-dialog__footer">
+        <button class="gw-btn" type="button" data-gw-dialog-close>Cancel</button>
+        <button class="gw-btn gw-btn--primary" type="submit"><i class="gw-icon" data-lucide="folder-open"></i> Choose the backup file</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Create a new master key: destructive, so gw-dialog--danger; Cancel has autofocus -->
+  <dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" id="core-newkey-dlg" aria-labelledby="core-newkey-t" aria-describedby="core-newkey-d">
+    <header class="gw-dialog__header">
+      <span class="gw-icon-tile"><i class="gw-icon" data-lucide="key-round"></i></span>
+      <h2 class="gw-dialog__title" id="core-newkey-t">Create a new master key?</h2>
+      <p class="gw-dialog__description" id="core-newkey-d">The 8 secrets encrypted here with the missing key become unreadable. Connections that use them stop working until you enter each secret again.</p>
+      <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+    </header>
+    <div class="gw-dialog__body">
+      <dl class="gw-kv gw-kv--dense">
+        <div class="gw-kv__row"><dt class="gw-kv__key">Becomes unreadable</dt><dd class="gw-kv__value">8 secrets: 6 connections, including <span class="gw-mono">dev-db</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span> and <span class="gw-mono">orders-mongo</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span>, the <span class="gw-mono">github-mcp</span> server token and the Vault sign-in</dd></div>
+        <div class="gw-kv__row"><dt class="gw-kv__key">Keeps working</dt><dd class="gw-kv__value">3 secret references (Vault, GCP and AWS), short-lived credentials</dd></div>
+        <div class="gw-kv__row"><dt class="gw-kv__key">New key</dt><dd class="gw-kv__value gw-mono">~/.gaterook/master.keyset</dd></div>
+      </dl>
+    </div>
+    <footer class="gw-dialog__footer">
+      <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
+      <button class="gw-btn gw-btn--danger" type="button" data-gw-dialog-close>Create a new master key</button>
+    </footer>
+  </dialog>
+</main>
+<script src="../vendor/lucide/lucide.min.js"></script>
+<script src="../assets/kit.js"></script>
+<script>
+/* Demo-only: kit.js switches the tab panels; this keeps the screen root in sync with the card on
+   show (data-state and the accessible name of <main>), as the app does when the core's state changes. */
+(function () {
+  "use strict";
+  var screen = document.querySelector(".gw-status-screen");
+  var list = document.querySelector('.gw-status-screen [role="tablist"]');
+  if (!screen || !list || !("MutationObserver" in window)) return;
+  function sync() {
+    var tab = list.querySelector('[role="tab"][aria-selected="true"]');
+    var panel = tab && document.getElementById(tab.getAttribute("aria-controls"));
+    if (!panel) return;
+    screen.setAttribute("data-state", panel.getAttribute("data-state"));
+    screen.setAttribute("aria-labelledby", panel.getAttribute("data-title"));
+  }
+  new MutationObserver(sync).observe(list, { subtree: true, attributes: true, attributeFilter: ["aria-selected"] });
+})();
+</script>
+</body>
+</html>

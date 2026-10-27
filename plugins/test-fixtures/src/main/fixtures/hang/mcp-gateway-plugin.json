@@ -1,0 +1,26 @@
+{
+  "manifestVersion": 1,
+  "id": "fixture-hang",
+  "version": "1.0.0",
+  "name": "Hang fixture",
+  "provider": "MCP Gateway tests",
+  "license": "Apache-2.0",
+  "description": "A plugin whose call never returns and ignores interrupts.",
+  "requires": {"gateway": ">=0.0.0", "connectorApi": ">=1.0.0 & <2.0.0"},
+  "connectorClass": "gaterook.plugins.fixtures.HangConnector",
+  "type": "fixture-hang",
+  "toolNamespace": "hang_",
+  "configSchema": {"type": "object", "properties": {}},
+  "tools": [
+    {"name": "hang_echo", "title": "Echo",
+     "inputSchema": {"type": "object", "properties": {}},
+     "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+     "nature": "READ", "resultShape": "TEXT"},
+    {"name": "hang_forever", "title": "Hang",
+     "inputSchema": {"type": "object", "properties": {}},
+     "annotations": {"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
+     "nature": "READ", "resultShape": "TEXT"}
+  ],
+  "access": {"hosts": [], "commands": [], "files": []},
+  "resources": {"maxHeapMb": 64}
+}

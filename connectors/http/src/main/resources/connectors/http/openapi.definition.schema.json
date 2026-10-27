@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OpenAPI import",
+  "description": "One tool per selected operation of an OpenAPI 3.0 or 3.1 file. POST /api/templates/openapi/parse proposes it from the file; the file itself is not stored.",
+  "type": "object",
+  "required": ["name", "server", "operations"],
+  "x-card": {
+    "name": "OpenAPI import",
+    "icon": "file-code",
+    "description": "Turn an OpenAPI 3 file into one tool per operation.",
+    "toolsFrom": "file"
+  },
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Name",
+      "maxLength": 64,
+      "description": "billing-api v2"
+    },
+    "prefix": {
+      "type": "string",
+      "title": "Tool prefix",
+      "pattern": "^([a-z][a-z0-9]{0,15})?$",
+      "description": "Tool names start with it: billing_create_refund."
+    },
+    "server": {
+      "type": "string",
+      "title": "Server",
+      "maxLength": 512,
+      "description": "The URL the tools call. It must lie under a base URL of the connection."
+    },
+    "source": {
+      "type": "object",
+      "title": "File",
+      "readOnly": true,
+      "properties": {
+        "title": {"type": "string"},
+        "version": {"type": "string"},
+        "openapi": {"type": "string"},
+        "sha256": {"type": "string"},
+        "bytes": {"type": "integer"}
+      }
+    },
+    "operations": {
+      "type": "array",
+      "title": "Operations",
+      "minItems": 1,
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "required": ["opKey", "name", "method", "path", "nature", "inputSchema"],
+        "properties": {
+          "opKey": {"type": "string", "description": "POST /refunds"},
+          "operationId": {"type": "string"},
+          "name": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$"},
+          "title": {"type": "string", "maxLength": 120},
+          "description": {"type": "string", "maxLength": 1000, "description": "What the agent reads: shown here in full."},
+          "method": {"enum": ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]},
+          "path": {"type": "string"},
+          "nature": {
+            "enum": ["read", "mutation"],
+            "x-enumTitles": ["Read only", "Changes state: needs approval"],
+            "description": "GET and HEAD read; mark a GET that changes state. A POST that only reads (a search) can be read only on dev and stage."
+          },
+          "readOnlyConfirmed": {
+            "type": "boolean",
+            "title": "I confirm this operation doesn't change state",
+            "x-confirm": "warning"
+          },
+          "tags": {"type": "array", "items": {"type": "string"}},
+          "inputSchema": {"type": "object", "x-widget": "code", "x-language": "json"},
+          "params": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["arg", "in", "name"],
+              "properties": {
+                "arg": {"type": "string"},
+                "in": {"enum": ["path", "query", "header"]},
+                "name": {"type": "string"},
+                "required": {"type": "boolean"},
+                "style": {"enum": ["simple", "form", "deepObject"]},
+                "explode": {"type": "boolean"}
+              }
+            }
+          },
+          "body": {
+            "type": "object",
+            "required": ["arg", "mediaType"],
+            "properties": {
+              "arg": {"type": "string"},
+              "mediaType": {"type": "string"},
+              "required": {"type": "boolean"}
+            }
+          }
+        }
+      }
+    }
+  }
+}

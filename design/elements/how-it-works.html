@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How it works · Element · GateRook kit</title>
+<link rel="icon" href="../assets/logo-mark.svg" type="image/svg+xml">
+<script src="../assets/theme-boot.js"></script>
+<link rel="stylesheet" href="../dist/gw-kit.css">
+</head>
+<body>
+<a class="gw-skip-link" href="#main">Skip to content</a>
+<main class="gw-page" id="main" tabindex="-1">
+
+  <header class="gw-page-header">
+    <div class="gw-page-header__row">
+      <div class="gw-page-header__heading">
+        <h1 class="gw-page-header__title">How it works</h1>
+        <p class="gw-page-header__description">Three or four numbered steps that explain a mechanism before the user configures it: what happens to a secret, how an AI app is authorized, what one-click Connect writes. It opens Secrets, AI apps and Connectors and the Authorization, Notifications and Tunnel settings, and folds away once the user knows it.</p>
+      </div>
+      <div class="gw-page-header__actions">
+        <fieldset class="gw-segmented gw-segmented--sm">
+          <legend class="gw-sr-only">Theme</legend>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i>System</span></label>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i>Light</span></label>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i>Dark</span></label>
+        </fieldset>
+      </div>
+    </div>
+  </header>
+
+  <!-- ───────────────────────── Secrets: expanded strip ───────────────────────── -->
+  <section class="gw-section" aria-labelledby="s-secrets">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-secrets">Secrets</h2>
+      <p class="gw-section__description">Top of Secrets, expanded. From lg the steps run across with a chevron between them; narrower windows list them.</p>
+    </header>
+    <section class="gw-card gw-card--muted gw-how-it-works" aria-labelledby="hiw-secrets-title">
+      <div class="gw-card__body gw-how-it-works__body">
+        <div class="gw-how-it-works__header">
+          <div class="gw-card__heading">
+            <h3 class="gw-card__title" id="hiw-secrets-title">How it works</h3>
+            <p class="gw-card__description">The agent never sees a secret value, only the result of the call.</p>
+          </div>
+          <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-how-it-works__toggle" type="button" data-gw-toggle aria-expanded="true" aria-controls="hiw-secrets-panel" aria-labelledby="hiw-secrets-title">
+            <i class="gw-icon gw-how-it-works__toggle-icon gw-how-it-works__toggle-icon--collapse" data-lucide="chevron-up"></i>
+            <i class="gw-icon gw-how-it-works__toggle-icon gw-how-it-works__toggle-icon--expand" data-lucide="chevron-down"></i>
+          </button>
+        </div>
+        <div class="gw-how-it-works__panel" id="hiw-secrets-panel">
+          <ol class="gw-how-it-works__steps" aria-label="What happens to a secret">
+            <li class="gw-how-it-works__step">
+              <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="key-round"></i></span>
+              <span class="gw-how-it-works__arrow gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="chevron-right"></i></span>
+              <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">1</span>Store or reference</p>
+              <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">Paste the value here, or point to Vault, GCP Secret Manager or AWS Secrets Manager.</p>
+            </li>
+            <li class="gw-how-it-works__step">
+              <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="lock-keyhole"></i></span>
+              <span class="gw-how-it-works__arrow gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="chevron-right"></i></span>
+              <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">2</span>Encrypted with your master key</p>
+              <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">AES-256-GCM, with the key in <code class="gw-code">~/.gaterook/master.keyset</code>, outside the database.</p>
+            </li>
+            <li class="gw-how-it-works__step">
+              <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="lock-keyhole-open"></i></span>
+              <span class="gw-how-it-works__arrow gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="chevron-right"></i></span>
+              <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">3</span>Decrypted only inside the connector, at call time</p>
+              <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">The value lives in memory for one call and never leaves the connector.</p>
+            </li>
+            <li class="gw-how-it-works__step">
+              <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="eye-off"></i></span>
+              <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">4</span>Agent gets the result, masked</p>
+              <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">Secrets and PII in the output become <code class="gw-code gw-code--secret">‹masked›</code> before the agent sees it.</p>
+            </li>
+          </ol>
+          <p class="gw-how-it-works__more"><a class="gw-link gw-text-small" href="../pages/secrets.html#master-key">Learn more about the master key and rotation</a></p>
+        </div>
+      </div>
+    </section>
+  </section>
+
+  <!-- ───────────────────────── Connectors: three steps ───────────────────────── -->
+  <section class="gw-section" aria-labelledby="s-connectors">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-connectors">Connectors, three steps</h2>
+      <p class="gw-section__description">Top of Connectors: three ways to add a resource type. Three steps share the row in equal columns; the Learn more link is optional and left out here.</p>
+    </header>
+    <section class="gw-card gw-card--muted gw-how-it-works" aria-labelledby="hiw-connectors-title">
+      <div class="gw-card__body gw-how-it-works__body">
+        <div class="gw-how-it-works__header">
+          <div class="gw-card__heading">
+            <h3 class="gw-card__title" id="hiw-connectors-title">How it works</h3>
+            <p class="gw-card__description">Add a resource type without rebuilding the gateway. Every new tool still goes through tokens, policies and approvals.</p>
+          </div>
+          <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-how-it-works__toggle" type="button" data-gw-toggle aria-expanded="true" aria-controls="hiw-connectors-panel" aria-labelledby="hiw-connectors-title">
+            <i class="gw-icon gw-how-it-works__toggle-icon gw-how-it-works__toggle-icon--collapse" data-lucide="chevron-up"></i>
+            <i class="gw-icon gw-how-it-works__toggle-icon gw-how-it-works__toggle-icon--expand" data-lucide="chevron-down"></i>
+          </button>
+        </div>
+        <div class="gw-how-it-works__panel" id="hiw-connectors-panel">
+          <ol class="gw-how-it-works__steps" aria-label="Ways to add a resource type">
+            <li class="gw-how-it-works__step">
+              <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="file-code"></i></span>
+              <span class="gw-how-it-works__arrow gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="chevron-right"></i></span>
+              <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">1</span>Write a template</p>
+              <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">SQL or an HTTP call with typed parameters becomes a tool. No code, no restart.</p>
+            </li>
+            <li class="gw-how-it-works__step">
+              <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="puzzle"></i></span>
+              <span class="gw-how-it-works__arrow gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="chevron-right"></i></span>
+              <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">2</span>Install a plugin</p>
+              <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">A Java plugin adds a new resource type with its own tools. Its card says whether it is signed.</p>
+            </li>
+            <li class="gw-how-it-works__step">
+              <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="plug"></i></span>
+              <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">3</span>Add an MCP server</p>
+              <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">Put a server you already run behind the gateway. Its tools get modes, approvals and audit like any other.</p>
+            </li>
+          </ol>
+        </div>
+      </div>
+    </section>
+  </section>
+
+  <!-- ───────────────────────── Authorization: vertical ───────────────────────── -->
+  <section class="gw-section" aria-labelledby="s-auth">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-auth">Authorization</h2>
+      <p class="gw-section__description">Settings, Authorization: <code class="gw-code">gw-how-it-works--vertical</code> keeps the list inside the narrow settings column at any width.</p>
+    </header>
+    <div class="gw-grid gw-grid--2">
+      <section class="gw-card gw-card--muted gw-how-it-works gw-how-it-works--vertical" aria-labelledby="hiw-auth-title">
+        <div class="gw-card__body gw-how-it-works__body">
+          <div class="gw-how-it-works__header">
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="hiw-auth-title">How it works</h3>
+              <p class="gw-card__description">Every AI app is tied to one endpoint and can be cut off at once.</p>
+            </div>
+            <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-how-it-works__toggle" type="button" data-gw-toggle aria-expanded="true" aria-controls="hiw-auth-panel" aria-labelledby="hiw-auth-title">
+              <i class="gw-icon gw-how-it-works__toggle-icon gw-how-it-works__toggle-icon--collapse" data-lucide="chevron-up"></i>
+              <i class="gw-icon gw-how-it-works__toggle-icon gw-how-it-works__toggle-icon--expand" data-lucide="chevron-down"></i>
+            </button>
+          </div>
+          <div class="gw-how-it-works__panel" id="hiw-auth-panel">
+            <ol class="gw-how-it-works__steps" aria-label="How an AI app is authorized">
+              <li class="gw-how-it-works__step">
+                <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="log-in"></i></span>
+                <span class="gw-how-it-works__arrow gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="chevron-right"></i></span>
+                <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">1</span>AI app gets a token or signs in with OAuth</p>
+                <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">Desktop AI apps use a bearer token; claude.ai signs in with OAuth 2.1 through the tunnel.</p>
+              </li>
+              <li class="gw-how-it-works__step">
+                <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="waypoints"></i></span>
+                <span class="gw-how-it-works__arrow gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="chevron-right"></i></span>
+                <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">2</span>Token is bound to one endpoint</p>
+                <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">A token for <code class="gw-code">dev</code> cannot call <code class="gw-code">stage-readonly</code>. Named tokens last 7 days by default; Claude Desktop and Codex get 15-minute ones on the fly.</p>
+              </li>
+              <li class="gw-how-it-works__step">
+                <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="shield"></i></span>
+                <span class="gw-how-it-works__arrow gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="chevron-right"></i></span>
+                <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">3</span>Policy decides allow / approval / deny</p>
+                <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">Each call is checked against the tool's mode and the environment's limits.</p>
+              </li>
+              <li class="gw-how-it-works__step">
+                <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="ban"></i></span>
+                <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">4</span>Revoke any time</p>
+                <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">The next call with a revoked token is refused. Nothing to restart.</p>
+              </li>
+            </ol>
+            <p class="gw-how-it-works__more"><a class="gw-link gw-text-small" href="../pages/settings.html">Learn more about tokens and OAuth</a></p>
+          </div>
+        </div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── AI apps: collapsed ───────────────────────── -->
+  <section class="gw-section" aria-labelledby="s-clients">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-clients">AI apps, collapsed</h2>
+      <p class="gw-section__description">Top of AI apps after the user folded it: the title and the one-line summary stay. Open it with the chevron button.</p>
+    </header>
+    <section class="gw-card gw-card--muted gw-how-it-works" aria-labelledby="hiw-clients-title">
+      <div class="gw-card__body gw-how-it-works__body">
+        <div class="gw-how-it-works__header">
+          <div class="gw-card__heading">
+            <h3 class="gw-card__title" id="hiw-clients-title">How it works</h3>
+            <p class="gw-card__description">Connect writes one entry into the AI app's config, with a backup first.</p>
+          </div>
+          <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-how-it-works__toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="hiw-clients-panel" aria-labelledby="hiw-clients-title">
+            <i class="gw-icon gw-how-it-works__toggle-icon gw-how-it-works__toggle-icon--collapse" data-lucide="chevron-up"></i>
+            <i class="gw-icon gw-how-it-works__toggle-icon gw-how-it-works__toggle-icon--expand" data-lucide="chevron-down"></i>
+          </button>
+        </div>
+        <div class="gw-how-it-works__panel" id="hiw-clients-panel" hidden>
+          <ol class="gw-how-it-works__steps" aria-label="What one-click Connect does">
+            <li class="gw-how-it-works__step">
+              <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="scan-search"></i></span>
+              <span class="gw-how-it-works__arrow gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="chevron-right"></i></span>
+              <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">1</span>We find the AI app</p>
+              <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">Claude Desktop, Codex, Cursor and Antigravity are found where they keep their config.</p>
+            </li>
+            <li class="gw-how-it-works__step">
+              <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="file-diff"></i></span>
+              <span class="gw-how-it-works__arrow gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="chevron-right"></i></span>
+              <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">2</span>Show what changes in its config</p>
+              <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">You see the exact diff, for example in <code class="gw-code">~/.codex/config.toml</code>, before anything is written.</p>
+            </li>
+            <li class="gw-how-it-works__step">
+              <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="save"></i></span>
+              <span class="gw-how-it-works__arrow gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="chevron-right"></i></span>
+              <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">3</span>Back up, then write</p>
+              <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">The current file is copied next to it, then one entry is added. Other MCP servers stay untouched.</p>
+            </li>
+            <li class="gw-how-it-works__step">
+              <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="unplug"></i></span>
+              <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">4</span>Disconnect removes the entry and revokes the token</p>
+              <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">The config goes back to how it was, and the AI app's token stops working.</p>
+            </li>
+          </ol>
+        </div>
+      </div>
+    </section>
+  </section>
+
+</main>
+<script src="../vendor/lucide/lucide.min.js"></script>
+<script src="../assets/kit.js"></script>
+</body>
+</html>

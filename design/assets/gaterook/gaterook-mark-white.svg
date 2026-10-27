@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-labelledby="gaterook-mark-white-title gaterook-mark-white-desc">
+  <title id="gaterook-mark-white-title">GateRook white symbol</title>
+  <desc id="gaterook-mark-white-desc">White rook with a transparent gateway, for dark or colored backgrounds.</desc>
+  <path fill="#FFFFFF" d="M13.5 12H18.5Q20 12 20 13.5V20H28V13.5Q28 12 29.5 12H34.5Q36 12 36 13.5V20H44V13.5Q44 12 45.5 12H50.5Q52 12 52 13.5V26Q52 28 50 28H48L44 44H50Q52 44 52 46V50.5Q52 52 50.5 52H40V38A8 8 0 0 0 24 38V52H13.5Q12 52 12 50.5V46Q12 44 14 44H20L16 28H14Q12 28 12 26V13.5Q12 12 13.5 12Z"/>
+</svg>

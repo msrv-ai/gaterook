@@ -1,0 +1,88 @@
+<section class="sc-section" id="skeleton" data-title="Skeleton" data-group="Feedback">
+  <h2>Skeleton <code class="gw-code">gw-skeleton</code></h2>
+  <p>Placeholder in the shape of content that is about to arrive, for the first render of a list, a card or a chart when the wait passes about 300 ms. A calm opacity pulse, never a shimmer sweep, at half speed with reduced motion. The blocks are <code class="gw-code">aria-hidden</code>; the region carries <code class="gw-code">aria-busy="true"</code> and an sr-only status names what is loading. Use a spinner for in-place actions (Test connection), <code class="gw-code">gw-progress</code> for long jobs, and never a skeleton for content that failed: show the error with <code class="gw-code">gw-alert--danger</code>.</p>
+
+  <h3>Shapes</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <dl class="gw-kv">
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key gw-mono">gw-skeleton</dt>
+        <dd class="gw-kv__value"><span class="gw-skeleton" aria-hidden="true"></span></dd>
+      </div>
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key gw-mono">--text</dt>
+        <dd class="gw-kv__value">
+          <span class="gw-skeleton gw-skeleton--text" aria-hidden="true"></span>
+          <span class="gw-skeleton gw-skeleton--text" aria-hidden="true"></span>
+          <span class="gw-skeleton gw-skeleton--text" aria-hidden="true"></span>
+        </dd>
+      </div>
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key gw-mono">--circle</dt>
+        <dd class="gw-kv__value"><span class="gw-skeleton gw-skeleton--circle" aria-hidden="true"></span></dd>
+      </div>
+      <div class="gw-kv__row">
+        <dt class="gw-kv__key gw-mono">--block</dt>
+        <dd class="gw-kv__value"><span class="gw-skeleton gw-skeleton--block" aria-hidden="true"></span></dd>
+      </div>
+    </dl>
+  </div>
+
+  <h3>Loading a card</h3>
+  <div class="sc-demo sc-demo--canvas sc-demo--col" data-sc-code>
+    <section class="gw-card" aria-labelledby="sc-d-skel-calls" aria-busy="true">
+      <header class="gw-card__header">
+        <div class="gw-card__heading">
+          <h4 class="gw-card__title" id="sc-d-skel-calls">Calls over time</h4>
+          <p class="gw-card__description">Last 24 hours, by decision</p>
+        </div>
+      </header>
+      <div class="gw-card__body">
+        <p class="gw-sr-only" role="status">Loading calls over time</p>
+        <div class="gw-stack gw-stack--sm" aria-hidden="true">
+          <span class="gw-skeleton gw-skeleton--text"></span>
+          <span class="gw-skeleton gw-skeleton--text"></span>
+          <span class="gw-skeleton gw-skeleton--block"></span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <h3>Loading a table</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-table-wrap" role="region" aria-labelledby="sc-d-skel-table-cap" tabindex="0" aria-busy="true">
+      <table class="gw-table">
+        <caption class="gw-sr-only" id="sc-d-skel-table-cap">Connections, loading</caption>
+        <thead>
+          <tr>
+            <th scope="col">Name</th>
+            <th scope="col">Type</th>
+            <th scope="col">Host</th>
+            <th scope="col">Health</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr aria-hidden="true">
+            <td><span class="gw-skeleton gw-skeleton--text"></span></td>
+            <td><span class="gw-skeleton gw-skeleton--text"></span></td>
+            <td><span class="gw-skeleton gw-skeleton--text"></span></td>
+            <td><span class="gw-skeleton gw-skeleton--text"></span></td>
+          </tr>
+          <tr aria-hidden="true">
+            <td><span class="gw-skeleton gw-skeleton--text"></span></td>
+            <td><span class="gw-skeleton gw-skeleton--text"></span></td>
+            <td><span class="gw-skeleton gw-skeleton--text"></span></td>
+            <td><span class="gw-skeleton gw-skeleton--text"></span></td>
+          </tr>
+          <tr aria-hidden="true">
+            <td><span class="gw-skeleton gw-skeleton--text"></span></td>
+            <td><span class="gw-skeleton gw-skeleton--text"></span></td>
+            <td><span class="gw-skeleton gw-skeleton--text"></span></td>
+            <td><span class="gw-skeleton gw-skeleton--text"></span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="gw-sr-only" role="status">Loading connections</p>
+  </div>
+</section>

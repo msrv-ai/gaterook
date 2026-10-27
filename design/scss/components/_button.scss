@@ -1,0 +1,169 @@
+// =============================================================
+// .gw-btn · Button  (reference implementation for kit components)
+// -------------------------------------------------------------
+// Every clickable action is a native <button type="button"> (or <a href>
+// when it navigates) with .gw-btn + one variant.
+//
+// Variants
+//   --primary      brand violet. The ONE main action of a view (Save connection,
+//                  Create endpoint, Connect). Never two on one screen level.
+//   --secondary    default. Surface + strong border.
+//   --ghost        toolbars, tertiary actions, inline in tables.
+//   --approve      green. Reserved for the approval decision ("Approve and run").
+//                  Nothing else is green-filled, so green always means "let it run".
+//   --danger       red fill. The confirming step of an irreversible action
+//                  (Revoke token, Delete connection, Deny).
+//   --danger-ghost red text, no fill. The trigger that OPENS that confirmation.
+//   --link         looks like a link, behaves like a button.
+// Sizes      --sm (28) | md (32, default) | --lg (40)
+// Modifiers  --icon (square, icon only, needs aria-label) | --block (full width)
+// States     :disabled / aria-disabled="true"; aria-busy="true" + a .gw-spinner
+//            as first child while working (label stays, width does not jump);
+//            aria-pressed="true" for toggle buttons (ghost/secondary): brand
+//            text + tint + a 2px brand bar inside the bottom edge (shape, not
+//            only hue); kit.js flips it with data-gw-pressed.
+// Subparts   __kbd      trailing shortcut hint (decorative, aria-hidden)
+//            __copy / __copied   two faces of a copy button: kit.js sets [data-copied]
+//                       for 1.6 s and the button swaps to the "Copied" face
+//                       (works inside a modal dialog, where toasts can't show)
+//            __chevron  disclosure chevron; turns over while [aria-expanded="true"]
+//            __pressed / __unpressed   two faces of a toggle: only the one that
+//                       matches aria-pressed shows (Live: <i … data-lucide="radio">
+//                       as __unpressed, a gw-status--live dot as __pressed)
+//
+// .gw-btn-group   attached buttons (split button, small toolbars)
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+.gw-btn {
+  @include gw-pressable(md);
+  color: var(--gw-color-text-primary);
+  background: var(--gw-color-bg-surface);
+  border-color: var(--gw-color-border-strong);
+
+  // Secondary is the base look; variants below override it.
+  &:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--gw-color-bg-raised); }
+  &:active:not(:disabled):not([aria-disabled="true"]) { background: var(--gw-color-bg-active); }
+  // Pressed: brand text + tint AND a 2px brand bar along the bottom edge, so
+  // on / off never rests on hue alone (brand.fg on brand.subtle is a 4.5:1 pair).
+  &[aria-pressed="true"] {
+    color: var(--gw-color-brand-fg);
+    background: var(--gw-color-brand-subtle);
+    border-color: var(--gw-color-brand-border);
+    box-shadow: inset 0 calc(-1 * var(--gw-border-width-strong)) 0 var(--gw-color-brand-fg);
+  }
+
+  // ─── Sizes ───
+  &--sm { @include gw-control-size(sm); }
+  &--lg { @include gw-control-size(lg); }
+
+  // ─── Variants ───
+  &--secondary { /* the base look, named for explicit markup */ }
+
+  &--primary {
+    color: var(--gw-color-brand-on-solid);
+    background: var(--gw-color-brand-solid);
+    border-color: var(--gw-color-brand-solid);
+    &:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--gw-color-brand-solid-hover); border-color: var(--gw-color-brand-solid-hover); }
+    &:active:not(:disabled):not([aria-disabled="true"]) { background: var(--gw-color-brand-solid-active); border-color: var(--gw-color-brand-solid-active); }
+  }
+
+  &--ghost {
+    background: transparent;
+    border-color: transparent;
+    color: var(--gw-color-text-secondary);
+    @include gw-hover-wash;
+    &:hover:not(:disabled):not([aria-disabled="true"]) { color: var(--gw-color-text-primary); }
+    &[aria-pressed="true"] { color: var(--gw-color-brand-fg); background: var(--gw-color-brand-subtle); } // + the bar from the base
+  }
+
+  &--approve {
+    color: var(--gw-color-success-on-solid);
+    background: var(--gw-color-success-solid);
+    border-color: var(--gw-color-success-solid);
+    &:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--gw-color-success-solid-hover); border-color: var(--gw-color-success-solid-hover); }
+  }
+
+  &--danger {
+    color: var(--gw-color-danger-on-solid);
+    background: var(--gw-color-danger-solid);
+    border-color: var(--gw-color-danger-solid);
+    &:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--gw-color-danger-solid-hover); border-color: var(--gw-color-danger-solid-hover); }
+  }
+
+  &--danger-ghost {
+    color: var(--gw-color-danger-fg);
+    background: transparent;
+    border-color: transparent;
+    &:hover:not(:disabled):not([aria-disabled="true"]) { background: var(--gw-color-danger-subtle); }
+  }
+
+  &--link {
+    height: auto;
+    padding: 0;
+    color: var(--gw-color-text-link);
+    background: none;
+    border: 0;
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+    &:hover:not(:disabled) { text-decoration-thickness: var(--gw-border-width-strong); }
+  }
+
+  // ─── Modifiers ───
+  &--icon {
+    width: var(--gw-size-control-md);
+    padding-inline: 0;
+    &.gw-btn--sm { width: var(--gw-size-control-sm); }
+    &.gw-btn--lg { width: var(--gw-size-control-lg); }
+  }
+  &--block { display: flex; width: 100%; }
+
+  // ─── States ───
+  &:disabled,
+  &[aria-disabled="true"] {
+    color: var(--gw-color-text-disabled);
+    background: var(--gw-color-bg-raised);
+    border-color: var(--gw-color-border-subtle);
+  }
+  &--ghost:disabled, &--ghost[aria-disabled="true"],
+  &--danger-ghost:disabled, &--danger-ghost[aria-disabled="true"],
+  &--link:disabled { background: transparent; border-color: transparent; }
+
+  &[aria-busy="true"] { cursor: progress; }
+
+  &__copied { display: none; }
+  &[data-copied] > .gw-btn__copy { display: none; }
+  &[data-copied] > .gw-btn__copied { display: inline-flex; align-items: center; gap: inherit; }
+
+  // Two faces of a toggle (Live: radio icon off, pulsing live dot on).
+  &:not([aria-pressed="true"]) > .gw-btn__pressed,
+  &[aria-pressed="true"] > .gw-btn__unpressed { display: none; }
+
+  &__chevron { transition: transform var(--gw-motion-duration-fast) var(--gw-motion-ease-standard); }
+  &[aria-expanded="true"] > .gw-btn__chevron { transform: rotate(180deg); }
+
+  &__kbd {
+    margin-left: var(--gw-space-1);
+    padding-inline: var(--gw-space-1);
+    @include gw-type(caption);
+    @include gw-mono;
+    color: inherit;
+    opacity: 0.72;
+    border: var(--gw-border-width-default) solid currentColor;
+    border-radius: var(--gw-radius-xs);
+  }
+}
+
+.gw-btn-group {
+  display: inline-flex;
+  isolation: isolate;
+
+  > .gw-btn { border-radius: 0; }
+  > .gw-btn:first-child { border-start-start-radius: var(--gw-radius-sm); border-end-start-radius: var(--gw-radius-sm); }
+  > .gw-btn:last-child { border-start-end-radius: var(--gw-radius-sm); border-end-end-radius: var(--gw-radius-sm); }
+  > .gw-btn + .gw-btn { margin-left: calc(-1 * var(--gw-border-width-default)); }
+  > .gw-btn--primary + .gw-btn--primary { border-left-color: var(--gw-color-brand-solid-active); }
+  > .gw-btn:focus-visible { z-index: var(--gw-z-raised); }
+}

@@ -1,0 +1,52 @@
+{
+  "jsonrpc" : "2.0",
+  "id" : 41,
+  "method" : "connector/execute",
+  "params" : {
+    "generation" : "jira-service-desk@1.3.0",
+    "callId" : "tc_01JBA7Q2",
+    "callToken" : "ct_9Qm2xLkP0aZs4vRt7yUb1w",
+    "tool" : "jira_request_sla",
+    "arguments" : {
+      "issueKey" : "SD-123"
+    },
+    "connection" : {
+      "id" : "c7b1",
+      "name" : "acme-jsm",
+      "type" : "jira-service-desk",
+      "env" : "dev",
+      "version" : 4,
+      "configHash" : "sha256:02d3313231bc8c3c3102ca041f30125bb273a3708080d662c548d1424dc7c8b3",
+      "config" : {
+        "baseUrl" : "https://acme.atlassian.net",
+        "deployment" : "cloud",
+        "email" : "svc-gateway@acme.com",
+        "serviceDeskIds" : [ ],
+        "timeoutMs" : 10000
+      },
+      "secretFields" : [ "/apiToken" ]
+    },
+    "timeoutMs" : 10000,
+    "approved" : false,
+    "limits" : {
+      "maxRows" : 1000,
+      "maxLines" : 1000,
+      "maxResponseBytes" : 524288,
+      "maxRequestBytes" : 1048576,
+      "maxOutputBytes" : 262144,
+      "maxStderrBytes" : 65536,
+      "maxCellChars" : 8192,
+      "statementTimeoutMs" : 5000,
+      "commandTimeoutMs" : 30000,
+      "toolTimeoutMs" : 10000,
+      "maxRangeMs" : 604800000
+    },
+    "traceId" : "4f2a9c71e8d04b5a9c3e2b1f0a6d8e81",
+    "traceparent" : "00-4f2a9c71e8d04b5a9c3e2b1f0a6d8e81-7a1c2e9b4d3f6a10-01",
+    "egress" : {
+      "hosts" : [ "acme.atlassian.net:443" ],
+      "allowPrivate" : [ ],
+      "corePorts" : [ 7465, 7466 ]
+    }
+  }
+}

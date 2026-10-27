@@ -1,0 +1,65 @@
+<section class="sc-section" id="empty" data-title="Empty states" data-group="Status and data">
+  <h2>Empty states <code class="gw-code">gw-empty</code></h2>
+  <p>What will appear here and the one action that fills it. Three situations: a first run (nothing configured yet), a query with no results (filters too narrow) and all clear (nothing waiting). The title states the situation, the text explains what appears here and why it matters, and there is one action at most. Do not use an empty state for a failure: say what happened and what to do in a danger alert.</p>
+
+  <h3>First run</h3>
+  <div class="sc-demo sc-demo--canvas sc-demo--col" data-sc-code>
+    <div class="gw-card">
+      <div class="gw-empty">
+        <span class="gw-empty__icon"><i class="gw-icon gw-icon--lg" data-lucide="database"></i></span>
+        <h4 class="gw-empty__title">No connections yet</h4>
+        <p class="gw-empty__text">Connect a database, server, log store or cluster. Agents reach it through an endpoint and never see its secrets.</p>
+        <div class="gw-empty__actions">
+          <a class="gw-btn gw-btn--primary" href="#empty"><i class="gw-icon" data-lucide="plus"></i> Add connection</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3>No results</h3>
+  <div class="sc-demo sc-demo--canvas sc-demo--col" data-sc-code>
+    <div class="gw-card">
+      <div class="gw-empty">
+        <span class="gw-empty__icon"><i class="gw-icon gw-icon--lg" data-lucide="search-x"></i></span>
+        <h4 class="gw-empty__title">No calls match these filters</h4>
+        <p class="gw-empty__text">Nothing in the last 24 hours has <code class="gw-code">decision:denied</code> and <code class="gw-code">env:stage</code>. Widen the time range or remove a filter.</p>
+        <div class="gw-empty__actions">
+          <button class="gw-btn" type="button"><i class="gw-icon" data-lucide="filter-x"></i> Clear filters</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3>Compact</h3>
+  <p class="gw-text-small gw-fg-muted">Inside a card, a table body or a drawer section. A good-news state may tone its tile with <code class="gw-code">gw-icon-tile--success</code>.</p>
+  <div class="sc-demo sc-demo--canvas sc-demo--col" data-sc-code>
+    <section class="gw-card" aria-labelledby="sc-b-empty-waiting">
+      <header class="gw-card__header">
+        <div class="gw-card__heading">
+          <h4 class="gw-card__title" id="sc-b-empty-waiting">Waiting for you</h4>
+        </div>
+      </header>
+      <div class="gw-empty gw-empty--compact">
+        <span class="gw-empty__icon gw-icon-tile--success"><i class="gw-icon" data-lucide="circle-check"></i></span>
+        <p class="gw-empty__title">Nothing waiting for approval</p>
+        <p class="gw-empty__text">Requests from agents appear here with the exact action to approve.</p>
+      </div>
+    </section>
+    <section class="gw-card" aria-labelledby="sc-b-empty-tokens">
+      <header class="gw-card__header">
+        <div class="gw-card__heading">
+          <h4 class="gw-card__title" id="sc-b-empty-tokens">Tokens</h4>
+          <p class="gw-card__description">Endpoint <code class="gw-code">incident-prod</code></p>
+        </div>
+      </header>
+      <div class="gw-empty gw-empty--compact">
+        <span class="gw-empty__icon"><i class="gw-icon" data-lucide="key-round"></i></span>
+        <p class="gw-empty__title">No tokens for this endpoint</p>
+        <p class="gw-empty__text">An app needs a token to call it. The token is shown once.</p>
+        <div class="gw-empty__actions">
+          <button class="gw-btn gw-btn--sm" type="button"><i class="gw-icon" data-lucide="plus"></i> Issue token</button>
+        </div>
+      </div>
+    </section>
+  </div>
+</section>

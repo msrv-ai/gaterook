@@ -1,0 +1,132 @@
+<div class="gw-stack">
+  <h2 class="gw-sr-only">Installed connectors</h2>
+  @if (data.types.error(); as e) {
+    <!-- Nothing loaded: what happened, what to do, Try again, and the technical details under a disclosure. -->
+    <div class="gw-alert gw-alert--danger" role="alert">
+      <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">The installed connectors didn't load</p>
+        <p class="gw-alert__body">{{ errorText(e) }}</p>
+        <div class="gw-alert__actions">
+          <button class="gw-btn gw-btn--sm" type="button" (click)="retry()" [attr.aria-busy]="data.types.loading() ? 'true' : null" [attr.aria-disabled]="data.types.loading() ? 'true' : null">@if (data.types.loading()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Try again</button>
+          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle aria-controls="installed-error-details">Details <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
+        </div>
+      </div>
+    </div>
+    <gw-code-block [attr.id]="'installed-error-details'" hidden wrap lang="Error" [text]="errorDetails(e)" copyLabel="error details" regionLabel="Error details" />
+  } @else if (!views()) {
+    @if (slow()) {
+      <!-- The first render of the grid, when it takes longer than 300 ms (kit "Loading": gw-skeleton in card shapes). -->
+      <ul class="gw-grid gw-grid--3" aria-busy="true" aria-label="Installed connectors, loading">
+        @for (i of [1, 2, 3]; track i) {
+          <li aria-hidden="true">
+            <div class="gw-card">
+              <div class="gw-card__body">
+                <div class="gw-stack gw-stack--sm">
+                  <span class="gw-skeleton gw-skeleton--circle"></span>
+                  <span class="gw-skeleton gw-skeleton--text"></span>
+                  <span class="gw-skeleton gw-skeleton--text"></span>
+                </div>
+              </div>
+            </div>
+          </li>
+        }
+      </ul>
+      <p class="gw-sr-only" role="status">Loading installed connectors</p>
+    }
+  } @else {
+    @if (data.types.stale(); as e) {
+      <!-- A reload failed: the cards below are the last ones that loaded. -->
+      <div class="gw-alert gw-alert--warning gw-alert--compact" role="status">
+        <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content">
+          <p class="gw-alert__title">This list may be out of date.</p>
+          <p class="gw-alert__body">{{ errorText(e) }}</p>
+        </div>
+        <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retry()" [attr.aria-busy]="data.types.loading() ? 'true' : null" [attr.aria-disabled]="data.types.loading() ? 'true' : null">Try again</button></div>
+      </div>
+    }
+    <div class="gw-toolbar">
+      <div class="gw-toolbar__start">
+        <div class="gw-search gw-search--sm" role="search" aria-label="Installed connectors">
+          <svg lucideIcon="search" class="gw-icon gw-search__icon"></svg>
+          <input class="gw-search__input" type="search" id="installed-search" #search placeholder="Search installed connectors" aria-label="Search installed connectors" aria-controls="installed-grid" autocomplete="off" spellcheck="false" [value]="query()" (input)="onSearch(search.value)">
+          <button class="gw-search__clear" type="button" aria-label="Clear search"><svg lucideIcon="x" class="gw-icon gw-icon--sm"></svg></button>
+        </div>
+        <p class="gw-text-small gw-fg-muted gw-tabular" id="installed-count" role="status">{{ countText() }}</p>
+      </div>
+    </div>
+
+    <ul class="gw-grid gw-grid--3" id="installed-grid" aria-label="Installed connectors" [hidden]="!shown().length">
+      @for (v of shown(); track v.key) {
+        <li>
+          <article gwConnectorCard [card]="v.card">
+            <!-- One projected line and one projected action group per card: control flow stays inside them, so the
+                 element's slots match these nodes whatever the kind. -->
+            <p class="gw-text-caption gw-fg-muted" gwConnectorCardNote>
+              @switch (v.kind) {
+                @case ('built-in') {
+                  @if (v.connections) {<a class="gw-link" routerLink="/connections" [queryParams]="{ type: v.id }">{{ plural(v.connections, 'connection') }}<span class="gw-sr-only"> {{ v.connections === 1 ? 'uses' : 'use' }} {{ v.name }}</span></a>@if (v.activityQuery) { · <a class="gw-link" routerLink="/activity" [queryParams]="{ q: v.activityQuery }">View activity<span class="gw-sr-only"> for {{ v.name }}</span></a>}} @else {No connections yet}
+                }
+                @case ('plugin') {
+                  {{ v.card.tools === null ? 'Tools from the plugin' : plural(v.card.tools, 'tool') }} · @if (v.connections) {<a class="gw-link" routerLink="/connections" [queryParams]="{ type: v.id }">{{ plural(v.connections, 'connection') }}<span class="gw-sr-only"> {{ v.connections === 1 ? 'uses' : 'use' }} {{ v.name }}</span></a>@if (v.activityQuery) { · <a class="gw-link" routerLink="/activity" [queryParams]="{ q: v.activityQuery }">View activity<span class="gw-sr-only"> for {{ v.name }}</span></a>}} @else {no connections yet@if (v.state === 'enabled') { · <a class="gw-link" routerLink="/connections/new" [queryParams]="{ type: v.id }">Add connection<span class="gw-sr-only"> for {{ v.name }}</span></a>}}
+                }
+                @case ('mcp-server') {
+                  <a class="gw-link" routerLink="/connectors" fragment="mcp-servers">{{ serverStatus(v.server?.state ?? null).text }}<span class="gw-sr-only">, see {{ v.name }} in MCP servers</span></a> · {{ onEndpointsText(v.server?.usedBy ?? []) }}
+                }
+              }
+            </p>
+            <div class="gw-card__actions" gwConnectorCardActions>
+              @switch (v.kind) {
+                @case ('built-in') {
+                  @if (v.state === 'changed-outside') {
+                    <button class="gw-btn gw-btn--sm" type="button" (click)="act('keep', v, $event)">Review<span class="gw-sr-only"> the change to {{ v.name }}</span></button>
+                  } @else if (v.state === 'disabled') {
+                    <button class="gw-btn gw-btn--sm" type="button" [attr.aria-busy]="busyKey() === v.key ? 'true' : null" [attr.aria-disabled]="busyKey() === v.key ? 'true' : null" (click)="act('turn-on', v, $event)">@if (busyKey() === v.key) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Turn on<span class="gw-sr-only"> {{ v.name }}</span></button>
+                  }
+                }
+                @case ('plugin') {
+                  @if (v.update; as u) {
+                    <button class="gw-btn gw-btn--sm" type="button" [attr.aria-busy]="busyKey() === v.key ? 'true' : null" [attr.aria-disabled]="busyKey() === v.key ? 'true' : null" (click)="act('update', v, $event)">@if (busyKey() === v.key) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="circle-arrow-up" class="gw-icon gw-icon--sm"></svg>}Update<span class="gw-sr-only"> {{ v.name }} to {{ ver(u.to) }}</span></button>
+                  }
+                  <div class="gw-menu-host">
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" [attr.aria-label]="'More actions for ' + v.name" aria-haspopup="menu" [gwMenuTrigger]="menu"><svg lucideIcon="ellipsis" class="gw-icon"></svg></button>
+                    <div class="gw-menu gw-menu--right" gwMenu #menu="gwMenu" [id]="menuId(v)" role="menu" [attr.aria-label]="'More actions for ' + v.name" hidden>
+                      @if (v.state === 'changed-outside') {
+                        <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" (click)="act('keep', v, $event)"><svg lucideIcon="shield-alert" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Review the change<span class="gw-menu__hint">It was changed outside MCP Gateway and serves nothing until you keep it.</span></span></button>
+                      } @else if (v.state === 'disabled') {
+                        <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" (click)="act('enable', v, $event)"><svg lucideIcon="power" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Enable plugin<span class="gw-menu__hint">Load it again. Its tools come back with their modes.</span></span></button>
+                      } @else {
+                        @if (v.failed) {
+                          <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" (click)="act('restart', v, $event)"><svg lucideIcon="rotate-cw" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Restart plugin<span class="gw-menu__hint">Start its process again after it stopped restarting.</span></span></button>
+                        }
+                        <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" (click)="act('disable', v, $event)"><svg lucideIcon="power-off" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Disable plugin<span class="gw-menu__hint">Unload now. Its tools stop until you enable it.</span></span></button>
+                      }
+                      <div class="gw-menu__divider" role="separator"></div>
+                      <button class="gw-menu__item gw-menu__item--danger" type="button" role="menuitem" tabindex="-1" (click)="act('uninstall', v, $event)"><svg lucideIcon="trash-2" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Uninstall plugin</span></button>
+                    </div>
+                  </div>
+                }
+                @case ('mcp-server') {
+                  <a class="gw-btn gw-btn--sm" routerLink="/endpoints">Add to endpoint<span class="gw-sr-only"> {{ v.name }} tools</span></a>
+                }
+              }
+            </div>
+          </article>
+        </li>
+      }
+    </ul>
+
+    @if (!shown().length) {
+      <!-- Empty state: the search matches nothing (kit #installed-empty). -->
+      <div class="gw-card">
+        <div class="gw-empty">
+          <span class="gw-empty__icon"><svg lucideIcon="search-x" class="gw-icon gw-icon--lg"></svg></span>
+          <h3 class="gw-empty__title">No installed connector matches</h3>
+          <p class="gw-empty__text">Check the spelling, or look for it in the catalog and install it.</p>
+          <div class="gw-empty__actions"><button class="gw-btn" type="button" gwSearchClear="#installed-search"><svg lucideIcon="x" class="gw-icon"></svg> Clear search</button></div>
+        </div>
+      </div>
+    }
+  }
+</div>

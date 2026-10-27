@@ -1,0 +1,158 @@
+// =============================================================
+// .gw-avatar · .gw-client-mark · People and MCP clients
+// -------------------------------------------------------------
+// Two identity marks with different shapes so they never read alike:
+// people are circles, MCP clients are rounded squares.
+//
+//   <span class="gw-avatar" aria-hidden="true">PN</span> Priya Nair
+//   <span class="gw-avatar" role="img" aria-label="Alex Morgan">AM</span>      (no name beside it)
+//   <span class="gw-avatar"><img class="gw-avatar__img" src="…" alt="Sam Lee"></span>
+//
+//   <span class="gw-client-mark gw-client-mark--codex" aria-hidden="true">Cx</span> Codex
+//
+// gw-avatar         initials (two letters, uppercase) or a photo; neutral tone.
+//   --sm (20) | md (28, default) | --lg (40)
+//   __img           photo or system image; fills the circle (object-fit: cover)
+// gw-client-mark    neutral monogram tile of an MCP client. NOT a vendor logo:
+//                   official marks come only from vendor press kits, after sign-off
+//                   (AGENTS.md §0). Each client keeps one tile look everywhere.
+//   --claude        Claude Desktop "CD"   stage tone (subtle)
+//   --codex         Codex "Cx"            neutral solid
+//   --cursor        Cursor "Cu"           info tone (subtle)
+//   --antigravity   Antigravity "Ag"      dev tone (subtle)
+//   --claudeai      claude.ai "ai"        brand tone (subtle)
+//   --inspector     MCP Inspector "In"    inverse
+//   --generic       any other client: dashed outline + its initials or an app-window icon
+//   --sm (24) | md (32, default) | --lg (40, client cards)
+//
+// Tones  identity hues only. The brand and env tints are borrowed for their hue,
+//        never their meaning; success / warning / danger / prod are not used, so a
+//        tile never reads as a state. The shape (rounded square + monogram) keeps a
+//        tile apart from a gw-env marker (bar + mono label) and a badge (pill).
+// A11y   Both are decorative next to a visible name (aria-hidden="true"). Standing
+//        alone they are role="img" + aria-label with the full name. The tile tone
+//        never carries status: connection state is a gw-status beside it. Every
+//        tile has a 1px border, so the shape survives Windows forced colours.
+// Raw    line-height 1 so the glyphs sit optically centred in the shape.
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+// ─────────────────── Avatar ───────────────────
+
+.gw-avatar {
+  --gw-avatar-size: var(--gw-size-control-sm);
+  @include gw-tone(neutral);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--gw-avatar-size);
+  height: var(--gw-avatar-size);
+  overflow: hidden;
+  @include gw-type(caption);
+  font-weight: var(--gw-font-weight-semibold);
+  line-height: 1; // raw: glyphs centred in the circle
+  color: var(--gw-tone-fg);
+  text-transform: uppercase;
+  white-space: nowrap;
+  vertical-align: middle;
+  user-select: none;
+  background: var(--gw-tone-subtle);
+  border: var(--gw-border-width-default) solid var(--gw-tone-border);
+  border-radius: var(--gw-radius-full);
+
+  &--sm {
+    --gw-avatar-size: var(--gw-size-icon-lg);
+    @include gw-type(overline);
+    line-height: 1; // raw: glyphs centred in the circle
+  }
+
+  &--lg {
+    --gw-avatar-size: var(--gw-size-control-lg);
+    @include gw-type(h3);
+    line-height: 1; // raw: glyphs centred in the circle
+  }
+
+  &:has(> .gw-avatar__img) { background: var(--gw-color-bg-surface); }
+
+  &__img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+// ─────────────────── Client mark ───────────────────
+
+.gw-client-mark {
+  --gw-client-mark-size: var(--gw-size-control-md);
+  @include gw-tone(neutral);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--gw-client-mark-size);
+  height: var(--gw-client-mark-size);
+  overflow: hidden;
+  font-family: var(--gw-font-family-sans);
+  @include gw-type(ui);
+  font-weight: var(--gw-font-weight-semibold);
+  line-height: 1; // raw: glyphs centred in the tile
+  letter-spacing: var(--gw-font-tracking-tight);
+  color: var(--gw-tone-fg);
+  white-space: nowrap;
+  vertical-align: middle;
+  user-select: none;
+  background: var(--gw-tone-subtle);
+  border: var(--gw-border-width-default) solid var(--gw-tone-border);
+  border-radius: var(--gw-radius-sm);
+
+  .gw-icon { --gw-icon-size: var(--gw-size-icon-md); }
+
+  // ─── Sizes ───
+  &--sm {
+    --gw-client-mark-size: var(--gw-size-icon-xl);
+    @include gw-type(caption);
+    font-weight: var(--gw-font-weight-semibold);
+    line-height: 1; // raw: glyphs centred in the tile
+    border-radius: var(--gw-radius-xs);
+    .gw-icon { --gw-icon-size: var(--gw-size-icon-sm); }
+  }
+
+  &--lg {
+    --gw-client-mark-size: var(--gw-size-control-lg);
+    @include gw-type(h3);
+    line-height: 1; // raw: glyphs centred in the tile
+    letter-spacing: var(--gw-font-tracking-tight);
+    border-radius: var(--gw-radius-md);
+    .gw-icon { --gw-icon-size: var(--gw-size-icon-lg); }
+  }
+
+  // ─── Clients ───
+  &--claude      { @include gw-tone(stage); }
+  &--claudeai    { @include gw-tone(brand); }
+  &--cursor      { @include gw-tone(info); }
+  &--antigravity { @include gw-tone(dev); }
+
+  &--codex {
+    color: var(--gw-tone-on-solid);
+    background: var(--gw-tone-solid);
+    border-color: var(--gw-tone-solid);
+  }
+
+  &--inspector {
+    color: var(--gw-color-text-inverse);
+    background: var(--gw-color-bg-inverse);
+    border-color: var(--gw-color-bg-inverse);
+  }
+
+  &--generic {
+    color: var(--gw-color-text-muted);
+    background: transparent;
+    border-style: dashed;
+    border-color: var(--gw-color-border-strong);
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "pattern": {
+      "type": "string",
+      "maxLength": 256,
+      "default": "*",
+      "description": "Redis glob: cache:*, user:?:profile, order:[0-9]*"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "string",
+        "hash",
+        "list",
+        "set",
+        "zset",
+        "stream"
+      ]
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "default": 100,
+      "description": "Keys to return (approximate)."
+    },
+    "cursor": {
+      "type": "string",
+      "maxLength": 512
+    },
+    "details": {
+      "type": "boolean",
+      "default": true,
+      "description": "Add type and TTL of each key (one extra round trip)."
+    }
+  }
+}

@@ -1,0 +1,259 @@
+// =============================================================
+// .gw-code · .gw-code-block · .gw-tok-*   Literal values and code
+// -------------------------------------------------------------
+// Everything a human approves or copies is shown VERBATIM in mono with
+// ligatures off (gw-mono): `!=` must never render as ≠, `--` never as —.
+//
+// .gw-code   inline literal: tool name, slug, host, path, token prefix.
+//   <code class="gw-code">sql_query</code>
+//   --secret  masked placeholder (‹masked›, ‹secret:ref›): secret colour,
+//             dashed edge. The guillemets are the non-colour cue; never put
+//             a real secret inside.
+//   Long literals wrap anywhere inside running text; in a cell or a header
+//   that must stay on one line, truncate the container, not the chip.
+//
+// .gw-code-block   SQL, command, JSON, TOML, terminal output.
+//   <div class="gw-code-block">
+//     <div class="gw-code-block__header">
+//       <span class="gw-code-block__lang">SQL</span>
+//       <span class="gw-code-block__filename">sql_query · dev-db</span>
+//       <div class="gw-code-block__actions">
+//         <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-copy-from="#q1">
+//           <span class="gw-code-block__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i> Copy<span class="gw-sr-only"> SQL query</span></span>
+//           <span class="gw-code-block__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i> Copied</span>
+//         </button>
+//       </div>
+//     </div>
+//     <div class="gw-code-block__body" tabindex="0" role="region" aria-label="SQL query">
+// <pre class="gw-code-block__pre" id="q1"><code>SELECT …</code></pre>
+//     </div>
+//   </div>
+//
+// Subparts
+//   __header    optional bar, 36px: __lang (overline, muted), __filename
+//               (mono, truncates), __actions (end; a ghost sm button sits 4px
+//               from the edge)
+//   __copy / __copied   the two faces of the copy button (direct children of
+//               the button). kit.js sets [data-copied] on the button for 1.6 s;
+//               CSS swaps the faces, so the accessible name becomes "Copied"
+//               and kit.js announces "Copied to clipboard".
+//   __body      the scroller (both axes). Give it tabindex="0" + role="region"
+//               + aria-label so keyboard users can scroll it (WCAG 2.1.1).
+//   __pre       the <pre>. Content starts at column 0 of the source: every
+//               character inside, indentation included, is copied as is.
+//               data-gw-copy-from points at the <pre> (kit.js copies its
+//               textContent).
+//   __line      one line: <span class="gw-code-block__line">…</span>, one per
+//               source line, direct children of the <code>, separated by a
+//               newline. Needed for --numbered only. The container becomes a
+//               grid, so the newlines between lines stay in textContent (the
+//               copy is exact) without rendering as blank lines.
+// Variants
+//   --numbered  line-number gutter from CSS counters (not copied, not read by
+//               screen readers: `content: counter() / ""`), sticky on
+//               horizontal scroll. The gutter fits 3 digits; for 1000+ lines
+//               set --gw-code-gutter: 4ch on the block.
+//   --wrap      soft-wrap long lines instead of scrolling (JSON arguments in
+//               drawers). Wrapped lines hang under the code, not the gutter.
+//   --scroll    caps the height (default 320px, override with
+//               --gw-code-block-max-height) and scrolls vertically too.
+// Syntax tokens   .gw-tok-keyword string number comment function property
+//                 punctuation secret → colours from --gw-color-code-*, each
+//                 checked ≥ 4.5:1 on --gw-color-code-bg in all four modes.
+//                 Colour is decoration here: the text itself is the content.
+//                 .gw-tok-invisible  an escape shown INSTEAD of an invisible or
+//                 deceptive character: control, bidi override / isolate,
+//                 zero-width, tab, trailing space → ‹U+202E› ‹U+200B› ‹TAB› ‹SP›
+//                 (title = code point + name). .gw-tok-confusable wraps a real
+//                 non-ASCII letter that looks like ASCII (homoglyph). Both: diff
+//                 removed fg, semibold, dashed box. Required in approval
+//                 requests (and wherever a human confirms text that will run).
+// States     [data-copied] on the copy button (kit.js) · __body:focus-visible
+//            (inset ring: the block clips its corners)
+// A11y       The copy button has visible text + a gw-sr-only object ("Copy
+//            SQL query"). The "Copied" face is the check icon + the word, in
+//            success fg (≥ 4.5:1 on the code background and its hover wash).
+// Raw values 3ch line-number gutter (digits, not a spacing step); tab-size 2
+//            (columns, the width a tab renders at in shown commands).
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+// ─────────────────── Inline literal ───────────────────
+
+.gw-code {
+  @include gw-type(code-sm); // includes gw-mono (ligatures off)
+  padding: 0 var(--gw-space-1);
+  color: var(--gw-color-text-primary);
+  background: var(--gw-color-bg-raised);
+  border: var(--gw-border-width-default) solid var(--gw-color-border-subtle);
+  border-radius: var(--gw-radius-xs);
+  overflow-wrap: anywhere;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+
+  &--secret {
+    color: var(--gw-color-code-secret);
+    background: var(--gw-color-code-bg);
+    border-style: dashed;
+    border-color: var(--gw-color-border-strong);
+  }
+}
+
+// ─────────────────── Syntax tokens ───────────────────
+
+.gw-tok-keyword     { color: var(--gw-color-code-keyword); }
+.gw-tok-string      { color: var(--gw-color-code-string); }
+.gw-tok-number      { color: var(--gw-color-code-number); }
+.gw-tok-comment     { color: var(--gw-color-code-comment); }
+.gw-tok-function    { color: var(--gw-color-code-function); }
+.gw-tok-property    { color: var(--gw-color-code-property); }
+.gw-tok-punctuation { color: var(--gw-color-code-punctuation); }
+.gw-tok-secret      { color: var(--gw-color-code-secret); }
+
+// A character a human can't see or can mistake: shown, boxed, never silent.
+// --invisible holds an escape the renderer writes instead of the character
+// (‹U+202E›, ‹U+200B›, ‹TAB›, ‹SP› for a trailing space); --confusable wraps
+// the real non-ASCII letter (Cyrillic U+043E in an identifier that looks like "orders"). Both carry the code
+// point and name in title=. Colour is the diff "removed" fg (4.5:1 on the code
+// background), and the dashed box is a second, colour-free cue.
+.gw-tok-invisible,
+.gw-tok-confusable {
+  color: var(--gw-color-diff-del-fg);
+  font-weight: var(--gw-font-weight-semibold);
+  outline: var(--gw-border-width-default) dashed currentColor;
+  outline-offset: calc(-1 * var(--gw-border-width-default));
+  border-radius: var(--gw-radius-xs);
+}
+
+.gw-tok-invisible { @include gw-type(code-sm); }
+
+// ─────────────────── Block ───────────────────
+
+.gw-code-block {
+  --gw-code-gutter: 3ch; // raw: line-number gutter = 3 mono digits
+  @include gw-well;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--gw-color-code-text);
+  background: var(--gw-color-code-bg);
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: var(--gw-space-3);
+    min-height: calc(var(--gw-size-control-sm) + var(--gw-space-2));
+    padding: var(--gw-space-1) var(--gw-space-4);
+    border-bottom: var(--gw-border-width-default) solid var(--gw-color-border-subtle);
+  }
+
+  &__lang {
+    flex: none;
+    @include gw-type(overline);
+    color: var(--gw-color-text-muted);
+  }
+
+  &__filename {
+    @include gw-type(code-sm);
+    @include gw-truncate;
+    color: var(--gw-color-text-secondary);
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--gw-space-1);
+    flex: none;
+    // A sm button ends 4px from the edge: pull it into the header padding.
+    margin-inline: auto calc(var(--gw-space-1) - var(--gw-space-4));
+  }
+
+  // Copy button faces, swapped by [data-copied] (kit.js).
+  &__copy,
+  &__copied {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--gw-space-1-5);
+  }
+  &__copied {
+    display: none;
+    color: var(--gw-color-success-fg);
+  }
+  [data-copied] > &__copy { display: none; }
+  [data-copied] > &__copied { display: inline-flex; }
+
+  &__body {
+    position: relative;
+    min-width: 0;
+    overflow: auto;
+    @include gw-scrollbar;
+    @include gw-focus-ring-inset;
+  }
+
+  &__pre {
+    width: max-content;
+    min-width: 100%;
+    margin: 0;
+    padding: var(--gw-space-3) var(--gw-space-4);
+    @include gw-type(code);
+    color: var(--gw-color-code-text);
+    white-space: pre;
+    tab-size: 2; // raw: tab width in columns
+    counter-reset: gw-code-line;
+
+    > code { display: block; font: inherit; }
+  }
+
+  // Lines present: the line container becomes a grid so the newline text
+  // nodes between line spans are not rendered (they stay in textContent).
+  &__pre:has(> .gw-code-block__line),
+  &__pre > code:has(> .gw-code-block__line) {
+    display: grid;
+  }
+
+  &__line {
+    display: block;
+    min-height: var(--gw-type-code-line); // an empty line keeps its height
+  }
+
+  // ─── Variants ───
+  &--numbered {
+    .gw-code-block__pre { padding-inline-start: 0; }
+
+    .gw-code-block__line {
+      counter-increment: gw-code-line;
+      padding-inline-start: calc(var(--gw-code-gutter) + var(--gw-space-3) + var(--gw-space-3));
+
+      // [space-3][3ch number][space-3] gutter; its fill hides code that
+      // scrolls under it. Net inline size 0: the line padding reserves it.
+      &::before {
+        content: counter(gw-code-line);       // fallback without alt text
+        content: counter(gw-code-line) / ""; // numbers are not read aloud
+        position: sticky;
+        inset-inline-start: 0;
+        display: inline-block;
+        box-sizing: content-box;
+        width: var(--gw-code-gutter);
+        margin-inline-start: calc(-1 * (var(--gw-code-gutter) + var(--gw-space-3) + var(--gw-space-3)));
+        padding-inline: var(--gw-space-3);
+        color: var(--gw-color-text-muted);
+        text-align: end;
+        background: var(--gw-color-code-bg);
+        user-select: none;
+      }
+    }
+  }
+
+  &--wrap .gw-code-block__pre {
+    width: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  &--scroll .gw-code-block__body {
+    max-height: var(--gw-code-block-max-height, calc(var(--gw-space-16) * 5));
+  }
+}

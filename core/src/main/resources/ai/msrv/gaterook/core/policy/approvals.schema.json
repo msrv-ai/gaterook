@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Approvals",
+  "description": "How long a request waits, who decides and where it is announced.",
+  "type": "object",
+  "x-policy-section": "approvals",
+  "additionalProperties": false,
+  "properties": {
+    "timeoutMinutes": {
+      "type": "integer",
+      "title": "Approval timeout",
+      "enum": [2, 5, 10, 15, 30],
+      "x-enumTitles": ["2 min", "5 min", "10 min", "15 min", "30 min"],
+      "default": 5,
+      "x-env-default": {"stage": 10, "prod": 10},
+      "x-unit": "min",
+      "description": "When the time runs out the request is denied and recorded as Expired; nothing runs."
+    },
+    "approvers": {
+      "type": "integer",
+      "title": "Approvals needed",
+      "const": 1,
+      "default": 1,
+      "readOnly": true,
+      "description": "On the desktop one person decides: you. 2 people is server mode only."
+    },
+    "comment": {
+      "type": "string",
+      "title": "Comment on a decision",
+      "enum": ["optional", "recommended", "required"],
+      "x-enumTitles": ["Optional", "Recommended", "Required"],
+      "default": "optional",
+      "x-env-default": {"prod": "required"},
+      "description": "Required: Approve and run waits for a comment; Slack and Telegram show Deny and Open in app."
+    },
+    "announceIn": {
+      "type": "array",
+      "title": "Announce requests in",
+      "uniqueItems": true,
+      "items": {"type": "string", "enum": ["desktop", "slack", "telegram"]},
+      "x-enumTitles": ["Desktop notifications", "Slack", "Telegram"],
+      "default": ["desktop", "slack"]
+    }
+  }
+}

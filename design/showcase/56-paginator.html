@@ -1,0 +1,60 @@
+<section class="sc-section" id="paginator" data-title="Pagination" data-group="In-page navigation">
+  <h2>Pagination <code class="gw-code">gw-paginator</code></h2>
+  <p>Three patterns on one block. <strong>Compact</strong>: the range and previous / next, under tables that sort and filter on the server. <strong>Numbered</strong>: pages for short lists people browse, like the connector catalog. <strong>Load older</strong>: the audit log uses a cursor, never page numbers, because new events arrive at the top and loading older rows below never moves what you are reading. Name the <code class="gw-code">nav</code> after its list and announce the new range after a change. Do not paginate fewer than about 50 rows: show them all.</p>
+
+  <h3>Compact</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <nav class="gw-paginator" aria-label="Events pages">
+      <p class="gw-paginator__info">1–50 of 1,284 events</p>
+      <div class="gw-paginator__controls">
+        <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm" type="button" aria-label="Previous page" disabled><i class="gw-icon" data-lucide="chevron-left"></i></button>
+        <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm" type="button" aria-label="Next page"><i class="gw-icon" data-lucide="chevron-right"></i></button>
+      </div>
+    </nav>
+  </div>
+
+  <h3>Numbered</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <nav class="gw-paginator" aria-label="Connector catalog pages">
+      <p class="gw-paginator__info">Page 3 of 12 · 136 connectors</p>
+      <ul class="gw-paginator__controls">
+        <li><button class="gw-paginator__page" type="button" aria-label="Previous page"><i class="gw-icon" data-lucide="chevron-left"></i></button></li>
+        <li><button class="gw-paginator__page" type="button" aria-label="Page 1">1</button></li>
+        <li><button class="gw-paginator__page" type="button" aria-label="Page 2">2</button></li>
+        <li><button class="gw-paginator__page" type="button" aria-label="Page 3" aria-current="page">3</button></li>
+        <li><button class="gw-paginator__page" type="button" aria-label="Page 4">4</button></li>
+        <li aria-hidden="true"><span class="gw-paginator__page"><i class="gw-icon gw-icon--sm" data-lucide="ellipsis"></i></span></li>
+        <li><button class="gw-paginator__page" type="button" aria-label="Page 12">12</button></li>
+        <li><button class="gw-paginator__page" type="button" aria-label="Next page"><i class="gw-icon" data-lucide="chevron-right"></i></button></li>
+      </ul>
+    </nav>
+    <nav class="gw-paginator" aria-label="Templates pages">
+      <p class="gw-paginator__info">Page 1 of 2</p>
+      <ul class="gw-paginator__controls">
+        <li><button class="gw-paginator__page" type="button" aria-label="Previous page" disabled><i class="gw-icon" data-lucide="chevron-left"></i></button></li>
+        <li><button class="gw-paginator__page" type="button" aria-label="Page 1" aria-current="page">1</button></li>
+        <li><button class="gw-paginator__page" type="button" aria-label="Page 2">2</button></li>
+        <li><button class="gw-paginator__page" type="button" aria-label="Next page"><i class="gw-icon" data-lucide="chevron-right"></i></button></li>
+      </ul>
+    </nav>
+  </div>
+
+  <h3>Load older (audit log)</h3>
+  <div class="sc-demo sc-demo--col" data-sc-code>
+    <div class="gw-paginator">
+      <p class="gw-paginator__info">Newest 50 of 1,284 events in the last 24 hours</p>
+      <div class="gw-paginator__controls">
+        <button class="gw-btn gw-btn--sm" type="button"><i class="gw-icon gw-icon--sm" data-lucide="history"></i> Load older events</button>
+      </div>
+    </div>
+    <div class="gw-paginator">
+      <p class="gw-paginator__info">Loading events before 13:42:07</p>
+      <div class="gw-paginator__controls">
+        <button class="gw-btn gw-btn--sm" type="button" aria-busy="true"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> Loading older events</button>
+      </div>
+    </div>
+    <div class="gw-paginator">
+      <p class="gw-paginator__info">All 1,284 events loaded. Events older than 1 year are deleted (Settings › Audit &amp; retention).</p>
+    </div>
+  </div>
+</section>

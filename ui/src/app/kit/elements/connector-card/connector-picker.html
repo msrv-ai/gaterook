@@ -1,0 +1,36 @@
+<legend class="gw-sr-only">Connector type</legend>
+@for (g of groups(); track g.name; let gi = $index) {
+  <div class="gw-connector-card__group" role="group" [attr.aria-labelledby]="uid + '-g' + gi">
+    @switch (level()) {
+      @case (2) { <h2 class="gw-connector-card__group-title gw-text-overline" [id]="uid + '-g' + gi">{{ g.name }}</h2> }
+      @default { <h3 class="gw-connector-card__group-title gw-text-overline" [id]="uid + '-g' + gi">{{ g.name }}</h3> }
+    }
+    <div class="gw-grid gw-grid--auto">
+      @for (c of g.cards; track key(c)) {
+        @let kb = kindBadge(c.kind);
+        <label class="gw-choice-card gw-connector-card__option">
+          <input
+            class="gw-choice-card__input"
+            type="radio"
+            [name]="uid + '-type'"
+            [value]="key(c)"
+            [checked]="value() === key(c)"
+            [required]="required()"
+            [attr.aria-invalid]="error() ? 'true' : null"
+            [gwAriaDisabled]="!c.available"
+            [attr.aria-labelledby]="id(c, 't')"
+            [attr.aria-describedby]="id(c, 'd') + (error() ? ' ' + uid + '-err' : ' ' + id(c, 'm'))"
+            (change)="pick(c)"
+          >
+          <span class="gw-choice-card__icon"><svg [lucideIcon]="c.icon" class="gw-icon"></svg></span>
+          <span class="gw-choice-card__title" [id]="id(c, 't')">{{ c.name }}@if (c.kind !== 'built-in' && c.kind !== 'mcp-server') {{{ ' ' }}<span [class]="'gw-badge gw-badge--sm ' + kb.cls"><svg [lucideIcon]="kb.icon" class="gw-icon gw-badge__icon"></svg>{{ kb.text }}</span>}</span>
+          <span class="gw-choice-card__description" [id]="id(c, 'd')">{{ c.available ? c.description : (c.reason ?? c.description) }}</span>
+          <span class="gw-choice-card__meta" [id]="id(c, 'm')">@if (c.kind === 'plugin' && c.signed === true) {<span class="gw-badge gw-badge--success gw-badge--sm"><svg lucideIcon="badge-check" class="gw-icon gw-badge__icon"></svg>Signed<span class="gw-sr-only"> by the catalog</span></span>} @else if (c.kind === 'plugin' && c.signed === false) {<span class="gw-badge gw-badge--warning gw-badge--sm"><svg lucideIcon="shield-alert" class="gw-icon gw-badge__icon"></svg>Unsigned</span>}{{ meta(c, g) }}</span>
+        </label>
+      }
+    </div>
+  </div>
+}
+@if (error()) {
+  <p class="gw-field__error" [id]="uid + '-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ error() }}</p>
+}

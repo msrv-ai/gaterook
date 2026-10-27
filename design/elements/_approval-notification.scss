@@ -1,0 +1,241 @@
+// =============================================================
+// .gw-approval-notification · Element · a request outside the window
+// -------------------------------------------------------------
+// Previews of how one approval request reaches the approver when the
+// window is not in front: the native desktop notification (macOS and
+// Windows), a Slack message, a Telegram bot message and the in-app
+// toast. Each preview sits in a gw-card frame labelled with its channel;
+// the mock inside is built only from kit components. Layout glue only.
+//
+// Used in   pages/approvals.html (delivery channels of the selected request),
+//           pages/settings.html (Approvals · Notifications: what each channel
+//           will look like, next to "Send test notification").
+// Composes  gw-card (frame, and the OS notification / Telegram bubble surface)
+//           · gw-client-mark--generic --sm (S / T channel tiles, never brand
+//           logos) · gw-icon-tile --sm --neutral (desktop, toast frames)
+//           · gw-logo (--sm; --lg --mark-only as the app avatar) · gw-badge
+//           (--sm "App"; outcome badges) · gw-env (--sm) · gw-code · gw-kv--inline
+//           · gw-code-block --wrap + gw-tok-* · gw-btn (--approve, --danger,
+//           --sm, --block) · gw-toast (static anatomy) + window.gwToast (live)
+//           · gw-alert --info --compact (the rule of the channel) · gw-grid --2
+//           · text utilities (gw-text-*, gw-fg-*, gw-mono, gw-truncate,
+//           gw-tabular, gw-sr-only).
+//
+//   <section class="gw-card gw-approval-notification" aria-labelledby="ch-slack">
+//     <header class="gw-card__header">
+//       <div class="gw-card__heading">
+//         <h3 class="gw-card__title" id="ch-slack">
+//           <span class="gw-client-mark gw-client-mark--generic gw-client-mark--sm" aria-hidden="true">S</span>Slack
+//         </h3>
+//         <p class="gw-card__description">Direct message from the GateRook app to a linked approver.</p>
+//       </div>
+//     </header>
+//     <div class="gw-card__body gw-approval-notification__stage">
+//       <figure class="gw-approval-notification__preview">
+//         <div class="gw-approval-notification__message" inert> …mock… </div>
+//         <figcaption class="gw-sr-only">What the mock says, in words.</figcaption>
+//       </figure>
+//       <div class="gw-alert gw-alert--info gw-alert--compact"> …the rule of this channel… </div>
+//     </div>
+//   </section>
+//
+// Parts
+//   __stage       the frame body: previews stacked, then the channel note
+//   __preview     <figure>: the mock, centred, and its caption
+//   __caption     visible caption under a mock (macOS, Windows)
+//   __surface     a mock drawn on a nested gw-card: notification-sized
+//                 (--gw-layout-toast-width), padded; --bubble = chat bubble width
+//   __os          desktop notification layout: --mac (app mark | text | stacked
+//                 actions) or --win (app line, text, actions in equal columns)
+//   __app         app line: gw-logo --sm + time
+//   __text        title, subtitle and body column; truncates its lines
+//   __os-actions  the notification buttons (Review, Deny)
+//   __message     Slack: app avatar | content (flat on the channel, no surface)
+//   __byline      Slack: app name, App badge, time
+//   __blocks      Slack: header, fields, code, context, actions, stacked
+//   __actions     a row of buttons (or the outcome badge + words) that wraps
+//   __chat        Telegram: bubble + inline keyboard, bubble width
+//   __keyboard    Telegram inline keyboard: two equal columns of __key buttons
+//   __key         one keyboard button; --wide spans the row (Open in app)
+//   __time        the time at the end of a bubble
+//   __toast       the static toast, at toast width
+//
+// States   pending (buttons shown) · decided (the channel message is edited in
+//          place: buttons replaced by the outcome, a gw-badge with the decision
+//          plus who and where) · expired (neutral badge, keyboard removed).
+//          The desktop notification and the toast are withdrawn once the
+//          request is decided or expires. Shown by markup; nothing here
+//          changes colour.
+// Rules    Same request, same fields everywhere: tool on connection, the
+//          environment (gw-env where the channel renders kit parts; the words
+//          "dev environment" in a plain-text OS notification), AI app, endpoint,
+//          rule and the auto-deny TIME ("At 14:07:11": a channel message does
+//          not tick, so it never says "in 4:12").
+//          Desktop: Review and Deny only. Clicking the notification or Review
+//          opens the request in the app (focus on its title); nothing is
+//          approved blind from the OS. Slack and Telegram show the full exact
+//          action and may offer Approve, but only to approvers who linked their
+//          account; others get Open in app. A statement longer than the channel
+//          allows (Slack section text 3,000 characters, Telegram message 4,096)
+//          is never cut silently: Approve is dropped and Open in app remains.
+//          The agent's note is never sent to a channel.
+//          Slack goes as a direct message to each linked approver by default:
+//          the exact action can carry customer data, and every member of a
+//          channel would see it. Posting to a channel is an explicit choice in
+//          Settings · Notifications, with the hint "Everyone in the channel sees
+//          the exact action".
+//          Prod: every channel titles it "PROD · Approval needed" and makes the
+//          first line "Runs on production" (danger text + gw-env--prod where the
+//          channel renders kit parts) — never only a chip or a muted caption.
+//          Comment required: whenever the policy requires a comment to approve
+//          (the prod default, Settings › Approval rules "Require a comment on
+//          prod"), Slack and Telegram NEVER show Approve: Deny and Open in app
+//          remain, and the context line says "a comment is required: approve in
+//          the app". The desktop notification is Review and Deny, always. The in-app toast holds
+//          no decision: Review only (window.gwToast with a Review action, which
+//          keeps it until it is used or dismissed).
+// A11y     A mock is a picture of another app: its subtree is `inert` (no
+//          focus, no clicks, hidden from assistive tech) and a gw-sr-only
+//          figcaption says what it shows. The frame title names the channel;
+//          the live toast demo uses a real button.
+// Raw values none (space-token multiples size the mocks).
+// =============================================================
+
+@use "../scss/tokens" as *;
+@use "../scss/mixins" as *;
+
+.gw-approval-notification {
+  min-width: 0;
+
+  &__stage {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-4);
+  }
+
+  &__preview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--gw-space-2);
+    min-width: 0;
+  }
+
+  &__caption {
+    text-align: center;
+  }
+
+  // ─── Mock surfaces (nested gw-card) ───
+  &__surface {
+    inline-size: min(100%, var(--gw-layout-toast-width));
+    padding: var(--gw-space-3) var(--gw-space-4);
+    gap: var(--gw-space-2);
+
+    &--bubble { inline-size: 100%; }
+  }
+
+  // ─── Desktop notification ───
+  &__os {
+    min-width: 0;
+
+    &--mac {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: var(--gw-space-3);
+    }
+
+    &--win {
+      display: flex;
+      flex-direction: column;
+      gap: var(--gw-space-2);
+    }
+  }
+
+  &__app {
+    display: flex;
+    align-items: center;
+    gap: var(--gw-space-2);
+    min-width: 0;
+  }
+
+  &__text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-0-5);
+    min-width: 0;
+  }
+
+  &__os-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-1-5);
+  }
+
+  &__os--win &__os-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--gw-space-2);
+  }
+
+  // ─── Slack ───
+  &__message {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: var(--gw-space-3);
+    inline-size: 100%;
+    max-inline-size: calc(var(--gw-space-16) * 10);
+  }
+
+  &__byline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gw-space-1) var(--gw-space-2);
+  }
+
+  &__blocks {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-3);
+    min-width: 0;
+    margin-top: var(--gw-space-2);
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--gw-space-2);
+  }
+
+  // ─── Telegram ───
+  &__chat {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-1-5);
+    inline-size: min(100%, calc(var(--gw-space-16) * 6));
+  }
+
+  &__keyboard {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--gw-space-1-5);
+  }
+
+  &__key {
+    min-width: 0;
+
+    &--wide { grid-column: 1 / -1; }
+  }
+
+  &__time {
+    align-self: flex-end;
+  }
+
+  // ─── In-app toast ───
+  &__toast {
+    inline-size: min(100%, var(--gw-layout-toast-width));
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "jsonrpc" : "2.0",
+  "id" : 41,
+  "result" : {
+    "content" : [ {
+      "type" : "text",
+      "text" : "SD-123 · Time to first response: ongoing, 2h 30m left (goal 4h)"
+    } ],
+    "structuredContent" : {
+      "issueKey" : "SD-123",
+      "slas" : [ {
+        "name" : "Time to first response",
+        "state" : "ongoing",
+        "breached" : false,
+        "goalMillis" : 14400000,
+        "elapsedMillis" : 5400000,
+        "remainingMillis" : 9000000,
+        "breachTime" : "2026-10-22T18:30:00+02:00"
+      } ],
+      "truncated" : false
+    },
+    "isError" : false,
+    "truncated" : false,
+    "maskPaths" : [ ],
+    "stats" : {
+      "durationMs" : 214
+    }
+  }
+}

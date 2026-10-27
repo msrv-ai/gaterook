@@ -1,0 +1,307 @@
+<div class="gw-status-screen__drag" aria-hidden="true"></div>
+<div class="gw-status-screen__column">
+  <span class="gw-logo gw-logo--xl">
+    <img class="gw-logo__mark" src="assets/logo-mark.svg" alt="">
+    <span class="gw-logo__name">MCP Gateway</span>
+  </span>
+
+  <section class="gw-card gw-status-screen__card" [attr.aria-labelledby]="uid + '-title'">
+    @switch (view().kind) {
+      @case ('starting') {
+        <div class="gw-card__body gw-status-screen__body">
+          <div class="gw-status-screen__intro">
+            <div class="gw-status-screen__text">
+              <ng-container *ngTemplateOutlet="heading; context: { $implicit: 'Starting the gateway core' }" />
+              <!-- Decision 2, ARCHITECTURE §8.6.1: a native core, not a Java runtime; it starts in well under the kit's "few seconds". -->
+              <p class="gw-text-body-read">Starting the native core and the local API on <span class="gw-mono">{{ address() }}</span>. This usually takes about a second.</p>
+            </div>
+          </div>
+          <div class="gw-progress gw-progress--indeterminate" role="progressbar" [attr.aria-labelledby]="uid + '-title'">
+            <div class="gw-progress__bar"></div>
+          </div>
+          <ng-container *ngTemplateOutlet="stepper" />
+          <p class="gw-sr-only" role="status">{{ startingStatus() }}</p>
+        </div>
+      }
+
+      @case ('port-in-use') {
+        <div class="gw-card__body gw-status-screen__body">
+          <div class="gw-status-screen__intro">
+            <span class="gw-icon-tile gw-icon-tile--lg gw-icon-tile--danger"><svg lucideIcon="ethernet-port" class="gw-icon gw-icon--lg"></svg></span>
+            <div class="gw-status-screen__text">
+              <ng-container *ngTemplateOutlet="heading; context: { $implicit: 'Port ' + port() + ' is already in use' }" />
+              <!--
+                ARCHITECTURE §8.6.18: Claude Desktop's bridge asks the app for the URL on every token, so it follows the
+                new port; the clients with the URL in their config file need it written again.
+              -->
+              @if (asPort()?.publicListener) {
+                <!-- The tunnel's public listener (ARCHITECTURE §7.3): the core binds it at start too, so another local port wouldn't help. -->
+                <p class="gw-text-body-read">
+                  @if (asPort()?.portOwner; as owner) {
+                    Another process (PID <span class="gw-mono">{{ owner.pid }}</span>, user <span class="gw-mono">{{ owner.user }}</span>) is listening on <span class="gw-mono">127.0.0.1:{{ port() }}</span>,
+                  } @else {
+                    Another process is listening on <span class="gw-mono">127.0.0.1:{{ port() }}</span>,
+                  }
+                  the port of the tunnel's public listener, so the core can't start. Stop that process, then restart the core.
+                </p>
+              } @else {
+                <p class="gw-text-body-read">
+                  @if (asPort()?.portOwner; as owner) {
+                    Another process (PID <span class="gw-mono">{{ owner.pid }}</span>, user <span class="gw-mono">{{ owner.user }}</span>) is listening on <span class="gw-mono">{{ address() }}</span>,
+                  } @else {
+                    Another process is listening on <span class="gw-mono">{{ address() }}</span>,
+                  }
+                  so the core can't start its local API. Stop that process and reopen MCP Gateway, or start the core on another port: every endpoint URL changes, so clients with the URL in their config, such as Codex and Cursor, need to be connected again.
+                </p>
+              }
+            </div>
+          </div>
+          <ng-container *ngTemplateOutlet="stepper" />
+          <div class="gw-status-screen__details">
+            <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [expanded]="true" [attr.aria-controls]="uid + '-help'"><svg lucideIcon="square-terminal" class="gw-icon gw-icon--sm"></svg> Find the process</button>
+            <div class="gw-stack gw-stack--sm" [id]="uid + '-help'">
+              <gw-code-block lang="Shell" filename="macOS and Linux" copyLabel="command" [regionLabel]="'Command that finds the process on port ' + port()" [id]="uid + '-lsof'" [text]="'lsof -nP -iTCP:' + port() + ' -sTCP:LISTEN'" />
+              <p class="gw-text-caption gw-fg-muted">On Windows: <code class="gw-code">netstat -ano | findstr :{{ port() }}</code></p>
+            </div>
+          </div>
+          <ng-container *ngTemplateOutlet="noticeAlert" />
+          <p class="gw-sr-only" role="alert">The core failed to start: port {{ port() }} is already in use.</p>
+        </div>
+        <footer class="gw-card__footer">
+          <ng-container *ngTemplateOutlet="quitButton" />
+          @if (asPort()?.publicListener) {
+            <button class="gw-btn gw-btn--primary" type="button" [attr.aria-busy]="busy() === 'restart' ? 'true' : null" [attr.aria-disabled]="busy() === 'restart' ? 'true' : null" (click)="restart.emit()">@if (busy() === 'restart') {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="rotate-cw" class="gw-icon"></svg>} Restart core</button>
+          } @else {
+            <button class="gw-btn gw-btn--primary" type="button" (click)="usePort.emit()">Use another port</button>
+          }
+        </footer>
+      }
+
+      @case ('locked') {
+        @let locked = asLocked()!;
+        <div class="gw-card__body gw-status-screen__body">
+          <div class="gw-status-screen__intro">
+            <span class="gw-icon-tile gw-icon-tile--lg gw-icon-tile--danger"><svg lucideIcon="key-round" class="gw-icon gw-icon--lg"></svg></span>
+            <div class="gw-status-screen__text">
+              @if (locked.reason === 'MASTER_KEY_MISSING') {
+                <ng-container *ngTemplateOutlet="heading; context: { $implicit: 'Master key not found' }" />
+                <p class="gw-text-body-read">
+                  The core can't find <span class="gw-mono">{{ locked.keyPath }}</span>, so it can't decrypt
+                  @if (locked.secrets !== null) { the {{ count(locked.secrets, 'secret', 'secrets') }} stored here. } @else { the secrets stored here. }
+                  Restore the key from your backup@if (locked.lastBackupAt) {: the last copy was made {{ relative(locked.lastBackupAt) }}}.
+                </p>
+              } @else {
+                <ng-container *ngTemplateOutlet="heading; context: { $implicit: 'Master key doesn’t open your secrets' }" />
+                <p class="gw-text-body-read">
+                  The key in <span class="gw-mono">{{ locked.keyPath }}</span> isn't the one
+                  @if (locked.secrets !== null) { the {{ count(locked.secrets, 'secret', 'secrets') }} stored here were } @else { the secrets stored here were }
+                  encrypted with. Restore the key from your backup@if (locked.lastBackupAt) {: the last copy was made {{ relative(locked.lastBackupAt) }}}.
+                </p>
+              }
+            </div>
+          </div>
+          <ng-container *ngTemplateOutlet="stepper" />
+          <div class="gw-alert gw-alert--danger">
+            <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+            <div class="gw-alert__content">
+              <p class="gw-alert__title">Without the backup, a new key can't read your secrets</p>
+              <p class="gw-alert__body">
+                @if (locked.secrets !== null) { The {{ count(locked.secrets, 'secret', 'secrets') }} encrypted here become unreadable@if (locked.breakdown?.length) { (@for (p of locked.breakdown; track $index) {@if (p.code) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}})}, } @else { The secrets encrypted here become unreadable, }
+                and you enter each one again.
+                @if (locked.references) { The {{ count(locked.references, 'secret reference', 'secret references') }} to {{ locked.referenceTo || 'Vault, GCP and AWS' }} {{ locked.references === 1 ? 'keeps' : 'keep' }} working. }
+              </p>
+              <div class="gw-alert__actions">
+                <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" [gwDialogOpen]="newKey" [attr.aria-busy]="busy() === 'create' ? 'true' : null" [attr.aria-disabled]="busy() === 'create' ? 'true' : null">@if (busy() === 'create') {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> }Create a new key</button>
+              </div>
+            </div>
+          </div>
+          <ng-container *ngTemplateOutlet="noticeAlert" />
+          <p class="gw-sr-only" role="alert">@if (locked.reason === 'MASTER_KEY_MISSING') {The core failed to start: the master key was not found.} @else {The core can't open the stored secrets: the master key doesn't fit.}</p>
+        </div>
+        <footer class="gw-card__footer">
+          <ng-container *ngTemplateOutlet="quitButton" />
+          <button class="gw-btn gw-btn--primary" type="button" (click)="restore.emit()"><svg lucideIcon="archive-restore" class="gw-icon"></svg> Restore from backup</button>
+        </footer>
+        <!-- The confirmation lives in the card's own view so the danger notice's button can open it. -->
+        <dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" gwDialog #newKey="gwDialog" [attr.aria-labelledby]="uid + '-newkey-title'" [attr.aria-describedby]="uid + '-newkey-desc'" (closed)="$event === 'create' && createKey.emit()">
+          <header class="gw-dialog__header">
+            <span class="gw-icon-tile"><svg lucideIcon="key-round" class="gw-icon"></svg></span>
+            <h2 class="gw-dialog__title" [id]="uid + '-newkey-title'">Create a new master key?</h2>
+            <p class="gw-dialog__description" [id]="uid + '-newkey-desc'">
+              @if (locked.secrets !== null) { The {{ count(locked.secrets, 'secret', 'secrets') }} encrypted here with the missing key become unreadable. } @else { The secrets encrypted here with the missing key become unreadable. }
+              Connections that use them stop working until you enter each secret again.
+            </p>
+            <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+          </header>
+          <div class="gw-dialog__body">
+            <dl class="gw-kv gw-kv--dense">
+              <div class="gw-kv__row"><dt class="gw-kv__key">Becomes unreadable</dt><dd class="gw-kv__value">{{ locked.secrets !== null ? count(locked.secrets, 'secret', 'secrets') : 'Every secret stored here' }}</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Keeps working</dt><dd class="gw-kv__value">@if (locked.references) { {{ count(locked.references, 'secret reference', 'secret references') }} ({{ locked.referenceTo || 'Vault, GCP and AWS' }}), short-lived credentials } @else { Vault, GCP and AWS secret references, short-lived credentials }</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">New key</dt><dd class="gw-kv__value gw-mono">{{ locked.keyPath }}</dd></div>
+            </dl>
+          </div>
+          <footer class="gw-dialog__footer">
+            <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
+            <button class="gw-btn gw-btn--danger" type="button" gwDialogClose="create">Create a new master key</button>
+          </footer>
+        </dialog>
+      }
+
+      @case ('stopped') {
+        @let stopped = asStopped()!;
+        <div class="gw-card__body gw-status-screen__body">
+          <div class="gw-status-screen__intro">
+            <span class="gw-icon-tile gw-icon-tile--lg gw-icon-tile--danger"><svg lucideIcon="power" class="gw-icon gw-icon--lg"></svg></span>
+            <div class="gw-status-screen__text">
+              <ng-container *ngTemplateOutlet="heading; context: { $implicit: 'Core stopped unexpectedly' }" />
+              <p class="gw-text-body-read">
+                @if (stopped.at) {
+                  The gateway core exited at <time [attr.datetime]="stopped.at" [attr.title]="absolute(stopped.at)">{{ clock(stopped.at) }}</time>.
+                } @else {
+                  The gateway core exited.
+                }
+                Agents can't reach your endpoints until it runs again.
+                @if (stopped.pending === 1) {
+                  The pending approval request is kept and expires as usual.
+                } @else if (stopped.pending) {
+                  The {{ stopped.pending }} pending approval requests are kept and expire as usual.
+                } @else if (stopped.pending !== 0) {
+                  Pending approval requests are kept and expire as usual.
+                }
+              </p>
+            </div>
+          </div>
+          <dl class="gw-kv gw-kv--dense">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Exit code</dt><dd class="gw-kv__value gw-mono">{{ stopped.exitCode ?? '—' }}</dd></div>
+            @if (stopped.reason) {
+              <div class="gw-kv__row"><dt class="gw-kv__key">Reason</dt><dd class="gw-kv__value gw-mono">{{ stopped.reason }}</dd></div>
+            }
+            @if (stopped.uptimeMs !== null) {
+              <div class="gw-kv__row"><dt class="gw-kv__key">Uptime</dt><dd class="gw-kv__value">{{ uptime(stopped.uptimeMs) }}</dd></div>
+            }
+            <div class="gw-kv__row"><dt class="gw-kv__key">Log file</dt><dd class="gw-kv__value gw-mono">{{ logFile() }}</dd></div>
+          </dl>
+          <ng-container *ngTemplateOutlet="logTail; context: { $implicit: stopped.logLines }" />
+          <ng-container *ngTemplateOutlet="noticeAlert" />
+          <p class="gw-sr-only" role="alert">The gateway core stopped unexpectedly.</p>
+        </div>
+        <footer class="gw-card__footer">
+          <ng-container *ngTemplateOutlet="logsAndRestart" />
+        </footer>
+      }
+
+      @case ('start-failed') {
+        @let failed = asStartFailed()!;
+        <div class="gw-card__body gw-status-screen__body">
+          <div class="gw-status-screen__intro">
+            <span class="gw-icon-tile gw-icon-tile--lg gw-icon-tile--danger"><svg [lucideIcon]="failed.icon" class="gw-icon gw-icon--lg"></svg></span>
+            <div class="gw-status-screen__text">
+              <ng-container *ngTemplateOutlet="heading; context: { $implicit: failed.title }" />
+              <p class="gw-text-body-read">{{ failed.lead }} Agents can't reach your endpoints until it runs.</p>
+            </div>
+          </div>
+          <ng-container *ngTemplateOutlet="stepper" />
+          <dl class="gw-kv gw-kv--dense">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Exit code</dt><dd class="gw-kv__value gw-mono">{{ failed.exitCode ?? '—' }}</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Reason</dt><dd class="gw-kv__value gw-mono">{{ failed.reason }}</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Log file</dt><dd class="gw-kv__value gw-mono">{{ logFile() }}</dd></div>
+          </dl>
+          <ng-container *ngTemplateOutlet="logTail; context: { $implicit: failed.logLines }" />
+          <ng-container *ngTemplateOutlet="noticeAlert" />
+          <p class="gw-sr-only" role="alert">The core failed to start: {{ failed.title }}.</p>
+        </div>
+        <footer class="gw-card__footer">
+          <ng-container *ngTemplateOutlet="logsAndRestart" />
+        </footer>
+      }
+
+      @case ('unreachable') {
+        <div class="gw-card__body gw-status-screen__body">
+          <div class="gw-status-screen__intro">
+            <span class="gw-icon-tile gw-icon-tile--lg gw-icon-tile--danger"><svg lucideIcon="unplug" class="gw-icon gw-icon--lg"></svg></span>
+            <div class="gw-status-screen__text">
+              <ng-container *ngTemplateOutlet="heading; context: { $implicit: 'Can’t reach the gateway core' }" />
+              <p class="gw-text-body-read">Nothing answers on <span class="gw-mono">{{ address() }}</span>. Start the core (in development: <code class="gw-code">npm run dev -w ui</code>); this window connects as soon as it answers.</p>
+            </div>
+          </div>
+          @if (asUnreachable()?.detail; as detail) {
+            <p class="gw-text-caption gw-fg-muted">{{ detail }}</p>
+          }
+          <p class="gw-sr-only" role="alert">The gateway core can't be reached.</p>
+        </div>
+        <footer class="gw-card__footer">
+          <button class="gw-btn gw-btn--primary" type="button" (click)="retry.emit()"><svg lucideIcon="rotate-cw" class="gw-icon"></svg> Check again</button>
+        </footer>
+      }
+    }
+  </section>
+
+  <p class="gw-status-screen__meta gw-text-caption gw-fg-muted">{{ versionText() }}@if (metaShowsAddress()) { · core on <span class="gw-mono">{{ address() }}</span>}@if (metaShowsLog()) { · log <span class="gw-mono">{{ logFile() }}</span>}</p>
+</div>
+<!-- The page's own dialogs (Use another port, Restore from backup) live inside this main landmark, as in the kit. -->
+<ng-content />
+
+
+<ng-template #heading let-title>
+  @switch (level()) {
+    @case (1) { <h1 class="gw-text-h1" [id]="uid + '-title'">{{ title }}</h1> }
+    @case (2) { <h2 class="gw-text-h1" [id]="uid + '-title'">{{ title }}</h2> }
+    @default { <h3 class="gw-text-h1" [id]="uid + '-title'">{{ title }}</h3> }
+  }
+</ng-template>
+
+<ng-template #stepper>
+  @if (steps().length) {
+  <ol class="gw-stepper gw-stepper--vertical" aria-label="Start-up steps">
+    @for (step of steps(); track step.id; let i = $index) {
+      <!-- The step that runs now, or the one that failed, is the current one (pages/core-starting.html). -->
+      <li class="gw-stepper__step" [attr.data-state]="step.state" [attr.aria-current]="step.state === 'current' || step.state === 'error' ? 'step' : null">
+        <span class="gw-stepper__marker" aria-hidden="true">
+          @switch (step.state) {
+            @case ('complete') { <svg lucideIcon="check" class="gw-icon gw-icon--sm"></svg> }
+            @case ('current') { <span class="gw-spinner gw-spinner--sm"></span> }
+            @case ('error') { <svg lucideIcon="x" class="gw-icon gw-icon--sm"></svg> }
+            @default { {{ i + 1 }} }
+          }
+        </span>
+        <span class="gw-stepper__label">{{ label(step) }}<span class="gw-sr-only">{{ stateSr[step.state] }}</span></span>
+        @if (step.description || step.mono) {
+          <span class="gw-stepper__description">{{ step.description }}{{ step.description && step.mono ? ' ' : '' }}@if (step.mono) {<span class="gw-mono">{{ step.mono }}</span>}</span>
+        }
+      </li>
+    }
+  </ol>
+  }
+</ng-template>
+
+<ng-template #logTail let-lines>
+  @if (lines) {
+    <div class="gw-status-screen__details">
+      <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [attr.aria-controls]="uid + '-log'"><svg lucideIcon="scroll-text" class="gw-icon gw-icon--sm"></svg> Show the last log lines</button>
+      <gw-code-block wrap lang="Log" [filename]="'core.log · ' + linesLabel(lines)" copyLabel="log lines" regionLabel="Last log lines" [id]="uid + '-lines'" [text]="lines" [attr.id]="uid + '-log'" hidden />
+    </div>
+  }
+</ng-template>
+
+<ng-template #noticeAlert>
+  @if (notice(); as n) {
+    <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+      <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content"><p class="gw-alert__title">{{ n.title }}</p><p class="gw-alert__body">{{ n.body }}</p></div>
+    </div>
+  }
+</ng-template>
+
+<ng-template #quitButton>
+  @if (quitReason(); as why) {
+    <!-- A browser tab can't quit the app: the reason shows on hover and focus, next to the button (DESIGN §8). -->
+    <span class="gw-tooltip"><button class="gw-btn" type="button" aria-disabled="true" [attr.aria-describedby]="uid + '-quit-why'">Quit</button><span class="gw-tooltip__bubble" role="tooltip" [id]="uid + '-quit-why'">{{ why }}</span></span>
+  } @else {
+    <button class="gw-btn" type="button" (click)="quit.emit()">Quit</button>
+  }
+</ng-template>
+
+<ng-template #logsAndRestart>
+  <button class="gw-btn" type="button" (click)="openLogs.emit()"><svg lucideIcon="file-text" class="gw-icon"></svg> Open logs</button>
+  <button class="gw-btn gw-btn--primary" type="button" [attr.aria-busy]="busy() === 'restart' ? 'true' : null" [attr.aria-disabled]="busy() === 'restart' ? 'true' : null" (click)="restart.emit()">@if (busy() === 'restart') {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="rotate-cw" class="gw-icon"></svg>} Restart core</button>
+</ng-template>

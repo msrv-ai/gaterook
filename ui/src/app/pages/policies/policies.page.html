@@ -1,0 +1,89 @@
+<header class="gw-page-header">
+  <div class="gw-page-header__row">
+    <div class="gw-page-header__heading">
+      <h1 class="gw-page-header__title">Policies</h1>
+      <p class="gw-page-header__description">{{ description() }}</p>
+    </div>
+    <div class="gw-page-header__actions">
+      <a class="gw-btn" routerLink="/activity" [queryParams]="{ q: 'decision:denied' }"><svg lucideIcon="shield-x" class="gw-icon"></svg> View denied calls<span class="gw-sr-only"> in Activity</span></a>
+    </div>
+  </div>
+</header>
+
+<!-- The product invariant. Informational only: there is no switch for it anywhere. -->
+<div class="gw-alert gw-alert--info">
+  <svg lucideIcon="user-check" class="gw-icon gw-alert__icon"></svg>
+  <div class="gw-alert__content">
+    <p class="gw-alert__title">Every mutation needs a human approval</p>
+    <p class="gw-alert__body">This can't be turned off on any environment. Database writes, restarts, runbooks that change state and HTTP requests other than GET always wait for a person. Policies only add limits on top; each tool's mode (Off, Read only or Approval) is set per endpoint.</p>
+    <div class="gw-alert__actions"><a class="gw-btn gw-btn--link gw-btn--sm" routerLink="/endpoints">Set tool modes in Endpoints</a></div>
+  </div>
+</div>
+
+@if (data.error(); as e) {
+  <!-- Nothing loaded: what happened, what to do, Try again, and the technical details under a disclosure. -->
+  <div class="gw-alert gw-alert--danger" role="alert">
+    <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+    <div class="gw-alert__content">
+      <p class="gw-alert__title">The policies didn't load</p>
+      <p class="gw-alert__body">{{ errorText(e) }}</p>
+      <div class="gw-alert__actions">
+        <button class="gw-btn gw-btn--sm" type="button" (click)="retry()" [attr.aria-busy]="data.refreshing() ? 'true' : null" [attr.aria-disabled]="data.refreshing() ? 'true' : null">@if (data.refreshing()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Try again</button>
+        <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle aria-controls="pol-error-details">Details <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
+      </div>
+    </div>
+  </div>
+  <gw-code-block [attr.id]="'pol-error-details'" [id]="'pol-error-pre'" hidden wrap lang="Error" [text]="errorDetails(e)" copyLabel="error details" regionLabel="Error details" />
+} @else if (loading()) {
+  @if (slow()) {
+    <!-- The first render, when it takes longer than 300 ms (DESIGN §8 "Loading": gw-skeleton). -->
+    <div class="gw-stack gw-stack--lg" aria-busy="true">
+      <p class="gw-sr-only" role="status">Loading policies</p>
+      <span class="gw-skeleton gw-skeleton--text" aria-hidden="true"></span>
+      @for (i of [1, 2, 3]; track i) {
+        <div class="gw-stack gw-stack--sm" aria-hidden="true">
+          <span class="gw-skeleton gw-skeleton--text"></span>
+          <span class="gw-skeleton gw-skeleton--text"></span>
+          <span class="gw-skeleton gw-skeleton--text"></span>
+        </div>
+      }
+    </div>
+  }
+} @else if (data.policies(); as policies) {
+  @if (data.stale(); as e) {
+    <!-- A reload failed: the values below are the last ones that loaded. -->
+    <div class="gw-alert gw-alert--warning gw-alert--compact" role="status">
+      <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">These policies may be out of date.</p>
+        <p class="gw-alert__body">{{ errorText(e) }}</p>
+      </div>
+      <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retry()" [attr.aria-busy]="data.refreshing() ? 'true' : null" [attr.aria-disabled]="data.refreshing() ? 'true' : null">Try again</button></div>
+    </div>
+  }
+
+  <div class="gw-tabs">
+    <div class="gw-tabs__list" role="tablist" aria-label="Policy by environment" gwTabs [gwTabsSelected]="'pol-tab-' + env()" (selectedChange)="onTab($event)">
+      @for (e of envs; track e) {
+        <button class="gw-tabs__tab" type="button" role="tab" [id]="'pol-tab-' + e" [attr.aria-selected]="e === env()" [attr.aria-controls]="e" [attr.tabindex]="e === env() ? null : -1"><span [class]="'gw-env gw-env--' + e + ' gw-env--sm'" aria-hidden="true">{{ e }}</span> {{ titles[e] }}@if (counts(); as n) { <span class="gw-tabs__count">{{ n[e] }}<span class="gw-sr-only"> {{ n[e] === 1 ? 'connection' : 'connections' }}</span></span>}</button>
+      }
+    </div>
+
+    @if (data.schemas(); as schemas) {
+      @for (e of envs; track e) {
+        <div
+          gwPolicyPanel
+          [env]="e"
+          [selected]="e === env()"
+          [policies]="policies"
+          [schemas]="schemas"
+          [connections]="data.connections()"
+          [endpoints]="data.endpoints()"
+          [runbooks]="data.runbooks()"
+          [usage]="data.usage()"
+          [notifications]="data.notifications()"
+        ></div>
+      }
+    }
+  </div>
+}

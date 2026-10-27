@@ -1,0 +1,118 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "method",
+    "path"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "method": {
+      "type": "string",
+      "enum": [
+        "GET",
+        "HEAD",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE"
+      ]
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048,
+      "description": "Path under the base URL with an optional query, e.g. /v1/invoices?limit=10. A full URL works only if it starts with an allowed base URL."
+    },
+    "query": {
+      "type": "object",
+      "maxProperties": 50,
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean",
+          "array"
+        ],
+        "items": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        }
+      },
+      "description": "Extra query parameters; an array repeats the key."
+    },
+    "headers": {
+      "type": "object",
+      "maxProperties": 20,
+      "additionalProperties": {
+        "type": "string",
+        "maxLength": 1024
+      },
+      "description": "Extra request headers. Authorization is added by the gateway."
+    },
+    "json": {
+      "description": "A JSON body, sent as application/json."
+    },
+    "body": {
+      "type": "string",
+      "maxLength": 262144,
+      "description": "A text body, sent with contentType."
+    },
+    "contentType": {
+      "type": "string",
+      "maxLength": 256,
+      "default": "text/plain",
+      "description": "Only with body."
+    },
+    "form": {
+      "type": "object",
+      "maxProperties": 100,
+      "additionalProperties": {
+        "type": [
+          "string",
+          "number",
+          "boolean"
+        ]
+      },
+      "description": "Sent as application/x-www-form-urlencoded."
+    },
+    "note": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Why you send it. Shown to the approver as unverified."
+    }
+  },
+  "not": {
+    "anyOf": [
+      {
+        "required": [
+          "json",
+          "body"
+        ]
+      },
+      {
+        "required": [
+          "json",
+          "form"
+        ]
+      },
+      {
+        "required": [
+          "body",
+          "form"
+        ]
+      }
+    ]
+  },
+  "dependentRequired": {
+    "contentType": [
+      "body"
+    ]
+  }
+}

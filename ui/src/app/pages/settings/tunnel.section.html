@@ -1,0 +1,293 @@
+<header class="gw-section__header">
+  <h2 class="gw-section__title" id="st-tunnel-t">Tunnel</h2>
+  <p class="gw-section__description">A public HTTPS address for claude.ai, which runs in Anthropic's cloud and can't reach <span class="gw-mono">127.0.0.1</span>.</p>
+  <div class="gw-section__actions">
+    <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/activity" [queryParams]="{ q: 'client:claude-ai' }"><svg lucideIcon="activity" class="gw-icon gw-icon--sm"></svg> View calls from claude.ai</a>
+  </div>
+</header>
+<hr class="gw-divider">
+
+<section gwHowItWorks vertical heading="How the tunnel works" summary="Nothing opens on your network: the app dials out, claude.ai comes in through it." stepsLabel="How claude.ai reaches this computer" persist="settings-tunnel">
+  <li gwHowItWorksStep icon="cable" heading="The app opens an outbound connection">Cloudflare Tunnel or ngrok connects out from this computer: no open ports, works behind a VPN.</li>
+  <li gwHowItWorksStep icon="log-in" heading="claude.ai signs in with OAuth 2.1">You allow the sign-in on this computer, and the token works for @if (slug(); as s) {<code class="gw-code">{{ s }}</code> only} @else {the endpoint you publish only}.</li>
+  <li gwHowItWorksStep icon="shield-check" heading="Same policy, approvals and audit">Calls through the tunnel are checked, approved and logged like local ones.</li>
+</section>
+
+@let why = onWhy();
+<div class="gw-form gw-form--sticky-actions">
+  <section class="gw-form__section" aria-labelledby="st-tunnel-status-t">
+    <header class="gw-form__section-header">
+      <h3 class="gw-form__legend" id="st-tunnel-status-t">Status</h3>
+      <p class="gw-form__description">Turn it on only while claude.ai needs it. Desktop clients never use it.</p>
+    </header>
+    <div class="gw-form__rows">
+      @if (t(); as tunnel) {
+        @let lk = look()!;
+        @if (on()) {
+          <div class="gw-stack gw-stack--sm" id="st-tunnel-on">
+            <div class="gw-settings-layout__inline">
+              <span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Public@if (tunnel.endpoint; as ep) { · <span class="gw-mono">{{ ep }}</span>} · {{ providerName(tunnel.provider) }}</span></span>
+              <button class="gw-btn" type="button" id="st-tunnel-off-btn" [attr.aria-busy]="busy() === 'stop' ? 'true' : null" [attr.aria-disabled]="busy() ? 'true' : null" (click)="stop()"><svg lucideIcon="power" class="gw-icon"></svg> Turn off tunnel</button>
+            </div>
+            @if (publicUrl(); as url) {
+              <div class="gw-field">
+                <span class="gw-field__label" id="st-public-url-l">Public URL@if (tunnel.endpoint; as ep) { of <span class="gw-mono">{{ ep }}</span>}</span>
+                <div class="gw-copy-field" role="group" aria-labelledby="st-public-url-l" aria-describedby="st-public-url-hint">
+                  <code class="gw-copy-field__value" id="st-public-url" [attr.title]="url">{{ url }}</code>
+                  <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" gwCopyFrom="#st-public-url">
+                    <span class="gw-copy-field__copy"><svg lucideIcon="copy" class="gw-icon gw-icon--sm"></svg> Copy<span class="gw-sr-only"> public URL</span></span>
+                    <span class="gw-copy-field__copied"><svg lucideIcon="check" class="gw-icon gw-icon--sm"></svg> Copied</span>
+                  </button>
+                </div>
+                <p class="gw-field__hint" id="st-public-url-hint">Add it in claude.ai as a custom connector.@if (tunnel.host; as host) { Hostname <span class="gw-mono">{{ host }}</span>.}</p>
+              </div>
+            }
+          </div>
+        } @else {
+          <div class="gw-stack gw-stack--sm" id="st-tunnel-off">
+            @if (tunnel.state === 'error') {
+              <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+                <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+                <div class="gw-alert__content"><p class="gw-alert__title">The tunnel didn't start</p><p class="gw-alert__body">{{ tunnel.error ?? 'The tunnel stopped.' }} Nothing is public.</p></div>
+              </div>
+            }
+            <div class="gw-settings-layout__inline">
+              @if (lk.tone === 'checking') {
+                <span class="gw-status gw-status--checking" role="status"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span><span class="gw-status__label">{{ lk.text }}</span></span>
+              } @else if (tunnel.since && tunnel.state === 'off') {
+                <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Off since <time [attr.datetime]="time.iso(tunnel.since)" [attr.title]="time.absolute(tunnel.since, false)">{{ time.clock(tunnel.since) }}</time></span></span>
+              } @else {
+                <span class="gw-status gw-status--{{ lk.tone }}"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ lk.text }}</span></span>
+              }
+              <button class="gw-btn" type="button" id="st-tunnel-on-btn" aria-haspopup="dialog" [attr.aria-disabled]="why || busy() ? 'true' : null" [attr.aria-busy]="starting() ? 'true' : null" [attr.aria-describedby]="why ?? 'st-tunnel-off-hint'" (click)="askPublish($event)"><svg lucideIcon="globe" class="gw-icon"></svg> Turn on tunnel</button>
+              @if (why === 'st-tunnel-none') {
+                <p class="gw-text-caption gw-fg-muted" id="st-tunnel-none">No endpoint is chosen for claude.ai yet. <a class="gw-link" routerLink="/endpoints">Choose one in Endpoints</a></p>
+              } @else if (why === 'st-tunnel-starting') {
+                <p class="gw-text-caption gw-fg-muted" id="st-tunnel-starting">The tunnel is starting.</p>
+              } @else {
+                <p class="gw-text-caption gw-fg-muted" id="st-tunnel-off-hint">claude.ai can't reach <span class="gw-mono">{{ slug() }}</span> while the tunnel is off. Turning it on asks you to confirm what is published.</p>
+              }
+            </div>
+            @if (today() || calls() !== null) {
+              <dl class="gw-kv gw-kv--dense">
+                @if (today(); as td) {
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Today</dt><dd class="gw-kv__value">{{ td }} · <a class="gw-link" routerLink="/activity" [queryParams]="{ view: 'changes' }">Setup changes<span class="gw-sr-only"> in Activity</span></a></dd></div>
+                }
+                @if (calls(); as n) {
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Calls from claude.ai</dt><dd class="gw-kv__value"><span class="gw-tabular">{{ n }}</span> while public · <a class="gw-link" routerLink="/activity" [queryParams]="{ q: 'client:claude-ai' }">View calls<span class="gw-sr-only"> from claude.ai</span></a></dd></div>
+                }
+              </dl>
+            }
+          </div>
+        }
+      } @else {
+        <div class="gw-stack gw-stack--sm" id="st-tunnel-off">
+          <div class="gw-settings-layout__inline">
+            <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ failed() ? "Didn't load" : 'Not available in this build' }}</span></span>
+            <button class="gw-btn" type="button" id="st-tunnel-on-btn" aria-disabled="true" aria-describedby="st-tunnel-why"><svg lucideIcon="globe" class="gw-icon"></svg> Turn on tunnel</button>
+            @if (failed()) {
+              <p class="gw-text-caption gw-fg-muted" id="st-tunnel-why">The tunnel's state didn't load. <button class="gw-btn gw-btn--link gw-btn--sm" type="button" (click)="data.refresh()">Try again</button></p>
+            } @else {
+              <p class="gw-text-caption gw-fg-muted" id="st-tunnel-why">This version of the app has no tunnel yet, so nothing on this computer is public and claude.ai can't reach an endpoint.</p>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  </section>
+
+  <!-- The three gates of the public URL, as on Clients › claude.ai (gate 1 per ARCHITECTURE.md §8.6.4). -->
+  <section class="gw-form__section" aria-labelledby="st-gates-t">
+    <header class="gw-form__section-header">
+      <h3 class="gw-form__legend" id="st-gates-t">Who gets in</h3>
+      <p class="gw-form__description">Three gates stand in front of the public URL. A call that passes them still goes through policy, approvals and the audit log.</p>
+    </header>
+    <div class="gw-form__rows">
+      <ol class="gw-stack gw-stack--sm" aria-labelledby="st-gates-t">
+        <li class="gw-text-small"><span class="gw-counter" aria-hidden="true">1</span> <span id="st-gate-ips">@if (anthropicOnly()) {Only Anthropic IP ranges reach @if (slug(); as s) {<span class="gw-mono">/mcp/{{ s }}</span>} @else {the endpoint}; the sign-in page opens in your own browser} @else {Any address reaches the URL: the IP allowlist is off}</span> · <a class="gw-link" routerLink="/settings/tunnel" fragment="settings-tunnel-callers">Callers</a></li>
+        <li class="gw-text-small"><span class="gw-counter" aria-hidden="true">2</span> Each new OAuth sign-in waits until you allow it on this computer, with a code to match. No answer in 5 min denies.</li>
+        <li class="gw-text-small"><span class="gw-counter" aria-hidden="true">3</span> The endpoint's own modes: @if (slug(); as s) {<span class="gw-mono">{{ s }}</span> {{ readOnly() ? 'is read only' : 'keeps the mode of each tool' }}, and its token works for no other endpoint. <a class="gw-link" [routerLink]="['/endpoints', s]">Tools of {{ s }}</a>} @else {the token claude.ai gets works for no other endpoint.}</li>
+      </ol>
+      <div class="gw-settings-layout__inline">
+        <a class="gw-btn gw-btn--link" routerLink="/settings/authorization" fragment="settings-signed-in">Manage sign-ins<span class="gw-sr-only"> you allowed</span></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- The one home of the Anthropic IP allowlist: off asks first (#st-any-address-dlg), on applies at once. -->
+  <section class="gw-form__section" id="settings-tunnel-callers" aria-labelledby="st-callers-t">
+    <header class="gw-form__section-header">
+      <h3 class="gw-form__legend" id="st-callers-t">Callers</h3>
+      <p class="gw-form__description">Who may knock on the public URL before OAuth sign-in. Applies at once, also while the tunnel is off.</p>
+    </header>
+    <div class="gw-form__rows">
+      <div class="gw-switch">
+        <input class="gw-switch__input" type="checkbox" role="switch" id="st-anthropic-ips" [checked]="anthropicOnly()" [attr.aria-disabled]="off() ? 'true' : null" [attr.aria-busy]="busy() === 'callers' ? 'true' : null" [attr.aria-describedby]="'st-anthropic-ips-hint' + (off() ? ' st-tunnel-why' : '')" (change)="setCallers($event)">
+        <span class="gw-switch__control" aria-hidden="true"></span>
+        <label class="gw-switch__label" for="st-anthropic-ips">Only accept Anthropic IP ranges</label>
+        <p class="gw-switch__hint" id="st-anthropic-ips-hint">The addresses Anthropic publishes for claude.ai. Calls from any other address get 403 before they reach an endpoint. Turning this off asks you first.</p>
+      </div>
+    </div>
+  </section>
+
+  <form class="gw-form__section" id="st-tunnel" method="dialog" novalidate aria-labelledby="st-provider-t" (submit)="saveProvider($event)" (reset)="discardProvider($event)">
+    <header class="gw-form__section-header">
+      <h3 class="gw-form__legend" id="st-provider-t">Provider</h3>
+      <p class="gw-form__description">Who carries the traffic. Both give a public HTTPS address without opening a port.</p>
+    </header>
+    <div class="gw-form__rows">
+      <fieldset class="gw-field" aria-labelledby="st-provider-t">
+        <div class="gw-grid gw-grid--auto">
+          <label class="gw-choice-card">
+            <input class="gw-choice-card__input" type="radio" value="cloudflare" [formField]="providerForm.provider" [attr.aria-disabled]="off() ? 'true' : null" aria-labelledby="st-prov-cf-t" [attr.aria-describedby]="'st-prov-cf-d' + (off() ? ' st-tunnel-why' : '')">
+            <span class="gw-choice-card__icon"><svg lucideIcon="cloud" class="gw-icon"></svg></span>
+            <span class="gw-choice-card__title" id="st-prov-cf-t">Cloudflare Tunnel</span>
+            <span class="gw-choice-card__description" id="st-prov-cf-d">No account needed. A quick tunnel gets a new address each time it starts; claude.ai must be pointed at the new URL. Use a named tunnel for a stable hostname.</span>
+            <span class="gw-choice-card__meta">@if (cloudflared(); as v) {cloudflared {{ v }}, bundled} @else {cloudflared, bundled}</span>
+          </label>
+          <label class="gw-choice-card">
+            <input class="gw-choice-card__input" type="radio" value="ngrok" [formField]="providerForm.provider" [attr.aria-disabled]="off() ? 'true' : null" aria-labelledby="st-prov-ngrok-t" [attr.aria-describedby]="'st-prov-ngrok-d' + (off() ? ' st-tunnel-why' : '')">
+            <span class="gw-choice-card__icon"><svg lucideIcon="radio-tower" class="gw-icon"></svg></span>
+            <span class="gw-choice-card__title" id="st-prov-ngrok-t">ngrok</span>
+            <span class="gw-choice-card__description" id="st-prov-ngrok-d">Uses your ngrok account. You paste its authtoken once; it's stored encrypted.</span>
+            <span class="gw-choice-card__meta">Needs an ngrok account</span>
+          </label>
+        </div>
+      </fieldset>
+      @if (providerModel().provider === 'ngrok') {
+        <!-- The ngrok card's "you paste its authtoken once": a new secret, typed once, sent with Save only. -->
+        <div class="gw-field">
+          <label class="gw-field__label" for="st-ngrok-token">ngrok authtoken@if (ngrokStored()) { <span class="gw-field__optional">Stored</span>}</label>
+          <div class="gw-secret" data-state="empty">
+            <div class="gw-input-group">
+              <input #ngrokToken class="gw-input gw-input--mono" type="password" id="st-ngrok-token" autocomplete="off" spellcheck="false" [attr.aria-required]="ngrokStored() ? null : 'true'" [attr.aria-invalid]="tokenMissing() ? 'true' : null" [attr.aria-describedby]="(tokenMissing() ? 'st-ngrok-token-err ' : '') + 'st-ngrok-token-hint'" (input)="onTokenInput($event)">
+              <button class="gw-input-group__addon" type="button" gwReveal aria-label="Show authtoken" aria-controls="st-ngrok-token"><svg lucideIcon="eye" class="gw-icon"></svg><svg lucideIcon="eye-off" class="gw-icon"></svg></button>
+            </div>
+          </div>
+          @if (tokenMissing()) {
+            <p class="gw-field__error" id="st-ngrok-token-err"><svg lucideIcon="circle-alert" class="gw-icon"></svg>Paste the authtoken of your ngrok account.</p>
+          }
+          <p class="gw-field__hint" id="st-ngrok-token-hint">@if (ngrokStored()) {An authtoken is stored. Paste a new one only to replace it.} @else {From your ngrok dashboard, Your Authtoken.} Encrypted with the master key when you save. Nobody can view it afterwards: Replace only.</p>
+        </div>
+      }
+      @if (providerError(); as err) {
+        <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+          <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content"><p class="gw-alert__title">The provider wasn't saved</p><p class="gw-alert__body">{{ err }}</p></div>
+        </div>
+      }
+    </div>
+  </form>
+
+  <section class="gw-form__section" aria-labelledby="st-published-t">
+    <header class="gw-form__section-header">
+      <h3 class="gw-form__legend" id="st-published-t">What is published</h3>
+      <p class="gw-form__description">@if (slug(); as s) {Only the MCP path of <span class="gw-mono">{{ s }}</span> and the OAuth paths go through the tunnel, and only while it is on.} @else {Only the MCP path of the endpoint you choose for claude.ai and the OAuth paths go through the tunnel, and only while it is on.}</p>
+    </header>
+    <div class="gw-form__rows">
+      <div class="gw-stack gw-stack--sm">
+        <p class="gw-text-ui" id="st-published-yes">Reachable from the internet while the tunnel is on</p>
+        <ul class="gw-tag-list" aria-labelledby="st-published-yes">
+          @if (slug(); as s) {
+            <li class="gw-tag gw-tag--mono"><span class="gw-tag__label" [attr.title]="'/mcp/' + s">/mcp/{{ s }}</span></li>
+          }
+          <li class="gw-tag gw-tag--mono"><span class="gw-tag__label" title="/oauth/*">/oauth/*</span></li>
+          <li class="gw-tag gw-tag--mono"><span class="gw-tag__label" title="/.well-known/oauth-* (protected resource and authorization server metadata)">/.well-known/oauth-*</span></li>
+        </ul>
+      </div>
+      <div class="gw-stack gw-stack--sm">
+        <p class="gw-text-ui" id="st-published-no">Stays local</p>
+        <ul class="gw-tag-list" aria-labelledby="st-published-no">
+          <li class="gw-tag"><span class="gw-tag__label">This app's UI</span></li>
+          <li class="gw-tag gw-tag--mono"><span class="gw-tag__label" title="/api/* (admin API)">/api/*</span></li>
+          @for (l of local(); track l) {
+            <li class="gw-tag gw-tag--mono"><span class="gw-tag__label" [attr.title]="'/mcp/' + l">/mcp/{{ l }}</span></li>
+          }
+        </ul>
+      </div>
+      @if (risky() && slug(); as s) {
+        <div class="gw-alert gw-alert--warning gw-alert--compact">
+          <svg lucideIcon="shield-alert" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content"><p class="gw-alert__title">Risky combination, 3 of 3</p><p class="gw-alert__body"><span class="gw-mono">{{ s }}</span> holds private data + untrusted content + an external channel, and the tunnel publishes it to the internet.</p></div>
+          <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" [routerLink]="['/endpoints', s]" fragment="ep-risk">Review<span class="gw-sr-only"> the risk in endpoint {{ s }}</span></a></div>
+        </div>
+      }
+      <p class="gw-text-small gw-fg-secondary"><a class="gw-link" routerLink="/endpoints">Choose endpoints for claude.ai in Endpoints</a></p>
+    </div>
+  </section>
+
+  <div gwSaveBar formId="st-tunnel" saveLabel="Save tunnel provider" what="Provider" [dirty]="providerDirty()" [busy]="providerBusy()"></div>
+</div>
+
+<!-- Turn on tunnel: publishes one endpoint. gw-dialog--md --warning (risky, reversible), Cancel autofocus. -->
+<dialog class="gw-dialog gw-dialog--md gw-dialog--warning" id="st-tunnel-dlg" gwDialog #publishDialog="gwDialog" aria-labelledby="st-tunnel-dlg-t" aria-describedby="st-tunnel-dlg-d">
+  @let s = slug();
+  @let pv = preview();
+  <header class="gw-dialog__header">
+    <span class="gw-icon-tile"><svg lucideIcon="globe-lock" class="gw-icon"></svg></span>
+    <h2 class="gw-dialog__title" id="st-tunnel-dlg-t">Publish <span class="gw-mono">{{ s }}</span> to the internet?</h2>
+    <p class="gw-dialog__description" id="st-tunnel-dlg-d">The tunnel gives it a public URL with three gates in front: {{ anthropicOnly() ? 'only Anthropic IP ranges get through' : 'any address gets through' }}, each new sign-in waits for you to allow it on this computer, and the endpoint's own modes still apply@if (readOnly()) { (read only, with a token for <span class="gw-mono">{{ s }}</span> alone)}. Every call still goes through policy, approvals and the audit log.</p>
+    <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+  </header>
+  <div class="gw-dialog__body gw-stack gw-stack--sm">
+    @if (previewError(); as err) {
+      <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+        <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content"><p class="gw-alert__title" id="st-tunnel-dlg-why">What becomes public didn't load</p><p class="gw-alert__body">{{ err }}</p></div>
+      </div>
+    } @else if (pv?.refusal; as refusal) {
+      <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+        <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content"><p class="gw-alert__title" id="st-tunnel-dlg-why">{{ refusal }}</p></div>
+      </div>
+    } @else if (!pv) {
+      <p class="gw-text-small gw-fg-muted" role="status" id="st-tunnel-dlg-why"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> Checking what becomes public…</p>
+    }
+    <dl class="gw-kv gw-kv--dense">
+      <div class="gw-kv__row"><dt class="gw-kv__key">Becomes public</dt><dd class="gw-kv__value">@for (p of pv?.publicPaths ?? ['/mcp/' + s, '/oauth/*', '/.well-known/oauth-*']; track p; let last = $last; let i = $index) {@if (i > 0) {{{ last ? ' and ' : ', ' }}}<span class="gw-mono">{{ p }}</span>}</dd></div>
+      <div class="gw-kv__row"><dt class="gw-kv__key">Public URL</dt>@if (publicUrl(); as url) {<dd class="gw-kv__value gw-mono">{{ url }}</dd>} @else {<dd class="gw-kv__value">A new address each time the tunnel starts; claude.ai must be pointed at it</dd>}</div>
+      <div class="gw-kv__row"><dt class="gw-kv__key">Provider</dt><dd class="gw-kv__value">{{ providerName(t()?.provider) }}</dd></div>
+      @if (pv?.connections?.length) {
+        <div class="gw-kv__row"><dt class="gw-kv__key">Connections</dt><dd class="gw-kv__value">@for (c of pv!.connections; track c.name; let last = $last) {<span class="gw-mono">{{ c.name }}</span> <span class="gw-env gw-env--{{ c.env }} gw-env--sm">{{ c.env }}</span>@if (!last) {, }}@if (readOnly()) {, read only}</dd></div>
+      }
+      @if (pv?.risk; as risk) {
+        <div class="gw-kv__row"><dt class="gw-kv__key">Risk</dt><dd class="gw-kv__value">{{ risk }} · <a class="gw-link" [routerLink]="['/endpoints', s]" fragment="ep-risk" gwDialogClose>Review<span class="gw-sr-only"> the risk in endpoint {{ s }}</span></a></dd></div>
+      }
+      <div class="gw-kv__row"><dt class="gw-kv__key">IP allowlist</dt><dd class="gw-kv__value"><span id="st-tunnel-dlg-ips">{{ anthropicOnly() ? 'Anthropic IP ranges only' : 'Any address' }}</span> · <a class="gw-link" routerLink="/settings/tunnel" fragment="settings-tunnel-callers" gwDialogClose>Change in Callers</a></dd></div>
+      <div class="gw-kv__row"><dt class="gw-kv__key">Sign-in</dt><dd class="gw-kv__value">You allow each new one here@if (signedIn()) {; {{ signedIn() }} earlier {{ signedIn() === 1 ? 'sign-in is' : 'sign-ins are' }} still valid}</dd></div>
+      @let stays = previewLocal() ?? local();
+      <div class="gw-kv__row"><dt class="gw-kv__key">Stays local</dt><dd class="gw-kv__value">This app's UI, the admin API@if (stays.length) {, {{ stays.length === 1 ? 'endpoint' : 'endpoints' }} @for (l of stays; track l; let last = $last; let i = $index) {@if (i > 0) {{{ last ? ' and ' : ', ' }}}<span class="gw-mono">{{ l }}</span>}}</dd></div>
+    </dl>
+    @if (publishError(); as err) {
+      <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+        <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content"><p class="gw-alert__title">{{ s }} isn't public</p><p class="gw-alert__body">{{ err }}</p></div>
+      </div>
+    }
+  </div>
+  <footer class="gw-dialog__footer">
+    <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
+    <button class="gw-btn gw-btn--primary" type="button" id="st-tunnel-confirm" [attr.aria-disabled]="canPublish() ? null : 'true'" [attr.aria-busy]="busy() === 'publish' ? 'true' : null" [attr.aria-describedby]="canPublish() ? null : 'st-tunnel-dlg-why'" (click)="confirmPublish()">@if (busy() === 'publish') {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> }Publish {{ s }}</button>
+  </footer>
+</dialog>
+
+<!-- Accept calls from any address: turning gate 1 off. Risky but reversible: --warning, Cancel autofocus. -->
+<dialog class="gw-dialog gw-dialog--md gw-dialog--warning" id="st-any-address-dlg" gwDialog #anyDialog="gwDialog" aria-labelledby="st-any-address-t" aria-describedby="st-any-address-d">
+  <header class="gw-dialog__header">
+    <span class="gw-icon-tile"><svg lucideIcon="shield-off" class="gw-icon"></svg></span>
+    <h2 class="gw-dialog__title" id="st-any-address-t">@if (slug(); as s) {Accept calls from any address to <span class="gw-mono">{{ s }}</span>?} @else {Accept calls from any address?}</h2>
+    <p class="gw-dialog__description" id="st-any-address-d">Anyone on the internet who finds the public URL can reach the endpoint while the tunnel is on. Two gates remain: you allow each new sign-in on this computer, and the endpoint keeps its own modes@if (readOnly()) { (read only)}.</p>
+    <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
+  </header>
+  <div class="gw-dialog__body">
+    <dl class="gw-kv gw-kv--dense">
+      <div class="gw-kv__row"><dt class="gw-kv__key">Callers</dt><dd class="gw-kv__value">Any address, instead of Anthropic IP ranges only</dd></div>
+      <div class="gw-kv__row"><dt class="gw-kv__key">Tunnel</dt><dd class="gw-kv__value" id="st-any-address-tunnel">@if (on()) {Public now: this applies at once} @else if (t()?.since; as since) {Off since <time [attr.datetime]="time.iso(since)" [attr.title]="time.absolute(since, false)">{{ time.clock(since) }}</time>: this applies the next time you publish} @else {Off: this applies the next time you publish}</dd></div>
+      <div class="gw-kv__row"><dt class="gw-kv__key">Recorded</dt><dd class="gw-kv__value">In Activity › Setup changes, by you</dd></div>
+    </dl>
+  </div>
+  <footer class="gw-dialog__footer">
+    <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
+    <button class="gw-btn gw-btn--primary" type="button" id="st-any-address-confirm" (click)="acceptAny()">Accept calls from any address</button>
+  </footer>
+</dialog>

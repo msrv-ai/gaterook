@@ -1,0 +1,377 @@
+// =============================================================
+// .gw-setup-map · Setup map (element)
+// -------------------------------------------------------------
+// The light visualisation of WHAT to configure and HOW it connects. It
+// draws the setup path IN SETUP ORDER (what a step needs comes before it),
+// left to right, top to bottom when stacked, as an <ol> of nodes joined by
+// decorative arrows. The same order as getting-started and the onboarding
+// stepper:
+//
+//   Secrets & resources → Connections → Policies → Endpoints → AI apps
+//   (credentials the       (where the     (decides the  (one URL,    (the app
+//    agent never sees)      tool runs;     call: mode,   token or     your agent
+//                           the secret is  limits,       OAuth)       works in)
+//                           injected here) approval)
+//
+// An agent's call travels the other way (AI app → endpoint → policy →
+// connection, where the secret is injected). Say so in the sentence the
+// <ol> is described by, and as a caption under the map:
+//   "Set it up left to right. An agent's call travels the other way: AI app,
+//    endpoint, policy, connection, where the secret is injected."
+// (--vertical: "top to bottom"). --wiring is a different picture: one
+// endpoint's call path, AI apps → the endpoint → Connections.
+//
+// Each node is a gw-card with its section's icon tile, a title, one line on
+// what it does in the path, a one-line status with counts, a state badge
+// and a "Configure" link to its page. State lives in data-state on the step.
+//
+// Where   onboarding (preview, --vertical beside the stepper), endpoint-detail
+//         (--wiring). Not on Overview: its first run is a gw-stepper --guide.
+// Composes gw-card (--dashed for todo), gw-icon-tile (--brand --warning
+//         --neutral, --sm), gw-icon, gw-badge (--success --warning --neutral +
+//         __icon), gw-btn--link, gw-text-* / gw-fg-* utilities, gw-mono.
+//         --wiring adds gw-client-mark --sm, gw-status, gw-env --sm,
+//         gw-copy-field, gw-kv--dense, gw-mode, gw-badge--outline, gw-code.
+//
+// Usage (chain)
+//   <p class="gw-sr-only" id="flow">Set it up left to right: secrets and resources, then
+//     connections, policies, endpoints and AI apps. An agent's call travels the other way:
+//     AI app, endpoint, policy, connection, where the secret is injected. …</p>
+//   <ol class="gw-setup-map" aria-label="Setup path" aria-describedby="flow">
+//     <li class="gw-setup-map__step" data-state="done">
+//       <div class="gw-card gw-setup-map__node">
+//         <div class="gw-card__body gw-setup-map__body">
+//           <span class="gw-icon-tile gw-icon-tile--brand gw-setup-map__tile"><i class="gw-icon" data-lucide="key-round"></i></span>
+//           <h3 class="gw-card__title gw-setup-map__title">Secrets &amp; resources</h3>
+//           <p class="gw-card__description gw-setup-map__desc">Credentials the agent never sees</p>
+//           <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">Master key backed up · 11 secrets</p>
+//           <span class="gw-badge gw-badge--success gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="circle-check"></i>Done</span>
+//           <a class="gw-btn gw-btn--link gw-setup-map__action" href="secrets.html">Configure<span class="gw-sr-only"> secrets</span></a>
+//         </div>
+//       </div>
+//       <span class="gw-setup-map__connector" aria-hidden="true">
+//         <span class="gw-setup-map__line"></span>
+//         <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--across" data-lucide="chevron-right"></i>
+//         <i class="gw-icon gw-setup-map__arrow gw-setup-map__arrow--down" data-lucide="chevron-down"></i>
+//       </span>
+//     </li>
+//     …Connections, Policies, Endpoints, then AI apps, the last step, with no
+//     connector. The Connections step also carries the side note (between its
+//     card and its connector):
+//       <p class="gw-setup-map__note gw-text-caption gw-fg-muted">
+//         <i class="gw-icon gw-icon--xs" data-lucide="lock-keyhole"></i><span>Secret injected here, never sent to the agent</span></p>
+//   </ol>
+//   <p class="gw-text-caption gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--xs"
+//      data-lucide="arrow-left-right"></i> Set it up left to right (top to bottom when stacked).
+//      An agent's call travels the other way: AI app, endpoint, policy, connection, where the
+//      secret is injected.</p>   ← the visible caption; aria-hidden because the
+//                                  description above already says it
+//
+// Usage (--wiring row; a connection, then a client)
+//   <li class="gw-setup-map__item">
+//     <span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="database"></i></span>
+//     <span class="gw-setup-map__name"><span class="gw-mono" title="dev-db">dev-db</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm">dev</span></span>
+//     <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy · 12 ms</span></span>
+//   </li>
+//   <li class="gw-setup-map__item">
+//     <span class="gw-client-mark gw-client-mark--sm gw-client-mark--codex" aria-hidden="true">Cx</span>
+//     <span class="gw-setup-map__name"><span>Codex</span></span>
+//     <span class="gw-status gw-status--success">…Connected…</span>
+//   </li>
+//
+// data-state on __step (one vocabulary, three cues: words + icon + tile tone)
+//   done       gw-badge--success circle-check "Done", tile --brand
+//   attention  gw-badge--warning triangle-alert "Needs attention", tile --warning;
+//              the status line names the problem ("billing-api unreachable")
+//   todo       gw-badge--neutral circle-dashed "Not set up", tile --neutral,
+//              card gw-card--dashed; the status says what it waits for
+//              ("needs a connection first") or "start here" on the first one to do
+//              (in setup order that is the leftmost todo node)
+// Connector state, derived from the two steps it joins (no markup needed):
+//   done → done            brand-fg solid ("this part of the path works")
+//   a todo on either side  border-strong dashed ("not set up yet")
+//   otherwise              border-strong solid (wired, but something needs a look)
+//
+// Layout
+//   below md          vertical chain, compact node (tile | title + badge, then
+//                     description, status, link)
+//   md – lg           vertical chain, one row per node (tile | title + description |
+//                     status | badge | Configure); the arrow runs down the tile column
+//   lg and up         horizontal chain of equal columns; arrows sit in the column gap,
+//                     centred on the cards; the note drops into a shared second row
+//   --vertical        always the vertical chain with compact nodes: narrow columns
+//                     (onboarding preview, side panels)
+//   --wiring          endpoint-detail: three columns, AI apps → the endpoint → Connections.
+//                     Each __node is a full gw-card (header, body with a __list of
+//                     __item rows, footer). Same connector rules and breakpoints. Names
+//                     truncate (full value in title); the status column is capped and
+//                     its label wraps, so a long status never squeezes the name away.
+//
+// Parts   __step (li, data-state) __node (the gw-card) __body (chain node grid, on
+//         gw-card__body) __tile __title __desc __status __state __action __note
+//         __connector __line __arrow(--across --down) · wiring: __list __item
+//         __name __chips __stack
+//
+// A11y    The <ol> gives order and position ("3 of 5", in setup order); name it
+//         (aria-label) and point aria-describedby at the sentence that gives the
+//         setup order and says the call travels the other way, because the arrows
+//         are decorative (aria-hidden) and say nothing to a screen reader. The node title is a heading one level below its section.
+//         State is always words in the badge; colour, icon and dashes are extra
+//         cues. Literal names in a status (billing-api) use gw-mono. Configure
+//         links carry an sr-only object ("Configure AI apps"). Nodes are plain
+//         divs, not sections, so a page does not gain five landmarks. The
+//         environment marker gets an sr-only "environment" before it, with spaces
+//         around it so the words do not run together. Lines are borders and arrows
+//         are currentColor strokes, so both survive forced colours.
+// Raw     the arrow stroke width (3 / 24 of a 16px icon = the 2px line).
+// =============================================================
+
+@use "../scss/tokens" as *;
+@use "../scss/mixins" as *;
+
+.gw-setup-map {
+  // Connector geometry, all from tokens:
+  //   gap     length of a horizontal connector = the column gap between nodes
+  //   rail    x of the vertical line: the centre of the node's icon tile
+  //   text    where node text starts: the note lines up with it
+  //   overlap how far the line runs into the chevron so it meets the vertex
+  //           (the vertex sits 10px into a 16px chevron; 6px of box remain after it)
+  //   inset   space before the line, equal to the 6px after the vertex, so an
+  //           arrow sits centred between the two cards it joins
+  --gw-setup-map-gap: var(--gw-space-8);
+  --gw-setup-map-rail: calc(var(--gw-space-5) + var(--gw-size-control-md) / 2);
+  --gw-setup-map-text: calc(var(--gw-space-5) + var(--gw-size-control-md) + var(--gw-space-3));
+  --gw-setup-map-overlap: calc(var(--gw-space-2) + var(--gw-space-0-5));
+  --gw-setup-map-inset: var(--gw-space-1-5);
+
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+
+  // ─── Step: node, then the link to the next node (vertical by default) ───
+  &__step {
+    display: grid;
+    grid-template-columns: var(--gw-setup-map-text) minmax(0, 1fr);
+    min-width: 0;
+  }
+
+  &__node {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    min-width: 0;
+
+    // The body fills the card, so stretched cards keep their bottom rows aligned.
+    > .gw-card__body { flex: 1 1 auto; }
+  }
+
+  // ─── Connector (decorative) ───
+  &__connector {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: var(--gw-space-6);
+    margin-inline-start: calc(var(--gw-setup-map-rail) - var(--gw-size-icon-md) / 2);
+    padding-block-start: var(--gw-setup-map-inset);
+    color: var(--gw-color-border-strong);
+  }
+
+  &__line {
+    flex: 1 1 auto;
+    border: 0 solid currentColor;
+    border-inline-start-width: var(--gw-border-width-strong);
+  }
+
+  &__arrow {
+    flex: none;
+    stroke-width: 3; // raw: 3 / 24 of a 16px icon matches the 2px line
+
+    &--across { display: none; }
+    &--down { margin-top: calc(-1 * var(--gw-setup-map-overlap)); }
+  }
+
+  // done → done: the path works (brand). A todo on either side: dashed.
+  &__step[data-state="done"]:has(+ .gw-setup-map__step[data-state="done"]) > .gw-setup-map__connector {
+    color: var(--gw-color-brand-fg);
+  }
+  &__step[data-state="todo"] > .gw-setup-map__connector .gw-setup-map__line,
+  &__step:has(+ .gw-setup-map__step[data-state="todo"]) > .gw-setup-map__connector .gw-setup-map__line {
+    border-style: dashed;
+  }
+
+  // ─── Side annotation (secret injected at the connection step) ───
+  // Icon + words; in a chain it sits beside the connector that leaves its step,
+  // in --wiring it goes in the Connections card footer.
+  &__note {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--gw-space-1-5);
+    min-width: 0;
+
+    > .gw-icon { margin-top: var(--gw-space-0-5); }
+  }
+
+  &__step > &__note {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: center;
+    padding-block: var(--gw-space-2);
+  }
+
+  // ─── Chain node: compact layout (narrow, --vertical) ───
+  &__body {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "tile title  state"
+      "tile desc   desc"
+      "tile status status"
+      "tile action action";
+    align-items: start;
+    column-gap: var(--gw-space-3);
+    row-gap: var(--gw-space-0-5);
+    min-width: 0;
+  }
+
+  &__tile   { grid-area: tile; }
+  &__title  { grid-area: title; min-width: 0; overflow-wrap: anywhere; }
+  &__desc   { grid-area: desc; min-width: 0; }
+  &__status { grid-area: status; min-width: 0; overflow-wrap: anywhere; }
+  &__state  { grid-area: state; justify-self: end; }
+  &__action { grid-area: action; justify-self: start; margin-top: var(--gw-space-1-5); }
+
+  // ─── Wiring parts (endpoint-detail) ───
+  // The rail follows the 24px tile in the card title instead of the 32px one.
+  &--wiring {
+    --gw-setup-map-rail: calc(var(--gw-space-5) + var(--gw-size-icon-xl) / 2);
+    --gw-setup-map-text: calc(var(--gw-space-5) + var(--gw-size-icon-xl) + var(--gw-space-2));
+  }
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-2);
+    min-width: 0;
+  }
+
+  // Mark | name (+ env) | status. The status column is capped at 128px and
+  // its label wraps, so the name keeps its room in a narrow column.
+  &__item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) fit-content(calc(var(--gw-space-16) * 2));
+    align-items: center;
+    column-gap: var(--gw-space-2);
+    min-width: 0;
+    min-height: var(--gw-size-icon-xl);
+  }
+
+  // Name + env marker: the name truncates, the marker never does.
+  &__name {
+    display: flex;
+    align-items: center;
+    gap: var(--gw-space-2);
+    min-width: 0;
+
+    > :first-child { @include gw-truncate; }
+    > .gw-env { flex: none; }
+  }
+
+  &__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--gw-space-1-5);
+    min-width: 0;
+  }
+
+  &__stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-3);
+    min-width: 0;
+  }
+}
+
+// ─── md – lg: one row per node (still a vertical chain) ───
+@include gw-bp-up(md) {
+  .gw-setup-map:not(.gw-setup-map--vertical) .gw-setup-map__body {
+    grid-template-columns: auto minmax(0, calc(var(--gw-space-16) * 3)) minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "tile title status state action"
+      "tile desc  status state action";
+    align-items: center;
+
+    > .gw-setup-map__title { align-self: end; }
+    > .gw-setup-map__desc { align-self: start; }
+    > .gw-setup-map__action { margin-top: 0; }
+  }
+}
+
+// ─── lg and up: horizontal chain ───
+@include gw-bp-up(lg) {
+  .gw-setup-map:not(.gw-setup-map--vertical) {
+    grid-template-columns: none;
+    grid-template-rows: auto auto;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    column-gap: var(--gw-setup-map-gap);
+
+    // Every step spans both rows of the map: row 1 holds the cards (equal
+    // height), row 2 the notes, shared through subgrid.
+    > .gw-setup-map__step {
+      grid-row: span 2;
+      grid-template-rows: subgrid;
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .gw-setup-map__node { grid-column: 1; grid-row: 1; }
+
+    > .gw-setup-map__step > .gw-setup-map__note {
+      grid-column: 1;
+      grid-row: 2;
+      align-self: start;
+    }
+
+    // The connector shares the card's cell and is pushed out into the gap,
+    // centred on the card's height.
+    .gw-setup-map__connector {
+      grid-column: 1;
+      grid-row: 1;
+      justify-self: end;
+      align-self: center;
+      flex-direction: row;
+      width: var(--gw-setup-map-gap);
+      min-height: 0;
+      margin-inline: 0 calc(-1 * var(--gw-setup-map-gap));
+      padding-block-start: 0;
+      padding-inline-start: var(--gw-setup-map-inset);
+    }
+
+    .gw-setup-map__line {
+      border-inline-start-width: 0;
+      border-top-width: var(--gw-border-width-strong);
+    }
+
+    .gw-setup-map__arrow--across {
+      display: block;
+      margin-inline-start: calc(-1 * var(--gw-setup-map-overlap));
+    }
+    .gw-setup-map__arrow--down { display: none; }
+
+    // Chain node as a column: tile, title, description, status, then badge
+    // and link pinned to the bottom so they line up across the row.
+    .gw-setup-map__body {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto auto auto 1fr auto auto;
+      grid-template-areas: "tile" "title" "desc" "status" "state" "action";
+      align-items: start;
+
+      > .gw-setup-map__tile { margin-bottom: var(--gw-space-2); }
+      > .gw-setup-map__title,
+      > .gw-setup-map__desc { align-self: start; }
+      > .gw-setup-map__state { justify-self: start; margin-top: var(--gw-space-3); }
+      > .gw-setup-map__action { margin-top: var(--gw-space-2); }
+    }
+  }
+}

@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Risk callout · Element · GateRook kit</title>
+<link rel="icon" href="../assets/logo-mark.svg" type="image/svg+xml">
+<script src="../assets/theme-boot.js"></script>
+<link rel="stylesheet" href="../dist/gw-kit.css">
+</head>
+<body>
+<a class="gw-skip-link" href="#main">Skip to content</a>
+<main class="gw-page" id="main" tabindex="-1">
+  <header class="gw-page-header">
+    <div class="gw-page-header__row">
+      <div class="gw-page-header__heading">
+        <h1 class="gw-page-header__title">Risk callout</h1>
+        <p class="gw-page-header__description">Warns when one endpoint mixes private data, untrusted content and a way to send data out: an agent that reads untrusted text can be steered into leaking private data. Database rows, logs and HTTP responses count as untrusted; every HTTP and SSH tool counts as a channel (fixed runbooks as a limited one). Used on endpoint detail, Endpoints (compact) and Policies.</p>
+      </div>
+      <div class="gw-page-header__actions">
+        <fieldset class="gw-segmented gw-segmented--sm">
+          <legend class="gw-sr-only">Theme</legend>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="system"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="monitor"></i>System</span></label>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="light"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="sun"></i>Light</span></label>
+          <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="gw-theme" value="dark"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="moon"></i>Dark</span></label>
+        </fieldset>
+      </div>
+    </div>
+  </header>
+
+  <section class="gw-section" aria-labelledby="rc-full">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="rc-full">All three ingredients</h2>
+      <p class="gw-section__description">Endpoint <code class="gw-code">dev</code> reads private data, takes in untrusted text and can send data out. Present ingredients are red; the alert stays amber because a person decides what to change. Split endpoint opens the split dialog: the move is pre-selected (the external channel), before / after shows both endpoints' ingredients, then the new slug, the AI apps to connect and “Create dev-billing”.</p>
+    </header>
+    <div class="gw-alert gw-alert--warning gw-risk-callout" data-state="present">
+      <i class="gw-icon gw-alert__icon" data-lucide="shield-alert"></i>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">Risky combination in endpoint dev</p>
+        <p class="gw-alert__body">An agent that reads untrusted text can be steered into sending private data out. This endpoint has all three ingredients; approval on <code class="gw-code">http_request</code> helps only if you read every request body.</p>
+        <ul class="gw-risk-callout__ingredients" aria-label="Risk ingredients in endpoint dev">
+          <li class="gw-risk-callout__ingredient" data-present="true">
+            <div class="gw-risk-callout__ingredient-body">
+              <span class="gw-badge gw-badge--danger"><i class="gw-icon gw-badge__icon" data-lucide="database"></i>Private data<span class="gw-sr-only">, present</span></span>
+              <span class="gw-text-caption gw-fg-secondary"><code class="gw-code">sql_query</code> reads <code class="gw-code">dev-db</code></span>
+            </div>
+          </li>
+          <li class="gw-risk-callout__ingredient" data-present="true">
+            <i class="gw-icon gw-icon--xs gw-fg-muted gw-risk-callout__plus" data-lucide="plus"></i>
+            <div class="gw-risk-callout__ingredient-body">
+              <span class="gw-badge gw-badge--danger"><i class="gw-icon gw-badge__icon" data-lucide="file-warning"></i>Untrusted content<span class="gw-sr-only">, present</span></span>
+              <span class="gw-text-caption gw-fg-secondary"><code class="gw-code">logs_search</code> returns log lines users wrote</span>
+            </div>
+          </li>
+          <li class="gw-risk-callout__ingredient" data-present="true">
+            <i class="gw-icon gw-icon--xs gw-fg-muted gw-risk-callout__plus" data-lucide="plus"></i>
+            <div class="gw-risk-callout__ingredient-body">
+              <span class="gw-badge gw-badge--danger"><i class="gw-icon gw-badge__icon" data-lucide="send-to-back"></i>External channel<span class="gw-sr-only">, present</span></span>
+              <span class="gw-text-caption gw-fg-secondary"><code class="gw-code">http_request</code> can POST to <code class="gw-code">billing-api</code></span>
+            </div>
+          </li>
+        </ul>
+        <div class="gw-alert__actions">
+          <a class="gw-btn gw-btn--secondary gw-btn--sm" href="tool-policy-list.html"><i class="gw-icon gw-icon--sm" data-lucide="list-checks"></i>Review tools<span class="gw-sr-only"> of dev</span></a>
+          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-dialog-open="rc-dlg-split-dev"><i class="gw-icon gw-icon--sm" data-lucide="split"></i>Split endpoint<span class="gw-sr-only"> dev</span></button>
+          <button class="gw-btn gw-btn--link gw-btn--sm" type="button" data-gw-dialog-open="rc-dlg-dismiss-dev">Dismiss for this endpoint<span class="gw-sr-only">, dev</span></button>
+        </div>
+      </div>
+    </div>
+    <!-- Split endpoint (as on endpoint-detail #ep-dlg-split): move one ingredient's connection to a new endpoint, so
+         neither endpoint holds the whole combination. Pre-selected: the external channel, the smallest move that
+         removes the risk. Before / after shows the ingredients of both endpoints (the app shows the pair of the
+         picked move; the other pair stays [hidden]). Nothing opens by itself after Create: the toast names the
+         AI apps picked here, and in the app it offers "Open <new>", which leads to the new endpoint's AI apps tab,
+         where each one connects (endpoint-detail #ep-dlg-split). Initial focus: the pre-selected move. Primary:
+         "Create <slug>". -->
+    <dialog class="gw-dialog gw-dialog--md" id="rc-dlg-split-dev" aria-labelledby="rc-dlg-split-dev-title" aria-describedby="rc-dlg-split-dev-desc" data-gw-static>
+      <form method="dialog">
+        <header class="gw-dialog__header">
+          <span class="gw-icon-tile gw-icon-tile--warning"><i class="gw-icon" data-lucide="split"></i></span>
+          <h2 class="gw-dialog__title" id="rc-dlg-split-dev-title">Split endpoint dev</h2>
+          <p class="gw-dialog__description" id="rc-dlg-split-dev-desc">Move one connection to a new endpoint, so neither endpoint has all three ingredients. Its tools keep their modes and limits; dev keeps its URL, tokens and AI apps.</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <div class="gw-dialog__body">
+          <div class="gw-stack">
+            <fieldset class="gw-field">
+              <legend class="gw-field__label">Move out of dev</legend>
+              <div class="gw-stack gw-stack--sm">
+                <label class="gw-choice-card gw-choice-card--compact">
+                  <input class="gw-choice-card__input" type="radio" name="rc-split-dev-move" value="billing-api" checked autofocus aria-labelledby="rc-split-dev-billing-t" aria-describedby="rc-split-dev-billing-d rc-split-dev-billing-m">
+                  <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="send-to-back"></i></span>
+                  <span class="gw-choice-card__title" id="rc-split-dev-billing-t">External channel: <span class="gw-mono">billing-api</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></span>
+                  <span class="gw-choice-card__description" id="rc-split-dev-billing-d"><code class="gw-code">http_request</code> and <code class="gw-code">http_get</code> move. Agents on dev can no longer send data out.</span>
+                  <span class="gw-choice-card__meta" id="rc-split-dev-billing-m">Recommended · removes the risk · Codex called <code class="gw-code">http_request</code> today</span>
+                </label>
+                <label class="gw-choice-card gw-choice-card--compact">
+                  <input class="gw-choice-card__input" type="radio" name="rc-split-dev-move" value="app-logs" aria-labelledby="rc-split-dev-logs-t" aria-describedby="rc-split-dev-logs-d rc-split-dev-logs-m">
+                  <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="file-warning"></i></span>
+                  <span class="gw-choice-card__title" id="rc-split-dev-logs-t">Untrusted content: <span class="gw-mono">app-logs</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></span>
+                  <span class="gw-choice-card__description" id="rc-split-dev-logs-d"><code class="gw-code">logs_search</code> and <code class="gw-code">logs_tail</code> move. Agents on dev no longer read text other people wrote.</span>
+                  <span class="gw-choice-card__meta" id="rc-split-dev-logs-m">Leaves private data and an external channel on dev</span>
+                </label>
+              </div>
+            </fieldset>
+            <div class="gw-field">
+              <label class="gw-field__label" for="rc-split-dev-slug">New endpoint</label>
+              <div class="gw-input-group">
+                <span class="gw-input-group__affix">/mcp/</span>
+                <input class="gw-input gw-input--mono" id="rc-split-dev-slug" type="text" value="dev-billing" required maxlength="40" pattern="[a-z0-9]+(-[a-z0-9]+)*" autocomplete="off" spellcheck="false" autocapitalize="off" aria-describedby="rc-split-dev-url rc-split-dev-slug-hint">
+              </div>
+              <p class="gw-field__hint" id="rc-split-dev-url">URL: <span class="gw-mono">http://127.0.0.1:7465/mcp/dev-billing</span></p>
+              <p class="gw-field__hint" id="rc-split-dev-slug-hint">It starts with no tokens. Lowercase letters, digits and hyphens.</p>
+            </div>
+            <div class="gw-grid gw-grid--2">
+              <section class="gw-card gw-card--muted" aria-labelledby="rc-split-dev-a">
+                <div class="gw-card__body gw-stack gw-stack--sm">
+                  <h3 class="gw-text-h3" id="rc-split-dev-a"><span class="gw-mono">dev</span> after the split</h3>
+                  <ul class="gw-risk-callout__ingredients" aria-label="Risk ingredients of dev after the split">
+                    <li class="gw-risk-callout__ingredient" data-present="true"><span class="gw-badge gw-badge--info"><i class="gw-icon gw-badge__icon" data-lucide="database"></i>Private data<span class="gw-sr-only">, present</span></span></li>
+                    <li class="gw-risk-callout__ingredient" data-present="true"><span class="gw-badge gw-badge--info"><i class="gw-icon gw-badge__icon" data-lucide="file-warning"></i>Untrusted content<span class="gw-sr-only">, present</span></span></li>
+                    <li class="gw-risk-callout__ingredient" data-present="false"><span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>No external channel</span></li>
+                  </ul>
+                  <p class="gw-text-caption gw-fg-secondary"><i class="gw-icon gw-icon--xs" data-lucide="shield-check"></i> No risky combination: nothing on dev can send data out.</p>
+                </div>
+              </section>
+              <section class="gw-card gw-card--muted" aria-labelledby="rc-split-dev-b">
+                <div class="gw-card__body gw-stack gw-stack--sm">
+                  <h3 class="gw-text-h3" id="rc-split-dev-b"><span class="gw-mono">dev-billing</span>, new</h3>
+                  <ul class="gw-risk-callout__ingredients" aria-label="Risk ingredients of the new endpoint">
+                    <li class="gw-risk-callout__ingredient" data-present="false"><span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>No private data</span></li>
+                    <li class="gw-risk-callout__ingredient" data-present="false"><span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>No untrusted content</span></li>
+                    <li class="gw-risk-callout__ingredient" data-present="true"><span class="gw-badge gw-badge--info"><i class="gw-icon gw-badge__icon" data-lucide="send-to-back"></i>External channel<span class="gw-sr-only">, present</span></span></li>
+                  </ul>
+                  <p class="gw-text-caption gw-fg-secondary"><i class="gw-icon gw-icon--xs" data-lucide="shield-check"></i> No risky combination: no private data to send.</p>
+                </div>
+              </section>
+            </div>
+            <fieldset class="gw-field" aria-describedby="rc-split-dev-clients-hint">
+              <legend class="gw-field__label">AI apps that need the moved tools</legend>
+              <label class="gw-checkbox">
+                <input class="gw-checkbox__input" type="checkbox" name="rc-split-dev-client" value="codex" checked>
+                <span class="gw-checkbox__control" aria-hidden="true"></span>
+                <span class="gw-checkbox__label">Codex <span class="gw-fg-muted">· called <span class="gw-mono">http_request</span> today</span></span>
+              </label>
+              <label class="gw-checkbox">
+                <input class="gw-checkbox__input" type="checkbox" name="rc-split-dev-client" value="claude-desktop">
+                <span class="gw-checkbox__control" aria-hidden="true"></span>
+                <span class="gw-checkbox__label">Claude Desktop</span>
+              </label>
+              <p class="gw-field__hint" id="rc-split-dev-clients-hint">They keep dev and get the new URL as a second server. Connect each one next from the AI apps tab of the new endpoint, with the exact change to its config.</p>
+            </fieldset>
+          </div>
+        </div>
+        <footer class="gw-dialog__footer">
+          <button class="gw-btn" type="button" data-gw-dialog-close>Cancel</button>
+          <button class="gw-btn gw-btn--primary" type="submit" value="split" data-gw-toast="billing-api and its tools moved from dev. dev has no risky combination now. Next: connect Codex to it." data-gw-toast-title="Endpoint dev-billing created" data-gw-toast-tone="success">Create dev-billing</button>
+        </footer>
+      </form>
+    </dialog>
+    <dialog class="gw-dialog gw-dialog--sm" id="rc-dlg-dismiss-dev" aria-labelledby="rc-dlg-dismiss-dev-title" aria-describedby="rc-dlg-dismiss-dev-desc" data-gw-static>
+      <form method="dialog">
+        <header class="gw-dialog__header">
+          <span class="gw-icon-tile gw-icon-tile--warning"><i class="gw-icon" data-lucide="shield-alert"></i></span>
+          <h2 class="gw-dialog__title" id="rc-dlg-dismiss-dev-title">Dismiss the warning for dev?</h2>
+          <p class="gw-dialog__description" id="rc-dlg-dismiss-dev-desc">The tools stay as they are. Your reason goes to the audit log, and the warning comes back when a tool adds to the combination.</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <div class="gw-dialog__body">
+          <div class="gw-field">
+            <label class="gw-field__label" for="rc-dlg-dismiss-dev-reason">Reason</label>
+            <textarea class="gw-textarea" id="rc-dlg-dismiss-dev-reason" rows="3" required aria-describedby="rc-dlg-dismiss-dev-hint" placeholder="billing-api is a sandbox with test cards only" autofocus></textarea>
+            <p class="gw-field__hint" id="rc-dlg-dismiss-dev-hint">Required. Saved to the audit log.</p>
+          </div>
+        </div>
+        <footer class="gw-dialog__footer">
+          <button class="gw-btn" type="button" data-gw-dialog-close>Cancel</button>
+          <button class="gw-btn gw-btn--primary" type="submit">Dismiss warning</button>
+        </footer>
+      </form>
+    </dialog>
+  </section>
+
+  <section class="gw-section" aria-labelledby="rc-public">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="rc-public">All three, on the endpoint published to the internet</h2>
+      <p class="gw-section__description">Database rows and HTTP responses are text someone else wrote, so <code class="gw-code">stage-readonly</code> has all three ingredients even though it only reads: <code class="gw-code">http_get</code> can carry data out in a URL. It is the endpoint claude.ai reaches through the tunnel, so the callout says so.</p>
+    </header>
+    <div class="gw-alert gw-alert--warning gw-risk-callout" data-state="present">
+      <i class="gw-icon gw-alert__icon" data-lucide="shield-alert"></i>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">Risky combination in endpoint stage-readonly</p>
+        <p class="gw-alert__body">An agent that reads untrusted text can be steered into sending private data out, and this endpoint is published to claude.ai through the tunnel. Read only is not enough: a GET carries data in its URL.</p>
+        <ul class="gw-risk-callout__ingredients" aria-label="Risk ingredients in endpoint stage-readonly">
+          <li class="gw-risk-callout__ingredient" data-present="true">
+            <div class="gw-risk-callout__ingredient-body">
+              <span class="gw-badge gw-badge--danger"><i class="gw-icon gw-badge__icon" data-lucide="database"></i>Private data<span class="gw-sr-only">, present</span></span>
+              <span class="gw-text-caption gw-fg-secondary"><code class="gw-code">sql_query</code> reads <code class="gw-code">stage-db</code></span>
+            </div>
+          </li>
+          <li class="gw-risk-callout__ingredient" data-present="true">
+            <i class="gw-icon gw-icon--xs gw-fg-muted gw-risk-callout__plus" data-lucide="plus"></i>
+            <div class="gw-risk-callout__ingredient-body">
+              <span class="gw-badge gw-badge--danger"><i class="gw-icon gw-badge__icon" data-lucide="file-warning"></i>Untrusted content<span class="gw-sr-only">, present</span></span>
+              <span class="gw-text-caption gw-fg-secondary"><code class="gw-code">sql_query</code> rows and <code class="gw-code">http_get</code> responses</span>
+            </div>
+          </li>
+          <li class="gw-risk-callout__ingredient" data-present="true">
+            <i class="gw-icon gw-icon--xs gw-fg-muted gw-risk-callout__plus" data-lucide="plus"></i>
+            <div class="gw-risk-callout__ingredient-body">
+              <span class="gw-badge gw-badge--danger"><i class="gw-icon gw-badge__icon" data-lucide="send-to-back"></i>External channel<span class="gw-sr-only">, present</span></span>
+              <span class="gw-text-caption gw-fg-secondary"><code class="gw-code">http_get</code> can put data in a URL to <code class="gw-code">billing-api</code></span>
+            </div>
+          </li>
+        </ul>
+        <div class="gw-alert__actions">
+          <a class="gw-btn gw-btn--secondary gw-btn--sm" href="tool-policy-list.html"><i class="gw-icon gw-icon--sm" data-lucide="list-checks"></i>Review tools<span class="gw-sr-only"> of stage-readonly</span></a>
+          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-dialog-open="rc-dlg-split-stage"><i class="gw-icon gw-icon--sm" data-lucide="split"></i>Split endpoint<span class="gw-sr-only"> stage-readonly</span></button>
+          <button class="gw-btn gw-btn--link gw-btn--sm" type="button" data-gw-dialog-open="rc-dlg-dismiss-stage">Dismiss for this endpoint<span class="gw-sr-only">, stage-readonly</span></button>
+        </div>
+      </div>
+    </div>
+    <!-- Split endpoint stage-readonly: the same dialog. Moving the external channel keeps the endpoint claude.ai
+         reaches through the tunnel free of a way out; the new endpoint is local only (not published). -->
+    <dialog class="gw-dialog gw-dialog--md" id="rc-dlg-split-stage" aria-labelledby="rc-dlg-split-stage-title" aria-describedby="rc-dlg-split-stage-desc" data-gw-static>
+      <form method="dialog">
+        <header class="gw-dialog__header">
+          <span class="gw-icon-tile gw-icon-tile--warning"><i class="gw-icon" data-lucide="split"></i></span>
+          <h2 class="gw-dialog__title" id="rc-dlg-split-stage-title">Split endpoint stage-readonly</h2>
+          <p class="gw-dialog__description" id="rc-dlg-split-stage-desc">Move one connection to a new endpoint, so neither endpoint has all three ingredients. stage-readonly keeps its public URL and its claude.ai sign-in; the new endpoint is not published.</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <div class="gw-dialog__body">
+          <div class="gw-stack">
+            <fieldset class="gw-field">
+              <legend class="gw-field__label">Move out of stage-readonly</legend>
+              <div class="gw-stack gw-stack--sm">
+                <label class="gw-choice-card gw-choice-card--compact">
+                  <input class="gw-choice-card__input" type="radio" name="rc-split-stage-move" value="billing-api" checked autofocus aria-labelledby="rc-split-stage-billing-t" aria-describedby="rc-split-stage-billing-d rc-split-stage-billing-m">
+                  <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="send-to-back"></i></span>
+                  <span class="gw-choice-card__title" id="rc-split-stage-billing-t">External channel: <span class="gw-mono">billing-api</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></span>
+                  <span class="gw-choice-card__description" id="rc-split-stage-billing-d"><code class="gw-code">http_get</code> moves. claude.ai can no longer put data in a URL.</span>
+                  <span class="gw-choice-card__meta" id="rc-split-stage-billing-m">Recommended · removes the risk from the published endpoint</span>
+                </label>
+                <label class="gw-choice-card gw-choice-card--compact">
+                  <input class="gw-choice-card__input" type="radio" name="rc-split-stage-move" value="stage-db" aria-labelledby="rc-split-stage-db-t" aria-describedby="rc-split-stage-db-d rc-split-stage-db-m">
+                  <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="database"></i></span>
+                  <span class="gw-choice-card__title" id="rc-split-stage-db-t">Private data: <span class="gw-mono">stage-db</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></span>
+                  <span class="gw-choice-card__description" id="rc-split-stage-db-d"><code class="gw-code">sql_query</code> moves. claude.ai loses the stage database, which is what it used today.</span>
+                  <span class="gw-choice-card__meta" id="rc-split-stage-db-m">Removes the risk, but takes away the tool claude.ai used for its 19 calls</span>
+                </label>
+              </div>
+            </fieldset>
+            <div class="gw-field">
+              <label class="gw-field__label" for="rc-split-stage-slug">New endpoint</label>
+              <div class="gw-input-group">
+                <span class="gw-input-group__affix">/mcp/</span>
+                <input class="gw-input gw-input--mono" id="rc-split-stage-slug" type="text" value="stage-billing" required maxlength="40" pattern="[a-z0-9]+(-[a-z0-9]+)*" autocomplete="off" spellcheck="false" autocapitalize="off" aria-describedby="rc-split-stage-url rc-split-stage-slug-hint">
+              </div>
+              <p class="gw-field__hint" id="rc-split-stage-url">URL: <span class="gw-mono">http://127.0.0.1:7465/mcp/stage-billing</span>, local only</p>
+              <p class="gw-field__hint" id="rc-split-stage-slug-hint">It starts with no tokens and is not published. Lowercase letters, digits and hyphens.</p>
+            </div>
+            <div class="gw-grid gw-grid--2">
+              <section class="gw-card gw-card--muted" aria-labelledby="rc-split-stage-a">
+                <div class="gw-card__body gw-stack gw-stack--sm">
+                  <h3 class="gw-text-h3" id="rc-split-stage-a"><span class="gw-mono">stage-readonly</span> after the split</h3>
+                  <ul class="gw-risk-callout__ingredients" aria-label="Risk ingredients of stage-readonly after the split">
+                    <li class="gw-risk-callout__ingredient" data-present="true"><span class="gw-badge gw-badge--info"><i class="gw-icon gw-badge__icon" data-lucide="database"></i>Private data<span class="gw-sr-only">, present</span></span></li>
+                    <li class="gw-risk-callout__ingredient" data-present="true"><span class="gw-badge gw-badge--info"><i class="gw-icon gw-badge__icon" data-lucide="file-warning"></i>Untrusted content<span class="gw-sr-only">, present</span></span></li>
+                    <li class="gw-risk-callout__ingredient" data-present="false"><span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>No external channel</span></li>
+                  </ul>
+                  <p class="gw-text-caption gw-fg-secondary"><i class="gw-icon gw-icon--xs" data-lucide="shield-check"></i> No risky combination on the published endpoint.</p>
+                </div>
+              </section>
+              <section class="gw-card gw-card--muted" aria-labelledby="rc-split-stage-b">
+                <div class="gw-card__body gw-stack gw-stack--sm">
+                  <h3 class="gw-text-h3" id="rc-split-stage-b"><span class="gw-mono">stage-billing</span>, new</h3>
+                  <ul class="gw-risk-callout__ingredients" aria-label="Risk ingredients of the new endpoint">
+                    <li class="gw-risk-callout__ingredient" data-present="false"><span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>No private data</span></li>
+                    <li class="gw-risk-callout__ingredient" data-present="true"><span class="gw-badge gw-badge--info"><i class="gw-icon gw-badge__icon" data-lucide="file-warning"></i>Untrusted content<span class="gw-sr-only">, present</span></span></li>
+                    <li class="gw-risk-callout__ingredient" data-present="true"><span class="gw-badge gw-badge--info"><i class="gw-icon gw-badge__icon" data-lucide="send-to-back"></i>External channel<span class="gw-sr-only">, present</span></span></li>
+                  </ul>
+                  <p class="gw-text-caption gw-fg-secondary"><i class="gw-icon gw-icon--xs" data-lucide="shield-check"></i> No risky combination: no private data to send.</p>
+                </div>
+              </section>
+            </div>
+            <fieldset class="gw-field" aria-describedby="rc-split-stage-clients-hint">
+              <legend class="gw-field__label">AI apps that need the moved tools</legend>
+              <label class="gw-checkbox">
+                <input class="gw-checkbox__input" type="checkbox" name="rc-split-stage-client" value="claude-desktop">
+                <span class="gw-checkbox__control" aria-hidden="true"></span>
+                <span class="gw-checkbox__label">Claude Desktop</span>
+              </label>
+              <p class="gw-field__hint" id="rc-split-stage-clients-hint">claude.ai keeps stage-readonly only: the new endpoint is not on the tunnel. A local AI app you pick opens its Connect step next.</p>
+            </fieldset>
+          </div>
+        </div>
+        <footer class="gw-dialog__footer">
+          <button class="gw-btn" type="button" data-gw-dialog-close>Cancel</button>
+          <button class="gw-btn gw-btn--primary" type="submit" value="split" data-gw-toast="http_get moved with its mode. stage-readonly stays published without it." data-gw-toast-title="Endpoint stage-billing created" data-gw-toast-tone="success">Create stage-billing</button>
+        </footer>
+      </form>
+    </dialog>
+    <dialog class="gw-dialog gw-dialog--sm" id="rc-dlg-dismiss-stage" aria-labelledby="rc-dlg-dismiss-stage-title" aria-describedby="rc-dlg-dismiss-stage-desc" data-gw-static>
+      <form method="dialog">
+        <header class="gw-dialog__header">
+          <span class="gw-icon-tile gw-icon-tile--warning"><i class="gw-icon" data-lucide="shield-alert"></i></span>
+          <h2 class="gw-dialog__title" id="rc-dlg-dismiss-stage-title">Dismiss the warning for stage-readonly?</h2>
+          <p class="gw-dialog__description" id="rc-dlg-dismiss-stage-desc">The tools stay as they are. Your reason goes to the audit log, and the warning comes back when a tool adds to the combination.</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <div class="gw-dialog__body">
+          <div class="gw-field">
+            <label class="gw-field__label" for="rc-dlg-dismiss-stage-reason">Reason</label>
+            <textarea class="gw-textarea" id="rc-dlg-dismiss-stage-reason" rows="3" required aria-describedby="rc-dlg-dismiss-stage-hint" placeholder="billing-api on stage holds test data only" autofocus></textarea>
+            <p class="gw-field__hint" id="rc-dlg-dismiss-stage-hint">Required. Saved to the audit log.</p>
+          </div>
+        </div>
+        <footer class="gw-dialog__footer">
+          <button class="gw-btn" type="button" data-gw-dialog-close>Cancel</button>
+          <button class="gw-btn gw-btn--primary" type="submit">Dismiss warning</button>
+        </footer>
+      </form>
+    </dialog>
+  </section>
+
+  <section class="gw-section" aria-labelledby="rc-partial">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="rc-partial">Two of three, while building an endpoint</h2>
+      <p class="gw-section__description">The Tools step of Create endpoint, with <code class="gw-code">aws_describe</code> on <code class="gw-code">aws-stage</code> and <code class="gw-code">http_request</code> on <code class="gw-code">billing-api</code> picked so far. Private data and an external channel are present (amber); untrusted content is absent (neutral, with a check and the word “No”), because resource settings are written by your team. The warning shows as soon as private data has a way out.</p>
+    </header>
+    <div class="gw-alert gw-alert--warning gw-risk-callout" data-state="partial">
+      <i class="gw-icon gw-alert__icon" data-lucide="shield-alert"></i>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">Risky combination in this new endpoint</p>
+        <p class="gw-alert__body">Private data and a way to send it out. Nothing untrusted is read yet, but one tool that reads rows, logs or web pages would complete the combination.</p>
+        <ul class="gw-risk-callout__ingredients" aria-label="Risk ingredients in the new endpoint">
+          <li class="gw-risk-callout__ingredient" data-present="true">
+            <div class="gw-risk-callout__ingredient-body">
+              <span class="gw-badge gw-badge--warning"><i class="gw-icon gw-badge__icon" data-lucide="database"></i>Private data<span class="gw-sr-only">, present</span></span>
+              <span class="gw-text-caption gw-fg-secondary"><code class="gw-code">aws_describe</code> reads <code class="gw-code">aws-stage</code></span>
+            </div>
+          </li>
+          <li class="gw-risk-callout__ingredient" data-present="false">
+            <i class="gw-icon gw-icon--xs gw-fg-muted gw-risk-callout__plus" data-lucide="plus"></i>
+            <div class="gw-risk-callout__ingredient-body">
+              <span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="check"></i>No untrusted content</span>
+              <span class="gw-text-caption gw-fg-secondary">No tool returns rows, logs or responses others wrote</span>
+            </div>
+          </li>
+          <li class="gw-risk-callout__ingredient" data-present="true">
+            <i class="gw-icon gw-icon--xs gw-fg-muted gw-risk-callout__plus" data-lucide="plus"></i>
+            <div class="gw-risk-callout__ingredient-body">
+              <span class="gw-badge gw-badge--warning"><i class="gw-icon gw-badge__icon" data-lucide="send-to-back"></i>External channel<span class="gw-sr-only">, present</span></span>
+              <span class="gw-text-caption gw-fg-secondary"><code class="gw-code">http_request</code> can POST to <code class="gw-code">billing-api</code></span>
+            </div>
+          </li>
+        </ul>
+        <div class="gw-alert__actions">
+          <a class="gw-btn gw-btn--secondary gw-btn--sm" href="tool-policy-list.html"><i class="gw-icon gw-icon--sm" data-lucide="list-checks"></i>Review tools<span class="gw-sr-only"> of the new endpoint</span></a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="gw-section" aria-labelledby="rc-limited">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="rc-limited">Contained: the only way out is fixed runbooks</h2>
+      <p class="gw-section__description"><code class="gw-code">incident-prod</code> reads prod data and prod logs, and SSH reaches <code class="gw-code">prod-vm</code>. SSH is a channel, but here the agent can only run two fixed runbooks with no free-text parameters, so it can't put data into it. An info alert explains the mitigation and what would break it; it never says nothing can send data out.</p>
+    </header>
+    <div class="gw-alert gw-alert--info gw-risk-callout" data-state="limited">
+      <i class="gw-icon gw-alert__icon" data-lucide="shield-check"></i>
+      <div class="gw-alert__content">
+        <p class="gw-alert__title">Contained combination in endpoint incident-prod</p>
+        <p class="gw-alert__body">Private data and untrusted text meet a limited channel: SSH runs only fixed runbooks. A runbook with a free-text parameter, or any HTTP tool, would turn this into a full warning.</p>
+        <ul class="gw-risk-callout__ingredients" aria-label="Risk ingredients in endpoint incident-prod">
+          <li class="gw-risk-callout__ingredient" data-present="true">
+            <div class="gw-risk-callout__ingredient-body">
+              <span class="gw-badge gw-badge--warning"><i class="gw-icon gw-badge__icon" data-lucide="database"></i>Private data<span class="gw-sr-only">, present</span></span>
+              <span class="gw-text-caption gw-fg-secondary"><code class="gw-code">sql_query</code> reads <code class="gw-code">prod-replica</code></span>
+            </div>
+          </li>
+          <li class="gw-risk-callout__ingredient" data-present="true">
+            <i class="gw-icon gw-icon--xs gw-fg-muted gw-risk-callout__plus" data-lucide="plus"></i>
+            <div class="gw-risk-callout__ingredient-body">
+              <span class="gw-badge gw-badge--warning"><i class="gw-icon gw-badge__icon" data-lucide="file-warning"></i>Untrusted content<span class="gw-sr-only">, present</span></span>
+              <span class="gw-text-caption gw-fg-secondary"><code class="gw-code">logs_search</code> on <code class="gw-code">prod-logs</code>, <code class="gw-code">sql_query</code> rows</span>
+            </div>
+          </li>
+          <li class="gw-risk-callout__ingredient" data-present="true">
+            <i class="gw-icon gw-icon--xs gw-fg-muted gw-risk-callout__plus" data-lucide="plus"></i>
+            <div class="gw-risk-callout__ingredient-body">
+              <span class="gw-badge gw-badge--warning"><i class="gw-icon gw-badge__icon" data-lucide="send-to-back"></i>External channel · limited<span class="gw-sr-only">, present</span></span>
+              <span class="gw-text-caption gw-fg-secondary"><code class="gw-code">ssh_run</code> runs 2 fixed runbooks on <code class="gw-code">prod-vm</code>, no free-text parameters</span>
+            </div>
+          </li>
+        </ul>
+        <div class="gw-alert__actions">
+          <a class="gw-btn gw-btn--secondary gw-btn--sm" href="tool-policy-list.html"><i class="gw-icon gw-icon--sm" data-lucide="list-checks"></i>Review tools<span class="gw-sr-only"> of incident-prod</span></a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="gw-section" aria-labelledby="rc-compact">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="rc-compact">Compact, in the endpoint list</h2>
+      <p class="gw-section__description">One line per endpoint row: <code class="gw-code">--compact</code> names the ingredients that are present and wraps inside the cell instead of widening the table. A contained endpoint says what limits its channel.</p>
+    </header>
+    <div class="gw-table-wrap" role="region" aria-labelledby="rc-endpoints-cap" tabindex="0">
+      <table class="gw-table">
+        <caption class="gw-sr-only" id="rc-endpoints-cap">Endpoints with their risk</caption>
+        <thead><tr><th scope="col">Endpoint</th><th scope="col" class="gw-table__cell--num">Connections</th><th scope="col" class="gw-table__cell--num">Tools</th><th scope="col">Risk</th></tr></thead>
+        <tbody>
+          <tr>
+            <th scope="row" class="gw-table__cell--mono"><a class="gw-link" href="../pages/endpoint-detail.html">dev</a></th>
+            <td class="gw-table__cell--num">8</td>
+            <td class="gw-table__cell--num">22</td>
+            <td>
+              <div class="gw-alert gw-alert--warning gw-alert--compact gw-risk-callout gw-risk-callout--compact" data-state="present">
+                <i class="gw-icon gw-alert__icon" data-lucide="shield-alert"></i>
+                <div class="gw-alert__content"><p class="gw-alert__title">Risky combination:</p><p class="gw-alert__body">private data + untrusted content + external channel</p></div>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <th scope="row" class="gw-table__cell--mono"><a class="gw-link" href="../pages/endpoint-detail.html">stage-readonly</a></th>
+            <td class="gw-table__cell--num">3</td>
+            <td class="gw-table__cell--num">10</td>
+            <td>
+              <div class="gw-alert gw-alert--warning gw-alert--compact gw-risk-callout gw-risk-callout--compact" data-state="present">
+                <i class="gw-icon gw-alert__icon" data-lucide="shield-alert"></i>
+                <div class="gw-alert__content"><p class="gw-alert__title">Risky combination:</p><p class="gw-alert__body">private data + untrusted content + external channel, published to the internet</p></div>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <th scope="row" class="gw-table__cell--mono"><a class="gw-link" href="../pages/endpoint-detail.html">incident-prod</a></th>
+            <td class="gw-table__cell--num">3</td>
+            <td class="gw-table__cell--num">10</td>
+            <td>
+              <div class="gw-alert gw-alert--info gw-alert--compact gw-risk-callout gw-risk-callout--compact" data-state="limited">
+                <i class="gw-icon gw-alert__icon" data-lucide="shield-check"></i>
+                <div class="gw-alert__content"><p class="gw-alert__title">Contained:</p><p class="gw-alert__body">private data + untrusted content + limited channel (2 fixed runbooks)</p></div>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="gw-section" aria-labelledby="rc-dismissed">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="rc-dismissed">Dismissed</h2>
+      <p class="gw-section__description">After “Dismiss for this endpoint” the callout shrinks to one neutral line with the endpoint, who, when and the reason, and one action to bring it back. It returns by itself when a tool adds to the combination.</p>
+    </header>
+    <div class="gw-alert gw-alert--neutral gw-alert--compact gw-risk-callout gw-risk-callout--compact" data-state="dismissed">
+      <i class="gw-icon gw-alert__icon" data-lucide="shield-off"></i>
+      <div class="gw-alert__content"><p class="gw-alert__title">Risk warning dismissed for dev</p><p class="gw-alert__body">by you <time datetime="2026-10-21T16:42:00+02:00" title="2026-10-21 16:42 +02:00">yesterday</time>: “billing-api is a sandbox with test cards only”</p></div>
+      <div class="gw-alert__actions"><button class="gw-btn gw-btn--link" type="button">Show warning<span class="gw-sr-only"> for dev</span></button></div>
+    </div>
+  </section>
+
+</main>
+<script src="../vendor/lucide/lucide.min.js"></script>
+<script src="../assets/kit.js"></script>
+</body>
+</html>

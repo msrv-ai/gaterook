@@ -1,0 +1,163 @@
+// =============================================================
+// .gw-card · Card
+// -------------------------------------------------------------
+// The kit's one container. Never hand-roll a box with a background,
+// border and shadow: use .gw-card (or @include gw-surface).
+//
+//   <section class="gw-card" aria-labelledby="c1">
+//     <header class="gw-card__header">
+//       <div class="gw-card__heading">
+//         <h2 class="gw-card__title" id="c1">Tokens</h2>
+//         <p class="gw-card__description">Shown once. Only the hash is stored.</p>
+//       </div>
+//       <div class="gw-card__actions"><button class="gw-btn gw-btn--sm" type="button">New token</button></div>
+//     </header>
+//     <div class="gw-card__body">…</div>
+//     <footer class="gw-card__footer">…</footer>
+//   </section>
+//
+// Variants
+//   --flush        body has no padding (a table or list runs edge to edge)
+//   --interactive  the whole card is one link: put .gw-card__link on the <a>
+//                  inside the title; its ::after stretches over the card
+//   --selected     brand border + tint (picked option, current item). Pair with
+//                  aria-current / aria-checked / a check icon, never colour alone
+//   --dashed       "add new" placeholder card
+//   --muted        raised fill, no shadow: secondary info inside a page
+// Gap between stacked cards: var(--gw-space-4). Cards never touch.
+// Header     wraps: below ~192px of heading beside the actions, the actions go
+//            under the heading. A header-only card keeps its bottom padding.
+// Footer     margin-top: auto, so in a gw-grid row of stretched cards every
+//            footer sits on the card's bottom edge.
+// =============================================================
+
+@use "../tokens" as *;
+@use "../mixins" as *;
+
+.gw-card {
+  @include gw-surface;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+
+  // Heading on the start, actions on the end. When the card is too narrow for
+  // both, the actions drop under the heading instead of crushing the title.
+  &__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--gw-space-3) var(--gw-space-4);
+    padding: var(--gw-space-4) var(--gw-space-5) 0;
+
+    // the heading (or an element's identity block) takes the free width,
+    // never less than 192px beside the actions
+    > :where(:first-child:not(.gw-card__actions)) { // :where: elements may set their own basis
+      flex: 1 1 calc(var(--gw-space-16) * 3);
+      min-width: 0;
+    }
+  }
+
+  // A card that is only a header still has its bottom padding.
+  &__header:last-child { padding-bottom: var(--gw-space-4); }
+
+  &__heading {
+    display: flex;
+    flex-direction: column;
+    gap: var(--gw-space-1);
+    min-width: 0;
+  }
+
+  &__title {
+    display: flex;
+    align-items: center;
+    gap: var(--gw-space-2);
+    margin: 0;
+    @include gw-type(h2);
+    color: var(--gw-color-text-primary);
+  }
+
+  &__description {
+    margin: 0;
+    @include gw-type(small);
+    color: var(--gw-color-text-muted);
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--gw-space-2);
+    flex: none;
+  }
+
+  &__body {
+    padding: var(--gw-space-4) var(--gw-space-5) var(--gw-space-5);
+    min-width: 0;
+  }
+
+  &__header + &__body { padding-top: var(--gw-space-4); }
+
+  &__footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--gw-space-2);
+    margin-top: auto; // in a stretched card (grid row) footers line up at the bottom
+    padding: var(--gw-space-3) var(--gw-space-5);
+    border-top: var(--gw-border-width-default) solid var(--gw-color-border-subtle);
+  }
+
+  &__footer--split { justify-content: space-between; }
+
+  // ─── Variants ───
+  &--flush > .gw-card__body { padding: 0; }
+  &--flush > .gw-card__header { padding-bottom: var(--gw-space-4); border-bottom: var(--gw-border-width-default) solid var(--gw-color-border-subtle); }
+
+  &--interactive {
+    transition: border-color var(--gw-motion-duration-fast) var(--gw-motion-ease-standard);
+    &:hover { border-color: var(--gw-color-border-strong); }
+    &:has(.gw-card__link:focus-visible) {
+      outline: var(--gw-focus-width) solid var(--gw-color-border-focus);
+      outline-offset: var(--gw-focus-offset);
+    }
+  }
+
+  &__link {
+    color: inherit;
+    text-decoration: none;
+    outline: none;
+    &::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+  }
+
+  &--selected {
+    border-color: var(--gw-color-brand-solid);
+    box-shadow: inset 0 0 0 var(--gw-border-width-default) var(--gw-color-brand-solid);
+    background: linear-gradient(var(--gw-color-brand-subtle), var(--gw-color-brand-subtle)) padding-box;
+  }
+
+  &--dashed {
+    background: transparent;
+    border-style: dashed;
+    border-color: var(--gw-color-border-strong);
+    box-shadow: none;
+  }
+
+  &--muted {
+    background: var(--gw-color-bg-raised);
+    border-color: var(--gw-color-border-subtle);
+    box-shadow: none;
+  }
+}
+
+// Vertical stack of cards with the standard gap.
+.gw-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gw-space-4);
+  min-width: 0;
+
+  &--sm { gap: var(--gw-space-2); }
+  &--lg { gap: var(--gw-space-8); }
+}

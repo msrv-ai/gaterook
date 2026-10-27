@@ -1,0 +1,46 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "connection",
+    "query"
+  ],
+  "properties": {
+    "connection": {
+      "type": "string"
+    },
+    "query": {
+      "type": "string",
+      "maxLength": 20000,
+      "description": "In the connection's language: LogQL (Loki), Logging query language (GCP), Logs Insights QL (CloudWatch), Lucene query_string (OpenSearch). Empty matches everything except on Loki."
+    },
+    "from": {
+      "type": "string",
+      "maxLength": 40,
+      "default": "-1h",
+      "description": "ISO-8601 with offset (2026-10-22T14:00:00+02:00) or relative: -15m, -1h, -2d, now-30m"
+    },
+    "to": {
+      "type": "string",
+      "maxLength": 40,
+      "default": "now"
+    },
+    "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "default": 100,
+      "description": "Newest entries first."
+    },
+    "source": {
+      "type": "string",
+      "maxLength": 512,
+      "description": "Optional: one log group (CloudWatch), index pattern (OpenSearch) or resource name (GCP) listed by describe_connection."
+    },
+    "cursor": {
+      "type": "string",
+      "maxLength": 8192,
+      "description": "nextCursor of the previous logs_search call: older entries."
+    }
+  }
+}

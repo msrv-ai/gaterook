@@ -1,0 +1,145 @@
+@let f = form();
+
+<ng-template #label let-n><span class="gw-mono">{{ n.key }}</span>@if (!n.required) { <span class="gw-field__optional">Optional</span>}</ng-template>
+<ng-template #errorLine let-message let-id="id">
+  <p class="gw-field__error" [id]="id"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ message }}</p>
+</ng-template>
+
+<ng-template #field let-n>
+  @if (f.visible(n)) {
+    @let id = f.id(n);
+    @let error = f.error(n);
+    @let errId = error ? id + '-err' : null;
+    @let hint = hintOf(n);
+    @let hintId = hint ? id + '-hint' : null;
+    @if (isConnection(n)) {
+      <!-- The connection the call runs on: the picked row's (kit), with its environment and host under it. -->
+      @let current = value(n);
+      @let row = connectionRow(current);
+      <div class="gw-field">
+        <label class="gw-field__label" [for]="id"><ng-container [ngTemplateOutlet]="label" [ngTemplateOutletContext]="{ $implicit: n }" /></label>
+        <select class="gw-select" [id]="id" [attr.name]="n.key" [attr.required]="n.required ? '' : null" [attr.aria-describedby]="join(errId, id + '-hint')" [attr.aria-invalid]="error ? 'true' : null" (change)="setConnection(n, $event)" (blur)="f.touch(n)">
+          @if (current === null || current === '') {
+            <option value="" selected>Choose…</option>
+          }
+          @for (c of connectionChoices(); track c) {
+            <option [value]="c" [selected]="current === c">{{ c }}@if (connectionRow(c)?.typeName; as t) { · {{ t }}}</option>
+          }
+        </select>
+        @if (error) {
+          <ng-container [ngTemplateOutlet]="errorLine" [ngTemplateOutletContext]="{ $implicit: error, id: errId }" />
+        }
+        <p class="gw-field__hint" [id]="id + '-hint'">@if (row) {Environment <span class="gw-env gw-env--sm gw-env--{{ row.env }}">{{ row.env }}</span>@if (row.host) { · <span class="gw-mono">{{ row.host }}</span>}} @else if (hint) {{{ hint }}} @else {The connection the call runs on}</p>
+      </div>
+    } @else {
+      @switch (n.kind) {
+        @case ('checkbox') {
+          <div class="gw-field">
+            <div class="gw-checkbox">
+              <input class="gw-checkbox__input" type="checkbox" [id]="id" [attr.name]="n.key" [checked]="value(n) === true" [attr.aria-describedby]="join(errId, hintId)" [attr.aria-invalid]="error ? 'true' : null" (change)="setChecked(n, $event)" (blur)="f.touch(n)" />
+              <span class="gw-checkbox__control" aria-hidden="true"></span>
+              <label class="gw-checkbox__label" [for]="id"><span class="gw-mono">{{ n.key }}</span></label>
+              @if (hint) {
+                <p class="gw-checkbox__hint" [id]="hintId">{{ hint }}</p>
+              }
+            </div>
+            @if (error) {
+              <ng-container [ngTemplateOutlet]="errorLine" [ngTemplateOutletContext]="{ $implicit: error, id: errId }" />
+            }
+          </div>
+        }
+        @default {
+          <div class="gw-field">
+            @if (n.kind === 'tags') {
+              <span class="gw-field__label" [id]="id + '-l'"><ng-container [ngTemplateOutlet]="label" [ngTemplateOutletContext]="{ $implicit: n }" /></span>
+            } @else {
+              <label class="gw-field__label" [for]="id"><ng-container [ngTemplateOutlet]="label" [ngTemplateOutletContext]="{ $implicit: n }" /></label>
+            }
+            @switch (n.kind) {
+              @case ('text') {
+                @if (longText(n)) {
+                  <textarea class="gw-textarea gw-textarea--code gw-textarea--wrap" rows="4" [id]="id" [formField]="textField(n)" spellcheck="false" autocapitalize="off" [attr.aria-describedby]="join(errId, hintId)" [attr.aria-invalid]="error ? 'true' : null"></textarea>
+                } @else if (n.unit) {
+                  <div class="gw-input-group">
+                    <input class="gw-input gw-input--mono" type="text" [id]="id" [formField]="textField(n)" spellcheck="false" autocomplete="off" [attr.aria-describedby]="join(errId, hintId)" [attr.aria-invalid]="error ? 'true' : null" />
+                    <span class="gw-input-group__affix">{{ n.unit }}</span>
+                  </div>
+                } @else {
+                  <input class="gw-input gw-input--mono" type="text" [id]="id" [formField]="textField(n)" spellcheck="false" autocomplete="off" [attr.aria-describedby]="join(errId, hintId)" [attr.aria-invalid]="error ? 'true' : null" />
+                }
+              }
+              @case ('number') {
+                @if (n.unit) {
+                  <div class="gw-input-group">
+                    <input class="gw-input gw-input--mono" type="text" inputmode="numeric" [id]="id" [attr.name]="n.key" [value]="numberText(n)" autocomplete="off" [attr.aria-describedby]="join(errId, hintId)" [attr.aria-invalid]="error ? 'true' : null" (input)="setNumber(n, $event)" (blur)="f.touch(n)" />
+                    <span class="gw-input-group__affix">{{ n.unit }}</span>
+                  </div>
+                } @else {
+                  <input class="gw-input gw-input--mono" type="text" inputmode="numeric" [id]="id" [attr.name]="n.key" [value]="numberText(n)" autocomplete="off" [attr.aria-describedby]="join(errId, hintId)" [attr.aria-invalid]="error ? 'true' : null" (input)="setNumber(n, $event)" (blur)="f.touch(n)" />
+                }
+              }
+              @case ('select') {
+                @let current = value(n);
+                <select class="gw-select" [id]="id" [attr.name]="n.key" [attr.aria-describedby]="join(errId, hintId)" [attr.aria-invalid]="error ? 'true' : null" (change)="setOption(n, $event)" (blur)="f.touch(n)">
+                  @if (current === null) {
+                    <option value="" selected>{{ n.required ? 'Choose…' : 'Not set' }}</option>
+                  } @else if (!n.required) {
+                    <option value="">Not set</option>
+                  }
+                  @for (o of f.optionsOf(n); track $index) {
+                    <option [value]="String(o.value)" [selected]="current === o.value">{{ o.title }}</option>
+                  }
+                </select>
+              }
+              @case ('choice-cards') {
+                @let current = value(n);
+                <select class="gw-select" [id]="id" [attr.name]="n.key" [attr.aria-describedby]="join(errId, hintId)" [attr.aria-invalid]="error ? 'true' : null" (change)="setOption(n, $event)" (blur)="f.touch(n)">
+                  @if (current === null) {
+                    <option value="" selected>{{ n.required ? 'Choose…' : 'Not set' }}</option>
+                  }
+                  @for (o of f.optionsOf(n); track $index) {
+                    <option [value]="String(o.value)" [selected]="current === o.value">{{ o.title }}</option>
+                  }
+                </select>
+              }
+              @case ('tags') {
+                <div gwTagsInput [inputId]="id" [value]="tags(n)" (valueChange)="f.set(n, $event)" [noun]="noun(n)" [listLabel]="n.key" [placeholder]="'Add ' + noun(n)" [describedBy]="join(errId, hintId)" [invalid]="!!error" (touch)="f.touch(n)"></div>
+              }
+              @default {
+                <!-- Objects, lists of objects and anything else: JSON, checked against the schema by the core. -->
+                <textarea class="gw-textarea gw-textarea--code" rows="4" [id]="id" [attr.name]="n.key" [value]="f.jsonValue(n)" spellcheck="false" autocapitalize="off" [attr.aria-describedby]="join(errId, hintId)" [attr.aria-invalid]="error ? 'true' : null" (input)="f.setJson(n, $any($event.target).value)" (blur)="f.touch(n)"></textarea>
+              }
+            }
+            @if (error) {
+              <ng-container [ngTemplateOutlet]="errorLine" [ngTemplateOutletContext]="{ $implicit: error, id: errId }" />
+            }
+            @if (hint) {
+              <p class="gw-field__hint" [id]="hintId">{{ hint }}</p>
+            }
+          </div>
+        }
+      }
+    }
+  }
+</ng-template>
+
+@for (row of rows(); track $index) {
+  @if (row.length > 1) {
+    <div class="gw-form__row">
+      @for (n of row; track n.pointer) {
+        <ng-container [ngTemplateOutlet]="field" [ngTemplateOutletContext]="{ $implicit: n }" />
+      }
+    </div>
+  } @else {
+    <ng-container [ngTemplateOutlet]="field" [ngTemplateOutletContext]="{ $implicit: row[0] }" />
+  }
+}
+@for (s of sections(); track s.pointer) {
+  <fieldset class="gw-field">
+    <legend class="gw-field__label"><ng-container [ngTemplateOutlet]="label" [ngTemplateOutletContext]="{ $implicit: s }" /></legend>
+    <div class="gw-form__rows"><gw-schema-fields [form]="f" [node]="s" /></div>
+  </fieldset>
+}
+@if (empty()) {
+  <p class="gw-text-small gw-fg-secondary"><code class="gw-code">{{ tool() }}</code> takes no arguments.</p>
+}

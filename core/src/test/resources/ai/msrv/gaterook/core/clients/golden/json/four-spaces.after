@@ -1,0 +1,14 @@
+{
+    "mcpServers": {
+        "github": {
+            "url": "https://api.githubcopilot.com/mcp/"
+        },
+        "gateway-dev": {
+            "url": "http://127.0.0.1:7465/mcp/dev",
+            "headers": {
+                "Authorization": "Bearer ‹new token›"
+            }
+        }
+    },
+    "after": true
+}

@@ -1,0 +1,50 @@
+<header class="gw-page-header">
+  <div class="gw-page-header__row">
+    <div class="gw-page-header__heading">
+      <h1 class="gw-page-header__title">Connectors</h1>
+      <p class="gw-page-header__description">The types of resource the gateway can reach and the tools each one brings. Add a type without rebuilding: a template, a plugin or an MCP server.</p>
+    </div>
+    <div class="gw-page-header__actions">
+      <div class="gw-menu-host">
+        <button class="gw-btn gw-btn--primary" type="button" aria-haspopup="menu" [gwMenuTrigger]="addMenu"><svg lucideIcon="plus" class="gw-icon"></svg> Add connector <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
+        <div class="gw-menu gw-menu--right gw-menu--wide" gwMenu #addMenu="gwMenu" id="menu-add-connector" role="menu" aria-label="Add connector" hidden>
+          <a class="gw-menu__item" role="menuitem" tabindex="-1" routerLink="/connectors" fragment="templates"><svg lucideIcon="file-code" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">New template<span class="gw-menu__hint">SQL query, SSH runbook or OpenAPI import. No code.</span></span></a>
+          <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" (click)="openInstall($event)"><svg lucideIcon="puzzle" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Install plugin<span class="gw-menu__hint">Java plugin from a JAR file or a URL</span></span></button>
+          <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" (click)="openAddServer($event)"><svg lucideIcon="plug" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Add MCP server<span class="gw-menu__hint">Any MCP server over stdio or HTTP</span></span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- how-it-works: the three levels of connectors. Decision 2 (ARCHITECTURE §8.6.8): a plugin runs in its own plugin
+     process, not inside the core. -->
+<section gwHowItWorks [level]="2" summary="Three levels of connectors. Whatever the level, every tool goes through tokens, modes, approvals and audit." stepsLabel="Levels of connectors" persist="connectors-how-it-works">
+  <li gwHowItWorksStep icon="package" heading="Built-in">SQL, MongoDB, Redis, SSH, logs, Kubernetes, clouds and HTTP ship with the core. Add a connection and go.</li>
+  <li gwHowItWorksStep icon="file-code" heading="Templates without code">A named SQL query, an SSH runbook or an OpenAPI file becomes a tool with typed parameters. No restart.</li>
+  <li gwHowItWorksStep icon="puzzle" heading="Plugins and MCP servers">A Java plugin adds a new resource type in its own plugin process; an MCP server runs as its own process. Check the signature first.</li>
+</section>
+
+@let n = counts();
+<div class="gw-tabs">
+  <div class="gw-tabs__list" role="tablist" aria-label="Connectors" gwTabs>
+    <button class="gw-tabs__tab" type="button" role="tab" id="tab-installed" aria-selected="true" aria-controls="installed"><svg lucideIcon="package-check" class="gw-icon"></svg> Installed @if (n.installed !== null) {<span class="gw-tabs__count">{{ n.installed }}<span class="gw-sr-only"> connectors</span></span>}</button>
+    <button class="gw-tabs__tab" type="button" role="tab" id="tab-catalog" aria-selected="false" aria-controls="catalog" tabindex="-1"><svg lucideIcon="library" class="gw-icon"></svg> Catalog @if (n.catalog !== null) {<span class="gw-tabs__count">{{ n.catalog }}<span class="gw-sr-only"> connectors</span></span>}</button>
+    <button class="gw-tabs__tab" type="button" role="tab" id="tab-templates" aria-selected="false" aria-controls="templates" tabindex="-1"><svg lucideIcon="file-code" class="gw-icon"></svg> Templates @if (n.templates !== null) {<span class="gw-tabs__count">{{ n.templates }}<span class="gw-sr-only"> {{ n.templates === 1 ? 'template' : 'templates' }}</span></span>}</button>
+    <button class="gw-tabs__tab" type="button" role="tab" id="tab-mcp" aria-selected="false" aria-controls="mcp-servers" tabindex="-1"><svg lucideIcon="plug" class="gw-icon"></svg> MCP servers @if (n.servers !== null) {<span class="gw-tabs__count">{{ n.servers }}<span class="gw-sr-only"> {{ n.servers === 1 ? 'server' : 'servers' }}</span></span>}</button>
+  </div>
+
+  <div gwInstalledPanel [views]="installed()" [slow]="slow()" [busyKey]="busyKey()" (action)="onInstalledAction($event)"></div>
+  <div gwCatalogPanel hidden [slow]="slow()" [busyKey]="busyKey()" (action)="onCatalogAction($event)"></div>
+  <div gwTemplatesPanel hidden [slow]="slow()" (action)="onTemplateAction($event)"></div>
+  <div gwMcpServersPanel hidden [slow]="slow()" (action)="onServerAction($event)"></div>
+</div>
+
+<!-- The dialogs of the page, outside the tabs: a dialog inside a hidden panel couldn't show. -->
+<dialog gwPluginInstallDialog gwDialogStatic (checked)="onChecked($event)"></dialog>
+<dialog gwPluginReviewDialog gwDialogStatic></dialog>
+<dialog gwPluginUpdateDialog></dialog>
+<dialog gwMcpAddDialog gwDialogStatic (reviewed)="onReviewed($event)"></dialog>
+<dialog gwMcpReviewDialog gwDialogStatic></dialog>
+<dialog gwConfirmDialog></dialog>
+<dialog gwTemplateInstallDialog gwDialogStatic></dialog>
