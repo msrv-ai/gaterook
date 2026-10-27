@@ -291,7 +291,7 @@ describe('where a start opens: one decision, whatever navigates meanwhile (§8.1
   });
   afterEach(() => resetOnboardingGuard());
 
-  it('a first run opens Welcome even when another navigation starts while the window decides', async () => {
+  it('a first run opens the Overview guide even when another navigation starts while the window decides', async () => {
     const http = TestBed.inject(HttpTestingController);
     const router = TestBed.inject(Router);
     const fixture = TestBed.createComponent(App);
@@ -312,8 +312,8 @@ describe('where a start opens: one decision, whatever navigates meanwhile (§8.1
     await second.catch(() => undefined);
     await settle();
     await fixture.whenStable();
-    expect(router.url).toBe('/onboarding');
-    expect(fixture.nativeElement.querySelector('.gw-sidebar')).toBeNull();
+    expect(router.url).toBe('/overview');
+    expect(fixture.nativeElement.querySelector('.gw-sidebar')).not.toBeNull();
 
     // Decided: the person's own navigations go where they lead, and nothing asks again.
     await router.navigateByUrl('/settings');

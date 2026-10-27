@@ -1396,7 +1396,7 @@ Caused by: java.net.SocketTimeoutException: Connect timed out
       cred: ["dynamic", "ssh-client-signer/sign/gw-runbooks", "Vault SSH CA", "Certificate signer", "Vault signs a fresh key pair for each call, valid 5 min. No private key is kept anywhere."],
       del: "Nothing is stored here: certificates come from the Vault SSH CA.",
       // ssh_run has one mode per endpoint; the runbook's flag decides the rest: service-status (read only) runs at once,
-      // restart-api changes state and always waits for approval (ARCHITECTURE §8.6.6)
+      // restart-api changes state and waits for approval in the default mode (ARCHITECTURE §8.6.6)
       eps: [["incident-prod", [["ssh_run", R], ["ssh_exec", O]]]] },
     "stage-db": { pick: "postgresql", label: "PostgreSQL 16", env: "stage", host: "db.stage.internal:5432/app", health: ["success", "Healthy · 24 ms"], ms: 24, user: "gw_reader",
       cred: ["vault", "vault://kv/stage/db#password"],

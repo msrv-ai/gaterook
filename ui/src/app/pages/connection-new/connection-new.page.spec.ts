@@ -643,6 +643,58 @@ describe('Add connection: wizard', () => {
     expect(text(p.q('#step-4 .gw-form__note'))).toBe('The password is encrypted with your master key on save');
   });
 
+  it('waits for endpoint loading before saving so default cannot be missed', async () => {
+    let resolve!: (rows: EndpointSummary[]) => void;
+    vi.mocked(TestBed.inject(EndpointsApi).list).mockImplementation(() => new Promise((done) => { resolve = done; }));
+    const p = await open();
+    await toTest(p);
+    p.button('Continue', p.q('#step-3')!).click();
+    await p.settle();
+    expect(p.button('Save connection').getAttribute('aria-disabled')).toBe('true');
+    p.q('#step-4 form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await p.settle();
+    expect(core.created).toEqual([]);
+    resolve([endpoint({ slug: 'default', connections: { total: 0, byEnv: {} }, clients: [] })]);
+    await p.settle();
+    expect(p.button('Save connection').getAttribute('aria-disabled')).toBeNull();
+    p.button('Save connection').click();
+    await p.settle();
+    expect(core.added).toEqual(['default']);
+  });
+
+  it('selects the default endpoint and attaches the saved connection to it', async () => {
+    vi.mocked(TestBed.inject(EndpointsApi).list).mockResolvedValue([
+      endpoint({ slug: 'default', connections: { total: 0, byEnv: {} }, clients: [] }),
+      ...ENDPOINTS,
+    ]);
+    const p = await open();
+    await toTest(p);
+    p.button('Continue', p.q('#step-3')!).click();
+    await p.settle();
+    const checked = [...p.el.querySelectorAll<HTMLInputElement>('#step-4 input[type=checkbox]:checked')].map((b) => b.value);
+    expect(checked).toEqual(['default']);
+    p.button('Save connection').click();
+    await p.settle();
+    expect(core.added).toEqual(['default']);
+  });
+
+  it('selects default when the initial setup lookup finishes while step 4 is loading', async () => {
+    const pending: ((rows: EndpointSummary[]) => void)[] = [];
+    vi.mocked(TestBed.inject(EndpointsApi).list).mockImplementation(() => new Promise((resolve) => { pending.push(resolve); }));
+    const p = await open();
+    await toTest(p);
+    p.button('Continue', p.q('#step-3')!).click();
+    await p.settle();
+    expect(pending).toHaveLength(2);
+    pending[0]([endpoint({ slug: 'default', connections: { total: 0, byEnv: {} }, clients: [] })]);
+    await p.settle();
+    expect(p.button('Save connection').getAttribute('aria-disabled')).toBeNull();
+    expect(p.q<HTMLInputElement>('#step-4 input[value="default"]')?.checked).toBe(true);
+    p.button('Save connection').click();
+    await p.settle();
+    expect(core.added).toEqual(['default']);
+  });
+
   it('Save connection creates it, adds it where the core agrees, then opens its own view with a toast', async () => {
     core.previews.set('stage-readonly', { connection: 'qa-db', env: 'dev', tools: [], warnings: [], refusal: 'stage-readonly changed meanwhile.' });
     const p = await open();
@@ -959,6 +1011,64 @@ describe('Add connection: first run (kit ?state=first-run)', () => {
     p.button('Continue', p.q('#step-3')!).click();
     await p.settle();
   }
+
+  function useDefault(over: Partial<EndpointSummary> = {}): void {
+    vi.mocked(TestBed.inject(EndpointsApi).list).mockResolvedValue([endpoint({
+      slug: 'default', url: 'http://127.0.0.1:7465/mcp/default', connections: { total: 0, byEnv: {} },
+      clients: [], tokens: { active: 0, expiringSoon: 0 }, tools: { read: 2, approval: 0, off: 0 }, ...over,
+    })]);
+  }
+
+  it('keeps the beginner flow and ready card while reusing the empty default endpoint', async () => {
+    useDefault();
+    const p = await open();
+    expect(text(p.q('#page-title'))).toBe('Add your first connection');
+    expect(text(p.q('.gw-page-header__description'))).toContain('adds it to endpoint default');
+    await toEndpoint(p);
+    expect(p.steps()[3]).toBe('current:4 Add to endpoint');
+    expect(kv('#step-4')[0]).toEqual(['Name', 'default']);
+    expect(text(p.q('#ep-new-t + .gw-form__description'))).toContain('Endpoint default is already set up.');
+    p.button('Save connection').click();
+    await p.settle();
+    expect(core.endpointsCreated).toEqual([]);
+    expect(core.added).toEqual(['default']);
+    expect(core.modes).toEqual([]);
+    expect(text(p.q('#fr-done-t'))).toBe('qa-db is ready');
+    expect(kv('#fr-done')[0]).toEqual(['Endpoint', 'default · http://127.0.0.1:7465/mcp/default · connection added 1 min ago']);
+    expect(p.steps()[3]).toBe('complete:Add to endpoint, completed Endpoint default');
+    expect(p.q('#fr-done a[href="/clients"]')).not.toBeNull();
+    expect(TestBed.inject(ToastService).toasts().at(-1)?.body).toBe('Added to endpoint default with its tools. Next: connect your AI app.');
+  });
+
+  it('keeps production writes Off when the first connection joins the empty default endpoint', async () => {
+    useDefault();
+    const p = await open();
+    await toEndpoint(p, 'prod');
+    expect(text(p.q('#pv-default-t'))).toBe('qa-db environment prod on endpoint default');
+    expect(text(p.q('#step-4 .gw-tool-policy-list .gw-card__description'))).toBe('3 tools · 2 read only · 1 off');
+    p.button('Save connection').click();
+    await p.settle();
+    expect(core.endpointsCreated).toEqual([]);
+    expect(core.added).toEqual(['default']);
+    expect(core.modes).toEqual([{ slug: 'default', toolKey: 'sql_execute', connection: 'qa-db', mode: 'OFF', version: 1 }]);
+    expect(text(p.q('#fr-done'))).toContain('sql_execute is off: prod is read only by default');
+  });
+
+  it.each(['known', 'discovered'] as const)('uses a separate prod endpoint when the default has %s live access across the prod boundary', async (when) => {
+    useDefault(when === 'known' ? { tokens: { active: 1, expiringSoon: 0 } } : {});
+    if (when === 'discovered') core.previews.set('default', {
+      connection: 'qa-db', env: 'prod', tools: [], warnings: [], refusal: 'default has a live dev client grant; create a prod endpoint.',
+    });
+    const p = await open();
+    await toEndpoint(p, 'prod');
+    p.button('Save connection').click();
+    await p.settle();
+    expect(core.endpointsCreated).toEqual([{ slug: 'prod', startFrom: 'empty' }]);
+    expect(core.added).toEqual(['prod']);
+    expect(core.modes).toEqual([{ slug: 'prod', toolKey: 'sql_execute', connection: 'qa-db', mode: 'OFF', version: 1 }]);
+    expect(kv('#fr-done')[0]?.[1]).toContain('prod · http://127.0.0.1:7465/mcp/prod');
+    expect(p.steps()[3]).toBe('complete:Create endpoint, completed Endpoint prod');
+  });
 
   it('speaks to a beginner when nothing is set up: the title, Cancel back to Overview, step 4 creates the endpoint', async () => {
     const p = await open();

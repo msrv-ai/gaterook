@@ -10,12 +10,12 @@
   </div>
 </header>
 
-<!-- The product invariant. Informational only: there is no switch for it anywhere. -->
+<!-- Approval is the default; an endpoint tool can explicitly use Bypass. -->
 <div class="gw-alert gw-alert--info">
   <svg lucideIcon="user-check" class="gw-icon gw-alert__icon"></svg>
   <div class="gw-alert__content">
-    <p class="gw-alert__title">Every mutation needs a human approval</p>
-    <p class="gw-alert__body">This can't be turned off on any environment. Database writes, restarts, runbooks that change state and HTTP requests other than GET always wait for a person. Policies only add limits on top; each tool's mode (Off, Read only or Approval) is set per endpoint.</p>
+    <p class="gw-alert__title">Mutations need approval by default</p>
+    <p class="gw-alert__body">Database writes, restarts, runbooks that change state and HTTP requests other than GET wait for a person by default. Set a tool to Bypass on its endpoint to run it without approval. Policy denials and limits still apply in every mode.</p>
     <div class="gw-alert__actions"><a class="gw-btn gw-btn--link gw-btn--sm" routerLink="/endpoints">Set tool modes in Endpoints</a></div>
   </div>
 </div>

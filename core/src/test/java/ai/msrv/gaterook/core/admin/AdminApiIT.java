@@ -310,7 +310,8 @@ class AdminApiIT {
     assertThat(wired.path("endpoint").path("connections").path("total").asInt()).isEqualTo(1);
 
     JsonNode list = api.ok("/api/endpoints");
-    JsonNode dev = list.get(0);
+    assertThat(each(list, "slug")).containsExactly("default", "dev");
+    JsonNode dev = endpoint(list, "dev");
     assertThat(dev.path("slug").asString()).isEqualTo("dev");
     assertThat(dev.path("status").asString()).isEqualTo("running");
     assertThat(dev.path("connections").path("byEnv").path("dev").asInt()).isEqualTo(1);
@@ -431,7 +432,7 @@ class AdminApiIT {
     assertThat(rows.size()).isEqualTo(1);
     assertThat(rows.get(0).has("token")).isFalse();
     assertThat(rows.get(0).path("state").asString()).isEqualTo("active");
-    assertThat(api.ok("/api/endpoints").get(0).path("tokens").path("active").asInt()).isEqualTo(1);
+    assertThat(endpoint(api.ok("/api/endpoints"), "dev").path("tokens").path("active").asInt()).isEqualTo(1);
     assertThat(api.expect(422, HttpMethod.POST, "/api/endpoints/dev/tokens", "{\"name\":\"x\",\"ttlDays\":400}")
         .path("field").asString()).isEqualTo("/ttlDays");
     JsonNode revoked = api.expect(200, HttpMethod.DELETE, "/api/tokens/" + rows.get(0).path("id").asString(),
@@ -804,7 +805,7 @@ class AdminApiIT {
         .isEqualTo("2 connections · cache-down unreachable");
     assertThat(node(overview, "policies").path("status").asString())
         .isEqualTo("3 environments · mutations need approval");
-    assertThat(node(overview, "endpoints").path("status").asString()).matches("1 endpoint · (\\d+ active tokens?|no "
+    assertThat(node(overview, "endpoints").path("status").asString()).matches("2 endpoints · (\\d+ active tokens?|no "
         + "active tokens)");
     assertThat(node(overview, "secrets").path("status").asString()).as("never backed up, with a secret stored here")
         .startsWith("Master key: ").contains("not backed up").endsWith(" secrets");
@@ -926,6 +927,15 @@ class AdminApiIT {
       }
     }
     throw new AssertionError("no tool " + name + " in " + group);
+  }
+
+  private static JsonNode endpoint(JsonNode endpoints, String slug) {
+    for (JsonNode endpoint : endpoints) {
+      if (endpoint.path("slug").asString().equals(slug)) {
+        return endpoint;
+      }
+    }
+    throw new AssertionError("no endpoint " + slug);
   }
 
   private static JsonNode playgroundTool(JsonNode tools, String name) {

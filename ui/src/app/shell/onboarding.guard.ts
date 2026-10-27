@@ -6,7 +6,7 @@ import { Onboarding, OverviewApi } from '../core/api/overview.api';
 import { CoreStore } from '../core/stores/core.store';
 
 /**
- * Whether a start should open on Welcome (ARCHITECTURE.md §8.1): `firstRun` of this start's ready line, or nothing
+ * Whether a start should open on the Overview welcome guide: `firstRun` of this start's ready line, or nothing
  * set up yet (no connection, getting-started not hidden) and onboarding not skipped. Never because a key is missing:
  * a lost master key is the locked mode of the status screen, not a first run. "Skip setup" wins over `firstRun`: the
  * core keeps `firstRun` for its whole first start, and a reload after Skip setup must not bring Welcome back.
@@ -40,8 +40,8 @@ export const onboardingGuard: CanActivateFn = async (_route, state) => {
   const router = inject(Router);
   decision ??= decide(inject(OverviewApi), inject(CoreStore));
   const welcome = await decision;
-  if (!welcome || state.url.startsWith('/onboarding')) return true;
-  return router.parseUrl('/onboarding');
+  if (!welcome || state.url.startsWith('/overview')) return true;
+  return router.parseUrl('/overview');
 };
 
 async function decide(api: OverviewApi, core: CoreStore): Promise<boolean> {

@@ -63,7 +63,7 @@ class EndpointsController {
 
   record Delete(String confirmSlug, String reason) {}
 
-  /** {@code mode}: {@code OFF}, {@code READ_ONLY} or {@code APPROVAL}; {@code connection} null for a core tool. */
+  /** {@code mode}: {@code OFF}, {@code READ_ONLY}, {@code APPROVAL} or {@code BYPASS}; {@code connection} null for a core tool. */
   record SetMode(String toolKey, String connection, String mode, JsonNode overrides, Long version, String reason) {}
 
   record ConfirmReadOnly(String toolKey, String connection, String definitionHash, String reason) {}
@@ -195,7 +195,7 @@ class EndpointsController {
     for (EndpointService.StartFrom s : EndpointService.StartFrom.values()) {
       EndpointService.StartPreview p = endpoints.previewStart(s);
       out.add(new StartFrom(p.startFrom(), p.env().id(), p.access(), p.connections(),
-          new EndpointDtos.ToolCounts(p.tools().read(), p.tools().approval(), p.tools().off())));
+          new EndpointDtos.ToolCounts(p.tools().read(), p.tools().approval(), p.tools().off(), p.tools().bypass())));
     }
     return List.copyOf(out);
   }
@@ -251,19 +251,21 @@ class EndpointsController {
       int read = 0;
       int approval = 0;
       int off = 0;
+      int bypass = 0;
       for (EndpointSnapshot.Pair p : s.pairs()) {
         if (p.config().id().equals(w.config().id())) {
           switch (p.mode()) {
             case READ_ONLY -> read++;
             case APPROVAL -> approval++;
             case OFF -> off++;
+            case BYPASS -> bypass++;
           }
         }
       }
       String health = connections.byId(w.config().id()).map(c -> c.health().state() == null ? "unknown"
           : c.health().state().name().toLowerCase(Locale.ROOT)).orElse("unknown");
       wired.add(new Wired(w.config().name(), w.config().type(), w.manifest().name(), w.config().env().id(), health,
-          w.problem(), new EndpointDtos.ToolCounts(read, approval, off)));
+          w.problem(), new EndpointDtos.ToolCounts(read, approval, off, bypass)));
     }
     return new Detail(summary(endpoints.get(slug)), List.copyOf(wired), settings(s));
   }
@@ -336,8 +338,8 @@ class EndpointsController {
   @PostMapping("/api/endpoints/{slug}/tools/bulk")
   Bulked bulk(@PathVariable String slug, @RequestBody Bulk request) {
     String mode = request.mode() == null ? "" : request.mode().strip().toUpperCase(Locale.ROOT);
-    if (!List.of("OFF", "READ_ONLY", "APPROVAL", "DEFAULT").contains(mode)) {
-      throw ApiRequestException.unprocessable("Unknown mode", "Set all to OFF, READ_ONLY, APPROVAL or DEFAULT.",
+    if (!List.of("OFF", "READ_ONLY", "APPROVAL", "BYPASS", "DEFAULT").contains(mode)) {
+      throw ApiRequestException.unprocessable("Unknown mode", "Set all to OFF, READ_ONLY, APPROVAL, BYPASS or DEFAULT.",
           "/mode");
     }
     EndpointTools.BulkResult r = tools.bulk(slug, request.group() == null || request.group().isBlank() ? null

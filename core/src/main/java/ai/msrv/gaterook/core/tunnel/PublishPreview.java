@@ -19,5 +19,5 @@ public record PublishPreview(String endpoint, String env, TunnelProvider provide
   public record Connection(String name, String env) {}
 
   /** The endpoint's tools by mode. */
-  public record Tools(int read, int approval, int off) {}
+  public record Tools(int read, int approval, int off, int bypass) {}
 }

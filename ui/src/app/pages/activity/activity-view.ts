@@ -368,6 +368,7 @@ const MODE_VALUES: Record<string, { readonly cls: string; readonly icon: string 
   Off: { cls: 'gw-mode--off', icon: 'circle-off' },
   'Read only': { cls: 'gw-mode--read', icon: 'eye' },
   Approval: { cls: 'gw-mode--approval', icon: 'user-check' },
+  Bypass: { cls: 'gw-mode--bypass', icon: 'shield-off' },
 };
 
 const STATUS_VALUES: Record<string, Look['tone']> = {

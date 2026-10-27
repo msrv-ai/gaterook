@@ -899,8 +899,9 @@ public class ClientService {
     t0 = System.nanoTime();
     EndpointService.Summary e = endpoint(slug);
     steps.add(step("tools", "Tools", "ok", ClientAdapter.of(l.getClient()).displayName() + " can call "
-        + (e.tools().read() + e.tools().approval()) + " tools of " + slug + ": " + e.tools().read() + " read only, "
-        + e.tools().approval() + " with your approval" + (e.env() == Env.PROD ? " · reaches a prod endpoint" : ""),
+        + (e.tools().read() + e.tools().approval() + e.tools().bypass()) + " tools of " + slug + ": " + e.tools().read() + " read only, "
+        + e.tools().approval() + " with your approval"
+        + (e.tools().bypass() == 0 ? "" : ", " + e.tools().bypass() + " in Bypass without approval") + (e.env() == Env.PROD ? " · reaches a prod endpoint" : ""),
         t0));
     if (l.getClient() == ClientKind.CODEX) {
       Detection d = detections.get(ClientKind.CODEX);

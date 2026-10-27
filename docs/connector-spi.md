@@ -13,7 +13,7 @@ public interface Connector extends AutoCloseable {
   ConnectorManifest manifest();
   /** Tools as published on one endpoint: enum of `connection`, effective limits in descriptions. */
   default List<ToolDefinition> tools(EndpointView endpoint) { return manifest().tools(); }
-  /** No I/O, no secrets, a few ms; runs before the policy. MUTATION always becomes an approval request. */
+  /** No I/O, no secrets, a few ms; runs before the policy. MUTATION requires approval unless the pair explicitly uses Bypass. */
   Classification classify(ToolCall call, ConnectionConfig cfg, PolicyView policy);
   /** Exact action, byte for byte what will run; no I/O; hashed into the approval digest. */
   ActionPreview describeAction(ToolCall call, ConnectionConfig cfg);
@@ -81,7 +81,7 @@ public record ToolDefinition(String name /* ^[a-z][a-z0-9_]{0,63}$ */, String ti
     JsonNode inputSchema, JsonNode outputSchema, Annotations annotations /* always explicit */, Nature nature,
     Mode defaultMode /* dev/stage endpoints */, Mode prodDefaultMode, ResultShape resultShape, Risk risk) {
   public enum Nature { READ, MUTATION, MIXED }          // MIXED: classify() decides per call (ssh_run, http_request)
-  public enum Mode { OFF, READ_ONLY, APPROVAL }         // there is no "allow writes" mode anywhere
+  public enum Mode { OFF, READ_ONLY, APPROVAL, BYPASS } // Bypass skips approval, not policy denials or limits
   public enum ResultShape { TABLE, JSON, TEXT, LOGS }
   public enum Egress { NONE, LIMITED, CHANNEL }         // risk callout; LIMITED = fixed runbooks, enum/int/bool params only
   public record Annotations(Boolean readOnlyHint, Boolean destructiveHint, Boolean idempotentHint, Boolean openWorldHint) {
@@ -281,10 +281,10 @@ public interface ExecContext {
   Instant deadline();                  // set native timeouts of the resource ≤ deadline
   default Duration remaining() { Duration d = Duration.between(clock().instant(), deadline()); return d.isNegative() ? Duration.ZERO : d; }
   boolean cancelled(); void onCancel(Runnable action);
-  boolean approved();                  // only the core's ApprovalExecutor sets it
-  Optional<String> approvalId();
+  boolean approved();                  // core authorization: human approval or explicit Bypass
+  Optional<String> approvalId();       // absent for Bypass
   Optional<JsonNode> preparedState();  // from prepare()
-  Optional<JsonNode> approvedPayload();// ActionPreview.payload of the approved request: run it, not the arguments
+  Optional<JsonNode> approvedPayload();// core-authorized ActionPreview.payload: run it, not the arguments
   System.Logger log();                 // masked; core.log or logs/plugins/<id>.log
   Clock clock();
   HandleCodec handles();

@@ -36,6 +36,14 @@ describe('client-card view (design/elements/client-card.html)', () => {
     expect(toolsCell(dev)).toEqual({ total: '22', modes: '14 read only, 3 approval, 5 off' });
   });
 
+  it('counts bypass tools and does not describe their OAuth grant as read access', () => {
+    const tools = { read: 2, approval: 0, bypass: 1, off: 0 };
+    expect(toolsCell({ ...dev, tools })).toEqual({ total: '3', modes: '2 read only, 1 bypass' });
+    const consent = { ...DEMO_CONSENT, tools };
+    expect(consentWants(consent)).toBe('Access to');
+    expect(consentTools(consent)).toBe('2 read only, 1 bypass approval');
+  });
+
   it('says how a client connects (__via)', () => {
     expect(viaText(DEMO_CLIENTS.claudeDesktop)).toEqual({ text: 'Bridge extension (.mcpb) · 2 endpoints, one of them prod', mono: false });
     expect(viaText(DEMO_CLIENTS.codex)).toEqual({ text: '~/.codex/config.toml', mono: true });

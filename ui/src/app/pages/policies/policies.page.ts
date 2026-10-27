@@ -26,7 +26,7 @@ export function envOfFragment(fragment: string | null | undefined): Env | null {
 /**
  * Policies (design/pages/policies.html; ARCHITECTURE.md §8.4 "policies"): guardrails per environment.
  *
- * - The header links to the denied calls; the invariant ("Every mutation needs a human approval") is an info alert
+ * - The header links to the denied calls; the default approval behavior and explicit Bypass exception is an info alert
  *   with no switch anywhere.
  * - Tabs dev / stage / prod (`/policies/:env`, deep links `#<env>` and `#<env>-<section>` select the tab and scroll
  *   to the section): each a toolbar and a form of the sections SQL, SSH (with its runbooks), Kubernetes, Cloud,

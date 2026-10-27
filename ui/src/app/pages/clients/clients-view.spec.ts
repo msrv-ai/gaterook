@@ -295,6 +295,10 @@ describe('Clients: first run and setup (kit ?state=first-run | setup)', () => {
       literals: ['sql_list_schemas', 'sql_describe_table', 'sql_query', 'sql_execute'],
     });
     expect(usesTools([{ name: 'k8s_get', mode: 'READ_ONLY' }, { name: 'k8s_apply', mode: 'OFF' }]).text).toBe('k8s_get runs at once (read only). k8s_apply is off.');
+    expect(usesTools([{ name: 'sql_execute', mode: 'BYPASS' }])).toEqual({
+      text: 'sql_execute runs without approval (Bypass); policy limits still apply.',
+      literals: ['sql_execute'],
+    });
     expect(usesTools([]).text).toBe('No tools on yet.');
   });
 });

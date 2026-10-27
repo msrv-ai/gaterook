@@ -4,7 +4,7 @@ This reference defines foundations, product patterns, content, and accessibility
 
 ## 1 · Principles
 
-1. **Make safety visible.** Show what an agent may do, what happened, and what awaits a decision. Stored secrets are never displayed; mutations require a person to approve the exact action.
+1. **Make safety visible.** Show what an agent may do, what happened, and what awaits a decision. Stored secrets are never displayed; mutations require approval by default. An explicitly selected Bypass tool mode skips approval while preserving policy denials and limits.
 2. **Prefer precision.** Display SQL, hosts, tool names, tokens, and other literals exactly, in a monospaced font without ligatures. Color communicates meaning.
 3. **Stay compact and calm.** The reference density uses 13–14 px text, 32 px controls, and 40 px table rows, with neutral surfaces and one brand accent.
 4. **Explain setup in order.** Make resources → endpoint → client visible, with a short explanation and next step at each stage.
@@ -112,9 +112,9 @@ Prefer direct messages to linked approvers. Choosing a channel requires disclosu
 
 ### Tool modes
 
-The only modes are **Off**, **Read only**, and **Approval**. There is no unreviewed-write mode. A mutating tool cannot select Read only. Display MCP hints near its name.
+The modes are **Off**, **Read only**, **Approval**, and **Bypass**. Bypass runs calls without approval, including mutations, while policy denials, limits, endpoint scope and secret protections still apply. It must be selected explicitly and is unavailable on read-only endpoints. A mutating tool cannot select Read only. Display MCP hints near its name.
 
-External MCP/plugin hints are labeled **Declared by <server>, not verified**. A newly exposed external tool starts in Approval. Read only requires an explicit declaration and an individual confirmation; it cannot be enabled in bulk. An undeclared tool offers only Approval or Off, with native-disabled Read only and a visible explanation.
+External MCP/plugin hints are labeled **Declared by <server>, not verified**. A newly exposed external tool starts in Approval. Read only requires an explicit declaration and an individual confirmation; it cannot be enabled in bulk. An undeclared tool offers Approval, Bypass or Off, with native-disabled Read only and a visible explanation.
 
 ### Environments
 
@@ -124,7 +124,7 @@ Show `gw-env` next to connections in approvals, Playground, endpoint tools, and 
 
 Use one primary action per level: a page, card, and dialog can each have one. When an unavailable action has a reason, use `aria-disabled="true"` plus `aria-describedby`, retaining it in keyboard order. The shared capture-phase guard blocks clicks, Enter/Space, relevant menu arrows, and submission before other hooks; it also prevents checked state changes. Angular must preserve this behavior.
 
-A mode that would bypass approval remains natively `disabled` with a visible reason, so safety does not depend on JavaScript. Busy buttons use `aria-busy`, a spinner, retained text, `aria-disabled`, and a linked status explanation until completion.
+Read only on a mutating tool and Bypass on a read-only endpoint remain natively `disabled` with a visible reason, so these restrictions do not depend on JavaScript. Busy buttons use `aria-busy`, a spinner, retained text, `aria-disabled`, and a linked status explanation until completion.
 
 ### Links and navigation
 

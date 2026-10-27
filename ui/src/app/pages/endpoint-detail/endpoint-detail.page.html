@@ -155,7 +155,7 @@
         <section class="gw-section" aria-labelledby="ep-tools-title">
           <header class="gw-section__header">
             <h2 class="gw-section__title" id="ep-tools-title">What agents can call on {{ s.slug }}</h2>
-            <p class="gw-section__description">A mode for each tool on each connection. Tools that change data run only after your approval; there is no mode that lets them write on their own.</p>
+            <p class="gw-section__description">A mode for each tool on each connection. Tools that change data wait for approval by default. Bypass runs calls without approval; policy denials and limits still apply.</p>
           </header>
           @if (data.groups()) {
             <div gwToolPolicyList [groups]="policyGroups()" [slug]="s.slug" [endpointEnv]="s.env" [readOnly]="s.access === 'read-only'" [descriptions]="data.descriptions()" [policies]="policies()" (modeChange)="setMode($event)" (bulk)="bulk($event)" (overridesChange)="setOverrides($event)" (confirmReadOnly)="confirmReadOnly($event)"></div>
@@ -167,7 +167,7 @@
           <div class="gw-empty">
             <span class="gw-empty__icon"><svg lucideIcon="list-checks" class="gw-icon gw-icon--lg"></svg></span>
             <h2 class="gw-empty__title" id="ep-empty-tools-title">No tools on <span class="gw-mono">{{ s.slug }}</span> yet</h2>
-            <p class="gw-empty__text">Tools come from connections. Add one, then pick a mode for each tool: Off, Read only or Approval.</p>
+            <p class="gw-empty__text">Tools come from connections. Add one, then pick a mode for each tool: Off, Read only, Approval or Bypass.</p>
             <div class="gw-empty__actions"><button class="gw-btn" type="button" id="ep-tools-empty-add" aria-haspopup="dialog" (click)="askAdd($event)"><svg lucideIcon="plus" class="gw-icon"></svg> Add connection</button></div>
           </div>
         </section>

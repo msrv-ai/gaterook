@@ -25,7 +25,7 @@ export interface EndpointSummary {
   readonly env: Env;
   readonly access: 'standard' | 'read-only';
   readonly status: 'running' | 'disabled';
-  readonly tools: { readonly read: number; readonly approval: number; readonly off: number };
+  readonly tools: { readonly read: number; readonly approval: number; readonly off: number; readonly bypass?: number };
   readonly connections: { readonly total: number; readonly byEnv: { readonly [env: string]: number } };
   readonly health: { readonly [state: string]: number };
   readonly approvalsWaiting: number;
@@ -45,7 +45,7 @@ export interface WiredConnection {
   readonly env: Env;
   readonly health: string;
   readonly problem: string | null;
-  readonly tools: { readonly read: number; readonly approval: number; readonly off: number };
+  readonly tools: { readonly read: number; readonly approval: number; readonly off: number; readonly bypass?: number };
 }
 
 export interface EndpointSettings {
@@ -80,8 +80,8 @@ export interface EndpointStart {
   readonly access: 'standard' | 'read-only';
   /** The connections it would wire (external MCP servers never: the person adds those). */
   readonly connections: string[];
-  /** Its pairs by mode, the core's own tools included (read + approval are on). */
-  readonly tools: { readonly read: number; readonly approval: number; readonly off: number };
+  /** Its pairs by mode, the core's own tools included (read + approval + bypass are on). */
+  readonly tools: { readonly read: number; readonly approval: number; readonly off: number; readonly bypass?: number };
 }
 
 /** `GET /api/endpoints/{slug}`: header, wiring, risk, settings. */

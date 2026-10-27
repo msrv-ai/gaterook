@@ -66,13 +66,13 @@ export function activeGrants(grants: readonly OAuthGrant[]): OAuthGrant[] {
 
 /** "Read access to stage-readonly", "Access to dev: 14 read only, 3 with approval". */
 export function consentWants(c: OAuthConsent): string {
-  if (!c.tools.approval) return 'Read access to';
+  if (!c.tools.approval && !c.tools.bypass) return 'Read access to';
   return 'Access to';
 }
 
 export function consentTools(c: OAuthConsent): string | null {
-  if (!c.tools.approval) return null;
-  const parts = [c.tools.read ? `${c.tools.read} read only` : null, `${c.tools.approval} with approval`].filter(Boolean);
+  if (!c.tools.approval && !c.tools.bypass) return null;
+  const parts = [c.tools.read ? `${c.tools.read} read only` : null, c.tools.approval ? `${c.tools.approval} with approval` : null, c.tools.bypass ? `${c.tools.bypass} bypass approval` : null].filter(Boolean);
   return parts.join(', ');
 }
 

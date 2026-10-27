@@ -28,7 +28,7 @@ class OAuthAdminController {
   record Consent(String id, String code, String clientHost, String clientName, String clientKind,
       String redirectHost, String endpoint, String env, Tools tools, String ip, String ingress, Instant expiresAt) {}
 
-  record Tools(int read, int approval, int off) {}
+  record Tools(int read, int approval, int off, int bypass) {}
 
   record Grant(String id, String client, String clientName, String clientKind, String endpoint, String ingress,
       String resource, String scope, Instant createdAt, Instant expiresAt, Instant lastUsedAt, Instant revokedAt,
@@ -48,7 +48,7 @@ class OAuthAdminController {
   List<Consent> consents() {
     return oauth.consents().stream().map(c -> new Consent(c.id(), c.code(), c.clientHost(), c.clientName(),
         c.clientKind(), c.redirectHost(), c.endpoint(), c.env(), new Tools(c.tools().read(), c.tools().approval(),
-            c.tools().off()), c.ip(), c.ingress().name(), c.expiresAt())).toList();
+            c.tools().off(), c.tools().bypass()), c.ip(), c.ingress().name(), c.expiresAt())).toList();
   }
 
   /** 204, or 409 when the sign-in was answered or expired meanwhile (404 for one that never existed). */

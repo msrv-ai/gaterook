@@ -83,6 +83,9 @@
     <ng-container [ngTemplateOutlet]="quietApps" />
   } @else if (data.clients().value) {
     @if (none()) {
+      @if (selectedCard(); as c) {
+        <ng-container [ngTemplateOutlet]="card" [ngTemplateOutletContext]="{ $implicit: c }" />
+      }
       <!-- The scan found no MCP client: what it looks for, and the ways on. -->
       <section class="gw-card" aria-labelledby="cl-empty-t">
         <div class="gw-empty">
@@ -99,7 +102,7 @@
       <div class="gw-stack">
         @if (layout().inline; as c) {
           @let s = data.connectState(c.client);
-          <article gwInlineConnectCard [card]="c" [endpoints]="endpoints()" [preview]="s.preview" [loading]="s.loading" [failure]="s.failure" [connecting]="connecting() === c.client" [canOpenConfig]="desktopApp" (previewRequest)="onPreview(c, $event)" (connect)="onConnect(c, $event.previewId, $event.request)" (openConfig)="onOpenConfig(c.client)"></article>
+          <article gwInlineConnectCard [id]="clientAnchor(c.client)" [attr.data-client]="c.client" [card]="c" [endpoints]="endpoints()" [preview]="s.preview" [loading]="s.loading" [failure]="s.failure" [connecting]="connecting() === c.client" [canOpenConfig]="desktopApp" (previewRequest)="onPreview(c, $event)" (connect)="onConnect(c, $event.previewId, $event.request)" (openConfig)="onOpenConfig(c.client)"></article>
         }
         @for (c of layout().wide; track c.client) {
           <ng-container [ngTemplateOutlet]="card" [ngTemplateOutletContext]="{ $implicit: c }" />
@@ -145,7 +148,7 @@
 
 <ng-template #card let-c>
   @let s = data.connectState(c.client);
-  <article gwClientCard page [attr.data-client]="c.client" [card]="c" [endpoints]="endpoints()" [entry]="entryOf(c)" [scanning]="data.scanning() === c.client" [canOpenConfig]="desktopApp"
+  <article gwClientCard page [id]="clientAnchor(c.client)" [attr.data-client]="c.client" [card]="c" [endpoints]="endpoints()" [entry]="entryOf(c)" [scanning]="data.scanning() === c.client" [canOpenConfig]="desktopApp"
     [connectPreview]="s.preview" [connectLoading]="s.loading" [connectFailure]="s.written ? null : s.failure" [failure]="s.written ? s.failure : null" [disconnectPreview]="data.disconnectPreviewOf(c.client)"
     (connectStart)="data.resetConnect($event)" (previewRequest)="onPreviewRequest($event)" (connect)="onConnect(c, $event.previewId, $event.request)"
     (addEndpoint)="onAddEndpoint(c, $event.endpoint)" (disconnectStart)="onDisconnectStart($event)" (disconnect)="onDisconnect(c, $event.link, $event.previewId)"

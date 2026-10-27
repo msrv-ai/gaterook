@@ -46,6 +46,7 @@
               <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-value="OFF"><svg lucideIcon="circle-off" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Off<span class="gw-menu__hint">{{ g.hints.off }}</span></span></button>
               <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-value="READ_ONLY"><svg lucideIcon="eye" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Read only<span class="gw-menu__hint">{{ g.hints.read }}</span></span></button>
               <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-value="APPROVAL"><svg lucideIcon="user-check" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Approval<span class="gw-menu__hint">{{ g.hints.approval }}</span></span></button>
+              <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" data-value="BYPASS" [disabled]="readOnly()"><svg lucideIcon="shield-off" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">Bypass<span class="gw-menu__hint">{{ g.hints.bypass }}</span></span></button>
             </div>
           </div>
         </div>
@@ -84,7 +85,10 @@
                         <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" [name]="r.id + '-mode'" value="off" [checked]="r.tool.mode === 'OFF'" (change)="onMode(g, r, 'off')"><span class="gw-segmented__label"><svg lucideIcon="circle-off" class="gw-icon gw-icon--sm"></svg>Off</span></label>
                         <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" [name]="r.id + '-mode'" value="read" [checked]="r.tool.mode === 'READ_ONLY'" [disabled]="r.note?.readOnlyDisabled ?? false" [attr.aria-disabled]="r.note?.needsConfirmation ? 'true' : null" [attr.aria-describedby]="r.note?.readOnlyDisabled || r.note?.needsConfirmation ? r.id + '-why' : null" (change)="onMode(g, r, 'read')"><span class="gw-segmented__label"><svg lucideIcon="eye" class="gw-icon gw-icon--sm"></svg>Read only</span></label>
                         <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" [name]="r.id + '-mode'" value="approval" [checked]="r.tool.mode === 'APPROVAL'" (change)="onMode(g, r, 'approval')"><span class="gw-segmented__label"><svg lucideIcon="user-check" class="gw-icon gw-icon--sm"></svg>Approval</span></label>
+                        <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" [name]="r.id + '-mode'" value="bypass" [checked]="r.tool.mode === 'BYPASS'" [disabled]="readOnly()" [attr.aria-describedby]="r.id + '-bypass-hint'" (change)="onMode(g, r, 'bypass')"><span class="gw-segmented__label"><svg lucideIcon="shield-off" class="gw-icon gw-icon--sm"></svg>Bypass</span></label>
                       </fieldset>
+                      <p class="gw-sr-only" [id]="r.id + '-bypass-hint'">{{ readOnly() ? 'Bypass is unavailable: this endpoint is read only.' : 'Bypass runs without approval, including changes to data. Policy limits still apply.' }}</p>
+                      @if (readOnly() && !r.note?.locked) {<p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted"><svg lucideIcon="lock" class="gw-icon gw-icon--xs"></svg>Bypass is unavailable: this endpoint is read only.</p>}
                       @if (r.note; as n) {
                         <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted" [id]="r.id + '-why'"><svg [lucideIcon]="n.icon" class="gw-icon gw-icon--xs"></svg>{{ n.text }}</p>
                         @if (n.needsConfirmation && r.tool.definitionHash) {

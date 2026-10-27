@@ -4,8 +4,8 @@
 // Two to four mutually exclusive options as joined segments. It is a
 // real radio group: Tab enters at the checked option, arrow keys move
 // and select, the value submits with the form. No script needed.
-// The main case is the tool mode: Off · Read only · Approval (there is
-// no "allow writes" mode anywhere in the product).
+// The main case is the tool mode: Off · Read only · Approval · Bypass.
+// Bypass runs calls without approval, within policy limits.
 //
 //   <fieldset class="gw-segmented" aria-describedby="exec-mode-why">
 //     <legend class="gw-sr-only">Mode for sql_execute</legend>
@@ -81,6 +81,7 @@ $segmented-tones: (brand, success, warning, danger, info, neutral, dev, stage, p
     &[data-tone="off"] { @include gw-tone(neutral); }
     &[data-tone="read"] { @include gw-tone(info); }
     &[data-tone="approval"] { @include gw-tone(warning); }
+    &[data-tone="bypass"] { @include gw-tone(danger); }
     @each $t in $segmented-tones {
       &[data-tone="#{$t}"] { @include gw-tone($t); }
     }

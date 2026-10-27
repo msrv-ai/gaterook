@@ -44,15 +44,16 @@ public interface ExecContext {
 
   void onCancel(Runnable action);
 
-  /** Only the core's ApprovalExecutor sets it. */
+  /** Core authorization for an exact prepared action: human approval or an explicit Bypass tool mode. */
   boolean approved();
 
+  /** Present for a human approval; empty for Bypass and ordinary reads. */
   Optional<String> approvalId();
 
   /** From {@link Connector#prepare}. */
   Optional<JsonNode> preparedState();
 
-  /** {@link ActionPreview#payload()} of the approved request: run it, not the arguments. */
+  /** {@link ActionPreview#payload()} authorized by the core: run it, not the arguments. */
   Optional<JsonNode> approvedPayload();
 
   /** Masked; {@code core.log} or {@code logs/plugins/<id>.log}. */

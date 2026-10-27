@@ -40,8 +40,8 @@ interface RulesModel {
     <div class="gw-alert gw-alert--info">
       <svg lucideIcon="info" class="gw-icon gw-alert__icon"></svg>
       <div class="gw-alert__content">
-        <p class="gw-alert__title">Every mutation waits for a person</p>
-        <p class="gw-alert__body">This has no switch: no endpoint, environment or policy can skip it. The rules below only decide where a request is answered, how long it waits and what the answer needs. On this desktop you answer every request.</p>
+        <p class="gw-alert__title">Mutations wait for approval by default</p>
+        <p class="gw-alert__body">A tool explicitly set to Bypass on its endpoint runs without approval, within policy limits. The rules below decide where approval requests are answered, how long they wait and what an answer needs. On this desktop you answer every request.</p>
       </div>
     </div>
     <div class="gw-form gw-form--sticky-actions">

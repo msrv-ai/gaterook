@@ -183,6 +183,12 @@ public class ToolCatalog {
       out.append(" Every call waits until a person approves it in GateRook; you get a handle to poll with "
           + "approval_status.");
     }
+    List<String> bypass = pairs.stream().filter(p -> p.mode() == Mode.BYPASS)
+        .map(EndpointSnapshot.Pair::connectionName).sorted().toList();
+    if (!bypass.isEmpty()) {
+      out.append(" Bypass on ").append(String.join(", ", bypass))
+          .append(": calls run without approval, including changes; policy limits still apply.");
+    }
     return out.toString();
   }
 

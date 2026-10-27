@@ -84,7 +84,7 @@ export interface WiringConnection {
 export interface SetupWiring {
   readonly slug: string;
   readonly url: string;
-  readonly tools: { readonly read: number; readonly approval: number; readonly off: number };
+  readonly tools: { readonly read: number; readonly approval: number; readonly off: number; readonly bypass?: number };
   readonly tokens: number;
   readonly oauth: boolean;
   /** "dev rules · mutations need approval". */
@@ -147,7 +147,7 @@ export class GwSetupWiring {
 
   protected readonly toolCount = computed(() => {
     const t = this.wiring().tools;
-    return t.read + t.approval + t.off;
+    return t.read + t.approval + t.off + (t.bypass ?? 0);
   });
   /** "22 tools · 8 connections · 1 token": counts with the right number of the noun (live data has ones). */
   protected readonly counts = computed(() => {

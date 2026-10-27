@@ -39,21 +39,22 @@ export function toolPolicyGroups(groups: readonly ToolGroup[], connections: read
 export const BUILT_IN_DETAIL = 'Answer from the gateway, never from a resource';
 
 /** The radio values of the picker (the kit's `value`s) and the API's modes. */
-export const MODE_VALUE: Record<ToolMode, 'off' | 'read' | 'approval'> = { OFF: 'off', READ_ONLY: 'read', APPROVAL: 'approval' };
+export const MODE_VALUE: Record<ToolMode, 'off' | 'read' | 'approval' | 'bypass'> = { OFF: 'off', READ_ONLY: 'read', APPROVAL: 'approval', BYPASS: 'bypass' };
 
 export const MODE_FILTERS = [
   { value: 'ALL', label: 'All', icon: null },
   { value: 'OFF', label: 'Off', icon: 'circle-off' },
   { value: 'READ_ONLY', label: 'Read only', icon: 'eye' },
   { value: 'APPROVAL', label: 'Approval', icon: 'user-check' },
+  { value: 'BYPASS', label: 'Bypass', icon: 'shield-off' },
 ] as const;
 
 export type ModeFilter = (typeof MODE_FILTERS)[number]['value'];
 
 /** "6 read only", "3 approval", "5 off": the summary chips and group descriptions, in this order. */
 export function modeCounts(tools: readonly { readonly mode: ToolMode }[]): { readonly mode: ToolMode; readonly count: number; readonly text: string }[] {
-  const order: ToolMode[] = ['READ_ONLY', 'APPROVAL', 'OFF'];
-  const words: Record<ToolMode, string> = { READ_ONLY: 'read only', APPROVAL: 'approval', OFF: 'off' };
+  const order: ToolMode[] = ['READ_ONLY', 'APPROVAL', 'BYPASS', 'OFF'];
+  const words: Record<ToolMode, string> = { READ_ONLY: 'read only', APPROVAL: 'approval', BYPASS: 'bypass', OFF: 'off' };
   return order
     .map((mode) => ({ mode, count: tools.filter((t) => t.mode === mode).length }))
     .filter((c) => c.count > 0)
@@ -74,7 +75,7 @@ export function matches(tool: ToolRow, description: string | null, query: string
 
 /** Why a mode option is unavailable, or what a mode means for this tool (`__mode-note`). */
 export interface ModeNote {
-  readonly icon: 'lock' | 'info';
+  readonly icon: 'lock' | 'info' | 'shield-off';
   readonly text: string;
   /** The whole picker is disabled (the endpoint is read only). */
   readonly locked: boolean;
@@ -103,15 +104,25 @@ export function modeNote(t: ToolRow, endpoint: { readonly slug: string; readonly
       needsConfirmation: false,
     };
   }
+  if (t.mode === 'BYPASS') {
+    const readOnlyDisabled = t.declaredBy ? !!t.annotations.destructiveHint || !t.annotations.readOnlyHint : !t.readOnlyAllowed;
+    return {
+      icon: 'shield-off',
+      text: 'Bypass runs without approval, including changes to data. Policy limits still apply.',
+      locked: false,
+      readOnlyDisabled,
+      needsConfirmation: !!t.declaredBy && !readOnlyDisabled && !t.readOnlyConfirmed,
+    };
+  }
   if (t.declaredBy) {
-    if (t.annotations.destructiveHint) return lock('Declared destructive: approval or off');
-    if (!t.annotations.readOnlyHint) return lock('Not declared read only: approval or off');
+    if (t.annotations.destructiveHint) return lock('Declared destructive: approval, bypass or off');
+    if (!t.annotations.readOnlyHint) return lock('Not declared read only: approval, bypass or off');
     if (!t.readOnlyConfirmed) {
       return { icon: 'lock', text: 'Read only needs your confirmation for this tool', locked: false, readOnlyDisabled: false, needsConfirmation: true };
     }
     return null;
   }
-  if (!t.readOnlyAllowed) return lock('Mutates data: approval or off');
+  if (!t.readOnlyAllowed) return lock('Mutates data: approval, bypass or off');
   const subset = SUBSET_NOTES[t.name];
   return subset ? { icon: 'info', text: subset, locked: false, readOnlyDisabled: false, needsConfirmation: false } : null;
 }
@@ -125,7 +136,7 @@ export function bulkHints(
   connection: string,
   tools: readonly ToolRow[],
   endpoint: { readonly readOnly: boolean },
-): { readonly off: string; readonly read: string; readonly approval: string } {
+): { readonly off: string; readonly read: string; readonly approval: string; readonly bypass: string } {
   const changing = tools.filter((t) => mutates(t)).map((t) => t.name);
   const unconfirmed = tools.filter((t) => t.declaredBy && !mutates(t) && !t.readOnlyConfirmed).map((t) => t.name);
   const names = (list: readonly string[]) =>
@@ -139,7 +150,7 @@ export function bulkHints(
     read = `${names(changing)} ${changing.length === 1 ? 'stays as it is: it changes' : 'stay as they are: they change'} data`;
   }
   if (unconfirmed.length) read += `; ${names(unconfirmed)} ${unconfirmed.length === 1 ? 'needs' : 'need'} your confirmation first`;
-  return { off: `Agents can't call any ${connection} tool`, read, approval };
+  return { off: `Agents can't call any ${connection} tool`, read, approval, bypass: endpoint.readOnly ? 'Unavailable: the endpoint is read only' : 'Calls run without approval, including changes to data; policy limits still apply' };
 }
 
 /** One per-tool limit field: a key of the environment policy that a pair may narrow (`overrides`). */

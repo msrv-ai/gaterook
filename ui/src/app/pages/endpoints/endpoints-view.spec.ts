@@ -32,6 +32,13 @@ const tokens = kitTokens();
 const line = (parts: { text: string; code: boolean }[]) => parts.map((p) => (p.code ? `\`${p.text}\`` : p.text)).join('');
 
 describe('Endpoints view', () => {
+  it('includes bypass in endpoint totals and exposes its mode separately', () => {
+    const view = toolParts(endpoint('dev', { tools: { read: 1, approval: 0, off: 0, bypass: 2 } }));
+    expect(view.total).toBe(3);
+    expect(view.modes.map((part) => part.text)).toEqual(['1 read only', '2 bypass']);
+    expect(view.modes[1].cls).toBe('gw-mode--bypass');
+  });
+
   it('checks slugs as the kit’s field does', () => {
     expect(slugError('payments-dev')).toBeNull();
     expect(slugError('dev2')).toBeNull();

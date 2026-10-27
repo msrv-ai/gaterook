@@ -175,6 +175,7 @@ describe('Activity line and the guide', () => {
     expect(modesWords(null)).toBeNull();
     expect(modesWords([])).toBe('not on an endpoint yet');
     expect(modesWords([{ mode: 'READ_ONLY' }, { mode: 'APPROVAL' }])).toBe('changes need your approval');
+    expect(modesWords([{ mode: 'BYPASS' }, { mode: 'APPROVAL' }])).toBe('some tools run without approval in Bypass');
     expect(modesWords([{ mode: 'READ_ONLY' }, { mode: 'OFF' }])).toBe('read only');
     expect(modesWords([{ mode: 'OFF' }])).toBe('its tools are off');
   });

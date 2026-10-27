@@ -22,11 +22,12 @@ export function decisionLook(decision: string | null | undefined): Look {
   return DECISIONS[(decision ?? '').toLowerCase()] ?? { tone: 'neutral', icon: 'circle-dot', text: decision ?? '' };
 }
 
-/** A tool's mode: Off · Read only · Approval (there is no mode that lets an agent change data without you). */
+/** A tool's mode; Bypass explicitly runs calls without approval, within policy limits. */
 export const MODES: Record<string, Look & { readonly cls: string }> = {
   OFF: { tone: 'neutral', icon: 'circle-off', text: 'Off', cls: 'gw-mode--off' },
   READ_ONLY: { tone: 'info', icon: 'eye', text: 'Read only', cls: 'gw-mode--read' },
   APPROVAL: { tone: 'warning', icon: 'user-check', text: 'Approval', cls: 'gw-mode--approval' },
+  BYPASS: { tone: 'danger', icon: 'shield-off', text: 'Bypass', cls: 'gw-mode--bypass' },
 };
 
 /** The health of a connection, a client link or a process: "Healthy · 42 ms", "Slow · 2.4 s", "Unreachable". */

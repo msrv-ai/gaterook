@@ -99,8 +99,14 @@ class PolicyEngineTest {
         return Outcome.DENY;
       }
       boolean mutation = classification.kind() == Classification.Kind.MUTATION || nature == Nature.MUTATION;
+      if (readOnly && (mutation || mode == Mode.BYPASS)) {
+        return Outcome.DENY;
+      }
+      if (mode == Mode.BYPASS) {
+        return Outcome.ALLOW;
+      }
       if (mutation) {
-        return readOnly ? Outcome.DENY : Outcome.APPROVAL;
+        return Outcome.APPROVAL;
       }
       return mode == Mode.APPROVAL ? Outcome.APPROVAL : Outcome.ALLOW;
     }
@@ -122,8 +128,14 @@ class PolicyEngineTest {
         return "core.prod-isolation";
       }
       boolean mutation = classification.kind() == Classification.Kind.MUTATION || nature == Nature.MUTATION;
+      if (readOnly && (mutation || mode == Mode.BYPASS)) {
+        return endpointEnv.id() + ".endpoint.read-only";
+      }
+      if (mode == Mode.BYPASS) {
+        return "core.bypass";
+      }
       if (mutation) {
-        return readOnly ? endpointEnv.id() + ".endpoint.read-only" : connectionEnv.id() + ".sql.write-approval";
+        return connectionEnv.id() + ".sql.write-approval";
       }
       return mode == Mode.APPROVAL ? connectionEnv.id() + ".sql.approval-mode" : null;
     }
@@ -157,7 +169,7 @@ class PolicyEngineTest {
   @Test
   void everyCombinationDecidesAsTheTableSays() {
     List<Row> rows = everyRow();
-    assertThat(rows).hasSize(2 * 3 * 3 * 2 * 3 * 3 * 4);
+    assertThat(rows).hasSize(2 * 3 * 3 * 2 * 3 * 4 * 4);
     for (Row r : rows) {
       policies.tampered.clear();
       if (!r.verified()) {
@@ -182,18 +194,35 @@ class PolicyEngineTest {
           null), cfg(r.connectionEnv(), null), r.classification());
       boolean mutation = r.nature() == Nature.MUTATION || r.classification() != null
           && r.classification().kind() == Classification.Kind.MUTATION;
-      if (mutation) {
-        assertThat(d.outcome()).as("a mutation never runs without a person: %s", r).isNotEqualTo(Outcome.ALLOW);
+      if (mutation && r.mode() != Mode.BYPASS) {
+        assertThat(d.outcome()).as("a mutation needs approval unless Bypass was explicitly enabled: %s", r)
+            .isNotEqualTo(Outcome.ALLOW);
       }
       if (r.readOnly()) {
         assertThat(d.outcome() == Outcome.APPROVAL && mutation).as("a read-only endpoint never asks: %s", r)
             .isFalse();
       }
       if (d.outcome() == Outcome.ALLOW) {
-        assertThat(r.mode()).isEqualTo(Mode.READ_ONLY);
+        assertThat(r.mode()).isIn(Mode.READ_ONLY, Mode.BYPASS);
         assertThat(r.verified()).isTrue();
       }
     }
+  }
+
+  @Test
+  void bypassKeepsTheSameNarrowedLimitsAndRateBudgets() {
+    JsonNode limits = JSON.readTree("{\"rowLimit\":12,\"statementTimeoutMs\":500}");
+    ConnectionConfig connection = cfg(Env.DEV, null);
+    Decision approval = engine.decide(pair(Env.DEV, false, Env.DEV, Nature.MUTATION, Mode.APPROVAL, limits,
+        null), connection, Classification.mutation("UPDATE"));
+    Decision bypass = engine.decide(pair(Env.DEV, false, Env.DEV, Nature.MUTATION, Mode.BYPASS, limits, null),
+        connection, Classification.mutation("UPDATE"));
+    assertThat(approval.outcome()).isEqualTo(Outcome.APPROVAL);
+    assertThat(bypass.outcome()).isEqualTo(Outcome.ALLOW);
+    assertThat(bypass.limits()).isEqualTo(approval.limits());
+    assertThat(bypass.limits().maxRows()).isEqualTo(12);
+    assertThat(bypass.ratePerToken()).isEqualTo(approval.ratePerToken());
+    assertThat(bypass.ratePerTool()).isEqualTo(approval.ratePerTool());
   }
 
   @Test

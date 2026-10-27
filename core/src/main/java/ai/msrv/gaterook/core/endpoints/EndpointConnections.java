@@ -409,13 +409,16 @@ public class EndpointConnections {
     int read = 0;
     int approval = 0;
     int off = 0;
+    int bypass = 0;
     for (Wiring.Written w : written) {
       switch (w.mode()) {
         case READ_ONLY -> read++;
         case APPROVAL -> approval++;
         case OFF -> off++;
+        case BYPASS -> bypass++;
       }
     }
-    return read + " read only · " + approval + " approval · " + off + " off";
+    return read + " read only · " + approval + " approval · " + off + " off"
+        + (bypass == 0 ? "" : " · " + bypass + " bypass");
   }
 }

@@ -325,6 +325,7 @@ export function secretLine(secrets: readonly StoredSecret[]): SecretLine | null 
 export function modesWords(usedBy: readonly Pick<ConnectionUsedBy, 'mode'>[] | null): string | null {
   if (!usedBy) return null;
   if (!usedBy.length) return 'not on an endpoint yet';
+  if (usedBy.some((u) => String(u.mode).toUpperCase() === 'BYPASS')) return 'some tools run without approval in Bypass';
   if (usedBy.some((u) => String(u.mode).toUpperCase() === 'APPROVAL')) return 'changes need your approval';
   if (usedBy.some((u) => String(u.mode).toUpperCase() === 'READ_ONLY')) return 'read only';
   return 'its tools are off';

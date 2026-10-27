@@ -179,6 +179,31 @@ async function choose(select: HTMLSelectElement, value: string): Promise<void> {
 // ── Tests ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 describe('Clients page: what it shows', () => {
+  it('keeps the requested installation card available when no AI app is installed', async () => {
+    world.list = () => Promise.resolve(noneFound());
+    await TestBed.inject(Router).navigateByUrl('/clients#cl-ag-t');
+    const el = await render();
+    const card = $('#cl-ag-t', el)!;
+    expect(card).not.toBeNull();
+    expect(card.querySelector('a[href="https://antigravity.google/"]')).not.toBeNull();
+    expect(document.activeElement).toBe($('.gw-card__title', card));
+    expect(el.querySelector('#cl-empty-t')).not.toBeNull();
+  });
+
+  it('opens the requested welcome-guide app with its Connect review inline and keyboard focus', async () => {
+    world.list = () => Promise.resolve(kitClients({ clients: kitClients().clients.map((c) => c.client === 'codex' || c.client === 'cursor'
+      ? { ...c, status: 'detected', statusText: 'Not connected', links: [] }
+      : c) }));
+    await TestBed.inject(Router).navigateByUrl('/clients#cl-cx-t');
+    const el = await render();
+    const first = $('section[aria-labelledby="cl-local-t"] article', el)!;
+    expect(first.id).toBe('cl-cx-t');
+    expect(text($('.gw-card__title', first))).toBe('Codex');
+    expect(first.hasAttribute('gwInlineConnectCard')).toBe(true);
+    expect(document.activeElement).toBe($('.gw-card__title', first));
+    expect(calls.some((call) => call.startsWith('connect '))).toBe(false);
+  });
+
   it('the kit’s world: counts, Cursor first with Connect open, the bridge, Codex, Antigravity, claude.ai, manual setup', async () => {
     const el = await render();
     expect(text($('h1', el))).toBe('AI apps');

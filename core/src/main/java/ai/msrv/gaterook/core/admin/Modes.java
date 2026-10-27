@@ -4,7 +4,7 @@ import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import java.util.Locale;
 
 /**
- * Tool modes as the admin API writes and reads them: {@code OFF}, {@code READ_ONLY}, {@code APPROVAL} (ARCHITECTURE.md
+ * Tool modes as the admin API writes and reads them: {@code OFF}, {@code READ_ONLY}, {@code APPROVAL}, {@code BYPASS} (ARCHITECTURE.md
  * §6 endpoint-detail); the UI shows the kit's labels. The modules hand some modes over as those labels already.
  */
 public final class Modes {
@@ -24,13 +24,13 @@ public final class Modes {
   }
 
   /**
-   * @throws ApiRequestException 422 at {@code field} for anything but the three modes
+   * @throws ApiRequestException 422 at {@code field} for anything but the four modes
    */
   public static Mode parse(String id, String field) {
     try {
       return Mode.valueOf(id(id == null ? "" : id));
     } catch (IllegalArgumentException e) {
-      throw ApiRequestException.unprocessable("Unknown mode", "A mode is OFF, READ_ONLY or APPROVAL.", field);
+      throw ApiRequestException.unprocessable("Unknown mode", "A mode is OFF, READ_ONLY, APPROVAL or BYPASS.", field);
     }
   }
 }

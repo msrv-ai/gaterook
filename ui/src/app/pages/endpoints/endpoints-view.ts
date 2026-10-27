@@ -158,8 +158,9 @@ export function toolParts(e: EndpointSummary): { readonly total: number; readonl
   };
   add(t.read, 'READ_ONLY', 'read only');
   add(t.approval, 'APPROVAL', 'approval');
+  add(t.bypass ?? 0, 'BYPASS', 'bypass');
   add(t.off, 'OFF', 'off');
-  return { total: t.read + t.approval + t.off, modes };
+  return { total: t.read + t.approval + t.off + (t.bypass ?? 0), modes };
 }
 
 /** One client of an endpoint: its kit mark and name. */

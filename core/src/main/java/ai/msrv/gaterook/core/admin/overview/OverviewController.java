@@ -265,7 +265,7 @@ class OverviewController {
             w.connections().size()));
     Optional<EndpointService.Summary> firstEndpoint = w.endpoints().stream().findFirst();
     add(steps, "endpoint", firstEndpoint.isPresent(), firstEndpoint.map(e -> detail("name", e.slug(), "tools",
-        e.tools().read() + e.tools().approval())).orElse(Map.of()));
+        e.tools().read() + e.tools().approval() + e.tools().bypass())).orElse(Map.of()));
     boolean clientDone = w.clientProgress().map(SetupProgress.Progress::done)
         .orElse(!w.clients().isEmpty() || w.namedTokens() > 0 || audit.any("-client:playground"));
     add(steps, "client", clientDone, w.clientProgress().map(p -> detail("status", p.status()))
@@ -369,9 +369,9 @@ class OverviewController {
     if (!edited && w.connections().isEmpty()) {
       return new Node("policies", Env.values().length, "todo", "Safe defaults · not reviewed yet");
     }
-    // An invariant, not a setting (ARCHITECTURE.md §9): every mutation waits for a person on every environment.
-    return new Node("policies", Env.values().length, "done", Env.values().length
-        + " environments · mutations need approval");
+    boolean bypass = w.endpoints().stream().anyMatch(e -> e.tools().bypass() > 0);
+    return new Node("policies", Env.values().length, bypass ? "attention" : "done", Env.values().length
+        + (bypass ? " environments · Bypass enabled on tools" : " environments · mutations need approval"));
   }
 
   private static Node endpointsNode(World w) {

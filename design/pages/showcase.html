@@ -1894,10 +1894,12 @@
     <span class="gw-mode gw-mode--off"><i class="gw-icon" data-lucide="circle-off"></i>Off</span>
     <span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span>
     <span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span>
+    <span class="gw-mode gw-mode--bypass"><i class="gw-icon" data-lucide="shield-off"></i>Bypass</span>
   </div>
 <details class="sc-code"><summary>Markup</summary><pre><code>&lt;span class=&quot;gw-mode gw-mode--off&quot;&gt;&lt;i class=&quot;gw-icon&quot; data-lucide=&quot;circle-off&quot;&gt;&lt;/i&gt;Off&lt;/span&gt;
 &lt;span class=&quot;gw-mode gw-mode--read&quot;&gt;&lt;i class=&quot;gw-icon&quot; data-lucide=&quot;eye&quot;&gt;&lt;/i&gt;Read only&lt;/span&gt;
-&lt;span class=&quot;gw-mode gw-mode--approval&quot;&gt;&lt;i class=&quot;gw-icon&quot; data-lucide=&quot;user-check&quot;&gt;&lt;/i&gt;Approval&lt;/span&gt;</code></pre></details>
+&lt;span class=&quot;gw-mode gw-mode--approval&quot;&gt;&lt;i class=&quot;gw-icon&quot; data-lucide=&quot;user-check&quot;&gt;&lt;/i&gt;Approval&lt;/span&gt;
+&lt;span class=&quot;gw-mode gw-mode--bypass&quot;&gt;&lt;i class=&quot;gw-icon&quot; data-lucide=&quot;shield-off&quot;&gt;&lt;/i&gt;Bypass&lt;/span&gt;</code></pre></details>
   <div class="sc-demo sc-demo--col" data-sc-code>
     <dl class="gw-kv gw-kv--dense">
       <div class="gw-kv__row">
@@ -3231,7 +3233,7 @@ LIMIT :limit&lt;/textarea&gt;
 <!-- ▼ showcase/42-segmented.html -->
 <section class="sc-section" id="segmented" data-title="Segmented control" data-group="Forms">
   <h2>Segmented control <code class="gw-code">gw-segmented</code></h2>
-  <p>A real radio group drawn as joined segments: Tab lands on the checked option, arrow keys move and select, the value submits with the form, no script. The main case is the tool mode <strong>Off · Read only · Approval</strong>; there is no "allow writes" mode anywhere. The checked option takes its tone from <code class="gw-code">data-tone</code> (off neutral, read info, approval warning, or any tone name such as dev, stage, prod) with an edge in the tone colour, semibold text and its own icon, so the choice never rests on a tint alone. Without <code class="gw-code">data-tone</code> it is brand, for plain view switches. For a mutating tool <strong>Read only</strong> is disabled and the reason is visible next to the control and linked with <code class="gw-code">aria-describedby</code>. Not for switching views of a panel (that is <code class="gw-code">gw-tabs--contained</code>) or for more than four options (use <code class="gw-code">gw-select</code>).</p>
+  <p>A real radio group drawn as joined segments: Tab lands on the checked option, arrow keys move and select, the value submits with the form, no script. The main case is the tool mode <strong>Off · Read only · Approval · Bypass</strong>; Bypass runs calls without approval, including changes to data. The checked option takes its tone from <code class="gw-code">data-tone</code> (off neutral, read info, approval warning, or any tone name such as dev, stage, prod) with an edge in the tone colour, semibold text and its own icon, so the choice never rests on a tint alone. Without <code class="gw-code">data-tone</code> it is brand, for plain view switches. For a mutating tool <strong>Read only</strong> is disabled and the reason is visible next to the control and linked with <code class="gw-code">aria-describedby</code>. Not for switching views of a panel (that is <code class="gw-code">gw-tabs--contained</code>) or for more than four options (use <code class="gw-code">gw-select</code>).</p>
 
   <h3>Tool mode</h3>
   <div class="sc-demo sc-demo--col" data-sc-code>
@@ -3252,6 +3254,7 @@ LIMIT :limit&lt;/textarea&gt;
             <input class="gw-segmented__input" type="radio" name="sc-c-mode-query" value="approval">
             <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span>
           </label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="sc-c-mode-query" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
         </fieldset>
       </div>
     </div>
@@ -3272,8 +3275,9 @@ LIMIT :limit&lt;/textarea&gt;
             <input class="gw-segmented__input" type="radio" name="sc-c-mode-exec" value="approval" checked>
             <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span>
           </label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="sc-c-mode-exec" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
         </fieldset>
-        <p class="gw-field__hint" id="sc-c-mode-exec-why">Read only is unavailable: <code class="gw-code">sql_execute</code> changes data, so it runs only after an approval.</p>
+        <p class="gw-field__hint" id="sc-c-mode-exec-why">Read only is unavailable: <code class="gw-code">sql_execute</code> changes data, so choose Approval, Bypass or Off.</p>
       </div>
     </div>
     <div class="gw-field gw-field--inline">
@@ -3293,6 +3297,7 @@ LIMIT :limit&lt;/textarea&gt;
             <input class="gw-segmented__input" type="radio" name="sc-c-mode-prod" value="approval">
             <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span>
           </label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="sc-c-mode-prod" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
         </fieldset>
         <p class="gw-field__hint" id="sc-c-mode-prod-why">Locked by the prod policy of endpoint <code class="gw-code">incident-prod</code>: <code class="gw-code">prod-replica</code> is read only.</p>
       </div>
@@ -3315,6 +3320,7 @@ LIMIT :limit&lt;/textarea&gt;
         &lt;input class=&quot;gw-segmented__input&quot; type=&quot;radio&quot; name=&quot;sc-c-mode-query&quot; value=&quot;approval&quot;&gt;
         &lt;span class=&quot;gw-segmented__label&quot;&gt;&lt;i class=&quot;gw-icon gw-icon--sm&quot; data-lucide=&quot;user-check&quot;&gt;&lt;/i&gt;Approval&lt;/span&gt;
       &lt;/label&gt;
+                  &lt;label class=&quot;gw-segmented__option&quot; data-tone=&quot;bypass&quot;&gt;&lt;input class=&quot;gw-segmented__input&quot; type=&quot;radio&quot; name=&quot;sc-c-mode-query&quot; value=&quot;bypass&quot; title=&quot;Run without approval; policy limits still apply&quot;&gt;&lt;span class=&quot;gw-segmented__label&quot;&gt;&lt;i class=&quot;gw-icon gw-icon--sm&quot; data-lucide=&quot;shield-off&quot;&gt;&lt;/i&gt;Bypass&lt;/span&gt;&lt;/label&gt;
     &lt;/fieldset&gt;
   &lt;/div&gt;
 &lt;/div&gt;
@@ -3335,8 +3341,9 @@ LIMIT :limit&lt;/textarea&gt;
         &lt;input class=&quot;gw-segmented__input&quot; type=&quot;radio&quot; name=&quot;sc-c-mode-exec&quot; value=&quot;approval&quot; checked&gt;
         &lt;span class=&quot;gw-segmented__label&quot;&gt;&lt;i class=&quot;gw-icon gw-icon--sm&quot; data-lucide=&quot;user-check&quot;&gt;&lt;/i&gt;Approval&lt;/span&gt;
       &lt;/label&gt;
+                  &lt;label class=&quot;gw-segmented__option&quot; data-tone=&quot;bypass&quot;&gt;&lt;input class=&quot;gw-segmented__input&quot; type=&quot;radio&quot; name=&quot;sc-c-mode-exec&quot; value=&quot;bypass&quot; title=&quot;Run without approval; policy limits still apply&quot;&gt;&lt;span class=&quot;gw-segmented__label&quot;&gt;&lt;i class=&quot;gw-icon gw-icon--sm&quot; data-lucide=&quot;shield-off&quot;&gt;&lt;/i&gt;Bypass&lt;/span&gt;&lt;/label&gt;
     &lt;/fieldset&gt;
-    &lt;p class=&quot;gw-field__hint&quot; id=&quot;sc-c-mode-exec-why&quot;&gt;Read only is unavailable: &lt;code class=&quot;gw-code&quot;&gt;sql_execute&lt;/code&gt; changes data, so it runs only after an approval.&lt;/p&gt;
+    &lt;p class=&quot;gw-field__hint&quot; id=&quot;sc-c-mode-exec-why&quot;&gt;Read only is unavailable: &lt;code class=&quot;gw-code&quot;&gt;sql_execute&lt;/code&gt; changes data, so choose Approval, Bypass or Off.&lt;/p&gt;
   &lt;/div&gt;
 &lt;/div&gt;
 &lt;div class=&quot;gw-field gw-field--inline&quot;&gt;
@@ -3356,6 +3363,7 @@ LIMIT :limit&lt;/textarea&gt;
         &lt;input class=&quot;gw-segmented__input&quot; type=&quot;radio&quot; name=&quot;sc-c-mode-prod&quot; value=&quot;approval&quot;&gt;
         &lt;span class=&quot;gw-segmented__label&quot;&gt;&lt;i class=&quot;gw-icon gw-icon--sm&quot; data-lucide=&quot;user-check&quot;&gt;&lt;/i&gt;Approval&lt;/span&gt;
       &lt;/label&gt;
+                  &lt;label class=&quot;gw-segmented__option&quot; data-tone=&quot;bypass&quot;&gt;&lt;input class=&quot;gw-segmented__input&quot; type=&quot;radio&quot; name=&quot;sc-c-mode-prod&quot; value=&quot;bypass&quot; title=&quot;Run without approval; policy limits still apply&quot;&gt;&lt;span class=&quot;gw-segmented__label&quot;&gt;&lt;i class=&quot;gw-icon gw-icon--sm&quot; data-lucide=&quot;shield-off&quot;&gt;&lt;/i&gt;Bypass&lt;/span&gt;&lt;/label&gt;
     &lt;/fieldset&gt;
     &lt;p class=&quot;gw-field__hint&quot; id=&quot;sc-c-mode-prod-why&quot;&gt;Locked by the prod policy of endpoint &lt;code class=&quot;gw-code&quot;&gt;incident-prod&lt;/code&gt;: &lt;code class=&quot;gw-code&quot;&gt;prod-replica&lt;/code&gt; is read only.&lt;/p&gt;
   &lt;/div&gt;
@@ -3377,6 +3385,7 @@ LIMIT :limit&lt;/textarea&gt;
         <input class="gw-segmented__input" type="radio" name="sc-c-mode-logs" value="approval">
         <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span>
       </label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="sc-c-mode-logs" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
     </fieldset>
     <div class="gw-segmented gw-segmented--sm" role="radiogroup" aria-label="Environment">
       <label class="gw-segmented__option" data-tone="dev">
@@ -3425,6 +3434,7 @@ LIMIT :limit&lt;/textarea&gt;
     &lt;input class=&quot;gw-segmented__input&quot; type=&quot;radio&quot; name=&quot;sc-c-mode-logs&quot; value=&quot;approval&quot;&gt;
     &lt;span class=&quot;gw-segmented__label&quot;&gt;&lt;i class=&quot;gw-icon gw-icon--sm&quot; data-lucide=&quot;user-check&quot;&gt;&lt;/i&gt;Approval&lt;/span&gt;
   &lt;/label&gt;
+                  &lt;label class=&quot;gw-segmented__option&quot; data-tone=&quot;bypass&quot;&gt;&lt;input class=&quot;gw-segmented__input&quot; type=&quot;radio&quot; name=&quot;sc-c-mode-logs&quot; value=&quot;bypass&quot; title=&quot;Run without approval; policy limits still apply&quot;&gt;&lt;span class=&quot;gw-segmented__label&quot;&gt;&lt;i class=&quot;gw-icon gw-icon--sm&quot; data-lucide=&quot;shield-off&quot;&gt;&lt;/i&gt;Bypass&lt;/span&gt;&lt;/label&gt;
 &lt;/fieldset&gt;
 &lt;div class=&quot;gw-segmented gw-segmented--sm&quot; role=&quot;radiogroup&quot; aria-label=&quot;Environment&quot;&gt;
   &lt;label class=&quot;gw-segmented__option&quot; data-tone=&quot;dev&quot;&gt;
@@ -3476,6 +3486,7 @@ LIMIT :limit&lt;/textarea&gt;
           <input class="gw-segmented__input" type="radio" name="sc-c-mode-default" value="approval">
           <span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span>
         </label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="sc-c-mode-default" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
       </div>
       <p class="gw-field__hint">Tools a connector adds later start in this mode. Off is the safest default.</p>
     </fieldset>
@@ -3495,6 +3506,7 @@ LIMIT :limit&lt;/textarea&gt;
       &lt;input class=&quot;gw-segmented__input&quot; type=&quot;radio&quot; name=&quot;sc-c-mode-default&quot; value=&quot;approval&quot;&gt;
       &lt;span class=&quot;gw-segmented__label&quot;&gt;&lt;i class=&quot;gw-icon gw-icon--sm&quot; data-lucide=&quot;user-check&quot;&gt;&lt;/i&gt;Approval&lt;/span&gt;
     &lt;/label&gt;
+                  &lt;label class=&quot;gw-segmented__option&quot; data-tone=&quot;bypass&quot;&gt;&lt;input class=&quot;gw-segmented__input&quot; type=&quot;radio&quot; name=&quot;sc-c-mode-default&quot; value=&quot;bypass&quot; title=&quot;Run without approval; policy limits still apply&quot;&gt;&lt;span class=&quot;gw-segmented__label&quot;&gt;&lt;i class=&quot;gw-icon gw-icon--sm&quot; data-lucide=&quot;shield-off&quot;&gt;&lt;/i&gt;Bypass&lt;/span&gt;&lt;/label&gt;
   &lt;/div&gt;
   &lt;p class=&quot;gw-field__hint&quot;&gt;Tools a connector adds later start in this mode. Off is the safest default.&lt;/p&gt;
 &lt;/fieldset&gt;</code></pre></details>
@@ -4951,7 +4963,7 @@ LIMIT :limit&lt;/textarea&gt;
       <header class="gw-dialog__header">
         <span class="gw-icon-tile gw-icon-tile--neutral"><i class="gw-icon" data-lucide="database"></i></span>
         <h2 class="gw-dialog__title" id="sc-d-dlg-tools-title">PostgreSQL connector · 4 tools</h2>
-        <p class="gw-dialog__description" id="sc-d-dlg-tools-desc">Built-in · v1.4.0 · signed. Tools that change data always wait for approval; the body scrolls, the header and footer stay.</p>
+        <p class="gw-dialog__description" id="sc-d-dlg-tools-desc">Built-in · v1.4.0 · signed. Tools that change data wait for approval by default; the body scrolls, the header and footer stay.</p>
         <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
       </header>
       <div class="gw-dialog__body">
@@ -5001,7 +5013,7 @@ LIMIT :limit&lt;/textarea&gt;
   &lt;header class=&quot;gw-dialog__header&quot;&gt;
     &lt;span class=&quot;gw-icon-tile gw-icon-tile--neutral&quot;&gt;&lt;i class=&quot;gw-icon&quot; data-lucide=&quot;database&quot;&gt;&lt;/i&gt;&lt;/span&gt;
     &lt;h2 class=&quot;gw-dialog__title&quot; id=&quot;sc-d-dlg-tools-title&quot;&gt;PostgreSQL connector · 4 tools&lt;/h2&gt;
-    &lt;p class=&quot;gw-dialog__description&quot; id=&quot;sc-d-dlg-tools-desc&quot;&gt;Built-in · v1.4.0 · signed. Tools that change data always wait for approval; the body scrolls, the header and footer stay.&lt;/p&gt;
+    &lt;p class=&quot;gw-dialog__description&quot; id=&quot;sc-d-dlg-tools-desc&quot;&gt;Built-in · v1.4.0 · signed. Tools that change data wait for approval by default; the body scrolls, the header and footer stay.&lt;/p&gt;
     &lt;button class=&quot;gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close&quot; type=&quot;button&quot; aria-label=&quot;Close&quot; data-gw-dialog-close&gt;&lt;i class=&quot;gw-icon&quot; data-lucide=&quot;x&quot;&gt;&lt;/i&gt;&lt;/button&gt;
   &lt;/header&gt;
   &lt;div class=&quot;gw-dialog__body&quot;&gt;
@@ -5272,8 +5284,8 @@ LIMIT :limit&lt;/textarea&gt;
     <div class="gw-alert gw-alert--info">
       <i class="gw-icon gw-alert__icon" data-lucide="info"></i>
       <div class="gw-alert__content">
-        <p class="gw-alert__title">Mutations always require approval</p>
-        <p class="gw-alert__body">Every tool that changes data waits for a human, in every environment. This is not a setting.</p>
+        <p class="gw-alert__title">Mutations need approval by default</p>
+        <p class="gw-alert__body">Tools that change data wait for you unless explicitly set to Bypass. Policy denials and limits still apply.</p>
       </div>
     </div>
     <div class="gw-alert gw-alert--success">
@@ -5322,8 +5334,8 @@ LIMIT :limit&lt;/textarea&gt;
 <details class="sc-code"><summary>Markup</summary><pre><code>&lt;div class=&quot;gw-alert gw-alert--info&quot;&gt;
   &lt;i class=&quot;gw-icon gw-alert__icon&quot; data-lucide=&quot;info&quot;&gt;&lt;/i&gt;
   &lt;div class=&quot;gw-alert__content&quot;&gt;
-    &lt;p class=&quot;gw-alert__title&quot;&gt;Mutations always require approval&lt;/p&gt;
-    &lt;p class=&quot;gw-alert__body&quot;&gt;Every tool that changes data waits for a human, in every environment. This is not a setting.&lt;/p&gt;
+    &lt;p class=&quot;gw-alert__title&quot;&gt;Mutations need approval by default&lt;/p&gt;
+    &lt;p class=&quot;gw-alert__body&quot;&gt;Tools that change data wait for you unless explicitly set to Bypass. Policy denials and limits still apply.&lt;/p&gt;
   &lt;/div&gt;
 &lt;/div&gt;
 &lt;div class=&quot;gw-alert gw-alert--success&quot;&gt;

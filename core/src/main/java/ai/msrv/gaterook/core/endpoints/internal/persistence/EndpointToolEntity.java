@@ -20,8 +20,7 @@ import org.hibernate.annotations.OptimisticLock;
 import org.hibernate.type.SqlTypes;
 
 /**
- * The mode of one tool × connection pair on an endpoint (Off · Read only · Approval; there is no "allow writes"
- * mode). {@code connectionId} is {@code null} for the endpoint-wide core tools. {@code toolKey}: {@code sql_query},
+ * The mode of one tool × connection pair on an endpoint (Off · Read only · Approval · Bypass). {@code connectionId} is {@code null} for the endpoint-wide core tools. {@code toolKey}: {@code sql_query},
  * {@code tpl:<id>:<opKey>}, {@code mcp:<connection>:<original>} or {@code plugin:<type>:<tool>}.
  */
 @Entity

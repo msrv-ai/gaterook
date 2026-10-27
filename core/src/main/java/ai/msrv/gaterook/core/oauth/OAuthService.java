@@ -24,7 +24,7 @@ public class OAuthService {
       String redirectHost, String endpoint, String env, Tools tools, String ip, Ingress ingress, Instant expiresAt) {}
 
   /** The endpoint's tools by mode, as the dialog counts them. */
-  public record Tools(int read, int approval, int off) {}
+  public record Tools(int read, int approval, int off, int bypass) {}
 
   /** One sign-in of "Signed in". */
   public record Grant(String id, String client, String clientName, String clientKind, String endpoint,
@@ -48,7 +48,7 @@ public class OAuthService {
           .map(slug -> endpoints.get(slug).tools()).orElse(new EndpointService.ToolCounts(0, 0, 0));
       String env = snapshots.get(p.endpointId()).map(EndpointSnapshot::env).map(Env::id).orElse(null);
       return new Consent(p.id(), p.code(), p.clientHost(), p.clientName(), p.clientKind(), p.redirectHost(),
-          p.slug(), env, new Tools(t.read(), t.approval(), t.off()), p.browserIp(), p.ingress(), p.expiresAt());
+          p.slug(), env, new Tools(t.read(), t.approval(), t.off(), t.bypass()), p.browserIp(), p.ingress(), p.expiresAt());
     }).toList();
   }
 

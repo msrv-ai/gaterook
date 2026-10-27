@@ -293,7 +293,7 @@ public class TunnelService implements DisposableBean {
         .map(w -> new PublishPreview.Connection(w.config().name(), w.config().env().id())).toList();
     return new PublishPreview(slug, e.env().id(), s.provider(), List.of("/mcp/" + slug, "/oauth/*",
         "/.well-known/oauth-*"), List.copyOf(local), connections,
-        new PublishPreview.Tools(e.tools().read(), e.tools().approval(), e.tools().off()), riskText(slug, e.risk()),
+        new PublishPreview.Tools(e.tools().read(), e.tools().approval(), e.tools().off(), e.tools().bypass()), riskText(slug, e.risk()),
         refusal(slug, snapshot, s).orElse(null), s.anthropicOnly(), warnings(s, snapshot));
   }
 
@@ -739,6 +739,10 @@ public class TunnelService implements DisposableBean {
     List<String> out = new ArrayList<>();
     boolean asks = snapshot.onPairs().stream().anyMatch(p -> p.tool().mutating()
         && p.mode() == ai.msrv.gaterook.connector.api.ToolDefinition.Mode.APPROVAL);
+    if (snapshot.onPairs().stream().anyMatch(p -> p.mode()
+        == ai.msrv.gaterook.connector.api.ToolDefinition.Mode.BYPASS)) {
+      out.add("Tools in Bypass run without approval, including changes; policy limits still apply.");
+    }
     if (asks) {
       out.add("claude.ai can request changes; each one still waits for you here.");
     }
