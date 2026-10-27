@@ -140,7 +140,7 @@ let nextId = 0;
           <div class="gw-field" [hidden]="transport() !== 'stdio'">
             <label class="gw-field__label" [for]="uid + '-command'">Command</label>
             <input class="gw-input gw-input--mono" [id]="uid + '-command'" type="text" required [disabled]="transport() !== 'stdio'" placeholder="npx -y @scope/mcp-server@1.2.3" spellcheck="false" autocomplete="off" [value]="command()" (input)="command.set(value($event)); clear('command')" [attr.aria-invalid]="errors().command ? 'true' : null" [attr.aria-describedby]="uid + '-command-hint' + (errors().command ? ' ' + uid + '-command-err' : '')">
-            <p class="gw-field__hint" [id]="uid + '-command-hint'">Runs without a shell, from <span class="gw-mono">~/.mcp-gateway/mcp/</span> and the server name. Pin a version (<span class="gw-mono">&#64;1.2.3</span>): without one, npx can fetch new code on every start.</p>
+            <p class="gw-field__hint" [id]="uid + '-command-hint'">Runs without a shell, from <span class="gw-mono">~/.gaterook/mcp/</span> and the server name. Pin a version (<span class="gw-mono">&#64;1.2.3</span>): without one, npx can fetch new code on every start.</p>
             @if (errors().command) {<p class="gw-field__error" [id]="uid + '-command-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().command }}</p>}
           </div>
           <div class="gw-field" [hidden]="transport() !== 'http'">

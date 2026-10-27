@@ -129,7 +129,7 @@ class MotoAssumeRoleIT {
     TestResult r = connector.test(stage(), Configs.secrets(), TestCtx.of());
 
     assertThat(r.ok()).as(String.valueOf(r.error())).isTrue();
-    assertThat(r.identity()).isEqualTo("arn:aws:sts::123456789012:assumed-role/gw-readonly/mcp-gateway-aws-stage");
+    assertThat(r.identity()).isEqualTo("arn:aws:sts::123456789012:assumed-role/gw-readonly/gaterook-aws-stage");
     assertThat(r.metadataUpdate().path("account").asString()).isEqualTo("123456789012");
     assertThat(r.permissions().level()).isEqualTo(TestResult.Level.READ);
   }

@@ -143,7 +143,7 @@ class AuthorizationEndpoints {
     ResponseEntity.BodyBuilder b = ResponseEntity.status(answer.status()).cacheControl(CacheControl.noStore())
         .header("Pragma", "no-cache").contentType(MediaType.APPLICATION_JSON);
     if (answer.status() == 401) {
-      b.header(HttpHeaders.WWW_AUTHENTICATE, "Basic realm=\"mcp-gateway\"");
+      b.header(HttpHeaders.WWW_AUTHENTICATE, "Basic realm=\"gaterook\"");
     }
     return b.body(JSON.writeValueAsBytes(answer.body()));
   }

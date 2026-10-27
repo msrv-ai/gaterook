@@ -17,7 +17,7 @@ import tools.jackson.databind.node.ObjectNode;
  */
 public final class ResultWriter {
 
-  public static final String SERVER_NAME = "mcp-gateway";
+  public static final String SERVER_NAME = "gaterook";
   public static final String META_SERVER = "io.modelcontextprotocol/serverInfo";
 
   private ResultWriter() {}

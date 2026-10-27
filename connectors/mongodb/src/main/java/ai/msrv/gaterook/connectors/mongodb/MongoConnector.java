@@ -133,7 +133,7 @@ public final class MongoConnector implements Connector {
     MongoSettings s = MongoSettings.of(cfg);
     if (!s.usable()) {
       return Classification.deny(policy.rule("bad-config"), cfg.name() + " can't be used: " + s.problemText()
-          + " Ask the user to fix the connection in MCP Gateway.", null);
+          + " Ask the user to fix the connection in GateRook.", null);
     }
     MongoArgs args;
     try {
@@ -295,7 +295,7 @@ public final class MongoConnector implements Connector {
       MongoArgs args, int n, int maxTimeMs, Limits limits, ExecContext ctx) {
     MongoCollection<RawBsonDocument> col = client.getDatabase(args.database())
         .getCollection(args.collection(), RawBsonDocument.class);
-    String comment = "mcp-gateway " + ctx.callId();
+    String comment = "gaterook " + ctx.callId();
     int batch = Math.min(n + 1, 101);
     long start = System.nanoTime();
     MongoCursor<RawBsonDocument> cursor = switch (args) {

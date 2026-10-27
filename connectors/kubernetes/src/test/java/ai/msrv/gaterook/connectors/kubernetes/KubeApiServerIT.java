@@ -400,7 +400,7 @@ class KubeApiServerIT {
 
   /** The hunks of {@code kubectl diff --server-side} as the gateway's field manager (exit 1: there are changes). */
   private List<String> kubectlDiff(String manifest) throws Exception {
-    Run r = kubectlRun(manifest, "diff", "--server-side", "--field-manager=mcp-gateway", "-f", "-");
+    Run r = kubectlRun(manifest, "diff", "--server-side", "--field-manager=gaterook", "-f", "-");
     assertThat(r.exit()).as(r.err()).isEqualTo(1);
     return hunks(r.out().lines().toList());
   }
@@ -558,7 +558,7 @@ class KubeApiServerIT {
         apiVersion: v1
         kind: ConfigMap
         metadata: {name: shared, namespace: app-dev}
-        data: {owner: mcp-gateway}
+        data: {owner: gaterook}
         """;
 
     PreparedAction refused = prepare(apply(manifest, false));
@@ -571,9 +571,9 @@ class KubeApiServerIT {
         .contains("takes over configmap/shared .data.owner (owned by kubectl)");
     approveAndRun(forced, adminCfg("c-admin", Env.DEV, null), p);
     assertThat(kubectl("get", "cm", "shared", "-n", "app-dev", "-o", "jsonpath={.data.owner}"))
-        .isEqualTo("mcp-gateway");
+        .isEqualTo("gaterook");
     assertThat(kubectl("get", "cm", "shared", "-n", "app-dev", "-o", "jsonpath={.metadata.managedFields[*].manager}",
-        "--show-managed-fields")).contains("mcp-gateway");
+        "--show-managed-fields")).contains("gaterook");
   }
 
   @Test

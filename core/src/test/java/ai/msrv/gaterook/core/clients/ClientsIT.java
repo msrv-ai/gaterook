@@ -408,7 +408,7 @@ class ClientsIT {
         "{\"previewId\":\"" + preview.path("previewId").asString() + "\"}");
     claudeProdLink = connected.path("link").path("id").asString();
     Path mcpb = Path.of(connected.path("mcpbPath").asString());
-    assertThat(mcpb).isEqualTo(core.home().resolve("clients/claude-desktop/mcp-gateway-incident-prod.mcpb"));
+    assertThat(mcpb).isEqualTo(core.home().resolve("clients/claude-desktop/gaterook-incident-prod.mcpb"));
     assertThat(mode(mcpb)).isEqualTo("rw-------");
     assertThat(api.ok("/internal/clients/links/" + claudeProdLink + "/mcpb").path("path").asString())
         .isEqualTo(mcpb.toRealPath().toString());
@@ -420,7 +420,7 @@ class ClientsIT {
       assertThat(zip.getEntry("server/gw-bridge.mjs")).isNotNull();
     }
     JsonNode m = TestCore.json(manifest);
-    assertThat(m.path("name").asString()).isEqualTo("mcp-gateway-incident-prod");
+    assertThat(m.path("name").asString()).isEqualTo("gaterook-incident-prod");
     assertThat(m.path("display_name").asString()).isEqualTo("GateRook · incident-prod (prod)");
     assertThat(manifest).doesNotContain("gwb_").doesNotContain("gwt_");
     Matcher g = GRANT.matcher(m.path("server").path("mcp_config").path("args").toString());
@@ -752,7 +752,7 @@ class ClientsIT {
     // client_link rows carry no MAC: a path changed in the database must not make Disconnect delete another file.
     Path victim = Files.writeString(userHome.resolve("notes.txt"), "the person's notes");
     String changed = connectExtension("dev");
-    Path mcpb = core.home().resolve("clients/claude-desktop/mcp-gateway-dev.mcpb");
+    Path mcpb = core.home().resolve("clients/claude-desktop/gaterook-dev.mcpb");
     assertThat(mcpb).exists();
     core.jdbc().update("update client_link set config_path = ? where id = ?", victim.toString(), changed);
     assertThat(disconnect(changed).path("entryRemoved").asBoolean()).isFalse();

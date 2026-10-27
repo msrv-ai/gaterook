@@ -76,7 +76,7 @@ const PEOPLE: readonly { readonly initials: string; readonly name: string; reado
           <dl class="gw-kv">
             <div class="gw-kv__row"><dt class="gw-kv__key">Owner</dt><dd class="gw-kv__value">Everything, including people, the master key and audit export. Decides on approval requests.</dd></div>
             <div class="gw-kv__row"><dt class="gw-kv__key">Admin</dt><dd class="gw-kv__value">Connections, endpoints, policies and settings. Can't manage owners or the master key.</dd></div>
-            <div class="gw-kv__row"><dt class="gw-kv__key">Developer</dt><dd class="gw-kv__value">Uses endpoints and Playground and issues tokens for their own clients. Can't change policies or secrets.</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Developer</dt><dd class="gw-kv__value">Uses endpoints and Playground and issues tokens for their own apps. Can't change policies or secrets.</dd></div>
             <div class="gw-kv__row"><dt class="gw-kv__key">Approver</dt><dd class="gw-kv__value">Decides on approval requests, from the app, Slack or Telegram. Added on top of another role.</dd></div>
             <div class="gw-kv__row"><dt class="gw-kv__key">Viewer</dt><dd class="gw-kv__value">Reads Activity and Insights. Can't change anything.</dd></div>
           </dl>

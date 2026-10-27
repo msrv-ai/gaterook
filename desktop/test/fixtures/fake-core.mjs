@@ -247,7 +247,7 @@ async function handle(req, res) {
   const mcpb = /^\/internal\/clients\/links\/([A-Za-z0-9_-]+)\/mcpb$/.exec(p);
   // `outside`: a core that names a file outside the extensions folder (main must refuse to open it).
   if (mcpb) return json(res, 200, { path: mcpb[1] === 'outside' ? '/etc/hosts'
-    : join(home, 'clients', 'claude-desktop', `mcp-gateway-${mcpb[1]}.mcpb`) });
+    : join(home, 'clients', 'claude-desktop', `gaterook-${mcpb[1]}.mcpb`) });
   if (p === '/api/clients') return json(res, 200, { scannedAt: null, clients: [] });
   if (p === '/internal/bridge/tokens' && req.method === 'POST') {
     return json(res, 200, { v: 1, ok: true, token: 'gwb_fake', expiresAt: new Date(Date.now() + 900_000).toISOString(),

@@ -159,7 +159,7 @@ public final class HostExecContext implements ExecContext {
     } catch (RpcException e) {
       throw new IllegalStateException(e.getMessage());
     } catch (TimeoutException e) {
-      throw new IllegalStateException("MCP Gateway didn't answer in time");
+      throw new IllegalStateException("GateRook didn't answer in time");
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new IllegalStateException("The call was cancelled");

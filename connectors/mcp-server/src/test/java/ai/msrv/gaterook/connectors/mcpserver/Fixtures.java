@@ -281,7 +281,7 @@ final class Fixtures {
 
     @Override
     public Optional<String> reservedProblem(String toolName) {
-      return reserved.contains(toolName) ? Optional.of(toolName + " is a name of MCP Gateway's own tools")
+      return reserved.contains(toolName) ? Optional.of(toolName + " is a name of GateRook's own tools")
           : Optional.empty();
     }
 

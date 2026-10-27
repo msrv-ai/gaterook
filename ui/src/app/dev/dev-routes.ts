@@ -11,7 +11,7 @@ import { DemoTimeService } from './demo-time';
  * to it for the states the world doesn't have now. Elements whose area isn't merged yet (clients, notifications,
  * the core's start in Electron) and those without data render fixtures on the demo world's own clock, Thursday 14:30.
  */
-const FIXTURE_CLOCK = new Set(['how-it-works', 'approval-notification', 'client-card', 'settings-layout', 'status-screen']);
+const FIXTURE_CLOCK = new Set(['how-it-works', 'approval-notification', 'client-card', 'settings-layout', 'status-screen', 'status-tile']);
 
 const demos: Record<string, () => Promise<unknown>> = {
   'setup-map': () => import('./demos/setup-map.demo').then((m) => m.SetupMapDemo),
@@ -30,6 +30,7 @@ const demos: Record<string, () => Promise<unknown>> = {
   'status-screen': () => import('./demos/status-screen.demo').then((m) => m.StatusScreenDemo),
   'command-palette': () => import('./demos/command-palette.demo').then((m) => m.CommandPaletteDemo),
   'connection-form': () => import('./demos/connection-form.demo').then((m) => m.ConnectionFormDemo),
+  'status-tile': () => import('./demos/status-tile.demo').then((m) => m.StatusTileDemo),
 };
 
 export const DEV_ROUTES: Routes = [

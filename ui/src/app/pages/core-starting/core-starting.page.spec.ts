@@ -24,8 +24,8 @@ import { CoreStartingPage } from './core-starting.page';
  */
 
 const NOW = Date.parse('2026-10-22T14:30:00+02:00');
-const KEY = '/home/alex/.mcp-gateway/master.keyset';
-const LOG = '/home/alex/.mcp-gateway/logs/core.log';
+const KEY = '/home/alex/.gaterook/master.keyset';
+const LOG = '/home/alex/.gaterook/logs/core.log';
 const never = <T>() => new Promise<T>(() => undefined);
 const problem = (status: number, body: object) => ApiError.fromHttp(new HttpErrorResponse({ status, error: body }));
 
@@ -35,7 +35,7 @@ class FakeDesktop {
   calls: string[] = [];
   freePort: number | null = 7475;
   openFileToken: string | null = 'open-token-1';
-  usePortResult: (port: number) => Promise<void> = () => Promise.resolve();
+  usePortResult: (port: number | { readonly port?: number; readonly publicPort?: number }) => Promise<void> = () => Promise.resolve();
   restartResult: () => Promise<void> = () => Promise.resolve();
   unlockResult: () => Promise<void> = () => Promise.resolve();
   initialState: DesktopCoreState | null = { kind: 'ready', firstRun: false, locked: null, version: '0.4.0', ports: { local: 7465, public: 7466 }, runtime: 'native' };
@@ -60,8 +60,8 @@ class FakeDesktop {
     this.calls.push('unlock');
     return this.unlockResult();
   }
-  usePort(port: number): Promise<void> {
-    this.calls.push(`usePort ${port}`);
+  usePort(port: number | { readonly port?: number; readonly publicPort?: number }): Promise<void> {
+    this.calls.push(`usePort ${typeof port === 'number' ? port : JSON.stringify(port)}`);
     return this.usePortResult(port);
   }
   findFreePort(from: number): Promise<number | null> {
@@ -252,13 +252,13 @@ describe('starting', () => {
     expect(steps.map((s) => s.getAttribute('data-state'))).toEqual(['complete', 'complete', 'complete', 'current']);
     expect(steps.map((s) => text(s))).toEqual([
       'Native core, completed Native image · 0.1 s',
-      'Master key, completed Loaded ~/.mcp-gateway/master.keyset',
+      'Master key, completed Loaded ~/.gaterook/master.keyset',
       'Database migrations, completed Up to date · 0.4 s',
       'Local API, in progress Binding 127.0.0.1:7465',
     ]);
     expect(steps[3].getAttribute('aria-current')).toBe('step');
     expect(text(page.querySelector('[role=status]'))).toBe('Starting the gateway core: local api, step 4 of 4.');
-    expect(text(page.querySelector('.gw-status-screen__meta'))).toBe('GateRook 0.4.0 · core on 127.0.0.1:7465 · log ~/.mcp-gateway/logs/core.log');
+    expect(text(page.querySelector('.gw-status-screen__meta'))).toBe('GateRook 0.4.0 · core on 127.0.0.1:7465 · log ~/.gaterook/logs/core.log');
   });
 
   it('names the port Electron starts the core on, not the default', async () => {
@@ -270,7 +270,7 @@ describe('starting', () => {
 });
 
 describe('OS-protected encryption key', () => {
-  const waiting: DesktopCoreState = { kind: 'unlock-required', unlocking: false, error: null, keychainService: 'MCP Gateway Dev Safe Storage' };
+  const waiting: DesktopCoreState = { kind: 'unlock-required', unlocking: false, error: null, keychainService: 'GateRook Dev Safe Storage' };
 
   beforeEach(() => {
     desktop.initialState = waiting;
@@ -285,7 +285,7 @@ describe('OS-protected encryption key', () => {
     expect(text(page)).toContain('Your operating system protects the encryption key for your saved credentials.');
     expect(text(page)).toContain('may ask you to allow access or enter your computer password');
     expect(text(page)).toContain('If you deny access, GateRook will close.');
-    expect(text(page)).toContain('MCP Gateway Dev Safe Storage');
+    expect(text(page)).toContain('GateRook Dev Safe Storage');
     expect(page.querySelector('.gw-status-screen__meta')).toBeNull();
     expect(page.querySelector('.gw-card input[type=password]')).toBeNull();
     expect(document.activeElement).toBe(unlock);
@@ -368,7 +368,7 @@ describe('port in use', () => {
     await emit(PORT_IN_USE);
     expect(text(page.querySelector('h1'))).toBe('Port 7465 is already in use');
     expect(text(page.querySelector('.gw-status-screen__text p'))).toContain('Another process (PID 4242, user alex) is listening on 127.0.0.1:7465');
-    expect(text(page.querySelector('.gw-status-screen__text p'))).toContain('clients with the URL in their config, such as Codex and Cursor, need to be connected again');
+    expect(text(page.querySelector('.gw-status-screen__text p'))).toContain('AI apps with the URL in their config, such as Codex and Cursor, need to be connected again');
     const failed = page.querySelector('.gw-stepper__step[data-state=error]')!;
     expect(text(failed)).toBe('Local API, failed Address already in use: 127.0.0.1:7465');
     expect(failed.getAttribute('aria-current')).toBe('step');
@@ -379,20 +379,66 @@ describe('port in use', () => {
     expect(desktop.calls).toEqual(['quit']);
   });
 
-  it('the tunnel’s public port taken: the card names it and offers Restart core, not another local port', async () => {
+  it('the tunnel’s public port taken: the card names it and offers Restart core and Use another port for that listener', async () => {
     const page = await render();
     // The core binds both listeners at start; a taken public port fails the start the same way (StartupFailures).
     await emit({ ...PORT_IN_USE, detail: 'Address already in use: 127.0.0.1:7466' });
     expect(text(page.querySelector('h1'))).toBe('Port 7466 is already in use');
     expect(text(page.querySelector('.gw-status-screen__text p'))).toBe(
-      "Another process (PID 4242, user alex) is listening on 127.0.0.1:7466, the port of the tunnel's public listener, so the core can't start. Stop that process, then restart the core.",
+      "Another process (PID 4242, user alex) is listening on 127.0.0.1:7466, the port of the tunnel's public listener, so the core can't start. Stop that process and restart the core, or start the listener on another port: endpoint URLs stay the same.",
     );
     expect(text(page.querySelector('.gw-stepper__step[data-state=error]'))).toBe('Local API, failed Address already in use: 127.0.0.1:7466');
     expect(text(page.querySelector('.gw-code-block'))).toContain('lsof -nP -iTCP:7466 -sTCP:LISTEN');
-    expect(button('Use another port')).toBeNull();
+    // Use another port is the card's primary; Restart core stays for a process stopped meanwhile.
+    expect(button('Use another port')!.classList.contains('gw-btn--primary')).toBe(true);
+    expect(button('Restart core')!.classList.contains('gw-btn--primary')).toBe(false);
     button('Restart core')!.click();
     await settle();
     expect(desktop.calls).toEqual(['restart']);
+  });
+
+  it('Use another port for the tunnel’s listener: the local API keeps its port, main moves only the listener', async () => {
+    await render();
+    await emit({ ...PORT_IN_USE, detail: 'Address already in use: 127.0.0.1:7466' });
+    desktop.freePort = 7476;
+    const opener = button('Use another port')!;
+    opener.focus();
+    opener.click();
+    await settle();
+    const dialog = $<HTMLDialogElement>('#core-port-dlg')!;
+    expect(dialog.hasAttribute('open')).toBe(true);
+    // Nothing a client has changes: no warning tone, the words say what moves and what stays.
+    expect(dialog.classList.contains('gw-dialog--warning')).toBe(false);
+    expect(text(dialog.querySelector('.gw-dialog__title'))).toBe('Start the tunnel’s listener on another port?');
+    expect(text(dialog.querySelector('.gw-dialog__description'))).toBe(
+      'The core starts with the tunnel’s public listener on the new port. Endpoint URLs stay the same, and so do your AI apps’ configs.',
+    );
+    // Ten up from the taken listener, past the local API's port; main checks it is free.
+    expect(desktop.calls).toEqual(['findFreePort 7476']);
+    const input = $<HTMLInputElement>('#core-port-new')!;
+    expect(input.value).toBe('7476');
+    expect(text($('#core-port-new-hint'))).toBe('1024 to 65535. 7476 is free on this computer.');
+    const rows = Array.from(dialog.querySelectorAll('.gw-kv__row')).map((r) => [text(r.querySelector('dt')), text(r.querySelector('dd'))]);
+    expect(rows).toEqual([
+      ['Tunnel listener', '127.0.0.1:7476, which the tunnel connects to when it starts'],
+      ['Unchanged', 'Endpoint URLs on 127.0.0.1:7465, and every AI app connected to them'],
+    ]);
+
+    // The local API's port is not the listener's to take.
+    await type(input, '7465');
+    dialog.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    await settle();
+    expect(text($('#core-port-new-err'))).toBe('7465 is the local API’s port. Choose another one.');
+    await type(input, '7466');
+    expect(text($('#core-port-new-err'))).toBe('7466 is the port that is in use. Choose another one.');
+    expect(desktop.calls).toEqual(['findFreePort 7476']);
+
+    await type(input, '7476');
+    dialog.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    await settle();
+    expect(desktop.calls.at(-1)).toBe('usePort {"publicPort":7476}');
+    expect(dialog.hasAttribute('open')).toBe(false);
+    expect(document.activeElement).toBe(opener);
   });
 
   it('Use another port: a port main checked, the kit’s dialog, the field’s checks, then main restarts the core', async () => {
@@ -725,7 +771,7 @@ describe('stopped and failed starts', () => {
     await emit({
       kind: 'failed',
       reason: 'DB_LOCKED',
-      detail: 'Another GateRook core is using /home/alex/.mcp-gateway (core.lock is locked)',
+      detail: 'Another GateRook core is using /home/alex/.gaterook (core.lock is locked)',
       portOwner: null,
       log: LOG,
       logTail: null,
@@ -735,7 +781,7 @@ describe('stopped and failed starts', () => {
     expect(text(page.querySelector('h1'))).toBe('Another core is using the database');
     expect(page.querySelector('.gw-stepper')).toBeNull();
     expect(words(page.querySelector('.gw-kv'))).toBe(
-      `Exit code 2 Reason DB_LOCKED: Another GateRook core is using /home/alex/.mcp-gateway (core.lock is locked) Log file ${LOG}`,
+      `Exit code 2 Reason DB_LOCKED: Another GateRook core is using /home/alex/.gaterook (core.lock is locked) Log file ${LOG}`,
     );
     expect(text(page.querySelector('[role=alert]'))).toBe('The core failed to start: Another core is using the database.');
     expect(button('Restart core')).not.toBeNull();

@@ -3,9 +3,9 @@
   @if (description(); as d) {
     {{ d }}
   } @else if (vertical()) {
-    Set it up top to bottom: secrets and resources, then connections that use them, policies, endpoints and clients. An agent's call travels the other way: client, endpoint (with a token or OAuth), policy (mode, limits, approval), connection, where the secret is injected. The agent never receives the secret.
+    Set it up top to bottom: secrets and resources, then connections that use them, policies, endpoints and AI apps. An agent's call travels the other way: AI app, endpoint (with a token or OAuth), policy (mode, limits, approval), connection, where the secret is injected. The agent never receives the secret.
   } @else {
-    Set it up left to right: secrets and resources, then connections that use them, policies, endpoints and clients. An agent's call travels the other way: client, endpoint (with a token or OAuth), policy (mode, limits, approval), connection, where the secret is injected. The agent never receives the secret.
+    Set it up left to right: secrets and resources, then connections that use them, policies, endpoints and AI apps. An agent's call travels the other way: AI app, endpoint (with a token or OAuth), policy (mode, limits, approval), connection, where the secret is injected. The agent never receives the secret.
   }
 </p>
 <ol class="gw-setup-map" [class.gw-setup-map--vertical]="vertical()" [attr.aria-label]="labelledBy() ? null : 'Setup path'" [attr.aria-labelledby]="labelledBy()" [attr.aria-describedby]="uid + '-flow'">
@@ -42,7 +42,7 @@
 </ol>
 @if (!caption()) {
 } @else if (vertical()) {
-  <p class="gw-text-caption gw-fg-muted" aria-hidden="true"><svg lucideIcon="arrow-up-down" class="gw-icon gw-icon--xs"></svg> Set it up top to bottom. An agent's call travels the other way: client, endpoint, policy, connection, where the secret is injected.</p>
+  <p class="gw-text-caption gw-fg-muted" aria-hidden="true"><svg lucideIcon="arrow-up-down" class="gw-icon gw-icon--xs"></svg> Set it up top to bottom. An agent's call travels the other way: AI app, endpoint, policy, connection, where the secret is injected.</p>
 } @else {
-  <p class="gw-text-caption gw-fg-muted" aria-hidden="true"><svg lucideIcon="arrow-left-right" class="gw-icon gw-icon--xs"></svg> Set it up left to right (top to bottom when stacked). An agent's call travels the other way: client, endpoint, policy, connection, where the secret is injected.</p>
+  <p class="gw-text-caption gw-fg-muted" aria-hidden="true"><svg lucideIcon="arrow-left-right" class="gw-icon gw-icon--xs"></svg> Set it up left to right (top to bottom when stacked). An agent's call travels the other way: AI app, endpoint, policy, connection, where the secret is injected.</p>
 }

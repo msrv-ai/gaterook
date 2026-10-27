@@ -248,7 +248,7 @@
             <footer class="gw-card__footer gw-card__footer--split">
               <button class="gw-btn gw-btn--ghost" type="button" (click)="go(1)"><svg lucideIcon="arrow-left" class="gw-icon"></svg> Back</button>
               @if (isDone(2)) {
-                <button class="gw-btn gw-btn--primary" type="button" (click)="go(3)">Continue<span class="gw-sr-only"> to connect a client</span> <svg lucideIcon="arrow-right" class="gw-icon"></svg></button>
+                <button class="gw-btn gw-btn--primary" type="button" (click)="go(3)">Continue<span class="gw-sr-only"> to connect your AI app</span> <svg lucideIcon="arrow-right" class="gw-icon"></svg></button>
               } @else {
                 <!-- Endpoints opens its Create dialog for #create (U7). -->
                 <a class="gw-btn gw-btn--primary" routerLink="/endpoints" fragment="create">Create endpoint</a>
@@ -256,21 +256,21 @@
             </footer>
           </section>
 
-          <!-- Step 4 · Connect a client -->
+          <!-- Step 4 · Connect your AI app -->
           <section class="gw-card" id="ob-panel-4" aria-labelledby="ob-panel-4-title" [hidden]="viewing() !== 3">
             <header class="gw-card__header">
               <div class="gw-card__heading">
-                <h3 class="gw-card__title" id="ob-panel-4-title" tabindex="-1"><span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--brand"><svg lucideIcon="app-window" class="gw-icon gw-icon--sm"></svg></span>Connect a client</h3>
+                <h3 class="gw-card__title" id="ob-panel-4-title" tabindex="-1"><span class="gw-icon-tile gw-icon-tile--sm gw-icon-tile--brand"><svg lucideIcon="app-window" class="gw-icon gw-icon--sm"></svg></span>Connect your AI app</h3>
                 <p class="gw-card__description">{{ clientsDescription() }}</p>
               </div>
             </header>
             <div class="gw-card__body">
               <div class="gw-stack">
                 @if (isDone(3)) {
-                  <ng-container *ngTemplateOutlet="doneAlert; context: { $implicit: doneLines()[3], action: 'Connect another client', route: '/clients', fragment: null }" />
+                  <ng-container *ngTemplateOutlet="doneAlert; context: { $implicit: doneLines()[3], action: 'Connect another AI app', route: '/clients', fragment: null }" />
                 }
                 <!-- Cursor's three ways in, per ARCHITECTURE §8.6.2: a token in its file, the browser sign-in or the bridge. -->
-                <p class="gw-text-body-read">Before anything is written, you see the exact change to the client's config and where the backup goes. Claude Desktop and Codex get a short-lived token on the fly, so no token sits in their config. Cursor keeps a token in plain text in <span class="gw-mono">~/.cursor/mcp.json</span>, or signs in through the browser or goes through the bridge instead.</p>
+                <p class="gw-text-body-read">Before anything is written, you see the exact change to the AI app's config and where the backup goes. Claude Desktop and Codex get a short-lived token on the fly, so no token sits in their config. Cursor keeps a token in plain text in <span class="gw-mono">~/.cursor/mcp.json</span>, or signs in through the browser or goes through the bridge instead.</p>
               </div>
             </div>
             <footer class="gw-card__footer gw-card__footer--split">
@@ -278,7 +278,7 @@
               @if (isDone(3)) {
                 <a class="gw-btn gw-btn--primary" routerLink="/overview">Open overview</a>
               } @else {
-                <a class="gw-btn gw-btn--primary" routerLink="/clients">Connect a client</a>
+                <a class="gw-btn gw-btn--primary" routerLink="/clients">Connect your AI app</a>
               }
             </footer>
           </section>

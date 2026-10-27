@@ -37,7 +37,7 @@ public final class GatewayDatabase {
   private final DataSource reads;
 
   /**
-   * @param file  {@code ~/.mcp-gateway/gateway.db}
+   * @param file  {@code ~/.gaterook/gateway.db}
    * @param url   the JDBC URL the pools share (pragmas of the file)
    * @param reads a pool for short reads (the reader, or the writer when there is none)
    */

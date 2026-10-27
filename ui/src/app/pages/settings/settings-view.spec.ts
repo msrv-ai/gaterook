@@ -287,7 +287,7 @@ describe('settings-view: Audit & retention', () => {
       ...over,
     });
     expect(exportCard(d({}))).toMatchObject({ title: 'SIEM · syslog', target: 'siem.acme.internal:6514', tone: 'success', label: 'Streaming · last event', failing: false });
-    expect(exportCard(d({ kind: 's3', config: { bucket: 'acme-audit', prefix: 'mcp-gateway/' }, schedule: 'daily@02:00' }))).toMatchObject({ title: 'Amazon S3', target: 's3://acme-audit/mcp-gateway/', label: 'Daily at 02:00 · last run' });
+    expect(exportCard(d({ kind: 's3', config: { bucket: 'acme-audit', prefix: 'gaterook/' }, schedule: 'daily@02:00' }))).toMatchObject({ title: 'Amazon S3', target: 's3://acme-audit/gaterook/', label: 'Daily at 02:00 · last run' });
     const bq = exportCard(d({ kind: 'bigquery', config: { table: 'acme-prod.audit.mcp_calls' }, schedule: 'hourly', failingSince: '2026-10-22T10:00:00Z', lastError: '403 Forbidden' }));
     expect(bq).toMatchObject({ title: 'BigQuery', target: 'acme-prod.audit.mcp_calls', tone: 'danger', failing: true, error: '403 Forbidden' });
     expect(bq.label).toBe(`Hourly · failing since ${clockTime('2026-10-22T10:00:00Z', false)} · last try`);
@@ -318,10 +318,10 @@ describe('settings-view: Audit & retention', () => {
 describe('settings-view: Backup', () => {
   it('the daily hint, the copy’s toast, what the key protects', () => {
     expect(dailyHint('03:00', 7)).toBe('At 03:00, or at the next start if the computer was off. The last 7 copies are kept.');
-    expect(dbBackedUpToast({ path: '/Users/you/.mcp-gateway/backups/gateway-2026-10-22-1430.db', file: 'gateway-2026-10-22-1430.db', at: '2026-10-22T12:30:00Z', sizeBytes: 1 })).toEqual({
+    expect(dbBackedUpToast({ path: '/Users/you/.gaterook/backups/gateway-2026-10-22-1430.db', file: 'gateway-2026-10-22-1430.db', at: '2026-10-22T12:30:00Z', sizeBytes: 1 })).toEqual({
       tone: 'success',
       title: 'Database backed up',
-      body: 'Saved as gateway-2026-10-22-1430.db in /Users/you/.mcp-gateway/backups/.',
+      body: 'Saved as gateway-2026-10-22-1430.db in /Users/you/.gaterook/backups/.',
     });
     expect(protectsText(8, 3)).toBe('8 secrets stored here · 3 secret references don’t need it');
     expect(protectsText(1, 1)).toBe('1 secret stored here · 1 secret reference doesn’t need it');
@@ -330,8 +330,8 @@ describe('settings-view: Backup', () => {
 
   it('the master key copy: its suggested name and the toast (a synced folder warns)', () => {
     // The name Electron main's save dialog proposes (desktop/src/main/file-purposes.ts: UTC date).
-    expect(keyBackupFileName(Date.parse('2026-10-22T12:00:00Z'))).toBe('mcp-gateway-master-key-2026-10-22.json');
-    expect(keyBackupFileName(Date.parse('2026-10-22T23:30:00-02:00'))).toBe('mcp-gateway-master-key-2026-10-23.json');
+    expect(keyBackupFileName(Date.parse('2026-10-22T12:00:00Z'))).toBe('gaterook-master-key-2026-10-22.json');
+    expect(keyBackupFileName(Date.parse('2026-10-22T23:30:00-02:00'))).toBe('gaterook-master-key-2026-10-23.json');
     expect(keyBackedUpToast({ path: '/Volumes/Vault/k.json', passphrase: true, warnings: [] })).toMatchObject({
       tone: 'success',
       title: 'Master key backed up, encrypted with your passphrase',

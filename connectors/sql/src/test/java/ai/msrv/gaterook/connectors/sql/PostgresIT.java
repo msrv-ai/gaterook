@@ -131,7 +131,7 @@ class PostgresIT {
             + "current_setting('transaction_read_only')"), 10);
 
     JsonNode row = after.table().rows().get(0);
-    assertThat(row.get(0).asString()).isEqualTo("mcp-gateway");
+    assertThat(row.get(0).asString()).isEqualTo("gaterook");
     assertThat(row.get(1).asString()).isEqualTo("public");
     assertThat(row.get(2).asString()).isEqualTo("on");
     assertThat(CONNECTOR.pools().current(cfg.id()).total()).isEqualTo(1);

@@ -282,7 +282,7 @@ describe('By client', () => {
       'Codex makes 60% of calls; Codex and Claude Desktop are denied or fail on fewer than 3% of them. claude.ai: 19 calls from 08:41 to 12:08, all allowed, to stage-db through stage-readonly.',
     );
     expect(c.aria).toBe(
-      'Calls by client, last 24 hours: Codex 772 (60%), of them 20 denied, rejected or failed and 2 expired; Claude Desktop 493 (38%), of them 14 denied, rejected or failed and 1 expired; claude.ai 19 (1%), all allowed or approved.',
+      'Calls by AI app, last 24 hours: Codex 772 (60%), of them 20 denied, rejected or failed and 2 expired; Claude Desktop 493 (38%), of them 14 denied, rejected or failed and 1 expired; claude.ai 19 (1%), all allowed or approved.',
     );
     expect(c.table[0]).toEqual({ name: 'Codex', ok: 750, bad: 20, expired: 2, total: 772 });
     expect(c.links.map((l) => [l.label, l.link.query?.['q']])).toEqual([

@@ -21,7 +21,7 @@
   </parent>
 
   <artifactId>plugins-rabbitmq</artifactId>
-  <name>MCP Gateway · Plugins · RabbitMQ</name>
+  <name>GateRook · Plugins · RabbitMQ</name>
 
   <properties>
     <maven.deploy.skip>true</maven.deploy.skip>

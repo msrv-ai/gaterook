@@ -6,7 +6,7 @@
     },
     "gateway-dev": {
       "type": "stdio",
-      "command": "/home/me/.mcp-gateway/bin/gw-bridge",
+      "command": "/home/me/.gaterook/bin/gw-bridge",
       "args": ["stdio", "--endpoint", "dev", "--grant", "gr_cx7q2lmaabcd", "--client", "cursor"]
     }
   }

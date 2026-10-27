@@ -73,6 +73,6 @@ public final class GuardedResolverProvider extends InetAddressResolverProvider {
 
   @Override
   public String name() {
-    return "mcp-gateway-plugin-guard";
+    return "gaterook-plugin-guard";
   }
 }

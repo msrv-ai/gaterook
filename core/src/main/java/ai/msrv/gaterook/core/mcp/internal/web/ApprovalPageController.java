@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * {@code GET /approvals/{id}} on the local listener only (ARCHITECTURE.md §6 approvals, §9 "Approval cannot be
  * forged through the protocol"): the page an MRTR URL elicitation opens. It only hands over to the app
- * ({@code mcp-gateway://approvals/<id>}); it shows no action, takes no decision and doesn't even say whether the request
+ * ({@code gaterook://approvals/<id>}); it shows no action, takes no decision and doesn't even say whether the request
  * exists — the same bytes for every well-formed id. {@code default-src 'none'}: no script, no style, no frame.
  */
 @RestController
@@ -26,7 +26,7 @@ class ApprovalPageController {
     if (!ID.matcher(id).matches()) {
       return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
     }
-    String link = "mcp-gateway://approvals/" + id;
+    String link = "gaterook://approvals/" + id;
     String html = """
         <!doctype html>
         <html lang="en">

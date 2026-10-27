@@ -260,7 +260,7 @@ describe('kit.js parity: copy', () => {
   @Component({
     imports: [GwCopy, GwToast, GwDialog],
     template: `
-      <button id="copy" type="button" gwCopy="mcp-gateway://activity/events/412">Copy link</button>
+      <button id="copy" type="button" gwCopy="gaterook://activity/events/412">Copy link</button>
       <code id="src">sudo chown</code><button id="from" type="button" gwCopyFrom="#src">Copy</button>
       <button id="toasted" type="button" gwCopy="412" gwToast="Link to event 412 copied" gwToastTone="success">Copy link</button>
       <dialog gwDialog #dlg="gwDialog" id="dlg" aria-label="Token"><code id="token">gwt_live_1</code><button id="in-dialog" type="button" gwCopyFrom="#token">Copy</button></dialog>
@@ -286,7 +286,7 @@ describe('kit.js parity: copy', () => {
     q(el, '#copy').click();
     q(el, '#from').click();
     await vi.advanceTimersByTimeAsync(0);
-    expect(copied).toEqual(['mcp-gateway://activity/events/412', 'sudo chown']);
+    expect(copied).toEqual(['gaterook://activity/events/412', 'sudo chown']);
     expect(q(el, '#copy').hasAttribute('data-copied')).toBe(true);
     await vi.advanceTimersByTimeAsync(60);
     expect(document.querySelector('[role="status"]')?.textContent).toBe('Copied to clipboard');

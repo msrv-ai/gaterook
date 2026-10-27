@@ -274,7 +274,8 @@ public class ClientGrants implements DisposableBean {
     }
     ClientGrantEntity g = found.get();
     if (!rows.verify(g)) {
-      return TokenAnswer.refused(GRANT_CHANGED, "The access " + prefix(g.getId()) + " was changed outside GateRook, so it gets no tokens. Disconnect " + who + " and connect it again in the app.");
+      return TokenAnswer.refused(GRANT_CHANGED, "The access " + prefix(g.getId()) + " was changed outside "
+          + "GateRook, so it gets no tokens. Disconnect " + who + " and connect it again in the app.");
     }
     if (g.isRevoked()) {
       return TokenAnswer.refused(GRANT_REVOKED, "Access for " + who + " to " + g.getEndpoint().getSlug()

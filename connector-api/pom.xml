@@ -17,7 +17,7 @@
   <artifactId>connector-api</artifactId>
   <!-- Versioned on its own, = ApiVersion.CURRENT; plugins declare requires.connectorApi against it. -->
   <version>1.0.0</version>
-  <name>MCP Gateway · Connector API</name>
+  <name>GateRook · Connector API</name>
 
   <dependencies>
     <dependency>

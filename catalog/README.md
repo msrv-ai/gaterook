@@ -28,13 +28,13 @@ so one GitHub release carries the index, its signature and every file it pins.
 
 ```sh
 node catalog/sign-index.mjs keygen --key-file ~/catalog-2026-1.pem --key-id catalog-2026-1   # once; prints the trust line
-CATALOG_REPO=<org>/mcp-gateway-catalog CATALOG_KEY_ID=catalog-2026-1 CATALOG_PUBLIC_KEY=<base64url> \
+CATALOG_REPO=<org>/gaterook-catalog CATALOG_KEY_ID=catalog-2026-1 CATALOG_PUBLIC_KEY=<base64url> \
   catalog/publish.sh --key-file ~/catalog-2026-1.pem              # dry run: build, sign, verify
   catalog/publish.sh --key-file ~/catalog-2026-1.pem --publish    # and create the release (--first the first time)
 ```
 
 The release's core gets `gateway.plugins.catalog-keys=catalog-2026-1=<base64url>` and
-`gateway.plugins.catalog-url=https://github.com/<org>/mcp-gateway-catalog/releases/latest/download/`. A new release
+`gateway.plugins.catalog-url=https://github.com/<org>/gaterook-catalog/releases/latest/download/`. A new release
 must have a larger `sequence` (the core refuses a rollback) and be published before the last one expires (the core
 then shows the cached catalog with "Checked … ago" and installs nothing new from it). To revoke a build:
 `--revoke <sha256>=<reason>`; revocations stay in every later index.

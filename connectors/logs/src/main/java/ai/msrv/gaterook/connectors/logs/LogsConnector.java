@@ -104,7 +104,7 @@ public final class LogsConnector implements Connector {
       s = Settings.parse(cfg);
     } catch (Settings.InvalidSettingsException e) {
       return Classification.deny(policy.rule("config_invalid"), "The settings of " + cfg.name() + " can't be used: "
-          + e.getMessage(), "Ask the person to fix the connection in MCP Gateway.");
+          + e.getMessage(), "Ask the person to fix the connection in GateRook.");
     }
     LogsRequest.PolicyLimits limits = policyLimits(policy, cfg.env());
     try {

@@ -31,14 +31,14 @@ record Call(ConnectionConfig cfg, Settings settings, GcpPolicy policy, GoogleApi
   void assetQuota() throws ConnectorException {
     String project = settings.consumerProject();
     if (!ctx.acquire("gcp:" + project + ":asset", ASSET_PER_MINUTE)) {
-      throw ConnectorException.resourceError("MCP Gateway's share of Cloud Asset reads for " + project + " ("
+      throw ConnectorException.resourceError("GateRook's share of Cloud Asset reads for " + project + " ("
           + ASSET_PER_MINUTE + " per minute) is used up. Try again in a minute.", null);
     }
   }
 
   void monitoringQuota(String project) throws ConnectorException {
     if (!ctx.acquire("gcp:" + project + ":monitoring", MONITORING_PER_MINUTE)) {
-      throw ConnectorException.resourceError("MCP Gateway's share of Cloud Monitoring reads for " + project + " ("
+      throw ConnectorException.resourceError("GateRook's share of Cloud Monitoring reads for " + project + " ("
           + MONITORING_PER_MINUTE + " per minute) is used up. Try again in a minute.", null);
     }
   }

@@ -1807,18 +1807,15 @@
       while its browser sign-in is pending. The header counts follow, and Disconnect puts the card back to its review.
    3. "Scan again" / "Check again": the busy state of a button (aria-busy + spinner), then the result is announced.
    4. Cursor (in use and setup): the endpoint select (in use only), the sign-in choice and the token fields rewrite
-      the diff lines, the token notes and the confirm message. A prod endpoint shows its warning, which joins the
-      descriptions of the select and of Connect and is read out.
+      the diff lines, the token notes and the confirm message. A prod endpoint shows the core's warning, which joins
+      the descriptions of the select and of Connect and is read out, and refuses a token in the file and sign-in
+      through the browser: both stay in place, aria-disabled with "Not on prod endpoints", and Through the bridge is
+      offered and chosen before the change is drawn. The sign-in choice swaps the token step for the Add to Cursor
+      link (browser) or for nothing (bridge), and rewrites the entry: headers with a token, a URL only, or a stdio
+      entry that starts gw-bridge.
    5. claude.ai: Publish turns the tunnel on (the app-wide banner, a warning status here and in the sidebar footer,
-      the public URL); Turn off tunnel reverses it. In use, the sign-in request answers Allow or Deny with a toast;
-      Esc, the close button and Deny all deny. */
-     endpoint shows the core's warning, which joins the descriptions of the select and of Connect and is read out,
-     and refuses a token in the file and sign-in through the browser: both stay in place, aria-disabled with
-     "Not on prod endpoints", and Through the bridge is offered and chosen before the change is drawn.
-     The sign-in choice swaps the token step for the Add to Cursor link (browser) or for nothing (bridge), and
-     rewrites the entry: headers with a token, a URL only, or a stdio entry that starts gw-bridge.
-     the public URL). A quick tunnel gets a new address each time it starts, so the URL is a new one and the
-     sign-in made for the old address shows "the public address changed". Turn off tunnel reverses the rest. */
+      the public URL). A quick tunnel gets a new address each time it starts, so the URL is a new one and the
+      sign-in made for the old address shows "the public address changed". Turn off tunnel reverses the rest. */
 (function () {
   "use strict";
   var doc = document;
@@ -1999,7 +1996,8 @@
   if (publish && $(T.dlg)) {
     var banner = $("cl-tunnel-banner"), aiStatus = $("cl-ai-status"), aiUrl = $("cl-ai-url" + T.sfx), aiTunnel = $("cl-ai-tunnel" + T.sfx);
     var footer = doc.querySelector(".gw-sidebar__footer > .gw-status:last-child");
-    var publicUrl = "https://gw-acme-7f3k.trycloudflare.com/mcp/" + T.slug;
+    // A quick tunnel gets a new address each time it starts: the morning's gw-acme-7f3k is gone, this one is new.
+    var publicUrl = "https://gw-acme-9q4m.trycloudflare.com/mcp/" + T.slug;
     var saved = { url: aiUrl.innerHTML, tunnel: aiTunnel.innerHTML, button: publish.innerHTML, primary: publish.classList.contains("gw-btn--primary") };
     var published = false;
     var slugInBanner = banner && banner.querySelector("[data-cl-tunnel-slug]");
@@ -2015,6 +2013,8 @@
       tone(aiStatus, on, on ? "Public · " + T.slug : "Tunnel off");
       tone(footer, on, on ? "Tunnel on" : "Tunnel off");
       aiUrl.innerHTML = on ? '<span class="gw-mono">' + publicUrl + "</span>" : saved.url;
+      // The sign-in allowed at 08:52 was for the old address: after a new one it stays listed, marked, until revoked.
+      if (on && $("cl-ai-moved")) $("cl-ai-moved").hidden = false;
       aiTunnel.innerHTML = on ? 'Public since just now · <a class="gw-link" href="settings.html#settings-tunnel">Tunnel settings</a>'
         : T.sfx && published ? 'Off since just now · <a class="gw-link" href="settings.html#settings-tunnel">Tunnel settings</a>' : saved.tunnel;
       publish.classList.toggle("gw-btn--primary", saved.primary && !on);
@@ -2088,8 +2088,6 @@
     other.hidden = !any;
     if (any) { rows.removeAttribute("aria-label"); rows.setAttribute("aria-labelledby", "cl-other-t"); }
     else { rows.removeAttribute("aria-labelledby"); rows.setAttribute("aria-label", "AI apps on this computer"); }
-  // A quick tunnel gets a new address each time it starts: the morning's gw-acme-7f3k is gone, this one is new.
-  var PUBLIC_URL = "https://gw-acme-9q4m.trycloudflare.com/mcp/stage-readonly";
   }
   function route() {
     var app = APPS[decodeURIComponent(window.location.hash.slice(1))];
@@ -2100,9 +2098,6 @@
       show(app);
       target = card(app);
       heading = $("cl-" + app + "-s-t");
-    aiUrl.innerHTML = on ? '<span class="gw-mono">' + PUBLIC_URL + '</span>' : saved.url;
-    // The sign-in allowed at 08:52 was for the old address: after a new one it stays listed, marked, until revoked.
-    if (on) $("cl-ai-moved").hidden = false;
     } else {
       target = $("cl-" + app + "-row");
       heading = $("cl-" + app + "-row-t");

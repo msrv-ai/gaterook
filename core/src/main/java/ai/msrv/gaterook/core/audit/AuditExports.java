@@ -61,7 +61,7 @@ public class AuditExports {
    * One destination as Settings shows it.
    *
    * @param config        its settings, never a secret ({@code secrets} says what is stored for them)
-   * @param target        where it writes: {@code siem.acme.internal:6514}, {@code s3://acme-audit/mcp-gateway/}
+   * @param target        where it writes: {@code siem.acme.internal:6514}, {@code s3://acme-audit/gaterook/}
    * @param state         {@code ok}, {@code failing} (with {@code failingSince} and {@code lastError}) or
    *                      {@code null} before its first run
    * @param lastExportedId the last agent call row it has; retention never deletes past it
@@ -178,8 +178,8 @@ public class AuditExports {
 
   /**
    * Changes a destination. A new config keeps the cursor: the new place gets what comes next (add a destination for
-   * a full copy). A secret the new config no longer needs is destroyed. Saving a destination changed outside MCP
-   * Gateway signs it again and starts its export over from the first row (its position can't be vouched for).
+   * a full copy). A secret the new config no longer needs is destroyed. Saving a destination changed outside
+   * GateRook signs it again and starts its export over from the first row (its position can't be vouched for).
    *
    * @throws ProblemException 404, 409 when {@code version} is stale, 422 at the field at fault
    */
@@ -293,7 +293,8 @@ public class AuditExports {
       throw demo();
     }
     if (!d.verified()) {
-      throw ProblemException.conflict("Changed outside GateRook", "This destination was changed outside GateRook. Check it in Settings and save it again to resume exports.");
+      throw ProblemException.conflict("Changed outside GateRook", "This destination was changed outside "
+          + "GateRook. Check it in Settings and save it again to resume exports.");
     }
     if (!d.enabled()) {
       throw ProblemException.conflict("Paused", "Turn the destination on to export to it.");
@@ -353,7 +354,7 @@ public class AuditExports {
 
   /**
    * The kit's destinations in the demo world (design/BLUEPRINT.md §9 "Audit": {@code siem.acme.internal:6514},
-   * {@code s3://acme-audit/mcp-gateway/}, BigQuery {@code acme-prod.audit.mcp_calls}) in the states Settings shows:
+   * {@code s3://acme-audit/gaterook/}, BigQuery {@code acme-prod.audit.mcp_calls}) in the states Settings shows:
    * shown, signed, never contacted ({@code demo} in their config). Never in a release build.
    */
   public void seedDemo(JsonNode list) {

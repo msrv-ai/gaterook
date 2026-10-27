@@ -17,7 +17,7 @@
   </parent>
 
   <artifactId>connectors-ssh</artifactId>
-  <name>MCP Gateway · Connectors · SSH</name>
+  <name>GateRook · Connectors · SSH</name>
 
   <dependencies>
     <dependency>

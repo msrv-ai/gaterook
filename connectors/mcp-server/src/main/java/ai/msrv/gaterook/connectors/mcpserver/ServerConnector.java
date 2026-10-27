@@ -118,9 +118,9 @@ final class ServerConnector implements Connector {
             Texts.clean(where, 300, false)));
     List<String> warnings = new ArrayList<>();
     if (entry.path("annotations").isObject()) {
-      warnings.add("Its annotations are declared by " + cfg.name() + ", not verified by MCP Gateway.");
+      warnings.add("Its annotations are declared by " + cfg.name() + ", not verified by GateRook.");
     }
-    warnings.add("MCP Gateway can't see what the server does with these arguments: it may change data or send them "
+    warnings.add("GateRook can't see what the server does with these arguments: it may change data or send them "
         + "elsewhere.");
     String summary = Texts.clean(call.tool() + " on " + cfg.name(), 120, false);
     return ActionPreview.of(ActionPreview.Kind.JSON, "json", text, cfg.name() + " · " + Texts.clean(where, 120, false),
@@ -261,7 +261,7 @@ final class ServerConnector implements Connector {
     out.put("transport", server.transport());
     out.put("tools", snapshot.tools().size());
     out.put("annotationsDeclared", Snapshots.annotated(snapshot.tools()));
-    out.put("note", "Tool annotations are declared by the server, not verified by MCP Gateway.");
+    out.put("note", "Tool annotations are declared by the server, not verified by GateRook.");
     return Optional.of(out);
   }
 

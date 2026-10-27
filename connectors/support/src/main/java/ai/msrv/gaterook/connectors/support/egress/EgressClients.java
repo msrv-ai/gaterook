@@ -67,7 +67,7 @@ import okio.BufferedSource;
 public final class EgressClients implements AutoCloseable {
 
   /**
-   * @param userAgent {@code mcp-gateway/<version>}, set when a request has none
+   * @param userAgent {@code GateRook/<version>}, set when a request has none
    * @param corePorts the core's listeners (local API, tunnel listener), blocked on loopback for every client; read
    *                  when a client is built, so a port bound after this object exists (tests: port 0) still counts
    * @param resolver  name resolution; tests substitute it

@@ -57,8 +57,8 @@ import tools.jackson.databind.json.JsonMapper;
  * Runs an approved request (ARCHITECTURE.md §5 step 11, §9 "Approve the exact action"): the stored call, never the
  * arguments of a later request. Before anything runs it checks once more, on the current state:
  * <ol>
- *   <li>the row's MAC, the digest and the action hash recomputed from what is stored ("changed outside MCP
- *       Gateway");</li>
+ *   <li>the row's MAC, the digest and the action hash recomputed from what is stored ("changed outside
+ *       GateRook");</li>
  *   <li>the endpoint (there, enabled, its rows verified), the pair (the connection still on it, not Off), the
  *       connection's config version and the template version and operation the person approved — the binding that
  *       runs is that version's as the verified snapshot compiled it, never the one stored in the row;</li>

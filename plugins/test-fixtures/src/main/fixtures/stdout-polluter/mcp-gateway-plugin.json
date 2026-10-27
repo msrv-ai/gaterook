@@ -3,7 +3,7 @@
   "id": "fixture-stdout-polluter",
   "version": "1.0.0",
   "name": "Stdout polluter fixture",
-  "provider": "MCP Gateway tests",
+  "provider": "GateRook tests",
   "license": "Apache-2.0",
   "description": "A plugin that writes non-JSON lines to the protocol channel.",
   "requires": {"gateway": ">=0.0.0", "connectorApi": ">=1.0.0 & <2.0.0"},

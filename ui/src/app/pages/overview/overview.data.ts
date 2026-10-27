@@ -1,50 +1,45 @@
 import { DestroyRef, Injectable, inject, signal } from '@angular/core';
-import { ActivityApi, ActivityEvent, Histogram } from '../../core/api/activity.api';
 import { isNotAvailable } from '../../core/api/api-error';
 import { ActionSegment, ApprovalItem, ApprovalsApi } from '../../core/api/approvals.api';
-import { ClientsApi } from '../../core/api/clients.api';
+import { ClientsApi, ClientsView } from '../../core/api/clients.api';
+import { ConnectionDetail, ConnectionRow, ConnectionsApi } from '../../core/api/connections.api';
 import { HealthRow, Overview, OverviewApi } from '../../core/api/overview.api';
 import { EventStream } from '../../core/events/event-stream';
-import { ApprovalsDay, RECENT_CALLS, decidedCalls } from './overview-view';
-
-const DAY = 24 * 3_600_000;
-
-/** History pages read for the day's approval numbers (200 per page): enough for 1,000 requests a day. */
-const HISTORY_PAGES = 5;
+import { overviewState } from './overview-view';
 
 /**
  * How soon a refresh follows an event: decisions and new requests change the queue at once; health a moment later
- * (a Test all reports row by row); a call every few seconds at most (a busy agent makes many).
+ * (a Test all reports row by row); a call or a change on this computer's AI apps every few seconds at most.
  */
-const DELAY = { approval: 150, health: 1_000, call: 5_000 } as const;
+const DELAY = { approval: 150, health: 1_000, call: 5_000, clients: 1_000 } as const;
 
 /**
  * Overview's data (ARCHITECTURE.md §6 overview, §8.4: `overview`, SSE `approval.*`, `connection.health`): the core's
- * overview, plus what its tiles and lists need from the merged areas — the hour-by-hour decisions of the day
- * (`activity/histogram`), the day's approval requests (`approvals` history and queue: how many waited when, how
- * long a decision took), the exact action of each waiting request (`approvals/{id}`: the compact row shows its first
- * line), the last decided calls (`activity/events`, pending ones are the waiting list) and, while the client step
- * is open, the clients this computer has (K1 `clients`, "not available yet" before K1).
+ * overview — which also decides the state the page is in (first run, setup, in use) — and what each state needs from
+ * the merged areas:
+ * - the AI apps of this computer (`/api/clients`: the guide's tiles in every state, the home screen's in use);
+ * - in use, the connections with the endpoints that use them (`/api/connections`): what each connected app can use;
+ * - in setup, the first connection (`/api/connections/{name}`): its tool modes and where its secret is;
+ * - the exact action of each waiting request (`/api/approvals/{id}`: the compact row shows its first line).
  *
- * Only the overview is required: when another call fails the part it feeds is left out, never filled in. Events
+ * Only the overview is required: when another call fails, the part it feeds is left out, never filled in. Events
  * refresh everything, coalesced: one refresh in flight, one more after it when events came meanwhile.
  */
 @Injectable()
 export class OverviewData {
   private readonly api = inject(OverviewApi);
-  private readonly activity = inject(ActivityApi);
   private readonly approvals = inject(ApprovalsApi);
-  private readonly clients = inject(ClientsApi);
+  private readonly clientsApi = inject(ClientsApi);
+  private readonly connectionsApi = inject(ConnectionsApi);
   private readonly events = inject(EventStream);
 
   private readonly overviewSignal = signal<Overview | null>(null);
   private readonly errorSignal = signal<unknown>(null);
   private readonly staleSignal = signal<unknown>(null);
-  private readonly histogramSignal = signal<Histogram | null>(null);
-  private readonly approvalsSignal = signal<ApprovalsDay | null>(null);
-  private readonly recentSignal = signal<readonly ActivityEvent[] | null>(null);
   private readonly actionsSignal = signal<ReadonlyMap<string, readonly ActionSegment[]>>(new Map());
-  private readonly detectedSignal = signal<readonly string[]>([]);
+  private readonly clientsSignal = signal<ClientsView | null>(null);
+  private readonly connectionsSignal = signal<readonly ConnectionRow[] | null>(null);
+  private readonly firstSignal = signal<ConnectionDetail | null>(null);
   private readonly refreshingSignal = signal(false);
 
   /** `GET /api/overview`; null until the first answer. */
@@ -53,14 +48,14 @@ export class OverviewData {
   readonly error = this.errorSignal.asReadonly();
   /** Why the last refresh failed while older data is on screen. */
   readonly stale = this.staleSignal.asReadonly();
-  readonly histogram = this.histogramSignal.asReadonly();
-  readonly approvalsDay = this.approvalsSignal.asReadonly();
-  /** The last decided calls; null when Activity didn't answer (the overview's own list stands in). */
-  readonly recent = this.recentSignal.asReadonly();
   /** The exact action of each waiting request, by id, as the server segmented it. */
   readonly actions = this.actionsSignal.asReadonly();
-  /** Names of the MCP clients found on this computer (empty until K1 answers). */
-  readonly detected = this.detectedSignal.asReadonly();
+  /** This computer's AI apps; null when the core has no clients area or it didn't answer. */
+  readonly clients = this.clientsSignal.asReadonly();
+  /** The connections with the endpoints that use them (in use only); null when not loaded. */
+  readonly connections = this.connectionsSignal.asReadonly();
+  /** The first connection's detail (setup only): its tool modes on endpoints, where its secret is. */
+  readonly first = this.firstSignal.asReadonly();
   readonly refreshing = this.refreshingSignal.asReadonly();
 
   private inFlight: Promise<void> | null = null;
@@ -69,10 +64,7 @@ export class OverviewData {
   private dueAt = Number.POSITIVE_INFINITY;
   private stopped = false;
   private readonly unsubscribe: (() => void)[] = [];
-  /** Dismiss and Undo, one after the other; the version names the latest, whose answer is the checklist. */
-  private checklistOps: Promise<void> = Promise.resolve();
-  private checklistVersion = 0;
-  /** The core answered that it has no clients area (K1 not merged): the checklist's client step reads nothing more. */
+  /** The core answered that it has no clients area: the tiles of AI apps are left out, not asked for again. */
   private noClientsApi = false;
 
   constructor() {
@@ -92,7 +84,10 @@ export class OverviewData {
         this.patchHealth({ name: h.name, state: h.state, latencyMs: h.latencyMs ?? null, message: h.message, checkedAt: h.checkedAt });
         this.schedule(DELAY.health);
       }),
+      // A call moves the day's numbers and proves a connected AI app; a config written or removed outside the app
+      // changes what the tiles say.
       this.events.on('audit.call', () => this.schedule(DELAY.call)),
+      this.events.on('clients.drift', () => this.schedule(DELAY.clients)),
     );
     return this.refresh();
   }
@@ -136,50 +131,17 @@ export class OverviewData {
     return this.inFlight;
   }
 
-  /**
-   * Dismiss (or, as its Undo, restore) the checklist. The card goes at once — the action is undoable, so there is
-   * nothing to wait for — and the core's answer is the checklist from then on. Dismiss and Undo go to the core in
-   * the order they were pressed, and a refresh that started before one of them doesn't bring back what it replaced.
-   * A refusal puts the card back as it was and rejects.
-   */
-  setChecklistDismissed(dismissed: boolean): Promise<void> {
-    const before = this.overviewSignal()?.gettingStarted.dismissed ?? !dismissed;
-    const version = ++this.checklistVersion;
-    this.setDismissed(dismissed);
-    const op = this.checklistOps.then(() => (dismissed ? this.api.dismissGettingStarted() : this.api.restoreGettingStarted()));
-    this.checklistOps = op.then(
-      () => undefined,
-      () => undefined,
-    );
-    return op.then(
-      (gettingStarted) => {
-        // A later Dismiss or Undo owns the card now; its own answer will say.
-        if (version === this.checklistVersion) this.overviewSignal.update((o) => (o ? { ...o, gettingStarted } : o));
-      },
-      (e: unknown) => {
-        if (version === this.checklistVersion) this.setDismissed(before);
-        throw e;
-      },
-    );
-  }
-
-  private setDismissed(dismissed: boolean): void {
-    this.overviewSignal.update((o) => (o ? { ...o, gettingStarted: { ...o.gettingStarted, dismissed } } : o));
-  }
-
   /** One connection's new health (an event or a test the page ran), until the next refresh. */
   patchHealth(h: Omit<HealthRow, 'type' | 'env'>): void {
-    this.overviewSignal.update((o) =>
-      o ? { ...o, health: o.health.map((r) => (r.name === h.name ? { ...r, ...h } : r)) } : o,
-    );
+    this.overviewSignal.update((o) => (o ? { ...o, health: o.health.map((r) => (r.name === h.name ? { ...r, ...h } : r)) } : o));
   }
 
-  private dropWaiting(id: string): void {
+  /** A request left the queue (decided, or it ran out of time here): off the list at once. */
+  dropWaiting(id: string): void {
     this.overviewSignal.update((o) => (o ? { ...o, waiting: o.waiting.filter((w) => w.id !== id) } : o));
   }
 
   private async load(): Promise<void> {
-    const checklist = this.checklistVersion;
     let overview: Overview;
     try {
       overview = await this.api.get();
@@ -189,41 +151,33 @@ export class OverviewData {
       return;
     }
     if (this.stopped) return;
-    const [histogram, approvals, recent, actions, detected] = await Promise.all([
-      this.activity.histogram().catch(() => null),
-      this.loadApprovals().catch(() => null),
-      this.activity.events({ q: '-decision:pending', limit: RECENT_CALLS }).then((p) => decidedCalls(p.events), () => null),
+    const state = overviewState(overview);
+    const firstName = overview.gettingStarted.steps.find((s) => s.id === 'connection')?.detail['name'];
+    const [actions, clients, connections, first] = await Promise.all([
       this.loadActions(overview.waiting),
-      this.loadDetected(overview),
+      this.loadClients(),
+      state === 'in-use' ? this.connectionsApi.list().then((l) => l.items, () => null) : Promise.resolve(null),
+      state === 'setup' && typeof firstName === 'string' ? this.connectionsApi.get(firstName).catch(() => null) : Promise.resolve(null),
     ]);
     if (this.stopped) return;
-    // Dismiss or Undo was pressed while this answer was on its way: the card stays as the person left it.
-    const shown = this.overviewSignal();
-    if (shown && checklist !== this.checklistVersion) overview = { ...overview, gettingStarted: shown.gettingStarted };
     this.overviewSignal.set(overview);
     this.errorSignal.set(null);
     this.staleSignal.set(null);
-    this.histogramSignal.set(histogram);
-    this.approvalsSignal.set(approvals);
-    this.recentSignal.set(recent);
     this.actionsSignal.set(actions);
-    this.detectedSignal.set(detected);
+    this.clientsSignal.set(clients);
+    this.connectionsSignal.set(connections);
+    this.firstSignal.set(first);
   }
 
-  /** The requests of the last 24 hours: the queue and the history pages that reach back that far. */
-  private async loadApprovals(): Promise<ApprovalsDay> {
-    const since = Date.now() - DAY;
-    const pending = await this.approvals.list('pending', null, 200);
-    const history: ApprovalItem[] = [];
-    let cursor: string | null = null;
-    for (let page = 0; page < HISTORY_PAGES; page++) {
-      const p = await this.approvals.list('history', cursor, 200);
-      history.push(...p.items);
-      cursor = p.nextCursor;
-      const oldest = p.items.at(-1);
-      if (!cursor || !oldest || Date.parse(oldest.requestedAt) < since) break;
+  /** This computer's AI apps; a core without the clients area (or one that failed to answer) leaves them out. */
+  private async loadClients(): Promise<ClientsView | null> {
+    if (this.noClientsApi) return null;
+    try {
+      return await this.clientsApi.list();
+    } catch (e) {
+      if (isNotAvailable(e)) this.noClientsApi = true;
+      return this.clientsSignal();
     }
-    return { pending: pending.items, history, counts: pending.counts };
   }
 
   /** The exact action of each waiting request; a request whose detail didn't load shows its summary instead. */
@@ -243,19 +197,5 @@ export class OverviewData {
       }),
     );
     return new Map(entries.filter((e): e is [string, readonly ActionSegment[]] => !!e));
-  }
-
-  /** While "Connect a client" is open: which clients are installed here ("Claude Desktop, Codex and Cursor are installed."). */
-  private async loadDetected(overview: Overview): Promise<readonly string[]> {
-    const step = overview.gettingStarted.steps.find((s) => s.id === 'client');
-    if (!step || step.state === 'done' || overview.gettingStarted.dismissed || this.noClientsApi) return [];
-    try {
-      const view = await this.clients.list();
-      return view.clients.filter((c) => c.detected || c.status !== 'not-installed').map((c) => c.name);
-    } catch (e) {
-      // This core has no clients area yet (K1 not merged): don't ask again on every refresh.
-      if (isNotAvailable(e)) this.noClientsApi = true;
-      return [];
-    }
   }
 }

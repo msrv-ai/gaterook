@@ -67,7 +67,7 @@ final class HttpExecutor {
   /** The guard of the call with this connection's transport, or a refusal when the call has no network access. */
   static GuardedEgress guard(ExecContext ctx, HttpSettings s) throws ConnectorException {
     GuardedEgress guard = GuardedEgress.of(ctx).orElseThrow(() -> ConnectorException.denied(
-        "This call has no network access of MCP Gateway."));
+        "This call has no network access of GateRook."));
     return guard.withTransport(s.tls(), s.connectTimeout(), CLIENT_CALL_TIMEOUT);
   }
 

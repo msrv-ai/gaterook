@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Bundles main and preload with esbuild into desktop/dist (ARCHITECTURE.md §7.1):
-//   dist/main.cjs     main process: our code, @mcp-gateway/broker and electron-updater in one file (`electron` stays
+//   dist/main.cjs     main process: our code, @gaterook/broker and electron-updater in one file (`electron` stays
 //                     external), so the installer packs no node_modules at all
 //   dist/preload.cjs  the sandboxed preload: requires `electron` only
 //

@@ -111,7 +111,7 @@
             <div class="gw-empty">
               <span class="gw-empty__icon"><svg lucideIcon="activity" class="gw-icon"></svg></span>
               <h3 class="gw-empty__title">No calls yet</h3>
-              <p class="gw-empty__text">Every call an agent makes through the gateway shows up here within a second: who called which tool, with which arguments, what was decided and how long it took. Try a tool yourself, or <a class="gw-link" routerLink="/clients">connect a client</a> and ask your agent.</p>
+              <p class="gw-empty__text">Every call an AI app makes through the gateway shows up here within a second: who called which tool, with which arguments, what was decided and how long it took. Try a tool yourself, or <a class="gw-link" routerLink="/clients">connect an AI app</a> and ask it something.</p>
               <div class="gw-empty__actions">
                 <a class="gw-btn gw-btn--primary" routerLink="/playground"><svg lucideIcon="flask-conical" class="gw-icon"></svg> Try a tool in Playground</a>
               </div>
@@ -119,8 +119,8 @@
           </div>
         } @else if (data.rows(); as rows) {
           @if (rows.length) {
-            <!-- Time | Decision | Tool · connection | Client · endpoint | Duration: fits 712 px (lg with facets open), so
-                 1440 × 900 never scrolls sideways; Client · endpoint and Duration hide first below lg. -->
+            <!-- Time | Decision | Tool · connection | AI app · endpoint | Duration: fits 712 px (lg with facets open), so
+                 1440 × 900 never scrolls sideways; AI app · endpoint and Duration hide first below lg. -->
             <div class="gw-table-wrap" id="ac-table-wrap" role="region" aria-labelledby="ac-table-cap" tabindex="0" [attr.aria-busy]="data.refreshing() ? 'true' : null">
               <table class="gw-table gw-table--interactive" id="ac-events">
                 <caption class="gw-sr-only" id="ac-table-cap">{{ caption() }}</caption>
@@ -135,7 +135,7 @@
                     </th>
                     <th scope="col">Decision</th>
                     <th scope="col">Tool · connection</th>
-                    <th scope="col" class="gw-table__cell--optional">Client · endpoint</th>
+                    <th scope="col" class="gw-table__cell--optional">AI app · endpoint</th>
                     <th scope="col" class="gw-table__cell--num gw-table__cell--optional" aria-sort="none" data-sort-key="duration">
                       <button class="gw-table__sort" type="button">Duration
                         <svg lucideIcon="chevrons-up-down" class="gw-icon gw-icon--sm gw-table__sort-icon gw-table__sort-icon--none"></svg>
@@ -207,7 +207,7 @@
                   <th scope="col">Time</th>
                   <th scope="col">Decision</th>
                   <th scope="col">Tool · connection</th>
-                  <th scope="col" class="gw-table__cell--optional">Client · endpoint</th>
+                  <th scope="col" class="gw-table__cell--optional">AI app · endpoint</th>
                   <th scope="col" class="gw-table__cell--num gw-table__cell--optional">Duration</th>
                 </tr>
               </thead>
@@ -361,7 +361,7 @@
           <div class="gw-empty gw-empty--compact">
             <span class="gw-empty__icon"><svg lucideIcon="file-clock" class="gw-icon"></svg></span>
             <h3 class="gw-empty__title">No setup changes in the last 24 hours</h3>
-            <p class="gw-empty__text">Tool modes, tokens, clients, policies, the tunnel and settings show up here when someone changes them, with the reason they gave.</p>
+            <p class="gw-empty__text">Tool modes, tokens, AI apps, policies, the tunnel and settings show up here when someone changes them, with the reason they gave.</p>
           </div>
         </div>
       }

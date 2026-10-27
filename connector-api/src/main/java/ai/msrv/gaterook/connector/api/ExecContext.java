@@ -65,7 +65,7 @@ public interface ExecContext {
   /** Shared remote quotas: {@code gcp:<project>}, {@code aws:<acct>:<region>:<api>}. */
   boolean acquire(String remoteQuotaKey, int permitsPerMinute);
 
-  /** {@code ~/.mcp-gateway/connectors/<type>/}; plugins: {@code plugin-data/<id>/}. */
+  /** {@code ~/.gaterook/connectors/<type>/}; plugins: {@code plugin-data/<id>/}. */
   Path workDir();
 
   /** Guarded HTTP (allowlist ∩ policy, no metadata or private ranges, no redirects). */

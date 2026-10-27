@@ -20,7 +20,7 @@ export const STEP_COPY: Record<StepId, { readonly label: string; readonly descri
   'master-key': { label: 'Protect master key', description: 'Back it up off this computer' },
   connection: { label: 'Add a connection', description: 'A database, server, log store or API' },
   endpoint: { label: 'Create an endpoint', description: 'One MCP URL with the tools you choose' },
-  client: { label: 'Connect a client', description: 'Claude Desktop, Codex, Cursor and more' },
+  client: { label: 'Connect your AI app', description: 'Claude Desktop, Codex, Cursor and more' },
 };
 
 /** What the page knows: the onboarding answer, plus the master key and the clients when the core answered. */
@@ -184,7 +184,7 @@ export function detectedClients(f: SetupFacts): string[] {
 export function clientsDescription(f: SetupFacts): string {
   if (!f.clients) return 'Claude Desktop, Codex, Cursor and Antigravity can connect.';
   const names = f.clients.clients.filter(installed).map((c) => c.name);
-  if (!names.length) return 'No MCP client was found on this computer yet. Install one, then connect it here.';
+  if (!names.length) return 'No AI app was found on this computer yet. Install one, then connect it here.';
   return `${joinNames(names)} ${names.length === 1 ? 'is' : 'are'} installed on this computer.`;
 }
 
@@ -261,8 +261,8 @@ function clientsStatus(f: SetupFacts, n: SetupNode): string {
 /** The setup map's description for screen readers, tied to the steps (kit `#ob-map-flow`). */
 export const MAP_FLOW =
   'Set it up top to bottom: step 1 protects secrets and resources, step 2 adds a connection that uses them, policies ' +
-  'already have safe defaults, step 3 publishes tools on an endpoint and step 4 connects a client to it. An agent\'s ' +
-  'call travels the other way: client, endpoint (with a token or OAuth), policy (mode, limits, approval), connection, ' +
+  'already have safe defaults, step 3 publishes tools on an endpoint and step 4 connects an AI app to it. An agent\'s ' +
+  'call travels the other way: AI app, endpoint (with a token or OAuth), policy (mode, limits, approval), connection, ' +
   'where the secret is injected. The agent never receives the secret.';
 
 // ── Step cards ───────────────────────────────────────────────────────────────────────────────────────────────────
@@ -308,7 +308,7 @@ export function doneLine(f: SetupFacts, id: StepId): MetaPart[] {
     }
     case 'client': {
       const names = connectedClients(f);
-      return [{ text: names.length ? `${joinNames(names)} ${names.length === 1 ? 'uses' : 'use'} GateRook.` : 'A client uses GateRook.' }];
+      return [{ text: names.length ? `${joinNames(names)} ${names.length === 1 ? 'uses' : 'use'} GateRook.` : 'An AI app uses GateRook.' }];
     }
   }
 }

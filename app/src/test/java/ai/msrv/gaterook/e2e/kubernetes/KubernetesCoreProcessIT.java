@@ -217,7 +217,7 @@ class KubernetesCoreProcessIT {
         .isEqualTo("completed");
     Seen patch = SEEN.stream().filter(s -> s.method().equals("PATCH")).findFirst().orElseThrow();
     assertThat(patch.contentType()).startsWith("application/merge-patch+json");
-    assertThat(patch.query()).containsEntry("fieldManager", "mcp-gateway-rollout");
+    assertThat(patch.query()).containsEntry("fieldManager", "gaterook-rollout");
     assertThat(CoreProcess.JSON.readTree(patch.body()).at("/metadata/uid").asString()).isEqualTo("u-api-1");
   }
 
@@ -244,7 +244,7 @@ class KubernetesCoreProcessIT {
     Seen applied = SEEN.stream().filter(s -> s.method().equals("PATCH") && s.path().endsWith("/configmaps/settings")
         && !s.query().containsKey("dryRun")).findFirst().orElseThrow();
     assertThat(applied.contentType()).startsWith("application/apply-patch+yaml");
-    assertThat(applied.query()).containsEntry("fieldManager", "mcp-gateway").containsEntry("fieldValidation",
+    assertThat(applied.query()).containsEntry("fieldManager", "gaterook").containsEntry("fieldValidation",
         "Strict");
   }
 

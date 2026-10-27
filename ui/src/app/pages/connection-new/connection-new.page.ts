@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -13,24 +14,27 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
+import { Title } from '@angular/platform-browser';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { GwCodeBlock } from '../../code/code-block';
 import { ApiError, isApiError } from '../../core/api/api-error';
 import { ApprovalItem, ApprovalsApi } from '../../core/api/approvals.api';
 import { ConnectionDetail, ConnectionHealth, ConnectionsApi, StoredSecret, TestOutcome } from '../../core/api/connections.api';
 import { ConnectionFormSpec, ConnectorCatalog, ConnectorTypeDetail, ConnectorTypesApi } from '../../core/api/connector-types.api';
-import { EndpointSummary, EndpointsApi } from '../../core/api/endpoints.api';
+import { EndpointSummary, EndpointsApi, ToolGroup } from '../../core/api/endpoints.api';
 import { Policies, PoliciesApi } from '../../core/api/policies.api';
-import { SecretRow, SecretsApi } from '../../core/api/secrets.api';
+import { MasterKeyApi, SecretRow, SecretsApi } from '../../core/api/secrets.api';
 import { Env, JsonObject, JsonValue, ToolMode } from '../../core/api/types';
 import { EventStream } from '../../core/events/event-stream';
+import { CoreStore } from '../../core/stores/core.store';
 import { TunnelStore } from '../../core/stores/tunnel.store';
+import { PRODUCT } from '../../shell/title.strategy';
 import { TimeService } from '../../core/time/time.service';
 import { Announcer } from '../../kit/announcer';
 import { GwAriaDisabled } from '../../kit/aria-disabled';
 import { GwDialog, GwDialogClose } from '../../kit/dialog';
 import { GwToggle } from '../../kit/disclosure';
-import { ConnectionFormValue, DatabaseDiscoveryRequest, GwConnectionForm, ProdDefault } from '../../kit/elements/connection-form/connection-form';
+import { ConnectionFormValue, DatabaseDiscoveryRequest, GwConnectionForm, ProdDefault, signInTarget } from '../../kit/elements/connection-form/connection-form';
 import { databaseSelection } from '../../kit/elements/connection-form/database-selection';
 import { GwConnectionTest, TestState, testConfirmTitle, testFacts } from '../../kit/elements/connection-form/connection-test';
 import { GwConnectorPicker } from '../../kit/elements/connector-card/connector-card';
@@ -47,6 +51,7 @@ import {
   Mode,
   STEP_NAMES,
   StepNumber,
+  ToolPreview,
   activityQuery,
   cardKey,
   copyName,
@@ -55,7 +60,12 @@ import {
   endpointChoices,
   endpointUses,
   findCard,
+  firstRunModes,
+  firstRunPreview,
+  firstRunTestText,
+  firstRunToast,
   fixSnippet,
+  isFirstRun,
   healthStat,
   initialEndpoints,
   list,
@@ -69,6 +79,8 @@ import {
   testTarget,
   testToast,
   toolPreview,
+  toolsLine,
+  toolsSentence,
   usage,
   usedByMeta,
   usedByRows,
@@ -116,6 +128,7 @@ export function errorText(e: ApiError | null): string {
 @Component({
   selector: 'gw-connection-new-page',
   imports: [
+    NgTemplateOutlet,
     RouterLink,
     GwIcon,
     GwToggle,
@@ -138,8 +151,11 @@ export class ConnectionNewPage {
   private readonly policiesApi = inject(PoliciesApi);
   private readonly secretsApi = inject(SecretsApi);
   private readonly approvalsApi = inject(ApprovalsApi);
+  private readonly masterKey = inject(MasterKeyApi);
   private readonly events = inject(EventStream);
   private readonly tunnel = inject(TunnelStore);
+  protected readonly core = inject(CoreStore);
+  private readonly title = inject(Title);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly toasts = inject(ToastService);
@@ -266,20 +282,78 @@ export class ConnectionNewPage {
     const entries = Object.entries(v.secrets);
     if (!entries.length) return spec.secretFields.length ? { icon: 'circle-off', text: 'No secret is stored for it' } : null;
     const local = entries.filter(([, s]) => s.source === 'local').map(([p]) => secretWord(spec.secretFields, p));
-    if (!local.length) return { icon: 'lock-keyhole', text: 'Only the reference is stored; the secret stays in its store' };
+    const first = this.firstRun();
+    if (!local.length) {
+      return { icon: 'lock-keyhole', text: first ? 'Nothing is stored here: the secret stays in your secret manager' : 'Only the reference is stored; the secret stays in its store' };
+    }
     const words = list(local);
-    return { icon: 'lock-keyhole', text: `The ${words} ${local.length === 1 ? 'is' : 'are'} encrypted with your master key on save` };
+    const verb = local.length === 1 ? 'is' : 'are';
+    return { icon: 'lock-keyhole', text: first ? `The ${words} ${verb} encrypted on this computer when you save` : `The ${words} ${verb} encrypted with your master key on save` };
   });
 
   protected readonly steps = computed(() =>
-    stepperSteps(this.step(), {
-      typeName: this.card()?.name ?? this.spec()?.name ?? null,
-      name: this.current().name,
-      env: this.current().env,
-      test: this.summary(),
-      endpoints: this.chosen().filter((s) => this.choices().some((c) => c.slug === s && !c.refusal)),
-    }),
+    stepperSteps(
+      this.ready() ? 5 : this.step(),
+      {
+        typeName: this.card()?.name ?? this.spec()?.name ?? null,
+        name: this.current().name,
+        env: this.current().env,
+        test: this.summary(),
+        endpoints: this.chosen().filter((s) => this.choices().some((c) => c.slug === s && !c.refusal)),
+      },
+      this.firstRun(),
+    ),
   );
+
+  // ─── First run (kit connection-new ?state=first-run) ───
+
+  /**
+   * Nothing is set up yet — no connection, no endpoint: the wizard speaks to a beginner, the secret source waits
+   * behind its disclosure and step 4 creates the first endpoint, named after the connection's environment. Decided
+   * from the core when the wizard opens (false until it answers, and for duplicates and the edit view).
+   */
+  readonly firstRun = signal(false);
+  /** The master key has a backup (its date is known): the ready card doesn't ask for one. */
+  protected readonly keyBackedUp = signal(false);
+  /** After a first-run Save: what exists now, for the "<name> is ready" card that replaces the wizard. */
+  protected readonly ready = signal<{
+    readonly name: string;
+    readonly env: Env;
+    readonly endpoint: string;
+    readonly url: string;
+    readonly createdAt: string;
+    readonly tools: ReturnType<typeof toolsLine>;
+    readonly local: boolean;
+    readonly tested: boolean;
+    readonly health: ReturnType<typeof healthLook> | null;
+  } | null>(null);
+  /** The first endpoint's tools as Save will create them (prod: nothing in Approval, read only by default). */
+  protected readonly firstPreview = computed(() => {
+    const card = this.card();
+    const kind = card?.kind ?? this.typeDetail()?.type.kind ?? 'built-in';
+    return firstRunPreview(this.typeDetail()?.tools ?? [], kind, card ? card.tools === null : false, this.current().env);
+  });
+  /** "sql_execute" in "Anything that changes data, like sql_execute, waits for your approval." */
+  protected readonly firstMutating = computed(() => this.mutatingTools()[0] ?? null);
+  /** The secret the person picked lives here (encrypted) or in a secret manager: every line about it follows. */
+  protected readonly secretLocal = computed(() => {
+    const v = this.draft();
+    const entries = v ? Object.values(v.secrets) : [];
+    return !entries.length || entries.some((s) => s.source === 'local');
+  });
+  /** "Password": the connector's first secret, the ready card's row and the beginner's lines name it. */
+  protected readonly secretTitle = computed(() => this.spec()?.secretFields[0]?.title ?? null);
+  /** "Reads run at once. Anything that changes data, like sql_execute, waits for your approval. …" */
+  protected readonly firstModes = computed(() => firstRunModes(this.firstPreview()));
+  /** The address of the endpoint Save creates: `http://127.0.0.1:7465/mcp/dev`. */
+  protected readonly firstUrl = computed(() => `http://${this.core.address()}/mcp/${this.current().env}`);
+  /** Step 3's description in a first run: what that user may do "in the database", "on the server". */
+  protected readonly firstTestText = computed(() => firstRunTestText(signInTarget(this.spec()?.type ?? '')));
+  /** The ready card's Tools row, from the endpoint's tools as the core answered them. */
+  protected readonly readyTools = computed(() => {
+    const r = this.ready();
+    return r ? toolsSentence(r.tools, r.env) : null;
+  });
 
   // ─── Edit view ───
   protected readonly detail = signal<ConnectionDetail | null>(null);
@@ -375,6 +449,9 @@ export class ConnectionNewPage {
     this.nameProblem.set(null);
     this.chosenTouched = false;
     this.copied = null;
+    this.ready.set(null);
+    this.firstRun.set(false);
+    if (mode === 'add') void this.checkFirstRun(gen);
     if (mode === 'edit') {
       await this.startEdit(this.name()!, gen);
       return;
@@ -410,6 +487,32 @@ export class ConnectionNewPage {
 
   protected retryCatalog(): void {
     void this.start(this.mode());
+  }
+
+  /**
+   * First run or not (kit connection-new `?state=first-run`): nothing is set up yet, no connection and no endpoint.
+   * Without an answer it is the usual wizard; Save works the same, step 4 lists the endpoints once they load.
+   */
+  private async checkFirstRun(gen: number): Promise<void> {
+    try {
+      const [rows, endpoints] = await Promise.all([this.connections.list(), this.endpointsApi.list()]);
+      if (gen !== this.gen) return;
+      this.endpoints.set(endpoints);
+      this.endpointsState.set('ready');
+      const first = isFirstRun(rows.total, endpoints.length);
+      this.firstRun.set(first);
+      if (!first) return;
+      this.title.setTitle(`Add your first connection · ${PRODUCT}`);
+      // The ready card asks for a backup of the key only while there is none.
+      this.masterKey.status().then(
+        (k) => {
+          if (gen === this.gen) this.keyBackedUp.set(!!k.lastBackupAt);
+        },
+        () => undefined,
+      );
+    } catch {
+      // The usual wizard.
+    }
   }
 
   private async startDuplicate(source: string, gen: number): Promise<void> {
@@ -575,7 +678,7 @@ export class ConnectionNewPage {
       },
       { injector: this.injector },
     );
-    this.announcer.announce(`Step ${n} of ${STEP_NAMES.length}: ${STEP_NAMES[n - 1]}`);
+    this.announcer.announce(`Step ${n} of ${STEP_NAMES.length}: ${this.steps()[n - 1].name}`);
   }
 
   /** Configure's Continue (the form has checked itself) or the edit view's Save changes. */
@@ -753,6 +856,10 @@ export class ConnectionNewPage {
       this.refused(e, v);
       return;
     }
+    if (this.firstRun()) {
+      await this.finishFirstRun(v);
+      return;
+    }
     const usable = new Set(this.choices().filter((c) => !c.refusal).map((c) => c.slug));
     const added: string[] = [];
     const notAdded: { readonly slug: string; readonly why: string }[] = [];
@@ -785,6 +892,84 @@ export class ConnectionNewPage {
     }
     // The connection exists now: its own view, not a wizard that would save it twice.
     void this.router.navigate(['/connections', v.name], { replaceUrl: true });
+  }
+
+  /**
+   * First run, once the connection exists: the first endpoint, named after its environment, with the connection on it
+   * (`POST /api/endpoints` from Empty, then `POST …/connections/{name}`); on prod nothing waits for approval — "prod
+   * is read only by default" (kit), so the tools the core starts in Approval are set Off. Then the "<name> is ready"
+   * card replaces the wizard. A step that fails says so and leads to the connection's own page.
+   */
+  private async finishFirstRun(v: ConnectionFormValue): Promise<void> {
+    const slug = v.env;
+    let url = `http://${this.core.address()}/mcp/${slug}`;
+    const stop = (e: unknown) => {
+      this.saving.set(false);
+      this.toasts.show({
+        tone: 'warning',
+        title: `Connection ${v.name} saved, endpoint ${slug} not ready`,
+        body: `${isApiError(e) ? e.detail : "The core didn't answer."} Add ${v.name} to an endpoint under Endpoints.`,
+        actions: [{ label: 'Open Endpoints', onClick: () => void this.router.navigateByUrl('/endpoints') }],
+      });
+      void this.router.navigate(['/connections', v.name], { replaceUrl: true });
+    };
+    try {
+      url = (await this.endpointsApi.create({ slug, startFrom: 'empty' })).url;
+    } catch (e) {
+      // An endpoint by that name appeared meanwhile: the connection goes on it like on any other.
+      if (!isApiError(e) || e.kind !== 'conflict') return stop(e);
+    }
+    try {
+      await this.endpointsApi.addConnection(slug, v.name);
+    } catch (e) {
+      return stop(e);
+    }
+    const mine = (groups: readonly ToolGroup[]) => groups.filter((g) => g.connection === v.name).flatMap((g) => g.tools);
+    let groups: ToolGroup[] | null = await this.endpointsApi.tools(slug).catch(() => null);
+    const notOff: string[] = [];
+    if (v.env === 'prod' && groups) {
+      for (const key of mine(groups).filter((t) => t.mode === 'APPROVAL').map((t) => t.toolKey)) {
+        const row: ToolGroup['tools'][number] | undefined = mine(groups).find((t) => t.toolKey === key);
+        if (!row || row.mode !== 'APPROVAL') continue;
+        try {
+          groups = await this.endpointsApi.setMode(slug, { toolKey: row.toolKey, connection: v.name, mode: 'OFF', version: row.version });
+        } catch {
+          notOff.push(row.name);
+        }
+      }
+    }
+    const detail = await this.connections.get(v.name).catch(() => null);
+    const outcome = this.outcome();
+    const h = detail?.health;
+    this.ready.set({
+      name: v.name,
+      env: v.env,
+      endpoint: slug,
+      url,
+      createdAt: new Date(this.time.now()).toISOString(),
+      tools: toolsLine(groups ? mine(groups) : this.firstPreview().rows),
+      local: this.secretLocal(),
+      tested: this.summary()?.passed === true,
+      health: h && h.state !== 'unknown' ? healthLook(h.state, h.latencyMs) : outcome?.ok ? healthLook('healthy', outcome.latencyMs) : null,
+    });
+    this.saving.set(false);
+    afterNextRender(() => this.doc.getElementById('fr-done-t')?.focus(), { injector: this.injector });
+    if (notOff.length) {
+      const one = notOff.length === 1;
+      this.toasts.show({
+        tone: 'warning',
+        title: `Connection ${v.name} saved`,
+        body: `Endpoint ${slug} created, but ${list(notOff)} still ${one ? 'waits' : 'wait'} for approval there. Turn ${one ? 'it' : 'them'} off on the endpoint.`,
+      });
+    } else if (v.env === 'prod' && !groups) {
+      this.toasts.show({
+        tone: 'warning',
+        title: `Connection ${v.name} saved`,
+        body: `Endpoint ${slug} created. Its tools couldn't be read back: check that nothing waits for approval there.`,
+      });
+    } else {
+      this.toasts.show({ tone: 'success', ...firstRunToast(v.name, slug) });
+    }
   }
 
   /** The core refused the new connection: the name (409) or a field (422) go back to Configure to be fixed. */
@@ -1072,6 +1257,11 @@ export class ConnectionNewPage {
 
   protected pendingFrom(a: ApprovalItem): string {
     return a.client ? ` from ${clientName(a.client)}` : a.tokenLabel ? ` from ${a.tokenLabel}` : '';
+  }
+
+  /** The tool card template's context, typed again. */
+  protected previewOf(preview: ToolPreview): ToolPreview {
+    return preview;
   }
 
   protected modeOf(mode: string): (typeof MODES)[string] {

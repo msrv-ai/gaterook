@@ -35,34 +35,50 @@
 @if (page()) {
   <p class="gw-text-small gw-fg-secondary">{{ intro() }}</p>
 }
+@if (lead(); as l) {
+  <ng-container [ngTemplateOutlet]="l" />
+}
+
+<!-- How it signs in: one choice card per method the endpoint allows (the page keeps refused ones, with why). -->
+<ng-template #signIn>
+  <fieldset class="gw-field">
+    <legend class="gw-field__label">Sign-in</legend>
+    <div class="gw-stack gw-stack--sm">
+      @for (c of choices(); track c.method.id) {
+        <label class="gw-choice-card gw-choice-card--compact">
+          <input class="gw-choice-card__input" type="radio" [name]="idPrefix() + '-auth'" [value]="c.method.id" [checked]="c.method.id === method()" [attr.aria-disabled]="c.refused ? 'true' : null" [attr.aria-labelledby]="idPrefix() + '-auth-' + c.method.id + '-t'" [attr.aria-describedby]="idPrefix() + '-auth-' + c.method.id + '-d' + (page() ? ' ' + idPrefix() + '-auth-' + c.method.id + '-m' : '')" (change)="c.refused || onMethod(c.method.id)">
+          <span class="gw-choice-card__icon"><svg [lucideIcon]="c.icon" class="gw-icon"></svg></span>
+          <span class="gw-choice-card__title" [id]="idPrefix() + '-auth-' + c.method.id + '-t'">{{ c.method.label }}</span>
+          <span class="gw-choice-card__description" [id]="idPrefix() + '-auth-' + c.method.id + '-d'">{{ c.description }}{{ page() && c.method.id === 'token' ? ' Keep it short-lived and local.' : '' }}</span>
+          @if (page()) {
+            <span class="gw-choice-card__meta" [id]="idPrefix() + '-auth-' + c.method.id + '-m'">{{ c.refused ? 'Not on prod endpoints' : choiceMeta(c.method) }}</span>
+          }
+        </label>
+      }
+    </div>
+  </fieldset>
+</ng-template>
 
 @if (choices().length > 1) {
-  <div class="gw-grid gw-grid--2">
-    @if (page()) {
-      <div class="gw-stack gw-stack--sm">
+  @if (showSelect()) {
+    <div class="gw-grid gw-grid--2">
+      @if (page()) {
+        <div class="gw-stack gw-stack--sm">
+          <ng-container [ngTemplateOutlet]="endpointField" />
+          <ng-container [ngTemplateOutlet]="endpointWarnings" />
+        </div>
+      } @else {
         <ng-container [ngTemplateOutlet]="endpointField" />
-        <ng-container [ngTemplateOutlet]="endpointWarnings" />
-      </div>
-    } @else {
-      <ng-container [ngTemplateOutlet]="endpointField" />
-    }
-    <fieldset class="gw-field">
-      <legend class="gw-field__label">Sign-in</legend>
-      <div class="gw-stack gw-stack--sm">
-        @for (c of choices(); track c.method.id) {
-          <label class="gw-choice-card gw-choice-card--compact">
-            <input class="gw-choice-card__input" type="radio" [name]="idPrefix() + '-auth'" [value]="c.method.id" [checked]="c.method.id === method()" [attr.aria-disabled]="c.refused ? 'true' : null" [attr.aria-labelledby]="idPrefix() + '-auth-' + c.method.id + '-t'" [attr.aria-describedby]="idPrefix() + '-auth-' + c.method.id + '-d' + (page() ? ' ' + idPrefix() + '-auth-' + c.method.id + '-m' : '')" (change)="c.refused || onMethod(c.method.id)">
-            <span class="gw-choice-card__icon"><svg [lucideIcon]="c.icon" class="gw-icon"></svg></span>
-            <span class="gw-choice-card__title" [id]="idPrefix() + '-auth-' + c.method.id + '-t'">{{ c.method.label }}</span>
-            <span class="gw-choice-card__description" [id]="idPrefix() + '-auth-' + c.method.id + '-d'">{{ c.description }}{{ page() && c.method.id === 'token' ? ' Keep it short-lived and local.' : '' }}</span>
-            @if (page()) {
-              <span class="gw-choice-card__meta" [id]="idPrefix() + '-auth-' + c.method.id + '-m'">{{ c.refused ? 'Not on prod endpoints' : choiceMeta(c.method) }}</span>
-            }
-          </label>
-        }
-      </div>
-    </fieldset>
-  </div>
+      }
+      <ng-container [ngTemplateOutlet]="signIn" />
+    </div>
+  } @else {
+    <!-- The setup review names its one endpoint above: no select, only how it signs in. -->
+    <ng-container [ngTemplateOutlet]="endpointWarnings" />
+    <ng-container [ngTemplateOutlet]="signIn" />
+  }
+} @else if (!showSelect()) {
+  <ng-container [ngTemplateOutlet]="endpointWarnings" />
 } @else if (page()) {
   <div class="gw-stack gw-stack--sm">
     <ng-container [ngTemplateOutlet]="endpointField" />

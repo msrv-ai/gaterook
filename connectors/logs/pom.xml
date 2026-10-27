@@ -17,7 +17,7 @@
   </parent>
 
   <artifactId>connectors-logs</artifactId>
-  <name>MCP Gateway · Connectors · Logs</name>
+  <name>GateRook · Connectors · Logs</name>
 
   <dependencies>
     <dependency>

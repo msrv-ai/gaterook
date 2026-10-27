@@ -663,7 +663,7 @@ async function unlockScenario(host: SmokeHost): Promise<void> {
 /**
  * OS protection of the master key (A14) on this system, with the real core: a first start gets a file key from
  * safeStorage, the core writes the keyset encrypted under it, a restart opens it again. Opt-in (it writes a Keychain
- * entry, "MCP Gateway Dev Safe Storage").
+ * entry, "GateRook Dev Safe Storage").
  */
 async function protectScenario(host: SmokeHost): Promise<void> {
   const home = host.layout.home;

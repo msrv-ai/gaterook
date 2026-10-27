@@ -15,7 +15,7 @@
   </parent>
 
   <artifactId>plugin-protocol</artifactId>
-  <name>MCP Gateway · Plugin protocol (GPP/1)</name>
+  <name>GateRook · Plugin protocol (GPP/1)</name>
 
   <dependencies>
     <dependency>

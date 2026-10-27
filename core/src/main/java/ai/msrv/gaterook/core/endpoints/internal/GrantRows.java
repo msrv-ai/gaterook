@@ -40,7 +40,7 @@ public class GrantRows {
     return grants.saveAndFlush(saved);
   }
 
-  /** Whether the row is as the core wrote it; a row that isn't is reported once ("changed outside MCP Gateway"). */
+  /** Whether the row is as the core wrote it; a row that isn't is reported once ("changed outside GateRook"). */
   public boolean verify(ClientGrantEntity row) {
     boolean ok = rowMac.verify(TABLE, row.getId(), row.getVersion(), fields(row), row.getMac());
     if (!ok) {

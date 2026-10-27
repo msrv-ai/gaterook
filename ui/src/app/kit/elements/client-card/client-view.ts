@@ -309,7 +309,7 @@ export function disconnectFacts(
   preview: ConnectPreview | null,
 ): { readonly removes: TextPart[] | null; readonly revokes: TextPart[] | null; readonly backup: string | null } {
   if (link.method === 'mcpb') {
-    // One `.mcpb` per endpoint (kit after KIT: "The bridge extension of dev, mcp-gateway-dev.mcpb"): its file goes,
+    // One `.mcpb` per endpoint (kit after KIT: "The bridge extension of dev, gaterook-dev.mcpb"): its file goes,
     // the grant behind it is revoked.
     const file = link.mcpbPath ? fileName(link.mcpbPath) : null;
     return {

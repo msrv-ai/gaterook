@@ -37,7 +37,7 @@ final class Tests {
     }
     if (annotated > 0) {
       r = r.withHint(new TestResult.Hint(TestResult.Severity.INFO, "mcp.declared", null, "Annotations are declared by "
-          + name + ", not verified by MCP Gateway."));
+          + name + ", not verified by GateRook."));
     }
     if (reviewed != null) {
       String diff = diff(reviewed.tools(), h.tools());

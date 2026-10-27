@@ -94,7 +94,7 @@ record Call(ConnectionConfig cfg, Settings settings, AwsPolicy policy, Clients c
     String key = ("aws:" + settings.quotaAccount() + ":" + region + ":" + api).toLowerCase(Locale.ROOT)
         .replaceAll("[^a-z0-9:._/-]", "-");
     if (!ctx.acquire(key, perMinute)) {
-      throw ConnectorException.resourceError("MCP Gateway's share of " + api + " calls for this account and region ("
+      throw ConnectorException.resourceError("GateRook's share of " + api + " calls for this account and region ("
           + perMinute + " per minute) is used up. Try again in a few seconds.", null);
     }
   }

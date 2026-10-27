@@ -55,29 +55,34 @@ const GROUPS: readonly { readonly id: PaletteOption['group']; readonly label: st
   { id: 'endpoints', label: 'Endpoints' },
 ];
 
-/** The kit's pages: icon, sidebar group (hint) and the words of `data-keywords` (pages/_shell.html). */
-const PAGES: Record<string, { readonly icon: string; readonly hint: string | null; readonly keywords: string }> = {
-  overview: { icon: 'layout-dashboard', hint: null, keywords: 'home dashboard setup map health' },
-  approvals: { icon: 'user-check', hint: null, keywords: 'requests pending queue decide' },
-  connections: { icon: 'database', hint: 'Resources', keywords: 'databases servers logs clusters' },
-  connectors: { icon: 'puzzle', hint: 'Resources', keywords: 'plugins templates mcp servers catalog' },
-  secrets: { icon: 'key-round', hint: 'Resources', keywords: 'master key vault encryption' },
-  endpoints: { icon: 'waypoints', hint: 'Access', keywords: 'mcp url tools tokens' },
-  clients: { icon: 'app-window', hint: 'Access', keywords: 'claude desktop codex cursor antigravity' },
-  policies: { icon: 'shield', hint: 'Access', keywords: 'limits allowlist environments' },
-  playground: { icon: 'flask-conical', hint: 'Access', keywords: 'try call tool' },
-  activity: { icon: 'activity', hint: 'Observe', keywords: 'log audit calls events traces' },
-  insights: { icon: 'chart-column', hint: 'Observe', keywords: 'analytics charts latency errors' },
-  settings: { icon: 'settings', hint: null, keywords: 'preferences notifications tunnel authorization appearance' },
+/**
+ * The kit's pages: the label the sidebar gives each (the core's search names a page by its id; the words are the
+ * kit's — "AI apps", not the core's "Clients"), its icon, sidebar group (hint) and the words of `data-keywords`
+ * (pages/_shell.html).
+ */
+const PAGES: Record<string, { readonly label: string; readonly icon: string; readonly hint: string | null; readonly keywords: string }> = {
+  overview: { label: 'Overview', icon: 'layout-dashboard', hint: null, keywords: 'home dashboard setup map health' },
+  approvals: { label: 'Approvals', icon: 'user-check', hint: null, keywords: 'requests pending queue decide' },
+  connections: { label: 'Connections', icon: 'database', hint: 'Resources', keywords: 'databases servers logs clusters' },
+  connectors: { label: 'Connectors', icon: 'puzzle', hint: 'Resources', keywords: 'plugins templates mcp servers catalog' },
+  secrets: { label: 'Secrets', icon: 'key-round', hint: 'Resources', keywords: 'master key vault encryption' },
+  endpoints: { label: 'Endpoints', icon: 'waypoints', hint: 'Access', keywords: 'mcp url tools tokens' },
+  clients: { label: 'AI apps', icon: 'app-window', hint: 'Access', keywords: 'clients mcp claude desktop codex cursor antigravity' },
+  policies: { label: 'Policies', icon: 'shield', hint: 'Access', keywords: 'limits allowlist environments' },
+  playground: { label: 'Playground', icon: 'flask-conical', hint: 'Access', keywords: 'try call tool' },
+  activity: { label: 'Activity', icon: 'activity', hint: 'Observe', keywords: 'log audit calls events traces' },
+  insights: { label: 'Insights', icon: 'chart-column', hint: 'Observe', keywords: 'analytics charts latency errors' },
+  settings: { label: 'Settings', icon: 'settings', hint: null, keywords: 'preferences notifications tunnel authorization appearance' },
 };
 
-const ACTIONS: Record<string, { readonly icon: string; readonly hint: string; readonly keywords: string }> = {
-  'add-connection': { icon: 'plus', hint: 'Database, SSH, logs, cluster', keywords: 'new resource postgres mongodb redis kubernetes' },
-  'create-endpoint': { icon: 'square-plus', hint: 'New MCP URL', keywords: 'new mcp url' },
-  'test-all': { icon: 'activity', hint: 'Check every connection', keywords: 'health check' },
-  'back-up-key': { icon: 'key-round', hint: 'Master key', keywords: 'backup export key' },
-  'back-up-db': { icon: 'database', hint: 'Copy of the database', keywords: 'backup copy database' },
-  'connect-client': { icon: 'app-window', hint: 'Claude Desktop, Codex, Cursor', keywords: 'claude codex cursor' },
+/** The core's actions in the kit's words (verb + object), icon, hint and keywords. */
+const ACTIONS: Record<string, { readonly label: string; readonly icon: string; readonly hint: string; readonly keywords: string }> = {
+  'add-connection': { label: 'Add connection', icon: 'plus', hint: 'Database, SSH, logs, cluster', keywords: 'new resource postgres mongodb redis kubernetes' },
+  'create-endpoint': { label: 'Create endpoint', icon: 'square-plus', hint: 'New MCP URL', keywords: 'new mcp url' },
+  'test-all': { label: 'Test all connections', icon: 'activity', hint: 'Check every connection', keywords: 'health check' },
+  'back-up-key': { label: 'Back up master key', icon: 'key-round', hint: 'Master key', keywords: 'backup export key' },
+  'back-up-db': { label: 'Back up the database now', icon: 'database', hint: 'Copy of the database', keywords: 'backup copy database' },
+  'connect-client': { label: 'Connect your AI app', icon: 'app-window', hint: 'Claude Desktop, Codex, Cursor', keywords: 'clients ai apps claude codex cursor' },
 };
 
 const TYPE_NAMES: Record<string, string> = {
@@ -112,11 +117,11 @@ const TYPE_ICONS: Record<string, string> = {
 export function paletteOptions(result: SearchResult, opts: { readonly pending: number; readonly address: string }): PaletteOption[] {
   const out: PaletteOption[] = [];
   for (const g of result.goTo) {
-    const p = PAGES[g.id] ?? { icon: 'circle-dot', hint: null, keywords: '' };
+    const p = PAGES[g.id] ?? { label: g.label, icon: 'circle-dot', hint: null, keywords: '' };
     out.push({
       id: g.id,
       group: 'goto',
-      label: g.label,
+      label: p.label,
       icon: p.icon,
       hint: p.hint,
       route: g.route,
@@ -127,8 +132,8 @@ export function paletteOptions(result: SearchResult, opts: { readonly pending: n
     });
   }
   for (const a of result.actions) {
-    const meta = ACTIONS[a.id] ?? { icon: 'circle-dot', hint: '', keywords: '' };
-    out.push({ id: a.id, group: 'actions', label: a.label, icon: meta.icon, hint: meta.hint, route: a.route, keywords: meta.keywords });
+    const meta = ACTIONS[a.id] ?? { label: a.label, icon: 'circle-dot', hint: '', keywords: '' };
+    out.push({ id: a.id, group: 'actions', label: meta.label, icon: meta.icon, hint: meta.hint, route: a.route, keywords: meta.keywords });
   }
   const first = result.endpoints[0];
   if (first) {

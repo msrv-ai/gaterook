@@ -117,10 +117,10 @@ public final class GatewayLauncher {
     return GatewayBeanFactory.contexts(verifyTypeCache);
   }
 
-  /** {@code -Dgateway.home}, else {@code ~/.mcp-gateway}: the home the failure line points at before Spring runs. */
+  /** {@code -Dgateway.home}, else {@code ~/.gaterook}: the home the failure line points at before Spring runs. */
   static Path defaultHome() {
     String home = System.getProperty("gateway.home");
-    return home != null ? Path.of(home) : Path.of(System.getProperty("user.home"), ".mcp-gateway");
+    return home != null ? Path.of(home) : Path.of(System.getProperty("user.home"), ".gaterook");
   }
 
   /**

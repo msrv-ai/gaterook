@@ -20,7 +20,7 @@ import java.util.Set;
 
 /**
  * What a server writes to stderr and its {@code logging} notifications (report 11 §6.5): to
- * {@code ~/.mcp-gateway/logs/mcp/<name>.log} (0600, rotated at 5 MB, three files kept) and to a short tail the test
+ * {@code ~/.gaterook/logs/mcp/<name>.log} (0600, rotated at 5 MB, three files kept) and to a short tail the test
  * shows when the server doesn't start. The values of the server's own secrets are masked in every form a program
  * would print them in (as they are, Base64, URL-encoded, JSON-escaped) before anything is written: a server that logs
  * its token at start-up leaves no token on disk.
@@ -96,7 +96,7 @@ final class ServerLog implements AutoCloseable {
 
   /** A note of the gateway itself in the server's log ("Started: …", "Stopped after 15 min idle"). */
   synchronized void note(String text) {
-    write(clock.instant() + " [mcp-gateway] " + mask(text) + "\n");
+    write(clock.instant() + " [gaterook] " + mask(text) + "\n");
   }
 
   /** The last lines of stderr, masked. */

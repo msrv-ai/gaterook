@@ -4,7 +4,7 @@
 // an answer without this launch's X-Gateway-Instance is not from main's core and is refused.
 import { request as httpRequest } from 'node:http';
 import { randomBytes } from 'node:crypto';
-import { signRequest } from '@mcp-gateway/broker';
+import { signRequest } from '@gaterook/broker';
 import type { CoreEndpoint } from './proxy.ts';
 
 export class CoreCallError extends Error {

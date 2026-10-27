@@ -20,7 +20,7 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * A kubeconfig read by our own mapper (report 08 §4), not Fabric8's {@code KubeConfigUtils}: that one sits in an
  * internal package, merges files and runs exec plugins while it does. Only what one context names is used, and every
- * way of signing in that MCP Gateway doesn't run itself is refused with a reason: auth providers (OIDC refresh),
+ * way of signing in that GateRook doesn't run itself is refused with a reason: auth providers (OIDC refresh),
  * basic auth, impersonation.
  *
  * <p>A pasted kubeconfig is a secret and has no folder, so it must carry its certificates and keys inline
@@ -166,11 +166,11 @@ final class Kubeconfig {
     }
     if (user.has("auth-provider")) {
       throw ConnectorException.badInput("User " + userName + " signs in through the auth provider "
-          + user.path("auth-provider").path("name").asString("?") + ", which MCP Gateway doesn't run. Use a token "
+          + user.path("auth-provider").path("name").asString("?") + ", which GateRook doesn't run. Use a token "
           + "or a credential command (exec).");
     }
     if (user.has("as") || user.has("as-groups") || user.has("as-uid") || user.has("as-user-extra")) {
-      throw ConnectorException.badInput("User " + userName + " impersonates another user; MCP Gateway connects as "
+      throw ConnectorException.badInput("User " + userName + " impersonates another user; GateRook connects as "
           + "the identity itself. Use a kubeconfig without as/as-groups.");
     }
     String token = user.path("token").asString(null);

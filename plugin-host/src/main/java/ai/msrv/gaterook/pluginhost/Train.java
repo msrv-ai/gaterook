@@ -181,7 +181,7 @@ final class Train {
     m.put("id", "aot-training");
     m.put("version", "1.0.0");
     m.put("name", "AOT training");
-    m.put("provider", "MCP Gateway");
+    m.put("provider", "GateRook");
     m.put("license", "Apache-2.0");
     ObjectNode requires = m.putObject("requires");
     requires.put("gateway", ">=0.0.0");

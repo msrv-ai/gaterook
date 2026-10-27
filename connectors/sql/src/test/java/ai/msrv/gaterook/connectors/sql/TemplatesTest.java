@@ -172,9 +172,9 @@ class TemplatesTest {
     record Case(String sql, String error) {}
     for (Case c : List.of(
         new Case("SELECT 1; SELECT 2", "A template runs one statement; this SQL has 2."),
-        new Case("BEGIN", "BEGIN isn't allowed in a template: MCP Gateway runs every call in its own transaction and "
+        new Case("BEGIN", "BEGIN isn't allowed in a template: GateRook runs every call in its own transaction and "
             + "session."),
-        new Case("SELECT pg_terminate_backend(1)", "pg_terminate_backend isn't allowed through MCP Gateway: it acts "
+        new Case("SELECT pg_terminate_backend(1)", "pg_terminate_backend isn't allowed through GateRook: it acts "
             + "outside the transaction."),
         new Case("DO $$ BEGIN END $$", "The gateway couldn't analyze the SQL: The gateway couldn't analyze this "
             + "statement. A template must be plain SQL the gateway can read."),

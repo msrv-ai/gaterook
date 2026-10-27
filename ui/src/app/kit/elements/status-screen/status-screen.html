@@ -22,7 +22,7 @@
           @if (access.keychainService; as service) {
             <div class="gw-alert gw-alert--info gw-alert--compact">
               <svg lucideIcon="info" class="gw-icon gw-alert__icon"></svg>
-              <div class="gw-alert__content"><p class="gw-alert__body">The macOS prompt may name “<span class="gw-mono">{{ service }}</span>”. This is GateRook’s existing keychain entry; its name is kept so saved credentials stay accessible.</p></div>
+              <div class="gw-alert__content"><p class="gw-alert__body">The macOS prompt may name “<span class="gw-mono">{{ service }}</span>”. GateRook uses this keychain entry to protect saved credentials.</p></div>
             </div>
           }
           @if (access.error; as error) {
@@ -68,14 +68,18 @@
                 new port; the clients with the URL in their config file need it written again.
               -->
               @if (asPort()?.publicListener) {
-                <!-- The tunnel's public listener (ARCHITECTURE §7.3): the core binds it at start too, so another local port wouldn't help. -->
+                <!--
+                  The tunnel's public listener (ARCHITECTURE §7.3): the core binds it at start too. Moving it changes no
+                  endpoint URL (the tunnel's agent connects to whatever port the core listens on when it starts), so
+                  Use another port moves only this listener (main's usePort({ publicPort }), E1 review finding 4).
+                -->
                 <p class="gw-text-body-read">
                   @if (asPort()?.portOwner; as owner) {
                     Another process (PID <span class="gw-mono">{{ owner.pid }}</span>, user <span class="gw-mono">{{ owner.user }}</span>) is listening on <span class="gw-mono">127.0.0.1:{{ port() }}</span>,
                   } @else {
                     Another process is listening on <span class="gw-mono">127.0.0.1:{{ port() }}</span>,
                   }
-                  the port of the tunnel's public listener, so the core can't start. Stop that process, then restart the core.
+                  the port of the tunnel's public listener, so the core can't start. Stop that process and restart the core, or start the listener on another port: endpoint URLs stay the same.
                 </p>
               } @else {
                 <p class="gw-text-body-read">
@@ -84,7 +88,7 @@
                   } @else {
                     Another process is listening on <span class="gw-mono">{{ address() }}</span>,
                   }
-                  so the core can't start its local API. Stop that process and reopen GateRook, or start the core on another port: every endpoint URL changes, so clients with the URL in their config, such as Codex and Cursor, need to be connected again.
+                  so the core can't start its local API. Stop that process and reopen GateRook, or start the core on another port: every endpoint URL changes, so AI apps with the URL in their config, such as Codex and Cursor, need to be connected again.
                 </p>
               }
             </div>
@@ -103,10 +107,9 @@
         <footer class="gw-card__footer">
           <ng-container *ngTemplateOutlet="quitButton" />
           @if (asPort()?.publicListener) {
-            <button class="gw-btn gw-btn--primary" type="button" [attr.aria-busy]="busy() === 'restart' ? 'true' : null" [attr.aria-disabled]="busy() === 'restart' ? 'true' : null" (click)="restart.emit()">@if (busy() === 'restart') {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="rotate-cw" class="gw-icon"></svg>} Restart core</button>
-          } @else {
-            <button class="gw-btn gw-btn--primary" type="button" (click)="usePort.emit()">Use another port</button>
+            <button class="gw-btn" type="button" [attr.aria-busy]="busy() === 'restart' ? 'true' : null" [attr.aria-disabled]="busy() === 'restart' ? 'true' : null" (click)="restart.emit()">@if (busy() === 'restart') {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="rotate-cw" class="gw-icon"></svg>} Restart core</button>
           }
+          <button class="gw-btn gw-btn--primary" type="button" (click)="usePort.emit()">Use another port</button>
         </footer>
       }
 

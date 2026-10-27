@@ -37,7 +37,7 @@ final class Clients implements AutoCloseable {
 
   /** A client built without credentials: a request that forgets its own fails instead of going out unsigned. */
   private static final AwsCredentialsProvider NO_CREDENTIALS = () -> {
-    throw SdkClientException.create("MCP Gateway sends every CloudWatch request with the credentials of its call");
+    throw SdkClientException.create("GateRook sends every CloudWatch request with the credentials of its call");
   };
 
   private record Versioned<T>(long version, String fingerprint, T client) {}

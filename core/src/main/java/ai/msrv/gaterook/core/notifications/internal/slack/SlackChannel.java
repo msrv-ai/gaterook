@@ -843,7 +843,7 @@ public class SlackChannel implements ChatChannel, DisposableBean {
           details.put("channelName", name);
           if (!c.path("is_member").asBoolean(false)) {
             hints.add(new TestResult.Hint(TestResult.Severity.WARNING, "not-in-channel", "/channelId",
-                "The app isn't in " + name + ". Invite it with /invite @" + a.path("user").asString("mcp-gateway")
+                "The app isn't in " + name + ". Invite it with /invite @" + a.path("user").asString("gaterook")
                     + "."));
           }
           if (!c.path("is_private").asBoolean(false)) {

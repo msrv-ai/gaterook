@@ -17,7 +17,7 @@
   </parent>
 
   <artifactId>plugin-it</artifactId>
-  <name>MCP Gateway · Plugin host integration tests</name>
+  <name>GateRook · Plugin host integration tests</name>
 
   <properties>
     <maven.deploy.skip>true</maven.deploy.skip>

@@ -141,7 +141,7 @@ record PlannedRequest(String method, HttpUrl url, HttpUrl base, List<Header> hea
    */
   static PlannedRequest fromPayload(JsonNode p, HttpSettings settings, Operation operation) throws Refusal {
     if (p == null || !p.isObject() || p.path("v").asInt(0) != PAYLOAD_VERSION) {
-      throw Refusal.of("invalid-request", "The approved request isn't in a form this version of MCP Gateway runs. "
+      throw Refusal.of("invalid-request", "The approved request isn't in a form this version of GateRook runs. "
           + "Not executed.");
     }
     if (!authOf(settings).equals(p.path("auth").asString(""))) {

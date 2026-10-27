@@ -788,7 +788,7 @@ export function clientsChart(clients: readonly InsightClient[], cards: readonly 
     const tail = of.length ? `, of them ${listWords(of)}` : ', all allowed or approved';
     return `${name} ${formatCount(x.count)} (${percent(x.count, total)})${tail}`;
   });
-  const aria = ariaParts.length ? `Calls by client, ${span}: ${ariaParts.join('; ')}.` : `Calls by client, ${span}: no calls.`;
+  const aria = ariaParts.length ? `Calls by AI app, ${span}: ${ariaParts.join('; ')}.` : `Calls by AI app, ${span}: no calls.`;
 
   const description: Part[] = [];
   if (sorted.length) {

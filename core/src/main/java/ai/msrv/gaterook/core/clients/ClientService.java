@@ -1079,7 +1079,7 @@ public class ClientService {
 
   /**
    * {@code GET /internal/clients/links/{id}/mcpb}: the extension Electron opens in Claude Desktop — a real path under
-   * {@code ~/.mcp-gateway/clients/claude-desktop/} ending in {@code .mcpb}, nothing else.
+   * {@code ~/.gaterook/clients/claude-desktop/} ending in {@code .mcpb}, nothing else.
    */
   public Path mcpbPath(String linkId) {
     ClientLinkEntity l = activeLink(linkId);
@@ -1321,7 +1321,7 @@ public class ClientService {
   }
 
   /**
-   * Deletes an extension GateRook built — {@code mcp-gateway-<slug>.mcpb} in {@code clients/claude-desktop/}, not a
+   * Deletes an extension GateRook built — {@code gaterook-<slug>.mcpb} in {@code clients/claude-desktop/}, not a
    * link — and nothing else: {@code client_link} rows carry no MAC, so a path changed in the database must not make
    * Disconnect delete another file of the account.
    */
@@ -1331,7 +1331,7 @@ public class ClientService {
     }
     Path p = Path.of(path).toAbsolutePath().normalize();
     if (!env.mcpbDirectory().toAbsolutePath().normalize().equals(p.getParent())
-        || !p.getFileName().toString().matches("mcp-gateway-[a-z0-9-]+\\.mcpb") || Files.isSymbolicLink(p)) {
+        || !p.getFileName().toString().matches("gaterook-[a-z0-9-]+\\.mcpb") || Files.isSymbolicLink(p)) {
       log.warn("Didn't delete {}: it isn't an extension GateRook built", env.display(p));
       return false;
     }
@@ -1496,7 +1496,7 @@ public class ClientService {
     return out;
   }
 
-  /** {@code mcp-gateway} kebab case of an enum ({@code CONFIG_BRIDGE} → {@code config-bridge}). */
+  /** Kebab case of an enum ({@code CONFIG_BRIDGE} → {@code config-bridge}). */
   static final class KebabCase {
     private KebabCase() {}
 

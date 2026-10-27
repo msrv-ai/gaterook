@@ -214,7 +214,7 @@ public record PluginManifest(String id, String version, String name, String prov
         continue;
       }
       if (input.path("properties").has("connection")) {
-        problems.add(where + ": connection is added by MCP Gateway, a tool doesn't declare it");
+        problems.add(where + ": connection is added by GateRook, a tool doesn't declare it");
       }
       JsonNode output = WireCodec.tree(t.get("outputSchema"));
       if (output != null && !"READ".equals(nature)) {
@@ -262,7 +262,7 @@ public record PluginManifest(String id, String version, String name, String prov
    * hide anything (ARCHITECTURE.md §3 "RemoteConnector", §9 "Prompt-injection-safe approvals"): control characters
    * other than a line break or a tab, bidirectional overrides and isolates, zero-width characters, a BOM and the soft
    * hyphen change what a reader sees without being seen. An MCP server's descriptions are cleaned; a plugin is
-   * packaged for MCP Gateway, so its manifest is refused instead, and the definition hash stays the plugin's own.
+   * packaged for GateRook, so its manifest is refused instead, and the definition hash stays the plugin's own.
    */
   static void hidden(String what, String text, List<String> problems) {
     for (int i = 0; i < text.length(); i++) {

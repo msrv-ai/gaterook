@@ -20,7 +20,7 @@ import { kitElement } from '../elements';
       </header>
       <section gwHowItWorks summary="The agent never sees a secret value, only the result of the call." stepsLabel="What happens to a secret">
         <li gwHowItWorksStep icon="key-round" heading="Store or reference">Paste the value here, or point to Vault, GCP Secret Manager or AWS Secrets Manager.</li>
-        <li gwHowItWorksStep icon="lock-keyhole" heading="Encrypted with your master key">AES-256-GCM, with the key in <code class="gw-code">~/.mcp-gateway/master.keyset</code>, outside the database.</li>
+        <li gwHowItWorksStep icon="lock-keyhole" heading="Encrypted with your master key">AES-256-GCM, with the key in <code class="gw-code">~/.gaterook/master.keyset</code>, outside the database.</li>
         <li gwHowItWorksStep icon="lock-keyhole-open" heading="Decrypted only inside the connector, at call time">The value lives in memory for one call and never leaves the connector.</li>
         <li gwHowItWorksStep icon="eye-off" heading="Agent gets the result, masked">Secrets and PII in the output become <code class="gw-code gw-code--secret">‹masked›</code> before the agent sees it.</li>
         <p class="gw-how-it-works__more" gwHowItWorksMore><a class="gw-link gw-text-small" routerLink="/secrets" fragment="master-key">Learn more about the master key and rotation</a></p>

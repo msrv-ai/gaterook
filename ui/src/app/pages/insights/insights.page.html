@@ -146,7 +146,7 @@
       <section class="gw-section" aria-labelledby="in-volume-title">
         <div class="gw-section__header">
           <h2 class="gw-section__title" id="in-volume-title">Volume</h2>
-          <p class="gw-section__description">How many calls, when, which tools and from which clients.</p>
+          <p class="gw-section__description">How many calls, when, which tools and from which AI apps.</p>
         </div>
         <div class="gw-stack">
           @if (calls(); as ch) {
@@ -239,7 +239,7 @@
               <section class="gw-card" aria-labelledby="in-clients-title">
                 <header class="gw-card__header">
                   <div class="gw-card__heading">
-                    <h3 class="gw-card__title" id="in-clients-title">By client</h3>
+                    <h3 class="gw-card__title" id="in-clients-title">By AI app</h3>
                     <p class="gw-card__description"><ng-container [ngTemplateOutlet]="parts" [ngTemplateOutletContext]="{ $implicit: cc.description }" /></p>
                   </div>
                 </header>
@@ -252,15 +252,15 @@
                         <span class="gw-chart__value">{{ r.value }}</span>
                       }
                     </div>
-                    <ul class="gw-legend" aria-label="Decisions by client">
+                    <ul class="gw-legend" aria-label="Decisions by AI app">
                       <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--success"></span>Allowed or approved</li>
                       <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--danger"></span>Denied, rejected or failed</li>
                       <li class="gw-legend__item"><span class="gw-legend__swatch gw-legend__swatch--neutral"></span>Expired</li>
                     </ul>
                     <div class="gw-sr-only">
                       <table>
-                        <caption>Calls by client and decision, {{ words().span }}</caption>
-                        <thead><tr><th scope="col">Client</th><th scope="col">Allowed or approved</th><th scope="col">Denied, rejected or failed</th><th scope="col">Expired</th><th scope="col">Total</th></tr></thead>
+                        <caption>Calls by AI app and decision, {{ words().span }}</caption>
+                        <thead><tr><th scope="col">AI app</th><th scope="col">Allowed or approved</th><th scope="col">Denied, rejected or failed</th><th scope="col">Expired</th><th scope="col">Total</th></tr></thead>
                         <tbody>
                           @for (x of cc.table; track x.name) {
                             <tr><th scope="row">{{ x.name }}</th><td>{{ x.ok }}</td><td>{{ x.bad }}</td><td>{{ x.expired }}</td><td>{{ x.total }}</td></tr>
@@ -277,7 +277,7 @@
                       <span class="gw-empty__icon"><svg lucideIcon="app-window" class="gw-icon"></svg></span>
                       <p class="gw-empty__title">{{ idle.title }}</p>
                       <p class="gw-empty__text">{{ idle.text }}</p>
-                      <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" routerLink="/clients"><svg lucideIcon="app-window" class="gw-icon gw-icon--sm"></svg> Connect a client</a></div>
+                      <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" routerLink="/clients"><svg lucideIcon="app-window" class="gw-icon gw-icon--sm"></svg> Connect your AI app</a></div>
                     </div>
                   }
                 </div>

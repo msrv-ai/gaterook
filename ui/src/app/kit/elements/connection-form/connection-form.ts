@@ -24,6 +24,7 @@ import { SchemaNode, getAt, rootSection } from '../../../schema-form/compile';
 import { GwSchemaSection } from '../../../schema-form/section';
 import { ConfirmChange, REFERENCE_SOURCES, SchemaForm, SecretAction, createSchemaForm } from '../../../schema-form/schema-form';
 import { GwDialog, GwDialogClose } from '../../dialog';
+import { GwToggle } from '../../disclosure';
 import { sourceCopy } from '../../../schema-form/secret-sources';
 import { GwIcon } from '../../icons';
 import { literalParts } from '../shared/literals';
@@ -82,6 +83,34 @@ const ENV_CARDS: readonly { readonly env: Env; readonly title: string; readonly 
   { env: 'prod', title: 'Production', description: 'Real data. Read-only by default, stricter limits.', meta: 'Turns on stricter defaults' },
 ];
 
+/** The dev card in a beginner's words (kit connection-new `?state=first-run`). */
+const BEGINNER_DEV = 'Local work and test data. Changes to data still wait for your approval.';
+
+/** What the credentials sign in to, in a sentence ("GateRook uses them only to sign in to the database"). */
+export function signInTarget(type: string): string {
+  switch (type) {
+    case 'postgres':
+    case 'mysql':
+    case 'sql':
+    case 'mongodb':
+    case 'redis':
+      return 'the database';
+    case 'ssh':
+      return 'the server';
+    case 'kubernetes':
+      return 'the cluster';
+    case 'logs':
+      return 'the log store';
+    case 'http':
+      return 'the API';
+    case 'gcp':
+    case 'aws':
+      return 'the cloud account';
+    default:
+      return 'the service';
+  }
+}
+
 /** The icon of one prod default, by what it is about (kit __defaults: lock, rows-3, timer, ban, hourglass). */
 function defaultIcon(change: EnvChange): string {
   const p = `${change.pointer} ${change.title}`.toLowerCase();
@@ -117,7 +146,7 @@ let nextId = 0;
  */
 @Component({
   selector: 'form[gwConnectionForm]',
-  imports: [NgTemplateOutlet, GwIcon, RouterLink, FormField, GwSchemaSection, GwConnectionTest, GwDialog, GwDialogClose],
+  imports: [NgTemplateOutlet, GwIcon, RouterLink, FormField, GwSchemaSection, GwConnectionTest, GwDialog, GwDialogClose, GwToggle],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     class: 'gw-form gw-connection-form',
@@ -168,6 +197,12 @@ export class GwConnectionForm {
    * the element's demo says "Agents and Activity see it as …"), and the Name shown read-only in the edit view.
    */
   readonly pageCopy = input(false, { transform: booleanAttribute });
+  /**
+   * The first connection of a first run (kit connection-new `?state=first-run`): plain descriptions for a beginner, the
+   * secret encrypted here by default with the secret managers behind a disclosure ("Use a secret manager instead"),
+   * and every line about the secret following the source picked.
+   */
+  readonly beginner = input(false, { transform: booleanAttribute });
   /** A step of a wizard asks before it continues (x-confirm), not before it saves. */
   readonly confirmAction = input<'save' | 'continue'>('save');
 
@@ -225,7 +260,25 @@ export class GwConnectionForm {
     { injector: this.injector },
   );
 
-  protected readonly envCards = ENV_CARDS;
+  protected readonly envCards = computed(() =>
+    this.beginner() ? ENV_CARDS.map((c) => (c.env === 'dev' ? { ...c, description: BEGINNER_DEV } : c)) : ENV_CARDS,
+  );
+  /** First run: the secret sources wait behind "Use a secret manager instead" until opened. */
+  protected readonly sourcesOpen = signal(false);
+  /** "password", "private key": the connector's first secret, as the beginner's lines name it. */
+  protected readonly secretWord = computed(() => (this.spec().secretFields[0]?.title ?? 'secret').toLowerCase());
+  /** First run: the Connection section in a beginner's words (where the core connects from). */
+  protected readonly beginnerConnection = 'GateRook connects from this computer, so your VPN and hosts file apply.';
+  /**
+   * First run: a collapsed section (Advanced) says it can be skipped — its schema's first sentence (what is in it),
+   * then "The defaults suit most connections, so you can skip this." (kit connection-new `?state=first-run`).
+   */
+  protected advancedText(section: SchemaNode): string | null {
+    if (!this.beginner() || !section.collapsed) return null;
+    const lead = /^[^.]*\./.exec(section.description ?? '')?.[0] ?? '';
+    return `${lead ? `${lead} ` : ''}The defaults suit most connections, so you can skip this.`;
+  }
+
   protected readonly placeholderName = '<name>';
   protected readonly sourceCopy = sourceCopy;
   protected readonly literalParts = literalParts;
@@ -343,6 +396,10 @@ export class GwConnectionForm {
       const stored = this.stored();
       untracked(this.state).setStored(stored);
     });
+    effect(() => {
+      const beginner = this.beginner();
+      untracked(this.state).beginner.set(beginner);
+    });
     // Secret actions go to the page (it owns the API calls).
     effect((onCleanup) => {
       const off = this.state().onSecretAction((a) => this.secretAction.emit(a));
@@ -414,6 +471,7 @@ export class GwConnectionForm {
   protected readonly credentialsText = computed(() => {
     const custom = this.credentialsDescription();
     if (custom) return custom;
+    if (this.beginner()) return `Your AI never sees these. GateRook uses them only to sign in to ${signInTarget(this.spec().type)}.`;
     const node = this.secretSection();
     if (node?.description) return node.description;
     if (this.mode() === 'edit' && !this.showSources()) {

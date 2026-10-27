@@ -11,11 +11,11 @@ import { tempDir } from './helpers.ts';
 
 describe('starting the core', () => {
   it('passes -X/-D flags only, never a secret, and no -XX to the native binary', () => {
-    const { file, args } = coreArgv({ kind: 'native', binary: '/r/core/mcp-gateway-core', libDir: '/r/core' },
-      { home: '/h/.mcp-gateway', resources: '/r' });
-    assert.equal(file, '/r/core/mcp-gateway-core');
-    assert.deepEqual(args, ['-Xmx384m', '-Dorg.sqlite.lib.path=/r/core', `-Djava.io.tmpdir=${join('/h/.mcp-gateway', 'tmp')}`,
-      '-Dgateway.home=/h/.mcp-gateway', '-Dgateway.resources=/r']);
+    const { file, args } = coreArgv({ kind: 'native', binary: '/r/core/gaterook-core', libDir: '/r/core' },
+      { home: '/h/.gaterook', resources: '/r' });
+    assert.equal(file, '/r/core/gaterook-core');
+    assert.deepEqual(args, ['-Xmx384m', '-Dorg.sqlite.lib.path=/r/core', `-Djava.io.tmpdir=${join('/h/.gaterook', 'tmp')}`,
+      '-Dgateway.home=/h/.gaterook', '-Dgateway.resources=/r']);
     assert.ok(args.every((a) => a.startsWith('-X') || a.startsWith('-D')));
     assert.ok(!args.some((a) => a.startsWith('-XX')));
   });
@@ -48,14 +48,14 @@ describe('starting the core', () => {
 describe('layout', () => {
   const base = { appPath: '/repo/desktop', resourcesPath: '/repo/desktop/res', homedir: '/Users/x', platform: 'darwin' as const };
 
-  it('an installed app uses the bundle and ~/.mcp-gateway, whatever the environment says', () => {
-    const l = resolveLayout({ ...base, devBuild: false, packaged: true, appPath: '/Applications/MCP Gateway.app/Contents/Resources/app.asar',
-      resourcesPath: '/Applications/MCP Gateway.app/Contents/Resources', env: { GW_HOME: '/tmp/evil', GW_CORE_COMMAND: '["sh"]' } });
+  it('an installed app uses the bundle and ~/.gaterook, whatever the environment says', () => {
+    const l = resolveLayout({ ...base, devBuild: false, packaged: true, appPath: '/Applications/GateRook.app/Contents/Resources/app.asar',
+      resourcesPath: '/Applications/GateRook.app/Contents/Resources', env: { GW_HOME: '/tmp/evil', GW_CORE_COMMAND: '["sh"]' } });
     assert.equal(l.dev, false);
-    assert.equal(l.home, '/Users/x/.mcp-gateway');
-    assert.equal(l.uiRoot, '/Applications/MCP Gateway.app/Contents/Resources/app.asar/ui');
-    assert.deepEqual(l.core, { kind: 'native', binary: '/Applications/MCP Gateway.app/Contents/Resources/core/mcp-gateway-core',
-      libDir: '/Applications/MCP Gateway.app/Contents/Resources/core' });
+    assert.equal(l.home, '/Users/x/.gaterook');
+    assert.equal(l.uiRoot, '/Applications/GateRook.app/Contents/Resources/app.asar/ui');
+    assert.deepEqual(l.core, { kind: 'native', binary: '/Applications/GateRook.app/Contents/Resources/core/gaterook-core',
+      libDir: '/Applications/GateRook.app/Contents/Resources/core' });
   });
 
   it('a development build packaged by mistake is still a release', () => {
@@ -71,7 +71,7 @@ describe('layout', () => {
     assert.deepEqual(l.core, { kind: 'custom', argv: ['node', 'fake.mjs'] });
     const jar = resolveLayout({ ...base, devBuild: true, packaged: false, env: { JAVA_HOME: '/jdk' } });
     assert.deepEqual(jar.core, { kind: 'jar', java: '/jdk/bin/java', jar: '/repo/app/target/app.jar' });
-    assert.equal(jar.uiRoot, '/repo/ui/dist/mcp-gateway-ui/browser');
+    assert.equal(jar.uiRoot, '/repo/ui/dist/gaterook-ui/browser', 'the renamed UI project when none is built yet');
     assert.throws(() => resolveLayout({ ...base, devBuild: true, packaged: false, env: { GW_CORE_COMMAND: '"sh"' } }), /JSON array/);
   });
 });
@@ -84,7 +84,7 @@ describe('files for the core', () => {
     assert.equal(filePurpose('master-key-restore', true), null);
     assert.equal(filePurpose('../../etc/passwd', true), null);
     assert.equal(filePurpose('__proto__', true), null);
-    assert.equal(defaultFileName(filePurpose('audit-export', true)!, new Date('2026-10-26T10:00:00Z')), 'mcp-gateway-activity-2026-10-26.jsonl');
+    assert.equal(defaultFileName(filePurpose('audit-export', true)!, new Date('2026-10-26T10:00:00Z')), 'gaterook-activity-2026-10-26.jsonl');
   });
 
   it('accepts only known ids', () => {
@@ -136,8 +136,8 @@ describe('updates', () => {
   });
 
   // app-update.yml as electron-builder writes it: a signed Windows build names its publisher.
-  const feed = 'owner: mcp-gateway\nrepo: mcp-gateway\nprovider: github\nupdaterCacheDirName: mcp-gateway-updater\n';
-  const signed = `${feed}publisherName:\n  - MCP Gateway Inc.\n`;
+  const feed = 'owner: msrv-ai\nrepo: gaterook\nprovider: github\nupdaterCacheDirName: gaterook-desktop-updater\n';
+  const signed = `${feed}publisherName:\n  - GateRook Inc.\n`;
 
   it('only an installed, signed Windows or macOS build updates itself', () => {
     assert.match(updatesUnavailable(false, 'darwin', feed) ?? '', /development build/);
@@ -151,13 +151,13 @@ describe('updates', () => {
 
   it('reads the publisher of app-update.yml', () => {
     assert.ok(namesPublisher(signed));
-    assert.ok(namesPublisher(`${feed}publisherName: MCP Gateway Inc.\n`));
-    assert.ok(namesPublisher('publisherName:\r\n  - "CN=MCP Gateway Inc., O=MCP Gateway Inc."\r\n'));
+    assert.ok(namesPublisher(`${feed}publisherName: GateRook Inc.\n`));
+    assert.ok(namesPublisher('publisherName:\r\n  - "CN=GateRook Inc., O=GateRook Inc."\r\n'));
     assert.ok(!namesPublisher(feed));
     assert.ok(!namesPublisher(`${feed}publisherName: null\n`));
     assert.ok(!namesPublisher(`${feed}publisherName: []\n`));
     assert.ok(!namesPublisher(`${feed}publisherName:\nprovider: github\n`));
-    assert.ok(!namesPublisher(`${feed}# publisherName: MCP Gateway Inc.\n`));
+    assert.ok(!namesPublisher(`${feed}# publisherName: GateRook Inc.\n`));
   });
 
   it('checks once a day while the setting is on', () => {

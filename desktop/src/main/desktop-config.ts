@@ -1,4 +1,4 @@
-// ~/.mcp-gateway/desktop.json (ARCHITECTURE.md §7.1): the only source of the core's ports, written only by main
+// ~/.gaterook/desktop.json (ARCHITECTURE.md §7.1): the only source of the core's ports, written only by main
 // ("Use another port", Settings › Local API → core.restart-required), 0600. The database never stores a port: a core
 // started on another port must not disagree with the file that started it.
 //

@@ -47,7 +47,7 @@ final class Launcher {
 
   /**
    * @param loginShellPath whether to ask {@code $SHELL -ilc} for the PATH a terminal would have (off in tests)
-   * @param sandboxLauncher {@code ~/.mcp-gateway/bin/gw-bridge}, used when its {@code sandbox-exec} works here
+   * @param sandboxLauncher {@code ~/.gaterook/bin/gw-bridge}, used when its {@code sandbox-exec} works here
    */
   Launcher(Map<String, String> coreEnv, String osName, boolean loginShellPath, Path sandboxLauncher) {
     this.coreEnv = Map.copyOf(coreEnv);

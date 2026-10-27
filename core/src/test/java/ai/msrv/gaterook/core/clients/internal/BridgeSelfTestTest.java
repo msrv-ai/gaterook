@@ -28,7 +28,7 @@ class BridgeSelfTestTest {
   Path dir;
 
   private ClientEnvironment env() {
-    return new ClientEnvironment(Os.current(), dir, dir.resolve(".mcp-gateway"), null, Map.of(), true, "laptop");
+    return new ClientEnvironment(Os.current(), dir, dir.resolve(".gaterook"), null, Map.of(), true, "laptop");
   }
 
   @Test

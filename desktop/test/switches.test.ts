@@ -9,7 +9,7 @@ describe('dangerous Chromium and Node switches', () => {
   it('finds remote debugging in every spelling Chromium accepts', () => {
     for (const arg of ['--remote-debugging-port=9222', '-remote-debugging-port=9222', '--remote-debugging-pipe',
       '--remote-debugging-address=0.0.0.0', '--REMOTE-DEBUGGING-PORT=1']) {
-      assert.ok(findDangerousSwitches(['/app/MCP Gateway', arg], none).length > 0, arg);
+      assert.ok(findDangerousSwitches(['/app/GateRook', arg], none).length > 0, arg);
     }
   });
 
@@ -33,7 +33,7 @@ describe('dangerous Chromium and Node switches', () => {
   });
 
   it('leaves ordinary arguments alone', () => {
-    const argv = ['/Applications/MCP Gateway.app/Contents/MacOS/MCP Gateway', '--hidden', 'mcp-gateway://approvals/ap_0123456789ab',
+    const argv = ['/Applications/GateRook.app/Contents/MacOS/GateRook', '--hidden', 'gaterook://approvals/ap_0123456789ab',
       '/Users/x/project', '-psn_0_12345', '--allow-file-access-from-files-not-really'];
     assert.deepEqual(findDangerousSwitches(argv, chromium(argv)), []);
   });

@@ -32,7 +32,7 @@ final class Clients implements AutoCloseable {
 
   /** A client built without credentials: every request must carry the credentials of its own call. */
   static final AwsCredentialsProvider NO_CREDENTIALS = () -> {
-    throw SdkClientException.create("MCP Gateway sends every AWS request with the credentials of its call");
+    throw SdkClientException.create("GateRook sends every AWS request with the credentials of its call");
   };
 
   private record Versioned<T>(long version, String fingerprint, T client) {}

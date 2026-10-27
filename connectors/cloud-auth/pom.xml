@@ -17,7 +17,7 @@
   </parent>
 
   <artifactId>connectors-cloud-auth</artifactId>
-  <name>MCP Gateway · Connectors · Cloud credentials</name>
+  <name>GateRook · Connectors · Cloud credentials</name>
 
   <dependencies>
     <dependency>

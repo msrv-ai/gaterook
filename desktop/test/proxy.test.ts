@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { after, before, describe, it } from 'node:test';
-import { signRequest } from '@mcp-gateway/broker';
+import { signRequest } from '@gaterook/broker';
 import { mayUnlock, proxyToCore, type CoreEndpoint } from '../src/main/proxy.ts';
 import { callCore, callCoreOk } from '../src/main/core-client.ts';
 

@@ -218,7 +218,7 @@ final class K8sApi {
         // Redirects are off: following one would carry the token to wherever the answer points.
         closeQuietly(r.body());
         throw ConnectorException.resourceError("The API server answered " + path + " with a redirect (" + r.code()
-            + "), which MCP Gateway doesn't follow. Check the server URL of the connection.", null);
+            + "), which GateRook doesn't follow. Check the server URL of the connection.", null);
       }
       return r;
     }

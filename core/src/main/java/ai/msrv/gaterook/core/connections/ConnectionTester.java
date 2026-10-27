@@ -176,7 +176,8 @@ public class ConnectionTester implements DisposableBean {
               + " connection.", "/type");
         }
         if (!stored.verified()) {
-          throw ProblemException.conflict("Changed outside GateRook", existing + " was changed outside GateRook. Review it first.");
+          throw ProblemException.conflict("Changed outside GateRook", existing + " was changed outside "
+              + "GateRook. Review it first.");
         }
         boolean usesStored = stored.secretIds().keySet().stream().anyMatch(f -> !values.containsKey(f)
             && !references.containsKey(f));
@@ -234,7 +235,8 @@ public class ConnectionTester implements DisposableBean {
 
   Outcome testStored(ConnectionConfigs.Stored stored, String field, int version) {
     if (!stored.verified()) {
-      throw ProblemException.conflict("Changed outside GateRook", stored.name() + " was changed outside GateRook. Review it first.");
+      throw ProblemException.conflict("Changed outside GateRook", stored.name() + " was changed outside "
+          + "GateRook. Review it first.");
     }
     ConnectorManifest manifest = usable(stored.config().type());
     Taint taint = new Taint();
@@ -378,7 +380,8 @@ public class ConnectionTester implements DisposableBean {
     ConnectionConfigs.Stored stored = configs.byId(connectionId).orElseThrow(() -> ProblemException.notFound(
         "Connection not found", "The connection was deleted."));
     if (!stored.verified()) {
-      throw ProblemException.conflict("Changed outside GateRook", stored.name() + " was changed outside GateRook. Review it first.");
+      throw ProblemException.conflict("Changed outside GateRook", stored.name() + " was changed outside "
+          + "GateRook. Review it first.");
     }
     ConnectorManifest manifest = usable(stored.config().type());
     ConnectionConfig cfg = stored.config();

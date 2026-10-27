@@ -31,7 +31,7 @@ public interface Authenticator {
    * The {@code WWW-Authenticate} value of a 401 for {@code endpointSlug} on {@code ingress}, when this authenticator
    * can tell the client where to get a token: an OAuth resource server names its metadata
    * ({@code Bearer resource_metadata="…", scope="mcp"}, RFC 9728). Empty leaves the plain
-   * {@code Bearer realm="mcp-gateway"}. It must not tell more about the endpoint or the token than RFC 6750 allows
+   * {@code Bearer realm="gaterook"}. It must not tell more about the endpoint or the token than RFC 6750 allows
    * ({@code error="invalid_token"} when one was presented).
    *
    * @param tokenPresented whether the request carried a bearer token at all

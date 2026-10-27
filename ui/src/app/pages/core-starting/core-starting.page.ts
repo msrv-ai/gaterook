@@ -39,6 +39,7 @@ import {
   logFileOf,
   portError,
   portOf,
+  publicPortError,
   restoreProblem,
   restoredToast,
   statusView,
@@ -56,7 +57,9 @@ const QUIT_IN_BROWSER = 'This window is a browser tab: close the tab to leave.';
  * - unlock-required: explain OS protection before Unlock GateRook asks main to access the encryption key;
  * - starting: the four steps of the kit from the progress lines;
  * - port in use: who holds the port, the command that finds it, Quit, and **Use another port** — a warning dialog
- *   with a port main checked is free; main writes `desktop.json` and restarts the core on it (`usePort`);
+ *   with a port main checked is free; main writes `desktop.json` and restarts the core on it (`usePort`). When the
+ *   taken port is the tunnel's public listener's, the same dialog moves only that listener (`usePort({ publicPort })`):
+ *   no endpoint URL changes, so it has no warning tone; Restart core stays for a process stopped meanwhile;
  * - locked (master key missing or invalid): what `/api/master-key` says (the key file, how many secrets, the last
  *   backup); **Restore from backup** — an optional passphrase, then the system open dialog, and the core unlocks
  *   without a restart; **Create a new key** — the kit's danger confirmation, then the Secrets page, where the
@@ -115,6 +118,14 @@ export class CoreStartingPage {
   // ── Use another port ──────────────────────────────────────────────────────────────────────────────────────────
 
   private readonly currentPort = computed(() => portOf(this.core.address()));
+  /**
+   * The port the tunnel's public listener couldn't take, when that is what failed: Use another port then moves that
+   * listener (`usePort({ publicPort })`) and the local API keeps its port and every endpoint URL. Null: the local API.
+   */
+  protected readonly publicMove = computed(() => {
+    const v = this.view();
+    return v.kind === 'port-in-use' && v.publicListener ? (v.takenPort ?? this.core.publicPort()) : null;
+  });
   /**
    * The one field of the dialog, as a plain signal: this page is in the start-up bundle (it shows before the core
    * answers), and a single checked field doesn't earn Signal Forms' ~90 kB there. The check is portError().
@@ -208,7 +219,8 @@ export class CoreStartingPage {
   // ── Use another port ──────────────────────────────────────────────────────────────────────────────────────────
 
   protected openPortDialog(): void {
-    const candidate = firstCandidate(this.currentPort(), this.core.publicPort());
+    const taken = this.publicMove();
+    const candidate = taken !== null ? firstCandidate(taken, this.currentPort()) : firstCandidate(this.currentPort(), this.core.publicPort());
     this.portText.set(String(candidate));
     this.portTouched.set(false);
     this.portSubmitted.set(false);
@@ -240,25 +252,37 @@ export class CoreStartingPage {
     const refused = this.portRefused();
     if (refused && refused.port === this.portText()) return refused.message;
     if (!this.portSubmitted() && !this.portTouched()) return null;
-    return portError(this.portText(), this.currentPort(), this.core.publicPort());
+    return this.checkPort();
   }
 
-  /** Start on this port: main writes `desktop.json` and restarts the core there; the screen shows it starting. */
+  /** Why the typed port can't be used for the listener this dialog moves, or null. */
+  private checkPort(): string | null {
+    const taken = this.publicMove();
+    return taken !== null
+      ? publicPortError(this.portText(), taken, this.currentPort())
+      : portError(this.portText(), this.currentPort(), this.core.publicPort());
+  }
+
+  /**
+   * Start on this port: main writes `desktop.json` and restarts the core there (the local API, or the tunnel's
+   * public listener); the screen shows it starting.
+   */
   protected async startOnPort(e: Event): Promise<void> {
     e.preventDefault();
     this.portSubmitted.set(true);
     if (this.portBusy() || !this.desktop.available) return;
-    if (portError(this.portText(), this.currentPort(), this.core.publicPort())) {
+    if (this.checkPort()) {
       this.focus('core-port-new');
       return;
     }
     const text = this.portText().trim();
+    const publicListener = this.publicMove() !== null;
     this.portBusy.set(true);
     this.portRefused.set(null);
     try {
-      await this.desktop.usePort(Number(text));
+      await this.desktop.usePort(publicListener ? { publicPort: Number(text) } : Number(text));
       this.portDialog().close('start');
-      this.announcer.announce(`Starting the core on port ${text}`);
+      this.announcer.announce(publicListener ? `Starting the core with the tunnel’s listener on port ${text}` : `Starting the core on port ${text}`);
     } catch (err) {
       this.portRefused.set({ port: this.portText(), message: usePortError(err) });
       this.focus('core-port-new');

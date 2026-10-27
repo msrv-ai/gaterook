@@ -158,7 +158,7 @@ function configure(): void {
     backup: () => Promise.resolve(kitBackup()),
     backupNow: () => (
       calls.push('backup-db'),
-      Promise.resolve({ path: '/Users/you/.mcp-gateway/backups/gateway-2026-10-22-1430.db', file: 'gateway-2026-10-22-1430.db', at: '2026-10-22T12:30:00Z', sizeBytes: 10 })
+      Promise.resolve({ path: '/Users/you/.gaterook/backups/gateway-2026-10-22-1430.db', file: 'gateway-2026-10-22-1430.db', at: '2026-10-22T12:30:00Z', sizeBytes: 10 })
     ),
   };
   const notifications: Partial<NotificationsApi> = {
@@ -366,7 +366,7 @@ describe('Settings page: General', () => {
     expect(text(g)).toContain('http://127.0.0.1:7465/mcp/dev');
     expect(text(g)).toContain('Native core');
     expect(text(g)).toContain('Bundled JRE 25, started only for Java plugins');
-    expect(text(g)).toContain('/Users/you/.mcp-gateway/logs/core.log');
+    expect(text(g)).toContain('/Users/you/.gaterook/logs/core.log');
     const logs = control(g, 'Open logs folder');
     expect(logs.getAttribute('aria-disabled')).toBe('true');
     expect(reason(logs)).toContain('desktop app');
@@ -400,7 +400,7 @@ describe('Settings page: General', () => {
     const dlg = $<HTMLDialogElement>('#st-port-dlg')!;
     expect(dlg.hasAttribute('open')).toBe(true);
     expect(document.activeElement?.id).toBe('st-port-new');
-    expect(text(dlg)).toContain('Codex, from Clients');
+    expect(text(dlg)).toContain('Codex, from AI apps');
     expect(text(dlg)).toContain('Claude Desktop: its bridge asks GateRook for the address');
     expect(text(dlg)).toContain('The 3 pending approval requests are kept.');
 
@@ -415,7 +415,7 @@ describe('Settings page: General', () => {
     await submit($('form', dlg) as HTMLFormElement);
     expect(bodies['local-api']).toEqual({ port: 7475, version: 3 });
     expect(dlg.hasAttribute('open')).toBe(false);
-    expect(toasts()).toContain('Core restarting on port 7475 · Endpoint URLs now use port 7475. Connect Codex again in Clients.');
+    expect(toasts()).toContain('Core restarting on port 7475 · Endpoint URLs now use port 7475. Connect Codex again in AI apps.');
   });
 
   it('outside the desktop app the port can’t change: the confirm button says why', async () => {
@@ -868,12 +868,12 @@ describe('Settings page: Backup', () => {
     const b = $('#settings-backup', el)!;
     expect(text(b)).toContain('gateway-2026-10-22.db');
     expect(text(b)).toContain('8 secrets stored here · 3 secret references don’t need it');
-    expect(text(b)).toContain('Copies of /Users/you/.mcp-gateway/ include master.keyset');
+    expect(text(b)).toContain('Copies of /Users/you/.gaterook/ include master.keyset');
     await toggle($<HTMLInputElement>('#st-daily-backup', b)!);
     expect(bodies['backup']).toEqual({ daily: false, version: 3 });
     expect(toasts()).toContain('Saved · Back up the database every day: off.');
     await click(control(b, 'Back up now'));
-    expect(toasts()).toContain('Database backed up · Saved as gateway-2026-10-22-1430.db in /Users/you/.mcp-gateway/backups/.');
+    expect(toasts()).toContain('Database backed up · Saved as gateway-2026-10-22-1430.db in /Users/you/.gaterook/backups/.');
     expect(control(b, 'Open backup folder').getAttribute('aria-disabled')).toBe('true');
   });
 
@@ -900,7 +900,7 @@ describe('Settings page: Backup', () => {
     const el = await render();
     await click(control($('#settings-backup', el)!, 'Back up master key'));
     const dlg = $<HTMLDialogElement>('#st-backup-key-dlg')!;
-    expect(text(dlg)).toContain(`File namemcp-gateway-master-key-${new Date(NOW).toISOString().slice(0, 10)}.json`);
+    expect(text(dlg)).toContain(`File namegaterook-master-key-${new Date(NOW).toISOString().slice(0, 10)}.json`);
     await submit($('form', dlg) as HTMLFormElement);
     expect(dlg.hasAttribute('open')).toBe(true);
     expect(text(dlg)).toContain('The core refused the file: choose a file, not a folder.');

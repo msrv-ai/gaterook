@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * The stable launcher client configs point at (report 03 §1, ARCHITECTURE.md §7.2): {@code ~/.mcp-gateway/bin/gw-bridge}
+ * The stable launcher client configs point at (report 03 §1, ARCHITECTURE.md §7.2): {@code ~/.gaterook/bin/gw-bridge}
  * ({@code gw-bridge.cmd} on Windows), rewritten atomically at every start of the core, so that a moved or updated app,
  * or an AppImage mounted elsewhere, never breaks Codex's helper or a stdio entry. It runs, in this order: the native
  * {@code gw-bridge} of the app's bundle; the bundle's JRE with {@code gw-bridge.jar}; in a development run the jar

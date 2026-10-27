@@ -24,7 +24,7 @@ import org.springframework.stereotype.Component;
  * Builds the {@link CallContext} of a call on one connection: guarded egress under the environment's address policy
  * (one pooled client per connection, dropped when the connection, its version or the policy's private ranges change),
  * the core's sealed handles, the shared remote quotas and the connector type's work folder
- * {@code ~/.mcp-gateway/connectors/<type>/}.
+ * {@code ~/.gaterook/connectors/<type>/}.
  */
 @Component
 public class CallContexts {

@@ -22,7 +22,7 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * {@code k8s_apply} (report 08 §3.4): server-side apply with the field manager {@code mcp-gateway}, in three steps.
+ * {@code k8s_apply} (report 08 §3.4): server-side apply with the field manager {@code gaterook}, in three steps.
  *
  * <ol>
  *   <li>{@code prepare}: per object a dry run ({@code dryRun=All}) — what the API server would store, defaulting,
@@ -39,7 +39,7 @@ import tools.jackson.databind.node.ObjectNode;
  */
 final class ApplyTool {
 
-  static final String FIELD_MANAGER = "mcp-gateway";
+  static final String FIELD_MANAGER = "gaterook";
   /** A diff longer than this can't be reviewed with care: the agent splits the manifest. */
   static final int MAX_DIFF_LINES = 2000;
 

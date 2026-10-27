@@ -66,7 +66,7 @@
     <div class="gw-empty">
       <span class="gw-empty__icon"><svg lucideIcon="search-x" class="gw-icon gw-icon--lg"></svg></span>
       <h2 class="gw-empty__title">No endpoint named <span class="gw-mono">{{ slug }}</span></h2>
-      <p class="gw-empty__text">It was deleted, or the link is from before a change. Clients that still call its URL get an error.</p>
+      <p class="gw-empty__text">It was deleted, or the link is from before a change. AI apps that still call its URL get an error.</p>
       <div class="gw-empty__actions"><a class="gw-btn" routerLink="/endpoints"><svg lucideIcon="waypoints" class="gw-icon"></svg> All endpoints</a></div>
     </div>
   </div>
@@ -134,7 +134,7 @@
     <section class="gw-section" aria-labelledby="ep-map-title">
       <header class="gw-section__header">
         <h2 class="gw-section__title" id="ep-map-title">How {{ s.slug }} connects</h2>
-        <p class="gw-section__description">@if (w.clientsNote === 'Tokens issued on the fly, none stored') {Clients call {{ s.slug }} with short-lived tokens this app issues on the fly.} @else {Clients call {{ s.slug }} with a token of their own.}{{ ' ' }}@if (wired().length) {Its tools run on {{ plural(wired().length, 'connection') }}, which add the secrets; the agent never sees them.} @else {It has no connections yet: add one to give agents tools.}</p>
+        <p class="gw-section__description">@if (w.clientsNote === 'Tokens issued on the fly, none stored') {AI apps call {{ s.slug }} with short-lived tokens this app issues on the fly.} @else {AI apps call {{ s.slug }} with a token of their own.}{{ ' ' }}@if (wired().length) {Its tools run on {{ plural(wired().length, 'connection') }}, which add the secrets; the agent never sees them.} @else {It has no connections yet: add one to give agents tools.}</p>
       </header>
       <gw-setup-wiring [wiring]="w" inPage />
     </section>
@@ -146,7 +146,7 @@
       <button class="gw-tabs__tab" type="button" role="tab" id="tab-tools" aria-controls="tools" [attr.aria-selected]="selectedTab() === 'tab-tools'" [tabIndex]="selectedTab() === 'tab-tools' ? 0 : -1">Tools &amp; policies <span class="gw-tabs__count">{{ c?.tools }}<span class="gw-sr-only"> tools</span></span></button>
       <button class="gw-tabs__tab" type="button" role="tab" id="tab-connections" aria-controls="connections" [attr.aria-selected]="selectedTab() === 'tab-connections'" [tabIndex]="selectedTab() === 'tab-connections' ? 0 : -1">Connections <span class="gw-tabs__count">{{ c?.connections }}<span class="gw-sr-only"> connections</span></span></button>
       <button class="gw-tabs__tab" type="button" role="tab" id="tab-tokens" aria-controls="tokens" [attr.aria-selected]="selectedTab() === 'tab-tokens'" [tabIndex]="selectedTab() === 'tab-tokens' ? 0 : -1">Tokens <span class="gw-tabs__count">{{ c?.tokens }}<span class="gw-sr-only"> active tokens</span></span></button>
-      <button class="gw-tabs__tab" type="button" role="tab" id="tab-clients" aria-controls="clients" [attr.aria-selected]="selectedTab() === 'tab-clients'" [tabIndex]="selectedTab() === 'tab-clients' ? 0 : -1">Clients <span class="gw-tabs__count">{{ c?.clients }}<span class="gw-sr-only"> connected</span></span></button>
+      <button class="gw-tabs__tab" type="button" role="tab" id="tab-clients" aria-controls="clients" [attr.aria-selected]="selectedTab() === 'tab-clients'" [tabIndex]="selectedTab() === 'tab-clients' ? 0 : -1">AI apps <span class="gw-tabs__count">{{ c?.clients }}<span class="gw-sr-only"> connected</span></span></button>
       <button class="gw-tabs__tab" type="button" role="tab" id="tab-settings" aria-controls="settings" [attr.aria-selected]="selectedTab() === 'tab-settings'" [tabIndex]="selectedTab() === 'tab-settings' ? 0 : -1">Settings</button>
     </div>
 
@@ -262,12 +262,12 @@
             <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retry()">Try again</button></div>
           </div>
         }
-        <!-- OAuth sign-ins: one row per browser sign-in you allowed (client, granted, last call, expires, Revoke). -->
+        <!-- OAuth sign-ins: one row per browser sign-in you allowed (AI app, granted, last call, expires, Revoke). -->
         <section class="gw-card gw-card--flush" id="ep-oauth-sessions" aria-labelledby="ep-oauth-title">
           <header class="gw-card__header">
             <div class="gw-card__heading">
               <h2 class="gw-card__title" id="ep-oauth-title">OAuth sign-ins</h2>
-              <p class="gw-card__description">Clients that signed in through the browser and you allowed in this app. Revoke one to cut it off at once.</p>
+              <p class="gw-card__description">AI apps that signed in through the browser and you allowed in this app. Revoke one to cut it off at once.</p>
             </div>
           </header>
           <div class="gw-card__body">
@@ -275,14 +275,14 @@
               <div class="gw-empty gw-empty--compact">
                 <span class="gw-empty__icon"><svg lucideIcon="log-in" class="gw-icon"></svg></span>
                 <h3 class="gw-empty__title">No sign-ins: OAuth is off for {{ s.slug }}</h3>
-                <p class="gw-empty__text">Local clients use the tokens above. When OAuth is on, each sign-in you allow is listed here with its client, last call, expiry and Revoke.</p>
+                <p class="gw-empty__text">Local apps use the tokens above. When OAuth is on, each sign-in you allow is listed here with its AI app, last call, expiry and Revoke.</p>
                 <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" [routerLink]="[]" [queryParams]="{ tab: 'settings' }" queryParamsHandling="merge" fragment="ep-st-auth">OAuth settings<span class="gw-sr-only"> of {{ s.slug }}</span></a></div>
               </div>
             } @else if (data.grantsState() === 'not-available') {
               <div class="gw-empty gw-empty--compact">
                 <span class="gw-empty__icon"><svg lucideIcon="log-in" class="gw-icon"></svg></span>
                 <h3 class="gw-empty__title">Sign-ins aren't listed in this build</h3>
-                <p class="gw-empty__text">OAuth is on for {{ s.slug }}, but this core doesn't list the sign-ins yet. Revoke a client's access under Clients.</p>
+                <p class="gw-empty__text">OAuth is on for {{ s.slug }}, but this core doesn't list the sign-ins yet. Revoke an AI app's access under AI apps.</p>
               </div>
             } @else if (data.grantsState() === 'failed') {
               <div class="gw-empty gw-empty--compact">
@@ -295,7 +295,7 @@
               <div class="gw-table-wrap" role="region" aria-labelledby="ep-oauth-cap" tabindex="0">
                 <table class="gw-table">
                   <caption class="gw-sr-only" id="ep-oauth-cap">OAuth sign-ins of endpoint {{ s.slug }}</caption>
-                  <thead><tr><th scope="col">Client</th><th scope="col">Granted</th><th scope="col">Last call</th><th scope="col">Expires</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th></tr></thead>
+                  <thead><tr><th scope="col">AI app</th><th scope="col">Granted</th><th scope="col">Last call</th><th scope="col">Expires</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th></tr></thead>
                   <tbody>
                     @for (g of data.grants(); track g.id) {
                       <tr>
@@ -317,7 +317,7 @@
               <div class="gw-empty gw-empty--compact">
                 <span class="gw-empty__icon"><svg lucideIcon="log-in" class="gw-icon"></svg></span>
                 <h3 class="gw-empty__title">No sign-ins yet</h3>
-                <p class="gw-empty__text">When a client signs in to {{ s.slug }} through the browser, it waits in Approvals until you allow it, then it is listed here.</p>
+                <p class="gw-empty__text">When an AI app signs in to {{ s.slug }} through the browser, it waits in Approvals until you allow it, then it is listed here.</p>
               </div>
             }
           </div>
@@ -346,7 +346,7 @@
     <header class="gw-dialog__header">
       <span class="gw-icon-tile"><svg lucideIcon="copy-plus" class="gw-icon"></svg></span>
       <h2 class="gw-dialog__title" id="ep-dup-title">Duplicate endpoint {{ slug }}</h2>
-      <p class="gw-dialog__description" id="ep-dup-desc">Copies the connections, tool modes, limits and settings. Tokens and client links are not copied: issue new ones for the copy.</p>
+      <p class="gw-dialog__description" id="ep-dup-desc">Copies the connections, tool modes, limits and settings. Tokens and AI app links are not copied: issue new ones for the copy.</p>
       <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
     </header>
     <div class="gw-dialog__body">
@@ -389,7 +389,7 @@
       <div class="gw-stack gw-stack--sm">
         <dl class="gw-kv gw-kv--dense">
           <div class="gw-kv__row"><dt class="gw-kv__key">URL</dt><dd class="gw-kv__value gw-mono">{{ summary()?.url }}</dd></div>
-          <div class="gw-kv__row"><dt class="gw-kv__key">Clients</dt><dd class="gw-kv__value">{{ f.clients }}</dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key">AI apps</dt><dd class="gw-kv__value">{{ f.clients }}</dd></div>
           <div class="gw-kv__row"><dt class="gw-kv__key">Tokens</dt><dd class="gw-kv__value">{{ f.tokens }}</dd></div>
           @if (f.waiting; as w) {
             <div class="gw-kv__row"><dt class="gw-kv__key">Waiting</dt><dd class="gw-kv__value">{{ w }}</dd></div>

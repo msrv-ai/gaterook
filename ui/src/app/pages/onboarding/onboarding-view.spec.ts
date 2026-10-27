@@ -36,7 +36,7 @@ describe('Welcome: steps', () => {
       ['current', 'Protect master key', 'Back it up off this computer'],
       ['upcoming', 'Add a connection', 'A database, server, log store or API'],
       ['upcoming', 'Create an endpoint', 'One MCP URL with the tools you choose'],
-      ['upcoming', 'Connect a client', 'Claude Desktop, Codex, Cursor and more'],
+      ['upcoming', 'Connect your AI app', 'Claude Desktop, Codex, Cursor and more'],
     ]);
   });
 
@@ -151,7 +151,7 @@ describe('Welcome: setup map', () => {
 
   it('describes the chain by the steps, as the kit does', () => {
     expect(MAP_FLOW).toBe(
-      "Set it up top to bottom: step 1 protects secrets and resources, step 2 adds a connection that uses them, policies already have safe defaults, step 3 publishes tools on an endpoint and step 4 connects a client to it. An agent's call travels the other way: client, endpoint (with a token or OAuth), policy (mode, limits, approval), connection, where the secret is injected. The agent never receives the secret.",
+      "Set it up top to bottom: step 1 protects secrets and resources, step 2 adds a connection that uses them, policies already have safe defaults, step 3 publishes tools on an endpoint and step 4 connects an AI app to it. An agent's call travels the other way: AI app, endpoint (with a token or OAuth), policy (mode, limits, approval), connection, where the secret is injected. The agent never receives the secret.",
     );
   });
 });
@@ -163,7 +163,7 @@ describe('Welcome: step cards', () => {
     const one = { scannedAt: null, clients: [clients().clients[2]] };
     expect(clientsDescription(firstRun({ clients: one }))).toBe('Cursor is installed on this computer.');
     expect(clientsDescription(firstRun({ clients: { scannedAt: null, clients: [] } }))).toBe(
-      'No MCP client was found on this computer yet. Install one, then connect it here.',
+      'No AI app was found on this computer yet. Install one, then connect it here.',
     );
   });
 
@@ -172,7 +172,7 @@ describe('Welcome: step cards', () => {
     expect(permissionsText(masterKey({ mode: '0644', problems: ['perms'] }))).toEqual({ mode: '0644', text: 'other users can read it', wrong: true });
     expect(formatText(masterKey())).toBe('Google Tink keyset, sealed with a key from the macOS Keychain');
     expect(formatText(masterKey({ osProtection: 'off' }))).toBe('Google Tink keyset');
-    expect(keyFileName('/Users/you/.mcp-gateway/master.keyset')).toBe('master.keyset');
+    expect(keyFileName('/Users/you/.gaterook/master.keyset')).toBe('master.keyset');
     expect(keyFileName(null)).toBe('master.keyset');
   });
 

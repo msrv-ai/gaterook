@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * The launcher client configs run ({@code ~/.mcp-gateway/bin/gw-bridge}, report 03 §7.4): every path quoted for its
+ * The launcher client configs run ({@code ~/.gaterook/bin/gw-bridge}, report 03 §7.4): every path quoted for its
  * shell, written atomically, 0755 in a 0700 folder.
  */
 class BridgeShimInstallerTest {
@@ -25,12 +25,12 @@ class BridgeShimInstallerTest {
 
   @Test
   void thePosixShimQuotesItsPathsAndExportsTheHome() throws IOException {
-    Path home = dir.resolve("it's home/.mcp-gateway");
+    Path home = dir.resolve("it's home/.gaterook");
     ClientEnvironment env = new ClientEnvironment(Os.LINUX, dir, home, null, Map.of(), true, "laptop");
     BridgeShimInstaller.Target bridge = new BridgeShimInstaller.Target(List.of("/opt/app/bridge/gw-bridge"));
     String script = BridgeShimInstaller.script(env, bridge);
     assertThat(script).startsWith("#!/bin/sh\n")
-        .contains("GW_HOME='" + dir + "/it'\\''s home/.mcp-gateway'; export GW_HOME\n")
+        .contains("GW_HOME='" + dir + "/it'\\''s home/.gaterook'; export GW_HOME\n")
         .endsWith("exec '/opt/app/bridge/gw-bridge' \"$@\"\n");
     assumeTrue(FileSystems.getDefault().supportedFileAttributeViews().contains("posix"));
     Path shim = BridgeShimInstaller.install(env, bridge);
@@ -43,11 +43,11 @@ class BridgeShimInstallerTest {
   void theWindowsShimWritesAPercentSignTwice() {
     // A batch file expands %…% inside quotes too: C:\Users\a%b would lose its %b.
     ClientEnvironment env = new ClientEnvironment(Os.WINDOWS, Path.of("C:\\Users\\a%b"),
-        Path.of("C:\\Users\\a%b\\.mcp-gateway"), null, Map.of(), false, "laptop");
+        Path.of("C:\\Users\\a%b\\.gaterook"), null, Map.of(), false, "laptop");
     String script = BridgeShimInstaller.script(env, new BridgeShimInstaller.Target(List.of(
-        "C:\\Program Files\\MCP Gateway\\100%\\gw-bridge.exe")));
+        "C:\\Program Files\\GateRook\\100%\\gw-bridge.exe")));
     // (Path.of makes the Windows path absolute against this system's folder: only its end is checked.)
-    assertThat(script).contains("C:\\Users\\a%%b\\.mcp-gateway\"\r\n").doesNotContain("a%b")
-        .contains("\"C:\\Program Files\\MCP Gateway\\100%%\\gw-bridge.exe\" %*\r\n");
+    assertThat(script).contains("C:\\Users\\a%%b\\.gaterook\"\r\n").doesNotContain("a%b")
+        .contains("\"C:\\Program Files\\GateRook\\100%%\\gw-bridge.exe\" %*\r\n");
   }
 }

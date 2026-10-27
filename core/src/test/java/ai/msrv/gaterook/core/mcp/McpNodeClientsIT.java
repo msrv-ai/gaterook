@@ -112,7 +112,7 @@ class McpNodeClientsIT {
         }, 180);
     assertThat(exit).as("mrtr.mjs: %s", events).isZero();
     assertThat(event(events, "connected").path("version").asString()).isEqualTo("2026-07-28");
-    assertThat(event(events, "connected").at("/server/name").asString()).isEqualTo("mcp-gateway");
+    assertThat(event(events, "connected").at("/server/name").asString()).isEqualTo("gaterook");
     assertThat(event(events, "tools").path("names").toString()).contains("sql_query", "sql_execute",
         "approval_status");
     assertThat(event(events, "read").at("/result/structuredContent/rowCount").asInt()).isEqualTo(3);

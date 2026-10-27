@@ -1,5 +1,5 @@
 # Tests: no core.log. Logging starts before the test's dynamic properties (gateway.home) exist, so the main
-# configuration's ${gateway.home}/logs/core.log would resolve to the real ~/.mcp-gateway.
+# configuration's ${gateway.home}/logs/core.log would resolve to the real ~/.gaterook.
 logging:
   file:
     name: ""

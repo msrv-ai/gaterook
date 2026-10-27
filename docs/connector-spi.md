@@ -289,7 +289,7 @@ public interface ExecContext {
   Clock clock();
   HandleCodec handles();
   boolean acquire(String remoteQuotaKey, int permitsPerMinute);   // shared remote quotas: gcp:<project>, aws:<acct>:<region>:<api>
-  Path workDir();                      // ~/.mcp-gateway/connectors/<type>/ ; plugins: plugin-data/<id>/
+  Path workDir();                      // ~/.gaterook/connectors/<type>/ ; plugins: plugin-data/<id>/
   Egress egress();                     // guarded HTTP (allowlist ∩ policy, no metadata/private ranges, no redirects)
   /** Derived credentials (GCP/STS/Vault/exec/OAuth tokens) the connector obtained itself: masked like resolver values. */
   void taint(CharSequence value);

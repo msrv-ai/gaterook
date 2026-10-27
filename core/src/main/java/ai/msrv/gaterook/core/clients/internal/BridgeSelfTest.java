@@ -109,7 +109,7 @@ public final class BridgeSelfTest {
       case 1 -> "GateRook isn't running (or its broker isn't).";
       case 2 -> "the access was revoked or doesn't exist.";
       case 3 -> "the command line of the helper is wrong.";
-      default -> "see ~/.mcp-gateway/logs/bridge.log.";
+      default -> "see ~/.gaterook/logs/bridge.log.";
     };
   }
 
@@ -142,7 +142,7 @@ public final class BridgeSelfTest {
     try {
       try {
         in.write(("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":"
-            + "\"2025-11-25\",\"capabilities\":{},\"clientInfo\":{\"name\":\"mcp-gateway-check\",\"version\":\"1\"}}}\n"
+            + "\"2025-11-25\",\"capabilities\":{},\"clientInfo\":{\"name\":\"gaterook-check\",\"version\":\"1\"}}}\n"
             + "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\n"
             + "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}\n")
             .getBytes(StandardCharsets.UTF_8));
@@ -223,7 +223,7 @@ public final class BridgeSelfTest {
         .connectTimeout(Duration.ofSeconds(3)).followRedirects(HttpClient.Redirect.NEVER).build()) {
       HttpResponse<String> init = post(http, url, authorization, null, "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":"
           + "\"initialize\",\"params\":{\"protocolVersion\":\"2025-11-25\",\"capabilities\":{},\"clientInfo\":"
-          + "{\"name\":\"mcp-gateway-check\",\"version\":\"1\"}}}");
+          + "{\"name\":\"gaterook-check\",\"version\":\"1\"}}}");
       if (init.statusCode() != 200) {
         return new Outcome(false, ms(start), null, what + " gave a token the endpoint refused (HTTP "
             + init.statusCode() + ").");

@@ -17,7 +17,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 
 /**
- * {@code ~/.mcp-gateway/run/plugin-hosts.json} (report 16 §3.4): the pid and start time of every plugin host this core
+ * {@code ~/.gaterook/run/plugin-hosts.json} (report 16 §3.4): the pid and start time of every plugin host this core
  * runs, so that a core that was killed or crashed stops, at its next start, what it left behind — a host whose plugin
  * keeps it alive past the end of its stdin, and the processes a plugin started. A pid is trusted only together with
  * its start time: after a reboot the number may belong to someone else's process.

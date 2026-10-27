@@ -64,7 +64,7 @@ final class YamlTrees {
     } catch (YamlEngineException e) {
       throw new YamlException(describe(e));
     } catch (IllegalArgumentException | ClassCastException e) {
-      throw new YamlException("The YAML has a value MCP Gateway can't read as JSON.");
+      throw new YamlException("The YAML has a value GateRook can't read as JSON.");
     }
     return out;
   }
@@ -79,7 +79,7 @@ final class YamlTrees {
         String at = e.getStartMark().map(m -> " (line " + (m.getLine() + 1) + ", column " + (m.getColumn() + 1) + ")")
             .orElse("");
         throw new YamlException("The YAML uses an " + (e instanceof AliasEvent ? "alias (*name)" : "anchor (&name)")
-            + ": MCP Gateway doesn't expand aliases. Write the values out." + at);
+            + ": GateRook doesn't expand aliases. Write the values out." + at);
       }
     }
   }
@@ -106,7 +106,7 @@ final class YamlTrees {
     }
     String at = where == null ? "" : " (" + where + ")";
     if (m.contains("aliases")) {
-      return "The YAML uses an alias (*name): MCP Gateway doesn't expand aliases. Write the values out." + at;
+      return "The YAML uses an alias (*name): GateRook doesn't expand aliases. Write the values out." + at;
     }
     if (m.contains("could not determine a constructor")) {
       return "The YAML uses a custom tag (!…): only plain YAML or JSON is accepted." + at;

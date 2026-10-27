@@ -209,7 +209,7 @@ export class GwGeneralSettings {
       this.toasts.show({
         tone: 'success',
         title: `Core restarting on port ${port}`,
-        body: `Endpoint URLs now use port ${port}.${again.length ? ` Connect ${listText(again)} again in Clients.` : ''}`,
+        body: `Endpoint URLs now use port ${port}.${again.length ? ` Connect ${listText(again)} again in AI apps.` : ''}`,
       });
     } catch (err) {
       this.portError.set(this.errorText(err));

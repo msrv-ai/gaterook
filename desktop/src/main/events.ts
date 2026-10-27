@@ -4,7 +4,7 @@
 // from main's own core; reconnects with Last-Event-ID (the core replays its last 512 events) until the core goes.
 import { request as httpRequest, type ClientRequest } from 'node:http';
 import { randomBytes } from 'node:crypto';
-import { signRequest } from '@mcp-gateway/broker';
+import { signRequest } from '@gaterook/broker';
 import type { CoreEndpoint } from './proxy.ts';
 import { SseParser } from './sse.ts';
 

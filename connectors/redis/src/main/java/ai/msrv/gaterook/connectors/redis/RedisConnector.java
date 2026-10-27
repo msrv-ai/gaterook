@@ -81,7 +81,7 @@ public final class RedisConnector implements Connector {
       s = RedisSettings.parse(cfg);
     } catch (RedisSettings.InvalidSettingsException e) {
       return Classification.deny(policy.rule("config-invalid"), "The settings of " + cfg.name() + " can't be used: "
-          + e.getMessage(), "Ask the person to fix the connection in MCP Gateway.");
+          + e.getMessage(), "Ask the person to fix the connection in GateRook.");
     }
     try {
       RedisRequest.of(call.tool(), call.arguments(), cfg, s);

@@ -30,13 +30,13 @@ public final class TomlBlockEditor {
 
   private TomlBlockEditor() {}
 
-  /** Persisted ownership markers retain their legacy text so existing client entries remain recognizable. */
+  /** {@code # >>> GateRook · gateway-dev · managed entry: Disconnect in GateRook removes it}. */
   public static String startMarker(String name) {
-    return "# >>> MCP Gateway · " + name + " · managed entry: Disconnect in MCP Gateway removes it";
+    return "# >>> GateRook · " + name + " · managed entry: Disconnect in GateRook removes it";
   }
 
   public static String endMarker(String name) {
-    return "# <<< MCP Gateway · " + name;
+    return "# <<< GateRook · " + name;
   }
 
   /**

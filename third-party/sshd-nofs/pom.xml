@@ -23,7 +23,7 @@
   </parent>
 
   <artifactId>sshd-nofs</artifactId>
-  <name>MCP Gateway · Apache MINA SSHD without FileSystemProvider</name>
+  <name>GateRook · Apache MINA SSHD without FileSystemProvider</name>
 
   <dependencies>
     <dependency>

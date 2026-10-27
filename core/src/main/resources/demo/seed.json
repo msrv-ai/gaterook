@@ -2,7 +2,7 @@
   "_comment": "The kit's demo world (design/BLUEPRINT.md §9), applied by admin.demo.DemoSeed when the core starts with GW_DEMO=1 on an empty home. Everything goes through the core's own services, so rows are signed and the audit is one chain. External stores and secret references are S1's: Vault (AppRole) and GCP Secret Manager (impersonation) are connected, AWS Secrets Manager isn't, so billing-api/webhook-secret shows 'not connected'; the stores are never contacted while seeding. Notifications (K2): desktop on, Slack connected to the acme workspace and posting to #deploy-approvals (no tokens: the demo's Slack never calls Slack), Telegram not set up. The tunnel and claude.ai's sign-in are K3's. The MCP server github-mcp is stored as installing its catalog entry leaves it (no npm, no process). Each connection carries what its last test found (facts: the server's version, a read replica, the AWS account) and its health as the kit shows it; the core runs the demo without periodic health checks, since its hosts don't exist. The clients (K1) live in <home>/demo-user-home, never in the developer's own home; the master key's backup is a date only (no copy of the key is written).",
   "stores": [
     {"kind": "vault", "name": "vault", "secrets": ["/auth/secretId"],
-     "config": {"address": "https://vault.acme.internal", "auth": {"method": "approle", "roleId": "mcp-gateway-demo"}}},
+     "config": {"address": "https://vault.acme.internal", "auth": {"method": "approle", "roleId": "gaterook-demo"}}},
     {"kind": "gcp-sm", "name": "gcp-acme-stage",
      "config": {"project": "acme-stage", "credentials": {"source": "adc", "impersonate": "gw-secrets@acme-stage.iam.gserviceaccount.com"}}}
   ],
@@ -156,7 +156,7 @@
   "notifications": {
     "desktop": {"enabled": true, "config": {"soundForProd": true, "maxBurst": 3}},
     "slack": {"config": {"deliverTo": "channel", "channelId": "C0DEPLOYAPR", "channelName": "#deploy-approvals",
-      "workspace": {"team": "acme", "teamId": "T0ACME00001", "bot": "mcp-gateway", "botUserId": "U0MCPGW0001",
+      "workspace": {"team": "acme", "teamId": "T0ACME00001", "bot": "gaterook", "botUserId": "U0MCPGW0001",
         "appId": "A0MCPGW0001"}}, "lastDeliveryMinutesAgo": 28}
   },
   "tunnel": {
@@ -240,9 +240,9 @@
   },
   "auditExport": [
     {"kind": "siem", "name": "SIEM", "schedule": "stream", "exportedMinutesAgo": 1,
-     "config": {"host": "siem.acme.internal", "port": 6514, "facility": 13, "appName": "mcp-gateway"}},
+     "config": {"host": "siem.acme.internal", "port": 6514, "facility": 13, "appName": "gaterook"}},
     {"kind": "s3", "name": "S3", "schedule": "daily@02:00", "exportedMinutesAgo": 750,
-     "config": {"bucket": "acme-audit", "prefix": "mcp-gateway/", "region": "eu-central-1", "pathStyle": false, "format": "jsonl",
+     "config": {"bucket": "acme-audit", "prefix": "gaterook/", "region": "eu-central-1", "pathStyle": false, "format": "jsonl",
        "credentials": {"source": "profile", "profile": "acme-audit"}}},
     {"kind": "bigquery", "name": "BigQuery", "schedule": "hourly", "exportedMinutesAgo": 150, "failingMinutesAgo": 150,
      "attemptMinutesAgo": 30,

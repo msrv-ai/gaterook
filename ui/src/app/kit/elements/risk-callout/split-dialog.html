@@ -7,7 +7,7 @@
         @if (published()) {
           Move one connection to a new endpoint, so neither endpoint has all three ingredients. {{ slug() }} keeps its public URL and its claude.ai sign-in; the new endpoint is not published.
         } @else {
-          Move one connection to a new endpoint, so neither endpoint has all three ingredients. Its tools keep their modes and limits; {{ slug() }} keeps its URL, tokens and clients.
+          Move one connection to a new endpoint, so neither endpoint has all three ingredients. Its tools keep their modes and limits; {{ slug() }} keeps its URL, tokens and AI apps.
         }
       </p>
       <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
@@ -57,7 +57,7 @@
         }
         @if (clients().length) {
           <fieldset class="gw-field" [attr.aria-describedby]="uid + '-clients-hint'">
-            <legend class="gw-field__label">Clients that need the moved tools</legend>
+            <legend class="gw-field__label">AI apps that need the moved tools</legend>
             @for (c of clients(); track c.id) {
               <label class="gw-checkbox">
                 <input class="gw-checkbox__input" type="checkbox" [name]="uid + '-client'" [value]="c.id" [checked]="picked().has(c.id)" (change)="toggleClient(c.id, $any($event.target).checked)">

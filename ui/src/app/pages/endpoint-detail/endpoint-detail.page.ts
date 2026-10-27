@@ -510,7 +510,7 @@ export class EndpointDetailPage {
     try {
       await this.data.duplicate(newSlug);
       this.duplicateDialog()?.close('duplicate');
-      this.toast({ tone: 'success', title: `Endpoint ${newSlug} created`, body: `A copy of ${this.ep()} without tokens or client links.` });
+      this.toast({ tone: 'success', title: `Endpoint ${newSlug} created`, body: `A copy of ${this.ep()} without tokens or AI app links.` });
     } catch (err) {
       this.duplicateError.set(this.errorText(err));
     } finally {
@@ -545,7 +545,7 @@ export class EndpointDetailPage {
     try {
       await this.data.enable();
       if (undo) this.announcer.announce(`Endpoint ${slug} is running again`);
-      else this.toast({ tone: 'success', title: `Endpoint ${slug} is running again`, body: 'Clients can call it from their next call.' });
+      else this.toast({ tone: 'success', title: `Endpoint ${slug} is running again`, body: 'AI apps can call it from their next call.' });
     } catch (e) {
       this.toast({ tone: 'danger', title: `${slug} wasn't enabled`, body: this.errorText(e) });
     } finally {

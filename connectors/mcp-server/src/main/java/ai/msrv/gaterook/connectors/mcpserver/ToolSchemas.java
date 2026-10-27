@@ -91,7 +91,7 @@ final class ToolSchemas {
       schema.putObject("properties");
     }
     if (input && schema.path("properties").has("connection")) {
-      return new Result(null, "it has a parameter named connection, which MCP Gateway uses for itself");
+      return new Result(null, "it has a parameter named connection, which GateRook uses for itself");
     }
     String invisible = sanitize(schema, 0);
     if (invisible != null) {

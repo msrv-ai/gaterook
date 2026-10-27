@@ -3,7 +3,7 @@
   "id": "clickhouse",
   "version": "0.6.1",
   "name": "ClickHouse",
-  "provider": "MCP Gateway",
+  "provider": "GateRook",
   "license": "Apache-2.0",
   "description": "Analytics queries with row and time limits. Read only.",
   "requires": {
@@ -61,7 +61,7 @@
         "maxLength": 128,
         "default": "default",
         "title": "User",
-        "description": "Best a user that can only read. MCP Gateway also sends readonly=1 with every query.",
+        "description": "Best a user that can only read. GateRook also sends readonly=1 with every query.",
         "x-agent-visible": true
       },
       "password": {

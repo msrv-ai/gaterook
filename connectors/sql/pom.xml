@@ -17,7 +17,7 @@
   </parent>
 
   <artifactId>connectors-sql</artifactId>
-  <name>MCP Gateway · Connectors · SQL</name>
+  <name>GateRook · Connectors · SQL</name>
 
   <dependencies>
     <dependency>

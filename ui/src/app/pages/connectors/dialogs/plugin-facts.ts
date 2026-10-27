@@ -21,6 +21,8 @@ export interface PluginFacts {
   readonly connectionForm: string | null;
   /** "The host of each connection, port 15672". */
   readonly access: string;
+  /** The core said this system has no sandbox for the plugin process (`report.sandbox` null): the review says so. */
+  readonly unsandboxed: boolean;
 }
 
 function isObject(v: JsonValue | undefined): v is JsonObject {
@@ -95,5 +97,7 @@ export function pluginFacts(check: PluginCheck, source: string | null): PluginFa
     allReadOnly: r.tools.length > 0 && r.tools.every((t) => readOnly(t.declared)),
     connectionForm: connectionFormText(r.configPreview),
     access: accessText(r.access),
+    // null: no sandbox here; a name: the sandbox it runs in; absent: a core that doesn't say (nothing is claimed).
+    unsandboxed: r.sandbox === null,
   };
 }

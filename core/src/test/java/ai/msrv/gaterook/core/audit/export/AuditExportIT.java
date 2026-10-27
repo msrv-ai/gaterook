@@ -78,7 +78,7 @@ class AuditExportIT {
         assertThat(d.pending()).isFalse();
         FakeCloud.Request put = cloud.requests("PUT", "/acme-audit/").getFirst();
         String day = DateTimeFormatter.ofPattern("yyyy/MM/dd").withZone(ZoneOffset.UTC).format(Instant.now());
-        assertThat(put.path()).isEqualTo("/acme-audit/mcp-gateway/" + day + "/tool-calls-000000000001-"
+        assertThat(put.path()).isEqualTo("/acme-audit/gaterook/" + day + "/tool-calls-000000000001-"
             + String.format("%012d", all.getLast()) + ".jsonl");
         assertThat(put.header("Content-Type")).isEqualTo("application/x-ndjson");
         assertSignedLikeAws(put);
@@ -429,7 +429,7 @@ class AuditExportIT {
       assertThat(exports.list()).isEmpty();
       List<AuditQueries.Change> changes = core.bean(AuditQueries.class).changes("Audit export", null, 20);
       assertThat(changes).extracting(c -> c.subject() + ": " + c.to()).contains(
-          "Audit export audit-s3: Amazon S3 · s3://acme-audit/mcp-gateway/ · Daily at 02:00",
+          "Audit export audit-s3: Amazon S3 · s3://acme-audit/gaterook/ · Daily at 02:00",
           "Audit export audit-s3: Hourly; new credentials", "Audit export audit-s3: Removed");
       assertThat(changes).extracting(AuditQueries.Change::reason).contains("SOC wants a copy", "rotated",
           "moved to BigQuery");
@@ -491,7 +491,7 @@ class AuditExportIT {
 
   static AuditExports.Draft s3(FakeCloud cloud, String format) {
     return new AuditExports.Draft("s3", "audit-s3", true, JSON.readTree("""
-        {"bucket":"acme-audit","prefix":"mcp-gateway","region":"eu-central-1","endpoint":"%s","format":"%s",
+        {"bucket":"acme-audit","prefix":"gaterook","region":"eu-central-1","endpoint":"%s","format":"%s",
          "credentials":{"source":"accessKey","accessKeyId":"%s"}}""".formatted(cloud.url(), format, ACCESS_KEY)),
         "daily@02:00", secret());
   }

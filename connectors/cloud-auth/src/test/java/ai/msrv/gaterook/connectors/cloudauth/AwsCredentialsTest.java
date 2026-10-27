@@ -35,7 +35,7 @@ import software.amazon.awssdk.services.sts.StsClient;
 class AwsCredentialsTest {
 
   private static final String ROLE = "arn:aws:iam::412398765012:role/gw-readonly";
-  private static final String ASSUMED = "arn:aws:sts::412398765012:assumed-role/gw-readonly/mcp-gateway-aws-stage";
+  private static final String ASSUMED = "arn:aws:sts::412398765012:assumed-role/gw-readonly/gaterook-aws-stage";
   private static final CloudCredentials.Owner OWNER = new CloudCredentials.Owner("conn-7", 3, "aws-stage");
 
   private MockWebServer server;
@@ -61,13 +61,13 @@ class AwsCredentialsTest {
               + "<Credentials><AccessKeyId>ASIAEXAMPLESESSION01</AccessKeyId><SecretAccessKey>cnry-session-secret"
               + "</SecretAccessKey><SessionToken>cnry-session-token</SessionToken><Expiration>"
               + Instant.now().plus(1, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS) + "</Expiration></Credentials>"
-              + "<AssumedRoleUser><AssumedRoleId>AROAEXAMPLE:mcp-gateway-aws-stage</AssumedRoleId><Arn>" + ASSUMED
+              + "<AssumedRoleUser><AssumedRoleId>AROAEXAMPLE:gaterook-aws-stage</AssumedRoleId><Arn>" + ASSUMED
               + "</Arn></AssumedRoleUser></AssumeRoleResult><ResponseMetadata><RequestId>1</RequestId>"
               + "</ResponseMetadata></AssumeRoleResponse>");
         }
         if (body.contains("Action=GetCallerIdentity")) {
           return xml(200, "<GetCallerIdentityResponse xmlns=\"https://sts.amazonaws.com/doc/2011-06-15/\">"
-              + "<GetCallerIdentityResult><Arn>" + ASSUMED + "</Arn><UserId>AROAEXAMPLE:mcp-gateway-aws-stage</UserId>"
+              + "<GetCallerIdentityResult><Arn>" + ASSUMED + "</Arn><UserId>AROAEXAMPLE:gaterook-aws-stage</UserId>"
               + "<Account>412398765012</Account></GetCallerIdentityResult><ResponseMetadata><RequestId>2</RequestId>"
               + "</ResponseMetadata></GetCallerIdentityResponse>");
         }
@@ -105,7 +105,7 @@ class AwsCredentialsTest {
 
     RecordedRequest assume = requests.getFirst();
     String form = URLDecoder.decode(assume.getBody().utf8(), StandardCharsets.UTF_8);
-    assertThat(form).contains("RoleArn=" + ROLE, "RoleSessionName=mcp-gateway-aws-stage", "ExternalId=gw-ext-3f9a1c2b7d4e",
+    assertThat(form).contains("RoleArn=" + ROLE, "RoleSessionName=gaterook-aws-stage", "ExternalId=gw-ext-3f9a1c2b7d4e",
         "DurationSeconds=900", "Policy=" + policy);
     assertThat(assume.getHeaders().get("Authorization")).contains("Credential=AKIAEXAMPLEBASEKEY01/");
     RecordedRequest whoami = requests.get(1);
@@ -239,7 +239,7 @@ class AwsCredentialsTest {
       huge.allow(List.of("service" + i + ":Describe*"), List.of("arn:aws:service" + i + ":eu-central-1:*:thing/*"));
     }
     assertThatThrownBy(huge::toJson).hasMessageContaining("2048");
-    assertThat(CloudCredentials.sessionName("aws stage/eu")).isEqualTo("mcp-gateway-aws-stage-eu");
+    assertThat(CloudCredentials.sessionName("aws stage/eu")).isEqualTo("gaterook-aws-stage-eu");
     assertThat(CloudCredentials.sessionName("x".repeat(100))).hasSize(64);
     assertThat(CloudCredentials.stsEndpoint("cn-north-1")).hasToString("https://sts.cn-north-1.amazonaws.com.cn");
   }

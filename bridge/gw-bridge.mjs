@@ -10,7 +10,7 @@
 // the request with a JSON-RPC error saying what to do. Logs go to stderr, never a token.
 //
 // Environment: GW_BROKER (the broker's run/broker.json, or its socket or pipe), GW_HOME (the gateway home, default
-// ~/.mcp-gateway), GW_CLIENT (claude-desktop when absent).
+// ~/.gaterook), GW_CLIENT (claude-desktop when absent).
 
 import fs from 'node:fs';
 import http from 'node:http';
@@ -46,7 +46,7 @@ export function parseArgs(argv) {
 /** Where the broker listens: GW_BROKER names a socket, a pipe or broker.json; else <home>/run/broker.json. */
 export function brokerAddress(env = process.env) {
   const given = env.GW_BROKER;
-  const home = env.GW_HOME || path.join(os.homedir(), '.mcp-gateway');
+  const home = env.GW_HOME || path.join(os.homedir(), '.gaterook');
   const info = given && !given.endsWith('.sock') && !given.startsWith('\\\\.\\pipe\\')
     ? given : given ? null : path.join(home, 'run', 'broker.json');
   if (!info) return given;

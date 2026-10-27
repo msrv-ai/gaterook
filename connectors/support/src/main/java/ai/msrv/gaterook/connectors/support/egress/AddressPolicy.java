@@ -187,17 +187,17 @@ public final class AddressPolicy {
         ? ip + " is" : host + " resolves to " + ip + ",";
     if (inAny(ALWAYS_BLOCKED, bytes)) {
       return new Verdict(Reason.ALWAYS_BLOCKED, address, subject
-          + " a link-local, cloud metadata or reserved address. MCP Gateway never connects there.");
+          + " a link-local, cloud metadata or reserved address. GateRook never connects there.");
     }
     byte[] judged = embeddedIpv4(bytes).orElse(bytes);
     if (judged != bytes && inAny(ALWAYS_BLOCKED, judged)) {
       return new Verdict(Reason.ALWAYS_BLOCKED, address, subject + " an address that carries "
-          + IpText.format(judged) + " (link-local, cloud metadata or reserved). MCP Gateway never connects there.");
+          + IpText.format(judged) + " (link-local, cloud metadata or reserved). GateRook never connects there.");
     }
     boolean loopback = inAny(LOOPBACK, judged);
     if (loopback && port >= 0 && corePorts.contains(port)) {
       return new Verdict(Reason.CORE_PORT, address, IpText.format(judged) + ":" + port
-          + " is MCP Gateway itself. Connections to it are never allowed.");
+          + " is GateRook itself. Connections to it are never allowed.");
     }
     if (loopback && loopbackNeverAllowed) {
       return new Verdict(Reason.LOOPBACK, address, subject + " this computer. Downloads never go there.");
@@ -236,7 +236,7 @@ public final class AddressPolicy {
     }
     if (blockedName(host)) {
       return Optional.of(new Verdict(Reason.BLOCKED_NAME, null, normalizeName(host)
-          + " is a cloud metadata name. MCP Gateway never connects there."));
+          + " is a cloud metadata name. GateRook never connects there."));
     }
     String bare = unbracket(host);
     if (bare.indexOf(':') >= 0) {

@@ -3,7 +3,7 @@
   "id": "jira-service-desk",
   "version": "1.3.0",
   "name": "Jira Service Desk",
-  "provider": "MCP Gateway",
+  "provider": "GateRook",
   "license": "Apache-2.0",
   "description": "Search requests and read queues. Comments and transitions wait for approval.",
   "requires": {

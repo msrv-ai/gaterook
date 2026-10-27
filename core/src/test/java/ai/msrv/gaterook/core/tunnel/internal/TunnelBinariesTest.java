@@ -159,7 +159,7 @@ class TunnelBinariesTest {
     assertThat(binaries.ngrok()).contains(file);
     assertThat(binaries.ngrokStatus().sha256Ok()).isTrue();
     assertThat(binaries.ngrokStatus().error()).isNull();
-    assertThat(server.takeRequest().getHeaders().get("User-Agent")).isEqualTo("mcp-gateway");
+    assertThat(server.takeRequest().getHeaders().get("User-Agent")).startsWith("GateRook/");
     try (var dir = Files.list(file.getParent())) {
       assertThat(dir.map(p -> p.getFileName().toString())).containsExactly("ngrok");
     }

@@ -86,7 +86,7 @@ final class EgressHttpClient implements ExecContext.Egress {
               + "reach. A private address needs http.allowedPrivateRanges in the environment's policy.");
         }
         if (a.isLoopbackAddress() && grant.corePorts().contains(port)) {
-          throw ConnectorException.denied("MCP Gateway's own port " + port + " is never reachable from a plugin");
+          throw ConnectorException.denied("GateRook's own port " + port + " is never reachable from a plugin");
         }
         allPrivate &= AddressRules.privateAddress(a);
       }

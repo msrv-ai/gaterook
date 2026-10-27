@@ -24,7 +24,8 @@ One command (`scripts/dev.mjs`):
    heavy-build lock);
 2. starts the core on the JVM in dev mode (`-Dgateway.dev=true`, a fresh `GW_DEV_INTERNAL_SECRET`) with `GW_DEMO=1`
    on an empty home in `ui/target/dev-home`: the demo world of BLUEPRINT §9 (`--keep` reuses the last home,
-   `--no-demo` starts empty);
+   `--no-demo` starts empty and discovers sample AI apps in `demo-user-home` inside that development home,
+   so connecting them does not change your real AI app configurations);
 3. waits for the core's ready line and starts `ng serve` with `proxy.conf.mjs`, which signs every `/api` request
    (`X-Gateway-Auth`, HMAC of `METHOD|target|ts|nonce`) and strips `Origin`, `Referer`, `Cookie` and `Sec-Fetch-*`,
    as Electron's main process does. `/internal` is not proxied.
@@ -36,7 +37,7 @@ loop for a fresh one.
 
 ## Element gallery (dev only)
 
-`http://127.0.0.1:<port>/dev/elements` lists the kit's 16 elements; `/dev/elements/<name>` renders one frameless,
+`http://127.0.0.1:<port>/dev/elements` lists the kit's 17 elements; `/dev/elements/<name>` renders one frameless,
 like `design/elements/<name>.html`. Elements of merged areas read the dev core (approvals, tokens, tools, risk,
 overview, activity, connector types, search); states not represented by the current demo world use fixtures from `src/app/dev/`, moved to the core's clock. Production builds replace
 `dev-routes.ts` with `dev-routes.prod.ts`: no gallery or fixture ships.

@@ -187,7 +187,7 @@ public class PlaygroundService {
     ObjectNode params = request.putObject("params");
     params.put("protocolVersion", LEGACY);
     params.putObject("capabilities");
-    params.putObject("clientInfo").put("name", "mcp-gateway-playground").put("version", CoreBuild.VERSION);
+    params.putObject("clientInfo").put("name", "gaterook-playground").put("version", CoreBuild.VERSION);
     McpGateway.Response r = gateway.handle(slug, CALLER, request, headers(LEGACY, "initialize", null));
     return r.body() == null ? JsonNodeFactory.instance.objectNode() : r.body().path("result");
   }
@@ -252,7 +252,7 @@ public class PlaygroundService {
     meta.put(META_VERSION, MODERN);
     // No elicitation: an approval comes back as a handle the person follows in Approvals, never as MRTR.
     meta.putObject(META_CAPABILITIES);
-    meta.putObject(META_CLIENT).put("name", "mcp-gateway-playground").put("version", CoreBuild.VERSION);
+    meta.putObject(META_CLIENT).put("name", "gaterook-playground").put("version", CoreBuild.VERSION);
   }
 
   private static Function<String, String> headers(String version, String method, String name) {

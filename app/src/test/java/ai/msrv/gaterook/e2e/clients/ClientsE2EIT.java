@@ -227,7 +227,7 @@ class ClientsE2EIT {
     assertThat(validate.out()).contains("validation passes");
     Result info = run(List.of(node, mcpbCli.toString(), "info", mcpb.toString()), Map.of(), 60);
     assertThat(info.code()).as(info.out()).isZero();
-    assertThat(info.out()).contains("mcp-gateway-dev");
+    assertThat(info.out()).contains("gaterook-dev");
 
     JsonNode manifest = JSON.readTree(read(unpacked.resolve("manifest.json")));
     List<String> args = new ArrayList<>();

@@ -370,7 +370,7 @@ describe('log-explorer', () => {
       expect(el.querySelector('.gw-log-explorer__facets, .gw-chart')).toBeNull();
       expect(el.querySelector('h2.gw-popover__title')).not.toBeNull();
       expect(text(el.querySelector('.gw-popover__body p'))).toContain('every chart and number on this page follows it');
-      expect(text(el.querySelector('.gw-log-explorer__active p'))).toBe('No filters: every endpoint, client and connection. Type field:value above to narrow every chart.');
+      expect(text(el.querySelector('.gw-log-explorer__active p'))).toBe('No filters: every endpoint, AI app and connection. Type field:value above to narrow every chart.');
       expect(text(el.querySelector('[role="status"]'))).toBe('1,284 calls · compared with the previous 24 hours');
     });
 

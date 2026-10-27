@@ -20,7 +20,7 @@ import java.util.List;
 /**
  * The log of one plugin and its host (report 16 §5): lines of the plugin's {@code log} notifications and the host's
  * stderr, each masked in the core with the secret rules and the taint of this process's calls, written to
- * {@code ~/.mcp-gateway/logs/plugins/<id>.log} (0600, rotated at 5 MB, three kept). The last lines are kept in memory
+ * {@code ~/.gaterook/logs/plugins/<id>.log} (0600, rotated at 5 MB, three kept). The last lines are kept in memory
  * for the UI when a host fails to start or crashes. A plugin that logs its own secret leaves none on disk.
  */
 final class PluginLog implements AutoCloseable {
@@ -65,7 +65,7 @@ final class PluginLog implements AutoCloseable {
 
   /** A note of the gateway itself in the log ("Started …", "Stopped after 15 min idle"). */
   synchronized void note(String text) {
-    append("[mcp-gateway] " + mask(text));
+    append("[gaterook] " + mask(text));
   }
 
   /** The last lines, masked, for the UI. */

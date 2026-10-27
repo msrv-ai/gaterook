@@ -1,8 +1,8 @@
 @let ep = slug();
 <header class="gw-section__header">
-  <h2 class="gw-section__title" id="ep-clients-title">Clients using {{ ep }}</h2>
+  <h2 class="gw-section__title" id="ep-clients-title">AI apps using {{ ep }}</h2>
   <p class="gw-section__description">Each one gets the tools of {{ ep }} and nothing else. Disconnect removes its config entry and revokes its access.</p>
-  <div class="gw-section__actions"><a class="gw-btn gw-btn--sm" routerLink="/clients"><svg lucideIcon="app-window" class="gw-icon gw-icon--sm"></svg>All clients</a></div>
+  <div class="gw-section__actions"><a class="gw-btn gw-btn--sm" routerLink="/clients"><svg lucideIcon="app-window" class="gw-icon gw-icon--sm"></svg>All AI apps</a></div>
 </header>
 
 @switch (data.clientsState()) {
@@ -12,14 +12,14 @@
         <li class="gw-card gw-client-card gw-client-card--compact"><div class="gw-client-card__row"><span class="gw-skeleton gw-skeleton--text"></span></div></li>
       }
     </ul>
-    <p class="gw-sr-only" role="status">Loading the clients of {{ ep }}</p>
+    <p class="gw-sr-only" role="status">Loading the AI apps of {{ ep }}</p>
   }
   @case ('not-available') {
     <div class="gw-card">
       <div class="gw-empty gw-empty--compact">
         <span class="gw-empty__icon"><svg lucideIcon="app-window" class="gw-icon"></svg></span>
-        <h3 class="gw-empty__title">Clients aren't available in this build</h3>
-        <p class="gw-empty__text">This core doesn't look for MCP clients on this computer yet. Connect one by hand with the URL and a token from Tokens.</p>
+        <h3 class="gw-empty__title">AI apps aren't available in this build</h3>
+        <p class="gw-empty__text">This core doesn't look for AI apps on this computer yet. Connect one by hand with the URL and a token from Tokens.</p>
       </div>
     </div>
   }
@@ -27,15 +27,15 @@
     <div class="gw-alert gw-alert--danger" role="alert">
       <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
       <div class="gw-alert__content">
-        <p class="gw-alert__title">The clients of this computer didn't load</p>
-        <p class="gw-alert__body">The core couldn't read the clients' configs. Try again; if it keeps failing, see the core log.</p>
+        <p class="gw-alert__title">The AI apps of this computer didn't load</p>
+        <p class="gw-alert__body">The core couldn't read the AI apps' configs. Try again; if it keeps failing, see the core log.</p>
         <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retry()">Try again</button></div>
       </div>
     </div>
   }
   @default {
     @if (cards().length) {
-      <ul class="gw-stack gw-stack--sm" [attr.aria-label]="'Clients of endpoint ' + ep">
+      <ul class="gw-stack gw-stack--sm" [attr.aria-label]="'AI apps of endpoint ' + ep">
         @for (c of cards(); track c.client) {
           <li gwClientCard variant="compact" [endpoint]="ep" [card]="c" [endpoints]="endpoints()"
             [connectPreview]="preview()" [connectLoading]="previewLoading()" [connectFailure]="connectFailureOf(c.client)" [failure]="failureOf(c.client)"
@@ -48,9 +48,9 @@
       <div class="gw-card">
         <div class="gw-empty gw-empty--compact">
           <span class="gw-empty__icon"><svg lucideIcon="app-window" class="gw-icon"></svg></span>
-          <h3 class="gw-empty__title">No client uses {{ ep }} yet</h3>
-          <p class="gw-empty__text">GateRook found no Claude Desktop, Codex, Cursor or Antigravity on this computer. Install one, then connect it from Clients; or issue a token under Tokens for any other client.</p>
-          <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" routerLink="/clients"><svg lucideIcon="app-window" class="gw-icon gw-icon--sm"></svg>All clients</a></div>
+          <h3 class="gw-empty__title">No AI app uses {{ ep }} yet</h3>
+          <p class="gw-empty__text">GateRook found no Claude Desktop, Codex, Cursor or Antigravity on this computer. Install one, then connect it from AI apps; or issue a token under Tokens for any other app.</p>
+          <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" routerLink="/clients"><svg lucideIcon="app-window" class="gw-icon gw-icon--sm"></svg>All AI apps</a></div>
         </div>
       </div>
     }

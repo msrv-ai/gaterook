@@ -17,7 +17,7 @@ export interface FilePurpose {
 
 export const FILE_PURPOSES: Readonly<Record<string, FilePurpose>> = {
   'master-key-backup': {
-    id: 'master-key-backup', save: true, title: 'Back up master key', defaultName: 'mcp-gateway-master-key-{date}.json',
+    id: 'master-key-backup', save: true, title: 'Back up master key', defaultName: 'gaterook-master-key-{date}.json',
     filters: [{ name: 'Master key backup', extensions: ['json'] }],
   },
   'master-key-restore': {
@@ -25,11 +25,11 @@ export const FILE_PURPOSES: Readonly<Record<string, FilePurpose>> = {
     filters: [{ name: 'Master key backup', extensions: ['json'] }, { name: 'All files', extensions: ['*'] }],
   },
   'db-backup': {
-    id: 'db-backup', save: true, title: 'Back up the database', defaultName: 'mcp-gateway-{date}.db',
+    id: 'db-backup', save: true, title: 'Back up the database', defaultName: 'gaterook-{date}.db',
     filters: [{ name: 'SQLite database', extensions: ['db'] }],
   },
   'audit-export': {
-    id: 'audit-export', save: true, title: 'Export activity', defaultName: 'mcp-gateway-activity-{date}.jsonl',
+    id: 'audit-export', save: true, title: 'Export activity', defaultName: 'gaterook-activity-{date}.jsonl',
     filters: [{ name: 'JSON Lines', extensions: ['jsonl'] }, { name: 'CSV', extensions: ['csv'] }],
   },
   plugin: {

@@ -1,5 +1,5 @@
 // Where things are (ARCHITECTURE.md §7.1, §7.6 of report 14): the installed app — UI in the asar, the native core and
-// its libraries in `<resources>/core`, the gateway home `~/.mcp-gateway` — or a development build run from the
+// its libraries in `<resources>/core`, the gateway home `~/.gaterook` — or a development build run from the
 // repository, where environment variables may point elsewhere (a throwaway home, the core jar, a fake core for the
 // tests). A release build ignores every one of those variables: `dev` is false there whatever the environment says.
 import { existsSync } from 'node:fs';
@@ -31,6 +31,15 @@ export interface LayoutInput {
   readonly env: NodeJS.ProcessEnv;
 }
 
+/**
+ * The UI's build in the repository: the Angular project is `gaterook-ui` (it was `mcp-gateway-ui` before decision 11,
+ * and the UI step renames it); the first one built wins.
+ */
+export function uiBuild(repo: string): string {
+  const builds = ['gaterook-ui', 'mcp-gateway-ui'].map((p) => join(repo, 'ui', 'dist', p, 'browser'));
+  return builds.find((d) => existsSync(join(d, 'index.html'))) ?? builds[0]!;
+}
+
 export function resolveLayout(i: LayoutInput): Layout {
   const dev = i.devBuild && !i.packaged;
   const env = dev ? i.env : {};
@@ -39,19 +48,19 @@ export function resolveLayout(i: LayoutInput): Layout {
   if (!dev) {
     const resources = i.resourcesPath;
     const coreDir = join(resources, 'core');
-    const binary = join(coreDir, `mcp-gateway-core${exe}`);
+    const binary = join(coreDir, `gaterook-core${exe}`);
     // The JVM fallback is a CI artifact only (§7.1 "Packaging"); an installer has the native binary.
     const core: CoreCommand = existsSync(binary) || !existsSync(join(coreDir, 'app.jar'))
       ? { kind: 'native', binary, libDir: coreDir }
       : { kind: 'jar', java: join(resources, 'jre', 'bin', `java${exe}`), jar: join(coreDir, 'app.jar') };
     return {
-      dev: false, home: join(i.homedir, '.mcp-gateway'), uiRoot: join(i.appPath, 'ui'), resources, core,
+      dev: false, home: join(i.homedir, '.gaterook'), uiRoot: join(i.appPath, 'ui'), resources, core,
       bridgeJar: null, preload,
     };
   }
   const repo = resolve(i.appPath, '..');
-  const home = env['GW_HOME'] ? resolve(env['GW_HOME']) : join(i.homedir, '.mcp-gateway');
-  const uiRoot = env['GW_UI_DIST'] ? resolve(env['GW_UI_DIST']) : join(repo, 'ui', 'dist', 'mcp-gateway-ui', 'browser');
+  const home = env['GW_HOME'] ? resolve(env['GW_HOME']) : join(i.homedir, '.gaterook');
+  const uiRoot = env['GW_UI_DIST'] ? resolve(env['GW_UI_DIST']) : uiBuild(repo);
   let core: CoreCommand;
   if (env['GW_CORE_COMMAND']) {
     const argv = JSON.parse(env['GW_CORE_COMMAND']) as unknown;

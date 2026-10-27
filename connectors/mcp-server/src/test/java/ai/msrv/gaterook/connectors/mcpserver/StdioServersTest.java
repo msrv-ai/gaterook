@@ -381,7 +381,7 @@ class StdioServersTest {
         .hasMessageContaining("exited with code 7").hasMessageContaining("missing configuration")
         .hasMessageNotContaining(TOKEN);
     assertThatThrownBy(() -> runtime.probe(cfg("only-2026", ""), secrets, ctx))
-        .hasMessageContaining("Speaks 2026-07-28 only; MCP Gateway connects up to 2025-11-25.");
+        .hasMessageContaining("Speaks 2026-07-28 only; GateRook connects up to 2025-11-25.");
     long t0 = System.nanoTime();
     assertThatThrownBy(() -> runtime.probe(cfg("hang", "\"startTimeoutSeconds\":5"), secrets, ctx))
         .isInstanceOfSatisfying(ConnectorException.class,
