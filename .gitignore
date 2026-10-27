@@ -1,0 +1,32 @@
+# Local editor and operating-system state.
+.DS_Store
+.idea/
+*.iml
+
+# Installed dependencies and build output; lock-files remain versioned.
+node_modules/
+target/
+/dist/
+/build/
+/coverage/
+/desktop/dist/
+/desktop/stage/
+/desktop/release/
+/ui/dist/
+/ui/.angular/
+playwright-report/
+test-results/
+npm-debug.log*
+
+# Local runtime state and secrets. Commit only sanitized examples.
+.env
+.env.*
+!.env.example
+!.env.*.example
+/.dev/
+/.local/
+/.secrets/
+/signing-private/
+/logs/
+
+# Do not add a blanket dist/ rule: the design kit may version generated assets.
