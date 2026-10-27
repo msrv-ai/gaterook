@@ -1,72 +1,50 @@
-# Future application and design-kit migration
+# Application and design-kit source migration
 
-**Status: migration has not started.** This document records observed context and required checks. It does not confirm that sources, successful builds, or a release-ready implementation exist in this repository.
+**Status: not started.** This checklist describes preparation for adding application source. It does not establish that runtime code, verified builds, or installers are available in this repository.
 
-## Existing implementation context
+## Source scope
 
-The application to be migrated uses Electron, Angular, and Java/Spring Boot, with a GraalVM native core. Its source includes the application UI, desktop main/preload code, core, connectors, plugins, plugin host, and client bridges. The design kit contains shared tokens, components, and reusable assets.
+The application uses Electron, Angular, and Java/Spring Boot with a GraalVM native core. Its source includes the UI, desktop main/preload code, core, connectors, plugins, plugin host, and client bridges. The design kit contains canonical tokens, component sources, reusable assets, and interface rules.
 
-The existing project mixes these sources with build configuration, generators, validation tooling, packaging, and release automation. Preserve runtime behavior while separating the files by ownership. Detailed build context, toolchain versions, runner targets, staging, signing behavior, and release procedures belong in the private platform's documentation.
+Include:
 
-## Migration destinations
+- Application runtime source, required runtime metadata, and runtime assets.
+- Canonical design-kit source and reusable assets.
+- Test implementation and sanitized fixtures.
+- Source-facing architecture, decisions, and design instructions.
+- Required third-party licenses and notices.
 
-| Keep in public `gaterook` | Move to private `gaterook-platform` |
-| --- | --- |
-| Application runtime source and runtime assets | All build/dependency manifests, lockfiles, and toolchain pins |
-| Canonical design tokens, component sources, and reusable assets | Code and asset generators, design-kit build tooling, and validation runners |
-| Test source and fixture data | Test execution tooling, local test-service orchestration, and CI workflows/runners |
-| Source-facing architecture, decisions, and design instructions | Maven/npm/Electron build configuration, native-image build metadata, staging, and packaging |
-| Required source and asset license notices | Signing/notarization, installer checks, publication, deployment, and operational key management |
+Review mixed directories file by file. Exclude tooling, dependency/build manifests, lockfiles, generators, CI configuration, packaging and deployment configuration, credentials, local user data, caches, and installed dependencies. Preserve required generated runtime assets when their use has been verified.
 
-Preserve the implementation and its dependencies across this separation. The private platform is the sole build implementation; the public repository is the canonical application and kit source. Do not promise that a standalone public clone can build the application.
+Translate imported documentation, comments, and descriptions into English without changing technical meaning. Preserve third-party notices and do not choose the product's license automatically.
 
-Review individual files in mixed directories before moving them. Separate runtime metadata from build metadata, source assets from packaging-only assets, and test sources from test execution tooling. Some generated kit assets may already be versioned source dependencies; assess them explicitly rather than deleting every `dist` directory. All generators and build-related configuration still belong to the private platform.
+## Design-kit continuity
 
-Do not migrate live user data, keys, secrets, local IDE state, caches, installed dependencies, or build outputs into the public source repository. All operational key and secret management, including its documentation, belongs to the private platform. Never commit plaintext secrets. This preparation does not transfer any keys.
+1. Keep tokens, component sources, reusable assets, and design rules together.
+2. Reuse existing components and semantic tokens when adapting the application UI.
+3. Preserve source references, SCSS relationships, asset paths, and the component inventory.
+4. Keep a single canonical set of reusable design sources and avoid manually editing generated assets.
 
-Translate imported documentation, comments, descriptions, and other authored prose into English while preserving their technical meaning. Preserve third-party licenses and notices, and review documentation before publication. Do not select the product's license automatically.
+## Compatibility review
 
-## Separating the website from the kit
+Check each identifier and URL individually before renaming it:
 
-The existing kit contains both shared UI assets and the public website: the promotional page, documentation content, page-generation and static-export scripts, and download-button behavior. Website export output is a build artifact rather than canonical source.
+- Product display names, icons, and copyright notices.
+- Application IDs, Windows AUMID, deep-link schemes, Java packages, and runtime identifiers.
+- User-data locations, saved client settings, startup behavior, and update compatibility.
+- Public documentation, website, download, and update URLs.
 
-During migration:
+Write the product name as **GateRook** and the technical slug as `gaterook`. Do not perform a global replacement without checking behavior and references.
 
-1. Keep canonical tokens, component sources, reusable assets, and source-facing design rules in public `gaterook`.
-2. Move website pages/content and all website, kit-generation, build, and validation tooling to private `gaterook-platform`, preserving provenance and licenses.
-3. Define a reproducible private build context that consumes an exact public kit source revision and produces application and website assets. Do not create a second editable set of shared components.
-4. Verify generator, SCSS, asset, inventory, and link relationships after the split. Separate any mixed source/build inventory metadata according to its actual use.
-5. Check that public source and website exports do not accidentally include private build configuration or operational material.
+## Migration checklist
 
-## Auditing names, identifiers, and URLs
+1. Review the source inventory and classify files by purpose.
+2. Add the selected application, design, test, and fixture sources while preserving their relationships.
+3. Review all added content against the publication rules in [AGENTS.md](../AGENTS.md).
+4. Verify runtime resources, existing test coverage, identifiers, data compatibility, and updater behavior.
+5. Check source documentation, links, asset licenses, and the final file inventory.
+6. Update the repository layout and status to match the actual contents. Record only verification that has been completed.
 
-The implementation to be migrated still contains legacy technical names and product labels. Assess compatibility separately for each change:
+The migration is complete when the intended source is present, compatibility and resource checks are recorded, documentation reflects the actual state, and the published files satisfy the repository's language and publication rules.
 
-- Display name, package metadata, icons, copyright, and installer name.
-- `appId`, Windows AUMID, deep-link scheme, Java packages, and application identifiers.
-- User-data paths, client settings, startup behavior, and updates for existing installations.
-- GitHub owner/repository, update-provider URL, and documentation, website, and download links.
-- Tags, version numbers, artifact names, and update metadata.
-
-Use **GateRook** as the product name and `gaterook` as the technical slug. Do not perform a global string replacement without checking references and behavior. Preserve the application updater contract when integrating with the private publication process; detailed artifact and delivery requirements belong to the platform. Until real installers have been published, the website must not present missing downloads as available.
-
-## Planned sequence
-
-1. Record the selected source revision in the private migration work plan and review the file inventory; do not disclose private details in public documentation.
-2. Classify each source, asset, manifest, generator, validation tool, and mixed file by the ownership rules above.
-3. Migrate public runtime/kit/test sources and source-facing documentation into `gaterook`; move all build, validation, packaging, and operational tooling/configuration into `gaterook-platform`.
-4. Implement the private build context using an exact public application commit SHA and a selected private platform revision. Document source layout and configuration assembly without relying on uncommitted local files.
-5. Audit application names, identifiers, and URLs; verify user-data and updater compatibility. Keep CI and operational configuration in the private platform.
-6. Run private validation, build, packaging, and release checks against the selected source revision. Keep actual commands and toolchain pins in the private platform, and update public docs to reflect the source boundary.
-
-## Migration completion criteria
-
-- Public `gaterook` contains canonical runtime/kit/test sources and source-facing documentation, with no build manifests, dependency lockfiles, generators, validation runners, CI workflows, or operational keys.
-- Private `gaterook-platform` contains the complete build and validation implementation and assembles a reproducible context from an exact public source SHA and selected private revision.
-- The build does not depend on uncommitted sibling files or the old working directory, and public source is not maintained as a duplicate editable copy in the platform.
-- Java, UI, Electron, and design-kit checks have run through private tooling, with platform limitations listed explicitly.
-- Runtime assets, licenses, native-image behavior, and the application updater contract have been preserved.
-- The private platform has verified builds and installation for supported targets and documented release readiness in its own records.
-- Public documentation reflects actual source ownership and build-access requirements; the preparatory status is removed only after migration is complete.
-
-Application builds and runtime checks are unavailable until sources and private tooling have been migrated. The current preparation can be verified through documentation links, ownership consistency, the file inventory, and `git diff --check`.
+Until sources are added, verification is limited to documentation links, the file inventory, and `git diff --check`.
