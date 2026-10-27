@@ -13,6 +13,7 @@ Most evidence was collected on **2026-10-23**. Version tables, benchmark figures
 | [05 · NoSQL](05-nosql.md) | MongoDB and Redis access, policy, and bounded results |
 | [06 · SSH](06-ssh.md) | Reviewed runbooks, quoting, credentials, and remote execution |
 | [07 · Logs](07-logs.md) | Log providers, query bounds, pagination, and masking |
+| [OpenSearch API access](opensearch-api.md) | Full REST queries, API coverage, settings, permissions, and approved administration |
 | [08 · Kubernetes](08-kubernetes.md) | API scope, manifests, diffs, and approved changes |
 | [09 · Cloud](09-cloud.md) | AWS/GCP inventory, metrics, IAM, and read boundaries |
 | [10 · HTTP and templates](10-http-openapi-templates.md) | SSRF defenses, OpenAPI import, and SQL templates |

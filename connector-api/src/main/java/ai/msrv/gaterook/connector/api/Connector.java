@@ -22,6 +22,14 @@ public interface Connector extends AutoCloseable {
     return manifest().tools();
   }
 
+  /**
+   * Whether a published tool applies to this connection's backend and configuration. No I/O or secrets; the core
+   * uses this when building tool/connection pairs. Classification must still reject unsupported calls.
+   */
+  default boolean supportsTool(String tool, ConnectionConfig cfg) {
+    return true;
+  }
+
   /** No I/O, no secrets, a few ms; runs before the policy. MUTATION requires approval unless the pair explicitly uses Bypass. */
   Classification classify(ToolCall call, ConnectionConfig cfg, PolicyView policy);
 

@@ -1,0 +1,26 @@
+{
+  "type": "object",
+  "required": [
+    "status",
+    "contentType",
+    "body",
+    "truncated"
+  ],
+  "properties": {
+    "status": {
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 599
+    },
+    "contentType": {
+      "type": "string"
+    },
+    "body": {
+      "description": "OpenSearch response as parsed JSON, or text when the response is not JSON. A truncated response may be represented as text."
+    },
+    "truncated": {
+      "type": "boolean",
+      "description": "The response was shortened to fit the gateway output limit."
+    }
+  }
+}

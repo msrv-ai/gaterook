@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   Logs (report 07): logs_search and logs_tail over Loki, GCP Cloud Logging, AWS CloudWatch Logs and OpenSearch,
-  with HMAC-signed tail cursors. java.net.http for Loki and OpenSearch, google-auth for GCP tokens, the AWS SDK for
-  CloudWatch and SigV4 (Amazon OpenSearch). Credentials come from connectors/cloud-auth.
+  with HMAC-signed tail cursors. java.net.http for log reads, Apache HttpClient for unrestricted OpenSearch REST,
+  google-auth for GCP tokens, the AWS SDK for CloudWatch and SigV4. Credentials come from connectors/cloud-auth.
   Spring only in the .boot subpackage. Built by step C5.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -31,6 +31,14 @@
     <dependency>
       <groupId>tools.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
+    </dependency>
+    <!--
+      Full OpenSearch REST needs GET bodies and strictly disabled retries. The JDK client can replay GET after EOF;
+      OkHttp refuses GET bodies. HttpClient 5 provides both controls without changing JVM-wide properties.
+    -->
+    <dependency>
+      <groupId>org.apache.httpcomponents.client5</groupId>
+      <artifactId>httpclient5</artifactId>
     </dependency>
     <dependency>
       <groupId>ai.msrv.gaterook</groupId>

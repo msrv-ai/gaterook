@@ -64,9 +64,8 @@ class ConnectorCatalogApiIT {
       new KitCard("Logs", "logs", "cloudwatch", "AWS CloudWatch", "scroll-text", "built-in", 2,
           "Logs Insights queries with AssumeRole."),
       new KitCard("Logs", "logs", "loki", "Loki", "scroll-text", "built-in", 2, "LogQL search and label browsing."),
-      // ARCHITECTURE.md §8.6 item 5: the JSON query DSL is refused, so the card says what is offered.
-      new KitCard("Logs", "logs", "opensearch", "OpenSearch", "scroll-text", "built-in", 2,
-          "Lucene query search over log indices."),
+      new KitCard("Logs", "logs", "opensearch", "OpenSearch", "scroll-text", "built-in", 5,
+          "Scoped log search or full OpenSearch queries and approved administration."),
       new KitCard("Kubernetes", "kubernetes", null, "Kubernetes", "ship-wheel", "built-in", 4,
           "Pods, logs and events; rollouts and apply with approval."),
       new KitCard("Cloud", "gcp", null, "GCP", "cloud", "built-in", 2,

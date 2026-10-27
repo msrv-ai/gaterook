@@ -36,11 +36,9 @@ import tools.jackson.databind.node.ObjectNode;
  * The Logs connector (report 07): {@code logs_search} and {@code logs_tail} over Loki, GCP Cloud Logging, AWS
  * CloudWatch Logs and OpenSearch.
  *
- * <p>Both tools only read: {@code classify} answers READ or DENY, never MUTATION; there is no code path to write,
- * delete or change anything in a backend (the CloudWatch client refuses any other operation before the network). What
- * an agent may read is fixed by the connection — the tenant, projects, log groups and indices — and it can only
- * narrow it ({@code source}). Log lines are untrusted content: the core masks secrets in them before anyone sees
- * them, and the gateway's instructions call them data, never instructions.
+ * <p>The log tools only read within the connection's scope. OpenSearch also offers index discovery and an explicit
+ * full API mode: known reads use {@code opensearch_query}; all other REST calls default to Approval through
+ * {@code opensearch_request}. The full API uses server permissions rather than the log query's index/filter scope.
  */
 public final class LogsConnector implements Connector {
 
@@ -75,7 +73,8 @@ public final class LogsConnector implements Connector {
         .name("Logs")
         .icon("scroll-text")
         .group("Logs")
-        .description("Loki, GCP Cloud Logging, AWS CloudWatch and OpenSearch, searched with the same tools.")
+        .description("Search Loki, GCP Cloud Logging, AWS CloudWatch and OpenSearch logs; optionally enable the full "
+            + "OpenSearch REST API with administration in Approval mode by default.")
         .configSchema(schemas.load("config"))
         .policySchema(schemas.load("policy"))
         .tools(LogsTools.definitions(schemas))
@@ -98,6 +97,19 @@ public final class LogsConnector implements Connector {
   }
 
   @Override
+  public boolean supportsTool(String tool, ConnectionConfig cfg) {
+    if (!tool.startsWith("opensearch_")) {
+      return true;
+    }
+    try {
+      return Settings.parse(cfg) instanceof Settings.OpenSearch s
+          && (tool.equals("opensearch_indices") || s.fullApi());
+    } catch (Settings.InvalidSettingsException e) {
+      return false;
+    }
+  }
+
+  @Override
   public Classification classify(ToolCall call, ConnectionConfig cfg, PolicyView policy) {
     Settings s;
     try {
@@ -105,6 +117,16 @@ public final class LogsConnector implements Connector {
     } catch (Settings.InvalidSettingsException e) {
       return Classification.deny(policy.rule("config_invalid"), "The settings of " + cfg.name() + " can't be used: "
           + e.getMessage(), "Ask the person to fix the connection in GateRook.");
+    }
+    if (OpenSearchRequest.isTool(call.tool())) {
+      try {
+        OpenSearchRequest request = OpenSearchRequest.plan(call, openSearch(s), policy.limits());
+        return call.tool().equals(OpenSearchRequest.REQUEST)
+            ? Classification.mutation("OpenSearch REST request: " + request.method() + " "
+                + request.path()) : Classification.read();
+      } catch (ConnectorException e) {
+        return Classification.deny(policy.rule("opensearch_api"), e.getMessage(), null);
+      }
     }
     LogsRequest.PolicyLimits limits = policyLimits(policy, cfg.env());
     try {
@@ -120,10 +142,14 @@ public final class LogsConnector implements Connector {
   public ActionPreview describeAction(ToolCall call, ConnectionConfig cfg) {
     try {
       Settings s = Settings.parse(cfg);
+      if (OpenSearchRequest.isTool(call.tool())) {
+        Settings.OpenSearch os = openSearch(s);
+        return OpenSearchRequest.plan(call, os, null).preview(os, cfg);
+      }
       LogsRequest r = LogsRequest.of(call, s, cfg.env(), null, LogsRequest.PolicyLimits.defaults(cfg.env()),
           clock.instant().truncatedTo(ChronoUnit.SECONDS));
       return Actions.preview(r, s, cfg);
-    } catch (Settings.InvalidSettingsException | LogsRequest.Refusal e) {
+    } catch (Settings.InvalidSettingsException | LogsRequest.Refusal | ConnectorException e) {
       // classify() denies such a call before any request exists; this preview only ever shows what was asked.
       return ActionPreview.of(ActionPreview.Kind.JSON, "json", call.arguments().toString(), cfg.name(),
           call.tool() + " on " + cfg.name());
@@ -153,7 +179,7 @@ public final class LogsConnector implements Connector {
   @Override
   public ToolResult execute(ToolCall call, ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx)
       throws ConnectorException {
-    if (LogsRequest.Tool.of(call.tool()) == null) {
+    if (LogsRequest.Tool.of(call.tool()) == null && !OpenSearchRequest.isTool(call.tool())) {
       throw ConnectorException.badInput("The Logs connector has no tool " + call.tool() + ".");
     }
     Settings s;
@@ -161,6 +187,22 @@ public final class LogsConnector implements Connector {
       s = Settings.parse(cfg);
     } catch (Settings.InvalidSettingsException e) {
       throw ConnectorException.badInput("The settings of " + cfg.name() + " can't be used: " + e.getMessage());
+    }
+    if (OpenSearchRequest.isTool(call.tool())) {
+      Settings.OpenSearch os = openSearch(s);
+      OpenSearchRequest request;
+      if (ctx.approved()) {
+        JsonNode payload = ctx.approvedPayload().orElseThrow(() -> ConnectorException.denied(
+            "The authorization contains no OpenSearch request. Nothing was executed."));
+        request = OpenSearchRequest.approved(payload, call, os, ctx.limits());
+      } else {
+        request = OpenSearchRequest.plan(call, os, ctx.limits());
+        if (call.tool().equals(OpenSearchRequest.REQUEST)) {
+          throw ConnectorException.denied("opensearch_request requires core authorization of its exact request "
+              + "through Approval or explicit Bypass.");
+        }
+      }
+      return ((OpenSearchBackend) backend(s, cfg, secrets, ctx)).execute(request);
     }
     Decided d = decided.remove(call.callId() == null ? "" : call.callId());
     LogsRequest.PolicyLimits limits = d != null ? d.limits() : LogsRequest.PolicyLimits.defaults(cfg.env());
@@ -190,8 +232,10 @@ public final class LogsConnector implements Connector {
     ObjectNode out = backend(s, cfg, secrets, ctx).describe(object);
     out.put("backend", s.backend());
     out.put("title", s.title());
-    out.put("language", s.language());
-    out.put("example", s.example());
+    out.put("language", s instanceof Settings.OpenSearch os && os.fullApi() ? "OpenSearch REST / JSON Query DSL"
+        : s.language());
+    out.put("example", s instanceof Settings.OpenSearch os && os.fullApi()
+        ? "POST /products/_search with body {\"query\":{\"match_all\":{}}}" : s.example());
     if (!s.sources().isEmpty()) {
       ArrayNode sources = out.putArray("sources");
       s.sources().forEach(sources::add);
@@ -220,6 +264,13 @@ public final class LogsConnector implements Connector {
   private Backend backend(Settings s, ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
     return Backend.of(s, new Backend.Call(cfg, secrets, ctx, clients, cloud, Math.max(256, ctx.limits()
         .maxCellChars())));
+  }
+
+  private static Settings.OpenSearch openSearch(Settings settings) throws ConnectorException {
+    if (settings instanceof Settings.OpenSearch os) {
+      return os;
+    }
+    throw ConnectorException.badInput("This tool requires an OpenSearch connection.");
   }
 
   private static LogsRequest.PolicyLimits policyLimits(PolicyView policy, Env env) {

@@ -311,24 +311,27 @@ function compileNode(
       });
       return at < 0 ? children.length : at + 1;
     };
-    for (const c of [s, ...(Array.isArray(s['allOf']) ? s['allOf'] : [])].filter(isObject)) {
-      const ifCond = conditionOf(c['if'], path, false);
-      if (!ifCond) continue;
-      for (const [branch, negate] of [
-        ['then', false],
-        ['else', true],
-      ] as const) {
-        const b = c[branch];
-        if (!isObject(b) || !isObject(b['properties'])) continue;
-        const breq = requiredOf(b);
-        for (const [k, child] of Object.entries(b['properties'])) {
-          if (has(k, when.length) || !isObject(child)) continue;
-          const node = compileNode(k, child, path, breq.has(k), root, next, [...when, { ...ifCond, negate }],
-            ownSecret ?? inheritedSecret);
-          children.splice(chosenBy(ifCond.path), 0, node);
+    const addConditionals = (source: JsonObject, inherited: readonly Condition[]) => {
+      for (const c of [source, ...(Array.isArray(source['allOf']) ? source['allOf'] : [])].filter(isObject)) {
+        const ifCond = conditionOf(c['if'], path, false);
+        if (!ifCond) continue;
+        for (const [branch, negate] of [
+          ['then', false],
+          ['else', true],
+        ] as const) {
+          const b = c[branch];
+          if (!isObject(b) || !isObject(b['properties'])) continue;
+          const breq = requiredOf(b);
+          for (const [k, child] of Object.entries(b['properties'])) {
+            if (has(k, inherited.length) || !isObject(child)) continue;
+            const node = compileNode(k, child, path, breq.has(k), root, next, [...inherited, { ...ifCond, negate }],
+              ownSecret ?? inheritedSecret);
+            children.splice(chosenBy(ifCond.path), 0, node);
+          }
         }
       }
-    }
+    };
+    addConditionals(s, when);
     // oneOf / anyOf branches keyed by a const discriminator: each branch's own fields show for its value; the
     // discriminator becomes a choice of the branches when the object doesn't declare it itself.
     const branches = branchesOf(s);
@@ -367,6 +370,8 @@ function compileNode(
         if (k === disc || has(k, when.length)) continue;
         add(k, child, breq.has(k), cond ? [...when, cond] : when);
       }
+      // A backend branch can contain a second choice whose fields retain both visibility conditions.
+      addConditionals(b, cond ? [...when, cond] : when);
     });
   }
   const optional = !required && s['default'] === undefined && kind !== 'checkbox' && kind !== 'object' && kind !== 'number';
@@ -494,7 +499,11 @@ export function initialValue(input: JsonValue, current: JsonValue = null, env: s
       // The conditionals of allOf items too: a field only its branch declares (SSH vault, k8s token) has its default
       // there; cleanValue drops it again while its branch is hidden.
       const allOf = (Array.isArray(d['allOf']) ? d['allOf'] : []).filter(isObject);
-      const parts = [d, ...allOf, ...allOf.flatMap((p) => [p['then'], p['else']]), ...branchesOf(d), d['then'], d['else']];
+      const branches = branchesOf(d);
+      const branchConditions = branches.flatMap((b) => [b, ...(Array.isArray(b['allOf']) ? b['allOf'] : [])])
+        .filter(isObject).flatMap((p) => [p['then'], p['else']]);
+      const parts = [d, ...allOf, ...allOf.flatMap((p) => [p['then'], p['else']]), ...branches,
+        ...branchConditions, d['then'], d['else']];
       for (const part of parts) {
         if (!isObject(part) || !isObject(part['properties'])) continue;
         for (const [k, child] of Object.entries(part['properties'])) {
@@ -603,7 +612,8 @@ export function cleanValue(form: CompiledForm, model: JsonObject): JsonObject {
     out = setAt(out, n.path, null);
     dropped.push(n.pointer);
   }
-  const requiredLists = new Set(form.all.filter((n) => n.kind === 'tags' && n.required).map((n) => n.pointer));
+  const requiredLists = new Set(form.all.filter((n) => n.kind === 'tags' && n.required && isVisible(n, model))
+    .map((n) => n.pointer));
   const strip = (v: JsonValue, pointer: string): JsonValue | undefined => {
     if (v === null || v === '') return undefined;
     if (Array.isArray(v)) return v.length || requiredLists.has(pointer) ? v : undefined;

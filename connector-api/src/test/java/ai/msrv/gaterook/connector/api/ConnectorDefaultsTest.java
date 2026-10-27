@@ -60,6 +60,7 @@ class ConnectorDefaultsTest {
     EndpointView endpoint = new EndpointView("dev", Env.DEV, List.of(), Map.of(), List.of());
 
     assertThat(connector.tools(endpoint)).isEqualTo(connector.manifest().tools());
+    assertThat(connector.supportsTool("minimal_read", null)).isTrue();
   }
 
   @Test

@@ -124,12 +124,13 @@ sealed interface Settings permits Settings.Loki, Settings.Gcp, Settings.CloudWat
   }
 
   /**
-   * @param indices        index patterns agents may read (never from the agent: they go into the URL path)
+   * @param indices        index patterns used by the scoped log tools
    * @param awsCredentials credentials of {@code awsSigV4} (Amazon OpenSearch Service), else {@code null}
+   * @param fullApi        explicitly enable REST tools with the connection user's server permissions
    */
   record OpenSearch(URI base, List<String> indices, String timestampField, String messageField, String severityField,
       List<String> labelFields, String scopeQuery, HttpAuth auth, String awsRegion, String awsService,
-      AwsSpec awsCredentials, String caCertificate) implements Settings {
+      AwsSpec awsCredentials, String caCertificate, boolean fullApi) implements Settings {
     @Override public String backend() { return "opensearch"; }
     @Override public String title() { return "OpenSearch"; }
     @Override public String target() { return hostPort(base); }
@@ -223,14 +224,19 @@ sealed interface Settings permits Settings.Loki, Settings.Gcp, Settings.CloudWat
 
   private static OpenSearch openSearch(JsonNode c) {
     URI base = baseUrl(text(c, "url", null), false);
-    List<String> indices = strings(c.path("indices"));
+    String apiAccess = text(c, "apiAccess", "logs");
+    if (!apiAccess.equals("logs") && !apiAccess.equals("full")) {
+      throw new InvalidSettingsException("Choose OpenSearch API access: logs or full.");
+    }
+    boolean fullApi = apiAccess.equals("full");
+    List<String> indices = !c.has("indices") && fullApi ? List.of("*") : strings(c.path("indices"));
     if (indices.isEmpty() || indices.size() > 20) {
       throw new InvalidSettingsException("Name 1 to 20 index patterns agents may read, like logs-app-*.");
     }
     for (String i : indices) {
-      if (!INDEX.matcher(i).matches() || i.equals("*")) {
-        throw new InvalidSettingsException(i + " isn't an index pattern agents may read: lower case, no commas, "
-            + "colons, leading - or _, and not every index (*).");
+      if (!(fullApi && i.equals("*")) && !INDEX.matcher(i).matches()) {
+        throw new InvalidSettingsException(i + " isn't a supported log index pattern: lower case, no commas, "
+            + "colons, leading - or _" + (fullApi ? "." : ", and not every index (*)."));
       }
     }
     String ts = field(c, "timestampField", "@timestamp");
@@ -262,7 +268,7 @@ sealed interface Settings permits Settings.Loki, Settings.Gcp, Settings.CloudWat
       aws = AwsSpec.fromConfig(c, "/auth/awsCredentials", awsRegion);
     }
     return new OpenSearch(base, indices, ts, message, severity, labels, text(c, "scopeQuery", null), auth, awsRegion,
-        awsService, aws, text(c, "caCertificate", null));
+        awsService, aws, text(c, "caCertificate", null), fullApi);
   }
 
   private static HttpAuth auth(JsonNode a, String pointer, String dflt, List<String> allowed) {

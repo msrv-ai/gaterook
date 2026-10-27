@@ -4,9 +4,9 @@
 
 ## 1. Decision
 
-Implement one `logs` connector with four backend adapters and two tools: `logs_search` and `logs_tail`. Share time parsing, limits, normalization, cursor handling, polling, masking metadata, and truncation. Both tools classify only as READ or DENY; they have no write path.
+Implement one `logs` connector with four backend adapters and two shared log tools: `logs_search` and `logs_tail`. Share time parsing, limits, normalization, cursor handling, polling, masking metadata, and truncation. Both log tools classify only as READ or DENY; they have no write path. OpenSearch also exposes index discovery and explicitly enabled full REST tools, including administration in Approval mode by default; see [OpenSearch queries and administration](opensearch-api.md).
 
-Use JDK HTTP plus Jackson for Loki, GCP REST, and OpenSearch. Google authentication supplies tokens without the full Cloud Logging gRPC stack. Use the synchronous AWS SDK for CloudWatch/STS and its SigV4 signer for Amazon OpenSearch, with a lightweight URLConnection transport. This avoids duplicate Jackson generations and reactive/network stacks for a small number of calls.
+Use JDK HTTP plus Jackson for Loki, GCP REST, and the scoped OpenSearch log adapter. Full OpenSearch REST tools use Apache HttpClient 5 with automatic retries, redirects, authentication negotiation, and cookies disabled. This preserves GET bodies and prevents a generic authorized GET operation from being replayed after a lost response. Google authentication supplies tokens without the full Cloud Logging gRPC stack. Use the synchronous AWS SDK for CloudWatch/STS and its SigV4 signer for Amazon OpenSearch, with a lightweight URLConnection transport. This avoids duplicate Jackson generations and reactive/network stacks for a small number of calls.
 
 Tail is a bounded poll, not an indefinitely open stream. Each call waits for data or its deadline, returns a page and cursor, and can be continued by the next call. The research rejected Loki WebSocket tail, GCP bidirectional gRPC tail, and AWS event-stream Live Tail for the initial desktop tool contract. They carry additional lifecycle, transport, and cost complexity.
 
@@ -25,7 +25,7 @@ GCP pages can be empty while still returning a nextPageToken. Continue within th
 
 CloudWatch search fixes `queryLanguage=CWLI`. Deny the `SOURCE` command and SQL/PPL alternatives because they can choose log groups inside the query string, bypassing the configured scope. For Insights, poll with backoff, stop the query at the deadline, and label partial results. The final query shown for review includes any inserted fields/sort clauses. Filter mode uses the filter-pattern language for both search and tail; the reviewed API supported newest-first `startFromHead=false` only with sufficiently recent start times, while moto ignored that option.
 
-OpenSearch accepts Lucene `query_string`, not arbitrary JSON DSL. A recorded terms-lookup experiment read a document from an index outside the requested search path; this makes naive DSL pass-through unsafe. Disable leading wildcards, apply a server timeout, and validate configured index patterns against cross-cluster/path syntax. `_resolve/index` is more useful than a wildcard HEAD request for determining whether indices actually exist. The evaluated server supported sort `numeric_type: date_nanos`, not the proposed sort `format` field.
+OpenSearch log tools accept Lucene `query_string`, not arbitrary JSON DSL. Full Query DSL is available separately through `opensearch_query` when the connection enables full API access and relies on server-side permissions. A recorded terms-lookup experiment read a document from an index outside the requested search path; this makes naive DSL pass-through unsafe. Disable leading wildcards, apply a server timeout, and validate configured index patterns against cross-cluster/path syntax. `_resolve/index` is more useful than a wildcard HEAD request for determining whether indices actually exist. The evaluated server supported sort `numeric_type: date_nanos`, not the proposed sort `format` field.
 
 ## 3. Tools, normalized results, and time
 
@@ -62,11 +62,11 @@ Configure the backend explicitly:
 - Loki: base URL, fixed tenant, bearer/basic/none auth, and optional CA.
 - GCP: fixed projects/log views, explicit ADC or service-account source, optional impersonation/delegates, always-applied filter, and quota share.
 - CloudWatch: region, allowed groups, explicit profile/key source, optional AssumeRole/ExternalId, and Insights/filter search mode.
-- OpenSearch: base URL, allowed indices, timestamp/message/severity/label fields, fixed scope query, explicit authentication, and optional CA/SigV4 settings.
+- OpenSearch: base URL, log index patterns, timestamp/message/severity/label fields, fixed scope query, explicit authentication, optional CA/SigV4 settings, and API access (`logs` by default; explicit `full` for REST queries and administration in Approval mode by default).
 
 Secrets are write-only core-managed values. Short-lived impersonation/AssumeRole credentials stay in memory and are refreshed; do not describe cached fifteen-minute tokens as “one token per call.” AWS SSO profiles need their supported SDK modules. Do not silently use credentials from an unselected ambient source.
 
-Classification denies sources outside configuration, invalid/reversed/oversized ranges, excessive query length, CloudWatch source selection inside Insights, and OpenSearch JSON DSL. Clamp requested output and wait limits to stricter policy and disclose the effective limits. Let the backend validate its query language, but sanitize syntax/error messages.
+Classification denies sources outside configuration, invalid/reversed/oversized ranges, excessive query length, CloudWatch source selection inside Insights, and OpenSearch JSON DSL in the log tools. Clamp requested output and wait limits to stricter policy and disclose the effective limits. Let the backend validate its query language, but sanitize syntax/error messages.
 
 Research policy proposals were 1,000 dev/200 prod lines, ten/five-second tool deadlines, a seven-day dev/one-day prod maximum range, and smaller production default page sizes. Current source schemas and policy code define the actual values.
 
@@ -102,7 +102,7 @@ Optional real services validate Loki query/tail/metadata semantics and OpenSearc
 
 ## 9. Open questions and sources
 
-Outstanding questions included GCP token expiry, receiveTimestamp-based tail alternatives, exact Insights timestamp formatting, current pricing/quotas, optional aggregate output, and a separate Elasticsearch integration. Do not imply Elasticsearch is supported merely because some APIs look similar. Update UI text to describe bounded polling and Lucene queries rather than indefinite streams or arbitrary DSL.
+Outstanding questions included GCP token expiry, receiveTimestamp-based tail alternatives, exact Insights timestamp formatting, current pricing/quotas, optional aggregate output, and a separate Elasticsearch integration. Do not imply Elasticsearch is supported merely because some APIs look similar. Describe the log tools as bounded polling and Lucene queries. Full REST tools have a separate contract, scope, and approval behavior documented in [OpenSearch queries and administration](opensearch-api.md).
 
 - [Loki HTTP API](https://grafana.com/docs/loki/latest/reference/loki-http-api/)
 - [Cloud Logging entries.list](https://docs.cloud.google.com/logging/docs/reference/v2/rest/v2/entries/list) and [quotas](https://docs.cloud.google.com/logging/quotas)

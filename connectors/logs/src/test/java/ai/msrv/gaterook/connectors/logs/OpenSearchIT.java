@@ -32,8 +32,9 @@ import tools.jackson.databind.JsonNode;
 /**
  * The connector against a real OpenSearch 3.9.0 (the min distribution, one node, no security plugin): one timeline
  * over two indices of different timestamp precision, a cursor through documents that share a timestamp, Lucene syntax
- * kept inside the connection's index patterns, JSON Query DSL refused before it reaches the cluster, and a tail of
- * documents indexed while it waits. Profile {@code -Plogs-it}; the archive is downloaded once and checked against its
+ * kept inside the connection's index patterns, JSON Query DSL refused by log tools, and a tail of documents indexed
+ * while it waits. Explicit full API mode also creates, discovers, bulk indexes, aggregates, configures, and deletes
+ * an isolated index through the public tools. Profile {@code -Plogs-it}; the archive is downloaded once and checked against its
  * SHA-256, or {@code GW_OPENSEARCH_HOME} names an unpacked one. OpenSearch refuses to run as root, so under root the
  * node runs as nobody.
  */
@@ -267,6 +268,123 @@ class OpenSearchIT {
     JsonNode d = CONNECTOR.describe(cfg(), NO_SECRETS, TestCtx.of(), "logs-app-*").orElseThrow();
     assertThat(d.path("matching").toString()).contains("logs-app-nanos").contains("logs-app-millis")
         .doesNotContain("secrets-db");
+  }
+
+  @Test
+  void fullApiCreatesListsQueriesConfiguresAndDeletesAnIndex() throws Exception {
+    ConnectionConfig full = Configs.of("search-admin", Env.DEV, """
+        {"backend":"opensearch","url":"%s","apiAccess":"full","auth":{"mode":"none"}}""".formatted(base));
+    String index = "gaterook-api-it-" + java.util.UUID.randomUUID();
+    try {
+      JsonNode created = api(full, "PUT", "/" + index, """
+          {"settings":{"number_of_shards":1,"number_of_replicas":0},
+           "mappings":{"properties":{"category":{"type":"keyword"},"price":{"type":"integer"}}}}
+          """);
+      assertThat(created.path("status").asInt()).isEqualTo(200);
+      JsonNode inventory = CONNECTOR.execute(Configs.call("opensearch_indices", "{\"index\":\"" + index + "\"}"),
+          full, NO_SECRETS, TestCtx.of()).structuredContent();
+      assertThat(inventory.at("/body/indices/0/name").asString()).isEqualTo(index);
+
+      var bulkArgs = TestCtx.JSON.createObjectNode().put("method", "POST").put("path", "/" + index + "/_bulk")
+          .put("contentType", "application/x-ndjson").put("body",
+              "{\"index\":{\"_id\":\"1\"}}\n{\"category\":\"books\",\"price\":12}\n"
+                  + "{\"index\":{\"_id\":\"2\"}}\n{\"category\":\"books\",\"price\":18}\n");
+      bulkArgs.putObject("query").put("refresh", true);
+      var bulkCall = Configs.call("opensearch_request", bulkArgs.toString());
+      JsonNode inserted = CONNECTOR.execute(bulkCall, full, NO_SECRETS,
+          TestCtx.of().approved(CONNECTOR.describeAction(bulkCall, full).payload())).structuredContent();
+      assertThat(inserted.at("/body/errors").asBoolean()).isFalse();
+      assertThat(inserted.at("/body/items").size()).isEqualTo(2);
+
+      var searchArgs = TestCtx.JSON.createObjectNode().put("method", "GET").put("path", "/" + index + "/_search");
+      searchArgs.set("body", TestCtx.JSON.readTree("""
+          {"size":0,"query":{"term":{"category":"books"}},"aggs":{"total":{"sum":{"field":"price"}}}}
+          """));
+      JsonNode found = CONNECTOR.execute(Configs.call("opensearch_query", searchArgs.toString()), full, NO_SECRETS,
+          TestCtx.of()).structuredContent();
+      assertThat(found.at("/body/hits/total/value").asInt()).isEqualTo(2);
+      assertThat(found.at("/body/aggregations/total/value").asDouble()).isEqualTo(30);
+
+      assertThat(api(full, "PUT", "/" + index + "/_settings", "{\"index\":{\"refresh_interval\":\"2s\"}}")
+          .path("status").asInt()).isEqualTo(200);
+      JsonNode settings = CONNECTOR.execute(Configs.call("opensearch_query",
+          "{\"path\":\"/" + index + "/_settings\"}"), full, NO_SECRETS, TestCtx.of()).structuredContent();
+      assertThat(settings.path("body").path(index).at("/settings/index/refresh_interval").asString())
+          .isEqualTo("2s");
+      assertThat(api(full, "DELETE", "/" + index, null).path("status").asInt()).isEqualTo(200);
+      JsonNode missing = CONNECTOR.execute(Configs.call("opensearch_query",
+          "{\"path\":\"/" + index + "/_search\"}"), full, NO_SECRETS, TestCtx.of()).structuredContent();
+      assertThat(missing.path("status").asInt()).isEqualTo(404);
+    } finally {
+      // A unique index keeps this lifecycle test independent from log pagination and tail fixtures.
+      api(full, "DELETE", "/" + index, null);
+    }
+  }
+
+  @Test
+  void fullApiUpdatesAndRestoresDynamicClusterSettings() throws Exception {
+    ConnectionConfig full = Configs.of("search-admin", Env.DEV, """
+        {"backend":"opensearch","url":"%s","apiAccess":"full","auth":{"mode":"none"}}""".formatted(base));
+    var read = Configs.call("opensearch_query", """
+        {"path":"/_cluster/settings","query":{"flat_settings":true}}
+        """);
+    JsonNode before = CONNECTOR.execute(read, full, NO_SECRETS, TestCtx.of()).structuredContent();
+    JsonNode previous = before.at("/body/transient").get("indices.recovery.max_bytes_per_sec");
+    try {
+      JsonNode updated = api(full, "PUT", "/_cluster/settings",
+          "{\"transient\":{\"indices.recovery.max_bytes_per_sec\":\"20mb\"}}");
+      assertThat(updated.path("status").asInt()).isEqualTo(200);
+      JsonNode after = CONNECTOR.execute(read, full, NO_SECRETS, TestCtx.of()).structuredContent();
+      assertThat(after.at("/body/transient").path("indices.recovery.max_bytes_per_sec").asString())
+          .isEqualTo("20mb");
+    } finally {
+      var restore = TestCtx.JSON.createObjectNode();
+      restore.putObject("transient").set("indices.recovery.max_bytes_per_sec",
+          previous == null ? tools.jackson.databind.node.JsonNodeFactory.instance.nullNode() : previous);
+      assertThat(api(full, "PUT", "/_cluster/settings", restore.toString()).path("status").asInt()).isEqualTo(200);
+    }
+  }
+
+  @Test
+  void fullApiRunsSqlAndPplWhenTheSqlPluginIsInstalled() throws Exception {
+    ConnectionConfig full = Configs.of("search-admin", Env.DEV, """
+        {"backend":"opensearch","url":"%s","apiAccess":"full","auth":{"mode":"none"}}""".formatted(base));
+    JsonNode plugins = CONNECTOR.execute(Configs.call("opensearch_query",
+        "{\"path\":\"/_cat/plugins\",\"query\":{\"format\":\"json\"}}"), full, NO_SECRETS,
+        TestCtx.of()).structuredContent();
+    boolean sqlInstalled = false;
+    for (JsonNode plugin : plugins.path("body")) {
+      sqlInstalled |= plugin.path("component").asString("").equals("opensearch-sql");
+    }
+    org.junit.jupiter.api.Assumptions.assumeTrue(sqlInstalled, "The minimal OpenSearch fixture has no SQL plugin");
+    String index = "gaterook-sql-it-" + java.util.UUID.randomUUID();
+    try {
+      assertThat(api(full, "PUT", "/" + index,
+          "{\"settings\":{\"number_of_shards\":1,\"number_of_replicas\":0}}")
+          .path("status").asInt()).isEqualTo(200);
+      assertThat(api(full, "PUT", "/" + index + "/_doc/1?refresh=true", "{\"category\":\"books\"}")
+          .path("status").asInt()).isEqualTo(201);
+      for (String language : List.of("sql", "ppl")) {
+        String query = language.equals("sql") ? "SELECT COUNT(*) AS n FROM `" + index + "`"
+            : "source=`" + index + "` | stats count() as n";
+        JsonNode response = api(full, "POST", "/_plugins/_" + language,
+            TestCtx.JSON.createObjectNode().put("query", query).toString());
+        assertThat(response.path("status").asInt()).as(language + ": " + response).isEqualTo(200);
+        assertThat(response.at("/body/datarows/0/0").asInt()).as(language).isEqualTo(1);
+      }
+    } finally {
+      api(full, "DELETE", "/" + index, null);
+    }
+  }
+
+  private static JsonNode api(ConnectionConfig cfg, String method, String path, String body) throws Exception {
+    var args = TestCtx.JSON.createObjectNode().put("method", method).put("path", path);
+    if (body != null) {
+      args.set("body", TestCtx.JSON.readTree(body));
+    }
+    var call = Configs.call("opensearch_request", args.toString());
+    return CONNECTOR.execute(call, cfg, NO_SECRETS,
+        TestCtx.of().approved(CONNECTOR.describeAction(call, cfg).payload())).structuredContent();
   }
 
   private static ConnectionConfig cfg() {

@@ -35,7 +35,7 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * The connector catalog (ARCHITECTURE.md §6 connection-new and connectors, kit {@code connection-new.html} step 1 and
  * {@code connectors.html} › Installed): one card per type in the kit's groups, a type with {@code x-variants} as one
- * card per variant (Logs: GCP Cloud Logging, AWS CloudWatch, Loki, OpenSearch — "Built-in Logs · 2 tools"), the
+ * card per variant (Logs: GCP Cloud Logging, AWS CloudWatch, Loki, OpenSearch), the
  * generic MCP server type last with "Tools from the server". The Installed list shows each type once with its
  * process; the form gives the schema, its secret fields and what an environment changes.
  */
@@ -242,10 +242,27 @@ class ConnectorTypesController {
     List<Card> out = new ArrayList<>();
     for (Variant v : variants) {
       out.add(new Card(m.id(), v.id(), v.name(), v.icon() == null ? m.icon() : v.icon(), v.description(), kind,
-          m.version(), signed, tools, toolsFrom, count(stored, m.id(), v.presetConfig()), t.usable(), reason,
+          m.version(), signed, variantToolCount(m, v.id(), tools), toolsFrom,
+          count(stored, m.id(), v.presetConfig()), t.usable(), reason,
           v.presetConfig()));
     }
     return out;
+  }
+
+  /** A variant may name its available tools; the catalog counts only names present in the manifest. */
+  private static Integer variantToolCount(ConnectorManifest manifest, String variant, Integer fallback) {
+    if (fallback == null || manifest.configSchema() == null) {
+      return fallback;
+    }
+    for (JsonNode entry : manifest.configSchema().path("x-variants")) {
+      if (!entry.path("id").asString("").equals(variant) || !entry.path("tools").isArray()) {
+        continue;
+      }
+      List<String> names = new ArrayList<>();
+      entry.path("tools").forEach(name -> names.add(name.asString("")));
+      return (int) manifest.tools().stream().filter(tool -> names.contains(tool.name())).count();
+    }
+    return fallback;
   }
 
   /**

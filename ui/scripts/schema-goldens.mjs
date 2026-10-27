@@ -5,6 +5,7 @@
 //
 //   node ui/scripts/schema-goldens.mjs            # rewrite the goldens from the stored schemas
 //   node ui/scripts/schema-goldens.mjs --fetch    # first fetch the schemas from a running dev loop (ui/scripts/dev.mjs)
+//   node ui/scripts/schema-goldens.mjs --schema logs=connectors/logs/src/main/resources/connectors/logs/config.schema.json
 //
 // Output: ui/src/testing/connector-schemas.ts (generated; the spec src/app/schema-form/goldens.spec.ts compares the
 // renderer with it). A change of a golden is a change of the form a person sees: review the diff.
@@ -32,6 +33,19 @@ if (process.argv.includes('--fetch')) {
   const m = /export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = (\{[\s\S]*?\n\});\n/.exec(text);
   if (!m) throw new Error(`no CONNECTOR_FORMS in ${out}: run with --fetch`);
   schemas = JSON.parse(m[1]);
+}
+
+// Refresh individual schemas directly from their canonical sources without changing other stored fixtures.
+for (let i = 2; i < process.argv.length; i++) {
+  if (process.argv[i] !== '--schema') continue;
+  const value = process.argv[++i] ?? '';
+  const separator = value.indexOf('=');
+  const type = value.slice(0, separator);
+  const source = value.slice(separator + 1);
+  if (separator < 1 || !TYPES.includes(type) || !source) {
+    throw new Error('--schema requires a known connector type and source path: --schema logs=path/to/config.schema.json');
+  }
+  schemas[type] = JSON.parse(readFileSync(source, 'utf8'));
 }
 
 // Bundle the renderer's pure compiler for Node and run it on every schema.
