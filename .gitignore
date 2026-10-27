@@ -3,7 +3,8 @@
 .idea/
 *.iml
 
-# Installed dependencies and build output; lock-files remain versioned.
+# Ignore accidental local dependencies and build output.
+# Build manifests, lockfiles, and tooling belong to private gaterook-platform.
 node_modules/
 target/
 /dist/

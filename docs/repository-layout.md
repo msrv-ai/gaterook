@@ -13,43 +13,46 @@ gaterook/
     └── migration.md
 ```
 
-This is the application's independent Git repository. It can be opened on its own or placed next to `gaterook-platform` in a shared local directory. That shared directory must not become a required part of the build.
+This is the application's independent public Git repository. It can be opened on its own or placed next to private `gaterook-platform` in a shared local directory. A standalone public clone is not a complete build environment; build configuration and execution belong to the private platform.
 
 ## Responsibilities
 
 | Area | Owner |
 | --- | --- |
-| Application sources, UI, core, connectors, and bridges | `gaterook` |
-| Canonical design kit, shared tokens, components, and brand assets | `gaterook` |
-| Dependencies, tests, native build, packaging, and application signing | `gaterook` |
-| Public website, content, and website build | `gaterook-platform` |
-| Ansible and server deployment of the website | `gaterook-platform` |
-| Triggering application builds at a selected revision, publishing installers, and download links | `gaterook-platform` |
+| Application runtime sources: UI, core, connectors, plugins, and bridges | Public `gaterook` |
+| Canonical design-kit sources: tokens, components, reusable assets, and source-facing rules | Public `gaterook` |
+| Test and fixture sources | Public `gaterook` |
+| Source-facing architecture and development documentation | Public `gaterook` |
+| All build/dependency manifests, lockfiles, and toolchain pins | Private `gaterook-platform` |
+| Code and asset generation, design-kit build tooling, and validation runners | Private `gaterook-platform` |
+| Maven/npm/Electron build configuration, CI workflows, and runners | Private `gaterook-platform` |
+| Staging, packaging, signing, notarization, and installer verification | Private `gaterook-platform` |
+| Website, release publication, download distribution, Ansible, and deployment | Private `gaterook-platform` |
+| All operational key and secret management | Private `gaterook-platform` |
 
-## Structure after migration
+## Source layout after migration
 
-The following outline is based on the existing implementation. **These directories have not been migrated yet.** Refine the list against the actual sources during migration; do not create placeholders merely to match this outline.
+The following outline is based on the existing implementation. **These directories have not been migrated yet.** Determine the final layout from the actual files during migration; do not create placeholders merely to match this outline.
 
-| Path | Expected contents |
+| Source area | Public contents |
 | --- | --- |
-| `pom.xml` and Maven modules | Java core, application, API, connectors, plugins, plugin host, and CLI bridge |
-| `ui/` | Angular application interface |
-| `desktop/` | Electron main/preload, packaging configuration, and assets |
-| `bridge/`, `bridge-cli/` | Client connection bridges |
-| `design/` | Canonical design kit, sources, inventory, generators, and instructions |
-| `scripts/` | Application build, staging, checks, and maintenance |
-| `test-services/` | Local services and fixtures for integration tests |
-| `catalog/` | Application extension descriptions and related assets |
-| `.github/workflows/` | Checks and installer builds, including signing |
-| `docs/` | Architecture, decisions, and development instructions |
-| Root npm manifests and lockfiles | Versions and relationships of application workspace packages |
+| Java source directories | Core, application, API, connectors, plugins, plugin host, and CLI bridge sources; no Maven build manifests |
+| `ui/` | Angular interface source and runtime assets; no dependency or build configuration |
+| `desktop/` | Electron main/preload source and runtime assets; packaging configuration and packaging-only assets belong to the platform |
+| `bridge/`, `bridge-cli/` | Client connection source |
+| `design/` | Canonical tokens, component source, reusable assets, and source-facing documentation; no generators or build/validation tooling |
+| Test and fixture directories | Test source and fixture data; service orchestration and execution tooling belong to the platform |
+| `catalog/` | Runtime extension descriptions and related assets |
+| `docs/` | Public architecture, source-level decisions, and source-facing development instructions |
 
-A build script in `gaterook` does not imply automatic website publication. Application building and signing remain owned here; the platform invokes that process and distributes the results.
+Review mixed files and directories individually. Runtime metadata may remain public when required by application code, while build configuration belongs to the private platform. Do not retain `pom.xml`, dependency-bearing `package.json` files, lockfiles, toolchain pins, generators, build scripts, or CI workflows here merely to preserve the former directory layout. Separate mixed runtime/build metadata during migration without changing application behavior.
 
-## Contract between repositories
+## Source-to-build contract
 
-The application provides a defined build process and its artifacts. The platform associates the result with an exact application revision and version, verifies the target OS/architecture and checksums, and then publishes the completed files.
+The private platform selects an exact public application commit SHA, checks out its source, and combines it with a selected platform revision in a reproducible build context. The assembly method is not implemented yet and will be documented during migration. It must avoid dependence on uncommitted sibling files or the old source workspace.
 
-Each release must define its set of installers and accompanying files: for example, DMG and EXE files, plus archives, blockmaps, and manifests required by the chosen update mechanism. The metadata format and exact commands will be established when the existing build is migrated. This repository currently has no executable contract or implemented release manifest.
+The platform is the sole implementation of building and validation. It does not invoke a separate public application build workflow, and it must not maintain another editable copy of public application or kit sources.
 
-The website must receive an explicitly selected version of shared design-kit assets. The delivery method has not been chosen yet. It must allow reproducible website builds while retaining one source of editable tokens and components.
+The private release process must preserve the application updater contract and verify release compatibility against the exact source and platform revisions. Detailed build and release procedures, artifact requirements, and operational documentation belong to the platform.
+
+The website consumes assets built privately from an explicitly selected public design-kit source revision. Shared tokens and components have one canonical source in `gaterook`; generators, dependency configuration, and distribution tooling reside in `gaterook-platform`.
