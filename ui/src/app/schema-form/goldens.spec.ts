@@ -1,6 +1,7 @@
 import { Injector } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { CONNECTOR_FORMS, CONNECTOR_GOLDENS } from '../../testing/connector-schemas';
+import { ApiError } from '../core/api/api-error';
 import { JsonObject } from '../core/api/types';
 import { cleanValue, compileSchema, getAt, initialValue, isVisible, layoutRows, setAt } from './compile';
 import { golden } from './goldens';
@@ -136,6 +137,85 @@ describe('schema-form: branches and conditions', () => {
       },
     });
     expect(layoutRows(form.sections[0].children).map((r) => r.map((n) => n.key))).toEqual([['a', 'b', 'c'], ['d'], ['e']]);
+  });
+});
+
+describe('schema-form: display sections', () => {
+  const schema: JsonObject = {
+    type: 'object',
+    properties: {
+      connection: {
+        type: 'object',
+        properties: {
+          host: { type: 'string' },
+          caCertificate: { type: 'string', maxLength: 10, 'x-widget': 'textarea', 'x-section': '/advanced' },
+          unknownTarget: { type: 'string', 'x-section': '/missing' },
+        },
+      },
+      advanced: { type: 'object', 'x-collapsed': true, properties: { timeout: { type: 'integer' } } },
+    },
+  };
+  const make = (current: JsonObject): SchemaForm =>
+    createSchemaForm(schema, { idPrefix: 't', pointerPrefix: '/config', current, injector: TestBed.inject(Injector) });
+
+  it('moves a field once while preserving its config path and stored value', () => {
+    const f = make({ connection: { host: 'db', caCertificate: 'saved CA' } });
+    const [connection, advanced] = f.compiled.sections;
+    expect(connection.children.map((n) => n.pointer)).toEqual(['/connection/host', '/connection/unknownTarget']);
+    expect(advanced.rows.flat().map((n) => n.pointer)).toEqual(['/connection/caCertificate', '/advanced/timeout']);
+    const certificate = f.compiled.all.filter((n) => n.pointer === '/connection/caCertificate');
+    expect(certificate).toHaveLength(1);
+    expect(certificate[0].path).toEqual(['connection', 'caCertificate']);
+    expect(f.isExpanded(advanced)).toBe(false);
+    expect(f.value()).toMatchObject({ connection: { host: 'db', caCertificate: 'saved CA' } });
+    f.set(certificate[0], 'new CA');
+    expect(f.value()).toMatchObject({ connection: { caCertificate: 'new CA' } });
+    expect(f.value()['advanced']).not.toHaveProperty('caCertificate');
+  });
+
+  it('opens the display section when a relocated field fails client validation', () => {
+    const f = make({ connection: { caCertificate: 'longer than the allowed length' } });
+    const advanced = f.compiled.sections[1];
+    expect(f.isExpanded(advanced)).toBe(false);
+    expect(f.submit()).toBe(false);
+    expect(f.invalidNodes().map((n) => n.pointer)).toEqual(['/connection/caCertificate']);
+    expect(f.isExpanded(advanced)).toBe(true);
+  });
+
+  it('keeps conditional sections with the same pointer distinct and ignores ambiguous destinations', () => {
+    const form = compileSchema({
+      type: 'object',
+      properties: {
+        kind: { enum: ['first', 'second'] },
+        connection: { type: 'object', properties: { certificate: { type: 'string', 'x-section': '/auth' } } },
+      },
+      allOf: [
+        {
+          if: { properties: { kind: { const: 'first' } } },
+          then: { properties: { auth: { type: 'object', properties: { first: { type: 'string' } } } } },
+        },
+        {
+          if: { properties: { kind: { const: 'second' } } },
+          then: { properties: { auth: { type: 'object', properties: { second: { type: 'string' } } } } },
+        },
+      ],
+    });
+    const auth = form.sections.filter((section) => section.pointer === '/auth');
+    expect(auth.map((section) => section.rows.flat().map((node) => node.pointer))).toEqual([['/auth/first'], ['/auth/second']]);
+    expect(form.sections.find((section) => section.pointer === '/connection')!.children.map((node) => node.pointer))
+      .toEqual(['/connection/certificate']);
+    expect(form.all.filter((node) => node.kind !== 'object').map((node) => node.pointer))
+      .toEqual(['/kind', '/auth/first', '/auth/second', '/connection/certificate']);
+  });
+
+  it('opens the display section for server errors at the original config path', () => {
+    const f = make({ connection: { caCertificate: 'invalid CA' } });
+    const advanced = f.compiled.sections[1];
+    const remaining = f.applyServerErrors(new ApiError('unprocessable', 422, {
+      errors: [{ field: '/config/connection/caCertificate', message: 'Not a valid certificate.' }],
+    }));
+    expect(remaining).toEqual([]);
+    expect(f.isExpanded(advanced)).toBe(true);
   });
 });
 

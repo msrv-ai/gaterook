@@ -40,10 +40,14 @@ final class SqlRules {
       List<String> allowedFunctions, Set<String> builtIns, String defaultSchema) {
 
     static SqlPolicy of(PolicyView view, ConnectionConfig cfg, boolean mysql) {
-      ConnectionSettings s = ConnectionSettings.of(cfg, mysql);
+      return of(view, cfg, mysql, ConnectionSettings.of(cfg, mysql));
+    }
+
+    static SqlPolicy of(PolicyView view, ConnectionConfig cfg, boolean mysql, ConnectionSettings s) {
       Env env = view.env() == null ? cfg.env() : view.env();
       return new SqlPolicy(view, mysql, view.flag("denyDdl", env != Env.DEV),
-          Allowlist.of(view.strings("allowlist"), s.schemaAllowlist(), mysql), view.strings("deniedFunctions"),
+          Allowlist.of(view.strings("allowlist"), s.schemaAllowlist(), mysql, DatabaseSelection.selected(cfg)),
+          view.strings("deniedFunctions"),
           s.allowedFunctions(), FunctionRules.fromMetadata(cfg.metadata()), s.defaultSchema());
     }
 

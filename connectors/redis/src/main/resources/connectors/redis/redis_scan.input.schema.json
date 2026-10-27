@@ -40,6 +40,12 @@
       "type": "boolean",
       "default": true,
       "description": "Add type and TTL of each key (one extra round trip)."
+    },
+    "database": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1023,
+      "description": "Required when several databases are selected. Defaults to the sole selected database."
     }
   }
 }

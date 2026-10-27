@@ -133,7 +133,7 @@ class MongoSettingsTest {
     MongoSettings s = MongoSettings.of(Fixtures.uri(Env.DEV,
         "mongodb://mongo.dev.internal:27017/orders?replicaSet=rs0&appName=x"));
 
-    assertThat(s.target()).isEqualTo("mongo.dev.internal:27017/orders · primary");
+    assertThat(s.target(s.defaultDatabase())).isEqualTo("mongo.dev.internal:27017/orders · primary");
     assertThat(s.parsed().firstHost()).isEqualTo("mongo.dev.internal");
     assertThat(s.parsed().firstPort()).isEqualTo(27017);
     assertThat(MongoUri.parse("mongodb://[::1]:27018/o").firstHost()).isEqualTo("::1");

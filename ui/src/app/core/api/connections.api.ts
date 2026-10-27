@@ -240,6 +240,11 @@ export class ConnectionsApi {
     return this.api.post('/api/connections/test', request);
   }
 
+  /** Authenticated discovery for a draft; database choices are in details.databases. */
+  databases(request: TestDraftRequest): Promise<TestOutcome> {
+    return this.api.post('/api/connections/databases', request);
+  }
+
   /** "Trust" after `needsConfirmation` (host key, certificate): the patched draft and a re-test. */
   confirmDraft(confirmationId: string, reason?: string | null): Promise<TestConfirmed> {
     return this.api.post('/api/connections/test/confirm', { confirmationId, reason });

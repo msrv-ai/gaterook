@@ -120,7 +120,13 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
 
   @Override
   public Classification classify(ToolCall call, ConnectionConfig cfg, PolicyView policy) {
-    SqlPolicy p = SqlPolicy.of(policy, cfg, mysql());
+    ConnectionSettings settings;
+    try {
+      settings = callSettings(call, cfg, null);
+    } catch (ConnectorException e) {
+      return Classification.deny(policy.rule("database-not-selected"), e.getMessage(), null);
+    }
+    SqlPolicy p = SqlPolicy.of(policy, cfg, mysql(), settings);
     if (call.template() != null) {
       TemplateCall t = TemplateCall.of(call.template().binding(), mysql());
       if (t.problem() != null) {
@@ -146,7 +152,12 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
 
   @Override
   public ActionPreview describeAction(ToolCall call, ConnectionConfig cfg) {
-    ConnectionSettings s = ConnectionSettings.of(cfg, mysql());
+    ConnectionSettings s;
+    try {
+      s = callSettings(call, cfg, null);
+    } catch (ConnectorException e) {
+      throw new IllegalArgumentException(e.getMessage(), e);
+    }
     String target = cfg.name() + " · " + s.target();
     if (call.template() != null) {
       return describeTemplate(call, cfg, s, target);
@@ -158,7 +169,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
         ObjectNode args = call.arguments().deepCopy();
         yield ActionPreview.of(ActionPreview.Kind.JSON, "json", args.toString(), target,
                 shorten(call.tool() + " on " + cfg.name()))
-            .withPayload(JsonNodeFactory.instance.objectNode().set("arguments", args))
+            .withPayload(databasePayload(JsonNodeFactory.instance.objectNode().set("arguments", args), cfg, s))
             .withFacets(Map.of("tool", call.tool()))
             .withImpact(List.of(new Field("Transaction", "Read only, always rolled back")));
       }
@@ -197,7 +208,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
         .withImpact(impact)
         .withWarnings(warnings)
         .withFacets(facets)
-        .withPayload(JsonNodeFactory.instance.objectNode().put("sql", sql));
+        .withPayload(databasePayload(JsonNodeFactory.instance.objectNode().put("sql", sql), cfg, s));
   }
 
   private ActionPreview describeTemplate(ToolCall call, ConnectionConfig cfg, ConnectionSettings s, String target) {
@@ -236,7 +247,42 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
         .withImpact(impact)
         .withWarnings(warnings)
         .withFacets(Map.of("template", t.name() + "@v" + b.version(), "statement", t.statement()))
-        .withPayload(payload);
+        .withPayload(databasePayload(payload, cfg, s));
+  }
+
+  private ObjectNode databasePayload(ObjectNode payload, ConnectionConfig cfg, ConnectionSettings s) {
+    if (DatabaseSelection.configured(cfg)) payload.put("database", s.database());
+    return payload;
+  }
+
+  /** Resolve the approved database independently of mutable call arguments. */
+  private ConnectionSettings callSettings(ToolCall call, ConnectionConfig cfg, ExecContext ctx)
+      throws ConnectorException {
+    String requested = call.template() == null ? call.string("database")
+        : call.template().binding().path("database").asString(null);
+    if (ctx != null && ctx.approved() && DatabaseSelection.configured(cfg)) {
+      requested = ctx.approvedPayload().map(payload -> payload.path("database").asString(null)).orElse(null);
+      if (requested == null) throw ConnectorException.denied("The approved action does not specify a database.");
+    }
+    String database = DatabaseSelection.resolve(cfg, requested);
+    return ConnectionSettings.of(cfg, mysql()).withDatabase(database, mysql());
+  }
+
+  /** Enforce the selected MySQL databases even when execute is called without the policy classifier. */
+  private void checkSelectedTables(Analysis analysis, ConnectionConfig cfg, ConnectionSettings settings)
+      throws ConnectorException {
+    if (!mysql() || !DatabaseSelection.configured(cfg)) return;
+    Allowlist scope = Allowlist.of(List.of(), settings.schemaAllowlist(), true, DatabaseSelection.selected(cfg));
+    for (StatementFacts statement : analysis.statements()) {
+      if (statement.tables() == null) {
+        throw ConnectorException.denied("The gateway cannot verify this statement against the selected databases.");
+      }
+      for (String name : statement.tables()) {
+        if (!scope.allows(IdentifierRules.table(name, true, settings.defaultSchema()))) {
+          throw ConnectorException.denied("Table " + name + " is outside the selected database scope.");
+        }
+      }
+    }
   }
 
   /** What the read of a request calls that isn't built in: the reason a person decides. */
@@ -307,7 +353,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     if (changes.isEmpty()) {
       return PreparedAction.approval(preview, null);
     }
-    ConnectionSettings s = ConnectionSettings.of(cfg, mysql());
+    ConnectionSettings s = callSettings(call, cfg, null);
     SqlPools.Pool pool = pool(cfg, s, secrets, ctx);
     List<String> types = statementTypesOf(call);
     Estimates estimates = executor.explain(pool, s, ctx, cfg.name(),
@@ -444,7 +490,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
   @Override
   public ToolResult execute(ToolCall call, ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx)
       throws ConnectorException {
-    ConnectionSettings s = ConnectionSettings.of(cfg, mysql());
+    ConnectionSettings s = callSettings(call, cfg, ctx);
     if (call.template() != null) {
       return runTemplate(call, cfg, s, secrets, ctx);
     }
@@ -479,6 +525,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     if (!a.parsed() || a.count() != 1 || a.kind() != Kind.READ) {
       throw ConnectorException.denied("sql_query only runs one statement the gateway reads as a read.");
     }
+    checkSelectedTables(a, cfg, s);
     FunctionRules.Verdict v = FunctionRules.check(a.functions(), mysql(), FunctionRules.fromMetadata(cfg.metadata()),
         List.of(), s.allowedFunctions());
     if (!v.denied().isEmpty()) {
@@ -516,6 +563,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     }
     String sql = sql(call, ctx);
     Analysis a = SqlClassifier.analyze(sql, mysql());
+    checkSelectedTables(a, cfg, s);
     if (a.tooComplex() || a.kind() == Kind.FORBIDDEN) {
       throw ConnectorException.denied("This statement can't run through MCP Gateway.");
     }
@@ -637,6 +685,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     if (t.problem() != null) {
       throw ConnectorException.denied(t.problem());
     }
+    checkSelectedTables(t.analysis(), cfg, s);
     if (t.analysis().kind() == Kind.FORBIDDEN) {
       throw ConnectorException.denied(t.name() + " can't run through MCP Gateway.");
     }
@@ -756,6 +805,9 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
           + (mysql() ? "`Mixed`.`Case`." : "\"Mixed\".\"Case\".") : "Qualify " + written + " with its database: "
           + cfg.name() + " has no default database.");
     }
+    if (mysql() && DatabaseSelection.configured(cfg) && !DatabaseSelection.selected(cfg).contains(table.schema())) {
+      throw ConnectorException.denied("Database " + table.schema() + " is not selected for " + cfg.name() + ".");
+    }
     SqlPools.Pool pool = pool(cfg, s, secrets, ctx);
     Optional<ObjectNode> found = executor.read(pool, s, ctx, cfg.name(),
         (c, server, timeoutMs) -> dialect.catalog().describe(c, table));
@@ -822,6 +874,11 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
       ArrayNode a = out.putArray(mysql() ? "databases" : "schemas");
       s.schemaAllowlist().forEach(a::add);
     }
+    if (DatabaseSelection.configured(cfg)) {
+      ArrayNode databases = out.putArray("databases");
+      DatabaseSelection.selected(cfg).forEach(databases::add);
+      out.put("databaseSelection", "Pass database on SQL tool calls when more than one database is selected.");
+    }
     out.put("reads", "One statement per sql_query, in a read-only transaction that is rolled back");
     out.put("changes", mysql() ? "One statement per sql_execute, after approval"
         : "Up to " + SqlRules.MAX_POSTGRES_STATEMENTS + " statements per sql_execute in one transaction, after "
@@ -837,6 +894,11 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
   @Override
   public TestResult test(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
     return probe.test(cfg, secrets, ctx);
+  }
+
+  @Override
+  public TestResult discoverDatabases(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
+    return probe.discoverDatabases(cfg, secrets, ctx);
   }
 
   /**

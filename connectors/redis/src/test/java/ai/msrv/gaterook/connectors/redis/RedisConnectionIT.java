@@ -90,6 +90,22 @@ class RedisConnectionIT {
     return r.hints().stream().map(Hint::code).toList();
   }
 
+  @Test
+  void databaseDiscoveryUsesTheServerCountOrReportsAnIncompleteList() {
+    TestResult full = connector.discoverDatabases(cfg(primary, null).build(),
+        TestSecrets.password(LocalRedis.DEFAULT_PASSWORD), TestCtx.of());
+    assertThat(full.ok()).isTrue();
+    assertThat(full.details().path("discoveryComplete").asBoolean()).isTrue();
+    assertThat(full.details().path("databases").size()).isEqualTo(16);
+    assertThat(full.details().path("databases").get(15).asInt()).isEqualTo(15);
+    TestResult partial = connector.discoverDatabases(cfg(primary, "ro").database(1).build(),
+        TestSecrets.password("ro-pass"), TestCtx.of());
+    assertThat(partial.ok()).isTrue();
+    assertThat(partial.details().path("discoveryComplete").asBoolean()).isFalse();
+    assertThat(partial.details().path("databases").toString()).isEqualTo("[1]");
+    assertThat(codes(partial)).contains("redis.databases-incomplete");
+  }
+
   private static Hint hint(TestResult r, String code) {
     return r.hints().stream().filter(h -> h.code().equals(code)).findFirst().orElseThrow(
         () -> new AssertionError("no hint " + code + " in " + r.hints()));

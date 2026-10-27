@@ -143,7 +143,7 @@ public final class MongoConnector implements Connector {
           + "stages are Extended JSON: {\"_id\": {\"$oid\": \"…\"}}, {\"at\": {\"$gte\": {\"$date\": "
           + "\"2026-10-22T00:00:00Z\"}}}.");
     }
-    Optional<Verdict> v = new PipelineValidator(new Namespaces(s.namespaceAllowlist())).check(call.tool(), args);
+    Optional<Verdict> v = new PipelineValidator(new Namespaces(s.namespaceAllowlist(), s.databases())).check(call.tool(), args);
     if (v.isPresent()) {
       return Classification.deny(policy.rule(v.get().rule()), v.get().reason(), v.get().hint());
     }
@@ -191,7 +191,7 @@ public final class MongoConnector implements Connector {
     payload.put("maxTimeMS", maxTimeMs);
     NumberFormat numbers = NumberFormat.getIntegerInstance(Locale.US);
     return ActionPreview.of(ActionPreview.Kind.JSON, "json", Ejson.relaxed(command),
-            cfg.name() + " · " + s.target(), verb + " " + ns + " · " + cfg.name() + " (" + cfg.env().id() + ")")
+            cfg.name() + " · " + s.target(args.database()), verb + " " + ns + " · " + cfg.name() + " (" + cfg.env().id() + ")")
         .withFields(List.of(new ActionPreview.Field("Database", args.database()),
             new ActionPreview.Field("Collection", args.collection()),
             new ActionPreview.Field("Read preference", s.readPreference()),
@@ -258,7 +258,7 @@ public final class MongoConnector implements Connector {
       throw ConnectorException.badInput(e.getMessage());
     }
     // Defence in depth: the same validation as classify, on the documents about to be sent.
-    Optional<Verdict> v = new PipelineValidator(new Namespaces(s.namespaceAllowlist())).check(call.tool(), args);
+    Optional<Verdict> v = new PipelineValidator(new Namespaces(s.namespaceAllowlist(), s.databases())).check(call.tool(), args);
     if (v.isPresent()) {
       throw ConnectorException.denied(v.get().reason());
     }
@@ -368,6 +368,11 @@ public final class MongoConnector implements Connector {
   }
 
   @Override
+  public TestResult discoverDatabases(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
+    return probe.test(cfg, secrets, ctx);
+  }
+
+  @Override
   public HealthResult health(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
     return probe.health(cfg, secrets, ctx, clients);
   }
@@ -382,7 +387,7 @@ public final class MongoConnector implements Connector {
     try (MongoLogin login = MongoLogin.resolve(s, secrets);
          MongoClientCache.Lease lease = clients.acquire(cfg, s, login, readTimeout(ctx.limits()))) {
       try {
-        return Optional.of(MongoDescribe.describe(lease.client(), s, new Namespaces(s.namespaceAllowlist()), ctx,
+        return Optional.of(MongoDescribe.describe(lease.client(), s, new Namespaces(s.namespaceAllowlist(), s.databases()), ctx,
             object));
       } catch (MongoDescribe.ObjectRefused e) {
         throw ConnectorException.denied(e.getMessage());

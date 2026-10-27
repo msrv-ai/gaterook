@@ -69,6 +69,13 @@ public final class ClickHouseConnector implements Connector {
       return Classification.deny(policy.rule("unknown-tool"), call.tool() + " isn't a tool of ClickHouse "
           + manifest.version() + ".", null);
     }
+    try {
+      ClickHouseConfig config = callConfig(call, cfg);
+      Optional<String> scope = scopeProblem(call, config);
+      if (scope.isPresent()) return Classification.deny(policy.rule("clickhouse.database"), scope.get(), null);
+    } catch (ConnectorException e) {
+      return Classification.deny(policy.rule("clickhouse.database"), e.getMessage(), null);
+    }
     Optional<String> problem = switch (call.tool()) {
       case "clickhouse_query" -> ReadOnlySql.check(call.string("sql")).problem();
       case "clickhouse_explain" -> ReadOnlySql.checkQuery(call.string("sql")).problem();
@@ -83,7 +90,7 @@ public final class ClickHouseConnector implements Connector {
   public ActionPreview describeAction(ToolCall call, ConnectionConfig cfg) {
     ClickHouseConfig config;
     try {
-      config = ClickHouseConfig.of(cfg);
+      config = callConfig(call, cfg);
     } catch (ConnectorException e) {
       return ActionPreview.of(ActionPreview.Kind.TEXT, "text", call.tool() + " " + call.arguments(), cfg.name(),
           call.tool() + " on " + cfg.name());
@@ -125,6 +132,15 @@ public final class ClickHouseConnector implements Connector {
       JsonNode row = about.table().rows().path(0);
       String version = row.path(0).asString(null);
       String user = row.path(1).asString(null);
+      for (String database : ch.config().databases()) {
+        if (database.equals(ch.config().database())) continue;
+        t0 = System.nanoTime();
+        ClickHouseClient selected = new ClickHouseClient(ch.config().forDatabase(database, true), secrets, ctx);
+        ClickHouseClient.Answer access = selected.query("SELECT currentDatabase()", Map.of(), 1);
+        checks.add(new TestResult.Check("Database " + database, access.ok(), ms(t0),
+            access.ok() ? null : access.failure().message()));
+        if (!access.ok()) return testFailure(access.failure(), checks);
+      }
       t0 = System.nanoTime();
       ClickHouseClient.Answer grants = ch.query("SHOW GRANTS", Map.of(), 200);
       checks.add(new TestResult.Check("Grants", grants.ok(), ms(t0), grants.ok() ? null
@@ -167,7 +183,10 @@ public final class ClickHouseConnector implements Connector {
       throws ConnectorException {
     tool(call.tool()).orElseThrow(() -> ConnectorException.badInput(call.tool() + " isn't a tool of ClickHouse "
         + manifest.version() + "."));
-    ClickHouseClient ch = ClickHouseClient.of(cfg, secrets, ctx);
+    ClickHouseConfig config = callConfig(call, cfg);
+    Optional<String> scope = scopeProblem(call, config);
+    if (scope.isPresent()) throw ConnectorException.denied(scope.get());
+    ClickHouseClient ch = new ClickHouseClient(config, secrets, ctx);
     int envRows = ctx.limits() == null ? Integer.MAX_VALUE : ctx.limits().maxRows();
     int rows = Math.min(ch.config().maxRows(), envRows > 0 ? envRows : Integer.MAX_VALUE);
     return switch (call.tool()) {
@@ -177,6 +196,46 @@ public final class ClickHouseConnector implements Connector {
           "clickhouse_running_queries" -> table(ch, call, rows);
       default -> throw ConnectorException.badInput(call.tool() + " isn't implemented here.");
     };
+  }
+
+  @Override
+  public TestResult discoverDatabases(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
+    long started = System.nanoTime();
+    try {
+      ObjectNode settings = (ObjectNode) cfg.config().deepCopy();
+      settings.remove("databases");
+      settings.remove("database");
+      ConnectionConfig server = new ConnectionConfig(cfg.id(), cfg.name(), cfg.type(), cfg.env(), cfg.version(),
+          settings, cfg.secretFields(), cfg.metadata());
+      ClickHouseClient client = ClickHouseClient.of(server, secrets, ctx);
+      ClickHouseClient.Answer answer = client.discoverDatabases();
+      if (!answer.ok()) return testFailure(answer.failure(), List.of());
+      ObjectNode details = NODES.objectNode();
+      ArrayNode names = details.putArray("databases");
+      answer.table().rows().forEach(row -> {
+        String name = row.path(0).asString("");
+        if (!name.isBlank() && names.size() < 1000) names.add(name);
+      });
+      details.put("discoveryComplete", answer.table().rows().size() <= 1000);
+      return TestResult.success(ms(started), null, client.config().user(), null).withDetails(details);
+    } catch (ConnectorException e) {
+      return TestResult.failure("discovery", e.getMessage(), null);
+    }
+  }
+
+  private static ClickHouseConfig callConfig(ToolCall call, ConnectionConfig cfg) throws ConnectorException {
+    boolean needsDatabase = !"clickhouse_list_databases".equals(call.tool())
+        && !"clickhouse_running_queries".equals(call.tool());
+    return ClickHouseConfig.of(cfg).forDatabase(call.string("database"), needsDatabase);
+  }
+
+  private static Optional<String> scopeProblem(ToolCall call, ClickHouseConfig config) {
+    if (config.databases().isEmpty()) return Optional.empty();
+    if ("clickhouse_running_queries".equals(call.tool())) {
+      return Optional.of("Running queries are server-wide and unavailable when only selected databases are exposed.");
+    }
+    return "clickhouse_query".equals(call.tool()) || "clickhouse_explain".equals(call.tool())
+        ? ReadOnlySql.databaseProblem(call.string("sql"), config.databases()) : Optional.empty();
   }
 
   // ── Tools ───────────────────────────────────────────────────────────────────────────────────────────────────
@@ -313,7 +372,8 @@ public final class ClickHouseConnector implements Connector {
       }
       case "clickhouse_list_databases" -> Optional.of(new Statement("SELECT d.name AS name, any(d.engine) AS engine, "
           + "countIf(t.name != '') AS tables FROM system.databases AS d LEFT JOIN system.tables AS t ON t.database = "
-          + "d.name GROUP BY d.name ORDER BY d.name", Map.of(), Math.min(1000, maxRows), null, "List databases"));
+          + "d.name" + selectedFilter(config) + " GROUP BY d.name ORDER BY d.name", selectedParams(config),
+          Math.min(1000, maxRows), null, "List databases"));
       case "clickhouse_list_tables" -> {
         int limit = Math.min(Math.clamp(call.integer("limit", 100), 1, 500), maxRows);
         Map<String, String> params = new LinkedHashMap<>();
@@ -354,6 +414,19 @@ public final class ClickHouseConnector implements Connector {
   private static String database(ToolCall call, ClickHouseConfig config) {
     String db = call.string("database");
     return db == null || db.isBlank() ? config.database() : db.strip();
+  }
+
+  private static String selectedFilter(ClickHouseConfig config) {
+    if (config.databases().isEmpty()) return "";
+    List<String> parameters = new ArrayList<>();
+    for (int i = 0; i < config.databases().size(); i++) parameters.add("{selected" + i + ":String}");
+    return " WHERE d.name IN (" + String.join(", ", parameters) + ")";
+  }
+
+  private static Map<String, String> selectedParams(ClickHouseConfig config) {
+    Map<String, String> params = new LinkedHashMap<>();
+    for (int i = 0; i < config.databases().size(); i++) params.put("selected" + i, config.databases().get(i));
+    return params;
   }
 
   // ── Answers ─────────────────────────────────────────────────────────────────────────────────────────────────

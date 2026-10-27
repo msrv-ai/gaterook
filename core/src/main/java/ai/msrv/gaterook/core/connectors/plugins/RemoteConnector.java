@@ -177,13 +177,22 @@ final class RemoteConnector implements Connector {
 
   @Override
   public TestResult test(ConnectionConfig cfg, SecretResolver resolver, ExecContext ctx) {
+    return test(cfg, resolver, ctx, Gpp.CONNECTOR_TEST);
+  }
+
+  @Override
+  public TestResult discoverDatabases(ConnectionConfig cfg, SecretResolver resolver, ExecContext ctx) {
+    return test(cfg, resolver, ctx, Gpp.CONNECTOR_DISCOVER_DATABASES);
+  }
+
+  private TestResult test(ConnectionConfig cfg, SecretResolver resolver, ExecContext ctx, String method) {
     try (PluginSupervisor.Permit permit = supervisor.permit(ctx.deadline())) {
       HostProcess host = permit.host();
       try (SecretCallbackRegistry.Permit token = secrets.open(host.instance(), generation(), cfg.id(),
           ctx.callId(), cfg.secretFields(), resolver, ctx, host.log())) {
         Messages.Test params = new Messages.Test(generation(), ctx.callId(), token.token(), cfg,
             remaining(ctx).toMillis(), ctx.limits(), egressGrant(cfg));
-        JsonNode result = host.request(Gpp.CONNECTOR_TEST, params.write()).get(remaining(ctx));
+        JsonNode result = host.request(method, params.write()).get(remaining(ctx));
         permit.returned();
         if (token.taintOverLimit()) {
           return TestResult.failure("plugin-error", manifest.name() + " sent more values to mask than a call may: "

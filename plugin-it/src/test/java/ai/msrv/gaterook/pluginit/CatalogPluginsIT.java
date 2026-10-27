@@ -40,6 +40,26 @@ class CatalogPluginsIT {
   private MockWebServer server;
   private Harness host;
 
+  @Test
+  void clickHouseDiscoveryCrossesThePluginProtocolWithScopedSecretAccess() throws Exception {
+    server = serve(request -> new MockResponse.Builder().code(200).addHeader("Content-Type", "application/json")
+        .body("{\"meta\":[],\"data\":[[\"analytics\"],[\"archive\"]],\"rows\":2}").build());
+    host = Harness.start("clickhouse@0.6.1", Harness.pluginJar("clickhouse", "gw-clickhouse-0.6.1.jar"), home, true);
+    ObjectNode c = GppJson.object().put("host", "127.0.0.1").put("port", server.getPort()).put("user", "gw_reader");
+    c.putObject("options").put("tls", false);
+    ConnectionConfig cfg = new ConnectionConfig("c_ch", "events-ch", "clickhouse", Env.DEV, 1, c,
+        Set.of("/password"), null);
+    JsonNode result = host.discoverDatabases("clickhouse@0.6.1", cfg, grant(server),
+        Map.of("/password", "cnry-ch-discovery-31f0"), Duration.ofSeconds(10));
+    assertThat(result.path("ok").asBoolean()).isTrue();
+    assertThat(result.path("details").path("databases")).extracting(JsonNode::asString)
+        .containsExactly("analytics", "archive");
+    assertThat(result.toString()).doesNotContain("cnry-ch-discovery");
+    RecordedRequest seen = server.takeRequest(2, TimeUnit.SECONDS);
+    assertThat(seen.getBody().utf8()).isEqualTo("SHOW DATABASES");
+    assertThat(seen.getHeaders().get("X-ClickHouse-Key")).isEqualTo("cnry-ch-discovery-31f0");
+  }
+
   @AfterEach
   void stop() throws Exception {
     if (host != null) {

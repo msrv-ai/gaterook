@@ -22,7 +22,7 @@ import redis.clients.jedis.RedisProtocol;
 import redis.clients.jedis.exceptions.JedisException;
 
 /**
- * One small connection pool per Redis connection (report 05 §6, §7): at most {@code poolSize} physical connections
+ * One small connection pool per saved connection and database (report 05 §6, §7): at most {@code poolSize} physical connections
  * (2 by default), none until the first call, idle ones closed after a minute, the whole pool after ten idle minutes. A
  * pool belongs to one version of its connection and one version of its login: another version gets a new pool, and
  * the old one closes its idle sockets at once and each busy one when its call returns it.
@@ -43,7 +43,9 @@ final class RedisClients implements AutoCloseable {
   static final Duration BORROW_WAIT = Duration.ofSeconds(2);
 
   private final Clock clock;
-  private final ConcurrentHashMap<String, Pool> pools = new ConcurrentHashMap<>();
+  record PoolKey(String connectionId, int database) {}
+
+  private final ConcurrentHashMap<PoolKey, Pool> pools = new ConcurrentHashMap<>();
   private ScheduledThreadPoolExecutor scheduler;
   private boolean closed;
 
@@ -223,13 +225,14 @@ final class RedisClients implements AutoCloseable {
         login.close();
         throw new IllegalStateException("The Redis connector is closed");
       }
-      Pool current = pools.get(cfg.id());
+      PoolKey key = new PoolKey(cfg.id(), s.database());
+      Pool current = pools.get(key);
       if (current != null && current.configVersion == cfg.version() && current.credentials.equals(login)) {
         login.close();
         return current;
       }
       result = new Pool(cfg.id(), cfg.version(), s, login);
-      stale = pools.put(cfg.id(), result);
+      stale = pools.put(key, result);
       scheduler();
     }
     if (stale != null) {
@@ -240,20 +243,25 @@ final class RedisClients implements AutoCloseable {
 
   /** The current pool of a connection, if any (tests). */
   Pool current(String connectionId) {
-    return pools.get(connectionId);
+    return pools.values().stream().filter(p -> p.connectionId.equals(connectionId)).findFirst().orElse(null);
   }
 
-  /** Pools by connection id (tests). */
-  Map<String, Pool> pools() {
+  Pool current(String connectionId, int database) {
+    return pools.get(new PoolKey(connectionId, database));
+  }
+
+  /** Pools by connection id and database (tests). */
+  Map<PoolKey, Pool> pools() {
     return Map.copyOf(pools);
   }
 
   /** The connection changed or went away: its pool closes, busy sockets after their calls. */
   void evict(String connectionId) {
-    Pool p = pools.remove(connectionId);
-    if (p != null) {
-      p.retire();
-    }
+    pools.forEach((key, pool) -> {
+      if (key.connectionId().equals(connectionId) && pools.remove(key, pool)) {
+        pool.retire();
+      }
+    });
   }
 
   /** Closes connections idle for a minute and pools nobody used for {@link #IDLE_POOL}. */
@@ -265,7 +273,7 @@ final class RedisClients implements AutoCloseable {
     long now = System.nanoTime();
     for (Pool p : pools.values()) {
       if (now - p.lastUsedNanos >= idlePool.toNanos() && p.active() == 0) {
-        if (pools.remove(p.connectionId, p)) {
+        if (pools.remove(new PoolKey(p.connectionId, p.settings.database()), p)) {
           p.retire();
         }
       } else {

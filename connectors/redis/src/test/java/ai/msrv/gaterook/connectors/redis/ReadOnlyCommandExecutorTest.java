@@ -168,9 +168,11 @@ class ReadOnlyCommandExecutorTest {
     probe.executeCommand(command(Cmd.ACL, "GETUSER", "ro"));
     probe.executeCommand(command(Cmd.ACL, "DRYRUN", "ro", "SET", "gw:probe:7f", "1"));
     probe.executeCommand(command(Cmd.CONFIG, "GET", "maxmemory"));
+    probe.executeCommand(command(Cmd.CONFIG, "GET", "databases"));
     probe.executeCommand(command(Cmd.COMMAND, "LIST", "FILTERBY", "PATTERN", RedisProbe.SIGN_PROBE));
     probe.executeCommand(command(Cmd.INFO, "server"));
-    assertThat(connection.wire).hasSize(6);
+    probe.executeCommand(command(Cmd.INFO, "keyspace"));
+    assertThat(connection.wire).hasSize(8);
     for (Object[] bad : List.<Object[]>of(
         new Object[] {Cmd.SET, "gw:probe:7f", "1", "NX"},              // XX missing: it would create the key
         new Object[] {Cmd.SET, "user:1", "1", "NX", "XX"},             // not the probe key
@@ -187,7 +189,7 @@ class ReadOnlyCommandExecutorTest {
       assertThatThrownBy(() -> probe.executeCommand(command(bad[0], java.util.Arrays.copyOfRange(bad, 1, bad.length))))
           .as(java.util.Arrays.toString(bad)).isInstanceOf(ReadOnlyCommandExecutor.RefusedCommandException.class);
     }
-    assertThat(connection.wire).hasSize(6);
+    assertThat(connection.wire).hasSize(8);
   }
 
   @Test

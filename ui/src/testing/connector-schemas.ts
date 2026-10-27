@@ -23,8 +23,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "additionalProperties": false,
         "required": [
           "host",
-          "port",
-          "database"
+          "port"
         ],
         "properties": {
           "host": {
@@ -45,6 +44,20 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "title": "Database",
             "pattern": "^[A-Za-z0-9_$.-]{1,63}$"
           },
+          "databases": {
+            "type": "array",
+            "title": "Databases",
+            "minItems": 1,
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 63,
+              "pattern": "^[^\\u0000]+$"
+            },
+            "description": "Only these databases are available through this connection."
+          },
           "sslMode": {
             "type": "string",
             "title": "SSL mode",
@@ -61,14 +74,16 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "Verify the CA (verify-ca)",
               "Verify the CA and host name (verify-full)"
             ],
-            "description": "verify-full checks the certificate and the host name. Lower it only for a database without TLS on a network you trust."
+            "description": "verify-full checks the certificate and the host name. Lower it only for a database without TLS on a network you trust.",
+            "x-section": "/advanced"
           },
           "caCertificate": {
             "type": "string",
             "title": "CA certificate (PEM)",
             "maxLength": 20000,
             "x-widget": "textarea",
-            "description": "Only for a private CA. Empty: the system trust store."
+            "description": "Only for a private CA. Empty: the system trust store.",
+            "x-section": "/advanced"
           }
         }
       },
@@ -131,6 +146,18 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "maxLength": 200
             }
           },
+          "allowedFunctions": {
+            "type": "array",
+            "title": "Functions reads may call",
+            "uniqueItems": true,
+            "maxItems": 200,
+            "items": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z_][A-Za-z0-9_$]*(\\.[A-Za-z_][A-Za-z0-9_$]*)?$"
+            },
+            "description": "Your own functions that only read, as name or schema.name. Reads may call built-in functions; any other one waits for approval, and on prod it is refused."
+          },
           "defaultSchema": {
             "type": "string",
             "title": "Default schema",
@@ -144,9 +171,23 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "maximum": 30000,
             "default": 5000,
             "x-unit": "ms"
+          },
+          "discoveryDatabase": {
+            "type": "string",
+            "title": "Discovery database",
+            "default": "postgres",
+            "minLength": 1,
+            "maxLength": 63,
+            "pattern": "^[^\\u0000]+$",
+            "description": "Connect here to load the database list. Change this if your account cannot connect to postgres."
           }
         }
       }
+    },
+    "x-database-selection": {
+      "path": "/connection/databases",
+      "legacyPath": "/connection/database",
+      "required": true
     }
   },
   "mysql": {
@@ -190,30 +231,48 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "pattern": "^[A-Za-z0-9_$.-]{1,63}$",
             "description": "The default database. Empty: none; qualify tables with their database."
           },
+          "databases": {
+            "type": "array",
+            "title": "Databases",
+            "minItems": 1,
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 63,
+              "pattern": "^[^\\u0000]+$"
+            },
+            "description": "Only these databases are available through this connection."
+          },
           "sslMode": {
             "type": "string",
             "title": "SSL mode",
             "enum": [
+              "auto",
               "disable",
               "require",
               "verify-ca",
               "verify-full"
             ],
-            "default": "verify-full",
+            "default": "auto",
             "x-enumTitles": [
+              "Auto (SSL if available)",
               "Off (disable)",
               "Encrypt, don't verify (require)",
               "Verify the CA (verify-ca)",
               "Verify the CA and host name (verify-full)"
             ],
-            "description": "verify-full checks the certificate and the host name. Lower it only for a database without TLS on a network you trust."
+            "description": "Auto uses SSL when the server supports it, otherwise connects without encryption. Use verify-full to verify the certificate and host name.",
+            "x-section": "/advanced"
           },
           "caCertificate": {
             "type": "string",
             "title": "CA certificate (PEM)",
+            "x-section": "/advanced",
             "maxLength": 20000,
             "x-widget": "textarea",
-            "description": "Only for a private CA. Empty: the system trust store."
+            "description": "For a private CA with verify-ca or verify-full. Empty: the system trust store."
           }
         }
       },
@@ -246,7 +305,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "title": "Advanced",
         "x-collapsed": true,
         "additionalProperties": false,
-        "description": "Timeouts, pool and schema allowlist. Policies can tighten them per environment.",
+        "description": "CA certificate, timeouts, pool and schema allowlist. Policies can tighten limits per environment.",
         "properties": {
           "statementTimeoutMs": {
             "type": "integer",
@@ -276,6 +335,18 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "maxLength": 200
             }
           },
+          "allowedFunctions": {
+            "type": "array",
+            "title": "Functions reads may call",
+            "uniqueItems": true,
+            "maxItems": 200,
+            "items": {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^[A-Za-z_][A-Za-z0-9_$]*(\\.[A-Za-z_][A-Za-z0-9_$]*)?$"
+            },
+            "description": "Your own functions that only read, as name or database.name. Reads may call built-in functions; any other one waits for approval, and on prod it is refused."
+          },
           "connectTimeoutMs": {
             "type": "integer",
             "title": "Connect timeout",
@@ -287,11 +358,15 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           "allowPublicKeyRetrieval": {
             "type": "boolean",
             "title": "Allow public key retrieval",
-            "default": false,
+            "default": true,
             "description": "Lets a fake server capture the password; prefer TLS. Needed without TLS for caching_sha2_password users."
           }
         }
       }
+    },
+    "x-database-selection": {
+      "path": "/connection/databases",
+      "legacyPath": "/connection/database"
     }
   },
   "mongodb": {
@@ -326,14 +401,16 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "default": false,
             "x-env-default": {
               "prod": true
-            }
+            },
+            "x-section": "/advanced"
           },
           "caCertificate": {
             "type": "string",
             "title": "CA certificate (PEM)",
             "maxLength": 20000,
             "x-widget": "textarea",
-            "description": "Only for a private CA. Empty: the system trust store."
+            "description": "Only for a private CA. Empty: the system trust store.",
+            "x-section": "/advanced"
           },
           "allowInvalidHostnames": {
             "type": "boolean",
@@ -341,7 +418,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "default": false,
             "x-forbidden-env": [
               "prod"
-            ]
+            ],
+            "x-section": "/advanced"
           },
           "readPreference": {
             "type": "string",
@@ -357,7 +435,21 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "x-env-default": {
               "prod": "secondaryPreferred"
             },
-            "description": "secondaryPreferred keeps agent reads off the primary."
+            "description": "secondaryPreferred keeps agent reads off the primary.",
+            "x-section": "/advanced"
+          },
+          "databases": {
+            "type": "array",
+            "title": "Databases",
+            "minItems": 1,
+            "maxItems": 200,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "description": "Only these databases are available to agents. Existing collection restrictions still apply."
           }
         }
       },
@@ -443,6 +535,9 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           }
         }
       }
+    },
+    "x-database-selection": {
+      "path": "/connection/databases"
     }
   },
   "redis": {
@@ -488,7 +583,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "default": false,
             "x-env-default": {
               "prod": true
-            }
+            },
+            "x-section": "/advanced"
           },
           "tlsVerify": {
             "type": "string",
@@ -506,13 +602,28 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "x-enumTitles": [
               "Verify the CA and host name",
               "Verify the CA only"
-            ]
+            ],
+            "x-section": "/advanced"
           },
           "caCertificate": {
             "type": "string",
             "title": "CA certificate (PEM)",
             "maxLength": 20000,
-            "x-widget": "textarea"
+            "x-widget": "textarea",
+            "x-section": "/advanced"
+          },
+          "databases": {
+            "type": "array",
+            "title": "Databases",
+            "minItems": 1,
+            "maxItems": 1024,
+            "uniqueItems": true,
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 1023
+            },
+            "description": "Only these logical databases are available to agents."
           }
         }
       },
@@ -611,6 +722,10 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           }
         }
       }
+    },
+    "x-database-selection": {
+      "path": "/connection/databases",
+      "legacyPath": "/connection/database"
     }
   },
   "ssh": {
@@ -2177,10 +2292,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
           "/connection/database"
         ],
         [
-          "/connection/sslMode"
-        ],
-        [
-          "/connection/caCertificate"
+          "/connection/databases"
         ]
       ],
       "/credentials": [
@@ -2193,6 +2305,12 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       ],
       "/advanced": [
         [
+          "/connection/sslMode"
+        ],
+        [
+          "/connection/caCertificate"
+        ],
+        [
           "/advanced/statementTimeoutMs",
           "/advanced/poolSize"
         ],
@@ -2200,8 +2318,14 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
           "/advanced/schemaAllowlist"
         ],
         [
+          "/advanced/allowedFunctions"
+        ],
+        [
           "/advanced/defaultSchema",
           "/advanced/connectTimeoutMs"
+        ],
+        [
+          "/advanced/discoveryDatabase"
         ]
       ]
     },
@@ -2258,7 +2382,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "pointer": "/connection/database",
         "kind": "text",
         "title": "Database",
-        "required": true,
+        "required": false,
         "secret": null,
         "mono": true,
         "unit": null,
@@ -2271,33 +2395,12 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "confirm": null
       },
       {
-        "pointer": "/connection/sslMode",
-        "kind": "select",
-        "title": "SSL mode",
+        "pointer": "/connection/databases",
+        "kind": "tags",
+        "title": "Databases",
         "required": false,
         "secret": null,
-        "mono": false,
-        "unit": null,
-        "options": [
-          "disable",
-          "require",
-          "verify-ca",
-          "verify-full"
-        ],
-        "when": [],
-        "multiline": false,
-        "envDefault": {},
-        "prodForbidden": null,
-        "optionsFrom": null,
-        "confirm": null
-      },
-      {
-        "pointer": "/connection/caCertificate",
-        "kind": "textarea",
-        "title": "CA certificate (PEM)",
-        "required": false,
-        "secret": null,
-        "mono": false,
+        "mono": true,
         "unit": null,
         "options": [],
         "when": [],
@@ -2372,6 +2475,43 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "confirm": null
       },
       {
+        "pointer": "/connection/sslMode",
+        "kind": "select",
+        "title": "SSL mode",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "disable",
+          "require",
+          "verify-ca",
+          "verify-full"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/caCertificate",
+        "kind": "textarea",
+        "title": "CA certificate (PEM)",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
         "pointer": "/advanced/statementTimeoutMs",
         "kind": "number",
         "title": "Statement timeout",
@@ -2420,6 +2560,22 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "confirm": null
       },
       {
+        "pointer": "/advanced/allowedFunctions",
+        "kind": "tags",
+        "title": "Functions reads may call",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
         "pointer": "/advanced/defaultSchema",
         "kind": "text",
         "title": "Default schema",
@@ -2450,6 +2606,22 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "prodForbidden": null,
         "optionsFrom": null,
         "confirm": null
+      },
+      {
+        "pointer": "/advanced/discoveryDatabase",
+        "kind": "text",
+        "title": "Discovery database",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
       }
     ],
     "defaults": {
@@ -2461,7 +2633,8 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       "advanced": {
         "poolSize": 2,
         "defaultSchema": "public",
-        "connectTimeoutMs": 5000
+        "connectTimeoutMs": 5000,
+        "discoveryDatabase": "postgres"
       }
     },
     "prodDefaults": {
@@ -2473,7 +2646,8 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       "advanced": {
         "poolSize": 2,
         "defaultSchema": "public",
-        "connectTimeoutMs": 5000
+        "connectTimeoutMs": 5000,
+        "discoveryDatabase": "postgres"
       }
     }
   },
@@ -2494,10 +2668,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
           "/connection/database"
         ],
         [
-          "/connection/sslMode"
-        ],
-        [
-          "/connection/caCertificate"
+          "/connection/databases"
         ]
       ],
       "/credentials": [
@@ -2510,11 +2681,20 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       ],
       "/advanced": [
         [
+          "/connection/sslMode"
+        ],
+        [
+          "/connection/caCertificate"
+        ],
+        [
           "/advanced/statementTimeoutMs",
           "/advanced/poolSize"
         ],
         [
           "/advanced/schemaAllowlist"
+        ],
+        [
+          "/advanced/allowedFunctions"
         ],
         [
           "/advanced/connectTimeoutMs"
@@ -2590,33 +2770,12 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "confirm": null
       },
       {
-        "pointer": "/connection/sslMode",
-        "kind": "select",
-        "title": "SSL mode",
+        "pointer": "/connection/databases",
+        "kind": "tags",
+        "title": "Databases",
         "required": false,
         "secret": null,
-        "mono": false,
-        "unit": null,
-        "options": [
-          "disable",
-          "require",
-          "verify-ca",
-          "verify-full"
-        ],
-        "when": [],
-        "multiline": false,
-        "envDefault": {},
-        "prodForbidden": null,
-        "optionsFrom": null,
-        "confirm": null
-      },
-      {
-        "pointer": "/connection/caCertificate",
-        "kind": "textarea",
-        "title": "CA certificate (PEM)",
-        "required": false,
-        "secret": null,
-        "mono": false,
+        "mono": true,
         "unit": null,
         "options": [],
         "when": [],
@@ -2691,6 +2850,44 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "confirm": null
       },
       {
+        "pointer": "/connection/sslMode",
+        "kind": "select",
+        "title": "SSL mode",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "auto",
+          "disable",
+          "require",
+          "verify-ca",
+          "verify-full"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/caCertificate",
+        "kind": "textarea",
+        "title": "CA certificate (PEM)",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
         "pointer": "/advanced/statementTimeoutMs",
         "kind": "number",
         "title": "Statement timeout",
@@ -2739,6 +2936,22 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "confirm": null
       },
       {
+        "pointer": "/advanced/allowedFunctions",
+        "kind": "tags",
+        "title": "Functions reads may call",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
         "pointer": "/advanced/connectTimeoutMs",
         "kind": "number",
         "title": "Connect timeout",
@@ -2774,25 +2987,25 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
     "defaults": {
       "connection": {
         "port": 3306,
-        "sslMode": "verify-full"
+        "sslMode": "auto"
       },
       "credentials": {},
       "advanced": {
         "poolSize": 2,
         "connectTimeoutMs": 5000,
-        "allowPublicKeyRetrieval": false
+        "allowPublicKeyRetrieval": true
       }
     },
     "prodDefaults": {
       "connection": {
         "port": 3306,
-        "sslMode": "verify-full"
+        "sslMode": "auto"
       },
       "credentials": {},
       "advanced": {
         "poolSize": 2,
         "connectTimeoutMs": 5000,
-        "allowPublicKeyRetrieval": false
+        "allowPublicKeyRetrieval": true
       }
     }
   },
@@ -2809,16 +3022,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
           "/connection/uri"
         ],
         [
-          "/connection/tls"
-        ],
-        [
-          "/connection/caCertificate"
-        ],
-        [
-          "/connection/allowInvalidHostnames"
-        ],
-        [
-          "/connection/readPreference"
+          "/connection/databases"
         ]
       ],
       "/credentials": [
@@ -2836,6 +3040,18 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         ]
       ],
       "/advanced": [
+        [
+          "/connection/tls"
+        ],
+        [
+          "/connection/caCertificate"
+        ],
+        [
+          "/connection/allowInvalidHostnames"
+        ],
+        [
+          "/connection/readPreference"
+        ],
         [
           "/advanced/namespaceAllowlist"
         ],
@@ -2880,75 +3096,17 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "confirm": null
       },
       {
-        "pointer": "/connection/tls",
-        "kind": "checkbox",
-        "title": "Use TLS",
+        "pointer": "/connection/databases",
+        "kind": "tags",
+        "title": "Databases",
         "required": false,
         "secret": null,
-        "mono": false,
-        "unit": null,
-        "options": [],
-        "when": [],
-        "multiline": false,
-        "envDefault": {
-          "prod": true
-        },
-        "prodForbidden": null,
-        "optionsFrom": null,
-        "confirm": null
-      },
-      {
-        "pointer": "/connection/caCertificate",
-        "kind": "textarea",
-        "title": "CA certificate (PEM)",
-        "required": false,
-        "secret": null,
-        "mono": false,
+        "mono": true,
         "unit": null,
         "options": [],
         "when": [],
         "multiline": false,
         "envDefault": {},
-        "prodForbidden": null,
-        "optionsFrom": null,
-        "confirm": null
-      },
-      {
-        "pointer": "/connection/allowInvalidHostnames",
-        "kind": "checkbox",
-        "title": "Skip the host name check",
-        "required": false,
-        "secret": null,
-        "mono": false,
-        "unit": null,
-        "options": [],
-        "when": [],
-        "multiline": false,
-        "envDefault": {},
-        "prodForbidden": "all but default",
-        "optionsFrom": null,
-        "confirm": null
-      },
-      {
-        "pointer": "/connection/readPreference",
-        "kind": "select",
-        "title": "Read preference",
-        "required": false,
-        "secret": null,
-        "mono": false,
-        "unit": null,
-        "options": [
-          "primary",
-          "primaryPreferred",
-          "secondary",
-          "secondaryPreferred",
-          "nearest"
-        ],
-        "when": [],
-        "multiline": false,
-        "envDefault": {
-          "prod": "secondaryPreferred"
-        },
         "prodForbidden": null,
         "optionsFrom": null,
         "confirm": null
@@ -3050,6 +3208,80 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "when": [],
         "multiline": false,
         "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/tls",
+        "kind": "checkbox",
+        "title": "Use TLS",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {
+          "prod": true
+        },
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/caCertificate",
+        "kind": "textarea",
+        "title": "CA certificate (PEM)",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/allowInvalidHostnames",
+        "kind": "checkbox",
+        "title": "Skip the host name check",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": "all but default",
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/readPreference",
+        "kind": "select",
+        "title": "Read preference",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "primary",
+          "primaryPreferred",
+          "secondary",
+          "secondaryPreferred",
+          "nearest"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {
+          "prod": "secondaryPreferred"
+        },
         "prodForbidden": null,
         "optionsFrom": null,
         "confirm": null
@@ -3165,13 +3397,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
           "/connection/database"
         ],
         [
-          "/connection/tls"
-        ],
-        [
-          "/connection/tlsVerify"
-        ],
-        [
-          "/connection/caCertificate"
+          "/connection/databases"
         ]
       ],
       "/credentials": [
@@ -3183,6 +3409,15 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         ]
       ],
       "/advanced": [
+        [
+          "/connection/tls"
+        ],
+        [
+          "/connection/tlsVerify"
+        ],
+        [
+          "/connection/caCertificate"
+        ],
         [
           "/advanced/keyAllowlist"
         ],
@@ -3268,48 +3503,9 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "confirm": null
       },
       {
-        "pointer": "/connection/tls",
-        "kind": "checkbox",
-        "title": "Use TLS",
-        "required": false,
-        "secret": null,
-        "mono": false,
-        "unit": null,
-        "options": [],
-        "when": [],
-        "multiline": false,
-        "envDefault": {
-          "prod": true
-        },
-        "prodForbidden": null,
-        "optionsFrom": null,
-        "confirm": null
-      },
-      {
-        "pointer": "/connection/tlsVerify",
-        "kind": "select",
-        "title": "TLS verification",
-        "required": false,
-        "secret": null,
-        "mono": false,
-        "unit": null,
-        "options": [
-          "full",
-          "ca"
-        ],
-        "when": [],
-        "multiline": false,
-        "envDefault": {},
-        "prodForbidden": [
-          "ca"
-        ],
-        "optionsFrom": null,
-        "confirm": null
-      },
-      {
-        "pointer": "/connection/caCertificate",
-        "kind": "textarea",
-        "title": "CA certificate (PEM)",
+        "pointer": "/connection/databases",
+        "kind": "json",
+        "title": "Databases",
         "required": false,
         "secret": null,
         "mono": false,
@@ -3374,6 +3570,61 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "pointer": "/advanced",
         "kind": "object",
         "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/tls",
+        "kind": "checkbox",
+        "title": "Use TLS",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {
+          "prod": true
+        },
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/tlsVerify",
+        "kind": "select",
+        "title": "TLS verification",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "full",
+          "ca"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": [
+          "ca"
+        ],
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/caCertificate",
+        "kind": "textarea",
+        "title": "CA certificate (PEM)",
         "required": false,
         "secret": null,
         "mono": false,

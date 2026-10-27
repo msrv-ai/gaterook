@@ -30,14 +30,16 @@
           "default": false,
           "x-env-default": {
             "prod": true
-          }
+          },
+          "x-section": "/advanced"
         },
         "caCertificate": {
           "type": "string",
           "title": "CA certificate (PEM)",
           "maxLength": 20000,
           "x-widget": "textarea",
-          "description": "Only for a private CA. Empty: the system trust store."
+          "description": "Only for a private CA. Empty: the system trust store.",
+          "x-section": "/advanced"
         },
         "allowInvalidHostnames": {
           "type": "boolean",
@@ -45,7 +47,8 @@
           "default": false,
           "x-forbidden-env": [
             "prod"
-          ]
+          ],
+          "x-section": "/advanced"
         },
         "readPreference": {
           "type": "string",
@@ -61,7 +64,21 @@
           "x-env-default": {
             "prod": "secondaryPreferred"
           },
-          "description": "secondaryPreferred keeps agent reads off the primary."
+          "description": "secondaryPreferred keeps agent reads off the primary.",
+          "x-section": "/advanced"
+        },
+        "databases": {
+          "type": "array",
+          "title": "Databases",
+          "minItems": 1,
+          "maxItems": 200,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "description": "Only these databases are available to agents. Existing collection restrictions still apply."
         }
       }
     },
@@ -147,5 +164,8 @@
         }
       }
     }
+  },
+  "x-database-selection": {
+    "path": "/connection/databases"
   }
 }

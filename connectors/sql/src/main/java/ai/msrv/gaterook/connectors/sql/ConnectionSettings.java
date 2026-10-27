@@ -23,14 +23,14 @@ record ConnectionSettings(String host, int port, String database, String sslMode
   static final String PASSWORD = "/credentials/password";
 
   static ConnectionSettings of(ConnectionConfig cfg, boolean mysql) {
-    String database = blankToNull(cfg.string("/connection/database"));
+    String database = blankToNull(DatabaseSelection.first(cfg));
     String defaultSchema = mysql ? database : orDefault(cfg.string("/advanced/defaultSchema"), "public");
     String ca = blankToNull(cfg.string("/connection/caCertificate"));
     return new ConnectionSettings(
         cfg.string("/connection/host"),
         cfg.integer("/connection/port", mysql ? 3306 : 5432),
         database,
-        orDefault(cfg.string("/connection/sslMode"), "verify-full"),
+        orDefault(cfg.string("/connection/sslMode"), mysql ? "auto" : "verify-full"),
         ca,
         blankToNull(cfg.string("/credentials/user")),
         Math.max(1, Math.min(10, cfg.integer("/advanced/poolSize", 2))),
@@ -38,8 +38,14 @@ record ConnectionSettings(String host, int port, String database, String sslMode
         defaultSchema,
         List.copyOf(cfg.strings("/advanced/schemaAllowlist")),
         List.copyOf(cfg.strings("/advanced/allowedFunctions")),
-        cfg.bool("/advanced/allowPublicKeyRetrieval", false),
+        cfg.bool("/advanced/allowPublicKeyRetrieval", mysql),
         Math.max(0, Math.min(600_000, cfg.integer("/advanced/statementTimeoutMs", 0))));
+  }
+
+  /** The same server and credentials, routed to one explicitly selected database. */
+  ConnectionSettings withDatabase(String value, boolean mysql) {
+    return new ConnectionSettings(host, port, value, sslMode, caCertificate, user, poolSize, connectTimeoutMs,
+        mysql ? value : defaultSchema, schemaAllowlist, allowedFunctions, allowPublicKeyRetrieval, statementTimeoutMs);
   }
 
   /** The same settings with a connect timeout of at most {@code maxMs}: a test or health check has its budget. */

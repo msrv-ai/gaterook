@@ -206,6 +206,9 @@ const PENDING = {
 class FakeCore {
   tests: TestDraftRequest[] = [];
   nextTest: TestOutcome | ApiError = OK;
+  discoveries: TestDraftRequest[] = [];
+  nextDiscovery: TestOutcome | ApiError = outcome({ ok: true, details: { databases: ['app', 'reports'] } });
+  pendingDiscovery: Promise<TestOutcome> | null = null;
   created: CreateConnectionRequest[] = [];
   createFails: ApiError | null = null;
   added: string[] = [];
@@ -233,6 +236,12 @@ beforeEach(() => {
     get: vi.fn(async () => structuredClone(TYPE)),
   };
   const connections: Partial<ConnectionsApi> = {
+    databases: vi.fn(async (r: TestDraftRequest) => {
+      core.discoveries.push(structuredClone(r));
+      if (core.pendingDiscovery) return core.pendingDiscovery;
+      if (core.nextDiscovery instanceof ApiError) throw core.nextDiscovery;
+      return structuredClone(core.nextDiscovery);
+    }),
     testDraft: vi.fn(async (r: TestDraftRequest) => {
       core.tests.push(structuredClone(r));
       if (core.nextTest instanceof ApiError) throw core.nextTest;
@@ -356,14 +365,88 @@ async function toTest(p: Awaited<ReturnType<typeof open>>, host = 'db.dev.intern
   await p.settle();
   await p.type('cf-name', 'qa-db');
   await p.type('cf-connection-host', host);
-  await p.type('cf-connection-database', 'app');
   await p.type('cf-credentials-user', 'app_rw');
   await p.type('cf-credentials-password', 's3cret-value');
+  p.button('Load databases').click();
+  await p.settle();
+  p.q<HTMLInputElement>('#cf-database-0')!.click();
+  await p.settle();
   p.button('Continue', p.q('#cf-form')!).click();
   await p.settle();
 }
 
 describe('Add connection: wizard', () => {
+  it('discovers with the entered credentials, retries errors and empty lists, and saves multiple choices', async () => {
+    const p = await open('/connections/new#step-2');
+    await p.type('cf-name', 'qa-db');
+    await p.type('cf-connection-host', '127.0.0.1');
+    await p.type('cf-credentials-user', 'pp_user');
+    await p.type('cf-credentials-password', 'local-password');
+    expect(p.q('#cf-connection-database')).toBeNull();
+    core.nextDiscovery = outcome({ error: { code: 'access-denied', message: 'The password was rejected.', technical: null } });
+    p.button('Load databases').click();
+    await p.settle();
+    expect(core.discoveries[0]).toMatchObject({
+      type: 'postgres', env: 'dev', config: { connection: { host: '127.0.0.1', port: 5432 }, credentials: { user: 'pp_user' } },
+      secrets: { '/credentials/password': { source: 'local', value: 'local-password' } },
+    });
+    expect(text(p.q('#cf-form'))).toContain('The password was rejected.');
+    core.nextDiscovery = outcome({ ok: true, details: { databases: [] } });
+    p.button('Load databases').click();
+    await p.settle();
+    expect(text(p.q('#cf-form'))).toContain('No databases are available to this user');
+    p.button('Continue', p.q('#cf-form')!).click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-2']);
+    expect(core.tests).toEqual([]);
+    core.nextDiscovery = outcome({ ok: true, details: { databases: ['app', 'reports'] } });
+    p.button('Reload databases').click();
+    await p.settle();
+    p.q<HTMLInputElement>('#cf-database-0')!.click();
+    p.q<HTMLInputElement>('#cf-database-1')!.click();
+    await p.settle();
+    p.button('Continue', p.q('#cf-form')!).click();
+    await p.settle();
+    expect(core.tests[0].config['connection']).toMatchObject({ databases: ['app', 'reports'] });
+    p.button('Continue', p.q('#step-3')!).click();
+    await p.settle();
+    p.button('Save connection', p.q('#step-4')!).click();
+    await p.settle();
+    expect(core.created).toHaveLength(1);
+    expect(core.created[0].config['connection']).toMatchObject({ databases: ['app', 'reports'] });
+    expect(core.created[0].config['connection']).not.toHaveProperty('database');
+  });
+
+  it('ignores late discovery after the host changes and keeps Continue on Configure until refreshed', async () => {
+    const p = await open('/connections/new#step-2');
+    await p.type('cf-name', 'qa-db');
+    await p.type('cf-connection-host', 'first.internal');
+    await p.type('cf-credentials-user', 'app_rw');
+    await p.type('cf-credentials-password', 'password');
+    let answer!: (value: TestOutcome) => void;
+    core.pendingDiscovery = new Promise((resolve) => { answer = resolve; });
+    p.button('Load databases').click();
+    await p.settle();
+    expect(p.q('#cf-database-load')!.getAttribute('aria-busy')).toBe('true');
+    await p.type('cf-connection-host', 'second.internal');
+    core.pendingDiscovery = null;
+    core.nextDiscovery = outcome({ ok: true, details: { databases: ['current'] } });
+    p.button('Load databases').click();
+    await p.settle();
+    answer(outcome({ ok: true, details: { databases: ['stale'] } }));
+    await p.settle();
+    expect(text(p.q('#cf-form'))).not.toContain('stale');
+    expect(p.q<HTMLInputElement>('#cf-database-0')!.value).toBe('current');
+    p.q<HTMLInputElement>('#cf-database-0')!.click();
+    await p.settle();
+    await p.type('cf-credentials-password', 'new-password');
+    p.button('Continue', p.q('#cf-form')!).click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-2']);
+    expect(text(p.q('#cf-database-error'))).toContain('current connection settings');
+    expect(core.tests).toEqual([]);
+  });
+
   it('opens on Choose type with the catalog by group, the first usable type picked and how many use it', async () => {
     const { el, steps, visible } = await open();
     expect(visible()).toEqual(['step-1']);
@@ -412,9 +495,9 @@ describe('Add connection: wizard', () => {
         type: 'postgres',
         env: 'dev',
         config: {
-          connection: { host: 'db.dev.internal', port: 5432, database: 'app', sslMode: 'verify-full' },
+          connection: { host: 'db.dev.internal', port: 5432, databases: ['app'], sslMode: 'verify-full' },
           credentials: { user: 'app_rw' },
-          advanced: { poolSize: 2, defaultSchema: 'public', connectTimeoutMs: 5000 },
+          advanced: { poolSize: 2, defaultSchema: 'public', connectTimeoutMs: 5000, discoveryDatabase: 'postgres' },
         },
         secrets: { '/credentials/password': { source: 'local', value: 's3cret-value' } },
       },
@@ -435,6 +518,8 @@ describe('Add connection: wizard', () => {
     p.button('Back', p.q('#step-3')!).click();
     await p.settle();
     await p.type('cf-connection-host', 'db2.dev.internal');
+    p.button('Load databases').click();
+    await p.settle();
     p.button('Continue', p.q('#cf-form')!).click();
     await p.settle();
     expect(core.tests.map((t) => (t.config['connection'] as JsonObject)['host'])).toEqual(['db.dev.internal', 'db2.dev.internal']);
@@ -624,6 +709,27 @@ describe('Add connection: duplicate', () => {
 });
 
 describe('Connection: edit view', () => {
+  it('keeps a saved database and requests stored-secret consent before discovering on a new host', async () => {
+    core.nextDiscovery = new ApiError('conflict', 409, {
+      title: 'Send the stored password to db2.internal?', detail: 'The password will be used to load databases.', confirm: 'send-secret-to-new-host',
+    });
+    const p = await open('/connections/dev-db');
+    expect(p.q<HTMLInputElement>('#cf-database-0')!.checked).toBe(true);
+    await p.type('cf-connection-host', 'db2.internal');
+    p.button('Load databases').click();
+    await p.settle();
+    expect(core.discoveries[0].existing).toBe('dev-db');
+    expect(core.discoveries[0].secrets).toEqual({});
+    const dialog = document.getElementById('dlg-new-host') as HTMLDialogElement;
+    expect(dialog.open).toBe(true);
+    core.nextDiscovery = outcome({ ok: true, details: { databases: ['app', 'reports'] } });
+    p.button('Send and load databases', dialog).click();
+    await p.settle();
+    expect(core.discoveries[1].confirm).toBe('send-secret-to-new-host');
+    expect(p.q<HTMLInputElement>('#cf-database-0')!.checked).toBe(true);
+    expect(core.updates).toEqual([]);
+  });
+
   it('shows health, who uses it and the settings with the stored secret', async () => {
     const p = await open('/connections/dev-db');
     expect(text(p.q('h1'))).toBe('Edit connection dev-db');
@@ -695,6 +801,8 @@ describe('Connection: edit view', () => {
     core.updateFails = [new ApiError('conflict', 409, { title: 'Send the stored password to db2.dev.internal?', detail: 'The password of dev-db goes to the new host on the next call.', confirm: 'send-secret-to-new-host' })];
     const p = await open('/connections/dev-db');
     await p.type('cf-connection-host', 'db2.dev.internal');
+    p.button('Load databases').click();
+    await p.settle();
     p.button('Save changes').click();
     await p.settle();
     const dialog = document.getElementById('dlg-new-host') as HTMLDialogElement;
@@ -717,6 +825,8 @@ describe('Connection: edit view', () => {
     ];
     const p = await open('/connections/dev-db');
     await p.type('cf-connection-host', 'db2.dev.internal');
+    p.button('Load databases').click();
+    await p.settle();
     p.button('Save changes').click();
     await p.settle();
     p.button('Send and save', document.getElementById('dlg-new-host')!).click();

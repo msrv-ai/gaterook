@@ -294,4 +294,24 @@ class MongoIT {
         "admin.system.users")).isInstanceOfSatisfying(ConnectorException.class,
         e -> assertThat(e.kind()).isEqualTo(ConnectorException.Kind.DENIED));
   }
+
+  @Test
+  void aServerConnectionRoutesSelectedDatabasesAndLimitsDescriptions() throws Exception {
+    ConnectionConfig multi = Fixtures.config("selected-mongo", Env.DEV,
+        "{\"connection\":{\"uri\":\"" + mongod.uri("orders")
+            + "\",\"databases\":[\"orders\",\"inventory\"]},\"credentials\":{\"user\":\"" + LocalMongod.ROOT + "\"}}", 1);
+    JsonNode items = run(multi, LocalMongod.ROOT, "mongo_find", "{\"database\":\"inventory\",\"collection\":\"items\"}",
+        Fixtures.Context.of(Env.DEV)).structuredContent();
+    assertThat(items.path("documents").toString()).isEqualTo("[{\"_id\":\"sku-1\"}]");
+    ConnectionConfig sole = Fixtures.config("selected-mongo-one", Env.DEV,
+        "{\"connection\":{\"uri\":\"" + mongod.uri("orders")
+            + "\",\"databases\":[\"inventory\"]},\"credentials\":{\"user\":\"" + LocalMongod.ROOT + "\"}}", 1);
+    assertThat(run(sole, LocalMongod.ROOT, "mongo_find", "{\"collection\":\"items\"}", Fixtures.Context.of(Env.DEV))
+        .structuredContent().path("documents").toString()).isEqualTo("[{\"_id\":\"sku-1\"}]");
+    JsonNode description = CONNECTOR.describe(sole, secrets(LocalMongod.ROOT), Fixtures.Context.of(Env.DEV), null)
+        .orElseThrow();
+    assertThat(names(description.path("databases"))).containsExactly("inventory");
+    assertThatThrownBy(() -> CONNECTOR.describe(sole, secrets(LocalMongod.ROOT), Fixtures.Context.of(Env.DEV),
+        "orders.orders")).isInstanceOf(ConnectorException.class);
+  }
 }

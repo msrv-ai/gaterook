@@ -3,6 +3,7 @@ package gaterook.plugins.clickhouse;
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorException;
 import java.net.URI;
+import java.util.List;
 import java.util.regex.Pattern;
 
 /**
@@ -14,7 +15,7 @@ import java.util.regex.Pattern;
  * @param maxExecutionSeconds ClickHouse's {@code max_execution_time} for every query
  */
 record ClickHouseConfig(String host, int port, String database, String user, boolean tls, int maxRows,
-    int maxExecutionSeconds) {
+    int maxExecutionSeconds, List<String> databases) {
 
   /** The secret field: the user's password. */
   static final String PASSWORD = "/password";
@@ -38,7 +39,12 @@ record ClickHouseConfig(String host, int port, String database, String user, boo
     if (port < 1 || port > 65535) {
       throw ConnectorException.badInput("The port is 1 to 65535.");
     }
-    String database = text(cfg.string("/database"), "default");
+    List<String> databases = cfg.strings("/databases");
+    if (cfg.config().has("databases") && (databases.isEmpty() || databases.size() > 100
+        || databases.stream().anyMatch(d -> !NAME.matcher(d).matches()))) {
+      throw ConnectorException.badInput("Select between 1 and 100 database names.");
+    }
+    String database = databases.isEmpty() ? text(cfg.string("/database"), "default") : databases.getFirst();
     String user = text(cfg.string("/user"), "default");
     if (!NAME.matcher(database).matches() || !NAME.matcher(user).matches()) {
       throw ConnectorException.badInput("The database and the user are names of up to 128 characters.");
@@ -46,7 +52,21 @@ record ClickHouseConfig(String host, int port, String database, String user, boo
     boolean tls = cfg.bool("/options/tls", true);
     int maxRows = Math.clamp(cfg.integer("/options/maxRows", 1000), 1, 10_000);
     int maxSeconds = Math.clamp(cfg.integer("/options/maxExecutionSeconds", 30), 1, 300);
-    return new ClickHouseConfig(host, port, database, user, tls, maxRows, maxSeconds);
+    return new ClickHouseConfig(host, port, database, user, tls, maxRows, maxSeconds, List.copyOf(databases));
+  }
+
+  ClickHouseConfig forDatabase(String requested, boolean requireChoice) throws ConnectorException {
+    if (requireChoice && (requested == null || requested.isBlank()) && databases.size() > 1) {
+      throw ConnectorException.badInput("Choose a database for this call: " + String.join(", ", databases) + ".");
+    }
+    String selected = text(requested, database);
+    if (!NAME.matcher(selected).matches()) {
+      throw ConnectorException.badInput("The database name is invalid.");
+    }
+    if (!databases.isEmpty() && !databases.contains(selected)) {
+      throw ConnectorException.denied("Database " + selected + " isn't selected for this connection.");
+    }
+    return new ClickHouseConfig(host, port, selected, user, tls, maxRows, maxExecutionSeconds, databases);
   }
 
   /** {@code https://host:port/} (or {@code http://} without TLS). */

@@ -13,6 +13,30 @@ import org.junit.jupiter.api.Test;
 class ReadOnlySqlTest {
 
   @Test
+  void selectedDatabasesLimitTableSourcesIncludingJoinsAndSubqueries() {
+    List<String> selected = List.of("analytics", "archive", "numbers");
+    for (String sql : List.of("SELECT * FROM analytics.events", "SELECT * FROM `archive`.`events`",
+        "SELECT e.id FROM events e JOIN archive.events a ON e.id=a.id", "SELECT * FROM numbers(10)",
+        "WITH t AS (SELECT * FROM archive.events) SELECT * FROM t", "SELECT 'FROM private.users' FROM events")) {
+      assertThat(ReadOnlySql.databaseProblem(sql, selected)).as(sql).isEmpty();
+    }
+    for (String sql : List.of("SELECT * FROM private.users", "SELECT * FROM events, private.users",
+        "SELECT * FROM analytics.events AS \"WHERE\", private.users b",
+        "SELECT * FROM analytics.events AS `GROUP`, private.users b",
+        "SELECT * FROM analytics.events AS `)`, private.users b",
+        "SELECT * FROM analytics.events AS WHERE, private.users b",
+        "SELECT * FROM analytics.events /* outer /* inner */ WHERE */ , private.users b",
+        "SELECT * FROM analytics.events //WHERE\n, private.users b",
+        "SELECT * FROM events JOIN private.users USING id", "SELECT * FROM (SELECT * FROM private.users)",
+        "SELECT * FROM events WHERE id IN private.users", "SELECT * FROM merge('private', '.*')",
+        "SELECT * FROM numbers.merge('private', '.*')", "SELECT dictGet('private.dict', 'value', 1)",
+        "SELECT * FROM analytics.schema.events", "SHOW DATABASES")) {
+      assertThat(ReadOnlySql.databaseProblem(sql, selected)).as(sql).isPresent();
+    }
+    assertThat(ReadOnlySql.databaseProblem("SHOW DATABASES", List.of())).isEmpty();
+  }
+
+  @Test
   void readsPass() {
     for (String sql : List.of("SELECT 1", "select count() from events;", "WITH t AS (SELECT 1 AS x) SELECT x FROM t",
         "SHOW TABLES FROM analytics", "DESCRIBE TABLE events", "desc events", "EXPLAIN PLAN SELECT 1",

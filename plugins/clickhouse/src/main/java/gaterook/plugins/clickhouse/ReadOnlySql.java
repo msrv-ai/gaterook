@@ -60,6 +60,74 @@ final class ReadOnlySql {
     return check(sql, QUERY_STARTS);
   }
 
+  /** Checks explicit table references when the connection is limited to selected databases. */
+  static Optional<String> databaseProblem(String sql, List<String> databases) {
+    if (databases.isEmpty()) return Optional.empty();
+    List<Token> code = new ArrayList<>();
+    String problem = scan(sql == null ? "" : sql, code);
+    if (problem != null) return Optional.of(problem);
+    if (code.isEmpty() || code.getFirst().kind != Kind.WORD
+        || !Set.of("SELECT", "WITH", "EXPLAIN").contains(code.getFirst().text.toUpperCase(Locale.ROOT))) {
+      return Optional.of("Use the database and table listing tools for metadata on a connection with selected databases.");
+    }
+    Set<Integer> from = new java.util.HashSet<>();
+    int depth = 0;
+    for (int i = 0; i < code.size(); i++) {
+      Token token = code.get(i);
+      String word = token.text.toUpperCase(Locale.ROOT);
+      if (token.kind == Kind.OPEN) { depth++; continue; }
+      if (punctuation(token, ")")) { from.remove(depth); depth--; continue; }
+      // ClickHouse permits keyword aliases after AS; they do not start a clause.
+      if (token.kind == Kind.WORD && word.equals("AS") && i + 1 < code.size() && identifier(code.get(i + 1))) {
+        i++;
+        continue;
+      }
+      boolean function = i + 1 < code.size() && code.get(i + 1).kind == Kind.OPEN;
+      if (identifier(token) && function && (word.startsWith("DICT") || word.startsWith("JOINGET"))) {
+        return Optional.of("Dictionary and join lookups cannot be limited to the selected databases.");
+      }
+      boolean keyword = token.kind == Kind.WORD;
+      if (keyword && Set.of("WHERE", "PREWHERE", "GROUP", "HAVING", "ORDER", "LIMIT", "UNION", "SETTINGS", "FORMAT",
+          "QUALIFY", "WINDOW").contains(word)) from.remove(depth);
+      boolean source = keyword && (word.equals("FROM") || word.equals("JOIN"))
+          || punctuation(token, ",") && from.contains(depth);
+      if (keyword && word.equals("FROM")) from.add(depth);
+      // ClickHouse also accepts a table as the right side of IN, without a SELECT subquery.
+      boolean inTable = keyword && word.equals("IN") && i + 1 < code.size() && identifier(code.get(i + 1));
+      if (source || inTable) {
+        String denied = tableProblem(code, i + 1, databases);
+        if (denied != null) return Optional.of(denied);
+      }
+    }
+    return Optional.empty();
+  }
+
+  private static String tableProblem(List<Token> code, int at, List<String> databases) {
+    if (at >= code.size()) return "A table name is missing.";
+    Token first = code.get(at);
+    if (first.kind == Kind.OPEN) {
+      return at + 1 < code.size() && code.get(at + 1).kind == Kind.WORD
+          && Set.of("SELECT", "WITH").contains(code.get(at + 1).text.toUpperCase(Locale.ROOT))
+          ? null : "Use a SELECT subquery instead of a dynamic table expression.";
+    }
+    if (!identifier(first)) return "This table expression cannot be limited to selected databases.";
+    int end = at + 1;
+    if (end < code.size() && punctuation(code.get(end), ".")) {
+      if (!databases.contains(first.text)) return "Database " + first.text + " isn't selected for this connection.";
+      end += 2;
+      if (end > code.size() || !identifier(code.get(end - 1))) return "A table name is missing.";
+    }
+    if (end < code.size() && punctuation(code.get(end), ".")) {
+      return "Use a database and table name without additional qualifiers.";
+    }
+    if (end < code.size() && code.get(end).kind == Kind.OPEN
+        && (end != at + 1 || !Set.of("numbers", "numbers_mt", "zeros", "zeros_mt", "generateseries")
+            .contains(first.text.toLowerCase(Locale.ROOT)))) {
+      return "Table functions that choose a data source aren't allowed with selected databases.";
+    }
+    return null;
+  }
+
   /** Either the checked statement or why it was refused. */
   record Result(Checked checked, String refusal) {
 
@@ -105,7 +173,7 @@ final class ReadOnlySql {
     }
     for (int i = 0; i < code.size(); i++) {
       Token t = code.get(i);
-      if (t.kind != Kind.WORD) {
+      if (!identifier(t)) {
         continue;
       }
       String upper = t.text.toUpperCase(Locale.ROOT);
@@ -126,9 +194,17 @@ final class ReadOnlySql {
     return new Result(null, why);
   }
 
-  private enum Kind { WORD, OPEN, SEMICOLON, OTHER }
+  private enum Kind { WORD, IDENTIFIER, OPEN, SEMICOLON, OTHER }
 
   private record Token(Kind kind, String text, int start) {}
+
+  private static boolean identifier(Token token) {
+    return token.kind == Kind.WORD || token.kind == Kind.IDENTIFIER;
+  }
+
+  private static boolean punctuation(Token token, String value) {
+    return token.kind == Kind.OTHER && token.text.equals(value);
+  }
 
   /** Splits {@code sql} into the tokens that matter outside literals and comments; a problem ends the scan. */
   private static String scan(String sql, List<Token> out) {
@@ -138,16 +214,28 @@ final class ReadOnlySql {
       char c = sql.charAt(i);
       if (Character.isWhitespace(c)) {
         i++;
-      } else if (c == '-' && i + 1 < n && sql.charAt(i + 1) == '-' || c == '#') {
+      } else if (c == '-' && i + 1 < n && sql.charAt(i + 1) == '-' || c == '#'
+          || c == '/' && i + 1 < n && sql.charAt(i + 1) == '/') {
         while (i < n && sql.charAt(i) != '\n' && sql.charAt(i) != '\r') {
           i++;
         }
       } else if (c == '/' && i + 1 < n && sql.charAt(i + 1) == '*') {
-        int close = sql.indexOf("*/", i + 2);
-        if (close < 0) {
+        int nesting = 1;
+        i += 2;
+        while (i < n && nesting > 0) {
+          if (i + 1 < n && sql.charAt(i) == '/' && sql.charAt(i + 1) == '*') {
+            nesting++;
+            i += 2;
+          } else if (i + 1 < n && sql.charAt(i) == '*' && sql.charAt(i + 1) == '/') {
+            nesting--;
+            i += 2;
+          } else {
+            i++;
+          }
+        }
+        if (nesting != 0) {
           return "A /* comment isn't closed.";
         }
-        i = close + 2;
       } else if (c == '\'' || c == '"' || c == '`') {
         int close = literalEnd(sql, i, c);
         if (close < 0) {
@@ -155,7 +243,7 @@ final class ReadOnlySql {
         }
         if (c != '\'') {
           // A quoted identifier is a name: a call of `url`(…) is still a call of url.
-          out.add(new Token(Kind.WORD, unquote(sql.substring(i + 1, close)), i));
+          out.add(new Token(Kind.IDENTIFIER, unquote(sql.substring(i + 1, close)), i));
         } else {
           out.add(new Token(Kind.OTHER, "'", i));
         }

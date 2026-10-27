@@ -37,7 +37,7 @@
       ]
     },
     "value": {
-      "description": "String or {\"$base64\":…} for a string; object of fields for a hash (a field that isn't UTF-8 is \"base64:<b64>\"); array for a list or set; [{member, score}] for a sorted set; [{id, fields}] newest first for a stream; the document for RedisJSON."
+      "description": "String or {\"$base64\":\u2026} for a string; object of fields for a hash (a field that isn't UTF-8 is \"base64:<b64>\"); array for a list or set; [{member, score}] for a sorted set; [{id, fields}] newest first for a stream; the document for RedisJSON."
     },
     "supported": {
       "type": "boolean"
@@ -70,6 +70,12 @@
       "items": {
         "type": "string"
       }
+    },
+    "database": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1023,
+      "description": "The selected database used for this call."
     }
   }
 }

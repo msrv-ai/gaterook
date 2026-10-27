@@ -28,6 +28,7 @@ import { sourceCopy } from '../../../schema-form/secret-sources';
 import { GwIcon } from '../../icons';
 import { literalParts } from '../shared/literals';
 import { GwConnectionTest, TestState, TestTarget } from './connection-test';
+import { DatabaseName, databaseConfig, databaseNames, databaseSelection, initialDatabases, removeConfigPath, withoutDatabaseFields } from './database-selection';
 
 /** What Save (and Test) hand to the page: the request members of `POST /api/connections` / `/test`. */
 export interface ConnectionFormValue {
@@ -35,6 +36,21 @@ export interface ConnectionFormValue {
   readonly env: Env;
   readonly config: JsonObject;
   readonly secrets: SecretInputs;
+}
+
+export interface DatabaseDiscoveryRequest {
+  /** In-memory fingerprint only; includes credentials and must never be logged or rendered. */
+  readonly key: string;
+  readonly value: ConnectionFormValue;
+}
+
+interface DatabaseDiscovery {
+  readonly key: string;
+  readonly state: 'loading' | 'ready' | 'error';
+  readonly names: readonly DatabaseName[];
+  readonly complete: boolean;
+  readonly message: string | null;
+  readonly hints: readonly string[];
 }
 
 /** The parts of the form a view shows (the kit's partial views show one section each). */
@@ -159,18 +175,21 @@ export class GwConnectionForm {
   readonly back = output<void>();
   readonly runTest = output<ConnectionFormValue>();
   readonly secretAction = output<SecretAction>();
+  readonly discoverDatabases = output<DatabaseDiscoveryRequest>();
+  readonly databaseSelection = computed(() => databaseSelection(this.spec().schema));
+  private readonly databaseBaselines = new WeakMap<SchemaForm, string>();
 
   /** The schema form, rebuilt when the connector or the starting config changes. */
   readonly state = computed<SchemaForm>(() => {
     const spec = this.spec();
-    const current = this.config();
+    const current = databaseConfig(this.config(), this.databaseSelection());
     // Stored secrets change after Replace (a new version): the form takes them with setStored, not by being rebuilt.
     const stored = untracked(this.stored);
     const idPrefix = this.idPrefix();
     const replacing = this.replacing();
     const expanded = this.expandedSections();
-    return untracked(() =>
-      createSchemaForm(spec.schema, {
+    return untracked(() => {
+      const state = createSchemaForm(spec.schema, {
         idPrefix,
         current,
         stored,
@@ -182,8 +201,10 @@ export class GwConnectionForm {
         pointerPrefix: '/config',
         stricterBadges: false,
         injector: this.injector,
-      }),
-    );
+      });
+      this.databaseBaselines.set(state, this.databaseFingerprint(state));
+      return state;
+    });
   });
 
   /** Name and environment: the gateway's own fields, not the connector's (a Signal Forms form of their own). */
@@ -208,6 +229,103 @@ export class GwConnectionForm {
   protected readonly placeholderName = '<name>';
   protected readonly sourceCopy = sourceCopy;
   protected readonly literalParts = literalParts;
+
+  /** Options belong to the exact server, authentication and TLS settings that discovered them. */
+  private readonly databaseKey = computed(() => this.databaseFingerprint(this.state()));
+
+  private databaseFingerprint(state: SchemaForm): string {
+    const selection = this.databaseSelection();
+    let config = state.value();
+    if (selection) {
+      config = removeConfigPath(config, selection.path);
+      if (selection.legacyPath) config = removeConfigPath(config, selection.legacyPath);
+    }
+    return JSON.stringify([this.spec().type, this.common().env, config, state.secretInputs(), state.source(),
+      this.stored().map((secret) => [secret.field, secret.version, secret.state, secret.source])]);
+  }
+  protected readonly databaseDiscovery = linkedSignal(() => {
+    this.databaseKey();
+    return null as DatabaseDiscovery | null;
+  });
+  protected readonly databaseSearch = signal('');
+  protected readonly selectedDatabases = computed(() => {
+    const selection = this.databaseSelection();
+    return selection ? databaseNames(getAt(this.state().model(), selection.path)) : [];
+  });
+  protected readonly databaseChoices = computed(() => {
+    const discovery = this.databaseDiscovery();
+    const selected = this.selectedDatabases();
+    const all = [...new Set([...(discovery?.names ?? []), ...selected])];
+    const query = this.databaseSearch().trim().toLocaleLowerCase();
+    return all.map((name, index) => ({ name, index, selected: selected.includes(name),
+      unavailable: discovery?.state === 'ready' && !discovery.names.includes(name) }))
+      .filter((choice) => String(choice.name).toLocaleLowerCase().includes(query));
+  });
+  protected readonly databaseError = computed(() => {
+    const node = this.state().compiled.all.find((field) => field.pointer === this.databaseSelection()?.pointer);
+    return (node ? this.state().error(node) : null) ?? (this.submitted() ? this.databaseProblem() : null);
+  });
+
+  private databaseProblem(): string | null {
+    const selection = this.databaseSelection();
+    if (!selection) return null;
+    const selected = this.selectedDatabases();
+    const previous = initialDatabases(this.config(), selection);
+    // Existing connections can keep or narrow their saved scope without contacting an offline server.
+    if (this.mode() === 'edit' && this.databaseKey() === this.databaseBaselines.get(this.state())
+      && (selected.length || !previous.length) && selected.every((name) => previous.includes(name))) return null;
+    const discovery = this.databaseDiscovery();
+    if (discovery?.state !== 'ready') return 'Load databases with the current connection settings before continuing.';
+    if (!selected.length) return 'Select at least one database.';
+    if (selected.some((name) => !discovery.names.includes(name))) return 'Remove databases that are no longer available, or reload the list.';
+    return null;
+  }
+
+  databaseSelectionValid(): boolean {
+    const problem = this.databaseProblem();
+    if (!problem) return true;
+    this.submitted.set(true);
+    afterNextRender(() => document.getElementById(`${this.idPrefix()}-database-load`)?.focus(), { injector: this.injector });
+    return false;
+  }
+
+  protected loadDatabases(): void {
+    const selection = this.databaseSelection();
+    if (!selection || this.databaseDiscovery()?.state === 'loading'
+      || !this.state().submit([selection.pointer, ...(selection.legacyPointer ? [selection.legacyPointer] : [])])) return;
+    const key = this.databaseKey();
+    this.startDatabaseDiscovery(key);
+    this.discoverDatabases.emit({ key, value: this.value() });
+  }
+
+  startDatabaseDiscovery(key: string): boolean {
+    if (key !== this.databaseKey()) return false;
+    this.databaseSearch.set('');
+    this.databaseDiscovery.set({ key, state: 'loading', names: [], complete: true, message: null, hints: [] });
+    return true;
+  }
+
+  completeDatabaseDiscovery(key: string, outcome: TestOutcome | null, error: string | null = null): boolean {
+    if (key !== this.databaseKey() || this.databaseDiscovery()?.key !== key) return false;
+    const details = outcome?.details;
+    const found = details && typeof details === 'object' && !Array.isArray(details) ? details['databases'] : null;
+    const ok = outcome?.ok === true && Array.isArray(found);
+    this.databaseDiscovery.set({
+      key, state: ok ? 'ready' : 'error', names: databaseNames(found ?? null),
+      complete: !!details && typeof details === 'object' && !Array.isArray(details) && details['discoveryComplete'] !== false,
+      message: error ?? outcome?.error?.message ?? outcome?.needsConfirmation?.text ?? (ok ? null : "The server didn't return a database list."),
+      hints: (outcome?.hints ?? []).map((hint) => hint.text),
+    });
+    return true;
+  }
+
+  protected selectDatabase(name: DatabaseName, checked: boolean): void {
+    const selection = this.databaseSelection();
+    const node = this.state().compiled.all.find((field) => field.pointer === selection?.pointer);
+    if (!node) return;
+    const selected = this.selectedDatabases();
+    this.state().set(node, checked ? [...new Set([...selected, name])] : selected.filter((value) => value !== name));
+  }
 
   constructor() {
     // The secret field's buttons and placeholders name the connection as it is typed.
@@ -241,7 +359,7 @@ export class GwConnectionForm {
 
   /** The section the secret source belongs to: the object with `x-gateway-secret`, else the one holding a secret. */
   protected readonly secretSection = computed<SchemaNode | null>(() => {
-    const sections = this.state().compiled.sections;
+    const sections = this.displaySections();
     return (
       sections.find((s) => s.secret) ??
       sections.find((s) => s.children.some((c) => c.kind === 'secret')) ??
@@ -254,7 +372,7 @@ export class GwConnectionForm {
    * the loose fields before the sections (HTTP's base URLs, AWS regions). It comes first and takes the Name.
    */
   protected readonly rootSection = computed<SchemaNode | null>(() => {
-    const fields = this.state().compiled.loose;
+    const fields = withoutDatabaseFields(this.state().compiled.loose, this.databaseSelection());
     return fields.length ? rootSection(fields, 'Connection') : null;
   });
 
@@ -265,7 +383,7 @@ export class GwConnectionForm {
 
   /** The connector's sections around Environment and safety: it goes before the first collapsed one (Advanced). */
   protected readonly sectionsBefore = computed(() => {
-    const all = this.state().compiled.sections;
+    const all = this.displaySections();
     const cut = all.findIndex((s) => s.collapsed);
     const root = this.rootSection();
     const before = cut < 0 ? all : all.slice(0, cut);
@@ -273,10 +391,12 @@ export class GwConnectionForm {
   });
 
   protected readonly sectionsAfter = computed(() => {
-    const all = this.state().compiled.sections;
+    const all = this.displaySections();
     const cut = all.findIndex((s) => s.collapsed);
     return cut < 0 ? [] : all.slice(cut);
   });
+
+  private readonly displaySections = computed(() => withoutDatabaseFields(this.state().compiled.sections, this.databaseSelection()));
 
   protected partOf(section: SchemaNode): ConnectionFormPart {
     if (section === this.secretSection()) return 'credentials';
@@ -393,7 +513,10 @@ export class GwConnectionForm {
 
   value(): ConnectionFormValue {
     const s = this.state();
-    return { name: this.common().name, env: this.common().env as Env, config: s.value(), secrets: s.secretInputs() };
+    const selection = this.databaseSelection();
+    let config = s.value();
+    if (selection?.legacyPath) config = removeConfigPath(config, selection.legacyPath);
+    return { name: this.common().name, env: this.common().env as Env, config, secrets: s.secretInputs() };
   }
 
   protected onSubmit(event: Event): void {
@@ -408,7 +531,7 @@ export class GwConnectionForm {
       // it runs after it).
       afterNextRender(() => document.getElementById(`${this.idPrefix()}-name`)?.focus(), { injector: this.injector });
     }
-    if (!fieldsOk || !nameOk) return;
+    if (!fieldsOk || !nameOk || !this.databaseSelectionValid()) return;
     // A changed setting that asks first (x-confirm: Run the credential command, a port) goes through its dialog.
     const changes = untracked(this.state().confirmations);
     if (changes.length) {
@@ -462,7 +585,8 @@ export class GwConnectionForm {
 
   /** Discard: back to the values the form was given (config, name, env), nothing typed kept, no messages. */
   reset(): void {
-    this.state().reset(this.config(), this.spec().schema);
+    this.state().reset(databaseConfig(this.config(), this.databaseSelection()), this.spec().schema);
+    this.databaseDiscovery.set(null);
     this.common.set({ name: this.name(), env: (this.env() ?? this.spec().env ?? 'dev') as string });
     this.submitted.set(false);
     untracked(() => this.commonForm().reset());

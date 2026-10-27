@@ -17,8 +17,7 @@
       "additionalProperties": false,
       "required": [
         "host",
-        "port",
-        "database"
+        "port"
       ],
       "properties": {
         "host": {
@@ -39,6 +38,20 @@
           "title": "Database",
           "pattern": "^[A-Za-z0-9_$.-]{1,63}$"
         },
+        "databases": {
+          "type": "array",
+          "title": "Databases",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63,
+            "pattern": "^[^\\u0000]+$"
+          },
+          "description": "Only these databases are available through this connection."
+        },
         "sslMode": {
           "type": "string",
           "title": "SSL mode",
@@ -55,14 +68,16 @@
             "Verify the CA (verify-ca)",
             "Verify the CA and host name (verify-full)"
           ],
-          "description": "verify-full checks the certificate and the host name. Lower it only for a database without TLS on a network you trust."
+          "description": "verify-full checks the certificate and the host name. Lower it only for a database without TLS on a network you trust.",
+          "x-section": "/advanced"
         },
         "caCertificate": {
           "type": "string",
           "title": "CA certificate (PEM)",
           "maxLength": 20000,
           "x-widget": "textarea",
-          "description": "Only for a private CA. Empty: the system trust store."
+          "description": "Only for a private CA. Empty: the system trust store.",
+          "x-section": "/advanced"
         }
       }
     },
@@ -150,8 +165,22 @@
           "maximum": 30000,
           "default": 5000,
           "x-unit": "ms"
+        },
+        "discoveryDatabase": {
+          "type": "string",
+          "title": "Discovery database",
+          "default": "postgres",
+          "minLength": 1,
+          "maxLength": 63,
+          "pattern": "^[^\\u0000]+$",
+          "description": "Connect here to load the database list. Change this if your account cannot connect to postgres."
         }
       }
     }
+  },
+  "x-database-selection": {
+    "path": "/connection/databases",
+    "legacyPath": "/connection/database",
+    "required": true
   }
 }

@@ -30,7 +30,8 @@ import { Announcer } from '../../kit/announcer';
 import { GwAriaDisabled } from '../../kit/aria-disabled';
 import { GwDialog, GwDialogClose } from '../../kit/dialog';
 import { GwToggle } from '../../kit/disclosure';
-import { ConnectionFormValue, GwConnectionForm, ProdDefault } from '../../kit/elements/connection-form/connection-form';
+import { ConnectionFormValue, DatabaseDiscoveryRequest, GwConnectionForm, ProdDefault } from '../../kit/elements/connection-form/connection-form';
+import { databaseSelection } from '../../kit/elements/connection-form/database-selection';
 import { GwConnectionTest, TestState, testConfirmTitle, testFacts } from '../../kit/elements/connection-form/connection-test';
 import { GwConnectorPicker } from '../../kit/elements/connector-card/connector-card';
 import { clientName } from '../../kit/elements/shared/client-mark';
@@ -199,6 +200,8 @@ export class ConnectionNewPage {
   readonly form = viewChild(GwConnectionForm);
   /** The duplicate's settings: picking its type again keeps them, another type starts fresh. */
   private copied: { readonly type: string; readonly env: Env; readonly config: JsonObject } | null = null;
+  protected readonly databaseSetup = computed(() => !!this.spec() && !!databaseSelection(this.spec()!.schema));
+  private databaseRun = 0;
 
   /** The name and env as the person set them in Configure (the stepper and the later steps follow them). */
   readonly current = computed(() => this.form()?.current() ?? { name: this.startName(), env: this.startEnv() ?? 'dev' });
@@ -322,7 +325,7 @@ export class ConnectionNewPage {
   protected readonly confirmTitle = computed(() => testConfirmTitle(this.editConfirm(), this.host()));
   protected readonly confirmFacts = computed(() => testFacts(this.editConfirm()?.needsConfirmation?.data));
   /** The core asked before sending the stored secret to a new host (409 `send-secret-to-new-host`). */
-  protected readonly newHost = signal<{ readonly title: string; readonly detail: string; readonly value: ConnectionFormValue } | null>(null);
+  protected readonly newHost = signal<{ readonly title: string; readonly detail: string; readonly value: ConnectionFormValue; readonly discoveryKey?: string } | null>(null);
   /** A prod save the core stopped for the rights of the connection's user (409 `confirm: danger`). */
   protected readonly dangerDialog = viewChild<GwDialog>('dangerDialog');
   protected readonly danger = signal<{ readonly title: string; readonly detail: string; readonly retry: () => void } | null>(null);
@@ -363,6 +366,7 @@ export class ConnectionNewPage {
 
   private async start(mode: Mode): Promise<void> {
     const gen = ++this.gen;
+    ++this.databaseRun;
     this.step.set(mode === 'duplicate' ? 2 : 1);
     this.outcome.set(null);
     this.testState.set('idle');
@@ -585,6 +589,31 @@ export class ConnectionNewPage {
     this.go(3);
   }
 
+  /** The Configure form owns selection state; requests and stored-secret consent stay with the page. */
+  async loadDatabases(request: DatabaseDiscoveryRequest, confirm: string | null = null): Promise<void> {
+    const form = this.form();
+    const spec = this.spec();
+    if (!form || !spec || !form.startDatabaseDiscovery(request.key)) return;
+    const run = ++this.databaseRun;
+    const gen = this.gen;
+    try {
+      const result = await this.connections.databases({ type: spec.type, env: request.value.env,
+        config: request.value.config, secrets: request.value.secrets,
+        ...(this.mode() === 'edit' ? { existing: this.name() } : {}), ...(confirm ? { confirm } : {}) });
+      if (run === this.databaseRun && gen === this.gen && form === this.form()) form.completeDatabaseDiscovery(request.key, result);
+    } catch (e) {
+      if (run !== this.databaseRun || gen !== this.gen || form !== this.form()) return;
+      const error = isApiError(e) ? e : null;
+      if (!form.completeDatabaseDiscovery(request.key, null, error?.detail ?? "The core didn't answer. Try again.")) return;
+      if (error?.confirm === 'send-secret-to-new-host') {
+        this.newHost.set({ title: error.title, detail: error.detail, value: request.value, discoveryKey: request.key });
+        this.hostDialog()?.openAfterRender();
+      } else if (error?.kind === 'unprocessable') {
+        form.applyServerError(error);
+      }
+    }
+  }
+
   // ─── Test ───
 
   private testIfChanged(): void {
@@ -707,6 +736,10 @@ export class ConnectionNewPage {
     const form = this.form();
     const spec = this.spec();
     if (this.saving() || !form || !spec) return;
+    if (!form.databaseSelectionValid()) {
+      this.go(2);
+      return;
+    }
     const v = form.value();
     this.saving.set(true);
     try {
@@ -817,7 +850,8 @@ export class ConnectionNewPage {
   protected sendToNewHost(): void {
     const pending = this.newHost();
     this.hostDialog()?.close('send');
-    if (pending) void this.saveEdit(pending.value, 'send-secret-to-new-host');
+    if (pending?.discoveryKey) void this.loadDatabases({ key: pending.discoveryKey, value: pending.value }, 'send-secret-to-new-host');
+    else if (pending) void this.saveEdit(pending.value, 'send-secret-to-new-host');
   }
 
   private askDanger(title: string, detail: string, retry: () => void): void {

@@ -152,6 +152,10 @@ final class MongoProbe {
     details.putObject("tls").put("enabled", s.tls());
     details.put("user", identity);
     details.put("connectMs", connectMs);
+    ArrayNode selectable = details.putArray("databases");
+    Namespaces namespaces = new Namespaces(s.namespaceAllowlist());
+    databases.stream().filter(namespaces::databaseVisible).sorted().forEach(selectable::add);
+    details.put("discoveryComplete", true);
     if (!access.write().isEmpty() || !access.admin().isEmpty() || access.authOff()) {
       details.putObject("snippets").putObject("mongo.user-can-write").put("language", "js")
           .put("text", readOnlyUser(s));
@@ -386,6 +390,13 @@ final class MongoProbe {
     Set<String> dbs = new LinkedHashSet<>();
     for (String entry : s.namespaceAllowlist()) {
       dbs.add(entry.substring(0, entry.indexOf('.')));
+    }
+    if (!s.databases().isEmpty()) {
+      if (s.namespaceAllowlist().isEmpty()) {
+        dbs.addAll(s.databases());
+      } else {
+        dbs.retainAll(s.databases());
+      }
     }
     if (dbs.isEmpty()) {
       dbs.add(s.defaultDatabase() == null ? "<database>" : s.defaultDatabase());

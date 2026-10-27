@@ -113,7 +113,7 @@ class RedisConnectorTest {
 
   @Test
   void aCursorOfAnotherKeyOrConnectionIsDeniedBeforeItIsOpened() {
-    String cursor = Cursors.sealGet(TestCtx.of(), "c-cache", "cache:a".getBytes(java.nio.charset.StandardCharsets.UTF_8),
+    String cursor = Cursors.sealGet(TestCtx.of(), "c-cache/database/0", "cache:a".getBytes(java.nio.charset.StandardCharsets.UTF_8),
         new Cursors.GetState("hash", "17"));
     assertThat(connector.classify(Configs.call("redis_get", "{\"key\":\"cache:a\",\"cursor\":\"" + cursor + "\"}"),
         cfg(), Configs.policy(Env.DEV)).kind()).isEqualTo(Classification.Kind.READ);
@@ -196,7 +196,7 @@ class RedisConnectorTest {
           stream  XLEN "cache:hash"; XREVRANGE "cache:hash" + - COUNT 100""");
     assertThat(p.target()).isEqualTo("cache-redis · cache.dev.internal:6379/0");
     assertThat(p.summary()).isEqualTo("redis_get \"cache:hash\" · cache-redis (dev)");
-    assertThat(p.payload().toString()).isEqualTo("{\"tool\":\"redis_get\",\"key\":\"cache:hash\",\"limit\":100}");
+    assertThat(p.payload().toString()).isEqualTo("{\"tool\":\"redis_get\",\"key\":\"cache:hash\",\"database\":0,\"limit\":100}");
 
     ActionPreview scan = connector.describeAction(Configs.call("redis_scan",
         "{\"pattern\":\"cache:*\",\"type\":\"string\",\"count\":400}"), cfg());
@@ -205,7 +205,7 @@ class RedisConnectorTest {
         again with the returned cursor until 400 keys, the end, 50 rounds or 2 s
         then TYPE and PTTL of each key returned""");
     assertThat(scan.payload().toString())
-        .isEqualTo("{\"tool\":\"redis_scan\",\"pattern\":\"cache:*\",\"type\":\"string\",\"count\":400,"
+        .isEqualTo("{\"tool\":\"redis_scan\",\"pattern\":\"cache:*\",\"database\":0,\"type\":\"string\",\"count\":400,"
             + "\"details\":true}");
   }
 

@@ -112,6 +112,17 @@ class MongoConnectionIT {
   }
 
   @Test
+  void discoveryListsAuthorizedDatabasesWithoutSelectingOneFirst() {
+    ConnectionConfig cfg = Fixtures.config(Env.DEV, "{\"connection\":{\"uri\":\"mongodb://127.0.0.1:"
+        + auth.port + "\"},\"credentials\":{\"user\":\"gw_ro\"}}");
+    TestResult result = connector.discoverDatabases(cfg, Fixtures.Secrets.password(LocalMongod.password("gw_ro")),
+        Fixtures.Context.of(Env.DEV));
+    assertThat(result.ok()).isTrue();
+    assertThat(result.details().path("discoveryComplete").asBoolean()).isTrue();
+    assertThat(result.details().path("databases").toString()).isEqualTo("[\"orders\"]");
+  }
+
+  @Test
   void anAdministratorIsDanger() {
     TestResult r = test(cfg(auth, Env.DEV, LocalMongod.ROOT, null, null), LocalMongod.ROOT);
 

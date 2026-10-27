@@ -3,9 +3,10 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { CONNECTOR_FORMS } from '../../../../testing/connector-schemas';
 import { ConnectionFormSpec } from '../../../core/api/connector-types.api';
-import { Env } from '../../../core/api/types';
+import { StoredSecret, TestOutcome } from '../../../core/api/connections.api';
+import { Env, JsonObject } from '../../../core/api/types';
 import { provideKitIcons } from '../../icons';
-import { ConnectionFormValue, GwConnectionForm } from './connection-form';
+import { ConnectionFormValue, DatabaseDiscoveryRequest, GwConnectionForm } from './connection-form';
 
 /** The form spec the core serves for a type (`GET /api/connector-types/{type}/form`), from the stored schemas. */
 function spec(type: string): ConnectionFormSpec {
@@ -24,12 +25,16 @@ function spec(type: string): ConnectionFormSpec {
 
 @Component({
   imports: [GwConnectionForm],
-  template: `<form gwConnectionForm idPrefix="cf" aria-label="New connection" [spec]="spec()" name="dev-cluster" [env]="env()" (save)="saved.push($event)"></form>`,
+  template: `<form gwConnectionForm idPrefix="cf" aria-label="New connection" [spec]="spec()" [mode]="mode()" [stored]="stored()" name="dev-cluster" [env]="env()" [config]="config()" (save)="saved.push($event)" (discoverDatabases)="discoveries.push($event)"></form>`,
 })
 class Host {
   readonly spec = signal(spec('kubernetes'));
   readonly env = signal<Env>('dev');
+  readonly config = signal<JsonObject | null>(null);
+  readonly mode = signal<'create' | 'edit'>('create');
+  readonly stored = signal<readonly StoredSecret[]>([]);
   readonly saved: ConnectionFormValue[] = [];
+  readonly discoveries: DatabaseDiscoveryRequest[] = [];
   readonly form = viewChild.required(GwConnectionForm);
 }
 
@@ -74,6 +79,220 @@ const KUBECONFIG = [
   '    token: abc\tdef',
   '',
 ].join('\n');
+
+const discovered = (names: (string | number)[], complete = true): TestOutcome => ({
+  ok: true, latencyMs: 4, serverVersion: null, identity: null, permissions: null,
+  hints: [], checks: [], error: null, needsConfirmation: null, confirmationId: null,
+  suggestedPolicyChange: null, details: { databases: names, discoveryComplete: complete },
+});
+
+async function databaseForm(type = 'mysql') {
+  const view = await render();
+  view.host.spec.set(spec(type));
+  await view.settle();
+  for (const [id, value] of [['connection-host', '127.0.0.1'], ['credentials-user', 'pp_user'], ['credentials-password', 'local-password']]) {
+    const input = view.el.querySelector<HTMLInputElement>(`#cf-${id}`)!;
+    if (!input) continue;
+    input.value = value;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  await view.settle();
+  const load = async () => {
+    view.el.querySelector<HTMLButtonElement>('#cf-database-load')!.click();
+    await view.settle();
+    return view.host.discoveries.at(-1)!;
+  };
+  const choose = async (name: string | number) => {
+    [...view.el.querySelectorAll<HTMLInputElement>('input[id^="cf-database-"]')].find((input) => input.value === String(name))!.click();
+    await view.settle();
+  };
+  return { ...view, load, choose };
+}
+
+describe('connection form: database discovery', () => {
+  it('puts credentials before loading databases and saves multiple selected databases in one connection', async () => {
+    const { el, host, settle, load, choose } = await databaseForm();
+    expect(el.querySelector('#cf-connection-database')).toBeNull();
+    expect(el.querySelector('#cf-connection-databases')).toBeNull();
+    const user = el.querySelector('#cf-credentials-user')!;
+    expect(el.querySelector('#cf-connection-host')!.compareDocumentPosition(user) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(user.compareDocumentPosition(el.querySelector('#cf-database-load')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(host.form().databaseSelectionValid()).toBe(false);
+
+    const request = await load();
+    expect(request.value.config).toMatchObject({ connection: { host: '127.0.0.1', port: 3306 }, credentials: { user: 'pp_user' } });
+    expect(request.value.secrets).toEqual({ '/credentials/password': { source: 'local', value: 'local-password' } });
+    host.form().completeDatabaseDiscovery(request.key, discovered(['app', 'reports']));
+    await settle();
+    await choose('app');
+    await choose('reports');
+    el.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+    expect(host.saved).toHaveLength(1);
+    expect(host.saved[0].config['connection']).toMatchObject({ databases: ['app', 'reports'] });
+    expect(host.saved[0].config['connection']).not.toHaveProperty('database');
+  });
+
+  it('ignores a late response after credentials change and requires a fresh nonempty selection', async () => {
+    const { el, host, settle, load, choose } = await databaseForm();
+    const old = await load();
+    const password = el.querySelector<HTMLInputElement>('#cf-credentials-password')!;
+    password.value = 'replacement-password';
+    password.dispatchEvent(new Event('input', { bubbles: true }));
+    await settle();
+    expect(host.form().completeDatabaseDiscovery(old.key, discovered(['stale']))).toBe(false);
+    expect(el.textContent).not.toContain('stale');
+    const fresh = await load();
+    host.form().completeDatabaseDiscovery(fresh.key, discovered([]));
+    await settle();
+    expect(el.textContent).toContain('No databases are available');
+    expect(host.form().databaseSelectionValid()).toBe(false);
+    const retry = await load();
+    host.form().completeDatabaseDiscovery(retry.key, discovered(['app']));
+    await settle();
+    await choose('app');
+    expect(host.form().databaseSelectionValid()).toBe(true);
+    const ssl = el.querySelector<HTMLSelectElement>('#cf-connection-sslMode')!;
+    ssl.value = 'require';
+    ssl.dispatchEvent(new Event('change', { bubbles: true }));
+    await settle();
+    expect(host.form().databaseSelectionValid()).toBe(false);
+  });
+
+  it('retains legacy saved selections, including unavailable databases, without requiring discovery to save an edit', async () => {
+    const { el, host, settle, load } = await databaseForm();
+    host.mode.set('edit');
+    host.stored.set([{ field: '/credentials/password', secretId: 'sec-1', name: 'local/password', state: 'stored', version: 1, source: 'local' }]);
+    host.config.set({ connection: { host: '127.0.0.1', database: 'saved' }, credentials: { user: 'pp_user' } });
+    await settle();
+    expect(host.form().databaseSelectionValid()).toBe(true);
+    expect(host.form().value().config['connection']).toMatchObject({ databases: ['saved'] });
+    const request = await load();
+    host.form().completeDatabaseDiscovery(request.key, discovered(['other']));
+    await settle();
+    expect(el.textContent).toContain('Saved selection · not returned by the server');
+    expect(host.form().databaseSelectionValid()).toBe(true);
+    const address = el.querySelector<HTMLInputElement>('#cf-connection-host')!;
+    address.value = 'other.internal';
+    address.dispatchEvent(new Event('input', { bubbles: true }));
+    await settle();
+    expect(host.form().databaseSelectionValid()).toBe(false);
+    address.value = '127.0.0.1';
+    address.dispatchEvent(new Event('input', { bubbles: true }));
+    await settle();
+    expect(host.form().databaseSelectionValid()).toBe(true);
+    host.stored.update((stored) => stored.map((secret) => ({ ...secret, version: 2 })));
+    await settle();
+    expect(host.form().databaseSelectionValid()).toBe(false);
+  });
+
+  it('preserves integer Redis indexes and explains an incomplete list', async () => {
+    const { el, host, settle, load, choose } = await databaseForm('redis');
+    const request = await load();
+    host.form().completeDatabaseDiscovery(request.key, discovered([0, 2], false));
+    await settle();
+    await choose(0);
+    await choose(2);
+    expect(host.form().value().config['connection']).toMatchObject({ databases: [0, 2] });
+    expect(el.textContent).toContain('The server returned a partial list');
+  });
+
+  it('uses a plugin’s flat selection path and keeps root credentials out of config', async () => {
+    const { el, host, settle } = await render();
+    // The ClickHouse manifest uses root properties, unlike the built-in connectors' grouped config.
+    host.spec.set({ ...spec('mysql'), type: 'clickhouse', schema: {
+      type: 'object', required: ['host', 'user', 'password'],
+      'x-database-selection': { path: '/databases', legacyPath: '/database' },
+      properties: {
+        host: { type: 'string', title: 'Host' }, port: { type: 'integer', title: 'Port', default: 8443 },
+        database: { type: 'string', title: 'Database', default: 'default' },
+        databases: { type: 'array', title: 'Databases', minItems: 1, items: { type: 'string' } },
+        user: { type: 'string', title: 'User', default: 'default' },
+        password: { type: 'string', title: 'Password', writeOnly: true, format: 'password', 'x-gateway-secret': 'value' },
+      },
+    } });
+    await settle();
+    for (const [id, value] of [['cf-host', 'analytics.internal'], ['cf-password', 'plugin-password']]) {
+      const input = el.querySelector<HTMLInputElement>(`#${id}`)!;
+      input.value = value;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    await settle();
+    expect(el.querySelector('#cf-database')).toBeNull();
+    el.querySelector<HTMLButtonElement>('#cf-database-load')!.click();
+    await settle();
+    const request = host.discoveries[0];
+    expect(request.value.secrets).toEqual({ '/password': { source: 'local', value: 'plugin-password' } });
+    host.form().completeDatabaseDiscovery(request.key, discovered(['analytics']));
+    await settle();
+    el.querySelector<HTMLInputElement>('#cf-database-0')!.click();
+    await settle();
+    expect(host.form().value().config).toEqual({ host: 'analytics.internal', port: 8443, user: 'default', databases: ['analytics'] });
+  });
+});
+
+describe('connection form: MySQL transport defaults', () => {
+  it('selects Auto and enables public key retrieval for a new connection', async () => {
+    const { el, host, settle } = await render();
+    host.spec.set(spec('mysql'));
+    await settle();
+
+    const ssl = el.querySelector<HTMLSelectElement>('#cf-connection-sslMode')!;
+    expect(ssl.value).toBe('auto');
+    expect(ssl.selectedOptions[0].textContent).toBe('Auto (SSL if available)');
+    expect([...ssl.options].map((option) => option.value)).toEqual(['auto', 'disable', 'require', 'verify-ca', 'verify-full']);
+
+    const advanced = el.querySelector<HTMLElement>('#cf-advanced-body')!;
+    const ca = el.querySelector<HTMLTextAreaElement>('#cf-connection-caCertificate')!;
+    expect(advanced.hidden).toBe(true);
+    expect(advanced.contains(ca)).toBe(true);
+    expect(el.querySelectorAll('#cf-connection-caCertificate')).toHaveLength(1);
+
+    el.querySelector<HTMLButtonElement>('[aria-controls="cf-advanced-body"]')!.click();
+    await settle();
+    expect(advanced.hidden).toBe(false);
+    expect(el.querySelector<HTMLInputElement>('#cf-advanced-allowPublicKeyRetrieval')!.checked).toBe(true);
+    expect(host.form().value().config).toMatchObject({
+      connection: { sslMode: 'auto' },
+      advanced: { allowPublicKeyRetrieval: true },
+    });
+  });
+
+  it('keeps saved SSL, CA and public key choices when editing a connection', async () => {
+    const { el, host, settle } = await render();
+    host.spec.set(spec('mysql'));
+    const savedCa = '-----BEGIN CERTIFICATE-----\nexisting-ca\n-----END CERTIFICATE-----';
+    host.config.set({ connection: { sslMode: 'verify-full', caCertificate: savedCa }, advanced: { allowPublicKeyRetrieval: false } });
+    await settle();
+
+    const ssl = el.querySelector<HTMLSelectElement>('#cf-connection-sslMode')!;
+    const retrieval = el.querySelector<HTMLInputElement>('#cf-advanced-allowPublicKeyRetrieval')!;
+    const ca = el.querySelector<HTMLTextAreaElement>('#cf-advanced-body #cf-connection-caCertificate')!;
+    expect(ssl.value).toBe('verify-full');
+    expect(retrieval.checked).toBe(false);
+    expect(ca.value).toBe(savedCa);
+    expect(host.form().value().config).toMatchObject({
+      connection: { sslMode: 'verify-full', caCertificate: savedCa },
+      advanced: { allowPublicKeyRetrieval: false },
+    });
+
+    el.querySelector<HTMLButtonElement>('[aria-controls="cf-advanced-body"]')!.click();
+    await settle();
+    ssl.value = 'auto';
+    ssl.dispatchEvent(new Event('change', { bubbles: true }));
+    retrieval.checked = true;
+    retrieval.dispatchEvent(new Event('change', { bubbles: true }));
+    const replacementCa = '-----BEGIN CERTIFICATE-----\nreplacement-ca\n-----END CERTIFICATE-----';
+    ca.value = replacementCa;
+    ca.dispatchEvent(new Event('input', { bubbles: true }));
+    await settle();
+    expect(host.form().value().config).toMatchObject({
+      connection: { sslMode: 'auto', caCertificate: replacementCa },
+      advanced: { allowPublicKeyRetrieval: true },
+    });
+    expect(host.form().value().config['advanced']).not.toHaveProperty('caCertificate');
+  });
+});
 
 describe('connection form: multi-line secrets', () => {
   it('a pasted kubeconfig goes into a textarea and reaches secrets byte for byte', async () => {

@@ -117,6 +117,37 @@ class RedisIT {
   }
 
   @Test
+  void selectedDatabasesUseSeparatePoolsAndBindPagesToTheirDatabase() throws Exception {
+    try (Jedis j = redis.admin()) {
+      j.select(2);
+      j.set("selection:same", "database-two");
+      j.del("selection:page");
+      j.rpush("selection:page", "two-a", "two-b");
+      j.select(3);
+      j.set("selection:same", "database-three");
+      j.del("selection:page");
+      j.rpush("selection:page", "three-a", "three-b");
+    }
+    ConnectionConfig c = cfg().id("c-selected-databases").databases(2, 3).build();
+    assertThat(get(c, "{\"key\":\"selection:same\",\"database\":2}").structuredContent().path("value").asString())
+        .isEqualTo("database-two");
+    assertThat(get(c, "{\"key\":\"selection:same\",\"database\":3}").structuredContent().path("value").asString())
+        .isEqualTo("database-three");
+    assertThat(get(c, "{\"key\":\"selection:same\",\"database\":2}").structuredContent().path("value").asString())
+        .isEqualTo("database-two");
+    assertThat(connector.clients().current(c.id(), 2)).isNotSameAs(connector.clients().current(c.id(), 3));
+    JsonNode first = get(c, "{\"key\":\"selection:page\",\"database\":2,\"limit\":1}").structuredContent();
+    String cursor = first.path("nextCursor").asString();
+    assertThat(cursor).isNotBlank();
+    assertThatThrownBy(() -> get(c, "{\"key\":\"selection:page\",\"database\":3,\"cursor\":\"" + cursor + "\"}"))
+        .isInstanceOf(ConnectorException.class);
+    assertThat(get(c, "{\"key\":\"selection:page\",\"database\":2,\"cursor\":\"" + cursor + "\"}")
+        .structuredContent().path("value").toString()).isEqualTo("[\"two-b\"]");
+    connector.onConnectionRemoved(c.id());
+    assertThat(connector.clients().pools()).isEmpty();
+  }
+
+  @Test
   void readsEveryTypeWithItsTtlAndMemory() throws Exception {
     ConnectionConfig c = cfg().build();
     JsonNode str = get(c, "{\"key\":\"cache:str\"}").structuredContent();

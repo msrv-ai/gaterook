@@ -394,6 +394,16 @@ public class FakeConnectors {
     }
 
     @Override
+    public TestResult discoverDatabases(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
+      TestResult result = test(cfg, secrets, ctx);
+      if (!result.ok()) return result;
+      ObjectNode details = JsonNodeFactory.instance.objectNode();
+      details.putArray("databases").add("orders").add("analytics");
+      details.put("discoveryComplete", true);
+      return result.withDetails(details);
+    }
+
+    @Override
     public ToolResult execute(ToolCall call, ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx)
         throws ConnectorException {
       if (!ctx.approved() && classify(call, cfg, null).kind() != Classification.Kind.READ) {

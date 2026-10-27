@@ -217,11 +217,21 @@ final class Harness implements AutoCloseable {
 
   JsonNode test(String generation, ConnectionConfig cfg, Messages.EgressGrant egress, Map<String, String> secrets,
       Duration timeout) {
+    return testMethod(Gpp.CONNECTOR_TEST, generation, cfg, egress, secrets, timeout);
+  }
+
+  JsonNode discoverDatabases(String generation, ConnectionConfig cfg, Messages.EgressGrant egress,
+      Map<String, String> secrets, Duration timeout) {
+    return testMethod(Gpp.CONNECTOR_DISCOVER_DATABASES, generation, cfg, egress, secrets, timeout);
+  }
+
+  private JsonNode testMethod(String method, String generation, ConnectionConfig cfg, Messages.EgressGrant egress,
+      Map<String, String> secrets, Duration timeout) {
     String token = "ct_" + Long.toHexString(System.nanoTime());
     secretsByToken.put(token, Map.copyOf(secrets));
     try {
       Messages.Test t = new Messages.Test(generation, "tt_1", token, cfg, timeout.toMillis(), DEV, egress);
-      return await(peer.request(Gpp.CONNECTOR_TEST, t.write()), timeout.plusSeconds(2), "test");
+      return await(peer.request(method, t.write()), timeout.plusSeconds(2), method);
     } finally {
       secretsByToken.remove(token);
     }

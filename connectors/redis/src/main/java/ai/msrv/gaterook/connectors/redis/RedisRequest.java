@@ -22,16 +22,19 @@ sealed interface RedisRequest permits RedisRequest.Get, RedisRequest.Scan {
   /** The canonical arguments: what a person approves and what runs after the approval. */
   ObjectNode payload();
 
+  int database();
+
   /**
    * {@code redis_get}: one key.
    *
    * @param key    the key's bytes ({@code encoding=base64} for a key that isn't UTF-8, as {@code redis_scan} lists it)
    * @param limit  elements asked for (the call's row limit cuts it further)
    */
-  record Get(byte[] key, String keyText, boolean base64, int limit, String cursor) implements RedisRequest {
+  record Get(byte[] key, String keyText, boolean base64, int limit, String cursor, int database) implements RedisRequest {
     @Override
     public ObjectNode payload() {
-      ObjectNode p = JsonNodeFactory.instance.objectNode().put("tool", GET_TOOL).put("key", keyText);
+      ObjectNode p = JsonNodeFactory.instance.objectNode().put("tool", GET_TOOL).put("key", keyText)
+          .put("database", database);
       if (base64) {
         p.put("encoding", "base64");
       }
@@ -44,10 +47,11 @@ sealed interface RedisRequest permits RedisRequest.Get, RedisRequest.Scan {
   }
 
   /** {@code redis_scan}: keys matching {@code pattern}, of {@code type} if given. */
-  record Scan(String pattern, String type, int count, String cursor, boolean details) implements RedisRequest {
+  record Scan(String pattern, String type, int count, String cursor, boolean details, int database) implements RedisRequest {
     @Override
     public ObjectNode payload() {
-      ObjectNode p = JsonNodeFactory.instance.objectNode().put("tool", SCAN_TOOL).put("pattern", pattern);
+      ObjectNode p = JsonNodeFactory.instance.objectNode().put("tool", SCAN_TOOL).put("pattern", pattern)
+          .put("database", database);
       if (type != null) {
         p.put("type", type);
       }
@@ -74,9 +78,10 @@ sealed interface RedisRequest permits RedisRequest.Get, RedisRequest.Scan {
 
   /** The request of {@code tool} with {@code arguments} (the agent's, or an approved payload) on {@code cfg}. */
   static RedisRequest of(String tool, JsonNode arguments, ConnectionConfig cfg, RedisSettings s) throws Refusal {
+    s = s.withDatabase(database(arguments, s));
     return switch (tool) {
       case GET_TOOL -> get(arguments, cfg, s);
-      case SCAN_TOOL -> scan(arguments, cfg);
+      case SCAN_TOOL -> scan(arguments, cfg, s);
       default -> throw new Refusal("unknown-tool", "The Redis connector has no tool " + tool + ".", null);
     };
   }
@@ -112,15 +117,15 @@ sealed interface RedisRequest permits RedisRequest.Get, RedisRequest.Scan {
     int limit = bounded(a, "limit", 100);
     String cursor = cursor(a);
     if (cursor != null) {
-      java.util.Optional<String> why = Cursors.peekGet(cursor, cfg.id(), key);
+      java.util.Optional<String> why = Cursors.peekGet(cursor, s.cursorScope(cfg.id()), key);
       if (why.isPresent()) {
         throw new Refusal("bad-cursor", why.get(), null);
       }
     }
-    return new Get(key, keyText, base64, limit, cursor);
+    return new Get(key, keyText, base64, limit, cursor, s.database());
   }
 
-  private static Scan scan(JsonNode a, ConnectionConfig cfg) throws Refusal {
+  private static Scan scan(JsonNode a, ConnectionConfig cfg, RedisSettings s) throws Refusal {
     String pattern = a.path("pattern").isString() ? a.path("pattern").asString() : "*";
     if (pattern.isEmpty() || pattern.length() > RedisSettings.MAX_PATTERN || RedisSettings.hasControl(pattern)) {
       throw new Refusal("bad-pattern", "pattern is a Redis glob of 1 to " + RedisSettings.MAX_PATTERN
@@ -133,12 +138,32 @@ sealed interface RedisRequest permits RedisRequest.Get, RedisRequest.Scan {
     int count = bounded(a, "count", 100);
     String cursor = cursor(a);
     if (cursor != null) {
-      java.util.Optional<String> why = Cursors.peekScan(cursor, cfg.id(), pattern, type);
+      java.util.Optional<String> why = Cursors.peekScan(cursor, s.cursorScope(cfg.id()), pattern, type);
       if (why.isPresent()) {
         throw new Refusal("bad-cursor", why.get(), null);
       }
     }
-    return new Scan(pattern, type, count, cursor, a.path("details").asBoolean(true));
+    return new Scan(pattern, type, count, cursor, a.path("details").asBoolean(true), s.database());
+  }
+
+  private static int database(JsonNode arguments, RedisSettings s) throws Refusal {
+    JsonNode db = arguments.path("database");
+    if (db.isMissingNode() || db.isNull()) {
+      if (s.databases().size() > 1) {
+        throw new Refusal("database-required", "Choose a database for this call.",
+            "Pass one of the connection's selected database numbers in database.");
+      }
+      return s.database();
+    }
+    if (!db.isIntegralNumber() || db.asLong() < 0 || db.asLong() > 1_023) {
+      throw new Refusal("bad-argument", "database is a whole number from 0 to 1,023.", null);
+    }
+    int selected = db.asInt();
+    if (s.databases().isEmpty() ? selected != s.database() : !s.databases().contains(selected)) {
+      throw new Refusal("database-not-allowed", "Database " + selected + " isn't selected for this connection.",
+          "Use a database selected in the connection settings.");
+    }
+    return selected;
   }
 
   private static String cursor(JsonNode a) throws Refusal {

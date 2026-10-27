@@ -12,7 +12,7 @@
     "database": {
       "type": "string",
       "maxLength": 64,
-      "description": "Default: the database in the connection string."
+      "description": "Required when several databases are selected. Defaults to the sole selected database, or the database in a legacy connection string."
     },
     "collection": {
       "type": "string",
@@ -25,7 +25,7 @@
         "string"
       ],
       "default": {},
-      "description": "Extended JSON: {\"_id\":{\"$oid\":\"…\"}}, {\"created_at\":{\"$gte\":{\"$date\":\"2026-10-22T00:00:00Z\"}}}. A string may use mongosh literals: ObjectId('…'), ISODate('…')."
+      "description": "Extended JSON: {\"_id\":{\"$oid\":\"\u2026\"}}, {\"created_at\":{\"$gte\":{\"$date\":\"2026-10-22T00:00:00Z\"}}}. A string may use mongosh literals: ObjectId('\u2026'), ISODate('\u2026')."
     },
     "projection": {
       "type": [

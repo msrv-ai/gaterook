@@ -9,11 +9,17 @@
     "connection": {
       "type": "string"
     },
+    "database": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 63,
+      "description": "A database selected for this connection. Required when the connection has more than one selected database."
+    },
     "sql": {
       "type": "string",
       "minLength": 1,
       "maxLength": 100000,
-      "description": "One SELECT, WITH … SELECT, VALUES, TABLE, SHOW or EXPLAIN. Runs in a read-only transaction."
+      "description": "One SELECT, WITH \u2026 SELECT, VALUES, TABLE, SHOW or EXPLAIN. Runs in a read-only transaction."
     },
     "limit": {
       "type": "integer",

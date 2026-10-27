@@ -75,6 +75,12 @@
       "items": {
         "type": "string"
       }
+    },
+    "database": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1023,
+      "description": "The selected database used for this call."
     }
   }
 }

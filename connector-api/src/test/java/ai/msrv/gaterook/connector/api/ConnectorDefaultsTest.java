@@ -84,6 +84,7 @@ class ConnectorDefaultsTest {
 
   @Test
   void optionalCapabilitiesAreOff() throws ConnectorException {
+    assertThat(connector.discoverDatabases(null, null, null).error().code()).isEqualTo("discovery-unavailable");
     assertThat(connector.describe(null, null, null, "orders")).isEmpty();
     assertThat(connector.resources(null)).isEmpty();
     assertThat(connector.templateKinds()).isEmpty();

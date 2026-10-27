@@ -133,11 +133,12 @@ final class ReadOnlyCommandExecutor implements CommandExecutor {
       case "ACL" -> mode == Mode.PROBE && ((n == 3 && is(a.get(1), "GETUSER"))
           || (n == 6 && is(a.get(1), "DRYRUN") && is(a.get(3), "SET") && a.get(4).startsWith(PROBE_PREFIX)
               && a.get(5).equals("1")));
-      case "CONFIG" -> mode == Mode.PROBE && n == 3 && is(a.get(1), "GET") && is(a.get(2), "maxmemory");
+      case "CONFIG" -> mode == Mode.PROBE && n == 3 && is(a.get(1), "GET")
+          && (is(a.get(2), "maxmemory") || is(a.get(2), "databases"));
       // How the server compares range bytes of a glob (RedisProbe.chars): a match over command names, then INFO.
       case "COMMAND" -> mode == Mode.PROBE && n == 5 && is(a.get(1), "LIST") && is(a.get(2), "FILTERBY")
           && is(a.get(3), "PATTERN");
-      case "INFO" -> mode == Mode.PROBE && n == 2 && is(a.get(1), "server");
+      case "INFO" -> mode == Mode.PROBE && n == 2 && (is(a.get(1), "server") || is(a.get(1), "keyspace"));
       default -> KEY_ONLY.contains(name) && n == 2;
     };
     if (!ok) {

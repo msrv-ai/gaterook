@@ -39,30 +39,48 @@
           "pattern": "^[A-Za-z0-9_$.-]{1,63}$",
           "description": "The default database. Empty: none; qualify tables with their database."
         },
+        "databases": {
+          "type": "array",
+          "title": "Databases",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 63,
+            "pattern": "^[^\\u0000]+$"
+          },
+          "description": "Only these databases are available through this connection."
+        },
         "sslMode": {
           "type": "string",
           "title": "SSL mode",
           "enum": [
+            "auto",
             "disable",
             "require",
             "verify-ca",
             "verify-full"
           ],
-          "default": "verify-full",
+          "default": "auto",
           "x-enumTitles": [
+            "Auto (SSL if available)",
             "Off (disable)",
             "Encrypt, don't verify (require)",
             "Verify the CA (verify-ca)",
             "Verify the CA and host name (verify-full)"
           ],
-          "description": "verify-full checks the certificate and the host name. Lower it only for a database without TLS on a network you trust."
+          "description": "Auto uses SSL when the server supports it, otherwise connects without encryption. Use verify-full to verify the certificate and host name.",
+          "x-section": "/advanced"
         },
         "caCertificate": {
           "type": "string",
           "title": "CA certificate (PEM)",
+          "x-section": "/advanced",
           "maxLength": 20000,
           "x-widget": "textarea",
-          "description": "Only for a private CA. Empty: the system trust store."
+          "description": "For a private CA with verify-ca or verify-full. Empty: the system trust store."
         }
       }
     },
@@ -95,7 +113,7 @@
       "title": "Advanced",
       "x-collapsed": true,
       "additionalProperties": false,
-      "description": "Timeouts, pool and schema allowlist. Policies can tighten them per environment.",
+      "description": "CA certificate, timeouts, pool and schema allowlist. Policies can tighten limits per environment.",
       "properties": {
         "statementTimeoutMs": {
           "type": "integer",
@@ -148,10 +166,14 @@
         "allowPublicKeyRetrieval": {
           "type": "boolean",
           "title": "Allow public key retrieval",
-          "default": false,
+          "default": true,
           "description": "Lets a fake server capture the password; prefer TLS. Needed without TLS for caching_sha2_password users."
         }
       }
     }
+  },
+  "x-database-selection": {
+    "path": "/connection/databases",
+    "legacyPath": "/connection/database"
   }
 }

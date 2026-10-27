@@ -13,6 +13,9 @@ import java.util.Set;
  * nothing. Names are compared as the server resolves them ({@link IdentifierRules}); {@code *} in an entry matches any
  * run of characters.
  *
+ * <p>For MySQL, the selected databases narrow these lists further using exact catalog names, never globs.
+ * PostgreSQL databases are selected by the physical connection and its schema allowlist stays independent.
+ *
  * <p>System catalogs ({@code pg_catalog}, {@code information_schema}; MySQL's {@code mysql}, {@code sys},
  * {@code performance_schema}) are closed while a list restricts anything, unless an entry names the catalog itself:
  * a {@code *} never opens them. The gateway's own introspection reads them with its own SQL, past this list.
@@ -30,14 +33,20 @@ final class Allowlist {
   private final boolean mysql;
   private final List<Entry> tables;
   private final List<Entry> schemas;
+  private final Set<String> databases;
 
-  private Allowlist(boolean mysql, List<Entry> tables, List<Entry> schemas) {
+  private Allowlist(boolean mysql, List<Entry> tables, List<Entry> schemas, List<String> databases) {
     this.mysql = mysql;
     this.tables = tables;
     this.schemas = schemas;
+    this.databases = Set.copyOf(databases);
   }
 
   static Allowlist of(List<String> policy, List<String> connectionSchemas, boolean mysql) {
+    return of(policy, connectionSchemas, mysql, List.of());
+  }
+
+  static Allowlist of(List<String> policy, List<String> connectionSchemas, boolean mysql, List<String> databases) {
     List<Entry> tables = new ArrayList<>();
     for (String raw : policy) {
       List<Part> parts = IdentifierRules.parts(raw, mysql);
@@ -57,12 +66,12 @@ final class Allowlist {
       String schema = parts.isEmpty() ? "\u0000" : IdentifierRules.normalize(parts.getFirst(), mysql);
       schemas.add(new Entry(schema, "*"));
     }
-    return new Allowlist(mysql, List.copyOf(tables), List.copyOf(schemas));
+    return new Allowlist(mysql, List.copyOf(tables), List.copyOf(schemas), mysql ? databases : List.of());
   }
 
   /** Whether anything is restricted: then statements whose tables the gateway can't name are refused. */
   boolean restricted() {
-    return !tables.isEmpty() || !schemas.isEmpty();
+    return !tables.isEmpty() || !schemas.isEmpty() || !databases.isEmpty();
   }
 
   boolean allows(TableRef t) {
@@ -78,7 +87,7 @@ final class Allowlist {
     if (t.schema() == null) {
       return false;
     }
-    return matches(tables, t) && matches(schemas, t);
+    return (databases.isEmpty() || databases.contains(t.schema())) && matches(tables, t) && matches(schemas, t);
   }
 
   /** Whether some table of {@code schema} may be allowed: for listing schemas. */
@@ -86,7 +95,8 @@ final class Allowlist {
     if (!restricted()) {
       return true;
     }
-    return matchesSchema(tables, schema) && matchesSchema(schemas, schema);
+    return (databases.isEmpty() || databases.contains(schema)) && matchesSchema(tables, schema)
+        && matchesSchema(schemas, schema);
   }
 
   private boolean matches(List<Entry> entries, TableRef t) {

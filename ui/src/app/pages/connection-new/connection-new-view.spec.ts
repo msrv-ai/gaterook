@@ -186,6 +186,8 @@ describe('Add connection: test', () => {
     expect(t).toEqual({ user: 'app_rw', address: 'db.dev.internal:5432/app', hostPort: 'db.dev.internal:5432', timeoutMs: 5000 });
     expect(testTarget({ baseUrl: 'https://billing.stage.acme.dev' })).toEqual({ user: null, address: 'https://billing.stage.acme.dev', hostPort: 'https://billing.stage.acme.dev', timeoutMs: null });
     expect(testTarget(null)).toEqual({ user: null, address: null, hostPort: null, timeoutMs: null });
+    expect(testTarget({ connection: { host: 'db.internal', port: 3306, databases: ['app', 'reports'] } }).address).toBe('db.internal:3306/app, reports');
+    expect(testTarget({ connection: { host: 'cache.internal', port: 6379, databases: [0, 2] } }).address).toBe('cache.internal:6379/0, 2');
   });
 
   it('turns the connector snippet into the kit disclosure "Create a read-only user" for gw_reader', () => {

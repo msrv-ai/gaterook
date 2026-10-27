@@ -34,6 +34,12 @@
       "type": "string",
       "maxLength": 512,
       "description": "nextCursor from the previous call for the same key."
+    },
+    "database": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1023,
+      "description": "Required when several databases are selected. Defaults to the sole selected database."
     }
   }
 }

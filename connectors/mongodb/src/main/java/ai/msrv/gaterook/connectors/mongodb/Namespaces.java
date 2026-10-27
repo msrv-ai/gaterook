@@ -22,9 +22,15 @@ final class Namespaces {
   private static final Pattern ENTRY = Pattern.compile("^[^$\\s/\\\\.\"]{1,64}\\.(\\*|[^$\\s]{1,255})$");
 
   private final List<String> allowlist;
+  private final List<String> databases;
 
   Namespaces(List<String> allowlist) {
+    this(allowlist, List.of());
+  }
+
+  Namespaces(List<String> allowlist, List<String> databases) {
     this.allowlist = List.copyOf(allowlist);
+    this.databases = List.copyOf(databases);
   }
 
   static boolean validEntry(String entry) {
@@ -32,7 +38,7 @@ final class Namespaces {
   }
 
   boolean restricted() {
-    return !allowlist.isEmpty();
+    return !allowlist.isEmpty() || !databases.isEmpty();
   }
 
   List<String> allowlist() {
@@ -41,6 +47,9 @@ final class Namespaces {
 
   /** Whether the agent may read {@code database.collection}. */
   boolean allowed(String database, String collection) {
+    if (!databases.isEmpty() && !databases.contains(database)) {
+      return false;
+    }
     boolean systemCollection = collection.startsWith("system.");
     if (allowlist.isEmpty()) {
       return !SYSTEM_DATABASES.contains(database) && !systemCollection;
@@ -61,6 +70,9 @@ final class Namespaces {
 
   /** Whether any collection of {@code database} may be read: what {@code describe_connection} lists. */
   boolean databaseVisible(String database) {
+    if (!databases.isEmpty() && !databases.contains(database)) {
+      return false;
+    }
     if (allowlist.isEmpty()) {
       return !SYSTEM_DATABASES.contains(database);
     }
@@ -75,6 +87,10 @@ final class Namespaces {
   /** The reason the agent gets for a namespace it may not read. */
   String refusal(String database, String collection) {
     String ns = database + "." + collection;
+    if (!databases.isEmpty() && !databases.contains(database)) {
+      return database + " isn't one of this connection's selected databases ("
+          + String.join(", ", databases) + ").";
+    }
     if (!allowlist.isEmpty()) {
       return ns + " isn't in the collections this connection may read (" + String.join(", ", allowlist) + ").";
     }

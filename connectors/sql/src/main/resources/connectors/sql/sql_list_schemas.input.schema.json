@@ -8,6 +8,12 @@
     "connection": {
       "type": "string"
     },
+    "database": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 63,
+      "description": "A database selected for this connection. Required when the connection has more than one selected database."
+    },
     "schema": {
       "type": "string",
       "maxLength": 128,

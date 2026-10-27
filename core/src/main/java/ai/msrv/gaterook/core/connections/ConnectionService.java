@@ -632,6 +632,11 @@ public class ConnectionService {
    * @param env the environment the config is saved or tested for: a move to prod is checked against prod's locks
    */
   public void validate(ConnectorManifest manifest, ObjectNode config, java.util.Set<String> newSecretFields, Env env) {
+    validate(manifest, config, newSecretFields, env, false);
+  }
+
+  void validate(ConnectorManifest manifest, ObjectNode config, java.util.Set<String> newSecretFields, Env env,
+      boolean discovery) {
     Objects.requireNonNull(env, "env");
     ObjectNode probe = config.deepCopy();
     for (String field : SecretFields.placeholders(config).keySet()) {
@@ -642,6 +647,17 @@ public class ConnectionService {
     }
     for (SchemaValidator.Violation v : validator.validate(manifest.configSchema(), probe)) {
       throw ProblemException.unprocessable("Check the settings", v.message(), "/config" + v.pointer());
+    }
+    JsonNode selection = manifest.configSchema().path("x-database-selection");
+    if (!discovery && selection.path("required").asBoolean(false)) {
+      String path = selection.path("path").asString("");
+      String legacyPath = selection.path("legacyPath").asString("");
+      JsonNode databases = path.startsWith("/") ? config.at(path) : null;
+      JsonNode legacy = legacyPath.startsWith("/") ? config.at(legacyPath) : null;
+      if ((databases == null || !databases.isArray() || databases.isEmpty())
+          && (legacy == null || !legacy.isString() || legacy.asString().isBlank())) {
+        throw ProblemException.unprocessable("Choose databases", "Select at least one database.", "/config" + path);
+      }
     }
     EnvLocks.check(manifest.configSchema(), config, env).ifPresent(v -> {
       throw ProblemException.unprocessable("Not allowed on " + env.id(), v.message(), "/config" + v.pointer());

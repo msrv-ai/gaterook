@@ -1,6 +1,8 @@
 package ai.msrv.gaterook.connectors.sql;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.Driver;
@@ -68,7 +70,8 @@ public final class MySqlDialect implements SqlDialect {
 
   @Override
   public String url(ConnectionSettings s) {
-    return "jdbc:mysql://" + s.host() + ":" + s.port() + "/" + (s.database() == null ? "" : s.database());
+    return "jdbc:mysql://" + s.host() + ":" + s.port() + "/" + (s.database() == null ? ""
+        : URLEncoder.encode(s.database(), StandardCharsets.UTF_8).replace("+", "%20"));
   }
 
   @Override
@@ -91,12 +94,13 @@ public final class MySqlDialect implements SqlDialect {
     p.setProperty("autoReconnect", "false");
     p.setProperty("characterEncoding", "UTF-8");
     p.setProperty("sslMode", switch (s.sslMode()) {
+      case "auto" -> "PREFERRED";
       case "disable" -> "DISABLED";
       case "require" -> "REQUIRED";
       case "verify-ca" -> "VERIFY_CA";
       default -> "VERIFY_IDENTITY";
     });
-    if (!"disable".equals(s.sslMode()) && !"require".equals(s.sslMode()) && s.caCertificate() != null) {
+    if (("verify-ca".equals(s.sslMode()) || "verify-full".equals(s.sslMode())) && s.caCertificate() != null) {
       Path store = CertificateFiles.pkcs12(certificates, s.caCertificate());
       p.setProperty("trustCertificateKeyStoreUrl", store.toUri().toString());
       p.setProperty("trustCertificateKeyStoreType", "PKCS12");

@@ -73,7 +73,7 @@ sealed interface MongoArgs {
       database = defaultDatabase;
     }
     if (database == null || database.isBlank()) {
-      throw new BadArgument("database", "Name the database: the connection string has none.");
+      throw new BadArgument("database", "Name the database: this connection has no single default database.");
     }
     checkDatabase(database);
     String collection = text(args, "collection");

@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import tools.jackson.databind.JsonNode;
 
 /**
  * One connection's config as the connector uses it (the form of {@code config.schema.json}), with the checks the
@@ -24,7 +25,7 @@ import java.util.Set;
  */
 record MongoSettings(Env env, String uri, MongoUri parsed, boolean tls, String caCertificate,
     boolean allowInvalidHostnames, String readPreference, String user, String authSource, String mechanism,
-    List<String> namespaceAllowlist, Integer maxTimeMs, int poolSize, int serverSelectionTimeoutMs,
+    List<String> namespaceAllowlist, List<String> databases, Integer maxTimeMs, int poolSize, int serverSelectionTimeoutMs,
     List<Problem> problems) {
 
   static final String PASSWORD = "/credentials/password";
@@ -127,6 +128,23 @@ record MongoSettings(Env env, String uri, MongoUri parsed, boolean tls, String c
       user = null;
     }
     List<String> allowlist = cfg.strings("/advanced/namespaceAllowlist");
+    List<String> databases = new ArrayList<>();
+    JsonNode selection = cfg.config().at("/connection/databases");
+    if (!selection.isMissingNode()) {
+      if (!selection.isArray() || selection.isEmpty() || selection.size() > 200) {
+        problems.add(new Problem("/connection/databases", "Select between 1 and 200 databases."));
+      } else {
+        for (JsonNode db : selection) {
+          if (!db.isString() || db.asString().contains(".") || db.asString().indexOf('\0') >= 0
+              || !Namespaces.validEntry(db.asString() + ".*")
+              || databases.contains(db.asString())) {
+            problems.add(new Problem("/connection/databases", "Select unique, valid database names."));
+          } else {
+            databases.add(db.asString());
+          }
+        }
+      }
+    }
     for (String entry : allowlist) {
       if (!Namespaces.validEntry(entry)) {
         problems.add(new Problem("/advanced/namespaceAllowlist", entry + " isn't database.collection or "
@@ -153,21 +171,25 @@ record MongoSettings(Env env, String uri, MongoUri parsed, boolean tls, String c
           + "a mechanism."));
     }
     return new MongoSettings(env, uri, parsed, tls, ca, allowInvalidHostnames, readPreference, user, authSource,
-        mechanism, List.copyOf(allowlist), maxTimeMs, poolSize, serverSelection, List.copyOf(problems));
+        mechanism, List.copyOf(allowlist), List.copyOf(databases), maxTimeMs, poolSize, serverSelection,
+        List.copyOf(problems));
   }
 
   boolean usable() {
     return problems.isEmpty();
   }
 
-  /** The default database of the connection string, or {@code null}. */
+  /** The sole selected database, or the legacy connection string's default when no selection is stored. */
   String defaultDatabase() {
+    if (!databases.isEmpty()) {
+      return databases.size() == 1 ? databases.getFirst() : null;
+    }
     return parsed == null ? null : parsed.database();
   }
 
   /** {@code mongo.dev.internal:27017/orders · secondaryPreferred}: where a call goes, for previews and texts. */
-  String target() {
-    return (parsed == null ? "?" : parsed.display()) + " · " + readPreference;
+  String target(String database) {
+    return (parsed == null ? "?" : String.join(",", parsed.hosts()) + "/" + database) + " · " + readPreference;
   }
 
   /** The first problem as one sentence for the agent and the log. */

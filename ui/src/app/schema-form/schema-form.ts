@@ -10,6 +10,7 @@ import {
   allowedValue,
   cleanValue,
   compileSchema,
+  containsNode,
   defaultOn,
   getAt,
   initialValue,
@@ -457,13 +458,13 @@ export class SchemaForm {
    * Save pressed: shows every message, opens the collapsed sections that hold one and moves focus to the first
    * invalid field. Returns whether the form may go to the core.
    */
-  submit(): boolean {
+  submit(ignorePointers: readonly string[] = []): boolean {
     this.submitted.set(true);
     untracked(() => this.tree().markAsTouched());
-    const invalid = untracked(this.invalidNodes);
+    const invalid = untracked(this.invalidNodes).filter((node) => !ignorePointers.includes(node.pointer));
     if (!invalid.length) return true;
     for (const section of this.compiled.sections) {
-      if (section.collapsed && invalid.some((n) => n.pointer.startsWith(section.pointer + '/'))) this.setExpanded(section, true);
+      if (section.collapsed && invalid.some((n) => containsNode(section, n))) this.setExpanded(section, true);
     }
     this.focus(invalid[0]);
     return false;
@@ -500,7 +501,7 @@ export class SchemaForm {
     this.serverErrors.set(mine);
     const first = this.compiled.all.find((n) => mine.some((m) => m.pointer === n.pointer));
     if (first) {
-      for (const section of this.compiled.sections) if (first.pointer.startsWith(section.pointer + '/')) this.setExpanded(section, true);
+      for (const section of this.compiled.sections) if (containsNode(section, first)) this.setExpanded(section, true);
       this.focus(first);
     }
     return others;

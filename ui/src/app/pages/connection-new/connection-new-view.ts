@@ -141,6 +141,7 @@ export function testTarget(config: JsonObject | null): TestTargetView {
   let url: string | null = null;
   let timeoutMs: number | null = null;
   walk(config ?? {}, (k, v) => {
+    if (k === 'databases' && Array.isArray(v) && v.length && !db) db = v.join(', ');
     if (typeof v !== 'string' && typeof v !== 'number') return;
     if (/^(host|hostname)$/i.test(k) && typeof v === 'string' && !host) host = v;
     else if (/^port$/i.test(k) && port === null) port = v;
@@ -167,6 +168,7 @@ export function fixSnippet(outcome: TestOutcome | null, config: JsonObject | nul
   const role = /CREATE\s+(?:ROLE|USER)\s+'?([A-Za-z_][\w]*)/i.exec(text)?.[1] ?? null;
   let db: string | null = null;
   walk(config ?? {}, (k, v) => {
+    if (k === 'databases' && Array.isArray(v) && v.length && !db) db = v.join(', ');
     if (/^(database|db|dbname)$/i.test(k) && typeof v === 'string' && !db) db = v;
   });
   const filename = role ? `Run as an admin${db ? ` on ${db}` : ''}, then use ${role} as the user` : 'Run as an admin';

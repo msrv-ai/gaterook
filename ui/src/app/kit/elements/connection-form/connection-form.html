@@ -1,7 +1,7 @@
 @let s = state();
 @let p = idPrefix();
 
-<!-- The connection's Name: first in the first section (kit: Name, then Host · Port · Database). -->
+<!-- The connection's Name comes first, followed by the server and credentials. -->
 <ng-template #nameField>
   @let name = common().name;
   @let error = nameError();
@@ -99,6 +99,75 @@
       <gw-schema-section [form]="s" [node]="section" [lead]="first && showName() ? nameField : null" [nested]="false" />
     }
   }
+}
+
+@if (databaseSelection() && show('connection')) {
+  @let discovery = databaseDiscovery();
+  @let error = databaseError();
+  <section class="gw-form__section" [attr.aria-labelledby]="p + '-databases-title'">
+    <header class="gw-form__section-header">
+      <h3 class="gw-form__legend" [id]="p + '-databases-title'">Databases</h3>
+      <p class="gw-form__description">Connect with the credentials above, then choose the databases agents may use.</p>
+    </header>
+    <div class="gw-form__rows">
+      <div class="gw-field">
+        <button class="gw-btn" type="button" [id]="p + '-database-load'"
+          [attr.aria-busy]="discovery?.state === 'loading' ? 'true' : null"
+          [attr.aria-disabled]="discovery?.state === 'loading' ? 'true' : null"
+          [attr.aria-describedby]="p + '-database-status'" (click)="loadDatabases()">
+          @if (discovery?.state === 'loading') {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}
+          {{ discovery?.state === 'ready' ? 'Reload databases' : 'Load databases' }}
+        </button>
+        <p class="gw-field__hint" [id]="p + '-database-status'" role="status">
+          @if (discovery?.state === 'loading') {Connecting and loading databases…}
+          @else if (discovery?.state === 'ready') { {{ discovery!.names.length }} databases available · {{ selectedDatabases().length }} selected }
+          @else {Enter the server and credentials, then load databases. Reload after changing connection settings.}
+        </p>
+      </div>
+      @if (discovery?.state === 'error') {
+        <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+          <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content"><p class="gw-alert__title">Couldn't load databases</p><p class="gw-alert__body">{{ discovery!.message }}</p></div>
+        </div>
+      }
+      @if (discovery?.state === 'ready' && !discovery!.complete) {
+        <div class="gw-alert gw-alert--warning gw-alert--compact" role="status">
+          <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+          <div class="gw-alert__content"><p class="gw-alert__body">The server returned a partial list. Only the listed databases can be selected.</p></div>
+        </div>
+      }
+      @for (hint of discovery?.hints ?? []; track $index) {<p class="gw-field__hint">{{ hint }}</p>}
+      @if (discovery?.state === 'ready' || selectedDatabases().length) {
+        <fieldset class="gw-field" [attr.aria-describedby]="error ? p + '-database-error' : null">
+          <legend class="gw-field__label">Select databases</legend>
+          @if ((discovery?.names?.length ?? 0) + selectedDatabases().length > 8) {
+            <div class="gw-search">
+              <svg lucideIcon="search" class="gw-icon gw-search__icon" aria-hidden="true"></svg>
+              <input class="gw-search__input" type="search" placeholder="Filter databases" aria-label="Filter databases" [value]="databaseSearch()" (input)="databaseSearch.set($any($event.target).value)" />
+              @if (databaseSearch()) {<button class="gw-search__clear" type="button" aria-label="Clear database filter" (click)="databaseSearch.set('')"><svg lucideIcon="x" class="gw-icon"></svg></button>}
+            </div>
+          }
+          <div class="gw-stack gw-stack--sm">
+            @for (choice of databaseChoices(); track choice.index) {
+              <div class="gw-checkbox">
+                <input class="gw-checkbox__input" type="checkbox" [id]="p + '-database-' + choice.index"
+                  [checked]="choice.selected" [value]="choice.name"
+                  [disabled]="discovery?.state !== 'ready' && !choice.selected"
+                  [attr.aria-describedby]="choice.unavailable ? p + '-database-' + choice.index + '-hint' : null"
+                  (change)="selectDatabase(choice.name, $any($event.target).checked)" />
+                <span class="gw-checkbox__control" aria-hidden="true"></span>
+                <label class="gw-checkbox__label gw-mono" [for]="p + '-database-' + choice.index">{{ choice.name }}</label>
+                @if (choice.unavailable) {<p class="gw-checkbox__hint" [id]="p + '-database-' + choice.index + '-hint'">Saved selection · not returned by the server</p>}
+              </div>
+            } @empty {
+              <p class="gw-field__hint">{{ databaseSearch() ? 'No databases match this filter.' : 'No databases are available to this user. Check its permissions, then reload.' }}</p>
+            }
+          </div>
+        </fieldset>
+      }
+      @if (error) {<p class="gw-field__error" role="alert" [id]="p + '-database-error'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ error }}</p>}
+    </div>
+  </section>
 }
 
 @if (show('safety')) {

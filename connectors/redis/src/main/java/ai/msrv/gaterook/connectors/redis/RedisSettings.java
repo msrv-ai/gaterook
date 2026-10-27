@@ -24,7 +24,7 @@ import tools.jackson.databind.JsonNode;
  * @param chars         how the server compares the bytes of glob ranges, from the last Test connection
  *                      ({@code metadata.globChars}); unknown until one ran
  */
-record RedisSettings(String host, int port, int database, boolean tls, boolean verifyHost,
+record RedisSettings(String host, int port, int database, List<Integer> databases, boolean tls, boolean verifyHost,
     List<X509Certificate> caCertificates, String user, List<RedisGlob> keyAllowlist, List<RedisGlob> keyDenylist,
     int commandTimeoutMs, int connectTimeoutMs, int maxValueBytes, int poolSize, boolean noTouch,
     RedisGlob.Chars chars) {
@@ -45,6 +45,7 @@ record RedisSettings(String host, int port, int database, boolean tls, boolean v
   }
 
   RedisSettings {
+    databases = List.copyOf(databases);
     caCertificates = List.copyOf(caCertificates);
     keyAllowlist = List.copyOf(keyAllowlist);
     keyDenylist = List.copyOf(keyDenylist);
@@ -75,6 +76,20 @@ record RedisSettings(String host, int port, int database, boolean tls, boolean v
     }
     int port = range(c, "port", 6379, 1, 65_535, "The port");
     int database = range(c, "database", 0, 0, 1_023, "The database");
+    List<Integer> databases = new ArrayList<>();
+    JsonNode selection = c.path("databases");
+    if (!selection.isMissingNode()) {
+      if (!selection.isArray() || selection.isEmpty() || selection.size() > 1_024) {
+        throw new InvalidSettingsException("Select between 1 and 1,024 databases.");
+      }
+      for (JsonNode db : selection) {
+        if (!db.isIntegralNumber() || db.asLong() < 0 || db.asLong() > 1_023 || databases.contains(db.asInt())) {
+          throw new InvalidSettingsException("Selected databases must be unique whole numbers from 0 to 1,023.");
+        }
+        databases.add(db.asInt());
+      }
+      database = databases.getFirst();
+    }
     // x-env-default: on prod, TLS is on unless the form says otherwise (the core doesn't fill defaults in).
     JsonNode tlsNode = c.path("tls");
     boolean tls = tlsNode.isBoolean() ? tlsNode.asBoolean() : cfg.env() == Env.PROD;
@@ -101,8 +116,18 @@ record RedisSettings(String host, int port, int database, boolean tls, boolean v
     boolean noTouch = advanced.path("noTouch").asBoolean(true);
     RedisGlob.Chars chars = cfg.metadata() == null ? RedisGlob.Chars.UNKNOWN
         : RedisGlob.Chars.of(cfg.metadata().path(GLOB_CHARS).asString(""));
-    return new RedisSettings(host, port, database, tls, verify.equals("full"), ca, user.isEmpty() ? null : user,
+    return new RedisSettings(host, port, database, databases, tls, verify.equals("full"), ca, user.isEmpty() ? null : user,
         allow, deny, commandTimeout, connectTimeout, maxValueKb * 1024, poolSize, noTouch, chars);
+  }
+
+  RedisSettings withDatabase(int selected) {
+    return new RedisSettings(host, port, selected, databases, tls, verifyHost, caCertificates, user, keyAllowlist,
+        keyDenylist, commandTimeoutMs, connectTimeoutMs, maxValueBytes, poolSize, noTouch, chars);
+  }
+
+  /** A page belongs to both its saved connection and its database, including legacy single-database configs. */
+  String cursorScope(String connectionId) {
+    return connectionId + "/database/" + database;
   }
 
   /** {@code cache.dev.internal:6379}; IPv6 in brackets. */

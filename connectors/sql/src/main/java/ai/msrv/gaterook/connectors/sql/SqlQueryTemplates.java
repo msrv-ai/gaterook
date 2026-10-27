@@ -99,6 +99,13 @@ final class SqlQueryTemplates implements TemplateKind {
     }
     ObjectNode binding = JsonNodeFactory.instance.objectNode();
     binding.put("dialect", dialect.type());
+    if (runsOn != null && (DatabaseSelection.configured(runsOn) || definition.hasNonNull("database"))) {
+      try {
+        binding.put("database", DatabaseSelection.resolve(runsOn, definition.path("database").asString(null)));
+      } catch (ConnectorException e) {
+        return new CompileResult(List.of(), List.of(), List.of(e.getMessage()), c.warnings(), null);
+      }
+    }
     binding.put("name", c.name());
     binding.put("sql", c.sql());
     binding.put("jdbc", c.named().jdbc());
@@ -118,6 +125,13 @@ final class SqlQueryTemplates implements TemplateKind {
   Compiled compileDefinition(JsonNode definition, ConnectionConfig runsOn) {
     List<String> errors = new ArrayList<>();
     List<String> warnings = new ArrayList<>();
+    if (runsOn != null) {
+      try {
+        DatabaseSelection.resolve(runsOn, definition.path("database").asString(null));
+      } catch (ConnectorException e) {
+        errors.add(e.getMessage());
+      }
+    }
     String name = definition.path("name").asString("");
     if (!TOOL_NAME.matcher(name).matches()) {
       errors.add("Tool name: use lowercase letters, digits and _, starting with a letter, at most 64 characters.");
@@ -184,6 +198,13 @@ final class SqlQueryTemplates implements TemplateKind {
   public ActionPreview preview(JsonNode definition, ObjectNode arguments, ConnectionConfig runsOn) {
     Compiled c = compileDefinition(definition, runsOn);
     ConnectionSettings s = ConnectionSettings.of(runsOn, dialect.mysql());
+    if (c.errors().isEmpty()) {
+      try {
+        s = s.withDatabase(DatabaseSelection.resolve(runsOn, definition.path("database").asString(null)), dialect.mysql());
+      } catch (ConnectorException ignored) {
+        // compileDefinition already reports selection errors in the preview.
+      }
+    }
     List<ActionPreview.Field> fields = new ArrayList<>();
     fields.add(new ActionPreview.Field("Template", c.name()));
     List<String> warnings = new ArrayList<>(c.errors());

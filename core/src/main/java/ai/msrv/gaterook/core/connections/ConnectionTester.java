@@ -121,6 +121,17 @@ public class ConnectionTester implements DisposableBean {
    */
   public Outcome testDraft(String type, Env env, JsonNode config, Map<String, SecretInput> typed, String existing,
       String confirm) {
+    return testDraft(type, env, config, typed, existing, confirm, false);
+  }
+
+  /** Lists databases with the same secret handling, host checks and deadline as a draft test. */
+  public Outcome discoverDatabases(String type, Env env, JsonNode config, Map<String, SecretInput> typed,
+      String existing, String confirm) {
+    return testDraft(type, env, config, typed, existing, confirm, true);
+  }
+
+  private Outcome testDraft(String type, Env env, JsonNode config, Map<String, SecretInput> typed, String existing,
+      String confirm, boolean discovery) {
     Map<String, char[]> values = new HashMap<>();
     Map<String, SecretService.DraftReference> references = new HashMap<>();
     try {
@@ -180,7 +191,7 @@ public class ConnectionTester implements DisposableBean {
         present.addAll(stored.secretIds().keySet());
         secretFields.addAll(stored.secretIds().keySet());
       }
-      connections.validate(manifest, draft, present, env);
+      connections.validate(manifest, draft, present, env, discovery);
       String id = stored == null ? "draft-" + Ids.uuid() : stored.id();
       ConnectionConfig cfg = new ConnectionConfig(id, stored == null ? "draft" : stored.name(), type, env,
           stored == null ? 0 : stored.config().version(), draft.deepCopy(), Set.copyOf(secretFields),
@@ -190,7 +201,7 @@ public class ConnectionTester implements DisposableBean {
       SecretResolver fallback = stored == null && references.isEmpty() ? null
           : secrets.draftResolver(cfg, references, taint);
       try (DraftSecrets resolver = new DraftSecrets(secretFields, values, fallback, taint)) {
-        TestResult result = run(manifest, cfg, resolver, taint);
+        TestResult result = run(manifest, cfg, resolver, taint, discovery);
         // Trust applies to the draft: an edit saves the patched config with the rest of the form.
         return outcome(result, type, env, null, draft);
       }
@@ -301,11 +312,17 @@ public class ConnectionTester implements DisposableBean {
 
   /** Runs {@code test} under the deadline and masks what it says. */
   TestResult run(ConnectorManifest manifest, ConnectionConfig cfg, SecretResolver resolver, Taint taint) {
+    return run(manifest, cfg, resolver, taint, false);
+  }
+
+  private TestResult run(ConnectorManifest manifest, ConnectionConfig cfg, SecretResolver resolver, Taint taint,
+      boolean discovery) {
     Connector connector = registry.connectorFor(cfg).orElseThrow(() -> ProblemException.unprocessable(
         "Unknown connector", "There is no connector type " + cfg.type() + ".", "/type"));
     CallContext ctx = contexts.builder(Ids.next("tst_"), cfg, policies.limits(cfg.env()))
         .timeout(timeout).taint(taint).build();
-    Future<TestResult> future = executor.submit(() -> connector.test(cfg, resolver, ctx));
+    Future<TestResult> future = executor.submit(() -> discovery
+        ? connector.discoverDatabases(cfg, resolver, ctx) : connector.test(cfg, resolver, ctx));
     TestResult result;
     try {
       result = future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);

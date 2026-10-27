@@ -72,7 +72,7 @@ final class MongoDescribe {
         }
       }
       if (db == null) {
-        throw new ObjectRefused("Name the database: database.collection (the connection string has no default).");
+        throw new ObjectRefused("Name the database: database.collection (this connection has no single default).");
       }
       if (!ns.allowed(db, coll)) {
         throw new ObjectRefused(ns.refusal(db, coll));

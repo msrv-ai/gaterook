@@ -41,7 +41,8 @@
           "default": false,
           "x-env-default": {
             "prod": true
-          }
+          },
+          "x-section": "/advanced"
         },
         "tlsVerify": {
           "type": "string",
@@ -59,13 +60,28 @@
           "x-enumTitles": [
             "Verify the CA and host name",
             "Verify the CA only"
-          ]
+          ],
+          "x-section": "/advanced"
         },
         "caCertificate": {
           "type": "string",
           "title": "CA certificate (PEM)",
           "maxLength": 20000,
-          "x-widget": "textarea"
+          "x-widget": "textarea",
+          "x-section": "/advanced"
+        },
+        "databases": {
+          "type": "array",
+          "title": "Databases",
+          "minItems": 1,
+          "maxItems": 1024,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1023
+          },
+          "description": "Only these logical databases are available to agents."
         }
       }
     },
@@ -164,5 +180,9 @@
         }
       }
     }
+  },
+  "x-database-selection": {
+    "path": "/connection/databases",
+    "legacyPath": "/connection/database"
   }
 }

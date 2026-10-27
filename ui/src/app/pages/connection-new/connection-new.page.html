@@ -193,7 +193,7 @@
   <section class="gw-section" id="step-2" aria-labelledby="step-2-title" [hidden]="m !== 'edit' && step() !== 2">
     <header class="gw-section__header">
       <h2 class="gw-section__title" id="step-2-title" tabindex="-1">@if (m === 'edit') {Settings} @else {Configure {{ typeName() }}}</h2>
-      <p class="gw-section__description">Fields come from the {{ typeName() }} connector's JSON Schema. The gateway adds the secret source, the environment and its safety defaults.</p>
+      <p class="gw-section__description">@if (databaseSetup()) {Enter the server and credentials, load its databases, then choose which ones agents may use.} @else {Enter the connection details and credentials, then review its environment and advanced settings.}</p>
     </header>
     @if (specState() === 'error') {
       <div class="gw-alert gw-alert--danger" role="alert">
@@ -230,6 +230,7 @@
         [confirmAction]="m === 'edit' ? 'save' : 'continue'"
         [busy]="saving()"
         (save)="onFormSubmit($event)"
+        (discoverDatabases)="loadDatabases($event)"
         (secretAction)="onSecretAction($event)"
       >
         <!-- Projected first inside the form; the slot's node is the ng-container itself (whitespace is preserved here). -->
@@ -628,7 +629,7 @@
     </header>
     <footer class="gw-dialog__footer">
       <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
-      <button class="gw-btn gw-btn--primary" type="button" (click)="sendToNewHost()">Send and save<span class="gw-sr-only"> {{ name() }}</span></button>
+      <button class="gw-btn gw-btn--primary" type="button" (click)="sendToNewHost()">{{ h.discoveryKey ? 'Send and load databases' : 'Send and save' }}<span class="gw-sr-only"> {{ name() }}</span></button>
     </footer>
   }
 </dialog>

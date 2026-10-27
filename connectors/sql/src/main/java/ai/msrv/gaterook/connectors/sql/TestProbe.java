@@ -16,12 +16,14 @@ import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
+import java.util.LinkedHashSet;
 import javax.net.ssl.SSLException;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.JsonNodeFactory;
@@ -50,12 +52,116 @@ final class TestProbe {
   }
 
   TestResult test(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
-    ConnectionSettings s = ConnectionSettings.of(cfg, dialect.mysql());
-    long started = System.nanoTime();
+    ConnectionSettings settings = ConnectionSettings.of(cfg, dialect.mysql());
+    if (!DatabaseSelection.configured(cfg)) return testOne(cfg, secrets, ctx, settings);
+    List<String> databases = DatabaseSelection.selected(cfg);
+    if (databases.isEmpty()) return TestResult.failure("sql.database", "Select at least one database.", null);
+    TestResult summary = null;
     List<TestResult.Check> checks = new ArrayList<>();
+    List<Hint> hints = new ArrayList<>();
+    ObjectNode databaseDetails = JsonNodeFactory.instance.objectNode();
+    LinkedHashSet<String> builtIns = new LinkedHashSet<>();
+    TestResult.Permissions strongest = null;
+    for (String database : databases) {
+      if (ctx.cancelled() || ctx.remaining().isZero()) {
+        return TestResult.failure("sql.timeout", "The connection test timed out.", null).withChecks(checks);
+      }
+      TestResult result = testOne(cfg, secrets, ctx, settings.withDatabase(database, dialect.mysql()));
+      for (TestResult.Check check : result.checks()) {
+        checks.add(new TestResult.Check(check.name(), check.ok(), check.ms(), database + ": " + check.detail()));
+      }
+      if (!result.ok()) return result.withChecks(checks);
+      if (summary == null) summary = result;
+      hints.addAll(result.hints());
+      databaseDetails.set(database, result.details());
+      if (result.metadataUpdate() != null) {
+        result.metadataUpdate().path("builtinFunctions").forEach(n -> builtIns.add(n.asString()));
+      }
+      if (strongest == null || result.permissions().level().ordinal() > strongest.level().ordinal()) {
+        strongest = result.permissions();
+      }
+    }
+    ObjectNode details = ((ObjectNode) summary.details()).deepCopy();
+    details.set("databases", databaseDetails);
+    ObjectNode metadata = ((ObjectNode) summary.metadataUpdate()).deepCopy();
+    if (!builtIns.isEmpty()) builtIns.forEach(metadata.putArray("builtinFunctions")::add);
+    return new TestResult(true, summary.latencyMs(), summary.serverVersion(), summary.identity(), strongest,
+        hints.stream().distinct().toList(), List.copyOf(checks), null, null, metadata, null, details);
+  }
+
+  /** Discover catalogs using the login alone, before a database has been selected. */
+  TestResult discoverDatabases(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
+    ConnectionSettings s = ConnectionSettings.of(cfg, dialect.mysql()).withDatabase(
+        dialect.mysql() ? null : discoveryDatabase(cfg), dialect.mysql());
+    int budget = (int) Math.max(1, Math.min(BUDGET_MS, ctx.remaining().toMillis()));
+    if (ctx.cancelled() || ctx.remaining().isZero()) {
+      return TestResult.failure("sql.timeout", "Loading databases timed out.", null);
+    }
     Properties props;
     try {
-      props = dialect.properties(s.withConnectTimeoutAtMost(BUDGET_MS), certificates(ctx), BUDGET_MS);
+      props = dialect.properties(s.withConnectTimeoutAtMost(budget), certificates(ctx), budget);
+    } catch (IOException e) {
+      return TestResult.failure("sql.certificate", e.getMessage(), null);
+    }
+    long started = System.nanoTime();
+    try (Credentials login = Credentials.resolve(cfg, secrets)) {
+      if (login.user() != null) props.setProperty("user", login.user());
+      if (login.password().length > 0) props.setProperty("password", new String(login.password()));
+      try (Connection c = dialect.driver().connect(dialect.url(s), props)) {
+        props.remove("password");
+        ctx.onCancel(() -> closeOnCancel(c));
+        c.setReadOnly(true);
+        ServerInfo server = dialect.identify(c);
+        String query = dialect.mysql()
+            ? "SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME NOT IN "
+                + "('information_schema', 'mysql', 'performance_schema', 'sys') ORDER BY SCHEMA_NAME LIMIT 1001"
+            : "SELECT datname FROM pg_catalog.pg_database WHERE datallowconn AND NOT datistemplate "
+                + "AND has_database_privilege(oid, 'CONNECT') ORDER BY datname LIMIT 1001";
+        ObjectNode details = JsonNodeFactory.instance.objectNode();
+        ArrayNode databases = details.putArray("databases");
+        boolean complete = true;
+        try (Statement st = c.createStatement()) {
+          st.setQueryTimeout(Math.max(1, (budget + 999) / 1000));
+          ctx.onCancel(() -> { try { st.cancel(); } catch (SQLException ignored) { } });
+          try (ResultSet rows = st.executeQuery(query)) {
+            while (rows.next()) {
+              if (databases.size() == 1000) { complete = false; break; }
+              databases.add(rows.getString(1));
+            }
+          }
+        }
+        details.put("discoveryComplete", complete);
+        return TestResult.success(ms(started), server.full(), login.user(), null).withDetails(details);
+      } catch (SQLException e) {
+        return failure(e, s, login.user());
+      } finally {
+        props.remove("password");
+      }
+    } catch (SecretUnavailableException e) {
+      return TestResult.failure("sql.secret", e.getMessage(), null);
+    }
+  }
+
+  private static void closeOnCancel(Connection connection) {
+    try {
+      connection.close();
+    } catch (SQLException ignored) {
+      // The operation already ended or the server has closed its socket.
+    }
+  }
+
+  private static String discoveryDatabase(ConnectionConfig cfg) {
+    String database = cfg.string("/advanced/discoveryDatabase");
+    return database == null || database.isBlank() ? "postgres" : database;
+  }
+
+  private TestResult testOne(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, ConnectionSettings s) {
+    long started = System.nanoTime();
+    List<TestResult.Check> checks = new ArrayList<>();
+    int budget = (int) Math.max(1, Math.min(BUDGET_MS, ctx.remaining().toMillis()));
+    Properties props;
+    try {
+      props = dialect.properties(s.withConnectTimeoutAtMost(budget), certificates(ctx), budget);
     } catch (IOException e) {
       return TestResult.failure("sql.certificate", e.getMessage(), null);
     }
@@ -78,6 +184,7 @@ final class TestProbe {
       long connectMs = ms(connectStart);
       checks.add(new TestResult.Check("connect", true, connectMs, "Connected to " + s.target()));
       try (c) {
+        ctx.onCancel(() -> closeOnCancel(c));
         return probe(c, cfg, s, login.user(), checks, connectMs, started);
       } catch (SQLException e) {
         return failure(e, s, login.user()).withChecks(checks);

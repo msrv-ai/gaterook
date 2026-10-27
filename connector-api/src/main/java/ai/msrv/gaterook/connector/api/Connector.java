@@ -37,6 +37,11 @@ public interface Connector extends AutoCloseable {
   /** Persists nothing; may stop with needsConfirmation (host key, certificate, exec plugin). */
   TestResult test(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx);
 
+  /** Authenticates a server draft and returns selectable names in {@code details.databases}; saves nothing. */
+  default TestResult discoverDatabases(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
+    return TestResult.failure("discovery-unavailable", "This connector can't list databases.", null);
+  }
+
   default HealthResult health(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
     TestResult t = test(cfg, secrets, ctx);
     return t.ok()

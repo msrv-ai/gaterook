@@ -241,6 +241,17 @@ class ConnectionsController {
     return TestDtos.confirmed(tester.confirm(request.confirmationId(), Reasons.check(request.reason())));
   }
 
+  @PostMapping("/api/connections/databases")
+  TestDtos.Outcome discoverDatabases(@RequestBody TestDraft request) {
+    Map<String, SecretInput> secrets = secrets(request.secrets());
+    try {
+      return TestDtos.outcome(tester.discoverDatabases(request.type(), env(request.env()), request.config(), secrets,
+          request.existing(), request.confirm()));
+    } finally {
+      clear(secrets, request.secrets());
+    }
+  }
+
   @PostMapping("/api/connections")
   ResponseEntity<Row> create(@RequestBody Create request) {
     Map<String, SecretInput> secrets = secrets(request.secrets());

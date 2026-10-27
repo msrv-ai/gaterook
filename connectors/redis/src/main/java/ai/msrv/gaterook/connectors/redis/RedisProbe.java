@@ -270,6 +270,15 @@ final class RedisProbe {
     d.set("snippets", snippets);
     d.put("tls", s.tls());
     d.put("database", s.database());
+    DatabaseListing listing = databases(x, s.database());
+    ArrayNode available = d.putArray("databases");
+    listing.databases().forEach(available::add);
+    d.put("discoveryComplete", listing.complete());
+    if (!listing.complete()) {
+      result = result.withHint(new Hint(Severity.INFO, "redis.databases-incomplete", "connection.databases",
+          "The server did not expose its database count. The list includes only databases reported by INFO "
+              + "and the database used for this successful connection; empty databases may be missing."));
+    }
     if (dbsize >= 0) {
       d.put("keys", dbsize);
     }
@@ -277,6 +286,44 @@ final class RedisProbe {
     d.put(RedisSettings.GLOB_CHARS, chars.id == null ? "unknown" : chars.id);
     d.put("probe", "The test sends SET … NX XX, which can't write; refused probes show in ACL LOG.");
     return result.withMetadata(meta).withDetails(d);
+  }
+
+  record DatabaseListing(List<Integer> databases, boolean complete) {}
+
+  private static DatabaseListing databases(ReadOnlyCommandExecutor x, int connectedDatabase) {
+    try {
+      Map<String, Object> config = Replies.pairs(run(x, Cmd.CONFIG, "GET", "databases"));
+      int count = Integer.parseInt(Replies.text(config.get("databases")));
+      if (count > 0 && count <= 1_024) {
+        return new DatabaseListing(java.util.stream.IntStream.range(0, count).boxed().toList(), true);
+      }
+    } catch (JedisDataException | NumberFormatException e) {
+      // Managed servers and read-only users may not expose CONFIG. INFO lists populated databases only.
+    }
+    String keyspace = "";
+    try {
+      keyspace = Replies.text(run(x, Cmd.INFO, "keyspace"));
+    } catch (JedisDataException e) {
+      // The connected database is the only verified choice when both metadata commands are unavailable.
+    }
+    return new DatabaseListing(keyspaceDatabases(keyspace, connectedDatabase), false);
+  }
+
+  static List<Integer> keyspaceDatabases(String keyspace, int connectedDatabase) {
+    java.util.SortedSet<Integer> databases = new java.util.TreeSet<>();
+    databases.add(connectedDatabase);
+    if (keyspace != null) {
+      for (String line : keyspace.split("\\r?\\n")) {
+        java.util.regex.Matcher match = java.util.regex.Pattern.compile("^db([0-9]{1,4}):.*$").matcher(line);
+        if (match.matches()) {
+          int database = Integer.parseInt(match.group(1));
+          if (database <= 1_023) {
+            databases.add(database);
+          }
+        }
+      }
+    }
+    return List.copyOf(databases);
   }
 
   /**

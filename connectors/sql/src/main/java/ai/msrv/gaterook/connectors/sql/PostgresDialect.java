@@ -1,6 +1,8 @@
 package ai.msrv.gaterook.connectors.sql;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.Driver;
@@ -61,7 +63,7 @@ public final class PostgresDialect implements SqlDialect {
 
   @Override
   public String url(ConnectionSettings s) {
-    return "jdbc:postgresql://" + s.host() + ":" + s.port() + "/" + s.database();
+    return "jdbc:postgresql://" + s.host() + ":" + s.port() + "/" + URLEncoder.encode(s.database(), StandardCharsets.UTF_8).replace("+", "%20");
   }
 
   @Override

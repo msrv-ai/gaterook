@@ -61,7 +61,8 @@ class ManifestTest {
         shown.add(e.getValue().path("title").asString());
       }
     }
-    assertThat(shown).containsExactly("Host", "Port", "Database", "User", "Password");
+    assertThat(shown).containsExactly("Host", "Port", "Database", "Databases", "User", "Password");
+    assertThat(manifest.configSchema().path("x-database-selection").path("path").asString()).isEqualTo("/databases");
     assertThat(properties.path("password").path("writeOnly").asBoolean()).isTrue();
     assertThat(properties.path("options").path("properties").path("tls").path("default").asBoolean()).isTrue();
   }

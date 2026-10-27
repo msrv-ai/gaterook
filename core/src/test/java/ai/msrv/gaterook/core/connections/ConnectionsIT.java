@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
+import ai.msrv.gaterook.connector.api.ConnectorManifest;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.TestResult;
@@ -20,6 +21,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
+import java.util.Set;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -37,6 +39,32 @@ class ConnectionsIT {
   private static ConnectionService connections;
   private static ConnectionTester tester;
   private static ConnectionConfigs configs;
+
+  @Test
+  void databaseSelectionMayBeOmittedOnlyWhileDiscoveringOrForALegacySingleDatabase() {
+    ObjectNode schema = TestCore.JSON.createObjectNode();
+    schema.put("type", "object");
+    schema.putObject("x-database-selection").put("path", "/databases").put("legacyPath", "/database")
+        .put("required", true);
+    ObjectNode properties = schema.putObject("properties");
+    properties.putObject("database").put("type", "string");
+    properties.putObject("databases").put("type", "array").put("minItems", 1)
+        .putObject("items").put("type", "string");
+    ConnectorManifest manifest = ConnectorManifest.builder("selection-test", "1.0.0", ConnectorManifest.Kind.BUILT_IN)
+        .configSchema(schema).build();
+    ObjectNode config = TestCore.JSON.createObjectNode();
+    connections.validate(manifest, config, Set.of(), Env.DEV, true);
+    assertThatThrownBy(() -> connections.validate(manifest, config, Set.of(), Env.DEV))
+        .isInstanceOfSatisfying(ProblemException.class, e -> assertThat(e.field()).isEqualTo("/config/databases"));
+    config.put("database", "legacy");
+    connections.validate(manifest, config, Set.of(), Env.DEV);
+    config.remove("database");
+    config.putArray("databases").add("orders").add("analytics");
+    connections.validate(manifest, config, Set.of(), Env.DEV);
+    config.putArray("databases");
+    assertThatThrownBy(() -> connections.validate(manifest, config, Set.of(), Env.DEV, true))
+        .isInstanceOf(ProblemException.class);
+  }
 
   @BeforeAll
   static void start() {
@@ -189,6 +217,33 @@ class ConnectionsIT {
     ConnectionTester.Outcome again = tester.testDraft("sshfake", Env.DEV, trusted.config(),
         Map.of("/credentials/password", SecretInput.local("pw-ssh-1".toCharArray())), null, null);
     assertThat(again.result().ok()).isTrue();
+  }
+
+  @Test
+  void discoveringDatabasesUsesDraftSecretsWithoutSavingAndMasksFailures() {
+    int before = core.jdbc().queryForObject("select count(*) from connection", Integer.class);
+    SecretInput password = SecretInput.local("discovery-pass-7654321".toCharArray());
+    ConnectionTester.Outcome found = tester.discoverDatabases("pgfake", Env.DEV, TestCore.config("db.test"),
+        Map.of("/credentials/password", password), null, null);
+    assertThat(found.result().ok()).isTrue();
+    assertThat(found.result().details().path("databases").toString()).isEqualTo("[\"orders\",\"analytics\"]");
+    assertThat(password.value()).containsOnly('\0');
+    assertThat(core.jdbc().queryForObject("select count(*) from connection", Integer.class)).isEqualTo(before);
+
+    ConnectionTester.Outcome failed = tester.discoverDatabases("pgfake", Env.DEV, TestCore.config("fail.test"),
+        Map.of("/credentials/password", SecretInput.local("discovery-pass-7654321".toCharArray())), null, null);
+    assertThat(failed.result().error().message()).contains("‹masked›").doesNotContain("discovery-pass-7654321");
+  }
+
+  @Test
+  void discoveringWithStoredCredentialsRetainsTheNewHostConfirmation() {
+    core.connection("discovery-stored", "pgfake", Env.DEV, "db.test");
+    assertThatThrownBy(() -> tester.discoverDatabases("pgfake", Env.DEV, TestCore.config("another.test"), Map.of(),
+        "discovery-stored", null)).isInstanceOfSatisfying(ProblemException.class,
+            e -> assertThat(e.confirm()).isEqualTo(ConnectionService.CONFIRM_NEW_HOST));
+    ConnectionTester.Outcome result = tester.discoverDatabases("pgfake", Env.DEV, TestCore.config("db.test"),
+        Map.of(), "discovery-stored", null);
+    assertThat(result.result().ok()).isTrue();
   }
 
   @Test

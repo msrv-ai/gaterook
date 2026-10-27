@@ -72,7 +72,7 @@ public final class ConnectorEndpoint {
   /** Whether this endpoint answers {@code method}. */
   public static boolean handles(String method) {
     return switch (method) {
-      case Gpp.CONNECTOR_EXECUTE, Gpp.CONNECTOR_TEST, Gpp.CONNECTOR_CLASSIFY, Gpp.CONNECTOR_DESCRIBE_ACTION,
+      case Gpp.CONNECTOR_EXECUTE, Gpp.CONNECTOR_TEST, Gpp.CONNECTOR_DISCOVER_DATABASES, Gpp.CONNECTOR_CLASSIFY, Gpp.CONNECTOR_DESCRIBE_ACTION,
           Gpp.CONNECTOR_TOOLS -> true;
       default -> false;
     };
@@ -81,7 +81,8 @@ public final class ConnectorEndpoint {
   public Object handle(String method, JsonNode params, JsonRpcPeer.Incoming incoming) throws RpcException {
     return switch (method) {
       case Gpp.CONNECTOR_EXECUTE -> execute(Messages.Execute.read(params), incoming);
-      case Gpp.CONNECTOR_TEST -> test(Messages.Test.read(params), incoming);
+      case Gpp.CONNECTOR_TEST -> test(Messages.Test.read(params), incoming, false);
+      case Gpp.CONNECTOR_DISCOVER_DATABASES -> test(Messages.Test.read(params), incoming, true);
       case Gpp.CONNECTOR_CLASSIFY -> classify(Messages.Classify.read(params));
       case Gpp.CONNECTOR_DESCRIBE_ACTION -> describe(Messages.Describe.read(params));
       case Gpp.CONNECTOR_TOOLS -> tools(Messages.Tools.read(params));
@@ -123,12 +124,13 @@ public final class ConnectorEndpoint {
     }
   }
 
-  private Object test(Messages.Test t, JsonRpcPeer.Incoming incoming) throws RpcException {
+  private Object test(Messages.Test t, JsonRpcPeer.Incoming incoming, boolean discovery) throws RpcException {
     Loaded l = loaded(t.generation());
     HostExecContext ctx = context(t.callId(), t.callToken(), null, null, t.connection(), t.limits(), t.timeoutMs(),
         false, null, null, null, l, t.egress(), incoming);
     try (RemoteSecretResolver secrets = new RemoteSecretResolver(peer.get(), t.callToken())) {
-      TestResult result = l.connector().test(t.connection(), secrets, ctx);
+      TestResult result = discovery ? l.connector().discoverDatabases(t.connection(), secrets, ctx)
+          : l.connector().test(t.connection(), secrets, ctx);
       return WireCodec.test(result == null ? TestResult.failure("no-result", "The plugin returned no result.", null)
           : result);
     } catch (RuntimeException | LinkageError | StackOverflowError e) {

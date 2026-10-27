@@ -54,6 +54,14 @@ final class Configs {
       return this;
     }
 
+    Cfg databases(int... databases) {
+      var selection = root.withObjectProperty("connection").putArray("databases");
+      for (int database : databases) {
+        selection.add(database);
+      }
+      return this;
+    }
+
     Cfg tls(boolean on, String verify, String caPem) {
       ObjectNode c = root.withObjectProperty("connection");
       c.put("tls", on);

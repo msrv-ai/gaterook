@@ -93,7 +93,17 @@ final class ClickHouseClient {
    * @param params the values of {@code {name:Type}} placeholders
    */
   Answer query(String sql, Map<String, String> params, int maxRows) throws ConnectorException {
-    URI uri = uri(params, maxRows);
+    return query(sql, params, maxRows, true);
+  }
+
+  /** Lists databases using the account's server default, before a database has been selected. */
+  Answer discoverDatabases() throws ConnectorException {
+    return query("SHOW DATABASES", Map.of(), 1000, false);
+  }
+
+  private Answer query(String sql, Map<String, String> params, int maxRows, boolean selectDatabase)
+      throws ConnectorException {
+    URI uri = uri(params, maxRows, selectDatabase);
     Map<String, List<String>> headers = new LinkedHashMap<>();
     headers.put("Accept", List.of("application/json"));
     headers.put("Content-Type", List.of("text/plain; charset=utf-8"));
@@ -151,9 +161,13 @@ final class ClickHouseClient {
 
   /** The URL of a query: the database, the format, the limits and the parameters. */
   URI uri(Map<String, String> params, int maxRows) {
+    return uri(params, maxRows, true);
+  }
+
+  private URI uri(Map<String, String> params, int maxRows, boolean selectDatabase) {
     StringBuilder q = new StringBuilder(config.base().toString()).append('?');
-    q.append("database=").append(enc(config.database()));
-    q.append("&default_format=JSONCompact");
+    if (selectDatabase) q.append("database=").append(enc(config.database())).append('&');
+    q.append("default_format=JSONCompact");
     q.append("&readonly=1");
     q.append("&allow_ddl=0");
     q.append("&max_execution_time=").append(config.maxExecutionSeconds());

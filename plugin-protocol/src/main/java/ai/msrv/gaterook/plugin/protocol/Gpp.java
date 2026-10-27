@@ -21,6 +21,7 @@ public final class Gpp {
   public static final String PLUGIN_UNLOAD = "plugin/unload";
   public static final String CONNECTOR_TOOLS = "connector/tools";
   public static final String CONNECTOR_TEST = "connector/test";
+  public static final String CONNECTOR_DISCOVER_DATABASES = "connector/discoverDatabases";
   public static final String CONNECTOR_CLASSIFY = "connector/classify";
   public static final String CONNECTOR_DESCRIBE_ACTION = "connector/describeAction";
   public static final String CONNECTOR_EXECUTE = "connector/execute";

@@ -20,6 +20,7 @@
     "type": "object",
     "additionalProperties": false,
     "required": ["host", "user", "password"],
+    "x-database-selection": {"path": "/databases", "legacyPath": "/database"},
     "x-card": {"description": "Analytics queries with row and time limits. Read only."},
     "properties": {
       "host": {
@@ -48,6 +49,11 @@
         "title": "Database",
         "description": "The database queries run in when they don't name one",
         "x-agent-visible": true
+      },
+      "databases": {
+        "type": "array", "title": "Databases", "minItems": 1, "maxItems": 100, "uniqueItems": true,
+        "items": {"type": "string", "minLength": 1, "maxLength": 128},
+        "description": "Databases selected for this connection.", "x-agent-visible": true
       },
       "user": {
         "type": "string",
@@ -107,6 +113,7 @@
         "additionalProperties": false,
         "required": ["sql"],
         "properties": {
+          "database": {"type": "string", "minLength": 1, "maxLength": 128, "description": "A selected database. Required when the connection has more than one selected database."},
           "sql": {"type": "string", "minLength": 1, "maxLength": 100000, "description": "One SELECT, WITH … SELECT, SHOW, DESCRIBE, EXPLAIN or EXISTS statement"},
           "limit": {"type": "integer", "minimum": 1, "maximum": 1000, "default": 100, "description": "Max rows; the connection and the endpoint cap it"}
         }
@@ -220,6 +227,7 @@
         "additionalProperties": false,
         "required": ["sql"],
         "properties": {
+          "database": {"type": "string", "minLength": 1, "maxLength": 128, "description": "A selected database. Required when the connection has more than one selected database."},
           "sql": {"type": "string", "minLength": 1, "maxLength": 100000, "description": "One SELECT or WITH … SELECT statement"},
           "kind": {"enum": ["PLAN", "PIPELINE", "ESTIMATE", "SYNTAX"], "default": "PLAN", "description": "What to explain"}
         }

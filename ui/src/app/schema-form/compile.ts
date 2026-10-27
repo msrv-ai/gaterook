@@ -439,7 +439,7 @@ export function compileSchema(input: JsonValue): CompiledForm {
   const schema = normalizeSchema(input);
   if (!isObject(schema)) return { sections: [], loose: [], all: [] };
   const root = compileNode(null, { ...schema, type: 'object' }, [], true, schema, new Set(), [], null);
-  const sections = root.children.filter((n) => n.kind === 'object');
+  const sections = displaySections(root.children.filter((n) => n.kind === 'object'));
   const loose = root.children.filter((n) => n.kind !== 'object');
   const all: SchemaNode[] = [];
   const walk = (n: SchemaNode) => {
@@ -448,6 +448,31 @@ export function compileSchema(input: JsonValue): CompiledForm {
   };
   [...loose, ...sections].forEach(walk);
   return { sections, loose, all };
+}
+
+/** `x-section` moves a direct field into one unambiguous top-level section without changing its config path. */
+function displaySections(sections: readonly SchemaNode[]): readonly SchemaNode[] {
+  const children = new Map(sections.map((section) => [section, [] as SchemaNode[]]));
+  const destinations = new Map<string, SchemaNode | null>();
+  for (const section of sections) {
+    destinations.set(section.pointer, destinations.has(section.pointer) ? null : section);
+  }
+  for (const section of sections) {
+    for (const node of section.children) {
+      const target = node.kind !== 'object' ? str(node.schema['x-section']) : null;
+      children.get(destinations.get(target ?? '') ?? section)!.push(node);
+    }
+  }
+  return sections.map((section) => {
+    const fields = children.get(section)!;
+    if (fields.length === section.children.length && fields.every((node, i) => node === section.children[i])) return section;
+    return { ...section, children: fields, rows: layoutRows(fields) };
+  });
+}
+
+/** Display ancestry can differ from config paths when a field uses `x-section`. */
+export function containsNode(parent: SchemaNode, node: SchemaNode): boolean {
+  return parent === node || parent.children.some((child) => containsNode(child, node));
 }
 
 /**

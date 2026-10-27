@@ -17,7 +17,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 /**
- * One HikariCP pool per connection (report 04 §1, §7.3): created lazily with no physical connection, at most
+ * One HikariCP pool per database of a connection (report 04 §1, §7.3): created lazily with no physical connection, at most
  * {@code poolSize} connections, idle ones closed after a minute, the whole pool after ten idle minutes. A pool belongs
  * to one version of its connection ({@code ConnectionConfig.version} changes with every edit, secret version and
  * policy change): another version gets a new pool and the old one is closed in the background once its calls end. A
@@ -37,7 +37,8 @@ final class SqlPools implements AutoCloseable {
   static final int SOCKET_TIMEOUT_MS = 610_000;
 
   private final SqlDialect dialect;
-  private final ConcurrentHashMap<String, Pool> pools = new ConcurrentHashMap<>();
+  private record PoolKey(String connectionId, String database) {}
+  private final ConcurrentHashMap<PoolKey, Pool> pools = new ConcurrentHashMap<>();
   private ScheduledThreadPoolExecutor scheduler;
   private boolean closed;
   private Duration idleTimeout = Duration.ofSeconds(60);
@@ -49,14 +50,16 @@ final class SqlPools implements AutoCloseable {
   /** One connection's pool. */
   final class Pool {
     final String connectionId;
+    final PoolKey key;
     final long configVersion;
     final HikariDataSource hikari;
     final CredentialAwareDataSource source;
     private volatile ServerInfo server;
     private volatile long lastUsedNanos = System.nanoTime();
 
-    private Pool(String connectionId, long configVersion, HikariDataSource hikari, CredentialAwareDataSource source) {
-      this.connectionId = connectionId;
+    private Pool(PoolKey key, long configVersion, HikariDataSource hikari, CredentialAwareDataSource source) {
+      this.key = key;
+      this.connectionId = key.connectionId();
       this.configVersion = configVersion;
       this.hikari = hikari;
       this.source = source;
@@ -98,14 +101,20 @@ final class SqlPools implements AutoCloseable {
    * {@code login}.
    */
   Pool pool(ConnectionConfig cfg, ConnectionSettings s, Credentials login, Path certificates) throws IOException {
-    Pool stale = null;
+    List<Pool> stale = new ArrayList<>();
     Pool result;
     synchronized (this) {
       if (closed) {
         login.close();
         throw new IllegalStateException("The SQL connector is closed");
       }
-      Pool current = pools.get(cfg.id());
+      PoolKey key = new PoolKey(cfg.id(), s.database());
+      for (Pool p : pools.values()) {
+        if (p.connectionId.equals(cfg.id()) && p.configVersion != cfg.version() && pools.remove(p.key, p)) {
+          closeLater(p);
+        }
+      }
+      Pool current = pools.get(key);
       if (current != null && current.configVersion == cfg.version()
           && (login.notAfter() == null || login.equals(current.source.current()))) {
         if (current.source.update(login)) {
@@ -116,11 +125,10 @@ final class SqlPools implements AutoCloseable {
         return current;
       }
       result = create(cfg, s, login, certificates);
-      stale = pools.put(cfg.id(), result);
+      Pool replaced = pools.put(key, result);
+      if (replaced != null) stale.add(replaced);
     }
-    if (stale != null) {
-      closeLater(stale);
-    }
+    stale.forEach(SqlPools::closeLater);
     return result;
   }
 
@@ -136,7 +144,7 @@ final class SqlPools implements AutoCloseable {
     }
     HikariConfig hc = new HikariConfig();
     // The pool's name shows up in Hikari's log lines: neither host nor user.
-    hc.setPoolName("gw-sql-" + shortId(cfg.id()));
+    hc.setPoolName("gw-sql-" + shortId(cfg.id()) + "-" + Integer.toHexString(java.util.Objects.hashCode(s.database())));
     hc.setDataSource(source);
     hc.setMaximumPoolSize(s.poolSize());
     hc.setMinimumIdle(0);
@@ -151,7 +159,7 @@ final class SqlPools implements AutoCloseable {
     hc.setRegisterMbeans(false);
     hc.setThreadFactory(Thread.ofVirtual().name("gw-sql-" + shortId(cfg.id()) + "-", 0).factory());
     hc.setScheduledExecutor(scheduler());
-    return new Pool(cfg.id(), cfg.version(), new HikariDataSource(hc), source);
+    return new Pool(new PoolKey(cfg.id(), s.database()), cfg.version(), new HikariDataSource(hc), source);
   }
 
   /** {@code min(10 min, notAfter − now − 60 s)}, not below Hikari's 30 s (it would silently use 30 min instead). */
@@ -168,14 +176,17 @@ final class SqlPools implements AutoCloseable {
 
   /** The current pool of a connection, if any (tests, health). */
   Pool current(String connectionId) {
-    return pools.get(connectionId);
+    return pools.values().stream().filter(p -> p.connectionId.equals(connectionId)).findFirst().orElse(null);
+  }
+
+  Pool current(String connectionId, String database) {
+    return pools.get(new PoolKey(connectionId, database));
   }
 
   /** The connection changed or went away: its pool closes after its calls. */
   void drop(String connectionId) {
-    Pool p = pools.remove(connectionId);
-    if (p != null) {
-      closeLater(p);
+    for (Pool p : pools.values()) {
+      if (p.connectionId.equals(connectionId) && pools.remove(p.key, p)) closeLater(p);
     }
   }
 
@@ -194,7 +205,7 @@ final class SqlPools implements AutoCloseable {
       }
     }
     for (Pool p : idle) {
-      if (pools.remove(p.connectionId, p)) {
+      if (pools.remove(p.key, p)) {
         closeLater(p);
       }
     }

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ai.msrv.gaterook.connector.api.ActionPreview;
 import ai.msrv.gaterook.connector.api.Classification;
+import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.PolicyView;
@@ -25,6 +26,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * The plugin against ClickHouse's HTTP interface in MockWebServer (step K6): the statement in the POST body, the
@@ -87,6 +89,60 @@ class ClickHouseConnectorTest {
       }
     }
     return null;
+  }
+
+  private ConnectionConfig selected(String... names) {
+    ConnectionConfig cfg = TestCalls.local(server.getPort());
+    ObjectNode settings = (ObjectNode) cfg.config().deepCopy();
+    var databases = settings.putArray("databases");
+    for (String name : names) databases.add(name);
+    return new ConnectionConfig(cfg.id(), cfg.name(), cfg.type(), cfg.env(), cfg.version(), settings,
+        cfg.secretFields(), cfg.metadata());
+  }
+
+  @Test
+  void discoveryUsesCredentialsBeforeChoosingADatabase() {
+    answer("{\"meta\":[],\"data\":[[\"analytics\"],[\"archive\"]],\"rows\":2}");
+    TestResult result = connector.discoverDatabases(selected("unavailable"), new TestCalls.Secrets(),
+        new TestCalls.Context(false));
+    assertThat(result.ok()).isTrue();
+    assertThat(result.details().path("databases")).extracting(JsonNode::asString)
+        .containsExactly("analytics", "archive");
+    assertThat(seen.getFirst().getBody().utf8()).isEqualTo("SHOW DATABASES");
+    assertThat(param(seen.getFirst(), "database")).isNull();
+    assertThat(seen.getFirst().getHeaders().get("X-ClickHouse-Key")).isEqualTo(TestCalls.PASSWORD);
+  }
+
+  @Test
+  void callsChooseASelectedDatabaseAndRejectOtherSourcesBeforeSending() throws Exception {
+    ConnectionConfig cfg = selected("analytics", "archive");
+    answer("{\"meta\":[],\"data\":[[1]],\"rows\":1}");
+    connector.execute(TestCalls.call("clickhouse_query", "{\"sql\":\"SELECT 1\",\"database\":\"archive\"}"),
+        cfg, new TestCalls.Secrets(), new TestCalls.Context(false));
+    assertThat(param(seen.getFirst(), "database")).isEqualTo("archive");
+    for (String args : List.of("{\"sql\":\"SELECT 1\"}",
+        "{\"sql\":\"SELECT 1\",\"database\":\"private\"}",
+        "{\"sql\":\"SELECT * FROM private.users\",\"database\":\"analytics\"}")) {
+      assertThatThrownBy(() -> connector.execute(TestCalls.call("clickhouse_query", args), cfg,
+          new TestCalls.Secrets(), new TestCalls.Context(false))).isInstanceOf(ConnectorException.class);
+    }
+    assertThat(seen).hasSize(1);
+    assertThatThrownBy(() -> ClickHouseConfig.of(selected())).isInstanceOf(ConnectorException.class);
+  }
+
+  @Test
+  void databaseListingFiltersInTheServerQueryAndTestingChecksEverySelection() throws Exception {
+    ConnectionConfig cfg = selected("analytics", "archive");
+    answer("{\"meta\":[],\"data\":[],\"rows\":0}");
+    connector.execute(TestCalls.call("clickhouse_list_databases", "{}"), cfg, new TestCalls.Secrets(),
+        new TestCalls.Context(false));
+    assertThat(seen.getFirst().getBody().utf8()).contains("d.name IN ({selected0:String}, {selected1:String})");
+    assertThat(param(seen.getFirst(), "param_selected0")).isEqualTo("analytics");
+    assertThat(param(seen.getFirst(), "param_selected1")).isEqualTo("archive");
+    answer("{\"meta\":[],\"data\":[[\"24.8\",\"gw_reader\",\"analytics\"]],\"rows\":1}");
+    refuse(403, 497, "Access denied to archive");
+    assertThat(connector.test(cfg, new TestCalls.Secrets(), new TestCalls.Context(false)).ok()).isFalse();
+    assertThat(param(seen.getLast(), "database")).isEqualTo("archive");
   }
 
   @Test

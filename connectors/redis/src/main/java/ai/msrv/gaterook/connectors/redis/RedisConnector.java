@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Optional;
 import redis.clients.jedis.exceptions.JedisException;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * The Redis connector (report 05): {@code redis_get} and {@code redis_scan} over Jedis 8.
@@ -93,7 +95,8 @@ public final class RedisConnector implements Connector {
   public ActionPreview describeAction(ToolCall call, ConnectionConfig cfg) {
     try {
       RedisSettings s = RedisSettings.parse(cfg);
-      return Actions.preview(RedisRequest.of(call.tool(), call.arguments(), cfg, s), s, cfg);
+      RedisRequest request = RedisRequest.of(call.tool(), call.arguments(), cfg, s);
+      return Actions.preview(request, s.withDatabase(request.database()), cfg);
     } catch (RedisSettings.InvalidSettingsException | RedisRequest.Refusal e) {
       // classify() denies such a call before any request exists; this preview only ever shows what was asked.
       return ActionPreview.of(ActionPreview.Kind.JSON, "json", call.arguments().toString(), cfg.name(),
@@ -114,6 +117,11 @@ public final class RedisConnector implements Connector {
     } catch (SecretUnavailableException e) {
       return TestResult.failure("redis.secret", e.getMessage(), null);
     }
+  }
+
+  @Override
+  public TestResult discoverDatabases(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
+    return test(cfg, secrets, ctx);
   }
 
   /** {@code PING} on the pool, at most 2 s; over 1 s is "Slow" (report 05 §5). */
@@ -154,9 +162,11 @@ public final class RedisConnector implements Connector {
     try {
       r = RedisRequest.of(tool, arguments, cfg, s);
     } catch (RedisRequest.Refusal e) {
-      throw e.rule.equals("key-not-allowed") ? ConnectorException.denied(e.getMessage())
+      throw e.rule.equals("key-not-allowed") || e.rule.equals("database-not-allowed")
+          ? ConnectorException.denied(e.getMessage())
           : ConnectorException.badInput(e.getMessage() + (e.hint == null ? "" : " " + e.hint));
     }
+    s = s.withDatabase(r.database());
     Budget budget = Budget.of(ctx.limits(), switch (r) {
       case RedisRequest.Get g -> g.limit();
       case RedisRequest.Scan sc -> sc.count();
@@ -164,9 +174,12 @@ public final class RedisConnector implements Connector {
     try (RedisSession session = clients.open(cfg, s, Credentials.resolve(s, secrets), ctx.deadline())) {
       ctx.onCancel(session::abort);
       RedisReads.Reading reading = switch (r) {
-        case RedisRequest.Get g -> RedisReads.get(session, g, budget, ctx, cfg.id());
-        case RedisRequest.Scan sc -> ScanLoop.scan(session, sc, budget, ctx, cfg.id());
+        case RedisRequest.Get g -> RedisReads.get(session, g, budget, ctx, s.cursorScope(cfg.id()));
+        case RedisRequest.Scan sc -> ScanLoop.scan(session, sc, budget, ctx, s.cursorScope(cfg.id()));
       };
+      if (!s.databases().isEmpty()) {
+        reading.structured().put("database", s.database());
+      }
       String text = r instanceof RedisRequest.Get ? RedisText.get(reading.structured(), s.database())
           : RedisText.scan(reading.structured());
       ToolResult result = ToolResult.json(reading.structured(), text);
@@ -187,6 +200,21 @@ public final class RedisConnector implements Connector {
       s = RedisSettings.parse(cfg);
     } catch (RedisSettings.InvalidSettingsException e) {
       throw ConnectorException.badInput("The settings of " + cfg.name() + " can't be used: " + e.getMessage());
+    }
+    if (s.databases().size() > 1) {
+      if (object != null && !object.isBlank()) {
+        throw ConnectorException.badInput("Choose a database with redis_scan and pass the key pattern as pattern.");
+      }
+      ObjectNode out = JsonNodeFactory.instance.objectNode();
+      var databases = out.putArray("databases");
+      s.databases().forEach(databases::add);
+      out.put("databaseRequired", true);
+      var allow = out.putArray("keyAllowlist");
+      s.keyAllowlist().forEach(pattern -> allow.add(pattern.pattern()));
+      var deny = out.putArray("keyDenylist");
+      s.keyDenylist().forEach(pattern -> deny.add(pattern.pattern()));
+      out.put("reads", "Pass database with redis_get or redis_scan to choose one of the selected databases.");
+      return Optional.of(out);
     }
     try (RedisSession session = clients.open(cfg, s, Credentials.resolve(s, secrets), ctx.deadline())) {
       ctx.onCancel(session::abort);
