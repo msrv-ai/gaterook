@@ -69,7 +69,7 @@
     </a>
     <div class="sc-nav__group" role="group" aria-labelledby="sc-g-foundations"><p class="sc-nav__label" id="sc-g-foundations">Foundations</p><ul><li><a href="#colors">Colour</a></li><li><a href="#typography">Typography</a></li><li><a href="#space">Space, radius, elevation</a></li><li><a href="#icons">Icons and logo</a></li></ul></div>
 <div class="sc-nav__group" role="group" aria-labelledby="sc-g-actions"><p class="sc-nav__label" id="sc-g-actions">Actions</p><ul><li><a href="#buttons">Buttons</a></li></ul></div>
-<div class="sc-nav__group" role="group" aria-labelledby="sc-g-layout"><p class="sc-nav__label" id="sc-g-layout">Layout</p><ul><li><a href="#cards">Cards</a></li><li><a href="#page-layout">Page layout</a></li><li><a href="#promo">Promotion</a></li></ul></div>
+<div class="sc-nav__group" role="group" aria-labelledby="sc-g-layout"><p class="sc-nav__label" id="sc-g-layout">Layout</p><ul><li><a href="#cards">Cards</a></li><li><a href="#page-layout">Page layout</a></li></ul></div>
 <div class="sc-nav__group" role="group" aria-labelledby="sc-g-shell"><p class="sc-nav__label" id="sc-g-shell">Shell</p><ul><li><a href="#shell">App shell</a></li><li><a href="#page-header">Page header</a></li></ul></div>
 <div class="sc-nav__group" role="group" aria-labelledby="sc-g-status-and-data"><p class="sc-nav__label" id="sc-g-status-and-data">Status and data</p><ul><li><a href="#kbd-avatar-client-mark">Keys, avatars, client marks</a></li><li><a href="#badges">Badges and counters</a></li><li><a href="#status">Status, environment, mode</a></li><li><a href="#tags-kv">Tags and key-value lists</a></li><li><a href="#stats">Stats</a></li><li><a href="#progress">Progress and meters</a></li><li><a href="#empty">Empty states</a></li></ul></div>
 <div class="sc-nav__group" role="group" aria-labelledby="sc-g-forms"><p class="sc-nav__label" id="sc-g-forms">Forms</p><ul><li><a href="#fields-inputs">Fields and inputs</a></li><li><a href="#choices">Checkbox, radio, switch</a></li><li><a href="#segmented">Segmented control</a></li><li><a href="#secret">Secret</a></li><li><a href="#choice-cards">Choice cards</a></li><li><a href="#search-file-drop">Search and file drop</a></li><li><a href="#form">Form layout</a></li></ul></div>
@@ -1610,145 +1610,6 @@
 &lt;span class=&quot;gw-client-mark gw-client-mark--generic gw-client-mark--lg&quot; role=&quot;img&quot; aria-label=&quot;Other app&quot;&gt;&lt;i class=&quot;gw-icon&quot; data-lucide=&quot;app-window&quot;&gt;&lt;/i&gt;&lt;/span&gt;</code></pre></details>
 </section>
 <!-- ▲ showcase/23-kbd-avatar-client-mark.html -->
-
-<!-- ▼ showcase/24-promo.html -->
-<section class="sc-section" id="promo" data-title="Promotion" data-group="Layout">
-  <h2>Promotion <code class="gw-code">gw-promo</code></h2>
-  <p>A presentation layout for GateRook's public introduction, outside the desktop application shell. It uses the kit's existing colours, type, spacing, buttons, cards and environment markers. The complete reference is <a href="gaterook.html">the GateRook promo page</a>; its interactive examples are labelled simulations and never call infrastructure.</p>
-
-  <h3>Message and action</h3>
-  <p class="sc-lead">Lead with the developer workflow: connect infrastructure to AI and spend more time building. Make “Your #1 tool” the headline, positioning GateRook as the developer’s preferred tool for connecting a stack to AI. The supporting message is “Accelerate your development by up to 10×.” Use one primary action per section. This compact example uses the existing display type role; the full page uses <code class="gw-code">gw-promo__headline</code>.</p>
-  <div class="sc-demo sc-demo--canvas sc-demo--col" data-sc-code>
-    <div class="gw-promo gw-stack">
-      <p class="gw-promo__eyebrow">Free and open-source developer tool</p>
-      <!-- h1 with gw-promo__headline on the full promo page -->
-      <h4 class="gw-text-display">Your #1 tool to connect<br><span class="gw-promo__accent">your stack to AI.</span></h4>
-      <p class="gw-promo__lead">GateRook connects your databases, logs, APIs, and cloud services to your favorite AI. Less time gathering context. More time building, debugging, and shipping.</p>
-      <p class="gw-text-h1">Accelerate your development <span class="gw-promo__accent">by up to 10×.</span></p>
-      <div class="gw-promo__actions">
-        <a class="gw-btn gw-btn--primary" href="gaterook.html">Explore GateRook <i class="gw-icon" data-lucide="arrow-right"></i></a>
-        <a class="gw-btn gw-btn--ghost" href="https://github.com/msrv-ai/gaterook" target="_blank" rel="noopener noreferrer">Open Source on GitHub<i class="gw-icon" data-lucide="external-link"></i><span class="gw-sr-only"> (opens in a new tab)</span></a>
-        <span class="gw-text-small gw-fg-muted">Runs on your computer</span>
-      </div>
-    </div>
-  </div>
-<details class="sc-code"><summary>Markup</summary><pre><code>&lt;div class=&quot;gw-promo gw-stack&quot;&gt;
-  &lt;p class=&quot;gw-promo__eyebrow&quot;&gt;Free and open-source developer tool&lt;/p&gt;
-  &lt;!-- h1 with gw-promo__headline on the full promo page --&gt;
-  &lt;h4 class=&quot;gw-text-display&quot;&gt;Your #1 tool to connect&lt;br&gt;&lt;span class=&quot;gw-promo__accent&quot;&gt;your stack to AI.&lt;/span&gt;&lt;/h4&gt;
-  &lt;p class=&quot;gw-promo__lead&quot;&gt;GateRook connects your databases, logs, APIs, and cloud services to your favorite AI. Less time gathering context. More time building, debugging, and shipping.&lt;/p&gt;
-  &lt;p class=&quot;gw-text-h1&quot;&gt;Accelerate your development &lt;span class=&quot;gw-promo__accent&quot;&gt;by up to 10×.&lt;/span&gt;&lt;/p&gt;
-  &lt;div class=&quot;gw-promo__actions&quot;&gt;
-    &lt;a class=&quot;gw-btn gw-btn--primary&quot; href=&quot;gaterook.html&quot;&gt;Explore GateRook &lt;i class=&quot;gw-icon&quot; data-lucide=&quot;arrow-right&quot;&gt;&lt;/i&gt;&lt;/a&gt;
-    &lt;a class=&quot;gw-btn gw-btn--ghost&quot; href=&quot;https://github.com/msrv-ai/gaterook&quot; target=&quot;_blank&quot; rel=&quot;noopener noreferrer&quot;&gt;Open Source on GitHub&lt;i class=&quot;gw-icon&quot; data-lucide=&quot;external-link&quot;&gt;&lt;/i&gt;&lt;span class=&quot;gw-sr-only&quot;&gt; (opens in a new tab)&lt;/span&gt;&lt;/a&gt;
-    &lt;span class=&quot;gw-text-small gw-fg-muted&quot;&gt;Runs on your computer&lt;/span&gt;
-  &lt;/div&gt;
-&lt;/div&gt;</code></pre></details>
-
-  <h3>Service connections in motion</h3>
-  <p>The homepage diagram uses intact vendor marks, existing AI client monograms, real guide links and decorative request/response paths. It pauses offscreen, in a hidden tab, and on request. Reduced-motion users see the complete static diagram. This example is included from the homepage so the compositions stay in sync.</p>
-  <div class="gw-promo">
-    <section class="gw-promo__flow" aria-labelledby="sc-flow-title" aria-describedby="sc-flow-description" data-promo-flow>
-      <div class="gw-promo__flow-heading">
-        <p class="gw-promo__eyebrow">One connection. Your whole stack.</p>
-        <h2 class="gw-text-h1" id="sc-flow-title">Everything connects through GateRook.</h2>
-        <p class="gw-text-body-read gw-fg-secondary" id="sc-flow-description">Your AI asks. GateRook checks access. Your services respond.</p>
-      </div>
-      <div class="gw-promo__flow-stage" data-flow-stage>
-        <svg class="gw-promo__flow-lines" viewBox="0 0 1000 400" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-          <path class="gw-promo__flow-track" data-flow-path="0" d="M200 50 C350 50 350 200 500 200 S650 50 800 50"></path>
-          <path class="gw-promo__flow-track" data-flow-path="1" d="M200 150 C350 150 350 200 500 200 S650 150 800 150"></path>
-          <path class="gw-promo__flow-track" data-flow-path="2" d="M200 250 C350 250 350 200 500 200 S650 250 800 250"></path>
-          <path class="gw-promo__flow-track" data-flow-path="3" d="M200 350 C350 350 350 200 500 200 S650 350 800 350"></path>
-          <path class="gw-promo__flow-signal" data-flow-path="0" pathLength="100" d="M200 50 C350 50 350 200 500 200 S650 50 800 50"></path>
-          <path class="gw-promo__flow-signal" data-flow-path="1" pathLength="100" d="M200 150 C350 150 350 200 500 200 S650 150 800 150"></path>
-          <path class="gw-promo__flow-signal" data-flow-path="2" pathLength="100" d="M200 250 C350 250 350 200 500 200 S650 250 800 250"></path>
-          <path class="gw-promo__flow-signal" data-flow-path="3" pathLength="100" d="M200 350 C350 350 350 200 500 200 S650 350 800 350"></path>
-        </svg>
-        <div class="gw-promo__flow-side">
-          <p class="gw-text-overline gw-fg-muted">Your services</p>
-          <ul class="gw-promo__flow-nodes" role="list">
-            <li><a class="gw-card gw-promo__flow-node" href="mcp-mysql.html" data-flow-source="0"><span class="gw-promo__service-mark"><img src="../assets/integrations/mysql.svg" width="40" height="40" alt=""></span><span>MySQL</span><i class="gw-icon gw-icon--sm" data-lucide="arrow-up-right"></i></a></li>
-            <li><a class="gw-card gw-promo__flow-node" href="mcp-mongodb.html" data-flow-source="1"><span class="gw-promo__service-mark"><img src="../assets/integrations/mongodb.svg" width="40" height="40" alt=""></span><span>MongoDB</span><i class="gw-icon gw-icon--sm" data-lucide="arrow-up-right"></i></a></li>
-            <li><a class="gw-card gw-promo__flow-node" href="mcp-opensearch.html" data-flow-source="2"><span class="gw-promo__service-mark"><img src="../assets/integrations/opensearch.svg" width="40" height="40" alt=""></span><span>OpenSearch</span><i class="gw-icon gw-icon--sm" data-lucide="arrow-up-right"></i></a></li>
-            <li><a class="gw-card gw-promo__flow-node" href="mcp-redis.html" data-flow-source="3"><span class="gw-promo__service-mark"><img src="../assets/integrations/redis.svg" width="40" height="40" alt=""></span><span>Redis</span><i class="gw-icon gw-icon--sm" data-lucide="arrow-up-right"></i></a></li>
-          </ul>
-        </div>
-        <div class="gw-promo__flow-center">
-          <div class="gw-promo__flow-halo" aria-hidden="true"></div>
-          <div class="gw-card gw-promo__flow-hub" data-flow-hub>
-            <img class="gw-promo__flow-logo" src="../assets/logo-mark.svg" width="64" height="64" alt="">
-            <p class="gw-text-h1">GateRook</p>
-            <p class="gw-text-small gw-fg-secondary">Your local MCP gateway</p>
-            <p class="gw-promo__flow-guard gw-text-caption"><i class="gw-icon gw-icon--sm" data-lucide="shield-check"></i>Your access rules</p>
-          </div>
-        </div>
-        <div class="gw-promo__flow-side">
-          <p class="gw-text-overline gw-fg-muted">Your favorite AI</p>
-          <ul class="gw-promo__flow-nodes" role="list">
-            <li><a class="gw-card gw-promo__flow-node" href="docs-getting-started.html#clients" data-flow-client="0"><span class="gw-client-mark gw-client-mark--claude" aria-hidden="true">CD</span><span>Claude Desktop</span></a></li>
-            <li><a class="gw-card gw-promo__flow-node" href="docs-getting-started.html#clients" data-flow-client="1"><span class="gw-client-mark gw-client-mark--codex" aria-hidden="true">Cx</span><span>Codex</span></a></li>
-            <li><a class="gw-card gw-promo__flow-node" href="docs-getting-started.html#clients" data-flow-client="2"><span class="gw-client-mark gw-client-mark--cursor" aria-hidden="true">Cu</span><span>Cursor</span></a></li>
-            <li><a class="gw-card gw-promo__flow-node" href="docs-getting-started.html#clients" data-flow-client="3"><span class="gw-client-mark gw-client-mark--antigravity" aria-hidden="true">Ag</span><span>Antigravity</span></a></li>
-          </ul>
-        </div>
-      </div>
-      <div class="gw-promo__flow-more" aria-labelledby="sc-flow-more-title">
-        <div class="gw-promo__flow-more-heading"><h3 class="gw-text-overline" id="sc-flow-more-title">More connections, same gateway</h3><span class="gw-text-caption gw-fg-muted">Explore the rest of your stack</span></div>
-        <!-- @FLOW-MORE:START -->
-        <ul class="gw-promo__flow-more-list" role="list"><li><a class="gw-card gw-promo__flow-mini" href="mcp-postgresql.html" aria-label="PostgreSQL integration guide"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon" data-lucide="database"></i></span><span>PostgreSQL</span></a></li><li><a class="gw-card gw-promo__flow-mini" href="mcp-mariadb.html" aria-label="MariaDB integration guide"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon" data-lucide="database"></i></span><span>MariaDB</span></a></li><li><a class="gw-card gw-promo__flow-mini" href="mcp-loki.html" aria-label="Loki integration guide"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon" data-lucide="scroll-text"></i></span><span>Loki</span></a></li><li><a class="gw-card gw-promo__flow-mini" href="mcp-cloudwatch.html" aria-label="AWS CloudWatch Logs integration guide"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon" data-lucide="scroll-text"></i></span><span>CloudWatch</span></a></li><li><a class="gw-card gw-promo__flow-mini" href="mcp-cloud-logging.html" aria-label="Google Cloud Logging integration guide"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon" data-lucide="scroll-text"></i></span><span>Cloud Logging</span></a></li><li><a class="gw-card gw-promo__flow-mini" href="mcp-http.html" aria-label="HTTP API integration guide"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon" data-lucide="globe"></i></span><span>HTTP API</span></a></li><li><a class="gw-card gw-promo__flow-mini" href="mcp-aws.html" aria-label="AWS integration guide"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon" data-lucide="cloud"></i></span><span>AWS</span></a></li><li><a class="gw-card gw-promo__flow-mini" href="mcp-gcp.html" aria-label="Google Cloud integration guide"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon" data-lucide="cloud"></i></span><span>Google Cloud</span></a></li><li><a class="gw-card gw-promo__flow-mini" href="mcp-kubernetes.html" aria-label="Kubernetes integration guide"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon" data-lucide="container"></i></span><span>Kubernetes</span></a></li><li><a class="gw-card gw-promo__flow-mini" href="mcp-ssh.html" aria-label="SSH integration guide"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon" data-lucide="terminal"></i></span><span>SSH</span></a></li><li><a class="gw-card gw-promo__flow-mini" href="mcp-mcp-server.html" aria-label="MCP servers integration guide"><span class="gw-icon-tile gw-icon-tile--brand gw-icon-tile--sm"><i class="gw-icon" data-lucide="plug"></i></span><span>MCP servers</span></a></li></ul>
-        <!-- @FLOW-MORE:END -->
-      </div>
-      <div class="gw-promo__flow-caption">
-        <p class="gw-text-caption gw-fg-muted">Illustrated request and response flow. Your credentials stay with GateRook.</p>
-        <div class="gw-promo__actions"><a class="gw-link gw-text-small" href="docs.html">Explore all integrations</a><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-flow-pause hidden><span data-flow-pause-icon><i class="gw-icon gw-icon--sm" data-lucide="pause"></i></span><span data-flow-play-icon hidden><i class="gw-icon gw-icon--sm" data-lucide="play"></i></span><span data-flow-pause-label>Pause animation</span></button></div>
-      </div>
-    </section>
-    </div>
-
-  <h3>Native questions and answers</h3>
-  <p class="sc-lead">Use native <code class="gw-code">details</code> and <code class="gw-code">summary</code> for optional explanations. The summary is keyboard accessible without JavaScript. Keep the local-processing boundary explicit: a cloud AI can receive permitted tool results.</p>
-  <div class="sc-demo sc-demo--canvas sc-demo--col" data-sc-code>
-    <div class="gw-promo">
-      <div class="gw-promo__faq">
-        <details open>
-          <summary>What stays on my computer?<i class="gw-icon" data-lucide="plus"></i></summary>
-          <p>GateRook runs locally and manages your connection secrets and access rules on your computer. If you use a cloud AI, permitted tool results may be sent to that AI provider.</p>
-        </details>
-        <details>
-          <summary>Can the AI change production without me?<i class="gw-icon" data-lucide="plus"></i></summary>
-          <p>Changes require your approval. You review the exact action and target environment before deciding whether it should run. You can also make tools read only or turn them off.</p>
-        </details>
-      </div>
-    </div>
-  </div>
-<details class="sc-code"><summary>Markup</summary><pre><code>&lt;div class=&quot;gw-promo&quot;&gt;
-  &lt;div class=&quot;gw-promo__faq&quot;&gt;
-    &lt;details open&gt;
-      &lt;summary&gt;What stays on my computer?&lt;i class=&quot;gw-icon&quot; data-lucide=&quot;plus&quot;&gt;&lt;/i&gt;&lt;/summary&gt;
-      &lt;p&gt;GateRook runs locally and manages your connection secrets and access rules on your computer. If you use a cloud AI, permitted tool results may be sent to that AI provider.&lt;/p&gt;
-    &lt;/details&gt;
-    &lt;details&gt;
-      &lt;summary&gt;Can the AI change production without me?&lt;i class=&quot;gw-icon&quot; data-lucide=&quot;plus&quot;&gt;&lt;/i&gt;&lt;/summary&gt;
-      &lt;p&gt;Changes require your approval. You review the exact action and target environment before deciding whether it should run. You can also make tools read only or turn them off.&lt;/p&gt;
-    &lt;/details&gt;
-  &lt;/div&gt;
-&lt;/div&gt;</code></pre></details>
-
-  <h3>Public documentation and connector guides</h3>
-  <p>The same promo shell also hosts the <a href="docs.html">integration directory</a>, <a href="docs-getting-started.html">getting started guide</a> and fifteen connector guides. They reuse existing breadcrumb, card, grid, code block, table, key-value and FAQ components. Content and shared compositions are rendered at build time by <code class="gw-code">scripts/build-docs.mjs</code>; no JavaScript is needed to read a guide or follow its links.</p>
-  <div class="sc-demo sc-demo--canvas sc-demo--col" data-sc-code>
-    <div class="gw-promo gw-stack">
-      <nav class="gw-breadcrumb" aria-label="Example documentation breadcrumb"><ol><li><a href="gaterook.html">Home</a></li><li><i class="gw-icon" data-lucide="chevron-right"></i><a href="docs.html">Docs</a></li><li><i class="gw-icon" data-lucide="chevron-right"></i><span aria-current="page">MySQL</span></li></ol></nav>
-      <article class="gw-card gw-card--interactive"><div class="gw-card__header"><div class="gw-card__heading"><h4 class="gw-card__title"><span class="gw-icon-tile gw-icon-tile--brand"><i class="gw-icon" data-lucide="database"></i></span><a class="gw-card__link" href="mcp-mysql.html">MySQL MCP connector</a></h4><p class="gw-card__description">Connection settings, available tools, an illustrated query and troubleshooting, using the same kit as the application.</p></div></div><div class="gw-card__footer"><span class="gw-text-caption gw-fg-muted">Setup, tools &amp; examples</span><i class="gw-icon" data-lucide="arrow-up-right"></i></div></article>
-    </div>
-  </div>
-<details class="sc-code"><summary>Markup</summary><pre><code>&lt;div class=&quot;gw-promo gw-stack&quot;&gt;
-  &lt;nav class=&quot;gw-breadcrumb&quot; aria-label=&quot;Example documentation breadcrumb&quot;&gt;&lt;ol&gt;&lt;li&gt;&lt;a href=&quot;gaterook.html&quot;&gt;Home&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;i class=&quot;gw-icon&quot; data-lucide=&quot;chevron-right&quot;&gt;&lt;/i&gt;&lt;a href=&quot;docs.html&quot;&gt;Docs&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;i class=&quot;gw-icon&quot; data-lucide=&quot;chevron-right&quot;&gt;&lt;/i&gt;&lt;span aria-current=&quot;page&quot;&gt;MySQL&lt;/span&gt;&lt;/li&gt;&lt;/ol&gt;&lt;/nav&gt;
-  &lt;article class=&quot;gw-card gw-card--interactive&quot;&gt;&lt;div class=&quot;gw-card__header&quot;&gt;&lt;div class=&quot;gw-card__heading&quot;&gt;&lt;h4 class=&quot;gw-card__title&quot;&gt;&lt;span class=&quot;gw-icon-tile gw-icon-tile--brand&quot;&gt;&lt;i class=&quot;gw-icon&quot; data-lucide=&quot;database&quot;&gt;&lt;/i&gt;&lt;/span&gt;&lt;a class=&quot;gw-card__link&quot; href=&quot;mcp-mysql.html&quot;&gt;MySQL MCP connector&lt;/a&gt;&lt;/h4&gt;&lt;p class=&quot;gw-card__description&quot;&gt;Connection settings, available tools, an illustrated query and troubleshooting, using the same kit as the application.&lt;/p&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class=&quot;gw-card__footer&quot;&gt;&lt;span class=&quot;gw-text-caption gw-fg-muted&quot;&gt;Setup, tools &amp;amp; examples&lt;/span&gt;&lt;i class=&quot;gw-icon&quot; data-lucide=&quot;arrow-up-right&quot;&gt;&lt;/i&gt;&lt;/div&gt;&lt;/article&gt;
-&lt;/div&gt;</code></pre></details>
-</section>
-<!-- ▲ showcase/24-promo.html -->
 
 <!-- ▼ showcase/30-badges.html -->
 <section class="sc-section" id="badges" data-title="Badges and counters" data-group="Status and data">
@@ -8154,6 +8015,5 @@ LIMIT :limit&lt;/textarea&gt;
 </div>
 <script src="../vendor/lucide/lucide.min.js"></script>
 <script src="../assets/kit.js"></script>
-<script src="../assets/promo-flow.js"></script>
 </body>
 </html>

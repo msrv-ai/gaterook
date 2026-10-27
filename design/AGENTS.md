@@ -2,7 +2,7 @@
 
 Read these rules before creating UI. [DESIGN.md](DESIGN.md) defines visual and behavioral rules, [COMPONENTS.md](COMPONENTS.md) documents component APIs, and [BLUEPRINT.md](BLUEPRINT.md) defines screens and shared demo data.
 
-The kit is the canonical source for GateRook's tokens, SCSS components, compositions, reference screens, and interaction rules. Build the Angular application and mockups from these sources. The product name is **GateRook**; `gaterook` is the technical slug. Use `assets/logo-mark.svg` and `gw-logo`; regenerate canonical logo exports with `scripts/export-logo.mjs`.
+The kit is the canonical source for GateRook's tokens, SCSS components, compositions, reference screens, and interaction rules. Reference pages cover the desktop application; keep website marketing pages and guide content out of this package. Build the Angular application and mockups from these sources. The product name is **GateRook**; `gaterook` is the technical slug. Use `assets/logo-mark.svg` and `gw-logo`; regenerate canonical logo exports with `scripts/export-logo.mjs`.
 
 ## Language and private working files
 
@@ -47,7 +47,6 @@ Do not hard-code colors, dimensions, fonts, shadows, stacking levels, or duratio
 | `assets/theme-boot.js` | Theme applied before first paint | Avoid introducing a theme flash |
 | `assets/fonts/`, `vendor/lucide/` | Local fonts and icons | Discuss version changes; preserve licenses |
 | `manifest.json` | Machine-readable inventory | Update for every component, composition, and screen |
-| `content/`, `scripts/build-docs.mjs` | Public guide content and generator | Regenerate `pages/docs*.html` and `pages/mcp-*.html` |
 
 ## 3 · Workflow
 

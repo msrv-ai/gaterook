@@ -84,7 +84,6 @@ The full English API reference, variants, parts, behavior, accessibility, and ma
 | Component | Source |
 | --- | --- |
 | `gw-logo` | [scss/components/_logo.scss](scss/components/_logo.scss) |
-| `gw-promo` | [scss/components/_promo.scss](scss/components/_promo.scss) |
 | `gw-icon / gw-icon-tile / gw-spinner` | [scss/components/_icon.scss](scss/components/_icon.scss) |
 | `gw-btn / gw-btn-group` | [scss/components/_button.scss](scss/components/_button.scss) |
 | `gw-card / gw-stack` | [scss/components/_card.scss](scss/components/_card.scss) |
@@ -721,29 +720,3 @@ Use encoded Activity filters, with repeated fields meaning OR. Preserve the sele
 ```
 
 A composition demo uses the same head with a `main.gw-page`, one h1, and named h2 sections for states. Completion requires `npm run verify`, keyboard operation, and legible light/dark/high-contrast themes.
-
-## 11 · Marketing reference
-
-The target audience is developers and engineers who want AI assistance grounded in infrastructure while retaining access boundaries. The core journey is diagnosing a problem, checking a hypothesis, and reviewing the exact proposed change.
-
-The reference hero uses **Free and open-source developer tool**, **Your #1 tool to connect your stack to AI.**, and **Accelerate your development by up to 10×.** These are owner-selected marketing lines, not benchmark results or external rankings. No supporting performance measurement is recorded here; do not invent evidence or guarantees. Alternative campaign lines include **Give your AI context. Keep control.**, **From logs to answers, with your AI.**, **Less copy-paste. More getting things done.**, and **Your AI proposes. You approve.** They are not A/B-test results.
-
-Explain MCP compatibility, scoped environment access, and reviewed changes. Marketing **QA** is the display label for stage; runtime identifiers remain dev/stage/prod. Distinguish local gateway processing from the selected AI provider's processing of returned context, and from optional tunnels, notifications, secret stores, and exports. Never claim that nothing reaches any cloud. Do not invent customers, testimonials, user counts, absolute-security promises, or live visitor telemetry.
-
-The marketing reference intentionally uses standalone anchor navigation and `gw-promo` rather than the application shell. Width still comes from `gw-page`, with existing controls, tokens, and four themes. Public links go to the page itself, public guides, the public repository, or configured installers, never application preview screens.
-
-**Download GateRook for free** opens a native dialog with macOS/Windows cards, Close initial focus, Escape, and opener focus restoration. `assets/promo.js` owns the `releases` map: null means Coming soon, explained `aria-disabled`, and no `href`; a verified URL enables the download. Do not invent supported builds or architectures. The secondary GitHub action opens `https://github.com/msrv-ai/gaterook` in a new tab.
-
-The local demo is labeled illustrative. Environment and approval controls affect browser state only. Keep exact actions and production restrictions visible. Validate desktop/mobile layout, four themes, keyboard operation, and announced state changes.
-
-## 12 · Public documentation references
-
-The public reference set contains a searchable Docs index, Getting started, and 15 integration guides: MySQL, PostgreSQL, MariaDB, Redis, MongoDB, Loki, CloudWatch, Cloud Logging, OpenSearch, HTTP, AWS, GCP, Kubernetes, SSH, and external MCP. MariaDB uses MySQL; the four logging guides share Logs.
-
-Each guide includes its purpose, use cases, connection fields, steps, tools and restrictions, illustrative configuration and MCP request/result, FAQ, and related links. Redis, MongoDB, AWS, and GCP do not promise write support. External MCP installation does not publish tools automatically; declarations are not verified guarantees. Reference copy must accurately reflect unavailable desktop editors.
-
-Content lives in `content/`; `scripts/build-docs.mjs` owns repeated composition and generated pages, manifest entries, and index blocks. All guide text and links work without JavaScript. `export-site.mjs` creates only the 18 public pages and local assets, with metadata, canonical URLs, breadcrumbs, sitemap, and robots. An explicit `--site-url` is required; export does not publish or guarantee search ranking.
-
-The homepage diagram uses local official MySQL, MongoDB, OpenSearch, and Redis assets with neutral AI monograms. Its SVG paths illustrate routing, not live traffic or secret transfer. Motion requires no reduced-motion preference, a visible tab, an onscreen section, and an unpaused user setting. Static labels and links survive without JavaScript. Preserve vendor notices in `assets/integrations/SOURCES.md`.
-
-The generated **More connections, same gateway** strip includes the remaining 11 integration guides. It comes from the guide catalogue, excluding the four featured logos; `@FLOW-MORE` is not edited manually. Cards wrap on desktop and use two columns on phones.

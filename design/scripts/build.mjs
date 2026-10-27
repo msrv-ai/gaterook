@@ -18,7 +18,6 @@
 import { readFileSync, writeFileSync, readdirSync, existsSync } from "node:fs";
 import { dirname, join, basename } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildDocs } from "./build-docs.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const args = new Set(process.argv.slice(2));
@@ -281,14 +280,7 @@ async function buildShowcase(flat) {
   const sections = [];
   const fragments = [...foundationFragments(flat), ...files.map((f) => ({ name: `showcase/${f}`, html: readFileSync(join(dir, f), "utf8").trim() }))];
   for (const { name: f, html: raw } of fragments) {
-    let fragment = raw;
-    if (fragment.includes("<!-- @PROMO-FLOW -->")) {
-      const landing = readFileSync(join(ROOT, "pages/gaterook.html"), "utf8");
-      const flow = landing.match(/<!-- @FLOW:START[^>]*-->([\s\S]*?)<!-- @FLOW:END -->/);
-      if (!flow) throw new Error("Missing canonical promo flow in pages/gaterook.html");
-      fragment = fragment.replace("<!-- @PROMO-FLOW -->", flow[1].replaceAll("flow-title", "sc-flow-title").replaceAll("flow-description", "sc-flow-description").replaceAll("flow-more-title", "sc-flow-more-title"));
-    }
-    const html = await withMarkup(fragment);
+    const html = await withMarkup(raw);
     const m = html.match(/<section[^>]*\bid="([^"]+)"[^>]*\bdata-title="([^"]+)"[^>]*\bdata-group="([^"]+)"/) ||
       html.match(/<section[^>]*\bdata-title="([^"]+)"[^>]*\bdata-group="([^"]+)"[^>]*\bid="([^"]+)"/);
     if (!m) throw new Error(`${f}: first <section> needs id, data-title and data-group (in that order)`);
@@ -316,7 +308,6 @@ const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 // ─────────────────────────── run ───────────────────────────
 
 async function main() {
-  buildDocs();
   const flat = loadTokens();
   const css = buildTokensCss(flat);
   writeFileSync(join(ROOT, "tokens/tokens.css"), css);

@@ -44,8 +44,6 @@
     "build": "node scripts/build.mjs",
     "check": "node scripts/check.mjs",
     "verify": "node scripts/build.mjs && node scripts/check.mjs",
-    "build:site": "node scripts/build.mjs && node scripts/export-site.mjs",
-    "check:site": "node scripts/check-site.mjs",
     "serve": "node scripts/serve.mjs",
     "icons": "node scripts/icons.mjs"
   },

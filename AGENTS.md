@@ -26,6 +26,8 @@ Preserve runtime behavior, dependency relationships, resources, and third-party 
 
 Read `design/AGENTS.md`, `design/DESIGN.md`, and the relevant `design/COMPONENTS.md` entry before UI changes. Reuse canonical tokens, components, and assets. Regenerate outputs from their sources; do not maintain another editable kit.
 
+The design kit covers reusable application UI and application reference screens. Website page templates, marketing compositions, website guide content, and static-site generators are outside its scope. Do not reintroduce them into the kit or its generated showcase.
+
 Keep README commands and links aligned with actual scripts. Record architectural contracts and research findings, not implementation progress logs. Do not publish internal repository names, private infrastructure, real user configurations, credentials, or personal filesystem paths. Examples must use fictional values or explicit placeholders.
 
 ## Verification

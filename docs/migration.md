@@ -2,6 +2,8 @@
 
 This repository contains the full desktop application source, canonical design kit, tests, fixtures, architecture, curated research, and local build inputs. Maven and npm manifests, lockfiles, code and asset generators, and development/test scripts are included so contributors can build from a clone.
 
+Website page templates, marketing compositions, and website guide generators are outside the application design kit. Its reference pages demonstrate the desktop application and reusable UI.
+
 Internal AI work, implementation progress logs, local editor settings, installed dependencies, generated runtime homes, and operational CI/release workflows are excluded. Test-service credentials are deliberately public, disposable fixtures; generated certificates and private keys stay in ignored output directories.
 
 ## Compatibility

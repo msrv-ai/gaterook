@@ -22,7 +22,7 @@ npm run serve
 
 Open `http://127.0.0.1:8020/pages/index.html`. The index links to application reference screens, reusable compositions, and the generated component showcase. Use `npm run icons -- --search shield` to inspect the pinned Lucide inventory.
 
-`npm run build` generates token styles, compiles SCSS, assembles the showcase, and generates public documentation pages. `npm run check` checks contrast, SCSS, HTML, accessibility conventions, links, and the manifest. `npm run verify` performs both.
+`npm run build` generates token styles, compiles SCSS, and assembles the component showcase. `npm run check` checks contrast, SCSS, HTML, accessibility conventions, links, and the manifest. `npm run verify` performs both.
 
 ## Use in a static page
 
@@ -76,25 +76,6 @@ NODE_PATH="$PWD/ai/logo-export/node_modules" node design/scripts/export-logo.mjs
 
 Preserve font and vendor notices in `assets/fonts/`, `vendor/lucide/`, and [assets/integrations/SOURCES.md](assets/integrations/SOURCES.md).
 
-## Reference marketing and documentation pages
-
-[pages/gaterook.html](pages/gaterook.html) is a local marketing reference with an illustrative access-and-approval demo. Its standalone navigation is intentional; application screens continue using `pages/_shell.html`. The demo changes browser state only and does not contact infrastructure. Product language and claim boundaries are specified in [BLUEPRINT.md](BLUEPRINT.md#11--marketing-reference).
-
-The download dialog contains macOS and Windows cards. In `assets/promo.js`, `releases.macos` and `releases.windows` start as `null`: the corresponding link displays **Coming soon**, has `aria-disabled="true"`, and has no `href`. Set a verified installer URL to make a platform available. Do not invent release URLs, supported architectures, or availability.
-
-The connection diagram is sourced from the `@FLOW` block in `pages/gaterook.html`, styled by `_promo.scss`, and controlled by `assets/promo-flow.js`. It is copied into the showcase by the build. It pauses for reduced motion, hidden pages, offscreen sections, and the user's Pause control. Vendor asset provenance is recorded in the kit.
-
-The [Docs index](pages/docs.html) links to getting started and 15 integration guides. Content lives in `content/integrations-data.mjs`, `content/integrations-cloud.mjs`, and `content/getting-started.html`. `scripts/build-docs.mjs` generates `pages/docs*.html`, `pages/mcp-*.html`, manifest entries, and index links. **Edit the content and generator, not generated pages.** Search is optional enhancement: all guides remain readable without JavaScript.
-
-To inspect the optional static export, provide an explicit site URL:
-
-```bash
-npm run build:site -- --site-url https://your-domain.example/
-npm run check:site -- --site-url https://your-domain.example/
-```
-
-This produces `site-dist/` with 18 public pages, local assets, canonical URLs, Open Graph metadata, BreadcrumbList, sitemap, and robots rules. It excludes application previews. Deployment is a separate action; these commands do not publish. When using a subpath, preserve that path in `--site-url` and deployment, and merge the sitemap directive into the domain-root robots file. Search ranking is not guaranteed by metadata.
-
 ## Source layout
 
 ```text
@@ -103,13 +84,12 @@ design/
 ├── scss/         Foundations and component partials
 ├── elements/     Reusable compositions and demonstrations
 ├── showcase/     Editable component showcase fragments
-├── pages/        Reference screens and generated public guides
+├── pages/        Reference application screens
 ├── assets/       Behavior, themes, fonts, and brand assets
 ├── vendor/       Pinned local icons and notices
-├── content/      Public guide content
 ├── scripts/      Build, verification, export, and preview tools
 ├── dist/         Generated distributable kit stylesheet
 └── manifest.json
 ```
 
-Do not edit generated token SCSS/CSS, the compiled kit stylesheet, the assembled showcase, or generated public guides directly. Keep temporary AI research and work files in repository-root `ai/`, which must never be committed.
+Do not edit generated token SCSS/CSS, the compiled kit stylesheet, or the assembled showcase directly. Keep temporary AI research and work files in repository-root `ai/`, which must never be committed.

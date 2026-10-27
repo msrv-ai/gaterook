@@ -34,42 +34,6 @@ Product lockup: the mark (assets/logo-mark.svg, never redrawn) plus the product 
 
 **Accessibility:** The link carries the accessible name (aria-label); the mark img has alt="".
 
-### `gw-promo`
-
-Scoped public marketing layout for GateRook, composed from existing kit controls and tokens. The owner-approved standalone page has its own anchor navigation without the desktop app shell; gw-page remains the width container. Showcase: showcase/24-promo.html.
-
-[SCSS](scss/components/_promo.scss)
-
-**Parts:** __nav; __nav-links; __actions; __client; __clients; __meta; __main; __hero; __eyebrow; __headline; __accent; __lead; __hero-copy; __workspace; __workspace-bar; __workspace-body; __connections; __connection; __connection-name; __request; __prompt; __trace; __decision; __demo-note; __proof; __proof-title; __section; __section-head; __section-title; __split; __steps; __step; __step-number; __step-copy; __integrations; __integration; __integration-title; __policy-table; __boundary; __local; __local-row; __local-items; __handoff; __faq; __cta; __footer; __resource-list; __flow; __flow-heading; __flow-stage; __flow-lines; __flow-track; __flow-signal; __flow-side; __flow-nodes; __flow-node; __service-mark; __flow-center; __flow-halo; __flow-hub; __flow-logo; __flow-guard; __flow-caption; __flow-more; __flow-more-heading; __flow-more-list; __flow-mini.
-
-**Composes:**
-
-- gw-page
-- gw-logo
-- gw-card
-- gw-btn
-- gw-segmented
-- gw-switch
-- gw-code-block
-- gw-env
-- gw-mode
-- gw-status
-- gw-approval-request
-- gw-dialog
-- gw-grid
-
-**States and behavior:**
-
-- Responsive layout for desktop and mobile; all four kit themes through existing semantic tokens, without new global styles or tokens.
-- Illustrative environment and approval demo: changes are browser-local and do not execute infrastructure operations. QA is the display label for stage.
-- Download GateRook for free CTAs in the header, hero and final section open the native gw-dialog--md #download-dialog with macOS and Windows cards. The secondary hero and final CTA is Open Source on GitHub, opening https://github.com/msrv-ai/gaterook in a new tab; the illustrative demo remains on the page.
-- assets/promo.js defines the releases map: macos and windows start as null. Null shows Coming soon and an inactive role=link with aria-disabled=true and no href; a configured installer URL enables href/download and status Available.
-- Public navigation contains self-links, page anchors, public Docs and integration guides, GitHub repository links (https://github.com/msrv-ai/gaterook) in the header, hero, final CTA and footer, and configured installer links; no app preview, design kit index or prototype links.
-- Owner-requested service logo flow: official local MySQL, MongoDB, OpenSearch and Redis artwork connects via GateRook to existing AI monograms. Native links open integration guides. Decorative SVG request/response animation has Pause/Resume; stops for reduced motion, offscreen and hidden tabs; static content survives without JavaScript. Source and vendor notices: assets/integrations/SOURCES.md. Canonical homepage composition is included into the showcase at build time.
-- The animated flow includes compact native-link cards for all remaining integration guides. build-docs.mjs generates this strip from the catalogue, excluding the four featured logos; cards wrap on desktop and form two columns on mobile.
-
-**Accessibility:** One main and h1 on the landing, a skip link, labelled nav and sections, native buttons/available links and FAQ disclosures. Download dialog uses Close autofocus, Esc and restored opener focus through kit.js; unavailable installer links have role=link, aria-disabled=true, an explanatory description and no href. Demo state changes are announced; exact actions and environment labels remain visible. Existing kit focus, native radio keyboard and reduced-motion behavior apply. The connection diagram uses hidden decorative SVG, named native links and a pause toggle; animation never replaces text or announces packets.
-
 ### `gw-icon / gw-icon-tile / gw-spinner`
 
 Lucide icon wrapper (pinned in vendor/lucide), tinted icon tile with tones, in-place spinner.
@@ -1798,12 +1762,6 @@ One compact card that names one thing (a connection, an AI app) and says its sta
 **Reference screens:**
 
 - [pages/overview.html](pages/overview.html)
-
-## Public documentation compositions
-
-Public guides reuse `gw-promo`, page, card, table, code, link, and disclosure primitives. Their editable content lives in `content/`, and `scripts/build-docs.mjs` generates pages, inventory entries, and the index. Keep them readable without JavaScript. Do not promise write support for Redis, MongoDB, AWS, or GCP, or imply that external server annotations have been verified.
-
-The homepage's integration diagram is an illustrative, local animation, with native guide links, official local vendor assets, and a Pause control. It stops for reduced motion, hidden tabs, and offscreen sections. Its canonical markup is copied into the showcase by the build. The generated `@FLOW-MORE` strip is derived from guide content and is not edited directly.
 
 ## Markup examples
 
