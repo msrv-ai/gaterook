@@ -2,7 +2,7 @@
   "name": "@gaterook/design-kit",
   "version": "0.1.0",
   "description": "GateRook design system: tokens (light, dark, high contrast), SCSS components, elements, app page references and AI consumption rules. Source of truth for every screen of the desktop app.",
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "rules": "AGENTS.md",
   "design": "DESIGN.md",
   "blueprint": "BLUEPRINT.md",

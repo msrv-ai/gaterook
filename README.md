@@ -73,4 +73,10 @@ The stack is Electron 45, Angular 22, Java 25, and Spring Boot 4.1. The core can
 
 All documentation is in English. Internal AI scratch files, temporary research, and progress logs belong in the ignored root `ai/` directory and must never be committed. The curated research linked above is intentional product documentation.
 
-The application license has not been selected. Preserve the bundled third-party licenses and notices; public repository visibility alone does not grant a license.
+## Author
+
+GateRook was created by **Vadym Dobroskok**, Tech Lead at **ProvenBase Inc.**
+
+## License
+
+GateRook is licensed under the [Apache License, Version 2.0](LICENSE). Bundled third-party components retain their respective licenses and notices.

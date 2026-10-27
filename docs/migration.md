@@ -10,7 +10,7 @@ Internal AI work, implementation progress logs, local editor settings, installed
 
 The import preserves the Java package namespace `ai.msrv.gaterook`, dependency versions, resource paths, tests, and application behavior. Some runtime identifiers still use `mcp-gateway`, including npm workspace names, development/runtime paths, and the deep-link scheme. The GateRook naming decision is documented in [product decisions](DECISIONS.md); do not assume the remaining rename has been implemented or silently rewrite stored user data.
 
-The design kit remains the canonical source of tokens, components, fonts, and brand assets. The UI consumes it through a local npm package and an asset synchronization script. Keep third-party notices with their assets. No new application license is selected by this import.
+The design kit remains the canonical source of tokens, components, fonts, and brand assets. The UI consumes it through a local npm package and an asset synchronization script. GateRook is licensed under the [Apache License, Version 2.0](../LICENSE). Keep third-party notices with their assets.
 
 ## Maintaining the public source tree
 
