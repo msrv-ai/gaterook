@@ -529,7 +529,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     FunctionRules.Verdict v = FunctionRules.check(a.functions(), mysql(), FunctionRules.fromMetadata(cfg.metadata()),
         List.of(), s.allowedFunctions());
     if (!v.denied().isEmpty()) {
-      throw ConnectorException.denied(String.join(", ", v.denied()) + " isn't allowed through MCP Gateway.");
+      throw ConnectorException.denied(String.join(", ", v.denied()) + " isn't allowed through GateRook.");
     }
     if (!v.notBuiltIn().isEmpty() && !ctx.approved()) {
       throw ConnectorException.denied("Not approved: " + String.join(", ", v.notBuiltIn()) + " isn't a built-in "
@@ -565,7 +565,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     Analysis a = SqlClassifier.analyze(sql, mysql());
     checkSelectedTables(a, cfg, s);
     if (a.tooComplex() || a.kind() == Kind.FORBIDDEN) {
-      throw ConnectorException.denied("This statement can't run through MCP Gateway.");
+      throw ConnectorException.denied("This statement can't run through GateRook.");
     }
     if (a.count() > (mysql() ? 1 : SqlRules.MAX_POSTGRES_STATEMENTS)) {
       throw ConnectorException.denied("Too many statements for one sql_execute.");
@@ -573,7 +573,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     FunctionRules.Verdict v = FunctionRules.check(a.functions(), mysql(), FunctionRules.fromMetadata(cfg.metadata()),
         List.of(), s.allowedFunctions());
     if (!v.denied().isEmpty()) {
-      throw ConnectorException.denied(String.join(", ", v.denied()) + " isn't allowed through MCP Gateway.");
+      throw ConnectorException.denied(String.join(", ", v.denied()) + " isn't allowed through GateRook.");
     }
     List<String> types = a.statements().stream().map(StatementFacts::type).toList();
     return runChange(cfg, s, secrets, ctx, BoundSql.plain(sql), types);
@@ -687,12 +687,12 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     }
     checkSelectedTables(t.analysis(), cfg, s);
     if (t.analysis().kind() == Kind.FORBIDDEN) {
-      throw ConnectorException.denied(t.name() + " can't run through MCP Gateway.");
+      throw ConnectorException.denied(t.name() + " can't run through GateRook.");
     }
     FunctionRules.Verdict v = FunctionRules.check(t.analysis().functions(), mysql(),
         FunctionRules.fromMetadata(cfg.metadata()), List.of(), s.allowedFunctions());
     if (!v.denied().isEmpty()) {
-      throw ConnectorException.denied(String.join(", ", v.denied()) + " isn't allowed through MCP Gateway.");
+      throw ConnectorException.denied(String.join(", ", v.denied()) + " isn't allowed through GateRook.");
     }
     boolean needsApproval = !t.read() || !v.notBuiltIn().isEmpty();
     if (needsApproval && !ctx.approved()) {

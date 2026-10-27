@@ -45,7 +45,7 @@ export const kitInfo = (over: Partial<CoreInfo> = {}): CoreInfo => ({
   runtime: 'native',
   vm: '',
   port: 7465,
-  logFile: '/Users/you/.mcp-gateway/logs/core.log',
+  logFile: '/Users/you/.gaterook/logs/core.log',
   pluginRuntime: { bundledJre: true, home: '/Applications/GateRook.app/jre', version: '25.0.1+8', present: true },
   ...over,
 });
@@ -58,7 +58,7 @@ export const kitHealth = (): Health =>
     uptimeMs: 1000,
     ports: { local: 7465, public: 7466 },
     runtime: 'native',
-    db: { path: '/Users/you/.mcp-gateway/gateway.db', sqlite: '3.53', journal: 'wal', schema: '3', sizeBytes: 1 },
+    db: { path: '/Users/you/.gaterook/gateway.db', sqlite: '3.53', journal: 'wal', schema: '3', sizeBytes: 1 },
     masterKey: { protection: 'keychain', problems: [], warnings: [] },
     tunnel: { state: 'off', host: null },
     warnings: [],
@@ -69,7 +69,7 @@ export const kitBackup = (over: Partial<BackupStatus> = {}): BackupStatus => ({
   at: '03:00',
   lastBackupAt: '2026-10-22T01:00:00Z',
   lastFile: 'gateway-2026-10-22.db',
-  folder: '/Users/you/.mcp-gateway/backups',
+  folder: '/Users/you/.gaterook/backups',
   keep: 7,
   lastError: null,
   lastAttemptAt: '2026-10-22T01:00:00Z',
@@ -78,7 +78,7 @@ export const kitBackup = (over: Partial<BackupStatus> = {}): BackupStatus => ({
 });
 
 export const kitMasterKey = (over: Partial<MasterKeyStatus> = {}): MasterKeyStatus => ({
-  path: '/Users/you/.mcp-gateway/master.keyset',
+  path: '/Users/you/.gaterook/master.keyset',
   mode: '0400',
   owner: 'you',
   keys: [{ id: 2146530891, status: 'enabled', primary: true }],
@@ -156,7 +156,7 @@ export const kitNotifications = (): Notifications => ({
         deliverTo: 'channel',
         channelId: 'C1',
         channelName: '#deploy-approvals',
-        workspace: { team: 'acme', teamId: 'T0ACME00001', bot: 'mcp-gateway', botUserId: 'U0MCPGW0001', appId: 'A0MCPGW0001' },
+        workspace: { team: 'acme', teamId: 'T0ACME00001', bot: 'gaterook', botUserId: 'U0MCPGW0001', appId: 'A0MCPGW0001' },
       },
       stateDetail: 'Connected · workspace acme',
       lastDeliveryAt: '2026-10-22T12:29:31Z',
@@ -196,7 +196,7 @@ export const kitGrant = (over: Partial<OAuthGrant> = {}): OAuthGrant => ({
 /** K5's world: SIEM streaming, S3 daily, BigQuery failing since 12:00. */
 export const kitExports = (): AuditExportDestination[] => [
   { id: 'siem', kind: 'siem', name: 'SIEM', enabled: true, config: { host: 'siem.acme.internal', port: 6514 }, schedule: 'stream', state: 'ok', failingSince: null, lastAttemptAt: '2026-10-22T12:29:30Z', lastError: null },
-  { id: 's3', kind: 's3', name: 'S3', enabled: true, config: { bucket: 'acme-audit', prefix: 'mcp-gateway/' }, schedule: 'daily@02:00', state: 'ok', failingSince: null, lastAttemptAt: '2026-10-22T00:00:00Z', lastError: null },
+  { id: 's3', kind: 's3', name: 'S3', enabled: true, config: { bucket: 'acme-audit', prefix: 'gaterook/' }, schedule: 'daily@02:00', state: 'ok', failingSince: null, lastAttemptAt: '2026-10-22T00:00:00Z', lastError: null },
   {
     id: 'bq',
     kind: 'bigquery',

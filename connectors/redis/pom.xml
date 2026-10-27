@@ -20,7 +20,7 @@
   </parent>
 
   <artifactId>connectors-redis</artifactId>
-  <name>MCP Gateway · Connectors · Redis</name>
+  <name>GateRook · Connectors · Redis</name>
 
   <dependencies>
     <dependency>

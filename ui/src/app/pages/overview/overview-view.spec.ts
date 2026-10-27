@@ -1,289 +1,192 @@
-import { clockTime } from '../../core/time/time-format';
-import { HEALTH, NOW, SPARK, WAITING, approval, event, health, histogram, overview } from './overview.fixtures';
+import { HEALTH, ROWS, card, clientsFound, clientsInUse, firstRun, health, overview, setup, tunnelOff } from './overview.fixtures';
 import {
-  ApprovalsDay,
-  callsDelta,
-  clientLabel,
-  decidedCalls,
-  healthAlert,
-  healthCalm,
-  healthDescription,
-  healthGroups,
-  healthText,
-  markLiterals,
-  medianWaitMs,
-  overheadChart,
+  activityLine,
+  appAnchor,
+  canUse,
+  checkPrompt,
+  claudeAiTile,
+  connectionTile,
+  connectionTiles,
+  guideAppTile,
+  homeAppTiles,
+  modesWords,
+  overviewState,
   retestToast,
-  setupStatus,
-  signed,
-  sparkPoints,
-  sparseSparkPoints,
-  statTiles,
-  waitSpans,
-  waitingAt,
-  waitingPerHour,
+  secretLine,
+  secretNoun,
+  tileHealth,
 } from './overview-view';
 
-const HOUR = 3_600_000;
-const iso = (ms: number) => new Date(ms).toISOString();
-const text = (parts: readonly { readonly text: string }[]) => parts.map((p) => p.text).join('');
-const codes = (parts: readonly { readonly text: string; readonly code: boolean }[]) => parts.filter((p) => p.code).map((p) => p.text);
+/** The words of design/pages/overview.html from the core's answers. */
 
-/** The kit's day (BLUEPRINT §9): three waiting now, 46 approved and 9 rejected decided earlier, 3 expired. */
-function kitDay(): ApprovalsDay {
-  const decided = (id: string, minutesAgo: number, waitedS: number, status: 'completed' | 'rejected') =>
-    approval(id, {
-      status,
-      requestedAt: iso(NOW - minutesAgo * 60_000),
-      expiresAt: iso(NOW - minutesAgo * 60_000 + 300_000),
-      decidedAt: iso(NOW - minutesAgo * 60_000 + waitedS * 1000),
-      decidedVia: 'app',
-    });
-  return {
-    pending: WAITING,
-    history: [
-      decided('ap_a', 32, 47, 'rejected'),
-      decided('ap_b', 120, 30, 'completed'),
-      decided('ap_c', 300, 60, 'completed'),
-      approval('ap_core', { status: 'rejected', decidedVia: 'core', requestedAt: iso(NOW - 3 * HOUR), decidedAt: iso(NOW - 3 * HOUR + 1000) }),
-      approval('ap_x', { status: 'expired', requestedAt: iso(NOW - 6 * HOUR), expiresAt: iso(NOW - 6 * HOUR + 300_000) }),
-    ],
-    counts: { pending: 3, approved: 46, rejected: 9, expired: 3 },
-  };
-}
-
-describe('KPI tiles', () => {
-  it('reads like the kit: values, deltas with their sentiment, meta lines and links', () => {
-    const o = overview();
-    const [calls, waiting, denied, overhead] = statTiles({ stats: o.stats, histogram: histogram(), approvals: kitDay(), now: NOW });
-
-    expect(calls.value).toBe('1,284');
-    expect(calls.delta).toEqual({ dir: 'up', sentiment: 'neutral', icon: 'trending-up', text: '+12% vs yesterday' });
-    expect(calls.meta).toEqual([{ text: '1,201 allowed · 46 approved' }]);
-    expect(calls.chart?.tone).toBe('brand');
-    expect(calls.chart?.label).toBe(`Calls per hour: peak of 166 at ${clockTime(Math.floor(NOW / HOUR) * HOUR - 3 * HOUR, false)}`);
-
-    expect(waiting.value).toBe('3');
-    expect(waiting.chart?.tone).toBe('warning');
-    expect(waiting.chart?.label).toBe('Requests waiting per hour: never more than 3 at a time');
-    // The three waiting now came within the last ten minutes: an hour ago nothing waited.
-    expect(waiting.delta).toEqual({ dir: 'up', sentiment: 'neutral', icon: 'trending-up', text: '+3 vs an hour ago' });
-    expect(waiting.meta).toEqual([{ text: 'Median wait 47 s · 3 expired' }]);
-
-    expect(denied.value).toBe('17');
-    expect(denied.delta).toEqual({ dir: 'up', sentiment: 'bad', icon: 'trending-up', text: '+5 vs yesterday' });
-    expect(denied.chart?.tone).toBe('danger');
-    expect(denied.meta).toEqual([
-      { text: 'Also 9 rejected on review' },
-      { text: ' · ' },
-      { text: 'View denials', route: '/activity', query: { q: 'decision:denied' } },
-    ]);
-
-    expect(overhead.value).toBe('31');
-    expect(overhead.unit).toBe('ms');
-    expect(overhead.chart).toBeNull();
-    expect(overhead.delta).toEqual({ dir: 'down', sentiment: 'good', icon: 'trending-down', text: '−4 ms vs yesterday' });
-    expect(overhead.meta).toEqual([{ text: 'Target ≤ 50 ms · within target' }]);
+describe('Overview state', () => {
+  it('is first run without a connection, setup until an AI app is connected, then in use', () => {
+    expect(overviewState(firstRun())).toBe('first-run');
+    expect(overviewState(setup())).toBe('setup');
+    expect(overviewState(overview())).toBe('in-use');
   });
 
-  it('says "No change" without a sentiment, and an empty day plainly', () => {
-    const o = overview({
-      stats: { calls24h: 0, pending: 0, denied24h: 0, gatewayP95Ms: null, deltas: { calls24h: 0, denied24h: 0, gatewayP95Ms: null }, spark: Array(24).fill(0) },
-    });
-    const empty: ApprovalsDay = { pending: [], history: [], counts: {} };
-    const [calls, waiting, denied, overhead] = statTiles({ stats: o.stats, histogram: null, approvals: empty, now: NOW });
-    expect(calls.delta).toEqual({ dir: 'flat', sentiment: null, icon: 'minus', text: 'No change vs yesterday' });
-    expect(calls.chart).toBeNull();
-    expect(calls.meta).toEqual([{ text: 'No calls in the last 24 hours' }]);
-    expect(waiting.delta?.text).toBe('No change vs an hour ago');
-    expect(waiting.chart).toBeNull();
-    expect(waiting.meta).toEqual([{ text: 'No requests in the last 24 hours' }]);
-    expect(denied.meta).toEqual([]);
-    expect(overhead.value).toBe('None');
-    expect(overhead.unit).toBeNull();
-    expect(overhead.delta).toBeNull();
-    expect(overhead.meta).toEqual([{ text: 'No completed calls in the last 24 hours' }]);
+  it('counts the connections the core counts (its setup map), external MCP servers aside', () => {
+    // The health rows can lag behind (a connection just added): the setup map decides.
+    const o = setup();
+    expect(overviewState({ ...o, health: [] })).toBe('setup');
+    // A core whose setup map has no connections node: the health rows count.
+    expect(overviewState({ ...firstRun(), setupMap: { nodes: [] }, health: [health('dev-db', 'healthy')] })).toBe('setup');
   });
 
-  it('leaves out what an area that did not answer would have said', () => {
-    const o = overview();
-    const [calls, waiting, denied] = statTiles({ stats: o.stats, histogram: null, approvals: null, now: NOW });
-    expect(calls.meta).toEqual([]);
-    expect(waiting.chart).toBeNull();
-    expect(waiting.delta).toBeNull();
-    expect(waiting.meta).toEqual([]);
-    expect(denied.chart).toBeNull();
-    expect(denied.meta).toEqual([{ text: 'View denials', route: '/activity', query: { q: 'decision:denied' } }]);
-  });
-
-  it('writes changes with a sign, a typographic minus and thousands', () => {
-    expect(signed(5)).toBe('+5');
-    expect(signed(-4, 'ms')).toBe('−4 ms');
-    expect(signed(1284)).toBe('+1,284');
-    // A share needs a day before with calls; a share that rounds to 0 % is a count.
-    expect(callsDelta(9, 9).text).toBe('+9 vs yesterday');
-    expect(callsDelta(1000, -100).text).toBe('−9% vs yesterday');
-    expect(callsDelta(100001, 1).text).toBe('+1 vs yesterday');
-  });
-
-  it('draws sparklines in the kit viewBox: peak at y 4, zero on the baseline', () => {
-    expect(sparkPoints([0, 5, 10])).toBe('0,38 115,21 230,4');
-    expect(sparkPoints([0, 0])).toBe('0,38 230,38');
-    expect(sparkPoints(SPARK).split(' ')).toHaveLength(24);
-  });
-
-  it("draws the overhead per hour from the core's series, hours without calls left out (step API)", () => {
-    expect(sparseSparkPoints([10, null, 20])).toBe('0,21 230,4');
-    expect(sparseSparkPoints([null, null])).toBe('');
-    const steady = [...Array<number | null>(20).fill(null), 28, 31, 30, 29];
-    const o = overview();
-    const [, , , overhead] = statTiles({ stats: { ...o.stats, gatewayP95Spark: steady }, histogram: null, approvals: null, now: NOW });
-    expect(overhead.chart).toEqual({
-      points: sparseSparkPoints(steady),
-      tone: 'brand',
-      label: 'Gateway overhead p95 per hour: always under the 50 ms target',
-    });
-    expect(overhead.chart!.points.split(' ')).toHaveLength(4);
-    const spike = [...Array<number | null>(22).fill(30), 62, 31];
-    expect(overheadChart(spike, NOW)).toMatchObject({
-      tone: 'warning',
-      label: `Gateway overhead p95 per hour: over the 50 ms target in 1 hour, worst 62 ms at ${clockTime(Math.floor(NOW / HOUR) * HOUR - HOUR, false)}`,
-    });
-    // An empty series, or a core before step API, draws nothing.
-    expect(overheadChart([null, null], NOW)).toBeNull();
-    expect(overheadChart(null, NOW)).toBeNull();
+  it('a named token or a link counts as an AI app (the core marks its "client" step done)', () => {
+    const o = setup();
+    const done = o.gettingStarted.steps.map((s) => (s.id === 'client' ? { ...s, state: 'done' as const } : s));
+    expect(overviewState({ ...o, gettingStarted: { ...o.gettingStarted, steps: done } })).toBe('in-use');
   });
 });
 
-describe('waiting over time', () => {
-  it('counts the most requests that waited at once in each hour, and at an instant', () => {
-    const spans = waitSpans(kitDay());
-    const perHour = waitingPerHour(spans, NOW);
-    expect(perHour).toHaveLength(24);
-    expect(perHour.at(-1)).toBe(3);
-    expect(Math.max(...perHour.slice(0, -1))).toBe(1);
-    expect(waitingAt(spans, NOW)).toBe(3);
-    expect(waitingAt(spans, NOW - HOUR)).toBe(0);
+describe('Your connections', () => {
+  it('words a tile as the kit does: Healthy, Slow with its time, Unreachable with where it connects', () => {
+    expect(tileHealth({ state: 'healthy', latencyMs: 12 })).toEqual({ tone: 'success', label: 'Healthy' });
+    expect(tileHealth({ state: 'degraded', latencyMs: 1800 })).toEqual({ tone: 'warning', label: 'Slow · 1.8 s' });
+    expect(tileHealth({ state: 'unreachable', latencyMs: null })).toEqual({ tone: 'danger', label: 'Unreachable' });
+    expect(tileHealth({ state: 'unknown', latencyMs: null })).toEqual({ tone: 'neutral', label: 'Not checked yet' });
+
+    const billing = connectionTile(HEALTH[2]);
+    expect(billing).toMatchObject({ name: 'billing-api', env: 'stage', icon: 'globe', retest: true });
+    // The host without its scheme, in mono (kit: "HTTP API · billing.stage.acme.dev").
+    expect(billing.meta).toEqual([{ text: 'HTTP API · ' }, { text: 'billing.stage.acme.dev', mono: true }]);
+    expect(connectionTile(HEALTH[3]).meta).toEqual([{ text: 'Redis 7' }]);
+    expect(connectionTile(health('x', 'healthy', { type: 'mongodb', typeLabel: undefined })).meta).toEqual([{ text: 'MongoDB' }]);
   });
 
-  it('a wait that ends when another starts does not overlap it', () => {
-    const t = Math.floor(NOW / HOUR) * HOUR;
-    const spans = [
-      { from: t + 1000, to: t + 2000 },
-      { from: t + 2000, to: t + 3000 },
+  it('puts problems first, one row in view, the rest behind "N more connections, all healthy"', () => {
+    const t = connectionTiles(HEALTH);
+    expect(t.shown.map((c) => c.name)).toEqual(['billing-api', 'cache-redis', 'app-logs']);
+    expect(t.more).toHaveLength(9);
+    // Healthy ones by environment: dev, stage, prod.
+    expect(t.more.map((c) => c.env)).toEqual(['dev', 'dev', 'dev', 'dev', 'stage', 'stage', 'prod', 'prod', 'prod']);
+    expect(t.moreLabel).toBe('9 more connections, all healthy');
+    expect(t.description).toBe("12 connections: 10 healthy, 1 slow, 1 unreachable. The tag shows each one's environment: dev, stage or prod.");
+  });
+
+  it('never folds a problem away, and says what the folded ones are when they differ', () => {
+    const rows = [
+      health('a', 'unreachable'),
+      health('b', 'unreachable'),
+      health('c', 'degraded', { latencyMs: 2000 }),
+      health('d', 'unreachable'),
+      health('e', 'healthy'),
+      health('f', 'unknown'),
     ];
-    expect(waitingPerHour(spans, NOW).at(-1)).toBe(1);
-  });
-
-  it("takes the median of a person's decisions, not the expired requests or the core's refusals", () => {
-    expect(medianWaitMs(kitDay(), NOW)).toBe(47_000);
-    expect(medianWaitMs({ pending: [], history: [], counts: {} }, NOW)).toBeNull();
-  });
-});
-
-describe('setup map statuses', () => {
-  it("puts the master key's problem codes in words and counts one in the singular", () => {
-    const [secrets, connections, , , clients] = overview().setupMap.nodes;
-    expect(setupStatus(secrets)).toBe('Master key: no OS protection, not backed up');
-    expect(setupStatus(connections)).toBe('1 need attention');
-    expect(setupStatus(clients)).toBe('1 named token');
-    expect(setupStatus({ ...secrets, status: 'Master key: something-new' })).toBe('Master key: something-new');
-  });
-});
-
-describe('connection health', () => {
-  it('puts problems first, unreachable before slow, and folds the rest', () => {
-    const g = healthGroups(HEALTH);
-    expect(g.problems.map((r) => r.name)).toEqual(['billing-api', 'cache-redis']);
-    expect(g.rest.map((r) => r.name)).toEqual(['app-logs', 'dev-db']);
-    expect(g.restLabel).toBe('2 healthy connections');
-    expect(healthGroups([health('a', 'unknown'), health('b', 'unknown')]).restLabel).toBe('2 connections not checked yet');
-    expect(healthGroups([health('a', 'healthy'), health('b', 'unknown'), health('c', 'healthy')]).restLabel).toBe('2 healthy · 1 not checked yet');
-    expect(healthGroups([health('a', 'healthy')]).restLabel).toBe('1 healthy connection');
-  });
-
-  it('writes the status as the kit does', () => {
-    expect(healthText(health('dev-db', 'healthy', { latencyMs: 12 }))).toBe('Healthy · 12 ms');
-    expect(healthText(health('cache-redis', 'degraded', { latencyMs: 1800 }))).toBe('Slow · 1.8 s');
-    expect(healthText(health('billing-api', 'unreachable', { latencyMs: 4000 }))).toBe('Unreachable');
-    expect(healthText(health('x', 'unknown'))).toBe('Not checked yet');
-  });
-
-  it('says how many and when they were last checked', () => {
-    expect(healthDescription(HEALTH, () => '1 min ago')).toBe('4 connections, last checked 1 min ago. Problems first.');
-    expect(healthDescription([health('a', 'unknown', { checkedAt: null })], () => 'x')).toBe('1 connection. Problems first.');
-  });
-
-  it("says how often the core checks when it tells (kit: 'checked every minute')", () => {
-    expect(healthDescription(HEALTH, () => '1 min ago', 60)).toBe('4 connections, checked every minute. Problems first.');
-    expect(healthDescription([], () => 'x', 300)).toBe('Each connection is checked every 5 minutes. Problems first.');
-  });
-
-  it('says "No problems" only for checked connections', () => {
-    expect(healthCalm([health('a', 'healthy')])).toEqual({ checked: true, title: 'No problems', text: 'Every connection answered its last check.' });
-    expect(healthCalm([health('a', 'unknown')]).checked).toBe(false);
-    expect(healthCalm([health('a', 'healthy'), health('b', 'unknown')]).text).toBe(
-      "1 connection answered its last check; 1 hasn't been checked yet.",
+    const t = connectionTiles(rows);
+    expect(t.shown.map((c) => c.name)).toEqual(['a', 'b', 'd', 'c']);
+    expect(t.moreLabel).toBe('2 more connections: 1 healthy, 1 not checked yet');
+    expect(connectionTiles([health('e', 'healthy'), health('f', 'healthy'), health('g', 'healthy'), health('h', 'healthy')]).moreLabel).toBe(
+      '1 more connection, healthy',
     );
-  });
-
-  it("splits one unreachable connection's message into what happened and what to do, and names what waits on it", () => {
-    const a = healthAlert(HEALTH, WAITING)!;
-    expect(text(a.title)).toBe("Can't reach billing.stage.acme.dev.");
-    expect(codes(a.title)).toEqual(['billing.stage.acme.dev']);
-    expect(text(a.body)).toBe('Check the VPN or the host, then test again. The waiting http_request on billing-api fails until then.');
-    expect(codes(a.body)).toEqual(['http_request', 'billing-api']);
-    expect(a.names).toEqual(['billing-api']);
-  });
-
-  it('counts several unreachable connections and the requests that wait on them', () => {
-    const rows = ['app-logs', 'aws-stage', 'billing-api', 'cache-redis', 'dev-cluster'].map((n) => health(n, 'unreachable'));
-    const a = healthAlert(rows, WAITING)!;
-    expect(text(a.title)).toBe('5 connections are unreachable.');
-    expect(text(a.body)).toBe(
-      'app-logs, aws-stage, billing-api and 2 more. Check the VPN or the hosts, then test again. 2 waiting requests fail until then.',
-    );
-    expect(a.names).toHaveLength(5);
-    expect(healthAlert([health('x', 'unreachable')], [])!.body.map((p) => p.text).join('')).toBe('Check the VPN or the host, then test again.');
-    expect(healthAlert([health('a', 'degraded')], WAITING)).toBeNull();
-  });
-
-  it('marks identifiers in prose and keeps the sentence intact', () => {
-    const parts = markLiterals("Can't reach db.dev.internal:5432, then retry on read-only replicas.");
-    expect(text(parts)).toBe("Can't reach db.dev.internal:5432, then retry on read-only replicas.");
-    expect(codes(parts)).toEqual(['db.dev.internal:5432']);
+    expect(connectionTiles([health('e', 'healthy')]).description).toBe("1 connection: healthy. The tag shows each one's environment: dev, stage or prod.");
+    expect(connectionTiles([health('e', 'healthy')]).moreLabel).toBeNull();
   });
 
   it('tells the result of Test again', () => {
-    expect(retestToast([{ name: 'billing-api', ok: false, latencyMs: null, message: 'billing.stage.acme.dev did not answer.' }])).toEqual({
+    expect(retestToast({ name: 'billing-api', ok: false, latencyMs: null, message: "Can't reach billing.stage.acme.dev." })).toEqual({
       tone: 'danger',
       title: 'billing-api is still unreachable',
-      body: 'billing.stage.acme.dev did not answer.',
+      body: "Can't reach billing.stage.acme.dev.",
     });
-    expect(retestToast([{ name: 'dev-db', ok: true, latencyMs: 42, message: null }])).toEqual({
+    expect(retestToast({ name: 'billing-api', ok: true, latencyMs: 40, message: null })).toEqual({
       tone: 'success',
-      title: 'dev-db is reachable again',
-      body: 'It answered in 42 ms.',
+      title: 'billing-api is reachable again',
+      body: 'It answered in 40 ms.',
     });
-    const mixed = retestToast([
-      { name: 'a', ok: true, latencyMs: 1, message: null },
-      { name: 'b', ok: false, latencyMs: null, message: null },
-    ]);
-    expect(mixed).toEqual({ tone: 'warning', title: '1 of 2 connections are reachable again', body: 'Still unreachable: b.' });
   });
 });
 
-describe('recent activity', () => {
-  it('keeps decided calls only: pending ones are the waiting list', () => {
-    const list = decidedCalls([event(3, { decision: 'pending' }), event(2), event(1, { decision: 'denied' })]);
-    expect(list.map((e) => e.id)).toEqual([2, 1]);
-    expect(decidedCalls(Array.from({ length: 12 }, (_, i) => event(i)))).toHaveLength(8);
+describe('AI apps', () => {
+  it('names each app’s card on AI apps as the kit does (#cl-<app>-t)', () => {
+    expect(['claude-desktop', 'codex', 'cursor', 'antigravity', 'claude-ai'].map(appAnchor)).toEqual(['cl-cd-t', 'cl-cx-t', 'cl-cu-t', 'cl-ag-t', 'cl-ai-t']);
   });
 
-  it('names clients as the kit does', () => {
-    expect(clientLabel('claude-desktop')).toBe('Claude Desktop');
-    expect(clientLabel('codex')).toBe('Codex');
-    expect(clientLabel('playground')).toBe('Playground');
-    expect(clientLabel(null)).toBe('');
+  it('counts what a connected app can use, each connection once, and how many are prod', () => {
+    const [claude, codex] = clientsInUse().clients;
+    expect(canUse(claude, ROWS)).toBe('Can use 11 connections, 3 of them prod');
+    expect(canUse(codex, ROWS)).toBe('Can use 8 connections');
+    // Without the connections list, its endpoints.
+    expect(canUse(claude, null)).toBe('Endpoints dev and incident-prod');
+    expect(canUse(codex, null)).toBe('Endpoint dev');
+    expect(canUse(codex, [])).toBe('Endpoint dev, no connections yet');
+  });
+
+  it('lists the home screen’s apps: the one to connect first, connected ones, claude.ai last; not installed ones stay on AI apps', () => {
+    const tiles = homeAppTiles(clientsInUse().clients, ROWS, claudeAiTile(tunnelOff(), () => '12:10'));
+    expect(tiles.map((t) => [t.name, t.state.label, t.meta, t.action, t.linked])).toEqual([
+      ['Cursor', 'Not connected', 'Found on this computer', 'connect', false],
+      ['Claude Desktop', 'Connected', 'Can use 11 connections, 3 of them prod', null, true],
+      ['Codex', 'Connected', 'Can use 8 connections', null, true],
+      ['claude.ai', 'Tunnel off', 'In the browser · used until 12:10', null, true],
+    ]);
+  });
+
+  it('puts an app that needs a restart or failed before the connected ones, with the core’s words', () => {
+    const restart = { ...card('codex', 'Codex', 'needs-restart'), statusText: 'Restart Codex: Settings › MCP servers › Restart' };
+    const failed = { ...card('cursor', 'Cursor', 'error'), statusText: 'The entry gateway-dev was changed outside the app' };
+    const tiles = homeAppTiles([card('claude-desktop', 'Claude Desktop', 'connected'), restart, failed], null, null);
+    expect(tiles.map((t) => [t.name, t.state.tone, t.state.label, t.meta])).toEqual([
+      ['Cursor', 'danger', 'Error', 'The entry gateway-dev was changed outside the app'],
+      ['Codex', 'warning', 'Needs restart', 'Restart Codex: Settings › MCP servers › Restart'],
+      ['Claude Desktop', 'success', 'Connected', ''],
+    ]);
+  });
+
+  it('says where claude.ai stands: public, last used, never published', () => {
+    const off = tunnelOff();
+    expect(claudeAiTile(null, () => '')).toBeNull();
+    expect(claudeAiTile({ ...off, history: [] }, () => '')).toMatchObject({ meta: 'In the browser · never published', state: { tone: 'neutral', label: 'Tunnel off' } });
+    expect(claudeAiTile({ ...off, state: 'on', since: '2026-10-22T12:02:00Z' }, () => '14:02')).toMatchObject({
+      meta: 'In the browser · public since 14:02',
+      state: { tone: 'warning', label: 'Public · stage-readonly' },
+    });
+  });
+
+  it('shows the guide’s apps found here with Connect, the others with How to install', () => {
+    expect(clientsFound().clients.map(guideAppTile).map((t) => [t.name, t.state.label, t.meta, t.action, t.linked])).toEqual([
+      ['Claude Desktop', 'Not connected', 'Found on this computer', 'connect', false],
+      ['Codex', 'Not connected', 'Found on this computer', 'connect', false],
+      ['Cursor', 'Not connected', 'Found on this computer', 'connect', false],
+      ['Antigravity', 'Not installed', 'Not found on this computer', 'install', false],
+    ]);
+  });
+});
+
+describe('Activity line and the guide', () => {
+  it('says the day in one line', () => {
+    expect(activityLine({ calls24h: 1287, denied24h: 17 })).toBe('1,287 calls from your AI apps in the last 24 hours, 17 denied by policy. Each one is in');
+    expect(activityLine({ calls24h: 1, denied24h: 0 })).toBe('1 call from your AI apps in the last 24 hours. Each one is in');
+    expect(activityLine({ calls24h: 0, denied24h: 0 })).toBe('No calls from your AI apps in the last 24 hours. When one calls a tool, it shows up in');
+  });
+
+  it('asks the kit’s question for a database, the same idea for other types, "my database" before any connection', () => {
+    expect(checkPrompt(null, null)).toBe('Show me the tables in my database');
+    expect(checkPrompt('postgres', 'dev-db')).toBe('Show me the tables in dev-db');
+    expect(checkPrompt('mongodb', 'orders')).toBe('Show me the collections in orders');
+    expect(checkPrompt('kubernetes', 'dev-cluster')).toBe('Show me the pods in dev-cluster');
+    expect(checkPrompt('logs', 'app-logs')).toBe('Show me the latest errors in app-logs');
+    expect(checkPrompt('ssh', 'dev-vm')).toBe('Show me what you can see in dev-vm');
+  });
+
+  it('says what the first connection does for an AI app, from its tool modes', () => {
+    expect(modesWords(null)).toBeNull();
+    expect(modesWords([])).toBe('not on an endpoint yet');
+    expect(modesWords([{ mode: 'READ_ONLY' }, { mode: 'APPROVAL' }])).toBe('changes need your approval');
+    expect(modesWords([{ mode: 'READ_ONLY' }, { mode: 'OFF' }])).toBe('read only');
+    expect(modesWords([{ mode: 'OFF' }])).toBe('its tools are off');
+  });
+
+  it('says where the secret is and calls it by its field', () => {
+    expect(secretNoun('/credentials/password')).toBe('password');
+    expect(secretNoun('/auth/token')).toBe('token');
+    expect(secretNoun('/privateKey')).toBe('private key');
+    expect(secretNoun('/apiKey')).toBe('key');
+    expect(secretNoun('/whatever')).toBe('secret');
+    expect(secretLine([])).toBeNull();
+    expect(secretLine([{ field: '/credentials/password', secretId: 's', name: null, state: 'stored', version: 1, source: 'local' }])).toEqual({ noun: 'password', where: 'here' });
+    expect(secretLine([{ field: '/credentials/password', secretId: null, name: null, state: 'reference', version: null, source: 'vault' }])).toEqual({ noun: 'password', where: 'manager' });
   });
 });

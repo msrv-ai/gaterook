@@ -83,7 +83,7 @@ class MotoStsTest {
       assertThat(session.accessKeyId()).startsWith("ASIA");
 
       CloudCredentials.CallerIdentity identity = cloud.callerIdentity(provider, "eu-central-1");
-      assertThat(identity.arn()).isEqualTo("arn:aws:sts::123456789012:assumed-role/gw-readonly/mcp-gateway-aws-stage");
+      assertThat(identity.arn()).isEqualTo("arn:aws:sts::123456789012:assumed-role/gw-readonly/gaterook-aws-stage");
     }
   }
 

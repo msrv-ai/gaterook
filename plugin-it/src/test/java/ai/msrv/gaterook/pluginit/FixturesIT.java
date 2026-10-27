@@ -30,7 +30,7 @@ import tools.jackson.databind.node.ObjectNode;
  * The misbehaving plugins against a real host (ARCHITECTURE.md §10 K4, report 16 §10): a crash, an OOM, a hang, a
  * stdout polluter and a secret thief, plus the two ways the core's death reaches the host — the stdin EOF and a
  * {@code kill -9} of the parent. Each proves the boundary the architecture promises: a plugin's fault ends its own
- * process and nothing else, non-JSON on the channel is skipped, and a plugin can't read MCP Gateway's home.
+ * process and nothing else, non-JSON on the channel is skipped, and a plugin can't read GateRook's home.
  */
 class FixturesIT {
 

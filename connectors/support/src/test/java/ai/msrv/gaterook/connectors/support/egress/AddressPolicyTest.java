@@ -144,9 +144,9 @@ class AddressPolicyTest {
     assertThat(verdict.suggestedRange()).contains(Cidr.parse("10.30.4.12/32"));
     assertThat(strict.check(AddressPolicy.canonicalIp("169.254.169.254").orElseThrow(), 80).text())
         .isEqualTo("169.254.169.254 is a link-local, cloud metadata or reserved address. "
-            + "MCP Gateway never connects there.");
+            + "GateRook never connects there.");
     assertThat(strict.check(AddressPolicy.canonicalIp("127.0.0.1").orElseThrow(), 7465).text())
-        .isEqualTo("127.0.0.1:7465 is MCP Gateway itself. Connections to it are never allowed.");
+        .isEqualTo("127.0.0.1:7465 is GateRook itself. Connections to it are never allowed.");
   }
 
   @Test

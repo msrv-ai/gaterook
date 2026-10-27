@@ -12,6 +12,7 @@ import {
   firstCandidate,
   logFileOf,
   portError,
+  publicPortError,
   portOf,
   progressSteps,
   protectsWords,
@@ -29,7 +30,7 @@ import {
  */
 
 const ADDRESS = '127.0.0.1:7465';
-const KEY = '/home/alex/.mcp-gateway/master.keyset';
+const KEY = '/home/alex/.gaterook/master.keyset';
 
 const state = (p: Partial<CoreState>): CoreState => ({
   kind: 'starting',
@@ -78,9 +79,9 @@ const KIT_LIVE: CoreStep[] = [
 
 describe('start-up steps from the progress lines', () => {
   it('reads the kit’s live state: three done with their lines, Local API binding the address', () => {
-    expect(progressSteps(KIT_LIVE, ADDRESS, '~/.mcp-gateway/master.keyset')).toEqual([
+    expect(progressSteps(KIT_LIVE, ADDRESS, '~/.gaterook/master.keyset')).toEqual([
       { id: 'runtime', state: 'complete', description: 'Native image · 0.1 s' },
-      { id: 'master-key', state: 'complete', description: 'Loaded', mono: '~/.mcp-gateway/master.keyset' },
+      { id: 'master-key', state: 'complete', description: 'Loaded', mono: '~/.gaterook/master.keyset' },
       { id: 'db-migrations', state: 'complete', description: 'Up to date · 0.4 s' },
       { id: 'local-api', state: 'current', description: 'Binding', mono: ADDRESS },
     ]);
@@ -220,7 +221,7 @@ describe('the card for each state of the core', () => {
 
   it('a second core on the same home stops at the database lock, before any step: no stepper, the facts say it', () => {
     const v = statusView(
-      state({ kind: 'failed', reason: 'DB_LOCKED', detail: 'Another GateRook core is using ~/.mcp-gateway', exitCode: 2, logTail: 'Action: …', steps: [{ step: 'runtime', state: 'running' }] }),
+      state({ kind: 'failed', reason: 'DB_LOCKED', detail: 'Another GateRook core is using ~/.gaterook', exitCode: 2, logTail: 'Action: …', steps: [{ step: 'runtime', state: 'running' }] }),
       facts(),
     );
     expect(v).toEqual({
@@ -230,7 +231,7 @@ describe('the card for each state of the core', () => {
       lead: expect.stringContaining('Quit the other GateRook, then restart the core.'),
       steps: [],
       exitCode: 2,
-      reason: 'DB_LOCKED: Another GateRook core is using ~/.mcp-gateway',
+      reason: 'DB_LOCKED: Another GateRook core is using ~/.gaterook',
       logLines: 'Action: …',
     });
   });
@@ -289,6 +290,18 @@ describe('Use another port', () => {
     expect(portError('7466', 7465, null)).toBeNull();
   });
 
+  it('moves the tunnel’s listener to 1024 to 65535, not the taken port and not the local API’s', () => {
+    expect(publicPortError('', 7466, 7465)).toBe('Enter a port from 1024 to 65535.');
+    expect(publicPortError('74 66', 7466, 7465)).toBe('Use digits only: a port from 1024 to 65535.');
+    expect(publicPortError('1023', 7466, 7465)).toBe('1023 is outside 1024 to 65535. Use a port in that range.');
+    expect(publicPortError('7466', 7466, 7465)).toBe('7466 is the port that is in use. Choose another one.');
+    expect(publicPortError('7465', 7466, 7465)).toBe('7465 is the local API’s port. Choose another one.');
+    expect(publicPortError('7476', 7466, 7465)).toBeNull();
+    // Ten up from the listener's taken port, past the local API's.
+    expect(firstCandidate(7466, 7465)).toBe(7476);
+    expect(firstCandidate(7455, 7465)).toBe(7466);
+  });
+
   it('looks ten up first (§8.6.9: 7475), past the tunnel’s port, inside the range', () => {
     expect(firstCandidate(7465, 7466)).toBe(7475);
     expect(firstCandidate(7456, 7466)).toBe(7467);
@@ -341,8 +354,8 @@ describe('restore, a new key and the log file', () => {
 
   it('finds the log beside the key the locked core named, else the desktop default', () => {
     expect(logFileOf('/var/log/core.log', KEY)).toBe('/var/log/core.log');
-    expect(logFileOf(null, KEY)).toBe('/home/alex/.mcp-gateway/logs/core.log');
-    expect(logFileOf(null, 'C:\\Users\\alex\\.mcp-gateway\\master.keyset')).toBe('C:\\Users\\alex\\.mcp-gateway\\logs\\core.log');
-    expect(logFileOf(null, null)).toBe('~/.mcp-gateway/logs/core.log');
+    expect(logFileOf(null, KEY)).toBe('/home/alex/.gaterook/logs/core.log');
+    expect(logFileOf(null, 'C:\\Users\\alex\\.gaterook\\master.keyset')).toBe('C:\\Users\\alex\\.gaterook\\logs\\core.log');
+    expect(logFileOf(null, null)).toBe('~/.gaterook/logs/core.log');
   });
 });

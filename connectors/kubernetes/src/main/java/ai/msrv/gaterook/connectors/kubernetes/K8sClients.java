@@ -59,7 +59,7 @@ final class K8sClients implements AutoCloseable {
   private final Clock clock;
 
   K8sClients(String version, Clock clock) {
-    this.userAgent = "mcp-gateway/" + version;
+    this.userAgent = "GateRook/" + version;
     this.clock = clock;
   }
 

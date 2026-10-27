@@ -26,7 +26,7 @@ import tools.jackson.databind.node.ObjectNode;
  *   <li>the base identity ({@code GetCallerIdentity} with the access key or profile): the user ARN for the role's
  *       trust policy; root keys get a warning;</li>
  *   <li>{@code AssumeRole} with the ExternalId, 900 s and the session policy, proven by {@code GetCallerIdentity} of
- *       the session ({@code …:assumed-role/gw-readonly/mcp-gateway-aws-stage}); another account than the
+ *       the session ({@code …:assumed-role/gw-readonly/gaterook-aws-stage}); another account than the
  *       connection's fails;</li>
  *   <li>{@code ListResources} of a few common types in each region: "ok" or what AWS denied — a narrow role, or a
  *       handler that needs another service ({@code ec2:DescribeVpcs} for RDS);</li>

@@ -1,6 +1,6 @@
 # Test fixtures of the OpenAPI import
 
-- `billing-30.yaml` — written for MCP Gateway (report 10 §3.6): the traps of a real file in a small one.
+- `billing-30.yaml` — written for GateRook (report 10 §3.6): the traps of a real file in a small one.
 - `billing-30.tools.json` — the golden of what `billing-30.yaml` compiles to (`OpenApiTemplateKindTest`).
 - `petstore-expanded.yaml` and `tictactoe.yaml` — unchanged copies of the examples of
   [OAI/learn.openapis.org](https://github.com/OAI/learn.openapis.org) at commit

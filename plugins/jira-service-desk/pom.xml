@@ -21,7 +21,7 @@
   </parent>
 
   <artifactId>plugins-jira-service-desk</artifactId>
-  <name>MCP Gateway · Plugins · Jira Service Desk</name>
+  <name>GateRook · Plugins · Jira Service Desk</name>
 
   <properties>
     <maven.deploy.skip>true</maven.deploy.skip>

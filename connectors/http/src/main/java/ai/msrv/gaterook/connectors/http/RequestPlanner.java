@@ -139,7 +139,7 @@ final class RequestPlanner {
     HttpSettings.Auth auth = s.auth();
     if (auth.type() == HttpSettings.AuthType.API_KEY_QUERY && url.queryParameterNames().contains(auth.name())) {
       throw new Refusal("query-not-allowed", "The query parameter " + auth.name() + " carries the connection's key: "
-          + "the gateway sets it.", "Leave it out; MCP Gateway adds it when it sends the request.");
+          + "the gateway sets it.", "Leave it out; GateRook adds it when it sends the request.");
     }
     return url;
   }
@@ -198,7 +198,7 @@ final class RequestPlanner {
             + "contentType.");
       }
       if (Headers.isForbidden(h.name()) || gateway.contains(lower)) {
-        throw new Refusal("header-not-allowed", h.name() + " can't be sent through MCP Gateway: "
+        throw new Refusal("header-not-allowed", h.name() + " can't be sent through GateRook: "
             + (gateway.contains(lower) || lower.equals("authorization") ? "the gateway adds the connection's "
             + "credentials itself." : "the HTTP layer or the gateway sets it."), null);
       }

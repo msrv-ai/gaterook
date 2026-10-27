@@ -22,7 +22,8 @@ export interface StatusStep {
 /**
  * What the window shows while the core isn't available (design/elements/status-screen.html):
  * - `starting`: indeterminate progress and the steps done so far;
- * - `port-in-use`: the local API couldn't bind; the command that finds the other process;
+ * - `port-in-use`: the local API or the tunnel's public listener couldn't bind; the command that finds the other
+ *   process, and Use another port;
  * - `locked`: the master key is missing (or doesn't open the secrets): restore the backup, or a new key, which
  *   makes the local secrets unreadable (danger notice + confirmation);
  * - `stopped`: the core ran and exited: exit code, reason, uptime, log file and its last lines;
@@ -39,8 +40,8 @@ export type StatusScreenView =
       /** The port that is taken, when it isn't the local API's (the failure line names it). */
       readonly takenPort?: number | null;
       /**
-       * The taken port is the tunnel's public listener (the core binds both at start, §7.3): another local port
-       * wouldn't help, so the card asks to free it and restart instead of offering Use another port.
+       * The taken port is the tunnel's public listener (the core binds both at start, §7.3): Use another port moves
+       * that listener (the endpoint URLs stay), and Restart core is there for a process that was stopped meanwhile.
        */
       readonly publicListener?: boolean;
     }
@@ -139,7 +140,7 @@ export class GwStatusScreen {
   /** `127.0.0.1:7465`. */
   readonly address = input('127.0.0.1:7465');
   readonly version = input<string | null>(null);
-  readonly logFile = input('~/.mcp-gateway/logs/core.log');
+  readonly logFile = input('~/.gaterook/logs/core.log');
   /** In a preview frame instead of covering the window. */
   readonly contained = input(false, { transform: booleanAttribute });
   /** The title's heading level: 1 in the app (it is the page), 2 or 3 inside a documentation section. */

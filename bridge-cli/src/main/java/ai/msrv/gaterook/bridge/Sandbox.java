@@ -24,13 +24,13 @@ import java.util.Map;
  * (ARCHITECTURE.md §7.5): starts an MCP server, or anything the core runs on the person's behalf, confined to what it
  * needs. On Linux (Landlock, kernel 5.13 or later) the bridge restricts itself — {@code PR_SET_NO_NEW_PRIVS}, a
  * Landlock ruleset that reads only the {@code --ro} paths and writes only the {@code --rw} paths — and then
- * {@code execve}s the command, which inherits the restriction and can't lift it. The rest of {@code $HOME}, MCP
- * Gateway's data included, can't be opened. The network isn't restricted: MCP servers need it.
+ * {@code execve}s the command, which inherits the restriction and can't lift it. The rest of {@code $HOME},
+ * GateRook's data included, can't be opened. The network isn't restricted: MCP servers need it.
  *
  * <p>Defaults (unless {@code --no-defaults}): the system read-only ({@code /usr}, {@code /lib*}, {@code /bin},
  * {@code /sbin}, {@code /etc}, {@code /opt}, {@code /proc}, {@code /sys}, {@code /nix}), {@code /dev} for reading and
  * writing devices, and the command's own folder read-only. On macOS the command runs under {@code sandbox-exec} with
- * a profile that denies reading MCP Gateway's home, the usual credential folders and the configs of the connected
+ * a profile that denies reading GateRook's home, the usual credential folders and the configs of the connected
  * clients except the {@code --rw} ones (the API is deprecated, but works on macOS 27). Elsewhere, or when Landlock is
  * unavailable, it refuses with exit 4, unless
  * {@code --allow-unsandboxed} says to run it as it is (the core then shows "Not sandboxed on this system").
@@ -374,8 +374,8 @@ final class Sandbox {
   // ── macOS: sandbox-exec ─────────────────────────────────────────────────────────────────────────────────────
 
   /**
-   * SBPL: everything as usual, except reading MCP Gateway's home, the credential folders and the configs of the
-   * clients MCP Gateway connects (Cursor's and Antigravity's may hold a token, Codex's and Claude's name grants), minus
+   * SBPL: everything as usual, except reading GateRook's home, the credential folders and the configs of the
+   * clients GateRook connects (Cursor's and Antigravity's may hold a token, Codex's and Claude's name grants), minus
    * the --rw ones (later rules win). Seatbelt compares {@code subpath} with the canonical path only — a rule for
    * {@code /tmp/x} doesn't stop reading {@code /private/tmp/x} — so every path is written as given and as the kernel
    * sees it.

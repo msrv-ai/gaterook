@@ -86,7 +86,7 @@ public interface McpServerRuntime extends AutoCloseable {
   /** What the core gives the runtime. */
   interface Host {
 
-    /** The gateway's home ({@code ~/.mcp-gateway}): work folders {@code mcp/<name>}, logs {@code logs/mcp/}. */
+    /** The gateway's home ({@code ~/.gaterook}): work folders {@code mcp/<name>}, logs {@code logs/mcp/}. */
     Path home();
 
     /** Why no tool of an MCP server may be called {@code toolName} (a built-in or core name), or empty. */

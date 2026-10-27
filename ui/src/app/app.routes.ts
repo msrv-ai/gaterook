@@ -100,8 +100,9 @@ export const routes: Routes = [
       },
       {
         path: 'clients',
-        title: 'Clients',
-        data: data('Clients'),
+        // The kit's AI apps (the page file is still clients.html, the route stays /clients).
+        title: 'AI apps',
+        data: data('AI apps'),
         loadComponent: () => import('./pages/clients/clients.page').then((m) => m.ClientsPage),
       },
       { path: 'policies', pathMatch: 'full', redirectTo: 'policies/dev' },

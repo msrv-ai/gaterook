@@ -1,16 +1,20 @@
 @let m = mode();
 @let cur = current();
 @let connName = cur.name || 'this connection';
+@let first = firstRun();
+@let done = ready();
 
 <!--
   Three modes of one screen (pages/connection-new.html): the wizard (Choose type → Configure → Test → Add to endpoint),
   the same wizard from Configure for ?duplicate=, and the edit view of one connection (/connections/<name>).
+  First run (kit ?state=first-run, decided from the core: no connection, no endpoint yet): the wizard speaks to a
+  beginner, step 4 creates the first endpoint, and after Save the "<name> is ready" card replaces the steps.
 -->
 <header class="gw-page-header">
   <nav class="gw-breadcrumb gw-page-header__breadcrumb" aria-label="Breadcrumb">
     <ol>
       <li><a routerLink="/connections">Connections</a></li>
-      <li><svg lucideIcon="chevron-right" class="gw-icon"></svg><span aria-current="page" id="page-crumb">@switch (m) {@case ('edit') {{{ name() }}} @case ('duplicate') {Duplicate {{ duplicate() }}} @default {Add connection}}</span></li>
+      <li><svg lucideIcon="chevron-right" class="gw-icon"></svg><span aria-current="page" id="page-crumb">@switch (m) {@case ('edit') {{{ name() }}} @case ('duplicate') {Duplicate {{ duplicate() }}} @default {@if (first) {Add your first connection} @else {Add connection}}}</span></li>
     </ol>
   </nav>
   <div class="gw-page-header__row">
@@ -38,13 +42,27 @@
           <p class="gw-page-header__description">A new connection with the settings of <span class="gw-mono">{{ duplicate() }}</span>. Secrets are never copied: enter or reference the credentials of the copy.</p>
         }
         @default {
-          <h1 class="gw-page-header__title" id="page-title">Add connection</h1>
-          <p class="gw-page-header__description">Connect a resource once: choose its type, fill in where it is, test it, then pick the endpoints whose agents may use it. Nothing is saved until the last step.</p>
+          @if (first) {
+            <h1 class="gw-page-header__title" id="page-title">Add your first connection</h1>
+            @if (done) {
+              <p class="gw-page-header__description"><span class="gw-mono">{{ done.name }}</span> is saved and on your first endpoint. Next, connect the AI app you use.</p>
+            } @else {
+              <p class="gw-page-header__description">Choose its type, say where it is and how to sign in, and test it. GateRook then creates your first endpoint, the address your AI apps connect to. Nothing is saved until the last step.</p>
+            }
+          } @else {
+            <h1 class="gw-page-header__title" id="page-title">Add connection</h1>
+            <p class="gw-page-header__description">Connect a resource once: choose its type, fill in where it is, test it, then pick the endpoints whose agents may use it. Nothing is saved until the last step.</p>
+          }
         }
       }
     </div>
     <div class="gw-page-header__actions">
-      @if (m !== 'edit') {
+      @if (m !== 'edit' && first) {
+        <!-- After Save the card holds the ways on: Cancel no longer holds. -->
+        @if (!done) {
+          <a class="gw-btn gw-btn--ghost" routerLink="/overview">Cancel<span class="gw-sr-only"> and go back to Overview</span></a>
+        }
+      } @else if (m !== 'edit') {
         <a class="gw-btn gw-btn--ghost" routerLink="/connections">Cancel</a>
       } @else if (detail()) {
         <a class="gw-btn gw-btn--ghost" routerLink="/activity" [queryParams]="{ q: activityQuery(name()!) }"><svg lucideIcon="activity" class="gw-icon"></svg> View activity<span class="gw-sr-only"> of {{ name() }}</span></a>
@@ -136,10 +154,14 @@
   </ol>
 
   <!-- ───────────── Step 1 · Choose type ───────────── -->
-  <section class="gw-section" id="step-1" aria-labelledby="step-1-title" [hidden]="step() !== 1">
+  <section class="gw-section" id="step-1" aria-labelledby="step-1-title" [hidden]="step() !== 1 || !!done">
     <header class="gw-section__header">
       <h2 class="gw-section__title" id="step-1-title" tabindex="-1">Choose a connector type</h2>
-      <p class="gw-section__description">The type decides the fields and the tools agents get. Need another one? Install it in <a class="gw-link" routerLink="/connectors">Connectors</a>.</p>
+      @if (first) {
+        <p class="gw-section__description">The type decides what you fill in next and what your AI apps can do with it.</p>
+      } @else {
+        <p class="gw-section__description">The type decides the fields and the tools agents get. Need another one? Install it in <a class="gw-link" routerLink="/connectors">Connectors</a>.</p>
+      }
     </header>
     @switch (catalogState()) {
       @case ('error') {
@@ -190,10 +212,14 @@
 
 <!-- ───────────── Step 2 · Configure (the edit view's settings) ───────────── -->
 @if (m === 'edit' ? detailState() === 'ready' : true) {
-  <section class="gw-section" id="step-2" aria-labelledby="step-2-title" [hidden]="m !== 'edit' && step() !== 2">
+  <section class="gw-section" id="step-2" aria-labelledby="step-2-title" [hidden]="m !== 'edit' && (step() !== 2 || !!done)">
     <header class="gw-section__header">
       <h2 class="gw-section__title" id="step-2-title" tabindex="-1">@if (m === 'edit') {Settings} @else {Configure {{ typeName() }}}</h2>
-      <p class="gw-section__description">@if (databaseSetup()) {Enter the server and credentials, load its databases, then choose which ones agents may use.} @else {Enter the connection details and credentials, then review its environment and advanced settings.}</p>
+      @if (first && m !== 'edit' && !databaseSetup()) {
+        <p class="gw-section__description">Where it is and how to sign in.@if (secretTitle(); as st) { Your AI never sees the {{ st.toLowerCase() }}.}</p>
+      } @else {
+        <p class="gw-section__description">@if (databaseSetup()) {Enter the server and credentials, load its databases, then choose which ones agents may use.} @else {Enter the connection details and credentials, then review its environment and advanced settings.}</p>
+      }
     </header>
     @if (specState() === 'error') {
       <div class="gw-alert gw-alert--danger" role="alert">
@@ -217,6 +243,7 @@
         aria-labelledby="step-2-title"
         idPrefix="cf"
         pageCopy
+        [beginner]="first && m === 'add'"
         [spec]="spec()!"
         [mode]="formMode()"
         [name]="startName()"
@@ -274,10 +301,14 @@
 
 @if (m !== 'edit') {
   <!-- ───────────── Step 3 · Test ───────────── -->
-  <section class="gw-section" id="step-3" aria-labelledby="step-3-title" [hidden]="step() !== 3">
+  <section class="gw-section" id="step-3" aria-labelledby="step-3-title" [hidden]="step() !== 3 || !!done">
     <header class="gw-section__header">
       <h2 class="gw-section__title" id="step-3-title" tabindex="-1">Test <span class="gw-mono">{{ connName }}</span></h2>
-      <p class="gw-section__description">The core connects from this machine with the values you entered and checks what the user may do.</p>
+      @if (first) {
+        <p class="gw-section__description">{{ firstTestText() }}</p>
+      } @else {
+        <p class="gw-section__description">The core connects from this machine with the values you entered and checks what the user may do.</p>
+      }
     </header>
     <form class="gw-form gw-form--sticky-actions gw-connection-form" method="dialog" novalidate aria-labelledby="step-3-title" (submit)="$event.preventDefault()">
       @let t = target();
@@ -318,138 +349,120 @@
 
       <div class="gw-form__actions">
         <button class="gw-btn gw-btn--ghost" type="button" (click)="go(2)"><svg lucideIcon="arrow-left" class="gw-icon"></svg> Back</button>
-        <button class="gw-btn gw-btn--primary" type="button" (click)="go(4)">Continue<span class="gw-sr-only"> to add to an endpoint</span> <svg lucideIcon="arrow-right" class="gw-icon"></svg></button>
+        <button class="gw-btn gw-btn--primary" type="button" (click)="go(4)">Continue<span class="gw-sr-only"> to @if (first) {create the endpoint} @else {add to an endpoint}</span> <svg lucideIcon="arrow-right" class="gw-icon"></svg></button>
       </div>
     </form>
   </section>
 
   <!-- ───────────── Step 4 · Add to endpoint ───────────── -->
-  <section class="gw-section" id="step-4" aria-labelledby="step-4-title" [hidden]="step() !== 4">
+  <section class="gw-section" id="step-4" aria-labelledby="step-4-title" [hidden]="step() !== 4 || !!done">
     <header class="gw-section__header">
-      <h2 class="gw-section__title" id="step-4-title" tabindex="-1">Add <span class="gw-mono">{{ connName }}</span> to an endpoint</h2>
-      <p class="gw-section__description">Agents reach a connection only through an endpoint. Its tools appear there with safe default modes you can change later.</p>
+      @if (first) {
+        <h2 class="gw-section__title" id="step-4-title" tabindex="-1">Make <span class="gw-mono">{{ connName }}</span> available to your AI apps</h2>
+        <p class="gw-section__description">Your AI apps reach <span class="gw-mono">{{ connName }}</span> through an endpoint: one address with the tools you allow.</p>
+      } @else {
+        <h2 class="gw-section__title" id="step-4-title" tabindex="-1">Add <span class="gw-mono">{{ connName }}</span> to an endpoint</h2>
+        <p class="gw-section__description">Agents reach a connection only through an endpoint. Its tools appear there with safe default modes you can change later.</p>
+      }
     </header>
     <form class="gw-form gw-form--sticky-actions" method="dialog" novalidate aria-labelledby="step-4-title" id="add-save" (submit)="save($event)">
-      <fieldset class="gw-form__section">
-        <legend class="gw-form__legend">Endpoints</legend>
-        <p class="gw-form__description">Pick where agents may use <span class="gw-mono">{{ connName }}</span>. Every client of a chosen endpoint gets its tools on the next call.</p>
-        <div class="gw-form__rows">
-          @switch (endpointsState()) {
-            @case ('error') {
-              <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
-                <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
-                <div class="gw-alert__content">
-                  <p class="gw-alert__title">The endpoints didn't load</p>
-                  <p class="gw-alert__body">{{ errorText(endpointsError()) }} You can still save the connection and add it from the endpoint later.</p>
-                </div>
-                <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retryEndpoints()">Try again</button></div>
+      @if (first) {
+        <!-- First run: no endpoint exists, so the one Save creates is shown, not offered as a choice. -->
+        <section class="gw-form__section" aria-labelledby="ep-new-t">
+          <header class="gw-form__section-header">
+            <h3 class="gw-form__legend" id="ep-new-t">Your first endpoint</h3>
+            <p class="gw-form__description">GateRook creates it when you save, with <span class="gw-mono">{{ connName }}</span> on it. You can add more endpoints later, under Endpoints.</p>
+          </header>
+          <div class="gw-form__rows">
+            <div class="gw-card gw-card--muted">
+              <div class="gw-card__body">
+                <dl class="gw-kv gw-kv--dense">
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Name</dt><dd class="gw-kv__value gw-mono">{{ cur.env }}</dd></div>
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Address</dt><dd class="gw-kv__value"><span class="gw-mono">{{ firstUrl() }}</span>, the one your AI apps connect to</dd></div>
+                  <div class="gw-kv__row"><dt class="gw-kv__key">AI apps</dt><dd class="gw-kv__value">None yet. You connect one next.</dd></div>
+                </dl>
               </div>
-            }
-            @case ('ready') {
-              @if (choices().length) {
-                <div class="gw-grid gw-grid--auto">
-                  @for (c of choices(); track c.slug) {
-                    @let base = 'ep-' + c.slug;
-                    <label class="gw-choice-card gw-choice-card--compact">
-                      <input
-                        class="gw-choice-card__input"
-                        type="checkbox"
-                        name="endpoints"
-                        [value]="c.slug"
-                        [checked]="!c.refusal && chosen().includes(c.slug)"
-                        [gwAriaDisabled]="!!c.refusal"
-                        [attr.aria-labelledby]="base + '-t'"
-                        [attr.aria-describedby]="base + '-d' + (c.meta && !c.refusal ? ' ' + base + '-m' : '')"
-                        (change)="toggleEndpoint(c, $event)"
-                      />
-                      <span class="gw-choice-card__icon"><svg lucideIcon="waypoints" class="gw-icon"></svg></span>
-                      <span class="gw-choice-card__title gw-mono" [id]="base + '-t'">{{ c.slug }}</span>
-                      <span class="gw-choice-card__description" [id]="base + '-d'">@for (part of literalParts(c.description, c.refusal ? [cur.name] : []); track $index) {@if (part.code) {<span class="gw-mono">{{ part.text }}</span>} @else {{{ part.text }}}}</span>
-                      @if (c.meta && !c.refusal) {
-                        <span class="gw-choice-card__meta" [id]="base + '-m'">{{ c.meta }}</span>
-                      }
-                    </label>
-                  }
+            </div>
+          </div>
+        </section>
+      } @else {
+        <fieldset class="gw-form__section">
+          <legend class="gw-form__legend">Endpoints</legend>
+          <p class="gw-form__description">Pick where agents may use <span class="gw-mono">{{ connName }}</span>. Every AI app of a chosen endpoint gets its tools on the next call.</p>
+          <div class="gw-form__rows">
+            @switch (endpointsState()) {
+              @case ('error') {
+                <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+                  <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+                  <div class="gw-alert__content">
+                    <p class="gw-alert__title">The endpoints didn't load</p>
+                    <p class="gw-alert__body">{{ errorText(endpointsError()) }} You can still save the connection and add it from the endpoint later.</p>
+                  </div>
+                  <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retryEndpoints()">Try again</button></div>
                 </div>
-              } @else {
-                <p class="gw-text-small gw-fg-muted">There is no endpoint yet.</p>
               }
-              <p class="gw-text-small gw-fg-muted">Need a separate URL for this? <a class="gw-link" routerLink="/endpoints">Create an endpoint</a> first, or save now and add <span class="gw-mono">{{ connName }}</span> from the endpoint later.</p>
+              @case ('ready') {
+                @if (choices().length) {
+                  <div class="gw-grid gw-grid--auto">
+                    @for (c of choices(); track c.slug) {
+                      @let base = 'ep-' + c.slug;
+                      <label class="gw-choice-card gw-choice-card--compact">
+                        <input
+                          class="gw-choice-card__input"
+                          type="checkbox"
+                          name="endpoints"
+                          [value]="c.slug"
+                          [checked]="!c.refusal && chosen().includes(c.slug)"
+                          [gwAriaDisabled]="!!c.refusal"
+                          [attr.aria-labelledby]="base + '-t'"
+                          [attr.aria-describedby]="base + '-d' + (c.meta && !c.refusal ? ' ' + base + '-m' : '')"
+                          (change)="toggleEndpoint(c, $event)"
+                        />
+                        <span class="gw-choice-card__icon"><svg lucideIcon="waypoints" class="gw-icon"></svg></span>
+                        <span class="gw-choice-card__title gw-mono" [id]="base + '-t'">{{ c.slug }}</span>
+                        <span class="gw-choice-card__description" [id]="base + '-d'">@for (part of literalParts(c.description, c.refusal ? [cur.name] : []); track $index) {@if (part.code) {<span class="gw-mono">{{ part.text }}</span>} @else {{{ part.text }}}}</span>
+                        @if (c.meta && !c.refusal) {
+                          <span class="gw-choice-card__meta" [id]="base + '-m'">{{ c.meta }}</span>
+                        }
+                      </label>
+                    }
+                  </div>
+                } @else {
+                  <p class="gw-text-small gw-fg-muted">There is no endpoint yet.</p>
+                }
+                <p class="gw-text-small gw-fg-muted">Need a separate URL for this? <a class="gw-link" routerLink="/endpoints">Create an endpoint</a> first, or save now and add <span class="gw-mono">{{ connName }}</span> from the endpoint later.</p>
+              }
+              @default {
+                <div class="gw-grid gw-grid--auto" aria-busy="true">
+                  <span class="gw-skeleton gw-skeleton--block" aria-hidden="true"></span>
+                  <span class="gw-skeleton gw-skeleton--block" aria-hidden="true"></span>
+                  <p class="gw-sr-only" role="status">Loading endpoints</p>
+                </div>
+              }
             }
-            @default {
-              <div class="gw-grid gw-grid--auto" aria-busy="true">
-                <span class="gw-skeleton gw-skeleton--block" aria-hidden="true"></span>
-                <span class="gw-skeleton gw-skeleton--block" aria-hidden="true"></span>
-                <p class="gw-sr-only" role="status">Loading endpoints</p>
-              </div>
-            }
-          }
-        </div>
-      </fieldset>
+          </div>
+        </fieldset>
+      }
 
       <section class="gw-form__section" aria-labelledby="pv-title">
         <header class="gw-form__section-header">
+          @if (first) {
+            @let fm = firstModes();
+            <h3 class="gw-form__legend" id="pv-title">What your AI apps can do</h3>
+            <p class="gw-form__description">@for (part of literalParts(fm.text, fm.literals); track $index) {@if (part.code) {<span class="gw-mono">{{ part.text }}</span>} @else {{{ part.text }}}}</p>
+          } @else {
           <h3 class="gw-form__legend" id="pv-title">Tools agents get</h3>
           <p class="gw-form__description">Default modes from the {{ typeName() }} connector.@if (mutatingTools().length) { Nothing writes without a person: @for (tool of mutatingTools(); track tool; let i = $index, last = $last) {@if (i && last) { and } @else if (i) {, }<span class="gw-mono">{{ tool }}</span>} {{ mutatingTools().length === 1 ? 'is' : 'are' }} Approval or Off, never more.}</p>
+          }
         </header>
         <div class="gw-form__rows" id="pv-rows">
-          @for (p of previews(); track p.choice.slug) {
+          @if (first) {
+            <!-- The endpoint Save creates, named after the environment (prod: nothing waits for approval). -->
+            <ng-container [ngTemplateOutlet]="toolCard" [ngTemplateOutletContext]="{ slug: cur.env, preview: firstPreview() }" />
+          }
+          @for (p of first ? [] : previews(); track p.choice.slug) {
             @let slug = p.choice.slug;
-            <!-- tool-policy-list element, read-only form (gw-mode instead of the picker, as in its Playground variant) -->
-            <div class="gw-tool-policy-list">
-              <section class="gw-card gw-card--flush" [attr.aria-labelledby]="'pv-' + slug + '-t'">
-                <header class="gw-card__header">
-                  <div class="gw-tool-policy-list__group-heading">
-                    <span class="gw-icon-tile"><svg [lucideIcon]="typeIcon()" class="gw-icon"></svg></span>
-                    <div class="gw-card__heading">
-                      <h4 class="gw-card__title" [id]="'pv-' + slug + '-t'"><span class="gw-mono">{{ connName }}</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm" [class]="'gw-env--' + cur.env">{{ cur.env }}</span> on endpoint <span class="gw-mono">{{ slug }}</span></h4>
-                      <p class="gw-card__description">{{ p.preview.summary }}</p>
-                    </div>
-                  </div>
-                </header>
-                <div class="gw-card__body">
-                  @if (p.preview.rows.length) {
-                    <div class="gw-table-wrap" role="region" [attr.aria-labelledby]="'pv-' + slug + '-cap'" tabindex="0">
-                      <table class="gw-table">
-                        <caption class="gw-sr-only" [id]="'pv-' + slug + '-cap'">Tools of {{ connName }} on endpoint {{ slug }}, with default modes</caption>
-                        <thead><tr><th scope="col">Tool</th><th scope="col">Default mode</th></tr></thead>
-                        <tbody>
-                          @for (r of p.preview.rows; track r.name) {
-                            @let mv = modeOf(r.mode);
-                            @let a = r.annotations;
-                            <tr class="gw-tool-policy-list__row" [attr.data-mode]="modeValue[r.mode]">
-                              <th scope="row" class="gw-tool-policy-list__tool">
-                                <div class="gw-tool-policy-list__name">
-                                  <code class="gw-code">{{ r.name }}</code>
-                                  @if (a.readOnlyHint || a.destructiveHint || a.idempotentHint || a.openWorldHint) {
-                                    <ul class="gw-tool-policy-list__annotations" [attr.aria-label]="'MCP annotations of ' + r.name">@if (a.readOnlyHint) {<li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li>}@if (a.destructiveHint) {<li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--danger" title="destructiveHint">Destructive</li>}@if (a.idempotentHint) {<li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li>}@if (a.openWorldHint) {<li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--warning" title="openWorldHint">Open world</li>}</ul>
-                                  }
-                                </div>
-                                @if (r.description) {
-                                  <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">{{ r.description }}</p>
-                                }
-                              </th>
-                              <td>
-                                @if (r.note; as note) {
-                                  <div class="gw-tool-policy-list__mode">
-                                    <span class="gw-mode" [class]="mv.cls"><svg [lucideIcon]="mv.icon" class="gw-icon"></svg>{{ mv.text }}</span>
-                                    <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted"><svg [lucideIcon]="note.icon" class="gw-icon gw-icon--xs"></svg>{{ note.text }}</p>
-                                  </div>
-                                } @else {
-                                  <span class="gw-mode" [class]="mv.cls"><svg [lucideIcon]="mv.icon" class="gw-icon"></svg>{{ mv.text }}</span>
-                                }
-                              </td>
-                            </tr>
-                          }
-                        </tbody>
-                      </table>
-                    </div>
-                  } @else {
-                    <p class="gw-text-small gw-fg-muted">The tools come from the server once it runs. Each one starts in Approval; you change modes on the endpoint.</p>
-                  }
-                </div>
-              </section>
-            </div>
+            <ng-container [ngTemplateOutlet]="toolCard" [ngTemplateOutletContext]="{ slug: slug, preview: p.preview }" />
             @if (p.choice.warning; as w) {
               <div class="gw-alert gw-alert--warning gw-alert--compact">
                 <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
@@ -460,7 +473,7 @@
               </div>
             }
           } @empty {
-            @if (endpointsState() !== 'loading') {
+            @if (!first && endpointsState() !== 'loading') {
               <div class="gw-card gw-card--dashed">
                 <div class="gw-empty gw-empty--compact">
                   <span class="gw-empty__icon"><svg lucideIcon="waypoints" class="gw-icon"></svg></span>
@@ -470,7 +483,9 @@
               </div>
             }
           }
-          <p class="gw-text-small gw-fg-muted"><code class="gw-code">list_connections</code> and <code class="gw-code">describe_connection</code> on the chosen endpoints will include <span class="gw-mono">{{ connName }}</span> too.</p>
+          @if (!first) {
+            <p class="gw-text-small gw-fg-muted"><code class="gw-code">list_connections</code> and <code class="gw-code">describe_connection</code> on the chosen endpoints will include <span class="gw-mono">{{ connName }}</span> too.</p>
+          }
         </div>
       </section>
 
@@ -483,6 +498,95 @@
       </div>
     </form>
   </section>
+
+  <!-- The tools a connection brings to an endpoint: tool-policy-list element, read-only form (gw-mode instead of the picker). -->
+  <ng-template #toolCard let-slug="slug" let-preview="preview">
+    @let pv = previewOf(preview);
+    <div class="gw-tool-policy-list">
+      <section class="gw-card gw-card--flush" [attr.aria-labelledby]="'pv-' + slug + '-t'">
+        <header class="gw-card__header">
+          <div class="gw-tool-policy-list__group-heading">
+            <span class="gw-icon-tile"><svg [lucideIcon]="typeIcon()" class="gw-icon"></svg></span>
+            <div class="gw-card__heading">
+              <h4 class="gw-card__title" [id]="'pv-' + slug + '-t'"><span class="gw-mono">{{ connName }}</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm" [class]="'gw-env--' + cur.env">{{ cur.env }}</span> on endpoint <span class="gw-mono">{{ slug }}</span></h4>
+              <p class="gw-card__description">{{ pv.summary }}</p>
+            </div>
+          </div>
+        </header>
+        <div class="gw-card__body">
+          @if (pv.rows.length) {
+            <div class="gw-table-wrap" role="region" [attr.aria-labelledby]="'pv-' + slug + '-cap'" tabindex="0">
+              <table class="gw-table">
+                <caption class="gw-sr-only" [id]="'pv-' + slug + '-cap'">Tools of {{ connName }} on endpoint {{ slug }}, with default modes</caption>
+                <thead><tr><th scope="col">Tool</th><th scope="col">Default mode</th></tr></thead>
+                <tbody>
+                  @for (r of pv.rows; track r.name) {
+                    @let mv = modeOf(r.mode);
+                    @let a = r.annotations;
+                    <tr class="gw-tool-policy-list__row" [attr.data-mode]="modeValue[r.mode]">
+                      <th scope="row" class="gw-tool-policy-list__tool">
+                        <div class="gw-tool-policy-list__name">
+                          <code class="gw-code">{{ r.name }}</code>
+                          @if (a.readOnlyHint || a.destructiveHint || a.idempotentHint || a.openWorldHint) {
+                            <ul class="gw-tool-policy-list__annotations" [attr.aria-label]="'MCP annotations of ' + r.name">@if (a.readOnlyHint) {<li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li>}@if (a.destructiveHint) {<li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--danger" title="destructiveHint">Destructive</li>}@if (a.idempotentHint) {<li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li>}@if (a.openWorldHint) {<li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--warning" title="openWorldHint">Open world</li>}</ul>
+                          }
+                        </div>
+                        @if (r.description) {
+                          <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">{{ r.description }}</p>
+                        }
+                      </th>
+                      <td>
+                        @if (r.note; as note) {
+                          <div class="gw-tool-policy-list__mode">
+                            <span class="gw-mode" [class]="mv.cls"><svg [lucideIcon]="mv.icon" class="gw-icon"></svg>{{ mv.text }}</span>
+                            <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted"><svg [lucideIcon]="note.icon" class="gw-icon gw-icon--xs"></svg>{{ note.text }}</p>
+                          </div>
+                        } @else {
+                          <span class="gw-mode" [class]="mv.cls"><svg [lucideIcon]="mv.icon" class="gw-icon"></svg>{{ mv.text }}</span>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          } @else {
+            <p class="gw-text-small gw-fg-muted">The tools come from the server once it runs. Each one starts in Approval; you change modes on the endpoint.</p>
+          }
+        </div>
+      </section>
+    </div>
+  </ng-template>
+
+  @if (done) {
+    <!-- ───────────── First run · after Save: what exists now and the one next step ───────────── -->
+    <section class="gw-card" id="fr-done" aria-labelledby="fr-done-t">
+      <header class="gw-card__header">
+        <div class="gw-card__heading">
+          <h2 class="gw-card__title" id="fr-done-t" tabindex="-1"><span class="gw-mono">{{ done.name }}</span> is ready</h2>
+          <p class="gw-card__description">@if (done.tested) {Saved and tested.} @else {Saved, though its test didn't pass.} Your AI apps can use it as soon as you connect one.</p>
+        </div>
+        @if (done.health; as h) {
+          <div class="gw-card__actions"><span class="gw-status" [class]="'gw-status--' + h.tone"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ h.text }}</span></span></div>
+        }
+      </header>
+      <div class="gw-card__body">
+        <dl class="gw-kv gw-kv--dense">
+          <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><span class="gw-mono">{{ done.endpoint }}</span> · <span class="gw-mono">{{ done.url }}</span> · created <time [attr.datetime]="time.iso(done.createdAt)" [title]="time.absolute(done.createdAt)">{{ time.relative(done.createdAt) }}</time></dd></div>
+          @if (readyTools(); as rt) {
+            <div class="gw-kv__row"><dt class="gw-kv__key">Tools</dt><dd class="gw-kv__value">@for (part of literalParts(rt.text, rt.literals); track $index) {@if (part.code) {<span class="gw-mono">{{ part.text }}</span>} @else {{{ part.text }}}}</dd></div>
+          }
+          @if (secretTitle(); as st) {
+            <div class="gw-kv__row"><dt class="gw-kv__key">{{ st }}</dt><dd class="gw-kv__value">@if (done.local) {Encrypted with a key kept on this computer.@if (!keyBackedUp()) { <a class="gw-link" routerLink="/secrets" fragment="master-key">Back up the key</a> so you can restore it.}} @else {Read from your secret manager when a call needs it; nothing is stored here.}</dd></div>
+          }
+        </dl>
+      </div>
+      <footer class="gw-card__footer gw-card__footer--split">
+        <a class="gw-btn gw-btn--link" routerLink="/overview">Back to Overview</a>
+        <a class="gw-btn gw-btn--primary" routerLink="/clients"><svg lucideIcon="plug-zap" class="gw-icon"></svg> Connect your AI app</a>
+      </footer>
+    </section>
+  }
 } @else if (detailState() === 'ready') {
   <!-- ───────────── Edit view · Used by ───────────── -->
   <section class="gw-section" id="used-by" aria-labelledby="used-by-title">

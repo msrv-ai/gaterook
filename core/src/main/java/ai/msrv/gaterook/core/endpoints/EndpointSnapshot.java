@@ -17,7 +17,7 @@ import tools.jackson.databind.JsonNode;
  * {@link EndpointSnapshotService}, cached, rebuilt when the endpoint, a connection, a template, a policy or a
  * connector type changes.
  *
- * @param blockedReason why the endpoint serves nothing right now (a row changed outside MCP Gateway), or {@code null}
+ * @param blockedReason why the endpoint serves nothing right now (a row changed outside GateRook), or {@code null}
  */
 public record EndpointSnapshot(String id, String slug, String description, Env env, boolean readOnly,
     boolean enabled, String instructions, JsonNode settings, boolean published, boolean oauthEnabled,
@@ -27,7 +27,7 @@ public record EndpointSnapshot(String id, String slug, String description, Env e
   /**
    * A connection of the endpoint.
    *
-   * @param problem why its tools don't run ("changed outside MCP Gateway", "PostgreSQL is switched off"), or
+   * @param problem why its tools don't run ("changed outside GateRook", "PostgreSQL is switched off"), or
    *                {@code null}
    */
   public record Wired(ConnectionConfig config, ConnectorManifest manifest, String problem) {

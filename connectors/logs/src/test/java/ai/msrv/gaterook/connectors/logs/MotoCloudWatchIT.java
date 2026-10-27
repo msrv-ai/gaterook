@@ -208,8 +208,8 @@ class MotoCloudWatchIT {
           assertThat(e.getMessage()).contains("FilterLogEvents to 2 calls per second");
         });
     assertThatThrownBy(() -> connector.execute(Configs.call("logs_search", "{\"query\":\"\",\"from\":\"-1h\"}"),
-        cfg(true), SECRETS, ctx)).hasMessageContaining("CloudWatch StartQuery calls of this account are at MCP "
-        + "Gateway's limit");
+        cfg(true), SECRETS, ctx)).hasMessageContaining("CloudWatch StartQuery calls of this account are at "
+        + "GateRook's limit");
   }
 
   @Test

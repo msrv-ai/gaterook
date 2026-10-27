@@ -20,14 +20,14 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * {@code k8s_rollout_restart} (report 08 §3.3): what {@code kubectl rollout restart} does — a new
  * {@code kubectl.kubernetes.io/restartedAt} on the pod template — sent as a JSON merge patch with the field manager
- * {@code mcp-gateway-rollout}.
+ * {@code gaterook-rollout}.
  *
  * <p>The patch carries the {@code metadata.uid} of the object the person approved: if it was deleted and created
  * again since, the API server refuses the patch (uid is immutable) and nothing restarts.
  */
 final class RestartTool {
 
-  static final String FIELD_MANAGER = "mcp-gateway-rollout";
+  static final String FIELD_MANAGER = "gaterook-rollout";
   static final String RESTARTED_AT = "kubectl.kubernetes.io/restartedAt";
 
   private RestartTool() {}

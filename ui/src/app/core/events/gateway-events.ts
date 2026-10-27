@@ -69,8 +69,11 @@ export interface GatewayEvents {
     readonly [key: string]: unknown;
   };
   'notify.link.updated': { readonly id: string; readonly [key: string]: unknown };
-  /** "Open in app" from a channel: focus a route. */
-  'ui.open': { readonly route?: string; readonly approvalId?: string };
+  /**
+   * "Open in app" from Slack or Telegram (notifications.internal Slack/TelegramChannel): the path to show,
+   * `/approvals/ap_…` or `/approvals`. Electron's main opens it itself; the window acts on it only in a browser.
+   */
+  'ui.open': { readonly path?: string };
   'plugin.state': { readonly id: string; readonly state: string; readonly [key: string]: unknown };
   'mcp-server.state': { readonly name: string; readonly state: string; readonly [key: string]: unknown };
   'clients.drift': { readonly client: string; readonly [key: string]: unknown };

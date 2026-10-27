@@ -12,14 +12,14 @@
 #   *CoreProcessIT      each connector area against its own fakes (and the touches that need them), the tunnel, the
 #                       clients, the external secret stores
 #
-# Usage: scripts/native-smoke.sh [binary] [extra mvn args...]   (default binary: app/target/mcp-gateway-core)
+# Usage: scripts/native-smoke.sh [binary] [extra mvn args...]   (default binary: app/target/gaterook-core)
 # The binary comes from: mvn -pl app -am -Pnative -DskipTests package (one native build at a time, README
 # "Development"). Add -Pservices with the Docker test services up (scripts/test-services.sh up) for the fixture
 # touches; then run it through scripts/test-services.sh run.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-binary="${1:-$root/app/target/mcp-gateway-core}"
+binary="${1:-$root/app/target/gaterook-core}"
 shift || true
 if [[ ! -x "$binary" ]]; then
   echo "native-smoke: no executable core at $binary (build it with -Pnative first)" >&2

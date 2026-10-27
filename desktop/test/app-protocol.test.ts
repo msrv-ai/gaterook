@@ -123,7 +123,7 @@ describe('app:// routing', () => {
   });
 
   it('writes a .desktop Exec argument by the spec', () => {
-    assert.equal(desktopExecArg('/opt/MCP Gateway/mcp-gateway'), '"/opt/MCP Gateway/mcp-gateway"');
+    assert.equal(desktopExecArg('/opt/GateRook/gaterook'), '"/opt/GateRook/gaterook"');
     assert.equal(desktopExecArg('/a "b" $c `d` \\e 100%'), '"/a \\\\"b\\\\" \\\\$c \\\\`d\\\\` \\\\\\\\e 100%%"');
   });
 

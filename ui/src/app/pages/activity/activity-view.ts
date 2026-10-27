@@ -29,7 +29,7 @@ export function viewParam(tab: ActivityTab): string | null {
   return tab === 'events' ? null : tab;
 }
 
-/** `#event-<id>` (a row, a deep link `mcp-gateway://activity/events/<id>`, Approvals): the audit row's number. */
+/** `#event-<id>` (a row, a deep link `gaterook://activity/events/<id>`, Approvals): the audit row's number. */
 export function eventFromFragment(fragment: string | null | undefined): number | null {
   const m = /^event-([0-9]{1,18})$/.exec(fragment ?? '');
   return m ? Number(m[1]) : null;
@@ -105,7 +105,7 @@ export function backToRange(range: LogRange, now: number): string {
 
 /** A client of a call: its name and mark (Playground is the app itself). */
 export function clientView(client: string | null | undefined): { readonly id: string; readonly name: string; readonly letter: string | null } {
-  if (!client) return { id: 'unknown', name: 'Unknown client', letter: '?' };
+  if (!client) return { id: 'unknown', name: 'Unknown AI app', letter: '?' };
   if (client === 'playground') return { id: 'playground', name: 'Playground', letter: 'P' };
   return { id: client, name: clientName(client), letter: null };
 }
@@ -512,7 +512,7 @@ export function revokeDescription(w: RevokeWords): string {
 export function revokeWords(t: TokenRow, endpoint: string, expiresIn: string | null): RevokeWords {
   const button = `Revoke ${t.name}`;
   if (t.kind === 'grant') {
-    const who = clientName(t.client ?? 'the client');
+    const who = clientName(t.client ?? 'the AI app');
     const via = t.client === 'codex' ? 'its headers helper' : t.client === 'claude-desktop' ? 'its bridge' : 'it';
     const through =
       t.client === 'codex' ? { text: 'gw-bridge headers', mono: true } : t.client === 'claude-desktop' ? { text: 'the bridge extension (.mcpb)', mono: false } : null;
@@ -520,7 +520,7 @@ export function revokeWords(t: TokenRow, endpoint: string, expiresIn: string | n
       title: `${button}?`,
       before: `${who}'s current token stops working at once and ${via} gets no new one, so ${who} loses access to endpoint `,
       endpoint,
-      after: ` on its next call. Connect ${who} again under Clients to restore it. Its past calls stay in this log.`,
+      after: ` on its next call. Connect ${who} again under AI apps to restore it. Its past calls stay in this log.`,
       accessRest: ' · 15-minute tokens issued on the fly, none stored',
       usedBy: who,
       through,
@@ -535,7 +535,7 @@ export function revokeWords(t: TokenRow, endpoint: string, expiresIn: string | n
     endpoint,
     after: ' on its next call. Issue a new token on the endpoint to restore it. Its past calls stay in this log.',
     accessRest: `${t.prefix ? ` · ${t.prefix}…` : ''}${expiresIn ? `, expires ${expiresIn}` : ''}`,
-    usedBy: 'Clients that send it',
+    usedBy: 'Apps that send it',
     through: null,
     button,
     toastTitle: `${t.name} revoked`,

@@ -55,11 +55,11 @@ describe('connect a store', () => {
     expect(key.config).toEqual({ region: 'us-east-1', credentials: { source: 'accessKey', accessKeyId: 'AKIAABCDEFGHIJKLMNOP' } });
     expect(key.secrets).toEqual({ '/credentials/secretAccessKey': 's3cr3t' });
 
-    const vault = connectRequest('vault', 'vault', { ...m, address: 'https://vault.acme.internal/', roleId: 'mcp-gateway', namespace: 'team' }, { '/auth/secretId': 'x' });
+    const vault = connectRequest('vault', 'vault', { ...m, address: 'https://vault.acme.internal/', roleId: 'gaterook', namespace: 'team' }, { '/auth/secretId': 'x' });
     expect(vault).toEqual({
       kind: 'vault',
       name: 'vault',
-      config: { address: 'https://vault.acme.internal', auth: { method: 'approle', roleId: 'mcp-gateway' }, namespace: 'team' },
+      config: { address: 'https://vault.acme.internal', auth: { method: 'approle', roleId: 'gaterook' }, namespace: 'team' },
       secrets: { '/auth/secretId': 'x' },
     });
     expect(connectRequest('vault', 'vault', { ...m, address: 'https://v', method: 'cli-token' }, {}).config).toEqual({ address: 'https://v', auth: { method: 'cli-token' } });

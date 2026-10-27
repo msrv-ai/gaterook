@@ -90,7 +90,7 @@ describe('client-card view (design/elements/client-card.html)', () => {
     // The bridge extension: the endpoint leaves the bridge, nothing to back up.
     const [cdDev, cdProd] = DEMO_CLIENTS.claudeDesktop.links;
     const bridge = disconnectFacts(DEMO_CLIENTS.claudeDesktop, cdDev, null);
-    expect(words(bridge.removes!)).toBe('The bridge extension of dev, mcp-gateway-dev.mcpb');
+    expect(words(bridge.removes!)).toBe('The bridge extension of dev, gaterook-dev.mcpb');
     expect(words(bridge.revokes!)).toBe("The bridge's short-lived token for dev; no new ones are issued for it");
     expect(bridge.backup).toBeNull();
     // The confirm's words: one row of the bridge keeps the others; a single entry names the client.
@@ -126,9 +126,9 @@ describe('client-card view (design/elements/client-card.html)', () => {
     expect(approvalMode(null)).toBeNull();
     const [token, oauth, bridge] = DEMO_CLIENTS.cursor.methods;
     expect([token, oauth, bridge].map(choiceMeta)).toEqual(['Not on prod endpoints', 'Turns on OAuth sign-in for the endpoint', 'Works on every endpoint']);
-    expect(bridgeFiles({ ...DEMO_CLIENTS.claudeDesktop, links: DEMO_CLIENTS.claudeDesktop.links.map((l) => ({ ...l, mcpbPath: `/h/.mcp-gateway/clients/claude-desktop/mcp-gateway-${l.endpoint}.mcpb` })) })).toEqual([
-      'mcp-gateway-dev.mcpb',
-      'mcp-gateway-incident-prod.mcpb',
+    expect(bridgeFiles({ ...DEMO_CLIENTS.claudeDesktop, links: DEMO_CLIENTS.claudeDesktop.links.map((l) => ({ ...l, mcpbPath: `/h/.gaterook/clients/claude-desktop/gaterook-${l.endpoint}.mcpb` })) })).toEqual([
+      'gaterook-dev.mcpb',
+      'gaterook-incident-prod.mcpb',
     ]);
   });
 

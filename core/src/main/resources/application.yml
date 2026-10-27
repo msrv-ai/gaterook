@@ -2,7 +2,7 @@
 # live in the database, ports come from the bootstrap line on stdin (Electron's desktop.json).
 spring:
   application:
-    name: mcp-gateway
+    name: gaterook
   main:
     banner-mode: off
   threads:
@@ -119,8 +119,9 @@ logging:
     io.modelcontextprotocol: warn
 
 gateway:
-  # ~/.mcp-gateway: database, logs, backups, keys. Tests and dev runs point it elsewhere (-Dgateway.home=./.dev).
-  home: ${user.home}/.mcp-gateway
+  # ~/.gaterook: database, logs, backups, keys. Earlier ~/.mcp-gateway homes are left untouched.
+  # Tests and dev runs point it elsewhere (-Dgateway.home=./.dev).
+  home: ${user.home}/.gaterook
   # The tunnel listener; the bootstrap overrides it.
   public-port: 7466
   # Development relaxations (JVM builds only, never honoured by a release, see platform.BuildFlags).

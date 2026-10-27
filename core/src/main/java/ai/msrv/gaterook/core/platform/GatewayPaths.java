@@ -18,7 +18,7 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Set;
 
 /**
- * The gateway home ({@code ~/.mcp-gateway}) and its layout. Opening it creates the directories owner-only (0700),
+ * The gateway home ({@code ~/.gaterook}) and its layout. Opening it creates the directories owner-only (0700),
  * prepares {@code gateway.db} as 0600 before SQLite creates it (SQLite gives {@code -wal} and {@code -shm} the
  * database's permissions) and takes {@code core.lock}: one core per home, a second one fails with {@code DB_LOCKED}
  * instead of sharing the database with it.

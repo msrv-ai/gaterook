@@ -49,7 +49,7 @@ class EgressClientsTest {
     server.start(LOOPBACK, 0);
     names = new java.util.HashMap<>();
     answer("api.test", LOOPBACK);
-    clients = new EgressClients(new EgressClients.Settings("mcp-gateway/test", Set.of(7465, 7466), this::resolve));
+    clients = new EgressClients(new EgressClients.Settings("GateRook/test", Set.of(7465, 7466), this::resolve));
   }
 
   @AfterEach
@@ -71,7 +71,7 @@ class EgressClientsTest {
     assertThat(response.truncated()).isFalse();
     assertThat(response.headers()).containsKey("content-type").doesNotContainKey("set-cookie");
     RecordedRequest request = server.takeRequest(5, TimeUnit.SECONDS);
-    assertThat(request.getHeaders().get("User-Agent")).isEqualTo("mcp-gateway/test");
+    assertThat(request.getHeaders().get("User-Agent")).isEqualTo("GateRook/test");
     assertThat(request.getHeaders().get("Cookie")).isNull();
   }
 
@@ -111,13 +111,13 @@ class EgressClientsTest {
 
   @Test
   void theCoresOwnPortIsNeverReachable() {
-    EgressClients withServerAsCore = new EgressClients(new EgressClients.Settings("mcp-gateway/test",
+    EgressClients withServerAsCore = new EgressClients(new EgressClients.Settings("GateRook/test",
         Set.of(server.getPort()), this::resolve));
     AddressPolicy everything = AddressPolicy.builder().allowPrivate("127.0.0.0/8").build();
     try {
       assertDenied(() -> withServerAsCore.send(EgressSpec.of("conn-3", everything),
           new ExecContext.EgressRequest("GET", url("api.test", "/"), Map.of(), null, Duration.ofSeconds(5)), 1024),
-          "is MCP Gateway itself");
+          "is GateRook itself");
     } finally {
       withServerAsCore.close();
     }

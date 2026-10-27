@@ -65,7 +65,7 @@ public final class S3Sender implements ExportSender {
     ObjectNode probe = JsonNodeFactory.instance.objectNode();
     probe.put("type", "connection-test");
     probe.put("at", clock.instant().toString());
-    String key = settings.prefix() + "mcp-gateway-connection-test.json";
+    String key = settings.prefix() + "gaterook-connection-test.json";
     put(key, (probe + "\n").getBytes(StandardCharsets.UTF_8), "application/json");
     return "Wrote s3://" + settings.bucket() + "/" + key;
   }

@@ -225,7 +225,8 @@ public final class StoreAdmin implements SecretOwners {
               + row.getVersion());
         }
         if (!binding.integrity().verifyStore(row)) {
-          throw ProblemException.conflict("Changed outside GateRook", row.getName() + " was changed outside GateRook. Review it first.");
+          throw ProblemException.conflict("Changed outside GateRook", row.getName() + " was changed outside "
+              + "GateRook. Review it first.");
         }
         if (!name.equals(row.getName()) && stores.findByName(name).isPresent()) {
           throw ProblemException.conflict("Name in use", "A store named " + name + " already exists.");

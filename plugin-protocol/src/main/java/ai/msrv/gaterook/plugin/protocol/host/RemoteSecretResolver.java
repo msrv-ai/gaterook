@@ -148,12 +148,12 @@ public final class RemoteSecretResolver implements SecretResolver, AutoCloseable
     } catch (RpcException e) {
       throw new SecretUnavailableException(e.getMessage(), null);
     } catch (TimeoutException e) {
-      throw new SecretUnavailableException("MCP Gateway didn't hand out " + field + " in time", null);
+      throw new SecretUnavailableException("GateRook didn't hand out " + field + " in time", null);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new SecretUnavailableException("The call was cancelled", e);
     } catch (JsonRpcPeer.PeerClosedException e) {
-      throw new SecretUnavailableException("MCP Gateway is gone", e);
+      throw new SecretUnavailableException("GateRook is gone", e);
     }
   }
 

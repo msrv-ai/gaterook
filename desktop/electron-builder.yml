@@ -34,7 +34,7 @@ extraResources:
     to: cloudflared
 protocols:
   - name: GateRook
-    schemes: [mcp-gateway]
+    schemes: [gaterook]
 electronLanguages: [en, en-US, en_GB]
 electronFuses:                        # §7.1 "fuses"
   runAsNode: false
@@ -71,10 +71,11 @@ nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
-  deleteAppDataOnUninstall: false         # ~/.mcp-gateway is the person's data, not the installer's
+  deleteAppDataOnUninstall: false         # ~/.gaterook is the person's data, not the installer's
 
 linux:
   icon: stage/icons/icon.png
+  executableName: gaterook            # /opt/GateRook/gaterook, the AppImage's binary
   category: Development
   target: [AppImage, deb]
   synopsis: Agents use infrastructure through MCP without seeing secrets.
@@ -85,5 +86,5 @@ deb:
 
 publish:
   provider: github                        # electron-updater reads latest*.yml from the releases (R1 sets owner/repo)
-  owner: mcp-gateway
-  repo: mcp-gateway
+  owner: msrv-ai
+  repo: gaterook

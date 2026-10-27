@@ -52,8 +52,8 @@ const CLAUDE_DESKTOP: ClientCard = {
   warnings: [],
   methods: [MCPB, CD_BRIDGE],
   links: [
-    link({ id: 'cl_cd_dev', client: 'claude-desktop', endpoint: 'dev', env: 'dev', method: 'mcpb', grantPrefix: 'gr_Cd4p', grantLabel: 'claude-desktop', mcpbPath: '~/.mcp-gateway/clients/claude-desktop/mcp-gateway-dev.mcpb', lastCallAt: '2026-10-22T14:16:00+02:00' }),
-    link({ id: 'cl_cd_prod', client: 'claude-desktop', endpoint: 'incident-prod', env: 'prod', method: 'mcpb', grantPrefix: 'gr_Cd9x', grantLabel: 'claude-desktop', mcpbPath: '~/.mcp-gateway/clients/claude-desktop/mcp-gateway-incident-prod.mcpb', lastCallAt: '2026-10-22T11:58:00+02:00' }),
+    link({ id: 'cl_cd_dev', client: 'claude-desktop', endpoint: 'dev', env: 'dev', method: 'mcpb', grantPrefix: 'gr_Cd4p', grantLabel: 'claude-desktop', mcpbPath: '~/.gaterook/clients/claude-desktop/gaterook-dev.mcpb', lastCallAt: '2026-10-22T14:16:00+02:00' }),
+    link({ id: 'cl_cd_prod', client: 'claude-desktop', endpoint: 'incident-prod', env: 'prod', method: 'mcpb', grantPrefix: 'gr_Cd9x', grantLabel: 'claude-desktop', mcpbPath: '~/.gaterook/clients/claude-desktop/gaterook-incident-prod.mcpb', lastCallAt: '2026-10-22T11:58:00+02:00' }),
   ],
 };
 
@@ -231,7 +231,7 @@ export const DEMO_PREVIEW_CODEX: ConnectPreview = {
                 ['added', ''],
                 ['added', '[mcp_servers.gateway-dev]'],
                 ['added', 'url = "http://127.0.0.1:7465/mcp/dev"'],
-                ['added', 'http_headers_helper = "~/.mcp-gateway/bin/gw-bridge headers --endpoint dev --grant gr_Cx7q"'],
+                ['added', 'http_headers_helper = "~/.gaterook/bin/gw-bridge headers --endpoint dev --grant gr_Cx7q"'],
               ],
               4,
               4,

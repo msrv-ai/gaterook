@@ -3,7 +3,7 @@
   "id": "fixture-hang",
   "version": "1.0.0",
   "name": "Hang fixture",
-  "provider": "MCP Gateway tests",
+  "provider": "GateRook tests",
   "license": "Apache-2.0",
   "description": "A plugin whose call never returns and ignores interrupts.",
   "requires": {"gateway": ">=0.0.0", "connectorApi": ">=1.0.0 & <2.0.0"},

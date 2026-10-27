@@ -7,7 +7,7 @@ const STARTING: StatusScreenView = {
   kind: 'starting',
   steps: [
     { id: 'runtime', state: 'complete', description: 'Native image · 0.1 s' },
-    { id: 'master-key', state: 'complete', description: 'Loaded', mono: '~/.mcp-gateway/master.keyset' },
+    { id: 'master-key', state: 'complete', description: 'Loaded', mono: '~/.gaterook/master.keyset' },
     { id: 'db-migrations', state: 'complete', description: 'Up to date · 2 applied in 0.4 s' },
     { id: 'local-api', state: 'current', description: 'Binding', mono: '127.0.0.1:7465' },
   ],
@@ -27,7 +27,7 @@ const PORT: StatusScreenView = {
 const LOCKED: StatusScreenView = {
   kind: 'locked',
   reason: 'MASTER_KEY_MISSING',
-  keyPath: '~/.mcp-gateway/master.keyset',
+  keyPath: '~/.gaterook/master.keyset',
   secrets: 8,
   references: 3,
   lastBackupAt: '2026-10-10T14:30:00+02:00',
@@ -40,7 +40,7 @@ const LOCKED: StatusScreenView = {
   referenceTo: 'Vault, GCP and AWS',
   steps: [
     { id: 'runtime', state: 'complete' },
-    { id: 'master-key', state: 'error', description: 'No file at', mono: '~/.mcp-gateway/master.keyset' },
+    { id: 'master-key', state: 'error', description: 'No file at', mono: '~/.gaterook/master.keyset' },
     { id: 'db-migrations', state: 'upcoming' },
     { id: 'local-api', state: 'upcoming' },
   ],

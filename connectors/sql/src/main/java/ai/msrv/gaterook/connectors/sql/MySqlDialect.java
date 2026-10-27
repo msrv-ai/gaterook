@@ -84,7 +84,7 @@ public final class MySqlDialect implements SqlDialect {
     p.setProperty("allowPublicKeyRetrieval", Boolean.toString(s.allowPublicKeyRetrieval()));
     p.setProperty("connectTimeout", Integer.toString(s.connectTimeoutMs()));
     p.setProperty("socketTimeout", Integer.toString(socketTimeoutMs));
-    p.setProperty("connectionAttributes", "program_name:mcp-gateway");
+    p.setProperty("connectionAttributes", "program_name:gaterook");
     p.setProperty("tcpKeepAlive", "true");
     // Template values are bound by the server, never pasted into the text by the driver.
     p.setProperty("useServerPrepStmts", "true");

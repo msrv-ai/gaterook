@@ -101,7 +101,7 @@ class DemoSeedIT {
       // normal home afterwards.
       try (Stream<Path> files = Files.walk(Path.of(home))) {
         assertThat(files.filter(Files::isRegularFile).map(p -> p.getFileName().toString()))
-            .noneMatch(n -> n.startsWith("mcp-gateway-master-key"));
+            .noneMatch(n -> n.startsWith("gaterook-master-key"));
       } catch (IOException e) {
         throw new UncheckedIOException(e);
       }

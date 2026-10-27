@@ -110,7 +110,7 @@ class OAuthNodeClientsIT {
     assertThat(event(events, "callback").path("iss").asString()).isEqualTo("http://127.0.0.1:" + world.localPort());
     assertThat(event(events, "tokens").path("access").asString()).isEqualTo("gwo_");
     assertThat(event(events, "tokens").path("refresh").asString()).isEqualTo("gwr_");
-    assertThat(event(events, "connected").path("server").asString()).isEqualTo("mcp-gateway");
+    assertThat(event(events, "connected").path("server").asString()).isEqualTo("gaterook");
     assertThat(event(events, "tools").path("names").toString()).contains("sql_query");
   }
 

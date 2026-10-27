@@ -1,5 +1,6 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { Title } from '@angular/platform-browser';
 import { Router, provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { CONNECTOR_FORMS } from '../../../testing/connector-schemas';
@@ -7,10 +8,10 @@ import { ApiError } from '../../core/api/api-error';
 import { ApprovalItem, ApprovalsApi } from '../../core/api/approvals.api';
 import { ConnectionDetail, ConnectionsApi, CreateConnectionRequest, TestDraftRequest, TestOutcome, UpdateConnectionRequest } from '../../core/api/connections.api';
 import { ConnectionFormSpec, ConnectorCatalog, ConnectorTool, ConnectorTypeDetail, ConnectorTypesApi } from '../../core/api/connector-types.api';
-import { ConnectionPreview, EndpointSummary, EndpointsApi } from '../../core/api/endpoints.api';
+import { ConnectionPreview, EndpointSummary, EndpointsApi, ToolGroup, ToolRow } from '../../core/api/endpoints.api';
 import { Policies, PoliciesApi } from '../../core/api/policies.api';
-import { SecretRow, SecretsApi } from '../../core/api/secrets.api';
-import { JsonObject } from '../../core/api/types';
+import { MasterKeyApi, MasterKeyStatus, SecretRow, SecretsApi } from '../../core/api/secrets.api';
+import { JsonObject, ToolMode } from '../../core/api/types';
 import { EVENT_STREAM_FETCH, EventStream } from '../../core/events/event-stream';
 import { TunnelStore } from '../../core/stores/tunnel.store';
 import { TimeService } from '../../core/time/time.service';
@@ -220,7 +221,30 @@ class FakeCore {
   spec: ConnectionFormSpec = structuredClone(SPEC);
   catalog: ConnectorCatalog | ApiError = structuredClone(CATALOG);
   replaced: { id: string; value: string; reason: string | null | undefined }[] = [];
+  /** Nothing set up yet: no connection, no endpoint (Add connection's first run). */
+  empty = false;
+  endpointsCreated: { slug: string; startFrom: string }[] = [];
+  createEndpointFails: ApiError | null = null;
+  /** The new endpoint's tools as the core keeps them (sql_execute starts in Approval on dev and prod). */
+  endpointTools: ToolRow[] = [];
+  modes: { slug: string; toolKey: string; connection: string | null; mode: ToolMode; version: number }[] = [];
+  lastBackupAt: string | null = null;
 }
+
+const row = (name: string, mode: ToolMode): ToolRow => ({
+  toolKey: name,
+  name,
+  annotations: { readOnlyHint: mode === 'READ_ONLY', destructiveHint: mode !== 'READ_ONLY', idempotentHint: false, openWorldHint: false },
+  declaredBy: null,
+  mode,
+  storedMode: mode,
+  readOnlyAllowed: mode === 'READ_ONLY',
+  reason: null,
+  readOnlyConfirmed: false,
+  definitionHash: null,
+  overrides: null,
+  version: 1,
+});
 
 let core: FakeCore;
 
@@ -258,7 +282,9 @@ beforeEach(() => {
       if (core.detail instanceof ApiError) throw core.detail;
       return structuredClone(core.detail);
     }),
-    list: vi.fn(async () => ({ items: [{ name: 'dev-db', host: 'db.dev.internal:5432/app' }], facets: {}, total: 1 }) as never),
+    list: vi.fn(async () =>
+      (core.empty ? { items: [], facets: {}, total: 0 } : { items: [{ name: 'dev-db', host: 'db.dev.internal:5432/app' }], facets: {}, total: 1 }) as never,
+    ),
     update: vi.fn(async (_name: string, r: UpdateConnectionRequest) => {
       core.updates.push(structuredClone(r));
       const fail = core.updateFails.shift();
@@ -271,8 +297,20 @@ beforeEach(() => {
     }),
     test: vi.fn(async () => OK),
   };
+  const groups = (connection: string): ToolGroup[] => [{ group: connection, connection, env: null, tools: structuredClone(core.endpointTools) }];
   const endpoints: Partial<EndpointsApi> = {
-    list: vi.fn(async () => structuredClone(ENDPOINTS)),
+    list: vi.fn(async () => (core.empty ? [] : structuredClone(ENDPOINTS))),
+    create: vi.fn(async (r: { slug: string; startFrom: string }) => {
+      if (core.createEndpointFails) throw core.createEndpointFails;
+      core.endpointsCreated.push({ slug: r.slug, startFrom: r.startFrom });
+      return endpoint({ slug: r.slug, url: `http://127.0.0.1:7465/mcp/${r.slug}`, clients: [] });
+    }),
+    tools: vi.fn(async () => groups('qa-db')),
+    setMode: vi.fn(async (slug: string, r: { toolKey: string; connection: string | null; mode: ToolMode; version: number }) => {
+      core.modes.push({ slug, toolKey: r.toolKey, connection: r.connection, mode: r.mode, version: r.version });
+      core.endpointTools = core.endpointTools.map((t) => (t.toolKey === r.toolKey ? { ...t, mode: r.mode, version: t.version + 1 } : t));
+      return groups(r.connection ?? 'qa-db');
+    }),
     previewConnection: vi.fn(async (slug: string, name: string) => core.previews.get(slug) ?? { connection: name, env: 'dev' as const, tools: [], warnings: [], refusal: null }),
     addConnection: vi.fn(async (slug: string) => {
       core.added.push(slug);
@@ -287,6 +325,7 @@ beforeEach(() => {
       return { id, version: 4, state: 'stored', tested: null, testMessage: null };
     }),
   };
+  const masterKey: Partial<MasterKeyApi> = { status: vi.fn(async () => ({ lastBackupAt: core.lastBackupAt }) as MasterKeyStatus) };
   const approvals: Partial<ApprovalsApi> = { list: vi.fn(async () => ({ status: 'pending', items: [PENDING], nextCursor: null, pending: 1, counts: {} }) as never) };
   @Component({ template: '' })
   class Elsewhere {}
@@ -308,6 +347,7 @@ beforeEach(() => {
       { provide: PoliciesApi, useValue: policies },
       { provide: SecretsApi, useValue: secrets },
       { provide: ApprovalsApi, useValue: approvals },
+      { provide: MasterKeyApi, useValue: masterKey },
       { provide: TunnelStore, useValue: { summary: signal('off') } },
       { provide: EVENT_STREAM_FETCH, useValue: (() => new Promise<Response>(() => undefined)) as typeof fetch },
     ],
@@ -886,5 +926,200 @@ describe('Connection: edit view', () => {
     const p = await open('/connections/old-db');
     expect(text(p.q('.gw-empty__title'))).toBe('No connection named old-db');
     expect(p.el.querySelector('#cf-form')).toBeNull();
+  });
+});
+
+describe('Add connection: first run (kit ?state=first-run)', () => {
+  beforeEach(() => {
+    core.empty = true;
+    core.endpointTools = [row('sql_list_schemas', 'READ_ONLY'), row('sql_query', 'READ_ONLY'), row('sql_execute', 'APPROVAL')];
+  });
+
+  /** A gw-kv list as [key, value] pairs. */
+  const kv = (sel: string) => Array.from(document.querySelectorAll(`${sel} .gw-kv__row`)).map((r) => [text(r.querySelector('dt')), text(r.querySelector('dd'))]);
+
+  /** Step 1 → Configure (prod if asked) → a filled form → Test → Create endpoint. */
+  async function toEndpoint(p: Awaited<ReturnType<typeof open>>, env: 'dev' | 'prod' = 'dev') {
+    p.button('Continue').click();
+    await p.settle();
+    if (env === 'prod') {
+      p.el.querySelector<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
+      await p.settle();
+    }
+    await p.type('cf-name', 'qa-db');
+    await p.type('cf-connection-host', 'db.dev.internal');
+    await p.type('cf-credentials-user', 'app_rw');
+    await p.type('cf-credentials-password', 's3cret-value');
+    p.button('Load databases').click();
+    await p.settle();
+    p.q<HTMLInputElement>('#cf-database-0')!.click();
+    await p.settle();
+    p.button('Continue', p.q('#cf-form')!).click();
+    await p.settle();
+    p.button('Continue', p.q('#step-3')!).click();
+    await p.settle();
+  }
+
+  it('speaks to a beginner when nothing is set up: the title, Cancel back to Overview, step 4 creates the endpoint', async () => {
+    const p = await open();
+    expect(text(p.q('#page-title'))).toBe('Add your first connection');
+    expect(text(p.q('#page-crumb'))).toBe('Add your first connection');
+    expect(TestBed.inject(Title).getTitle()).toBe('Add your first connection · GateRook');
+    expect(text(p.q('.gw-page-header__description'))).toBe(
+      'Choose its type, say where it is and how to sign in, and test it. GateRook then creates your first endpoint, the address your AI apps connect to. Nothing is saved until the last step.',
+    );
+    const cancel = p.q<HTMLAnchorElement>('.gw-page-header__actions a')!;
+    expect([text(cancel), cancel.getAttribute('href')]).toEqual(['Cancel and go back to Overview', '/overview']);
+    expect(text(p.q('#step-1 .gw-section__description'))).toBe('The type decides what you fill in next and what your AI apps can do with it.');
+    expect(p.steps()).toEqual(['current:1 Choose type', 'upcoming:2 Configure', 'upcoming:3 Test', 'upcoming:4 Create endpoint']);
+  });
+
+  it('Configure in plain words; the secret stays encrypted here, the secret managers wait behind their disclosure', async () => {
+    core.spec = {
+      ...core.spec,
+      secretSources: [
+        { id: 'local', label: 'Encrypted here', available: true, reason: null },
+        { id: 'vault', label: 'HashiCorp Vault', available: true, reason: null },
+      ],
+    };
+    const p = await open();
+    p.button('Continue').click();
+    await p.settle();
+    expect(text(p.q('#step-2 .gw-section__description'))).toBe('Enter the server and credentials, load its databases, then choose which ones agents may use.');
+    expect(text(p.q('#cf-name-hint'))).toBe('Lowercase letters, digits and dashes, like dev-db. Your AI apps use this name to pick the connection.');
+    const descriptions = Array.from(p.el.querySelectorAll('#cf-form .gw-form__description')).map(text);
+    expect(descriptions).toContain('GateRook connects from this computer, so your VPN and hosts file apply.');
+    expect(descriptions).toContain('Your AI never sees these. GateRook uses them only to sign in to the database.');
+    expect(descriptions).toContain('Pick dev for your own work and test data. Prod turns on stricter rules.');
+    expect(text(p.q('#cf-env-dev-d'))).toBe('Local work and test data. Changes to data still wait for your approval.');
+    expect(text(p.q('#cf-credentials-password-hint'))).toBe('Encrypted on this computer when you save.');
+    const lock = () => Array.from(p.el.querySelectorAll('#cf-form .gw-text-small.gw-fg-secondary')).map(text);
+    expect(lock()).toEqual(['The password is stored encrypted on this computer. Nobody can view it afterwards, not even you.']);
+    const toggle = p.button('Use a secret manager instead (Vault, GCP, AWS)', p.q('#cf-form')!);
+    const sources = document.getElementById('cf-src-field')!;
+    expect([toggle.getAttribute('aria-expanded'), toggle.getAttribute('aria-controls'), sources.hidden]).toEqual(['false', 'cf-src-field', true]);
+    toggle.click();
+    await p.settle();
+    expect([toggle.getAttribute('aria-expanded'), sources.hidden]).toEqual(['true', false]);
+    // Every line about the secret follows the source picked.
+    sources.querySelector<HTMLInputElement>('input[value="vault"]')!.click();
+    await p.settle();
+    expect(lock()).toEqual(['The secret stays in your secret manager. GateRook reads it only when a call needs it.']);
+  });
+
+  it('step 4 shows the endpoint Save creates, named after the environment, and what the AI apps can do there', async () => {
+    const announce = vi.spyOn(TestBed.inject(Announcer), 'announce');
+    const p = await open();
+    await toEndpoint(p);
+    expect(p.visible()).toEqual(['step-4']);
+    expect(announce).toHaveBeenCalledWith('Step 4 of 4: Create endpoint');
+    expect(text(p.q('#step-3 .gw-section__description'))).toBe(
+      'GateRook connects from this computer with what you entered and checks what that user may do in the database.',
+    );
+    expect(text(p.q('#step-4-title'))).toBe('Make qa-db available to your AI apps');
+    expect(text(p.q('#ep-new-t'))).toBe('Your first endpoint');
+    expect(kv('#step-4')).toEqual([
+      ['Name', 'dev'],
+      ['Address', 'http://127.0.0.1:7465/mcp/dev, the one your AI apps connect to'],
+      ['AI apps', 'None yet. You connect one next.'],
+    ]);
+    expect(p.el.querySelectorAll('#step-4 input[type=checkbox]')).toHaveLength(0);
+    expect(text(p.q('#pv-title'))).toBe('What your AI apps can do');
+    expect(text(p.q('#pv-title + .gw-form__description'))).toBe(
+      'Reads run at once. Anything that changes data, like sql_execute, waits for your approval. You can change the modes later.',
+    );
+    expect(text(p.q('#pv-dev-t'))).toBe('qa-db environment dev on endpoint dev');
+    expect(text(p.q('#step-4 .gw-tool-policy-list .gw-card__description'))).toBe('3 tools · 2 read only · 1 approval');
+    expect(text(p.q('#step-4 .gw-form__note'))).toBe('The password is encrypted on this computer when you save');
+    expect(p.steps()[3]).toBe('current:4 Create endpoint');
+  });
+
+  it('Save creates the connection, the endpoint and puts it there, then the ready card takes the wizard’s place', async () => {
+    const p = await open();
+    await toEndpoint(p);
+    p.button('Save connection').click();
+    await p.settle();
+    expect(core.created.map((c) => [c.name, c.env])).toEqual([['qa-db', 'dev']]);
+    expect(core.endpointsCreated).toEqual([{ slug: 'dev', startFrom: 'empty' }]);
+    expect(core.added).toEqual(['dev']);
+    expect(core.modes).toEqual([]);
+    // Every step done, no panel left, the header's Cancel gone; the card has the focus and the ways on.
+    expect(p.visible()).toEqual([]);
+    expect(p.steps()).toEqual([
+      'complete:Choose type, completed PostgreSQL',
+      'complete:Configure, completed qa-db · dev',
+      'complete:Test, completed Connected · 12 ms',
+      'complete:Create endpoint, completed Endpoint dev',
+    ]);
+    expect(p.q('.gw-page-header__actions a')).toBeNull();
+    expect(text(p.q('.gw-page-header__description'))).toBe('qa-db is saved and on your first endpoint. Next, connect the AI app you use.');
+    expect(document.activeElement?.id).toBe('fr-done-t');
+    expect(text(p.q('#fr-done-t'))).toBe('qa-db is ready');
+    expect(text(p.q('#fr-done .gw-card__description'))).toBe('Saved and tested. Your AI apps can use it as soon as you connect one.');
+    expect(text(p.q('#fr-done .gw-status'))).toBe('Healthy · 12 ms');
+    expect(kv('#fr-done')).toEqual([
+      ['Endpoint', 'dev · http://127.0.0.1:7465/mcp/dev · created 1 min ago'],
+      ['Tools', 'sql_list_schemas and sql_query run at once (read only); sql_execute waits for your approval'],
+      ['Password', 'Encrypted with a key kept on this computer. Back up the key so you can restore it.'],
+    ]);
+    expect(Array.from(p.el.querySelectorAll('#fr-done .gw-kv__row .gw-mono')).map(text)).toEqual([
+      'dev',
+      'http://127.0.0.1:7465/mcp/dev',
+      'sql_list_schemas',
+      'sql_query',
+      'sql_execute',
+    ]);
+    expect(p.q('#fr-done a[href="/secrets#master-key"]')).not.toBeNull();
+    expect(Array.from(p.el.querySelectorAll('#fr-done .gw-card__footer a')).map((a) => [text(a), a.getAttribute('href')])).toEqual([
+      ['Back to Overview', '/overview'],
+      ['Connect your AI app', '/clients'],
+    ]);
+    expect(TestBed.inject(Router).url).toBe('/connections/new');
+    expect(TestBed.inject(ToastService).toasts().map((t) => [t.tone, t.title, t.body])).toEqual([
+      ['success', 'Connection qa-db saved', 'Endpoint dev created with its tools. Next: connect your AI app.'],
+    ]);
+  });
+
+  it('prod: the endpoint is prod and its tools that would wait for approval start Off', async () => {
+    core.lastBackupAt = '2026-10-20T09:00:00Z';
+    const p = await open();
+    await toEndpoint(p, 'prod');
+    expect(text(p.q('#pv-title + .gw-form__description'))).toBe(
+      'Reads run at once. sql_execute is off: prod is read only by default. You can change the modes later.',
+    );
+    expect(text(p.q('#pv-prod-t'))).toBe('qa-db environment prod on endpoint prod');
+    expect(text(p.q('#step-4 .gw-tool-policy-list .gw-card__description'))).toBe('3 tools · 2 read only · 1 off');
+    expect(text(p.q('#step-4 .gw-tool-policy-list__row[data-mode="off"] .gw-tool-policy-list__mode-note'))).toBe('Off on prod: read only by default');
+    p.button('Save connection').click();
+    await p.settle();
+    expect(core.endpointsCreated).toEqual([{ slug: 'prod', startFrom: 'empty' }]);
+    expect(core.added).toEqual(['prod']);
+    expect(core.modes).toEqual([{ slug: 'prod', toolKey: 'sql_execute', connection: 'qa-db', mode: 'OFF', version: 1 }]);
+    expect(kv('#fr-done').slice(1)).toEqual([
+      ['Tools', 'sql_list_schemas and sql_query run at once (read only); sql_execute is off: prod is read only by default'],
+      // The key has a backup: no need to ask for one.
+      ['Password', 'Encrypted with a key kept on this computer.'],
+    ]);
+  });
+
+  it('an endpoint the core refuses: the connection is saved, the toast says why and its own page opens', async () => {
+    core.createEndpointFails = new ApiError('unprocessable', 422, { title: 'Invalid slug', detail: 'Lowercase letters, digits and hyphens, up to 63.' });
+    const p = await open();
+    await toEndpoint(p);
+    p.button('Save connection').click();
+    await p.settle();
+    expect(core.created.map((c) => c.name)).toEqual(['qa-db']);
+    expect(core.added).toEqual([]);
+    expect(TestBed.inject(Router).url).toBe('/connections/qa-db');
+    expect(TestBed.inject(ToastService).toasts().map((t) => [t.tone, t.title, t.body])).toEqual([
+      ['warning', 'Connection qa-db saved, endpoint dev not ready', 'Lowercase letters, digits and hyphens, up to 63. Add qa-db to an endpoint under Endpoints.'],
+    ]);
+  });
+
+  it('is the usual wizard once something exists', async () => {
+    core.empty = false;
+    const p = await open();
+    expect(text(p.q('#page-title'))).toBe('Add connection');
+    expect(p.steps()[3]).toBe('upcoming:4 Add to endpoint');
   });
 });

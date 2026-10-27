@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # Publishes the signed catalog as a GitHub release (ARCHITECTURE.md §7.5 "Catalogue"; written by step K6, run by R1).
 #
-# The core reads https://github.com/<org>/mcp-gateway-catalog/releases/latest/download/index.json and .sig, and
+# The core reads https://github.com/<org>/gaterook-catalog/releases/latest/download/index.json and .sig, and
 # resolves the artifact URLs of the index (file names) against the same folder, so one release carries the index,
 # its signature, every plugin JAR and every npm lockfile the index pins.
 #
-#   CATALOG_REPO=acme/mcp-gateway-catalog CATALOG_KEY_ID=catalog-2026-1 CATALOG_PUBLIC_KEY=<base64url> \
-#   MCP_GATEWAY_CATALOG_KEY=<seed or PEM> catalog/publish.sh            # build, sign, verify: a dry run
+#   CATALOG_REPO=acme/gaterook-catalog CATALOG_KEY_ID=catalog-2026-1 CATALOG_PUBLIC_KEY=<base64url> \
+#   GATEROOK_CATALOG_KEY=<seed or PEM> catalog/publish.sh            # build, sign, verify: a dry run
 #   ... catalog/publish.sh --publish                                     # and create the release with gh
 #
-# The private key never touches the disk here: sign-index.mjs reads it from MCP_GATEWAY_CATALOG_KEY (or pass
+# The private key never touches the disk here: sign-index.mjs reads it from GATEROOK_CATALOG_KEY (or pass
 # --key-file <pem>). The sequence follows the release that is latest now (its index.json + 1); the first release
 # passes --first.
 set -euo pipefail
@@ -29,11 +29,11 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-: "${CATALOG_REPO:?Set CATALOG_REPO=<org>/mcp-gateway-catalog}"
+: "${CATALOG_REPO:?Set CATALOG_REPO=<org>/gaterook-catalog}"
 : "${CATALOG_KEY_ID:?Set CATALOG_KEY_ID to the key id releases trust (catalog-2026-1)}"
 : "${CATALOG_PUBLIC_KEY:?Set CATALOG_PUBLIC_KEY to the base64url public key releases ship}"
-if [ -z "$key_file" ] && [ -z "${MCP_GATEWAY_CATALOG_KEY:-}" ]; then
-  echo "No signing key: set MCP_GATEWAY_CATALOG_KEY or pass --key-file." >&2
+if [ -z "$key_file" ] && [ -z "${GATEROOK_CATALOG_KEY:-}" ]; then
+  echo "No signing key: set GATEROOK_CATALOG_KEY or pass --key-file." >&2
   exit 2
 fi
 

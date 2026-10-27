@@ -500,7 +500,7 @@ export function keyAlerts(s: MasterKeyStatus): KeyAlert[] {
   return out;
 }
 
-/** The folder of the key file (`~/.mcp-gateway/` in the kit), for the folder-backup note. */
+/** The folder of the key file (`~/.gaterook/` in the kit), for the folder-backup note. */
 export function keyFolder(path: string): string {
   const i = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
   return i > 0 ? path.slice(0, i + 1) : path;

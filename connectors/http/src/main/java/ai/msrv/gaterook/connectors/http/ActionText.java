@@ -70,7 +70,7 @@ final class ActionText {
     } else if (!r.readMethod() && !r.method().equals("DELETE")) {
       also.append(", Content-Length: 0");
     }
-    also.append(", Connection: Keep-Alive, User-Agent: mcp-gateway/").append(BuiltIn.VERSION)
+    also.append(", Connection: Keep-Alive, User-Agent: GateRook/").append(BuiltIn.VERSION)
         .append(", Accept-Encoding: gzip");
     fields.add(new ActionPreview.Field("Also sent by the gateway", also.toString()));
 

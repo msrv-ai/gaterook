@@ -16,7 +16,7 @@
   </parent>
 
   <artifactId>connectors-mongodb</artifactId>
-  <name>MCP Gateway · Connectors · MongoDB</name>
+  <name>GateRook · Connectors · MongoDB</name>
 
   <dependencies>
     <dependency>

@@ -13,23 +13,28 @@ import { deepLinkUrl, uiOpenUrl } from './deep-links';
 
 describe('deep links: navigation only, strictly by allowlist (§7.1)', () => {
   it('maps the three kinds of link, with or without the scheme', () => {
-    expect(deepLinkUrl('mcp-gateway://approvals/ap_h7hbxuq2597l')).toBe('/approvals/ap_h7hbxuq2597l');
+    expect(deepLinkUrl('gaterook://approvals/ap_h7hbxuq2597l')).toBe('/approvals/ap_h7hbxuq2597l');
     expect(deepLinkUrl('approvals/ap_h7hbxuq2597l')).toBe('/approvals/ap_h7hbxuq2597l');
-    expect(deepLinkUrl('mcp-gateway://activity/events/412')).toBe('/activity#event-412');
+    expect(deepLinkUrl('gaterook://activity/events/412')).toBe('/activity#event-412');
     expect(deepLinkUrl('/settings/notifications')).toBe('/settings/notifications');
+  });
+
+  it('takes only its own scheme (decision 11: gaterook://, nothing is carried over from earlier builds)', () => {
+    expect(deepLinkUrl('mcp-gateway://approvals/ap_h7hbxuq2597l')).toBeNull();
+    expect(deepLinkUrl('other-app://activity/events/412')).toBeNull();
   });
 
   it('ignores anything else: other paths, queries, fragments, unknown sections, odd ids', () => {
     for (const link of [
-      'mcp-gateway://approvals/ap_H7HBXUQ2597L',
-      'mcp-gateway://approvals/ap_h7hbxuq2597l/decision',
-      'mcp-gateway://approvals/ap_h7hbxuq2597l?decision=approve',
-      'mcp-gateway://approvals/ap_h7hbxuq2597l#approve',
-      'mcp-gateway://approvals',
-      'mcp-gateway://activity/events/412x',
-      'mcp-gateway://settings/../../endpoints',
-      'mcp-gateway://settings/danger-zone',
-      'mcp-gateway://endpoints/dev',
+      'gaterook://approvals/ap_H7HBXUQ2597L',
+      'gaterook://approvals/ap_h7hbxuq2597l/decision',
+      'gaterook://approvals/ap_h7hbxuq2597l?decision=approve',
+      'gaterook://approvals/ap_h7hbxuq2597l#approve',
+      'gaterook://approvals',
+      'gaterook://activity/events/412x',
+      'gaterook://settings/../../endpoints',
+      'gaterook://settings/danger-zone',
+      'gaterook://endpoints/dev',
       'https://evil.example/approvals/ap_h7hbxuq2597l',
       'javascript:alert(1)',
       '',
@@ -38,11 +43,14 @@ describe('deep links: navigation only, strictly by allowlist (§7.1)', () => {
     }
   });
 
-  it('ui.open ("Open in app" in a chat) goes through the same allowlist', () => {
-    expect(uiOpenUrl({ approvalId: 'ap_h7hbxuq2597l' })).toBe('/approvals/ap_h7hbxuq2597l');
-    expect(uiOpenUrl({ route: 'settings/tunnel' })).toBe('/settings/tunnel');
-    expect(uiOpenUrl({ approvalId: '../overview' })).toBeNull();
-    expect(uiOpenUrl({ route: '/overview' })).toBeNull();
+  it('ui.open ("Open in app" in a chat) reads the core\'s path through the same allowlist', () => {
+    // The channels send `{path}` (notifications.internal Slack/TelegramChannel): a request, or the queue.
+    expect(uiOpenUrl({ path: '/approvals/ap_h7hbxuq2597l' })).toBe('/approvals/ap_h7hbxuq2597l');
+    expect(uiOpenUrl({ path: '/approvals' })).toBe('/approvals');
+    expect(uiOpenUrl({ path: 'settings/tunnel' })).toBe('/settings/tunnel');
+    expect(uiOpenUrl({ path: '/approvals/../overview' })).toBeNull();
+    expect(uiOpenUrl({ path: '/overview' })).toBeNull();
+    expect(uiOpenUrl({ path: 42 } as never)).toBeNull();
     expect(uiOpenUrl(null)).toBeNull();
   });
 });
@@ -86,13 +94,29 @@ describe('the shell routes what comes from outside and follows core restarts', (
     const go = vi.spyOn(router, 'navigateByUrl');
     const rearm = vi.spyOn(TestBed.inject(ActivationGuard), 'rearm');
 
-    deepLink!('mcp-gateway://approvals/ap_h7hbxuq2597l');
-    deepLink!('mcp-gateway://approvals/ap_h7hbxuq2597l?approve=1');
-    TestBed.inject(EventStream).emit('ui.open', { approvalId: 'ap_vyt2xvc248kr' });
-    TestBed.inject(EventStream).emit('ui.open', { route: 'endpoints/dev' });
+    deepLink!('gaterook://approvals/ap_h7hbxuq2597l');
+    deepLink!('gaterook://approvals/ap_h7hbxuq2597l?approve=1');
+    TestBed.inject(EventStream).emit('ui.open', { path: '/approvals/ap_vyt2xvc248kr' });
+    TestBed.inject(EventStream).emit('ui.open', { path: '/endpoints/dev' });
 
     expect(go.mock.calls.map((c) => String(c[0]))).toEqual(['/approvals/ap_h7hbxuq2597l', '/approvals/ap_vyt2xvc248kr']);
     expect(rearm).toHaveBeenCalledTimes(2);
+    fixture.destroy();
+  });
+
+  it('in the desktop app ui.open is main\'s to open: the window waits for main\'s deep link', async () => {
+    TestBed.overrideProvider(DesktopBridge, { useValue: { ...desktop, available: true } });
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    const go = vi.spyOn(TestBed.inject(Router), 'navigateByUrl');
+
+    TestBed.inject(EventStream).emit('ui.open', { path: '/approvals' });
+    TestBed.inject(EventStream).emit('ui.open', { path: '/approvals/ap_vyt2xvc248kr' });
+    expect(go).not.toHaveBeenCalled();
+
+    // Main resolves the queue to its first waiting request and hands it over.
+    deepLink!('approvals/ap_vyt2xvc248kr');
+    expect(go.mock.calls.map((c) => String(c[0]))).toEqual(['/approvals/ap_vyt2xvc248kr']);
     fixture.destroy();
   });
 

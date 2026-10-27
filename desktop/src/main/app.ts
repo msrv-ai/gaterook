@@ -5,7 +5,7 @@ import { app, ipcMain, Menu, nativeTheme, protocol, safeStorage, session, shell,
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { Broker } from '@mcp-gateway/broker';
+import type { Broker } from '@gaterook/broker';
 import { IPC, type DesktopCoreState, type GeneralSettings } from '../shared/contract.ts';
 import { routeAppUrl, serveUi } from './app-protocol.ts';
 import { startTokenBroker } from './broker.ts';
@@ -43,15 +43,14 @@ export function main(): Desktop | null {
   const layout = resolveLayout({ devBuild: DEV_BUILD, packaged: app.isPackaged, appPath: app.getAppPath(),
     resourcesPath: process.resourcesPath, homedir: homedir(), platform: process.platform, env: process.env });
   const log = createLogger(layout.home, layout.dev);
-  // Keep Electron's storage identity stable: the display brand must not move Chromium profiles or Keychain keys.
-  app.setName(layout.dev ? 'MCP Gateway Dev' : 'MCP Gateway');
+  app.setName(layout.dev ? 'GateRook Dev' : 'GateRook');
   if (layout.dev) {
-    // A development build is another app to the OS: its own Keychain entry ("MCP Gateway Dev Safe Storage"), never
+    // A development build is another app to the OS: its own Keychain entry ("GateRook Dev Safe Storage"), never
     // the installed app's; and a development home gets its own Chromium profile, with it its own single-instance
     // lock: the smoke and a development window run side by side, each with its own core.
     app.setPath('userData', join(layout.home, 'electron'));
   } else {
-    app.setPath('userData', join(app.getPath('appData'), 'MCP Gateway'));
+    app.setPath('userData', join(app.getPath('appData'), 'GateRook'));
   }
   if (!app.requestSingleInstanceLock()) {
     log('another GateRook is running: it gets the arguments, this one quits');
@@ -65,7 +64,7 @@ export function main(): Desktop | null {
   ]);
   app.setAppUserModelId(APP_ID);
   app.enableSandbox();
-  // A development build doesn't claim mcp-gateway:// for the development Electron on this machine.
+  // A development build doesn't claim gaterook:// for the development Electron on this machine.
   if (!layout.dev) app.setAsDefaultProtocolClient(SCHEME);
 
   const desktop = new Desktop(layout, log);
@@ -163,7 +162,8 @@ export class Desktop {
     this.hardenSession();
     this.registerProtocol();
     this.registerIpc();
-    app.setAboutPanelOptions({ applicationName: 'GateRook', applicationVersion: app.getVersion() });
+    app.setAboutPanelOptions({ applicationName: 'GateRook', applicationVersion: app.getVersion(),
+      copyright: 'Copyright © 2026 GateRook' });
     Menu.setApplicationMenu(appMenu(this.layout.dev));
 
     const window = createAppWindow({ preload: this.layout.preload, dev: this.layout.dev, log: this.log,

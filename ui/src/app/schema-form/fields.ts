@@ -160,6 +160,8 @@ export class GwSchemaField {
         : 'Resolved at call time.';
     }
     if (this.reference()) return sourceCopy(this.form().source()).hint;
+    // A first connection: where the value goes, in a beginner's words (kit connection-new ?state=first-run).
+    if (this.form().beginner()) return 'Encrypted on this computer when you save.';
     return n.description ?? sourceCopy('local').hint;
   }
 

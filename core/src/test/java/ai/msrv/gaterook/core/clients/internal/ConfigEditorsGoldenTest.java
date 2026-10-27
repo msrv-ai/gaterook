@@ -31,7 +31,7 @@ class ConfigEditorsGoldenTest {
 
   private static final Path SOURCE = Path.of("src/test/resources/ai/msrv/gaterook/core/clients/golden");
   private static final ClientEnvironment ENV = new ClientEnvironment(Os.LINUX, Path.of("/home/me"),
-      Path.of("/home/me/.mcp-gateway"), null, Map.of(), false, "laptop");
+      Path.of("/home/me/.gaterook"), null, Map.of(), false, "laptop");
   private static final EntryValues DEV = new EntryValues("dev", "http://127.0.0.1:7465/mcp/dev", "gr_cx7q2lmaabcd",
       ClientAdapter.TOKEN_PLACEHOLDER, "writes", 60);
 
@@ -115,7 +115,7 @@ class ConfigEditorsGoldenTest {
     golden("toml/" + name + ".after", after);
     assertThat(after).startsWith(before);
     assertThat(TomlBlockEditor.table(after, "gateway-dev").orElseThrow().path("http_headers_helper").asString())
-        .isEqualTo("~/.mcp-gateway/bin/gw-bridge headers --endpoint dev --grant gr_cx7q2lmaabcd");
+        .isEqualTo("~/.gaterook/bin/gw-bridge headers --endpoint dev --grant gr_cx7q2lmaabcd");
     String removed = TomlBlockEditor.remove(after, "gateway-dev");
     String expected = before.isEmpty() || before.endsWith("\n") ? before : before + "\n";
     assertThat(removed).as("Disconnect gives the file back").isEqualTo(expected);
@@ -158,7 +158,7 @@ class ConfigEditorsGoldenTest {
     assertThat(elsewhere.helperCommand("headers", "--endpoint", "dev")).isEqualTo(
         "'/data/gw home/bin/gw-bridge' headers --endpoint dev");
     ClientEnvironment windows = new ClientEnvironment(Os.WINDOWS, Path.of("C:\\Users\\me"),
-        Path.of("C:\\Users\\me").resolve(".mcp-gateway"), null, Map.of(), false, "LAPTOP.corp");
+        Path.of("C:\\Users\\me").resolve(".gaterook"), null, Map.of(), false, "LAPTOP.corp");
     String helper = windows.helperCommand("headers", "--endpoint", "dev", "--grant", "gr_cx7q2lmaabcd");
     assertThat(helper).startsWith("\"").contains("gw-bridge.cmd\" headers --endpoint dev --grant gr_cx7q2lmaabcd");
     assertThat(windows.shortHostname()).isEqualTo("laptop");

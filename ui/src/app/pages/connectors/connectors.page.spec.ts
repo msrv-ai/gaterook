@@ -168,8 +168,8 @@ function setup(over: Partial<Answers> = {}): void {
           ? sentryReview({
               name: 'github-mcp',
               catalogEntry: source.catalog,
-              argv: ['node', '/Users/me/.mcp-gateway/mcp/github-mcp/dist/index.js'],
-              resolvedCommand: 'node /Users/me/.mcp-gateway/mcp/github-mcp/dist/index.js',
+              argv: ['node', '/Users/me/.gaterook/mcp/github-mcp/dist/index.js'],
+              resolvedCommand: 'node /Users/me/.gaterook/mcp/github-mcp/dist/index.js',
               env: ['GITHUB_PERSONAL_ACCESS_TOKEN'],
             })
           : sentryReview(),
@@ -489,6 +489,8 @@ describe('Connectors page: Catalog', () => {
     expect(rows['Connection form']).toBe('Host, port, user and password, from its config schema');
     expect(rows['Needs access to']).toBe('The host of each connection, port 8443');
     expect(rows['Tools']).toContain('3, all read only Declared by clickhouse, not verified');
+    // The fixture's core reports no sandbox on this system (ARCHITECTURE §7.5): the review says so.
+    expect(rows['Runs as']).toBe("Your user, in a separate plugin process. Not sandboxed on this system: it can read everything your account can, including GateRook's data.");
 
     const install = button(dialog, 'Install unsigned plugin ClickHouse');
     expect(install.getAttribute('aria-disabled')).toBe('true');
@@ -563,7 +565,7 @@ describe('Connectors page: Catalog', () => {
     expect(text(review.querySelector('.gw-dialog__title'))).toBe('Start MCP server github-mcp?');
     expect(text(document.activeElement)).toBe('Cancel');
     const rows = Object.fromEntries(Array.from(review.querySelectorAll('.gw-kv__row')).map((r) => [text(r.querySelector('dt')), text(r.querySelector('dd'))]));
-    expect(rows['Command']).toBe('node /Users/me/.mcp-gateway/mcp/github-mcp/dist/index.js');
+    expect(rows['Command']).toBe('node /Users/me/.gaterook/mcp/github-mcp/dist/index.js');
     expect(rows['Secrets passed']).toBe('GITHUB_PERSONAL_ACCESS_TOKEN, from a new secret of github-mcp, encrypted here');
     const value = review.querySelector<HTMLInputElement>('input[type="password"]')!;
     expect(text(review.querySelector(`label[for="${value.id}"]`))).toBe('Value of GITHUB_PERSONAL_ACCESS_TOKEN');
@@ -741,7 +743,7 @@ describe('Connectors page: MCP servers', () => {
     const { fixture, el } = await render();
     const row = el.querySelector('#mcp-github-mcp')!;
     expect(text(row.querySelector('th'))).toContain('github-mcp');
-    expect(text(row)).toContain('node /Users/me/.mcp-gateway/mcp/github-mcp/dist/index.js');
+    expect(text(row)).toContain('node /Users/me/.gaterook/mcp/github-mcp/dist/index.js');
     expect(text(row.querySelector('a[href^="/secrets"]'))).toContain('GITHUB_PERSONAL_ACCESS_TOKEN');
     expect(text(row)).toContain('26');
 

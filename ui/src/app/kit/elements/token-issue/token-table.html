@@ -7,9 +7,9 @@
       }
       @if (tokens().length && pageCopy()) {
         <!-- pages/endpoint-detail.html › Tokens: the endpoint is the page's own, the IP allowlist line is there. -->
-        <p class="gw-card__description">{{ summary() }}. Claude Desktop's bridge and Codex's headers helper get a 15-minute token on the fly and never store one; for anything you paste a token into, issue one per client and machine, so each can be revoked alone. Tokens work from this computer only: the gateway listens on <span class="gw-mono">127.0.0.1</span>, so there is no IP allowlist (a server-mode setting).</p>
+        <p class="gw-card__description">{{ summary() }}. Claude Desktop's bridge and Codex's headers helper get a 15-minute token on the fly and never store one; for anything you paste a token into, issue one per app and machine, so each can be revoked alone. Tokens work from this computer only: the gateway listens on <span class="gw-mono">127.0.0.1</span>, so there is no IP allowlist (a server-mode setting).</p>
       } @else if (tokens().length) {
-        <p class="gw-card__description">Endpoint <span class="gw-mono">{{ slug() }}</span> · {{ summary() }}. Claude Desktop and Codex get a 15-minute token on the fly; issue a named token for any other client, one per client and machine, so each can be revoked alone.</p>
+        <p class="gw-card__description">Endpoint <span class="gw-mono">{{ slug() }}</span> · {{ summary() }}. Claude Desktop and Codex get a 15-minute token on the fly; issue a named token for any other app, one per app and machine, so each can be revoked alone.</p>
       } @else {
         <p class="gw-card__description">Endpoint <span class="gw-mono">{{ slug() }}</span></p>
       }
@@ -72,7 +72,7 @@
       <div class="gw-empty gw-empty--compact">
         <span class="gw-empty__icon"><svg lucideIcon="key-round" class="gw-icon"></svg></span>
         <p class="gw-empty__title">No tokens for this endpoint</p>
-        <p class="gw-empty__text">Claude Desktop and Codex get theirs on the fly when you connect them. Any other client needs a named token: one per client and machine, each shown once.</p>
+        <p class="gw-empty__text">Claude Desktop and Codex get theirs on the fly when you connect them. Any other app needs a named token: one per app and machine, each shown once.</p>
         <div class="gw-empty__actions">
           <button class="gw-btn gw-btn--primary gw-btn--sm" type="button" aria-haspopup="dialog" (click)="issue.emit($any($event.currentTarget))"><svg lucideIcon="plus" class="gw-icon gw-icon--sm"></svg>Issue token</button>
         </div>
@@ -87,13 +87,13 @@
       <span class="gw-icon-tile"><svg lucideIcon="key-round" class="gw-icon"></svg></span>
       @if (v.onTheFly && pageCopy()) {
         <h2 class="gw-dialog__title" [id]="uid + '-revoke-title'">Revoke {{ v.row.name }}?</h2>
-        <p class="gw-dialog__description" [id]="uid + '-revoke-desc'">{{ v.client ?? 'The client' }}'s current token stops working at once and its headers helper gets no new one, so {{ v.client ?? 'it' }} loses access to endpoint <span class="gw-mono">{{ slug() }}</span> on its next call. Connect {{ v.client ?? 'it' }} again under Clients to restore it.</p>
+        <p class="gw-dialog__description" [id]="uid + '-revoke-desc'">{{ v.client ?? 'The AI app' }}'s current token stops working at once and its headers helper gets no new one, so {{ v.client ?? 'it' }} loses access to endpoint <span class="gw-mono">{{ slug() }}</span> on its next call. Connect {{ v.client ?? 'it' }} again under AI apps to restore it.</p>
       } @else if (v.onTheFly) {
         <h2 class="gw-dialog__title" [id]="uid + '-revoke-title'">Revoke {{ v.row.name }}?</h2>
-        <p class="gw-dialog__description" [id]="uid + '-revoke-desc'">Revokes the helper's grant: the token {{ v.client ?? 'the client' }} holds stops working at once and no new tokens are issued to it, so {{ v.client ?? 'it' }} loses access to endpoint <span class="gw-mono">{{ slug() }}</span> on its next call. Connect {{ v.client ?? 'it' }} again under Clients to restore it.</p>
+        <p class="gw-dialog__description" [id]="uid + '-revoke-desc'">Revokes the helper's grant: the token {{ v.client ?? 'the AI app' }} holds stops working at once and no new tokens are issued to it, so {{ v.client ?? 'it' }} loses access to endpoint <span class="gw-mono">{{ slug() }}</span> on its next call. Connect {{ v.client ?? 'it' }} again under AI apps to restore it.</p>
       } @else {
         <h2 class="gw-dialog__title" [id]="uid + '-revoke-title'">Revoke token {{ v.row.name }}?</h2>
-        <p class="gw-dialog__description" [id]="uid + '-revoke-desc'">Clients using it stop working immediately: they lose access to endpoint <span class="gw-mono">{{ slug() }}</span> on their next call. A revoked token can't be restored; issue a new one to reconnect.</p>
+        <p class="gw-dialog__description" [id]="uid + '-revoke-desc'">Apps using it stop working immediately: they lose access to endpoint <span class="gw-mono">{{ slug() }}</span> on their next call. A revoked token can't be restored; issue a new one to reconnect.</p>
       }
       <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
     </header>

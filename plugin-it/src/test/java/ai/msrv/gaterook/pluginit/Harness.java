@@ -36,7 +36,7 @@ import tools.jackson.databind.node.ObjectNode;
  * A real plugin host, spawned the way the core spawns it (ARCHITECTURE.md §2.3, §7.5): a child JVM on this process's
  * {@code java.home} running {@code plugin-host.jar}, GPP/1 over its stdin/stdout, env cleared, a per-instance data
  * dir. With the sandbox on, the launch is confined before the host's JVM starts, as the core does it: on macOS
- * through {@code sandbox-exec} and an SBPL that denies MCP Gateway's home, on Linux through the host's first stage
+ * through {@code sandbox-exec} and an SBPL that denies GateRook's home, on Linux through the host's first stage
  * {@code SandboxExec} (Landlock on its main thread, then exec), where Landlock works here. The test drives the host
  * directly over the protocol and answers its {@code secrets/*} and {@code log} callbacks itself.
  */
@@ -365,7 +365,7 @@ final class Harness implements AutoCloseable {
     String user = System.getProperty("user.home");
     // Real paths: on macOS the temp dir is /var/folders/… which resolves to /private/var/folders/…, and SBPL
     // subpaths match the resolved path the kernel sees.
-    // As the core's HostLauncher: no writes outside the data folder and the devices, MCP Gateway's home unreadable.
+    // As the core's HostLauncher: no writes outside the data folder and the devices, GateRook's home unreadable.
     StringBuilder b = new StringBuilder("(version 1)\n(allow default)\n(deny file-write* (subpath \"/\"))\n"
         + "(allow file-write* (subpath \"/dev\"))\n(deny file-read* file-write*\n");
     for (String denied : List.of(real(home), user + "/.ssh", user + "/.aws")) {

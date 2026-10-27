@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * {@code ~/.mcp-gateway/master.keyset}, the master keyset as Tink JSON (report 12 §7.3, ARCHITECTURE.md A14).
+ * {@code ~/.gaterook/master.keyset}, the master keyset as Tink JSON (report 12 §7.3, ARCHITECTURE.md A14).
  * With OS protection the file is an {@code encryptedKeyset} under the 32-byte file key Electron keeps in
  * {@code safeStorage}; without it, a cleartext keyset readable by the owner only (0400) — the trust boundary is the OS
  * account either way (§9).

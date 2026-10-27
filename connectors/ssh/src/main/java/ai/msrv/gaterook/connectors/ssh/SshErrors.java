@@ -45,7 +45,7 @@ final class SshErrors {
     }
     String text = String.valueOf(root(e).getMessage()).toLowerCase(Locale.ROOT);
     if (text.contains("negotiate") || text.contains("no common")) {
-      return ConnectorException.resourceError("MCP Gateway and " + t.address() + " have no algorithms in common. "
+      return ConnectorException.resourceError("GateRook and " + t.address() + " have no algorithms in common. "
           + "For an old server, turn on Allow old algorithms (Advanced).", e);
     }
     if (root(e) instanceof InterruptedByTimeoutException || text.contains("timeout") || text.contains("timed out")) {
@@ -69,8 +69,8 @@ final class SshErrors {
     }
     return switch (check.verdict()) {
       case UNKNOWN -> ConnectorException.denied("The host key of " + t.address() + " isn't trusted yet. Test the "
-          + "connection in MCP Gateway and compare the fingerprint before you trust it.");
-      case CHANGED -> ConnectorException.denied("The host key of " + t.address() + " changed. MCP Gateway sent "
+          + "connection in GateRook and compare the fingerprint before you trust it.");
+      case CHANGED -> ConnectorException.denied("The host key of " + t.address() + " changed. GateRook sent "
           + "nothing to it. Replace the pinned key only if you know why the host was rebuilt.");
       case REVOKED -> ConnectorException.denied("The host key of " + t.address() + " is revoked in known_hosts.");
       default -> null;

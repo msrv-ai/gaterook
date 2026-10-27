@@ -84,9 +84,9 @@ final class RedisClients implements AutoCloseable {
           .connectionTimeoutMillis(settings.connectTimeoutMs())
           .socketTimeoutMillis(settings.commandTimeoutMs())
           .database(settings.database())
-          .clientName("mcp-gateway")
-          // lib-name "jedis(mcp-gateway)": a DBA sees who reads in CLIENT LIST.
-          .clientSetInfoConfig(ClientSetInfoConfig.withLibNameSuffix("mcp-gateway"))
+          .clientName("gaterook")
+          // lib-name "jedis(gaterook)": a DBA sees who reads in CLIENT LIST.
+          .clientSetInfoConfig(ClientSetInfoConfig.withLibNameSuffix("gaterook"))
           .credentialsProvider(credentials::asRedisCredentials)
           .build();
     }

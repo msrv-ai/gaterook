@@ -169,7 +169,7 @@ export class GwBackupSettings {
 
   protected readonly protects = computed(() => protectsText(this.data.masterKey().value?.protects ?? 0, this.data.references()));
   protected readonly backupNeeded = computed(() => this.data.masterKey().value?.problems.includes('backup-needed') ?? false);
-  /** The data folder with its trailing slash (kit: `~/.mcp-gateway/`). */
+  /** The data folder with its trailing slash (kit: `~/.gaterook/`). */
   protected readonly keyFolder = computed(() => folderOf(this.data.masterKey().value?.path) ?? '');
   protected readonly keyFile = computed(() => fileOf(this.data.masterKey().value?.path ?? 'master.keyset'));
   protected readonly folderBackups = computed(() =>

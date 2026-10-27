@@ -108,7 +108,7 @@ export function flowText(slug: string, cards: readonly ClientCard[], wired: read
   const connected = cards.filter((c) => c.links.some((l) => l.endpoint === slug && l.status === 'connected')).map((c) => c.name);
   const detected = cards.filter((c) => !c.links.some((l) => l.endpoint === slug)).map((c) => c.name);
   const how = clientsNote(cards, slug) === 'Tokens issued on the fly, none stored' ? ' with short-lived tokens issued on the fly' : '';
-  const who = connected.length ? `${andList(connected)} ${connected.length === 1 ? 'calls' : 'call'} endpoint ${slug}${how}` : `No client calls endpoint ${slug} yet`;
+  const who = connected.length ? `${andList(connected)} ${connected.length === 1 ? 'calls' : 'call'} endpoint ${slug}${how}` : `No AI app calls endpoint ${slug} yet`;
   const also = detected.length ? `; ${andList(detected)} ${detected.length === 1 ? 'is' : 'are'} installed but not connected` : '';
   const rules = andList(policyEnvs(wired, 'dev'));
   const runs = wired.length ? `, then runs the tool on one of ${plural(wired.length, 'connection')}, which injects the secret` : '';
@@ -373,7 +373,7 @@ export function deleteFacts(e: EndpointSummary, cards: readonly ClientCard[], to
   const clients = cards.filter((c) => c.links.some((l) => l.endpoint === e.slug)).map((c) => c.name);
   const named = tokens ? revocableNames(tokens) : [];
   const waiting = e.approvalsWaiting;
-  const who = clients.length ? `${andList(clients)} lose${clients.length === 1 ? 's' : ''} access at once` : 'Clients lose access at once';
+  const who = clients.length ? `${andList(clients)} lose${clients.length === 1 ? 's' : ''} access at once` : 'AI apps lose access at once';
   const toks = named.length || !tokens ? ', its tokens are revoked' : '';
   const reqs = waiting ? ` and the ${plural(waiting, 'request')} waiting for approval ${waiting === 1 ? 'is' : 'are'} denied` : '';
   return {
@@ -618,7 +618,7 @@ export function exampleToken(tokens: readonly TokenRow[] | null): string | null 
 export const KNOWN_REVISIONS: readonly { readonly rev: string; readonly hint: string }[] = [
   {
     rev: '2026-07-28',
-    hint: 'Stateless: every request stands alone. Approvals come back as an input request with a link to Approvals in this app; the client waits and retries. Only this app or a linked Slack or Telegram approver can approve.',
+    hint: 'Stateless: every request stands alone. Approvals come back as an input request with a link to Approvals in this app; the AI app waits and retries. Only this app or a linked Slack or Telegram approver can approve.',
   },
   { rev: '2025-11-25', hint: 'Starts with initialize. Approvals return a handle the agent polls with approval_status.' },
 ];
@@ -653,7 +653,7 @@ export function addressOf(url: string): string {
 export function revokedToast(row: TokenRow, rejectedApprovals: number): ToastText {
   const grant = String(row.kind).toLowerCase() === 'grant';
   const who = row.client ? clientName(row.client) : null;
-  const lead = who ? `${who} loses access on its next call.` : 'Clients using it lose access on their next call.';
+  const lead = who ? `${who} loses access on its next call.` : 'Apps using it lose access on their next call.';
   const denied = rejectedApprovals ? ` ${plural(rejectedApprovals, 'request')} waiting for approval ${rejectedApprovals === 1 ? 'was' : 'were'} denied.` : '';
   return { tone: 'success', title: grant ? `${row.name} revoked` : `Token ${row.name} revoked`, body: lead + denied };
 }

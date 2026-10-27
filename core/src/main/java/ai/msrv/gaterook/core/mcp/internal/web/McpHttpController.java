@@ -31,7 +31,7 @@ import tools.jackson.databind.node.ObjectNode;
  * with {@code application/json} — no SSE, no sessions ({@code Mcp-Session-Id} and {@code Last-Event-ID} are ignored
  * and never issued). Before any JSON-RPC: only {@code application/json} (415, which also keeps cross-site forms out),
  * a body of at most 1 MiB (413), a bearer token of this endpoint and ingress (401 with
- * {@code WWW-Authenticate: Bearer realm="mcp-gateway"}), then one object (a batch is {@code -32600}). Other methods
+ * {@code WWW-Authenticate: Bearer realm="gaterook"}), then one object (a batch is {@code -32600}). Other methods
  * are 405 with {@code Allow: POST}. Host and Origin were checked by {@code LocalGuardFilter} already.
  */
 @RestController

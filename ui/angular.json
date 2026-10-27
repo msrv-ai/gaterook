@@ -7,7 +7,7 @@
   },
   "newProjectRoot": "projects",
   "projects": {
-    "mcp-gateway-ui": {
+    "gaterook-ui": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -78,10 +78,10 @@
           },
           "configurations": {
             "production": {
-              "buildTarget": "mcp-gateway-ui:build:production"
+              "buildTarget": "gaterook-ui:build:production"
             },
             "development": {
-              "buildTarget": "mcp-gateway-ui:build:development"
+              "buildTarget": "gaterook-ui:build:development"
             }
           },
           "defaultConfiguration": "development"
@@ -89,7 +89,7 @@
         "test": {
           "builder": "@angular/build:unit-test",
           "options": {
-            "buildTarget": "mcp-gateway-ui:build:development",
+            "buildTarget": "gaterook-ui:build:development",
             "tsConfig": "tsconfig.spec.json",
             "setupFiles": ["src/test-setup.ts"]
           }

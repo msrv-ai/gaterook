@@ -2,12 +2,12 @@
 @let s = settings();
 <div gwSettingsLayout [groups]="groups" [(current)]="current" idPrefix="ep-st-" fragments [label]="'Settings of endpoint ' + ep">
 
-  <section gwSettingsSection name="instructions" idPrefix="ep-st-" heading="Instructions for agents" [description]="'What ' + ep + ' tells every client before its first call.'">
+  <section gwSettingsSection name="instructions" idPrefix="ep-st-" heading="Instructions for agents" [description]="'What ' + ep + ' tells every AI app before its first call.'">
     <div class="gw-form gw-form--sticky-actions">
       <form class="gw-form__section" id="ep-st-instr-form" aria-labelledby="ep-st-instr-legend" (submit)="saveInstructions($event)" (reset)="discardInstructions($event)">
         <header class="gw-form__section-header">
           <h3 class="gw-form__legend" id="ep-st-instr-legend">Server instructions</h3>
-          <p class="gw-form__description">Sent in the <code class="gw-code">instructions</code> field when a client connects; Codex reads it as a general instruction for this server. Keep the approval rules in it: an agent that knows them waits instead of retrying.</p>
+          <p class="gw-form__description">Sent in the <code class="gw-code">instructions</code> field when an AI app connects; Codex reads it as a general instruction for this server. Keep the approval rules in it: an agent that knows them waits instead of retrying.</p>
         </header>
         <div class="gw-form__rows">
           @let instrError = instructionsForm.text().touched() ? (instructionsForm.text().errors()[0]?.message ?? null) : null;
@@ -107,28 +107,28 @@
     </div>
   </section>
 
-  <section gwSettingsSection name="auth" idPrefix="ep-st-" heading="Authorization" [description]="'How clients prove who they are when they call ' + ep + '.'">
+  <section gwSettingsSection name="auth" idPrefix="ep-st-" heading="Authorization" [description]="'How AI apps prove who they are when they call ' + ep + '.'">
     <div class="gw-form">
       <section class="gw-form__section" aria-labelledby="ep-st-tokens-legend">
         <header class="gw-form__section-header">
           <h3 class="gw-form__legend" id="ep-st-tokens-legend">Tokens</h3>
-          <p class="gw-form__description">Local clients send a token with every call. The token works only for this URL.</p>
+          <p class="gw-form__description">Local apps send a token with every call. The token works only for this URL.</p>
         </header>
         <div class="gw-form__rows">
-          <p class="gw-text-small">Always on for local clients: {{ plural(activeTokenCount(), 'active token') }}. <a class="gw-link" [routerLink]="[]" [queryParams]="{ tab: 'tokens' }" queryParamsHandling="merge">Manage tokens</a></p>
+          <p class="gw-text-small">Always on for local apps: {{ plural(activeTokenCount(), 'active token') }}. <a class="gw-link" [routerLink]="[]" [queryParams]="{ tab: 'tokens' }" queryParamsHandling="merge">Manage tokens</a></p>
         </div>
       </section>
       <section class="gw-form__section" aria-labelledby="ep-st-oauth-legend">
         <header class="gw-form__section-header">
           <h3 class="gw-form__legend" id="ep-st-oauth-legend">OAuth 2.1</h3>
-          <p class="gw-form__description">Lets a client sign in through the browser instead of a pasted token. claude.ai needs it; tokens keep working.</p>
+          <p class="gw-form__description">Lets an AI app sign in through the browser instead of a pasted token. claude.ai needs it; tokens keep working.</p>
         </header>
         <div class="gw-form__rows">
           <div class="gw-switch">
             <input class="gw-switch__input" type="checkbox" role="switch" id="ep-st-oauth" aria-describedby="ep-st-oauth-hint" [checked]="s?.oauthEnabled ?? false" [attr.aria-busy]="oauthBusy() ? 'true' : null" [attr.aria-disabled]="oauthBusy() ? 'true' : null" (change)="setOauth($event)">
             <span class="gw-switch__control" aria-hidden="true"></span>
             <label class="gw-switch__label" for="ep-st-oauth">OAuth 2.1 sign-in for {{ ep }}</label>
-            <p class="gw-switch__hint" id="ep-st-oauth-hint">Applies at once. Each new sign-in waits until you allow it in this app; the client then gets a token bound to the values below.</p>
+            <p class="gw-switch__hint" id="ep-st-oauth-hint">Applies at once. Each new sign-in waits until you allow it in this app; the AI app then gets a token bound to the values below.</p>
           </div>
           <dl class="gw-kv gw-kv--dense">
             <div class="gw-kv__row">
@@ -151,7 +151,7 @@
             <svg lucideIcon="globe-lock" class="gw-icon gw-alert__icon"></svg>
             <div class="gw-alert__content">
               @if (published()) {
-                <p class="gw-alert__body">{{ ep }} is published through the tunnel: claude.ai signs in at its public URL. Local clients keep using <span class="gw-mono">127.0.0.1</span>.</p>
+                <p class="gw-alert__body">{{ ep }} is published through the tunnel: claude.ai signs in at its public URL. Local AI apps keep using <span class="gw-mono">127.0.0.1</span>.</p>
               } @else {
                 <p class="gw-alert__body">claude.ai can't reach <span class="gw-mono">127.0.0.1</span>. It signs in only to endpoints you publish through the tunnel@if (publishedExample(); as ex) {, like <a class="gw-link gw-mono" [routerLink]="['/endpoints', ex]">{{ ex }}</a>}.</p>
               }
@@ -162,12 +162,12 @@
     </div>
   </section>
 
-  <section gwSettingsSection name="protocol" idPrefix="ep-st-" heading="Protocol" [description]="'MCP revisions ' + ep + ' answers. Clients move to new revisions at different times.'">
+  <section gwSettingsSection name="protocol" idPrefix="ep-st-" heading="Protocol" [description]="'MCP revisions ' + ep + ' answers. AI apps move to new revisions at different times.'">
     <div class="gw-form gw-form--sticky-actions">
       <form class="gw-form__section" id="ep-st-proto-form" aria-labelledby="ep-st-proto-legend" (submit)="saveProtocol($event)" (reset)="discardProtocol($event)">
         <header class="gw-form__section-header">
           <h3 class="gw-form__legend" id="ep-st-proto-legend">Supported revisions</h3>
-          <p class="gw-form__description">Keep both until every client on {{ ep }} uses {{ newest }}. Turning one off breaks the clients that still use it.</p>
+          <p class="gw-form__description">Keep both until every AI app on {{ ep }} uses {{ newest }}. Turning one off breaks the AI apps that still use it.</p>
         </header>
         <div class="gw-form__rows">
           @let protoErr = protocolErrorText();
@@ -194,7 +194,7 @@
             </div>
           }
           <!-- The core counts revisions per client over 7 days (kit: "in the last 24 hours"; ARCHITECTURE §8.6). -->
-          <p class="gw-text-caption gw-fg-muted" id="ep-st-seen-l">Revision each client used on {{ ep }} in the last 7 days</p>
+          <p class="gw-text-caption gw-fg-muted" id="ep-st-seen-l">Revision each AI app used on {{ ep }} in the last 7 days</p>
           @if (seen().length) {
             <dl class="gw-kv gw-kv--dense" aria-labelledby="ep-st-seen-l">
               @for (c of seen(); track c.client) {
@@ -202,7 +202,7 @@
               }
             </dl>
           } @else {
-            <p class="gw-text-small gw-fg-secondary">No client called {{ ep }} in the last 7 days.</p>
+            <p class="gw-text-small gw-fg-secondary">No AI app called {{ ep }} in the last 7 days.</p>
           }
           @if (protocolError(); as err) {
             <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">

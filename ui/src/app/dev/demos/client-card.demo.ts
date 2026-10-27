@@ -49,12 +49,12 @@ function demoPreview(client: ClientId, r: ConnectRequest): ConnectPreview {
 
     <section class="gw-section" aria-labelledby="s-grid">
       <header class="gw-section__header">
-        <h2 class="gw-section__title" id="s-grid">Clients page</h2>
-        <p class="gw-section__description">The five clients of the demo set. Claude Desktop reaches two endpoints through its bridge, so it takes the full width with one row per endpoint. Codex is connected, Cursor detected, Antigravity not installed, and claude.ai has the tunnel off. In a grid Connect is a secondary button; it opens the connect dialog. Open config appears only for clients set up through a file.</p>
+        <h2 class="gw-section__title" id="s-grid">AI apps page</h2>
+        <p class="gw-section__description">The five AI apps of the demo set. Claude Desktop reaches two endpoints through its bridge, one extension per endpoint, so it takes the full width with one row per endpoint. Codex is connected, Cursor detected, Antigravity not installed, and claude.ai has the tunnel off. In a grid Connect is a secondary button; it opens the connect dialog. Open config appears only for AI apps set up through a file. A card whose token is issued on the fly says what that protects against: the trust boundary is the OS account.</p>
       </header>
       <div class="gw-stack">
         <article gwClientCard [card]="clients.claudeDesktop" [endpoints]="endpoints" [connectPreview]="preview()" [connectLoading]="loading()" (connectStart)="reset()" (previewRequest)="previewFor($event)" (addEndpoint)="say('success', $event.endpoint + ' added to Claude Desktop', 'Claude Desktop lists its tools in the next new chat.')" (disconnectStart)="disconnectFor($event)" [disconnectPreview]="leaving()" (disconnect)="disconnected($event.link)" (removeBridge)="say('success', 'Bridge removed from Claude Desktop', 'The extension is removed and its tokens for dev and incident-prod are revoked.')"></article>
-        <ul class="gw-grid gw-grid--2" aria-label="MCP clients set up through a file">
+        <ul class="gw-grid gw-grid--2" aria-label="AI apps set up through a file">
           <li><article gwClientCard [card]="clients.codex" [endpoints]="endpoints" (disconnectStart)="disconnectFor($event)" [disconnectPreview]="leaving()" (disconnect)="disconnected($event.link)" (openConfig)="openConfig($event)"></article></li>
           <li><article gwClientCard [card]="clients.cursor" [endpoints]="endpoints" [connectPreview]="preview()" [connectLoading]="loading()" (connectStart)="reset()" (previewRequest)="previewFor($event)" (connect)="connected($event.client, $event.request)" (openConfig)="openConfig($event)"></article></li>
           <li><article gwClientCard [card]="clients.antigravity" [endpoints]="endpoints" (scan)="say('info', 'Checked this computer', 'Antigravity is still not installed.')"></article></li>
@@ -66,7 +66,7 @@ function demoPreview(client: ClientId, r: ConnectRequest): ConnectPreview {
     <section class="gw-section" aria-labelledby="s-alone">
       <header class="gw-section__header">
         <h2 class="gw-section__title" id="s-alone">Detected, on its own</h2>
-        <p class="gw-section__description">Where the card is the only thing to do (onboarding, the one detected client), Connect is the primary button.</p>
+        <p class="gw-section__description">Where the card is the only thing to do (onboarding, the one detected AI app), Connect is the primary button.</p>
       </header>
       <div class="gw-grid gw-grid--2">
         <article gwClientCard variant="alone" [card]="clients.cursor" [endpoints]="endpoints" [connectPreview]="preview()" [connectLoading]="loading()" (connectStart)="reset()" (previewRequest)="previewFor($event)" (connect)="connected($event.client, $event.request)" (openConfig)="openConfig($event)"></article>
@@ -76,7 +76,7 @@ function demoPreview(client: ClientId, r: ConnectRequest): ConnectPreview {
     <section class="gw-section" aria-labelledby="s-flow">
       <header class="gw-section__header">
         <h2 class="gw-section__title" id="s-flow">Connect flow</h2>
-        <p class="gw-section__description">The connect dialog for Codex, opened inline for review: endpoint, the exact change, the backup, how it authenticates, the restart it needs. Codex gets its token from <code class="gw-code">http_headers_helper</code> on the fly, so nothing secret is written. The live dialog opens from Connect on a Cursor card above.</p>
+        <p class="gw-section__description">The connect dialog for Codex, opened inline for review: endpoint, the exact change, the backup, the core's notes, how it authenticates, the restart it needs. The entry is a block between GateRook's markers; its <code class="gw-code">http_headers_helper</code> is one command string that runs the shim <code class="gw-code">~/.gaterook/bin/gw-bridge</code>, which gets the token on the fly, so nothing secret is written. The live dialog opens from Connect on a Cursor card above.</p>
       </header>
       <section gwClientConnectCard [card]="clients.codex" [endpoints]="endpoints" [preview]="inlinePreview()" (previewRequest)="inlinePreview.set(demo($event))" (connect)="connected($event.client, $event.request)" (cancel)="say('info', 'Nothing changed', 'Connect was cancelled before anything was written.')"></section>
     </section>
@@ -84,7 +84,7 @@ function demoPreview(client: ClientId, r: ConnectRequest): ConnectPreview {
     <section class="gw-section" aria-labelledby="s-restart">
       <header class="gw-section__header">
         <h2 class="gw-section__title" id="s-restart">Needs restart</h2>
-        <p class="gw-section__description">Right after Connect, for a client that reads its config only when it starts. The state clears on the client's first call.</p>
+        <p class="gw-section__description">Right after Connect, for an AI app that reads its config only when it starts. The state clears on the AI app's first call.</p>
       </header>
       <div class="gw-grid gw-grid--2">
         <article gwClientCard [card]="clients.codexRestart" [endpoints]="endpoints" backup="~/.codex/config.toml.bak-2026-10-22" (disconnectStart)="disconnectFor($event)" [disconnectPreview]="leaving()" (disconnect)="disconnected($event.link)" (openConfig)="openConfig($event)"></article>
@@ -104,7 +104,7 @@ function demoPreview(client: ClientId, r: ConnectRequest): ConnectPreview {
     <section class="gw-section" aria-labelledby="s-tunnel">
       <header class="gw-section__header">
         <h2 class="gw-section__title" id="s-tunnel">claude.ai: tunnel on</h2>
-        <p class="gw-section__description">After Publish (the confirm above). claude.ai runs in Anthropic's cloud, so it reaches the endpoint through a public URL. The card says exactly what is published and who may call it; the caller allowlist is shown, not switched, here: it is one switch in Settings › Tunnel › Callers. Turn off tunnel acts at once and offers no Undo, because turning it on again always goes through the publish confirm.</p>
+        <p class="gw-section__description">After Publish (the confirm above). claude.ai runs in Anthropic's cloud, so it reaches the endpoint through a public URL. A quick tunnel gets a new address each time it starts; claude.ai must be pointed at the new URL. Use a named tunnel for a stable hostname. The card says exactly what is published and who may call it; the caller allowlist is shown, not switched, here: it is one switch in Settings › Tunnel › Callers. Turn off tunnel acts at once and offers no Undo, because turning it on again always goes through the publish confirm.</p>
       </header>
       <div class="gw-grid gw-grid--2">
         <article gwClaudeAiCard [tunnel]="tunnelOn" [preview]="publishPreview" [grants]="grants()" [endpoints]="endpoints" (stop)="say('success', 'Tunnel off', 'stage-readonly is local again. Publishing it again asks you to confirm first.')"></article>
@@ -114,9 +114,9 @@ function demoPreview(client: ClientId, r: ConnectRequest): ConnectPreview {
     <section class="gw-section" aria-labelledby="s-compact">
       <header class="gw-section__header">
         <h2 class="gw-section__title" id="s-compact">Compact, in endpoint lists</h2>
-        <p class="gw-section__description">The Clients tab of endpoint <span class="gw-mono">dev</span>: one row per client, status and actions at the end. Rows wrap on a narrow window.</p>
+        <p class="gw-section__description">The AI apps tab of endpoint <span class="gw-mono">dev</span>: one row per AI app, status and actions at the end. Rows wrap on a narrow window.</p>
       </header>
-      <ul class="gw-stack gw-stack--sm" aria-label="Clients of endpoint dev">
+      <ul class="gw-stack gw-stack--sm" aria-label="AI apps of endpoint dev">
         <li gwClientCard variant="compact" endpoint="dev" [card]="clients.claudeDesktop" [endpoints]="endpoints" (disconnectStart)="disconnectFor($event)" [disconnectPreview]="leaving()" (disconnect)="disconnected($event.link)"></li>
         <li gwClientCard variant="compact" endpoint="dev" [card]="clients.codex" [endpoints]="endpoints" (disconnectStart)="disconnectFor($event)" [disconnectPreview]="leaving()" (disconnect)="disconnected($event.link)"></li>
         <li gwClientCard variant="compact" endpoint="dev" [card]="clients.cursor" [endpoints]="endpoints" [connectPreview]="preview()" [connectLoading]="loading()" (connectStart)="reset()" (previewRequest)="previewFor($event)" (connect)="connected($event.client, $event.request)"></li>

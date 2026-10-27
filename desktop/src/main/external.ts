@@ -19,8 +19,6 @@ const DOCUMENTATION_HOSTS: ReadonlySet<string> = new Set([
   'api.slack.com',
   'core.telegram.org',
   'json-schema.org',
-  'mcp-gateway.dev',
-  'docs.mcp-gateway.dev',
 ]);
 
 /** The URL to open in the browser, normalized, or null when it isn't allowed. */

@@ -36,8 +36,8 @@ class ResultsAndLogTest {
 
     assertThat(out.content()).extracting(ToolResult.Content::type).containsOnly("text");
     assertThat(out.content()).extracting(ToolResult.Content::text).containsExactly("plain",
-        "[image image/png, 2 KB, not passed on by MCP Gateway]",
-        "Resource link (data, not fetched by MCP Gateway): https://evil.example/x · x · text/html",
+        "[image image/png, 2 KB, not passed on by GateRook]",
+        "Resource link (data, not fetched by GateRook): https://evil.example/x · x · text/html",
         "Resource file:///a.txt:\ninside");
     assertThat(out.structuredContent().path("n").asInt()).isEqualTo(1);
     assertThat(out.isError()).isTrue();

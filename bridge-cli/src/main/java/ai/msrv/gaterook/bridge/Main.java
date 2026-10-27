@@ -10,8 +10,8 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
- * {@code gw-bridge}: the JDK-only bridge between MCP clients and MCP Gateway (ARCHITECTURE.md A7, §7.2, §7.5). The
- * client configs run it through the shim {@code ~/.mcp-gateway/bin/gw-bridge}, which the core rewrites at every start
+ * {@code gw-bridge}: the JDK-only bridge between MCP clients and GateRook (ARCHITECTURE.md A7, §7.2, §7.5). The
+ * client configs run it through the shim {@code ~/.gaterook/bin/gw-bridge}, which the core rewrites at every start
  * and which runs the native executable of the app's bundle (or the bundle's JRE with {@code gw-bridge.jar}).
  *
  * <ul>

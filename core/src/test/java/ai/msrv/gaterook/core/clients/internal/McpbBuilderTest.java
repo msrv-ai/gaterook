@@ -31,14 +31,14 @@ class McpbBuilderTest {
   private static McpbBuilder.Spec spec(Env env) {
     return new McpbBuilder.Spec("incident-prod", env, "gr_cx7q2lmaabcd", "0.4.0-SNAPSHOT", List.of(
         new McpbBuilder.Tool("sql_query", "Read from incident-db"), new McpbBuilder.Tool("sql_execute", "")),
-        Path.of("/home/u/.mcp-gateway/run/broker.json"), "darwin");
+        Path.of("/home/u/.gaterook/run/broker.json"), "darwin");
   }
 
   @Test
   void theManifestNamesTheEndpointAndTheGrantOnly() {
     JsonNode m = McpbBuilder.manifest(spec(Env.PROD));
     assertThat(m.path("manifest_version").asString()).isEqualTo("0.3");
-    assertThat(m.path("name").asString()).isEqualTo("mcp-gateway-incident-prod");
+    assertThat(m.path("name").asString()).isEqualTo("gaterook-incident-prod");
     assertThat(m.path("display_name").asString()).isEqualTo("GateRook · incident-prod (prod)");
     assertThat(m.path("version").asString()).isEqualTo("0.4.0-snapshot");
     assertThat(m.path("server").path("type").asString()).isEqualTo("node");
@@ -47,7 +47,7 @@ class McpbBuilderTest {
         .containsExactly("${__dirname}/server/gw-bridge.mjs", "stdio", "--endpoint", "incident-prod", "--grant",
             "gr_cx7q2lmaabcd", "--client", "claude-desktop");
     assertThat(m.path("server").path("mcp_config").path("env").path("GW_BROKER").asString())
-        .isEqualTo("/home/u/.mcp-gateway/run/broker.json");
+        .isEqualTo("/home/u/.gaterook/run/broker.json");
     assertThat(m.path("tools").get(1).path("description").asString()).as("a tool without one gets its name")
         .isEqualTo("sql_execute");
     assertThat(m.path("compatibility").path("platforms").get(0).asString()).isEqualTo("darwin");
@@ -59,8 +59,8 @@ class McpbBuilderTest {
 
   @Test
   void theExtensionHoldsTheManifestAndTheBridgeAndIsOwnerOnly() throws IOException {
-    Path a = dir.resolve("a/mcp-gateway-incident-prod.mcpb");
-    Path b = dir.resolve("b/mcp-gateway-incident-prod.mcpb");
+    Path a = dir.resolve("a/gaterook-incident-prod.mcpb");
+    Path b = dir.resolve("b/gaterook-incident-prod.mcpb");
     McpbBuilder.write(a, spec(Env.PROD));
     McpbBuilder.write(b, spec(Env.PROD));
     assertThat(Files.readAllBytes(a)).as("reproducible").isEqualTo(Files.readAllBytes(b));

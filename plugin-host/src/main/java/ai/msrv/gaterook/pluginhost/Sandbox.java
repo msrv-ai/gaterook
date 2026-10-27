@@ -20,7 +20,7 @@ import java.util.Map;
  * Landlock through FFM, for the OS sandbox of a plugin process on Linux (ARCHITECTURE.md §7.5, §9 "Signatures of
  * plugins"): SecurityManager is gone for good (JEP 486), so the boundary is the kernel's. A ruleset reads only the
  * system, the JRE, the host's JAR and the plugin's own folder, and writes only the plugin's data folder and devices;
- * the rest of {@code $HOME} — MCP Gateway's database and master key, {@code ~/.ssh}, {@code ~/.aws} — can't be opened,
+ * the rest of {@code $HOME} — GateRook's database and master key, {@code ~/.ssh}, {@code ~/.aws} — can't be opened,
  * and Landlock's ptrace scoping keeps another process's {@code /proc/<pid>} (the core's environment) out of reach too.
  * The network isn't restricted here: a plugin talks to its service.
  *

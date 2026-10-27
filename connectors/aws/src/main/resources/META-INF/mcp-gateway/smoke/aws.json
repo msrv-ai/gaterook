@@ -7,14 +7,14 @@
     {
       "name": "secret-values-denied",
       "connection": {"type": "aws", "env": "dev",
-        "config": {"regions": ["eu-central-1"], "credentials": {"source": "profile", "profile": "mcp-gateway-smoke"}}},
+        "config": {"regions": ["eu-central-1"], "credentials": {"source": "profile", "profile": "gaterook-smoke"}}},
       "call": {"tool": "aws_describe", "arguments": {"type": "AWS::SecretsManager::Secret"}},
       "expect": {"isError": true, "textStartsWith": "Denied by policy dev.cloud.sensitive_type"}
     },
     {
       "name": "lambda-expression-denied",
       "connection": {"type": "aws", "env": "dev",
-        "config": {"regions": ["eu-central-1"], "credentials": {"source": "profile", "profile": "mcp-gateway-smoke"}}},
+        "config": {"regions": ["eu-central-1"], "credentials": {"source": "profile", "profile": "gaterook-smoke"}}},
       "call": {"tool": "aws_metrics",
         "arguments": {"metrics": [{"namespace": "AWS/Lambda", "metric": "Errors"}],
           "expressions": [{"id": "e1", "expression": "LAMBDA(\"orders-fn\", m1)"}]}},
@@ -23,7 +23,7 @@
     {
       "name": "missing-profile-unreachable",
       "connection": {"type": "aws", "env": "dev",
-        "config": {"regions": ["eu-central-1"], "credentials": {"source": "profile", "profile": "mcp-gateway-smoke-no-such-profile"}}},
+        "config": {"regions": ["eu-central-1"], "credentials": {"source": "profile", "profile": "gaterook-smoke-no-such-profile"}}},
       "test": true,
       "expect": {"ok": false, "errorCode": "aws.unreachable"}
     },

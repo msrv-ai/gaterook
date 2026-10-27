@@ -48,7 +48,7 @@ class TemplatesController {
   record Reason(String reason) {}
 
   /**
-   * One template; {@code verified} false: changed outside MCP Gateway, it serves nothing until reviewed.
+   * One template; {@code verified} false: changed outside GateRook, it serves nothing until reviewed.
    *
    * @param parameters its signature: the current version's {@code params} ({@code [{name, type, required, values,
    *                   default}]}, "orders_by_status(status, since)"); {@code null} for OpenAPI and when not verified

@@ -102,7 +102,7 @@
         <gw-code-block wrap scroll lang="JSON" filename="structuredContent" language="json" [text]="json" copyLabel="structured content" regionLabel="Structured content of the result" [id]="'pg-struct-pre'" />
         <p class="gw-text-caption gw-fg-muted"><span class="gw-mono">structuredContent</span> as the agent gets it{{ c.meta.truncated ? ', cut to the limits of the endpoint' : '' }}.@if (m.count) { The values of masked fields never leave the gateway.}</p>
       } @else {
-        <p class="gw-text-small gw-fg-secondary">No <span class="gw-mono">structuredContent</span> in this answer: a client gets only its text.</p>
+        <p class="gw-text-small gw-fg-secondary">No <span class="gw-mono">structuredContent</span> in this answer: an AI app gets only its text.</p>
       }
     </div>
 
@@ -112,7 +112,7 @@
       } @else {
         <p class="gw-text-small gw-fg-secondary">No text content in this answer.</p>
       }
-      <p class="gw-text-caption gw-fg-muted">What a client that ignores <span class="gw-mono">structuredContent</span> puts in front of the model.</p>
+      <p class="gw-text-caption gw-fg-muted">What an AI app that ignores <span class="gw-mono">structuredContent</span> puts in front of the model.</p>
     </div>
 
     <div class="gw-tabs__panel gw-stack gw-stack--sm" role="tabpanel" id="pg-rp-rpc" aria-labelledby="pg-rt-rpc" tabindex="0" hidden>

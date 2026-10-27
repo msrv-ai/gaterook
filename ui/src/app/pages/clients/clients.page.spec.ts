@@ -1,11 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { ApiError } from '../../core/api/api-error';
 import { ClientsApi, ClientsView, ConnectPreview, ConnectRequest } from '../../core/api/clients.api';
 import { CoreApi } from '../../core/api/core.api';
-import { EndpointsApi, TokensApi } from '../../core/api/endpoints.api';
+import { EndpointSummary, EndpointsApi, TokensApi, ToolGroup, ToolRow } from '../../core/api/endpoints.api';
+import { Overview, OverviewApi } from '../../core/api/overview.api';
 import { OAuthApi, OAuthGrant, TunnelApi, TunnelState } from '../../core/api/tunnel.api';
 import { DesktopBridge } from '../../core/desktop/desktop-bridge';
 import { EventStream } from '../../core/events/event-stream';
@@ -18,7 +19,8 @@ import { AriaDisabledGuard } from '../../kit/aria-disabled';
 import { provideKitIcons } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
 import { SKELETON_DELAY_MS, ClientsPage } from './clients.page';
-import { NOW, bridgeDisconnect, codexDisconnect, connected, kitClients, kitEndpoints, kitManual, kitTokens, noneFound, previewFor } from './clients.fixtures';
+import { firstRun as firstRunOverview, setup as setupOverview } from '../overview/overview.fixtures';
+import { NOW, bridgeDisconnect, codexDisconnect, connected, foundClients, kitClients, kitEndpoints, kitManual, kitTokens, noneFound, previewFor, setupEndpoints } from './clients.fixtures';
 
 /**
  * The Clients page against fake API services in the kit's world (design/pages/clients.html): what it shows, what each
@@ -48,6 +50,10 @@ interface World {
   preview: (client: string, r: ConnectRequest) => Promise<ConnectPreview>;
   tunnel: () => Promise<TunnelState>;
   grants: () => Promise<OAuthGrant[]>;
+  /** `GET /api/overview`: the page's state (a core without it: in use). */
+  overview: () => Promise<Overview>;
+  endpoints: () => Promise<EndpointSummary[]>;
+  tools: (slug: string) => Promise<ToolGroup[]>;
 }
 
 let calls: string[];
@@ -75,6 +81,9 @@ function configure(): void {
     preview: (client, r) => Promise.resolve(previewFor(client as 'cursor', r)),
     tunnel: () => Promise.reject(notAvailable()),
     grants: () => Promise.reject(notAvailable()),
+    overview: () => Promise.reject(notAvailable()),
+    endpoints: () => Promise.resolve(kitEndpoints()),
+    tools: () => Promise.reject(notAvailable()),
   };
   const clients: Partial<ClientsApi> = {
     list: () => (calls.push('list'), world.list()),
@@ -91,13 +100,20 @@ function configure(): void {
       provideRouter([{ path: '**', children: [] }]),
       provideKitIcons(),
       { provide: ClientsApi, useValue: clients },
-      { provide: EndpointsApi, useValue: { list: () => Promise.resolve(kitEndpoints()) } },
+      { provide: EndpointsApi, useValue: { list: () => world.endpoints(), tools: (slug: string) => (calls.push(`tools ${slug}`), world.tools(slug)) } },
+      { provide: OverviewApi, useValue: { get: () => world.overview() } },
       { provide: TokensApi, useValue: { list: () => Promise.resolve(kitTokens()) } },
       {
         provide: TunnelApi,
         useValue: {
           get: () => world.tunnel(),
-          publishPreview: () => Promise.resolve(DEMO_PUBLISH),
+          // What Publish would make public, for the endpoint asked about (the kit's stage-readonly, or setup's dev).
+          publishPreview: (slug: string) =>
+            Promise.resolve(
+              slug === DEMO_PUBLISH.endpoint
+                ? DEMO_PUBLISH
+                : { ...DEMO_PUBLISH, endpoint: slug, publicPaths: [`/mcp/${slug}`, '/oauth/*', '/.well-known/oauth-*'], connections: [{ name: 'dev-db', env: 'dev' }] },
+            ),
           publish: (slug: string) => (calls.push(`publish ${slug}`), Promise.resolve({ ...DEMO_TUNNEL_OFF, state: 'starting' })),
           stop: () => (calls.push('stop'), Promise.resolve(DEMO_TUNNEL_OFF)),
         },
@@ -165,7 +181,7 @@ async function choose(select: HTMLSelectElement, value: string): Promise<void> {
 describe('Clients page: what it shows', () => {
   it('the kit’s world: counts, Cursor first with Connect open, the bridge, Codex, Antigravity, claude.ai, manual setup', async () => {
     const el = await render();
-    expect(text($('h1', el))).toBe('Clients');
+    expect(text($('h1', el))).toBe('AI apps');
     expect($$('.gw-page-header__meta .gw-status__label', el).map(text)).toEqual(['2 connected', '1 detected, not connected', '1 not installed']);
     expect(text($('#cl-scanned', el))).toBe('1 min ago');
     expect(text($('section[aria-labelledby="cl-local-t"] .gw-section__description', el))).toContain('127.0.0.1:7465');
@@ -253,16 +269,16 @@ describe('Clients page: what it shows', () => {
     expect(card('Codex')).toBeTruthy();
   });
 
-  it('no MCP client found: what the scan looks for, Scan again, and Manual setup moves the keyboard there', async () => {
+  it('no AI app found: what the scan looks for, Scan again, and Manual setup moves the keyboard there', async () => {
     world.list = () => Promise.resolve(noneFound());
     const el = await render();
     const empty = $('section[aria-labelledby="cl-empty-t"]', el)!;
-    expect(text($('.gw-empty__title', empty))).toBe('No MCP clients found');
+    expect(text($('.gw-empty__title', empty))).toBe('No AI apps found');
     expect($$('section[aria-labelledby="cl-local-t"] article', el)).toHaveLength(0);
 
     await click(control(empty, 'Scan again'));
     expect(calls).toContain('scan');
-    expect(announced).toEqual(['Scanning this computer for MCP clients', 'Scan finished. No MCP clients found on this computer.']);
+    expect(announced).toEqual(['Scanning this computer for AI apps', 'Scan finished. No AI apps found on this computer.']);
 
     const link = control(empty, 'Manual setup');
     link.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
@@ -476,5 +492,199 @@ describe('Clients page: live', () => {
     expect(calls[0]).toBe('list');
     expect($$('article').some((a) => text($('.gw-card__title', a)) === 'Codex')).toBe(false);
     expect($$('.gw-page-header__meta .gw-status__label').map(text)).toEqual(['1 connected', '1 detected, not connected', '1 not installed']);
+  });
+});
+
+describe('Clients page: first run and setup (kit ?state=first-run | setup)', () => {
+  const toolRow = (name: string, mode: ToolRow['mode']): ToolRow => ({
+    toolKey: name,
+    name,
+    annotations: { readOnlyHint: mode === 'READ_ONLY', destructiveHint: mode !== 'READ_ONLY', idempotentHint: false, openWorldHint: false },
+    declaredBy: null,
+    mode,
+    storedMode: mode,
+    readOnlyAllowed: mode === 'READ_ONLY',
+    reason: null,
+    readOnlyConfirmed: false,
+    definitionHash: null,
+    overrides: null,
+    version: 1,
+  });
+  const never: TunnelState = { ...DEMO_TUNNEL_OFF, endpoint: null, since: null, history: [] };
+  const rows = (el: ParentNode) => $$('#cl-rows > li', el);
+  const kv = (root: ParentNode) => $$('.gw-kv__row', root).map((r) => [text($('dt', r)), text($('dd', r))]);
+
+  function firstRun(): void {
+    world.overview = () => Promise.resolve(firstRunOverview());
+    world.list = () => Promise.resolve(foundClients());
+    world.endpoints = () => Promise.resolve([]);
+    world.tunnel = () => Promise.resolve(never);
+    world.grants = () => Promise.resolve([]);
+  }
+
+  function setup(): void {
+    world.overview = () => Promise.resolve(setupOverview());
+    world.list = () => Promise.resolve(foundClients());
+    world.endpoints = () => Promise.resolve(setupEndpoints());
+    world.tools = () =>
+      Promise.resolve([
+        { group: 'core', connection: null, env: null, tools: [toolRow('list_connections', 'OFF')] },
+        { group: 'dev-db', connection: 'dev-db', env: 'dev', tools: [toolRow('sql_list_schemas', 'READ_ONLY'), toolRow('sql_query', 'READ_ONLY'), toolRow('sql_execute', 'APPROVAL')] },
+      ]);
+    world.tunnel = () => Promise.resolve(never);
+    world.grants = () => Promise.resolve([]);
+  }
+
+  /** The page as Overview's links open it: `/clients#cl-cx-t`. */
+  async function arrive(fragment: string): Promise<HTMLElement> {
+    await TestBed.inject(Router).navigateByUrl(`/clients#${fragment}`);
+    return render();
+  }
+
+  it('first run: the apps found are quiet rows whose Connect waits for a connection, and says why', async () => {
+    firstRun();
+    const el = await render();
+    expect(text($('.gw-page-header__description', el))).toBe(
+      'Claude Desktop, Codex and Cursor are already on this computer. Add a connection first, so they have something to work with. Connect then shows the exact change before anything is written.',
+    );
+    expect($$('.gw-page-header__meta .gw-status__label', el).map(text)).toEqual(['3 detected, not connected', '1 not installed']);
+    // The header's Add connection is the page's only primary; nothing explains Connect yet, nothing to set up by hand.
+    expect($$('.gw-btn--primary', el).map((b) => [text(b), b.getAttribute('href')])).toEqual([['Add connection', '/connections/new']]);
+    expect($('.gw-how-it-works', el)).toBeNull();
+    expect($('#cl-manual-t', el)).toBeNull();
+    expect(text($('section[aria-labelledby="cl-local-t"] .gw-section__description', el))).toBe('These apps reach the gateway at 127.0.0.1:7465 directly, once you connect them.');
+
+    expect($('#cl-rows', el)!.getAttribute('aria-label')).toBe('AI apps on this computer');
+    expect(rows(el).map((r) => [text($('h3', r)), text($('.gw-client-card__via', r)), text($('.gw-status__label', r))])).toEqual([
+      ['Claude Desktop', 'Found on this computer · Bridge extension (.mcpb)', 'Detected, not connected'],
+      ['Codex', 'Found on this computer · ~/.codex/config.toml', 'Detected, not connected'],
+      ['Cursor', 'Found on this computer · ~/.cursor/mcp.json', 'Detected, not connected'],
+      ['Antigravity', 'Not found on this computer · ~/.gemini/config/mcp_config.json', 'Not installed'],
+    ]);
+    const connect = control($('#cl-cx-row', el)!, 'Connect Codex');
+    expect([connect.tagName, connect.getAttribute('aria-disabled'), connect.getAttribute('aria-describedby')]).toEqual(['BUTTON', 'true', 'cl-first-why']);
+    expect(text($('#cl-first-why', el))).toBe('Add a connection first: your AI app needs something to work with.');
+    await click(connect);
+    expect(calls.filter((c) => c.startsWith('preview'))).toEqual([]);
+    const ag = $('#cl-ag-row', el)!;
+    expect(control(ag, 'How to install Antigravity (opens in your browser)').getAttribute('href')).toBe('https://antigravity.google/');
+    expect(control(ag, 'Check again for Antigravity')).toBeTruthy();
+
+    // claude.ai: there is no endpoint to publish yet.
+    const ai = $('article[aria-labelledby="cl-ai-t"]', el)!;
+    expect(kv($('.gw-card__body', ai)!)).toEqual([['Tunnel', 'Never published · Tunnel settings']]);
+    expect(text($('#cl-ai-first-why', ai))).toBe('Add a connection first: there is no endpoint to publish yet.');
+    const publish = control(ai, 'Publish for claude.ai');
+    expect([publish.getAttribute('aria-disabled'), publish.getAttribute('aria-describedby')]).toEqual(['true', 'cl-ai-first-why']);
+  });
+
+  it('first run: Overview’s How to install (#cl-ag-t) puts the keyboard on that app’s row', async () => {
+    firstRun();
+    await arrive('cl-ag-t');
+    await settle();
+    expect(document.activeElement?.id).toBe('cl-ag-row-t');
+  });
+
+  it('setup: Overview’s Connect (#cl-cx-t) opens Codex’s review on top, heading focused, with what it can use', async () => {
+    setup();
+    const el = await arrive('cl-cx-t');
+    await settle();
+    expect(text($('.gw-page-header__description', el))).toBe(
+      'Connect the AI app you use, and it can start reading dev-db. You see the exact change before anything is written, and Disconnect takes it back.',
+    );
+    expect(text($('section[aria-labelledby="cl-local-t"] .gw-section__description', el))).toBe(
+      'These apps reach the gateway at 127.0.0.1:7465 directly. The one you connect gets the tools of endpoint dev and nothing else.',
+    );
+    const review = $('article[aria-labelledby="cl-cx-s-t"]', el)!;
+    expect(document.activeElement?.id).toBe('cl-cx-s-t');
+    expect(text($('.gw-client-card__flow > p', review))).toBe(
+      "Found on this computer. Connect adds one server to Codex's config, with a backup first. Nothing is written until you click Connect Codex.",
+    );
+    expect(text($('.gw-client-card__step h4', review))).toBe('What Codex can use');
+    expect(kv($('.gw-client-card__step', review)!)).toEqual([
+      ['Connection', 'dev-db environment dev · PostgreSQL 16'],
+      ['Tools', 'sql_list_schemas and sql_query run at once (read only). sql_execute waits for your approval.'],
+      ['Endpoint', 'dev · http://127.0.0.1:7465/mcp/dev'],
+    ]);
+    expect(text($('.gw-client-card__step .gw-text-caption', review))).toBe('dev-db is on endpoint dev, your only endpoint. Anything you add to dev later reaches Codex too.');
+    // One endpoint: no select. What will change comes from the core before anything is written; Connect is alone.
+    expect($('select', review)).toBeNull();
+    expect(calls).toContain('preview codex dev helper');
+    expect(calls).toContain('tools dev');
+    expect($$('.gw-card__footer .gw-btn', review).map(text)).toEqual(['Connect Codex']);
+    // The other apps stay quiet rows, under their own label.
+    expect(text($('#cl-other-t', el))).toBe('Other apps on this computer');
+    expect($('#cl-rows', el)!.getAttribute('aria-labelledby')).toBe('cl-other-t');
+    expect(rows(el).map((r) => text($('h3', r)))).toEqual(['Claude Desktop', 'Cursor', 'Antigravity']);
+  });
+
+  it('setup: Connect writes the change; the card stays on top with “Check that it works” and the prompt to copy', async () => {
+    setup();
+    const el = await arrive('cl-cx-t');
+    await settle();
+    const codexLinked = foundClients();
+    world.list = () =>
+      Promise.resolve({
+        ...codexLinked,
+        clients: codexLinked.clients.map((c) => (c.client === 'codex' ? { ...kitClients().clients.find((k) => k.client === 'codex')!, status: 'needs-restart', statusText: 'Needs restart' } : c)),
+      });
+    await click(control($('article[aria-labelledby="cl-cx-s-t"]', el)!, 'Connect Codex'));
+    await settle();
+    expect(calls).toContain('connect codex pv_codex_dev_helper');
+    expect($('article[aria-labelledby="cl-cx-s-t"]', el)).toBeNull();
+    const codex = card('Codex');
+    expect(document.activeElement).toBe($('.gw-card__title', codex));
+    const check = $('section[aria-labelledby="cl-cx-check-t"]', el)!;
+    expect(text($('h4', check))).toBe('Check that it works');
+    expect(text($('label', check))).toBe('After the restart, open a new chat in Codex and ask');
+    expect($<HTMLInputElement>('#cl-cx-ask', check)!.value).toBe('Show me the tables in dev-db');
+    expect(text($('.gw-text-caption', check))).toBe(
+      'Its first request shows up on Overview and in Activity. Reads run at once; if it tries sql_execute, the request waits for you in Approvals.',
+    );
+    expect(rows(el).map((r) => text($('h3', r)))).toEqual(['Claude Desktop', 'Cursor', 'Antigravity']);
+  });
+
+  it('setup: a row’s Connect opens that app’s review, one at a time; manual setup waits behind its toggle', async () => {
+    setup();
+    const el = await arrive('cl-cx-t');
+    await settle();
+    await click(control($('#cl-cu-row', el)!, 'Connect Cursor'));
+    await settle();
+    expect($('article[aria-labelledby="cl-cx-s-t"]', el)).toBeNull();
+    expect($('article[aria-labelledby="cl-cu-s-t"]', el)).not.toBeNull();
+    expect(document.activeElement?.id).toBe('cl-cu-s-t');
+    expect(rows(el).map((r) => text($('h3', r)))).toEqual(['Claude Desktop', 'Codex', 'Antigravity']);
+
+    const toggle = control($('section[aria-labelledby="cl-manual-t"]', el)!, 'Show manual setup');
+    const manual = $('#cl-manual-p', el)!;
+    expect([toggle.getAttribute('aria-expanded'), manual.hidden]).toEqual(['false', true]);
+    await click(toggle);
+    expect([toggle.getAttribute('aria-expanded'), manual.hidden]).toEqual(['true', false]);
+  });
+
+  it('setup: claude.ai was never published; Publish dev is there, secondary', async () => {
+    setup();
+    const el = await render();
+    const ai = $('article[aria-labelledby="cl-ai-t"]', el)!;
+    expect(text($('.gw-card__body > p', ai))).toBe(
+      "Publishing gives endpoint dev a public HTTPS address behind three gates: Anthropic IP ranges only, your OK on this computer for each new sign-in, and the endpoint's own modes.",
+    );
+    expect(kv($('.gw-card__body', ai)!)).toEqual([
+      ['Public URL', 'None while the tunnel is off'],
+      ['Tunnel', 'Never published · Tunnel settings'],
+      ['Signed in', 'No one yet. Each new sign-in waits until you allow it here.'],
+    ]);
+    const publish = control(ai, 'Publish for claude.ai');
+    expect(publish.classList.contains('gw-btn--primary')).toBe(false);
+    await click(publish);
+    expect(text($('dialog[open] h2'))).toBe('Publish dev to the internet?');
+  });
+
+  it('in use: an app’s anchor puts the keyboard on its card', async () => {
+    world.tunnel = () => Promise.resolve(DEMO_TUNNEL_OFF);
+    await arrive('cl-cd-t');
+    await settle();
+    expect(document.activeElement).toBe($('.gw-card__title', card('Claude Desktop')));
+    expect($('.gw-how-it-works')).not.toBeNull();
   });
 });

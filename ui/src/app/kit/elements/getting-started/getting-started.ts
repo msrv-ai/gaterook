@@ -39,9 +39,9 @@ const COPY: Record<GettingStartedStepId, StepCopy> = {
     fragment: 'create',
   },
   client: {
-    title: 'Connect a client',
+    title: 'Connect your AI app',
     why: 'Claude Desktop, Codex, Cursor or Antigravity. You see the config change before it is written.',
-    action: 'Connect a client',
+    action: 'Connect your AI app',
     route: '/clients',
   },
   playground: {

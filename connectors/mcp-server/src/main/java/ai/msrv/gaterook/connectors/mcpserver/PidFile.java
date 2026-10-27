@@ -14,7 +14,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * {@code ~/.mcp-gateway/run/mcp-pids.json}: the root process of every running stdio server with its start time, so
+ * {@code ~/.gaterook/run/mcp-pids.json}: the root process of every running stdio server with its start time, so
  * that a core that was killed (or crashed) stops what it left behind at its next start (ARCHITECTURE.md §7.1 "Orphaned processes from the
  * previous run are terminated using PID files"). A pid is only trusted together with its start time: after a
  * reboot the number may belong to someone else's process.

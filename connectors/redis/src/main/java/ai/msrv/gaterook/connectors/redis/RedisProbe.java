@@ -73,8 +73,8 @@ final class RedisProbe {
               .connectionTimeoutMillis(s.connectTimeoutMs())
               .socketTimeoutMillis(s.commandTimeoutMs())
               .database(s.database())
-              .clientName("mcp-gateway")
-              .clientSetInfoConfig(ClientSetInfoConfig.withLibNameSuffix("mcp-gateway"))
+              .clientName("gaterook")
+              .clientSetInfoConfig(ClientSetInfoConfig.withLibNameSuffix("gaterook"))
               .credentialsProvider(login::asRedisCredentials)
               .build()));
     } catch (JedisException e) {
@@ -225,7 +225,7 @@ final class RedisProbe {
     if (Boolean.TRUE.equals(write) || admin) {
       if (user.equals("default")) {
         result = result.withHint(new Hint(Severity.WARNING, "redis.default-user", "credentials.user", "You're "
-            + "connected as default, which can run every command. Create a read-only user for MCP Gateway."));
+            + "connected as default, which can run every command. Create a read-only user for GateRook."));
       }
       result = result.withHint(new Hint(env == Env.DEV ? Severity.INFO : Severity.WARNING, "redis.user-can-write",
           "credentials.user", "This user can write. Agents only read, but a read-only user keeps it that way."));

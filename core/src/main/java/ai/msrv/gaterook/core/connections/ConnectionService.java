@@ -379,7 +379,8 @@ public class ConnectionService {
       ConnectionEntity row = repository.findById(connectionId).orElseThrow(() -> ProblemException.notFound(
           "Connection not found", "The connection was deleted."));
       if (!rows.verify(row)) {
-        throw ProblemException.conflict("Changed outside GateRook", row.getName() + " was changed outside GateRook. Review it first.");
+        throw ProblemException.conflict("Changed outside GateRook", row.getName() + " was changed outside "
+            + "GateRook. Review it first.");
       }
       JsonNode patched = ai.msrv.gaterook.core.platform.JsonMergePatch.apply(rows.storedConfig(row), patch);
       validate(registry.requireManifest(row.getType()), (ObjectNode) patched, java.util.Set.of(), row.getEnv());

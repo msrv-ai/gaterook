@@ -55,7 +55,7 @@ class HttpActionTest {
         new ActionPreview.Field("Retries", "Safe: idempotency key set"));
     byte[] sent = Base64.getDecoder().decode(p.payload().path("body").asString());
     assertThat(p.fields()).containsExactly(new ActionPreview.Field("Also sent by the gateway", "Host, "
-        + "Content-Length: " + sent.length + ", Connection: Keep-Alive, User-Agent: mcp-gateway/" + BuiltIn.VERSION
+        + "Content-Length: " + sent.length + ", Connection: Keep-Alive, User-Agent: GateRook/" + BuiltIn.VERSION
         + ", Accept-Encoding: gzip"));
     assertThat(p.auditFacets()).containsEntry("http.method", "POST").containsEntry("http.host",
         "billing.stage.acme.dev");

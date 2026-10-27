@@ -184,7 +184,7 @@ describe('Secrets page: what it shows', () => {
     expect(text($('h1', el))).toBe('Secrets');
 
     const mk = $('#master-key', el)!;
-    expect(text(mk)).toContain('/Users/you/.mcp-gateway/master.keyset');
+    expect(text(mk)).toContain('/Users/you/.gaterook/master.keyset');
     expect(text(mk)).toContain('0400 Only you can read it');
     expect(text(mk)).toContain('2146530891');
     expect(text(mk)).toContain('On · the file is also encrypted with your macOS Keychain');

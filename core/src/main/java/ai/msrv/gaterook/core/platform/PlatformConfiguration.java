@@ -152,7 +152,7 @@ class PlatformConfiguration {
    */
   @Bean(destroyMethod = "close")
   EgressClients egressClients(ListenerPorts ports) {
-    return new EgressClients(new EgressClients.Settings("mcp-gateway/" + CoreBuild.VERSION, ports::all,
+    return new EgressClients(new EgressClients.Settings("GateRook/" + CoreBuild.VERSION, ports::all,
         HostResolver.SYSTEM));
   }
 

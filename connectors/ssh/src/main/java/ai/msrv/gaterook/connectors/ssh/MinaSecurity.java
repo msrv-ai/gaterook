@@ -38,7 +38,7 @@ import org.bouncycastle.jcajce.provider.asymmetric.edec.SignatureSpi;
 public final class MinaSecurity {
 
   /** Name of the registrar and of its provider; not a {@code java.security} provider name anyone else uses. */
-  static final String NAME = "MCPGatewayEdDSA";
+  static final String NAME = "GateRookEdDSA";
 
   private static final Provider PROVIDER = new Ed25519Provider();
   private static volatile boolean installed;

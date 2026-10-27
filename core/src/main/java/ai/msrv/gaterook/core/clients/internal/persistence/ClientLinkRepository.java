@@ -12,7 +12,7 @@ public interface ClientLinkRepository extends JpaRepository<ClientLinkEntity, St
 
   List<ClientLinkEntity> findByGrantId(String grantId);
 
-  /** The entries MCP Gateway still keeps in client configs (Clients page, drift). */
+  /** The entries GateRook still keeps in client configs (Clients page, drift). */
   List<ClientLinkEntity> findByRemovedAtIsNullOrderByCreatedAtAsc();
 
   List<ClientLinkEntity> findByTokenId(String tokenId);

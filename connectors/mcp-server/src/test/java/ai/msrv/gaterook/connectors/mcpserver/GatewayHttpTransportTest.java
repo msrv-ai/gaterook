@@ -49,7 +49,7 @@ class GatewayHttpTransportTest {
     server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
     server.createContext("/mcp", this::answer);
     server.start();
-    clients = new EgressClients(new EgressClients.Settings("mcp-gateway/test", Set.of(), HostResolver.SYSTEM));
+    clients = new EgressClients(new EgressClients.Settings("GateRook/test", Set.of(), HostResolver.SYSTEM));
   }
 
   @AfterEach

@@ -295,7 +295,7 @@ describe('Approvals page', () => {
     await settle();
     expect(core.decisions[0].decision).toEqual({ decision: 'approve', comment: null, digest: `digest-of-${SQL.id}` });
     expect(announce).toHaveBeenCalledWith('Nothing waiting for approval');
-    expect(text(el.querySelector('#apq-empty'))).toBe('Nothing waiting Agents will ask here before any change.');
+    expect(text(el.querySelector('#apq-empty'))).toBe('Nothing waiting Your AI apps will ask here before any change.');
     const title = el.querySelector('#ap-detail-empty-title');
     expect(text(title)).toBe('No request to review');
     expect(document.activeElement).toBe(title);

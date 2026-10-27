@@ -264,7 +264,7 @@ final class TestProbe {
     for (String e : a.extensions()) {
       out.add(new Hint(Severity.DANGER, "sql.dangerous-extension", null, e + " is installed in "
           + (s.database() == null ? "this database" : s.database()) + ": its functions run code outside the "
-          + "read-only transaction. MCP Gateway refuses the known ones, but only the user's GRANTs are a real "
+          + "read-only transaction. GateRook refuses the known ones, but only the user's GRANTs are a real "
           + "boundary."));
     }
     if (!a.superuser() && (a.write() != null || a.schemaChanges())) {
@@ -288,7 +288,7 @@ final class TestProbe {
     }
     if ("PostgreSQL".equals(server.product()) && server.major() > 0 && server.major() < 12) {
       out.add(new Hint(Severity.WARNING, "sql.old-server", null, "PostgreSQL " + server.version() + " is older "
-          + "than 12, which MCP Gateway supports."));
+          + "than 12, which GateRook supports."));
     }
     return out;
   }

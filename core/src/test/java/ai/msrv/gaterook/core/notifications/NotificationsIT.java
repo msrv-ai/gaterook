@@ -591,7 +591,7 @@ class NotificationsIT {
   void testsAndTheTestMessageAnswerInTheConnectionFormsShape() {
     JsonNode slack = w.api.expect(200, HttpMethod.POST, "/api/notifications/slack/test", null);
     assertThat(slack.path("ok").asBoolean()).isTrue();
-    assertThat(slack.path("identity").asString()).isEqualTo("workspace acme · bot @mcp-gateway");
+    assertThat(slack.path("identity").asString()).isEqualTo("workspace acme · bot @gaterook");
     assertThat(slack.path("checks").findValuesAsString("name")).containsExactly("auth.test", "socket-mode");
     JsonNode telegram = w.api.expect(200, HttpMethod.POST, "/api/notifications/telegram/test", null);
     assertThat(telegram.path("ok").asBoolean()).isTrue();

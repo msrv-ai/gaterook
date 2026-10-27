@@ -10,7 +10,7 @@ import tools.jackson.databind.node.ObjectNode;
  * The {@code mac} column of security-relevant rows (ARCHITECTURE.md §4): HMAC-SHA256 under the {@code row-mac/v1} key
  * of {@link HmacKeys} over the canonical JSON of the row's security fields, its table, id and version. A row edited in
  * {@code gateway.db} by anything but the core no longer verifies: its owner turns the object off and reports it as
- * "Changed outside MCP Gateway" until the person reviews it (fail closed).
+ * "Changed outside GateRook" until the person reviews it (fail closed).
  *
  * <p>The owners sign after the flush that settles {@code version}; the {@code mac} fields are excluded from optimistic
  * locking, so writing the MAC doesn't bump the version it signs. A new master key (created, or replacing a lost one)

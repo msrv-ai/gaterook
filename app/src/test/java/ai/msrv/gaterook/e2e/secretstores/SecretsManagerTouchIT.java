@@ -62,15 +62,15 @@ class SecretsManagerTouchIT {
               + "<Credentials><AccessKeyId>ASIATOUCHSESSION0001</AccessKeyId><SecretAccessKey>" + SESSION_SECRET
               + "</SecretAccessKey><SessionToken>" + SESSION_TOKEN + "</SessionToken><Expiration>"
               + Instant.now().plus(1, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS) + "</Expiration>"
-              + "</Credentials><AssumedRoleUser><AssumedRoleId>AROA:mcp-gateway-aws-sm</AssumedRoleId><Arn>"
-              + "arn:aws:sts::412398765012:assumed-role/gw-secrets-read/mcp-gateway-aws-sm</Arn></AssumedRoleUser>"
+              + "</Credentials><AssumedRoleUser><AssumedRoleId>AROA:gaterook-aws-sm</AssumedRoleId><Arn>"
+              + "arn:aws:sts::412398765012:assumed-role/gw-secrets-read/gaterook-aws-sm</Arn></AssumedRoleUser>"
               + "</AssumeRoleResult><ResponseMetadata><RequestId>1</RequestId></ResponseMetadata>"
               + "</AssumeRoleResponse>");
         }
         if (body.contains("Action=GetCallerIdentity")) {
           return xml("<GetCallerIdentityResponse xmlns=\"https://sts.amazonaws.com/doc/2011-06-15/\">"
-              + "<GetCallerIdentityResult><Arn>arn:aws:sts::412398765012:assumed-role/gw-secrets-read/mcp-gateway-"
-              + "aws-sm</Arn><UserId>AROA:mcp-gateway-aws-sm</UserId><Account>412398765012</Account>"
+              + "<GetCallerIdentityResult><Arn>arn:aws:sts::412398765012:assumed-role/gw-secrets-read/gaterook-"
+              + "aws-sm</Arn><UserId>AROA:gaterook-aws-sm</UserId><Account>412398765012</Account>"
               + "</GetCallerIdentityResult><ResponseMetadata><RequestId>2</RequestId></ResponseMetadata>"
               + "</GetCallerIdentityResponse>");
         }

@@ -2,19 +2,21 @@
   <div class="gw-page-header__row">
     <div class="gw-page-header__heading">
       <h1 class="gw-page-header__title">Overview</h1>
-      <p class="gw-page-header__description">What your agents did in the last 24 hours, what waits for your decision and what needs attention.</p>
-    </div>
-    <div class="gw-page-header__actions">
-      <a class="gw-btn" routerLink="/connections/new"><svg lucideIcon="plus" class="gw-icon"></svg> Add connection</a>
-      <!--
-        The one primary of the page level: requests auto-deny on a timer, so while some wait, reviewing them is the
-        next thing that matters. With an empty queue the header has no primary; the checklist's current step has its
-        own, in its card.
-      -->
-      @if (pending() > 0) {
-        <a class="gw-btn gw-btn--primary" routerLink="/approvals"><svg lucideIcon="user-check" class="gw-icon"></svg> Review approvals</a>
+      @switch (state()) {
+        @case ('in-use') {
+          <p class="gw-page-header__description">What waits for your approval and what is connected.</p>
+        }
+        @case (null) {}
+        @default {
+          <p class="gw-page-header__description">Let your AI apps use your databases and servers without ever seeing a password.</p>
+        }
       }
     </div>
+    @if (state() === 'in-use') {
+      <div class="gw-page-header__actions">
+        <a class="gw-btn" routerLink="/connections/new"><svg lucideIcon="plus" class="gw-icon"></svg> Add connection</a>
+      </div>
+    }
   </div>
 </header>
 
@@ -34,7 +36,7 @@
   <gw-code-block [attr.id]="'overview-error-details'" [id]="'overview-error-pre'" hidden wrap lang="Error" [text]="errorDetails(e)" copyLabel="error details" regionLabel="Error details" />
 } @else if (overview(); as o) {
   @if (data.stale(); as e) {
-    <!-- A refresh failed: the numbers below are the last ones that loaded. -->
+    <!-- A refresh failed: what is below is the last answer that loaded. -->
     <div class="gw-alert gw-alert--warning gw-alert--compact" role="status">
       <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
       <div class="gw-alert__content">
@@ -45,306 +47,218 @@
     </div>
   }
 
-  <!-- ─────────────── Getting started (elements/getting-started.html) ─────────────── -->
-  <!-- Dismissible: undoable, so no confirmation; a toast offers Undo and the setup map keeps showing what is left. -->
-  @if (!o.gettingStarted.dismissed) {
-    <section gwGettingStarted id="getting-started" [checklist]="o.gettingStarted" [estimate]="false" [clients]="completeClients()" [endpoint]="firstEndpoint()" [detected]="data.detected()" (dismiss)="dismissChecklist()"></section>
+  @switch (state()) {
+    @case ('in-use') {
+      <!-- ═══════════════ IN USE ═══════════════ -->
+
+      <!-- Quick access: the only thing on this screen that expires. When the last request goes, the section gives way to
+           the quiet line. Never Approve or Deny here: a decision needs the exact action on screen, so Review opens it. -->
+      @if (waiting().length) {
+        <section class="gw-section" aria-labelledby="ov-wait-title" id="ov-wait">
+          <header class="gw-section__header">
+            <h2 class="gw-section__title" id="ov-wait-title">Waiting for your approval <span class="gw-counter gw-counter--attention"><span class="gw-sr-only">, </span>{{ waitingCount() }}<span class="gw-sr-only"> {{ waitingCount() === 1 ? 'request' : 'requests' }}</span></span></h2>
+            <p class="gw-section__description">Your AI apps asked to change something. Open a request to see exactly what will run, then approve or deny it.</p>
+            <div class="gw-section__actions">
+              <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/approvals">All approvals</a>
+            </div>
+          </header>
+          <ul class="gw-stack gw-stack--sm" role="list" [attr.aria-label]="waitingLabel()">
+            @for (w of waiting(); track w.id) {
+              <li>
+                <article gwApprovalRequestCompact [item]="w" [segments]="data.actions().get(w.id) ?? null" [review]="['/approvals', w.id]" [announce]="announceOf(w)" (expired)="onExpired(w)"></article>
+              </li>
+            }
+          </ul>
+        </section>
+      } @else {
+        <p class="gw-text-small gw-fg-muted" id="ov-wait-none"><svg lucideIcon="circle-check" class="gw-icon gw-icon--sm"></svg> Nothing waits for your approval. When an AI app asks to change data, the request appears here and as a desktop notification.</p>
+      }
+
+      <!-- What the AI apps can use: problems first, one row, the rest behind one disclosure placed before it. -->
+      @let t = tiles();
+      <section class="gw-section" aria-labelledby="ov-conn-title">
+        <header class="gw-section__header">
+          <h2 class="gw-section__title" id="ov-conn-title" tabindex="-1" #connectionsTitle>Your connections</h2>
+          <p class="gw-section__description">{{ t.description }}</p>
+          <div class="gw-section__actions">
+            <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/connections">All connections</a>
+          </div>
+        </header>
+        <div class="gw-stack">
+          <ul class="gw-grid gw-grid--3" role="list" aria-label="Connections that need attention first">
+            @for (c of t.shown; track c.name) {
+              <ng-container *ngTemplateOutlet="connectionTile; context: { $implicit: c }" />
+            }
+          </ul>
+          @if (t.more.length) {
+            <div>
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [(expanded)]="moreOpen" aria-controls="ov-conn-more">{{ t.moreLabel }} <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
+            </div>
+            <ul class="gw-grid gw-grid--3" role="list" id="ov-conn-more" [attr.aria-label]="moreLabel()" [hidden]="!moreOpen()">
+              @for (c of t.more; track c.name) {
+                <ng-container *ngTemplateOutlet="connectionTile; context: { $implicit: c }" />
+              }
+            </ul>
+          }
+        </div>
+      </section>
+
+      <!-- Which AI apps use the gateway, 2 × 2. The full connect flow (the change to the app's settings, the backup)
+           lives on AI apps; an app that isn't installed stays there: here it would be noise. -->
+      @if (homeApps().length) {
+        <section class="gw-section" aria-labelledby="ov-apps-title">
+          <header class="gw-section__header">
+            <h2 class="gw-section__title" id="ov-apps-title">AI apps</h2>
+            <p class="gw-section__description">Apps that use your connections through GateRook. Each one reaches only the connections you gave it.</p>
+            <div class="gw-section__actions">
+              <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/clients">All AI apps</a>
+            </div>
+          </header>
+          <ul class="gw-grid gw-grid--2" role="list" [attr.aria-label]="homeAppsLabel()">
+            @for (a of homeApps(); track a.client) {
+              <ng-container *ngTemplateOutlet="appTile; context: { $implicit: a, level: 3, wait: false }" />
+            }
+          </ul>
+        </section>
+      }
+
+      <p class="gw-text-small gw-fg-muted"><svg lucideIcon="activity" class="gw-icon gw-icon--sm"></svg> {{ activity() }} <a class="gw-link" routerLink="/activity">Activity</a>.</p>
+    }
+
+    @case ('first-run') {
+      <!-- ═══════════════ FIRST RUN: nothing set up yet ═══════════════ -->
+      <section class="gw-card" aria-labelledby="ov-first-title">
+        <header class="gw-card__header">
+          <div class="gw-card__heading">
+            <h2 class="gw-card__title" id="ov-first-title">Get started</h2>
+            <p class="gw-card__description">Your AI app asks GateRook, and GateRook works with your database or server for it. Passwords stay on this computer.</p>
+          </div>
+        </header>
+        <div class="gw-card__body">
+          <ol class="gw-stepper gw-stepper--guide" aria-labelledby="ov-first-title">
+            <li gwGuideStep [n]="1" state="current" heading="Add your first connection">
+              <p class="gw-stepper__description">A connection is something your AI can work with: a database, a server, logs or an API. Choose its type, for example PostgreSQL, enter its address and password, and test it.</p>
+              <div class="gw-stepper__content gw-stack gw-stack--sm">
+                <div><a class="gw-btn gw-btn--primary" routerLink="/connections/new"><svg lucideIcon="plus" class="gw-icon"></svg> Add connection</a></div>
+                <p class="gw-text-caption gw-fg-muted"><svg lucideIcon="shield-check" class="gw-icon gw-icon--xs"></svg> Your AI can read right away. Anything that changes data waits for your approval.</p>
+              </div>
+            </li>
+            <li gwGuideStep [n]="2" state="upcoming" heading="Connect your AI app">
+              <p class="gw-stepper__description">Choose the app you use and click Connect. We show what changes before anything is written, and back up any file we change.</p>
+              @if (guideApps().length) {
+                <div class="gw-stepper__content gw-stack gw-stack--sm">
+                  <ul class="gw-grid gw-grid--2" role="list" aria-label="AI apps on this computer">
+                    @for (a of guideApps(); track a.client) {
+                      <ng-container *ngTemplateOutlet="appTile; context: { $implicit: a, level: 4, wait: true }" />
+                    }
+                  </ul>
+                  @if (anyConnect()) {
+                    <p class="gw-text-caption gw-fg-muted" id="ov-first-why"><svg lucideIcon="lock" class="gw-icon gw-icon--xs"></svg> Add a connection first: your AI app needs something to work with.</p>
+                  }
+                </div>
+              }
+            </li>
+            <li gwGuideStep [n]="3" state="upcoming" heading="Check that it works">
+              <p class="gw-stepper__description">Restart your AI app if GateRook says so, then ask it: “{{ prompt() }}”. Its first request shows up here.</p>
+            </li>
+          </ol>
+        </div>
+      </section>
+    }
+
+    @case ('setup') {
+      <!-- ═══════════════ SETUP: a connection, no AI app yet ═══════════════ -->
+      @let f = first();
+      <section class="gw-card" aria-labelledby="ov-setup-title">
+        <header class="gw-card__header">
+          <div class="gw-card__heading">
+            <h2 class="gw-card__title" id="ov-setup-title">Almost done</h2>
+            <p class="gw-card__description">@if (firstWorks()) {Your connection works. }Connect the AI app you use, and it can start reading @if (f) {<span class="gw-mono">{{ f.name }}</span>} @else {your connection}.</p>
+          </div>
+        </header>
+        <div class="gw-card__body">
+          <ol class="gw-stepper gw-stepper--guide" aria-labelledby="ov-setup-title">
+            <li gwGuideStep [n]="1" state="complete" heading="Add your first connection">
+              @if (f) {
+                <p class="gw-stepper__description"><a class="gw-link gw-mono" [routerLink]="['/connections', f.name]">{{ f.name }}</a>@if (f.typeName) { · {{ f.typeName }}}@if (f.modes) { · {{ f.modes }}}@if (f.health; as h) { · <span [class]="'gw-status gw-status--' + h.tone"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ h.label }}</span></span>}@if (f.others) { · and <a class="gw-link" routerLink="/connections">{{ f.others }} more</a>}</p>
+              }
+              <div class="gw-stepper__content gw-stack gw-stack--sm">
+                <p class="gw-text-caption gw-fg-muted">
+                  @if (f?.secret; as s) {
+                    @if (s.where === 'here') {
+                      <svg lucideIcon="key-round" class="gw-icon gw-icon--xs"></svg> The {{ s.noun }} is encrypted with a key kept on this computer.@if (!keyBackedUp()) { <a class="gw-link" routerLink="/secrets" fragment="master-key">Back up the key</a> so you can restore it.} ·
+                    } @else {
+                      <svg lucideIcon="key-round" class="gw-icon gw-icon--xs"></svg> The {{ s.noun }} stays in your secret manager. GateRook reads it only when a call needs it. ·
+                    }
+                  }
+                  <a class="gw-link" routerLink="/connections/new">Add another connection</a>
+                </p>
+              </div>
+            </li>
+            <li gwGuideStep [n]="2" state="current" heading="Connect your AI app">
+              <p class="gw-stepper__description">Choose the app you use and click Connect. We show what changes before anything is written, and back up any file we change.</p>
+              @if (guideApps().length) {
+                <div class="gw-stepper__content">
+                  <ul class="gw-grid gw-grid--2" role="list" aria-label="AI apps on this computer">
+                    @for (a of guideApps(); track a.client) {
+                      <ng-container *ngTemplateOutlet="appTile; context: { $implicit: a, level: 4, wait: false }" />
+                    }
+                  </ul>
+                </div>
+              }
+            </li>
+            <li gwGuideStep [n]="3" state="upcoming" heading="Check that it works">
+              <p class="gw-stepper__description">Restart your AI app if GateRook says so, then ask it: “{{ prompt() }}”. Its first request shows up here.</p>
+              <div class="gw-stepper__content">
+                <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Waiting for the first request</span></span>
+              </div>
+            </li>
+          </ol>
+        </div>
+      </section>
+    }
   }
 
-  <!-- ─────────────── Setup map · the whole chain with real states (elements/setup-map.html) ─────────────── -->
-  <section class="gw-section" aria-labelledby="setup-title">
-    <header class="gw-section__header">
-      <h2 class="gw-section__title" id="setup-title" tabindex="-1" #setupTitle>Your setup</h2>
-      <p class="gw-section__description">What is configured, in the order you set it up. Each step says its state and links to where you change it.</p>
-    </header>
-    <gw-setup-map [nodes]="setupNodes()" />
-  </section>
-
-  <!-- ─────────────── KPI row · last 24 hours ─────────────── -->
-  <section class="gw-section" aria-labelledby="kpi-title">
-    <header class="gw-section__header">
-      <h2 class="gw-section__title" id="kpi-title">Last 24 hours</h2>
-      <p class="gw-section__description">Changes compare with the 24 hours before, unless the tile says otherwise.</p>
-      <div class="gw-section__actions">
-        <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/insights"><svg lucideIcon="chart-column" class="gw-icon gw-icon--sm"></svg> Open Insights</a>
-      </div>
-    </header>
-    <dl class="gw-grid gw-grid--4">
-      @for (t of tiles(); track t.id) {
-        <div class="gw-stat">
-          <dt class="gw-stat__label">{{ t.label }}</dt>
-          <dd class="gw-stat__value">{{ t.value }}@if (t.unit) { <span class="gw-stat__unit">{{ t.unit }}</span>}</dd>
-          @if (t.chart; as c) {
-            <dd class="gw-stat__chart">
-              <svg [class]="c.tone === 'brand' ? 'gw-sparkline' : 'gw-sparkline gw-sparkline--' + c.tone" viewBox="0 0 230 40" preserveAspectRatio="none" role="img" [attr.aria-label]="c.label">
-                <polyline [attr.points]="c.points"></polyline>
-              </svg>
-            </dd>
-          }
-          @if (t.delta; as d) {
-            <dd [class]="'gw-stat__delta gw-stat__delta--' + d.dir" [attr.data-sentiment]="d.sentiment"><svg [lucideIcon]="d.icon" class="gw-icon"></svg>{{ d.text }}</dd>
-          }
-          @if (t.meta.length) {
-            <dd class="gw-stat__meta">@for (m of t.meta; track $index) {@if (m.route) {<a class="gw-link" [routerLink]="m.route" [queryParams]="m.query">{{ m.text }}</a>} @else {{{ m.text }}}}</dd>
-          }
-        </div>
+  <!-- A connection as a tile: the whole tile opens it; Test again (unreachable) is its own target above that link. -->
+  <ng-template #connectionTile let-c>
+    @let busy = testing().includes(c.name);
+    <li gwStatusTile #tile="gwStatusTile" [name]="c.name" mono [env]="c.env" [icon]="c.icon" [meta]="c.meta" [state]="c.state" [link]="['/connections', c.name]" [checking]="busy">
+      @if (c.retest) {
+        <button class="gw-btn gw-btn--sm" type="button" (click)="testAgain(c.name)" [attr.aria-busy]="busy ? 'true' : null" [attr.aria-disabled]="busy ? 'true' : null" [attr.aria-describedby]="busy ? tile.stateId : null">@if (busy) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> }Test again<span class="gw-sr-only"> {{ c.name }}</span></button>
       }
-    </dl>
-  </section>
+    </li>
+  </ng-template>
 
-  <!-- ─────────────── What needs you · two columns when each gets 480 px ─────────────── -->
-  <div class="gw-grid gw-grid--auto" [style.--gw-grid-min]="twoColumnMin">
-
-    <!-- Waiting for you: soonest auto-deny first. Never Approve / Deny here: a decision needs the exact action on screen,
-         so Review opens the request in Approvals. -->
-    <section class="gw-section" aria-labelledby="waiting-title">
-      <header class="gw-section__header">
-        <h2 class="gw-section__title" id="waiting-title">Waiting for you</h2>
-        <p class="gw-section__description">Soonest auto-deny first. Nothing runs until you approve the exact action.</p>
-        @if (pending() > waiting().length) {
-          <div class="gw-section__actions">
-            <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/approvals">All {{ pending() }} requests</a>
-          </div>
-        }
-      </header>
-      @if (waiting().length) {
-        <ul class="gw-stack gw-stack--sm" [attr.aria-label]="waitingLabel()">
-          @for (w of waiting(); track w.id) {
-            <li>
-              <article gwApprovalRequestCompact [item]="w" [segments]="data.actions().get(w.id) ?? null" [review]="['/approvals', w.id]" [announce]="announceOf(w)" (expired)="onExpired()"></article>
-            </li>
-          }
-        </ul>
-      } @else {
-        <div class="gw-empty gw-empty--compact">
-          <span class="gw-empty__icon gw-icon-tile--success"><svg lucideIcon="circle-check" class="gw-icon"></svg></span>
-          <p class="gw-empty__title">Nothing waiting</p>
-          <p class="gw-empty__text">Agents will ask here before any change.</p>
-        </div>
-      }
-    </section>
-
-    <!-- Connection health: problems first, the rest folded behind a disclosure. -->
-    <section class="gw-section" aria-labelledby="health-title">
-      <header class="gw-section__header">
-        <h2 class="gw-section__title" id="health-title" tabindex="-1" #healthTitle>Connection health</h2>
-        <p class="gw-section__description">{{ healthDescription() }}</p>
-        <div class="gw-section__actions">
-          <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/connections">All connections</a>
-        </div>
-      </header>
-      @if (alert(); as a) {
-        <!-- Error state where it happens: what can't be reached, what to do, what it breaks; and the action. -->
-        <div class="gw-alert gw-alert--danger gw-alert--compact">
-          <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
-          <div class="gw-alert__content">
-            <p class="gw-alert__title">@for (p of a.title; track $index) {@if (p.code) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</p>
-            @if (a.body.length) {
-              <p class="gw-alert__body">@for (p of a.body; track $index) {@if (p.code) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</p>
-            }
-            <!-- Shown while Test again runs; the busy button points its aria-describedby here. -->
-            <p class="gw-alert__body gw-fg-secondary" id="health-retest-status" [hidden]="!testing()">{{ testingText() }}</p>
-          </div>
-          <div class="gw-alert__actions">
-            <button class="gw-btn gw-btn--sm" type="button" id="health-retest" (click)="testAgain(a.names)" [attr.aria-busy]="testing() ? 'true' : null" [attr.aria-disabled]="testing() ? 'true' : null" [attr.aria-describedby]="testing() ? 'health-retest-status' : null">@if (testing()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Test again<span class="gw-sr-only"> {{ a.names.length === 1 ? a.names[0] : a.names.length + ' unreachable connections' }}</span></button>
-          </div>
-        </div>
-      }
-      @let g = groups();
-      @if (!health().length) {
-        <div class="gw-table-wrap" role="region" aria-labelledby="health-cap" tabindex="0">
-          <table class="gw-table gw-table--dense">
-            <caption class="gw-sr-only" id="health-cap">Connection health</caption>
-            <thead>
-              <tr>
-                <th scope="col">Connection</th>
-                <th scope="col">Health</th>
-                <th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Activity</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td class="gw-table__empty" colspan="3">
-                  <div class="gw-empty gw-empty--compact">
-                    <span class="gw-empty__icon"><svg lucideIcon="database" class="gw-icon"></svg></span>
-                    <p class="gw-empty__title">No connections yet</p>
-                    <p class="gw-empty__text">Connect a database, server, log store or cluster. Agents reach it through an endpoint and never see its credentials.</p>
-                    <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" routerLink="/connections/new"><svg lucideIcon="plus" class="gw-icon gw-icon--sm"></svg> Add your first connection</a></div>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      } @else {
-        @if (!g.problems.length) {
-          <!-- Nothing failed: say so (or that nothing was checked yet); the connections are one click away. -->
-          @let calm = healthCalm();
-          <div class="gw-empty gw-empty--compact">
-            @if (calm.checked) {
-              <span class="gw-empty__icon gw-icon-tile--success"><svg lucideIcon="circle-check" class="gw-icon"></svg></span>
-            } @else {
-              <span class="gw-empty__icon"><svg lucideIcon="circle-dashed" class="gw-icon"></svg></span>
-            }
-            <p class="gw-empty__title">{{ calm.title }}</p>
-            <p class="gw-empty__text">{{ calm.text }}</p>
-          </div>
-        }
-        <div class="gw-table-wrap" role="region" aria-labelledby="health-cap" tabindex="0" id="health-table" [hidden]="g.problems.length === 0 && !healthOpen()">
-          <table class="gw-table gw-table--dense">
-            <caption class="gw-sr-only" id="health-cap">Connection health, problems first</caption>
-            <thead>
-              <tr>
-                <th scope="col">Connection</th>
-                <th scope="col">Health</th>
-                <th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Activity</span></th>
-              </tr>
-            </thead>
-            @if (g.problems.length) {
-              <tbody>
-                @for (r of g.problems; track r.name) {
-                  <ng-container *ngTemplateOutlet="row; context: { $implicit: r }" />
-                }
-              </tbody>
-            }
-            <tbody id="health-ok" [hidden]="g.problems.length > 0 && !healthOpen()">
-              @for (r of g.rest; track r.name) {
-                <ng-container *ngTemplateOutlet="row; context: { $implicit: r }" />
-              }
-            </tbody>
-          </table>
-        </div>
-        @if (g.rest.length) {
-          <div>
-            <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [(expanded)]="healthOpen" [attr.aria-controls]="g.problems.length ? 'health-ok' : 'health-table'">{{ g.restLabel }} <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
-          </div>
-        }
-      }
-    </section>
-  </div>
-
-  <!-- ─────────────── Recent activity · the last decided calls ─────────────── -->
-  <!-- Pending calls are not repeated here: they are "Waiting for you" above. Each row opens the event in Activity; time is
-       relative in the list, ISO in title. Client and Duration hide first below lg, so the list never scrolls sideways. -->
-  <section class="gw-section" aria-labelledby="recent-title">
-    <header class="gw-section__header">
-      <h2 class="gw-section__title" id="recent-title">Recent activity</h2>
-      <p class="gw-section__description">{{ recentDescription() }}</p>
-      <div class="gw-section__actions">
-        <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/activity"><svg lucideIcon="activity" class="gw-icon gw-icon--sm"></svg> View all activity</a>
-      </div>
-    </header>
-    <div class="gw-table-wrap" role="region" aria-labelledby="recent-cap" tabindex="0">
-      <table class="gw-table gw-table--dense" [class.gw-table--interactive]="recent().length > 0">
-        <caption class="gw-sr-only" id="recent-cap">Recent activity: the last {{ recent().length === 1 ? 'call' : recent().length + ' calls' }} with a decision, newest first</caption>
-        <thead>
-          <tr>
-            <th scope="col">Time</th>
-            <th scope="col">Decision</th>
-            <th scope="col">Tool</th>
-            <th scope="col">Connection</th>
-            <th scope="col" class="gw-table__cell--optional">Client</th>
-            <th scope="col" class="gw-table__cell--num gw-table__cell--optional">Duration</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (e of recent(); track e.id) {
-            @let look = decisionLook(e.decision);
-            <tr>
-              <td><a class="gw-table__row-link" routerLink="/activity" [fragment]="'event-' + e.id"><time [attr.datetime]="time.iso(e.at)" [attr.title]="time.absolute(e.at)">{{ time.relative(e.at) }}</time><span class="gw-sr-only">, open call {{ e.tool }}{{ e.connection ? ' on ' + e.connection : '' }}</span></a></td>
-              <td><span [class]="'gw-badge gw-badge--sm gw-badge--' + look.tone"><svg [lucideIcon]="look.icon" class="gw-icon gw-badge__icon"></svg>{{ look.text }}</span></td>
-              <td class="gw-table__cell--mono">{{ e.tool }}</td>
-              <td>@if (e.connection) {<span class="gw-mono">{{ e.connection }}</span>@if (e.env) { <span class="gw-sr-only">environment</span> <span [class]="'gw-env gw-env--sm gw-env--' + e.env">{{ e.env }}</span>}}</td>
-              <td class="gw-table__cell--optional">{{ clientLabel(e.client) }}</td>
-              <td class="gw-table__cell--num gw-table__cell--optional">{{ duration(e.durationMs) }}</td>
-            </tr>
-          } @empty {
-            <tr>
-              <td class="gw-table__empty" colspan="6">
-                <div class="gw-empty gw-empty--compact">
-                  <span class="gw-empty__icon"><svg lucideIcon="activity" class="gw-icon"></svg></span>
-                  <p class="gw-empty__title">No calls yet</p>
-                  <p class="gw-empty__text">Every call an agent makes through the gateway shows up here: who called which tool, what was decided and how long it took.</p>
-                  <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" routerLink="/playground"><svg lucideIcon="flask-conical" class="gw-icon gw-icon--sm"></svg> Try a tool in Playground</a></div>
-                </div>
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <ng-template #row let-r>
-    @let look = healthLook(r.state);
-    <tr>
-      <th scope="row"><span class="gw-mono">{{ r.name }}</span> <span class="gw-sr-only">environment</span> <span [class]="'gw-env gw-env--sm gw-env--' + r.env">{{ r.env }}</span></th>
-      <td>
-        @if (look.tone === 'info') {
-          <span class="gw-status gw-status--checking"><span class="gw-spinner" aria-hidden="true"></span><span class="gw-status__label">{{ healthText(r) }}</span></span>
+  <!--
+    An AI app as a tile. Connect and How to install lead to the app's card on AI apps (/clients#cl-<app>-t); in the
+    first run Connect waits, a button with aria-disabled and the visible reason (never a link: a middle click would
+    get past it). A connected app's tile opens its card.
+  -->
+  <ng-template #appTile let-a let-level="level" let-wait="wait">
+    <li gwStatusTile [level]="level" [name]="a.name" [client]="a.client" [meta]="a.meta" [state]="a.state" [link]="a.linked ? '/clients' : null" [fragment]="a.linked ? appAnchor(a.client) : null">
+      @if (a.action === 'connect') {
+        @if (wait) {
+          <button class="gw-btn gw-btn--sm" type="button" aria-disabled="true" aria-describedby="ov-first-why">Connect<span class="gw-sr-only"> {{ a.name }}</span></button>
         } @else {
-          <span [class]="'gw-status gw-status--' + look.tone"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ healthText(r) }}</span></span>
+          <a class="gw-btn gw-btn--sm" routerLink="/clients" [fragment]="appAnchor(a.client)">Connect<span class="gw-sr-only"> {{ a.name }}</span></a>
         }
-      </td>
-      <td class="gw-table__cell--actions"><a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/activity" [queryParams]="{ q: 'connection:' + r.name }"><svg lucideIcon="activity" class="gw-icon gw-icon--sm"></svg> Activity<span class="gw-sr-only"> on {{ r.name }}</span></a></td>
-    </tr>
+      } @else if (a.action === 'install') {
+        <a class="gw-btn gw-btn--sm gw-btn--link" routerLink="/clients" [fragment]="appAnchor(a.client)">How to install<span class="gw-sr-only"> {{ a.name }}</span></a>
+      }
+    </li>
   </ng-template>
 } @else if (slow()) {
-  <!-- The first answer is slow: the sections' shape, busy, and one status line for screen readers. -->
+  <!-- The first answer is slow: the page's shape, busy, and one status line for screen readers. -->
   <p class="gw-sr-only" role="status">Loading the overview</p>
-  <section class="gw-section" aria-labelledby="setup-title" aria-busy="true">
-    <header class="gw-section__header">
-      <h2 class="gw-section__title" id="setup-title">Your setup</h2>
-    </header>
-    <div class="gw-grid gw-grid--auto" aria-hidden="true">
-      <span class="gw-skeleton gw-skeleton--block"></span>
-      <span class="gw-skeleton gw-skeleton--block"></span>
-      <span class="gw-skeleton gw-skeleton--block"></span>
-      <span class="gw-skeleton gw-skeleton--block"></span>
-      <span class="gw-skeleton gw-skeleton--block"></span>
-    </div>
-  </section>
-  <section class="gw-section" aria-labelledby="kpi-title" aria-busy="true">
-    <header class="gw-section__header">
-      <h2 class="gw-section__title" id="kpi-title">Last 24 hours</h2>
-    </header>
-    <div class="gw-grid gw-grid--4" aria-hidden="true">
-      <span class="gw-skeleton gw-skeleton--block"></span>
-      <span class="gw-skeleton gw-skeleton--block"></span>
-      <span class="gw-skeleton gw-skeleton--block"></span>
-      <span class="gw-skeleton gw-skeleton--block"></span>
-    </div>
-  </section>
-  <div class="gw-grid gw-grid--auto" [style.--gw-grid-min]="twoColumnMin">
-    <section class="gw-section" aria-labelledby="waiting-title" aria-busy="true">
-      <header class="gw-section__header">
-        <h2 class="gw-section__title" id="waiting-title">Waiting for you</h2>
-      </header>
-      <div class="gw-stack gw-stack--sm" aria-hidden="true">
-        <span class="gw-skeleton gw-skeleton--block"></span>
-        <span class="gw-skeleton gw-skeleton--block"></span>
-      </div>
-    </section>
-    <section class="gw-section" aria-labelledby="health-title" aria-busy="true">
-      <header class="gw-section__header">
-        <h2 class="gw-section__title" id="health-title">Connection health</h2>
-      </header>
-      <div class="gw-stack gw-stack--sm" aria-hidden="true">
-        <span class="gw-skeleton gw-skeleton--text"></span>
-        <span class="gw-skeleton gw-skeleton--text"></span>
-        <span class="gw-skeleton gw-skeleton--text"></span>
-      </div>
-    </section>
-  </div>
-  <section class="gw-section" aria-labelledby="recent-title" aria-busy="true">
-    <header class="gw-section__header">
-      <h2 class="gw-section__title" id="recent-title">Recent activity</h2>
-    </header>
+  <section class="gw-section" aria-busy="true" aria-label="Loading">
     <div class="gw-stack gw-stack--sm" aria-hidden="true">
       <span class="gw-skeleton gw-skeleton--text"></span>
-      <span class="gw-skeleton gw-skeleton--text"></span>
-      <span class="gw-skeleton gw-skeleton--text"></span>
-      <span class="gw-skeleton gw-skeleton--text"></span>
+      <span class="gw-skeleton gw-skeleton--block"></span>
+    </div>
+    <div class="gw-grid gw-grid--3" aria-hidden="true">
+      <span class="gw-skeleton gw-skeleton--block"></span>
+      <span class="gw-skeleton gw-skeleton--block"></span>
+      <span class="gw-skeleton gw-skeleton--block"></span>
     </div>
   </section>
 }

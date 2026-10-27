@@ -41,7 +41,7 @@ import tools.jackson.databind.node.ObjectNode;
 class HttpExecutionTest {
 
   private static final HeldCertificate CA = new HeldCertificate.Builder().certificateAuthority(0)
-      .commonName("MCP Gateway test CA").build();
+      .commonName("GateRook test CA").build();
   private static final HeldCertificate LEAF = new HeldCertificate.Builder().commonName("api.test")
       .addSubjectAlternativeName("api.test").addSubjectAlternativeName("api2.test")
       .addSubjectAlternativeName("rebind.test").addSubjectAlternativeName("mixed.test")
@@ -109,7 +109,7 @@ class HttpExecutionTest {
     assertThat(seen.getMethod()).isEqualTo("GET");
     assertThat(seen.getTarget()).isEqualTo("/v1/invoices?limit=10");
     assertThat(seen.getHeaders().get("Authorization")).isEqualTo("Bearer tok-cnry-4f2a9c");
-    assertThat(seen.getHeaders().get("User-Agent")).isEqualTo("mcp-gateway/test");
+    assertThat(seen.getHeaders().get("User-Agent")).isEqualTo("GateRook/test");
     assertThat(seen.getHeaders().get("Accept")).isEqualTo("application/json");
     assertThat(seen.getHeaders().get("Cookie")).isNull();
   }
@@ -353,7 +353,7 @@ class HttpExecutionTest {
     try {
       GuardedEgress core = Fixtures.guard(asCore, "conn-3", "127.0.0.0/8");
       assertThatThrownBy(() -> connector.execute(call("http_get", "{\"path\":\"/\"}"), billing(""), secrets,
-          Fixtures.Context.of(core))).hasMessageContaining("is MCP Gateway itself");
+          Fixtures.Context.of(core))).hasMessageContaining("is GateRook itself");
     } finally {
       asCore.close();
     }

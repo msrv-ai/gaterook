@@ -4,13 +4,15 @@ import { TestBed } from '@angular/core/testing';
 import { ApiError } from '../../core/api/api-error';
 import { ClientsApi, ClientsView, ConnectPreview, ConnectRequest } from '../../core/api/clients.api';
 import { CoreApi } from '../../core/api/core.api';
-import { EndpointsApi, TokensApi } from '../../core/api/endpoints.api';
+import { EndpointsApi, TokensApi, ToolGroup } from '../../core/api/endpoints.api';
+import { Overview, OverviewApi } from '../../core/api/overview.api';
 import { OAuthApi, OAuthGrant, PublishPreview, TunnelApi, TunnelState } from '../../core/api/tunnel.api';
 import { EventStream } from '../../core/events/event-stream';
 import { TimeService } from '../../core/time/time.service';
 import { DEMO_CLIENTS, DEMO_GRANTS, DEMO_PUBLISH, DEMO_TUNNEL_OFF } from '../../dev/fixtures-clients';
 import { CALLS_THROTTLE_MS, ClientsData } from './clients.data';
-import { NOW, codexDisconnect, connected, kitClients, kitEndpoints, kitManual, kitTokens, previewFor } from './clients.fixtures';
+import { firstRun as firstRunOverview, overview as inUseOverview, setup as setupOverview } from '../overview/overview.fixtures';
+import { NOW, codexDisconnect, connected, foundClients, kitClients, kitEndpoints, kitManual, kitTokens, previewFor, setupEndpoints } from './clients.fixtures';
 
 /** The Clients page's data against fake API services: what loads, what each action asks the core, what it keeps. */
 
@@ -41,6 +43,9 @@ let answers: {
   tunnel: () => Promise<TunnelState>;
   grants: () => Promise<OAuthGrant[]>;
   publishPreview: () => Promise<PublishPreview>;
+  overview: () => Promise<Overview>;
+  endpoints: () => ReturnType<EndpointsApi['list']>;
+  tools: () => Promise<ToolGroup[]>;
 };
 
 function setup(): ClientsData {
@@ -53,6 +58,9 @@ function setup(): ClientsData {
     tunnel: () => Promise.reject(notAvailable()),
     grants: () => Promise.reject(notAvailable()),
     publishPreview: () => Promise.resolve(DEMO_PUBLISH),
+    overview: () => Promise.reject(notAvailable()),
+    endpoints: () => Promise.resolve(kitEndpoints()),
+    tools: () => Promise.resolve([]),
   };
   const clients: Partial<ClientsApi> = {
     list: () => (calls.push('list'), answers.list()),
@@ -68,7 +76,11 @@ function setup(): ClientsData {
     providers: [
       ClientsData,
       { provide: ClientsApi, useValue: clients },
-      { provide: EndpointsApi, useValue: { list: () => (calls.push('endpoints'), Promise.resolve(kitEndpoints())) } },
+      {
+        provide: EndpointsApi,
+        useValue: { list: () => (calls.push('endpoints'), answers.endpoints()), tools: (slug: string) => (calls.push(`tools ${slug}`), answers.tools()) },
+      },
+      { provide: OverviewApi, useValue: { get: () => (calls.push('overview'), answers.overview()) } },
       { provide: TokensApi, useValue: { list: (slug: string) => (calls.push(`tokens ${slug}`), Promise.resolve(kitTokens())) } },
       {
         provide: TunnelApi,
@@ -279,5 +291,49 @@ describe('ClientsData: claude.ai', () => {
     calls = [];
     await data.revoke(DEMO_GRANTS[0]);
     expect(calls[0]).toBe('revoke og_7Hc2');
+  });
+});
+
+describe('ClientsData: the page’s state, as on Overview', () => {
+  it('is in use when the core has no overview (or it failed), unknown until it answered', async () => {
+    const data = setup();
+    expect(data.stage()).toBeNull();
+    await data.start();
+    await flush();
+    expect(data.stage()).toBe('in-use');
+    expect(data.first()).toBeNull();
+    expect(calls.some((c) => c.startsWith('tools'))).toBe(false);
+  });
+
+  it('first run with no connection, in use once an AI app is connected', async () => {
+    const data = setup();
+    answers.overview = () => Promise.resolve(firstRunOverview());
+    answers.list = () => Promise.resolve(foundClients());
+    answers.endpoints = () => Promise.resolve([]);
+    await data.start();
+    await flush();
+    expect(data.stage()).toBe('first-run');
+    expect(data.published()).toBeNull();
+
+    answers.overview = () => Promise.resolve(inUseOverview());
+    await data.refresh();
+    expect(data.stage()).toBe('in-use');
+  });
+
+  it('setup: the first connection and its endpoint, its tools there, and dev as the endpoint claude.ai would publish', async () => {
+    const data = setup();
+    answers.overview = () => Promise.resolve(setupOverview());
+    answers.list = () => Promise.resolve(foundClients());
+    answers.endpoints = () => Promise.resolve(setupEndpoints());
+    answers.tunnel = () => Promise.resolve({ ...DEMO_TUNNEL_OFF, endpoint: null, history: [] });
+    answers.tools = () => Promise.resolve([{ group: 'dev-db', connection: 'dev-db', env: 'dev', tools: [] }]);
+    await data.start();
+    await flush();
+    expect(data.stage()).toBe('setup');
+    expect(data.first()).toEqual({ name: 'dev-db', env: 'dev', type: 'postgres', typeName: 'PostgreSQL 16', endpoint: 'dev' });
+    expect(calls).toContain('tools dev');
+    expect(data.firstTools()).toEqual([{ group: 'dev-db', connection: 'dev-db', env: 'dev', tools: [] }]);
+    expect(data.published()).toBe('dev');
+    expect(calls).toContain('publish-preview dev');
   });
 });

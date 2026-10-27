@@ -60,6 +60,11 @@ export interface PluginCheck {
     readonly access: JsonValue;
     /** The connection form in words ("Host, port, virtual host, user and password") or its field titles. */
     readonly configPreview: JsonValue;
+    /**
+     * The OS sandbox the plugin's process will run in here (`landlock`, `sandbox-exec`), null where this system has
+     * none ("Not sandboxed on this system", ARCHITECTURE §7.5); absent from a core before the K4 review.
+     */
+    readonly sandbox?: string | null;
   };
 }
 

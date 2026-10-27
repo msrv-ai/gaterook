@@ -160,7 +160,7 @@ final class Session {
       }
       String command = server.command().getFirst();
       Path resolved = launcher.resolve(command, workDir).orElseThrow(() -> ConnectorException.unavailable(
-          command + " isn't on the PATH MCP Gateway gives servers (" + launcher.path() + "). Install it, or use an "
+          command + " isn't on the PATH GateRook gives servers (" + launcher.path() + "). Install it, or use an "
               + "absolute path.", null));
       List<String> argv = launcher.argv(resolved, server.command().subList(1, server.command().size()), workDir);
       Map<String, String> env = launcher.environment(server, values, workDir);
@@ -177,7 +177,7 @@ final class Session {
     }
     Session[] self = new Session[1];
     McpAsyncClient client = McpClient.async(transport)
-        .clientInfo(McpSchema.Implementation.builder("mcp-gateway", BuiltIn.VERSION).title("MCP Gateway").build())
+        .clientInfo(McpSchema.Implementation.builder("gaterook", BuiltIn.VERSION).title("GateRook").build())
         // Nothing: the server can't ask for roots, sampling or the person's input through the gateway.
         .capabilities(McpSchema.ClientCapabilities.builder().build())
         .requestTimeout(Duration.ofSeconds(300))
@@ -341,7 +341,7 @@ final class Session {
       if (t instanceof McpError mcp) {
         String message = mcpMessage(mcp);
         if (message.contains("2026-07-28")) {
-          return ConnectorException.unavailable("Speaks 2026-07-28 only; MCP Gateway connects up to 2025-11-25.",
+          return ConnectorException.unavailable("Speaks 2026-07-28 only; GateRook connects up to 2025-11-25.",
               e);
         }
         return ConnectorException.resourceError(message, e);

@@ -6,6 +6,8 @@ import { DEMO_CLIENTS, DEMO_GRANTS, DEMO_PREVIEW_CURSOR, DEMO_PUBLISH, DEMO_TUNN
 import { tableLayout } from '../../kit/elements/client-card/client-view';
 import {
   allowedAt,
+  anchorBase,
+  anchorClient,
   bridgeRemovedToast,
   checkSummary,
   clientsLayout,
@@ -17,6 +19,7 @@ import {
   entryFromPreview,
   errorSentence,
   expiresIn,
+  firstConnection,
   handTokens,
   headerCounts,
   lastCallRow,
@@ -26,11 +29,15 @@ import {
   providerName,
   publishedEndpoint,
   scanSummary,
+  setupLayout,
   snippetLang,
   snippetTabs,
+  stageDescription,
   tunnelRow,
+  usesTools,
 } from './clients-view';
-import { NOW, codexDisconnect, connected, kitClients, kitEndpoints, kitManual, kitTokens, noneFound } from './clients.fixtures';
+import { firstRun as firstRunOverview, setup as setupOverview } from '../overview/overview.fixtures';
+import { NOW, codexDisconnect, connected, foundClients, kitClients, kitEndpoints, kitManual, kitTokens, noneFound } from './clients.fixtures';
 
 /** What the Clients screen says, against design/pages/clients.html's words and the core's answers. */
 
@@ -60,7 +67,7 @@ describe('Clients view: header and layout', () => {
     expect(done.inline).toBeNull();
   });
 
-  it('shows "No MCP clients found" only when the scan found nothing at all', () => {
+  it('shows "No AI apps found" only when the scan found nothing at all', () => {
     expect(noClients(kitClients().clients)).toBe(false);
     expect(noClients(noneFound().clients)).toBe(true);
     expect(noClients([{ ...antigravity, detected: true, status: 'detected' }])).toBe(false);
@@ -71,7 +78,7 @@ describe('Clients view: header and layout', () => {
     expect(scanSummary(before, before)).toBe('Scan finished. Nothing changed: 2 connected, 1 detected, not connected, 1 not installed.');
     const after = before.map((c) => (c.client === 'antigravity' ? { ...c, status: 'detected' as const, statusText: 'Detected, not connected', detected: true } : c));
     expect(scanSummary(before, after)).toBe('Scan finished: 2 connected, 2 detected, not connected.');
-    expect(scanSummary(before, noneFound().clients)).toBe('Scan finished. No MCP clients found on this computer.');
+    expect(scanSummary(before, noneFound().clients)).toBe('Scan finished. No AI apps found on this computer.');
     expect(checkSummary(before, 'antigravity', 'Antigravity')).toBe('Antigravity is still not installed.');
     expect(checkSummary(after, 'antigravity', 'Antigravity')).toBe('Antigravity found on this computer: detected, not connected.');
   });
@@ -93,7 +100,7 @@ describe('Clients view: Connect and Disconnect toasts', () => {
       'Claude Desktop opens its install dialog for the extension: click Install. It lists the tools in the next new chat.',
     );
     // Without the desktop app, the person opens the extension file.
-    expect(connectToast(claudeDesktop, mcpb, null, connected('claude-desktop', mcpb), false).body).toContain('Open /Users/maria/.mcp-gateway/clients/claude-desktop/gateway-stage-readonly.mcpb in Claude Desktop');
+    expect(connectToast(claudeDesktop, mcpb, null, connected('claude-desktop', mcpb), false).body).toContain('Open /Users/maria/.gaterook/clients/claude-desktop/gaterook-stage-readonly.mcpb in Claude Desktop');
     expect(endpointAddedToast(claudeDesktop, 'stage-readonly', connected('claude-desktop', mcpb), true).title).toBe('stage-readonly added to Claude Desktop');
   });
 
@@ -228,5 +235,66 @@ describe('Clients view: claude.ai through the tunnel', () => {
   it('turns any failure into one sentence for a toast', () => {
     expect(errorSentence(problem(409, { title: 'Conflict', status: 409, detail: 'The tunnel is starting.' }))).toBe('The tunnel is starting.');
     expect(errorSentence(new Error('x'))).toBe("The core didn't answer. Try again.");
+  });
+});
+
+describe('Clients: first run and setup (kit ?state=first-run | setup)', () => {
+  it('names each app’s ids on the page and reads the app back from Overview’s anchor', () => {
+    expect(['claude-desktop', 'codex', 'cursor', 'antigravity', 'claude-ai'].map(anchorBase)).toEqual(['cl-cd', 'cl-cx', 'cl-cu', 'cl-ag', 'cl-ai']);
+    expect(['cl-cd-t', 'cl-cx-t', 'cl-cu-t', 'cl-ag-t', 'cl-ai-t'].map(anchorClient)).toEqual(['claude-desktop', 'codex', 'cursor', 'antigravity', 'claude-ai']);
+    expect(anchorClient('cl-manual-t')).toBeNull();
+    expect(anchorClient(null)).toBeNull();
+  });
+
+  it('takes the first connection and its endpoint from Overview’s guide', () => {
+    expect(firstConnection(setupOverview())).toEqual({ name: 'dev-db', env: 'dev', type: 'postgres', typeName: 'PostgreSQL 16', endpoint: 'dev' });
+    expect(firstConnection(firstRunOverview())).toBeNull();
+  });
+
+  it('says in the header what comes first: the apps found and a connection; in setup the connection they will read', () => {
+    const found = foundClients().clients;
+    expect(stageDescription('first-run', found, null).text).toBe(
+      'Claude Desktop, Codex and Cursor are already on this computer. Add a connection first, so they have something to work with. Connect then shows the exact change before anything is written.',
+    );
+    expect(stageDescription('first-run', [found[1], found[3]], null).text).toBe(
+      'Codex is already on this computer. Add a connection first, so it has something to work with. Connect then shows the exact change before anything is written.',
+    );
+    expect(stageDescription('first-run', noneFound().clients, null).text).toBe(
+      'Add a connection first, so your AI app has something to work with. Connect then shows the exact change before anything is written.',
+    );
+    expect(stageDescription('setup', found, firstConnection(setupOverview()))).toEqual({
+      text: 'Connect the AI app you use, and it can start reading dev-db. You see the exact change before anything is written, and Disconnect takes it back.',
+      literals: ['dev-db'],
+    });
+  });
+
+  it('puts the app under review on top, keeps apps with entries as cards, and the rest as quiet rows', () => {
+    const found = foundClients().clients;
+    const none = setupLayout(found, null);
+    expect([none.review, none.kept, none.rows.map((c) => c.client)]).toEqual([null, [], ['claude-desktop', 'codex', 'cursor', 'antigravity']]);
+    const cx = setupLayout(found, 'codex');
+    expect([cx.review?.client, cx.rows.map((c) => c.client)]).toEqual(['codex', ['claude-desktop', 'cursor', 'antigravity']]);
+    // An app that isn't installed has no review: it stays a row.
+    expect(setupLayout(found, 'antigravity').review).toBeNull();
+    // Connected (here or before): its card stays, the review is gone.
+    const linked = found.map((c) => (c.client === 'codex' ? codex : c));
+    const after = setupLayout(linked, 'codex');
+    expect([after.review, after.kept.map((c) => c.client), after.rows.map((c) => c.client)]).toEqual([null, ['codex'], ['claude-desktop', 'cursor', 'antigravity']]);
+  });
+
+  it('says what the app can use: the endpoint’s tools of the connection, in the kit words', () => {
+    expect(
+      usesTools([
+        { name: 'sql_list_schemas', mode: 'READ_ONLY' },
+        { name: 'sql_describe_table', mode: 'READ_ONLY' },
+        { name: 'sql_query', mode: 'READ_ONLY' },
+        { name: 'sql_execute', mode: 'APPROVAL' },
+      ]),
+    ).toEqual({
+      text: 'sql_list_schemas, sql_describe_table and sql_query run at once (read only). sql_execute waits for your approval.',
+      literals: ['sql_list_schemas', 'sql_describe_table', 'sql_query', 'sql_execute'],
+    });
+    expect(usesTools([{ name: 'k8s_get', mode: 'READ_ONLY' }, { name: 'k8s_apply', mode: 'OFF' }]).text).toBe('k8s_get runs at once (read only). k8s_apply is off.');
+    expect(usesTools([]).text).toBe('No tools on yet.');
   });
 });

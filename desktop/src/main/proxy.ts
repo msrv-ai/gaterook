@@ -9,7 +9,7 @@
 import { request as httpRequest, type IncomingMessage } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { Readable } from 'node:stream';
-import { signRequest } from '@mcp-gateway/broker';
+import { signRequest } from '@gaterook/broker';
 
 /** The core main started and that said ready: where it listens and the secrets of its launch. */
 export interface CoreEndpoint {

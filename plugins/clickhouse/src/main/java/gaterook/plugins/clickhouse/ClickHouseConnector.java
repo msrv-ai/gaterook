@@ -167,7 +167,7 @@ public final class ClickHouseConnector implements Connector {
       TestResult result = TestResult.success(ms(started), version, user, permissions).withChecks(checks);
       if (!writes.isEmpty()) {
         result = result.withHint(new TestResult.Hint(TestResult.Severity.WARNING, "can-write", null, "This user "
-            + "may also " + String.join(", ", writes) + ". MCP Gateway sends readonly=1 with every query, but use a "
+            + "may also " + String.join(", ", writes) + ". GateRook sends readonly=1 with every query, but use a "
             + "user that can only read for prod."));
       }
       return result;
@@ -438,7 +438,7 @@ public final class ClickHouseConnector implements Connector {
     }
     return switch (f.code()) {
       case ClickHouseClient.READONLY -> ToolResult.error("ClickHouse refused it in read-only mode: " + f.message()
-          + " (A user whose profile sets readonly=1 can't take the limits MCP Gateway sends: give it readonly=2.)");
+          + " (A user whose profile sets readonly=1 can't take the limits GateRook sends: give it readonly=2.)");
       case ClickHouseClient.TIMEOUT_EXCEEDED -> ToolResult.error("The query ran longer than "
           + config.maxExecutionSeconds() + " s and ClickHouse stopped it. Narrow it down (a WHERE on the sorting "
           + "key, fewer columns) and try again.");
@@ -454,7 +454,7 @@ public final class ClickHouseConnector implements Connector {
     }
     if (f.code() == ClickHouseClient.READONLY) {
       return TestResult.failure("readonly-profile", "This user's profile sets readonly=1, which also forbids the "
-          + "limits MCP Gateway sends with every query. Give the user readonly=2: it may read and set limits, never "
+          + "limits GateRook sends with every query. Give the user readonly=2: it may read and set limits, never "
           + "write.", "code " + f.code() + ": " + f.message()).withChecks(checks);
     }
     return TestResult.failure("clickhouse-" + f.code(), "ClickHouse refused the test query: " + f.message(),

@@ -3,7 +3,7 @@
 // person to allow the first token of a prod grant in this session, shows "Codex wants to use incident-prod". It lives
 // as long as the app: when the core restarts, the broker talks to the new one.
 import { app, dialog } from 'electron';
-import { createCoreClient, startBroker, type Broker } from '@mcp-gateway/broker';
+import { createCoreClient, startBroker, type Broker } from '@gaterook/broker';
 import { answeredByAPerson } from './activation-gate.ts';
 import type { Logger } from './log.ts';
 import type { CoreEndpoint } from './proxy.ts';

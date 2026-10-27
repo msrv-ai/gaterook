@@ -98,7 +98,7 @@ export function serverDetail(name = 'github-mcp'): ConnectionDetail {
     env: 'dev',
     config: {
       transport: 'stdio',
-      command: ['node', `/Users/me/.mcp-gateway/mcp/${name}/dist/index.js`],
+      command: ['node', `/Users/me/.gaterook/mcp/${name}/dist/index.js`],
       env: [{ name: 'GITHUB_PERSONAL_ACCESS_TOKEN', secretRef: 'secret:s1' }],
       catalogEntry: 'github@0.6.2',
     },
@@ -118,7 +118,7 @@ export function catalogEntry(id: string, kind: CatalogEntry['kind'], name: strin
 export function catalogIndex(entries = catalogEntries()): CatalogIndex {
   return {
     checkedAt: '2026-10-22T08:00:00Z',
-    source: 'https://catalog.mcp-gateway.dev/v1/index.json',
+    source: 'https://catalog.gaterook.dev/v1/index.json',
     offline: false,
     signature: { keyId: 'catalog-2026', sequence: 41, expiresAt: '2026-11-22T00:00:00Z', ok: true },
     entries,
@@ -251,6 +251,8 @@ export function clickhouseCheck(signed = false): PluginCheck {
       tools: ['ch_query', 'ch_tables', 'ch_describe'].map((name) => ({ name, declared: { readOnlyHint: true } })),
       access: { hosts: ['{connection.host}:8443'] },
       configPreview: [{ title: 'Host' }, { title: 'Port' }, { title: 'User' }, { title: 'Password' }],
+      // No sandbox for the plugin process on this system (K4 review: `landlock`, `sandbox-exec` or null).
+      sandbox: null,
     },
   };
 }

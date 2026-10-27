@@ -302,12 +302,12 @@ class VaultIT {
         path "sys/leases/renew" { capabilities = ["update"] }
         path "sys/leases/revoke/database/creds/prod-replica-readonly/*" { capabilities = ["update"] }
         """;
-    root("PUT", "sys/policies/acl/mcp-gateway", JSON.writeValueAsString(Map.of("policy", policy)));
+    root("PUT", "sys/policies/acl/gaterook", JSON.writeValueAsString(Map.of("policy", policy)));
     root("POST", "sys/auth/approle", "{\"type\":\"approle\"}");
-    root("POST", "auth/approle/role/mcp-gateway", "{\"token_policies\":[\"mcp-gateway\"],\"token_ttl\":\"1h\","
+    root("POST", "auth/approle/role/gaterook", "{\"token_policies\":[\"gaterook\"],\"token_ttl\":\"1h\","
         + "\"token_max_ttl\":\"4h\"}");
-    roleId = root("GET", "auth/approle/role/mcp-gateway/role-id", null).path("data").path("role_id").asString();
-    secretId = root("POST", "auth/approle/role/mcp-gateway/secret-id", null).path("data").path("secret_id")
+    roleId = root("GET", "auth/approle/role/gaterook/role-id", null).path("data").path("role_id").asString();
+    secretId = root("POST", "auth/approle/role/gaterook/secret-id", null).path("data").path("secret_id")
         .asString();
   }
 
@@ -350,7 +350,7 @@ class VaultIT {
           call(taint));
       assertThat(test.ok()).as(test.toString()).isTrue();
       assertThat(test.server().path("version").asString()).isEqualTo(VERSION);
-      assertThat(test.identity().path("policies").toString()).contains("mcp-gateway");
+      assertThat(test.identity().path("policies").toString()).contains("gaterook");
       assertThat(test.permissions().getFirst().capabilities()).containsExactly("read");
       assertThat(test.hints()).isEmpty();
     }

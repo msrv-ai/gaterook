@@ -705,7 +705,8 @@ public class TemplateService implements ConnectionRemovalParticipant {
 
   private void requireRunsOn(TemplateKind kind, ConnectionConfigs.Stored runsOn) {
     if (!runsOn.verified()) {
-      throw ProblemException.conflict("Changed outside GateRook", runsOn.name() + " was changed outside GateRook. Review it first.");
+      throw ProblemException.conflict("Changed outside GateRook", runsOn.name() + " was changed outside "
+          + "GateRook. Review it first.");
     }
     if (!kind.connectionTypes().contains(runsOn.config().type())) {
       throw ProblemException.unprocessable("Wrong connection", kind.kind() + " templates run on "

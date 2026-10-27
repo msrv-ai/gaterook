@@ -302,7 +302,7 @@ final class CloudWatchBackend implements Backend {
     while (requests < MAX_PAGES) {
       if (!call.ctx().acquire(quotaKey("filterlogevents"), 120)) {
         if (requests == 0) {
-          throw ConnectorException.resourceError("MCP Gateway keeps CloudWatch FilterLogEvents to 2 calls per second"
+          throw ConnectorException.resourceError("GateRook keeps CloudWatch FilterLogEvents to 2 calls per second"
               + " for this account and region, and they are used up. Try again in a few seconds.", null);
         }
         partial = "partial";
@@ -545,7 +545,7 @@ final class CloudWatchBackend implements Backend {
 
   private void acquire(String api, int perMinute) throws ConnectorException {
     if (!call.ctx().acquire(quotaKey(api), perMinute)) {
-      throw ConnectorException.resourceError("CloudWatch " + api + " calls of this account are at MCP Gateway's "
+      throw ConnectorException.resourceError("CloudWatch " + api + " calls of this account are at GateRook's "
           + "limit. Try again in a few seconds.", null);
     }
   }

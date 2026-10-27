@@ -41,7 +41,7 @@ final class BrokerClient {
   private final String override;
 
   /**
-   * @param home     the gateway home ({@code GW_HOME}, else {@code ~/.mcp-gateway})
+   * @param home     the gateway home ({@code GW_HOME}, else {@code ~/.gaterook})
    * @param override {@code GW_BROKER}, or {@code null}
    */
   BrokerClient(Path home, String override) {
@@ -53,10 +53,10 @@ final class BrokerClient {
     return new BrokerClient(home(env), env.get("GW_BROKER"));
   }
 
-  /** {@code GW_HOME}, else {@code ~/.mcp-gateway}. */
+  /** {@code GW_HOME}, else {@code ~/.gaterook}. */
   static Path home(Map<String, String> env) {
     String h = env.get("GW_HOME");
-    return h == null || h.isBlank() ? Path.of(System.getProperty("user.home"), ".mcp-gateway") : Path.of(h);
+    return h == null || h.isBlank() ? Path.of(System.getProperty("user.home"), ".gaterook") : Path.of(h);
   }
 
   Path home() {

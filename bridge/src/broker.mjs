@@ -1,6 +1,6 @@
 // The token broker of GateRook (ARCHITECTURE.md A7, §7.1, §7.2; report 03 §3.1, §7.4). Electron's main process
-// runs it: on macOS and Linux a Unix socket ~/.mcp-gateway/run/<random>.sock (folder 0700, socket 0600), on Windows a
-// named pipe \\.\pipe\mcp-gateway-<random 128 bit>; the name it chose goes into run/broker.json (0600), where the
+// runs it: on macOS and Linux a Unix socket ~/.gaterook/run/<random>.sock (folder 0700, socket 0600), on Windows a
+// named pipe \\.\pipe\gaterook-<random 128 bit>; the name it chose goes into run/broker.json (0600), where the
 // bridges look it up. A random name means nobody can take the name before the app starts.
 //
 // Protocol v1: one connection, one request: a JSON line of at most 4 KiB, answered with one JSON line.
@@ -41,7 +41,7 @@ export function readBrokerInfo(home) {
 export function randomBrokerPath(home, platform = process.platform) {
   const random = crypto.randomBytes(16);
   return platform === 'win32'
-    ? `\\\\.\\pipe\\mcp-gateway-${random.toString('hex')}`
+    ? `\\\\.\\pipe\\gaterook-${random.toString('hex')}`
     : path.join(home, 'run', `${random.toString('base64url')}.sock`);
 }
 
@@ -94,7 +94,7 @@ function tokenRequest(req) {
  * Starts the broker.
  *
  * @param {object} options
- * @param {string} options.home  the gateway home (~/.mcp-gateway)
+ * @param {string} options.home  the gateway home (~/.gaterook)
  * @param {{request(path: string, body: object): Promise<object>}} options.core  e.g. createCoreClient(…)
  * @param {(ask: {client: string, endpoint: string, grant: string, message: string}) => Promise<boolean>} [options.confirm]
  *        asks the person whether a client may use a prod endpoint ("Codex wants to use incident-prod"); without it a

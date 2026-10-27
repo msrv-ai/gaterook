@@ -95,7 +95,7 @@
           <div class="gw-table-wrap" role="region" [attr.aria-labelledby]="uid + '-sessions-cap'" tabindex="0">
             <table class="gw-table gw-table--dense">
               <caption class="gw-sr-only" [id]="uid + '-sessions-cap'">OAuth sign-ins of claude.ai</caption>
-              <thead><tr><th scope="col">Client</th><th scope="col">Endpoint</th><th scope="col">Allowed</th><th scope="col">Last call</th><th scope="col">Expires</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th></tr></thead>
+              <thead><tr><th scope="col">AI app</th><th scope="col">Endpoint</th><th scope="col">Allowed</th><th scope="col">Last call</th><th scope="col">Expires</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th></tr></thead>
               <tbody>
                 @for (g of signedIn(); track g.id) {
                   <tr>

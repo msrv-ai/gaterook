@@ -268,7 +268,7 @@ final class ExecCredentials {
     String t = status.path("token").asString(null);
     if (t == null || t.isBlank()) {
       if (status.has("clientCertificateData")) {
-        throw ConnectorException.unavailable("The credential command returns a client certificate; MCP Gateway "
+        throw ConnectorException.unavailable("The credential command returns a client certificate; GateRook "
             + "supports commands that return a token.", null);
       }
       throw ConnectorException.unavailable("The credential command returned no token.", null);

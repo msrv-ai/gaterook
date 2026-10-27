@@ -7,7 +7,7 @@ import java.util.Objects;
  * One row of the connector catalog as the registry knows it.
  *
  * @param enabled  {@code connector_type.enabled}: a type switched off serves no call and offers no new connection
- * @param verified whether the stored row's MAC verified; an unverified row ("Changed outside MCP Gateway") counts as
+ * @param verified whether the stored row's MAC verified; an unverified row ("Changed outside GateRook") counts as
  *                 off until the person reviews it
  */
 public record ConnectorType(ConnectorManifest manifest, boolean enabled, boolean verified) {

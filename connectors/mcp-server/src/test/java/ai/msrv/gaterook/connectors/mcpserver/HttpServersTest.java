@@ -106,7 +106,7 @@ class HttpServersTest {
     tomcat.getConnector();
     tomcat.start();
     port = tomcat.getConnector().getLocalPort();
-    clients = new EgressClients(new EgressClients.Settings("mcp-gateway/test", Set.of(), HostResolver.SYSTEM));
+    clients = new EgressClients(new EgressClients.Settings("GateRook/test", Set.of(), HostResolver.SYSTEM));
     runtime = new McpServers(Map.of("PATH", "/usr/bin:/bin"), System.getProperty("os.name"), false,
         Clock.systemUTC(), Duration.ofMillis(200), McpServerConnector.typeManifest());
     runtime.attach(new Fixtures.Host(home));

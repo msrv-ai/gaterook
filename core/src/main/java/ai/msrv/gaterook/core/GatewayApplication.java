@@ -5,7 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.modulith.Modulithic;
 
 /**
- * The MCP Gateway core.
+ * The GateRook core.
  *
  * <p>Every direct subpackage is a Spring Modulith module (ARCHITECTURE.md §2.2) whose public API is the package
  * root; {@code platform} is shared by all of them. {@code connector-api} and {@code ai.msrv.gaterook.connectors.*} lie

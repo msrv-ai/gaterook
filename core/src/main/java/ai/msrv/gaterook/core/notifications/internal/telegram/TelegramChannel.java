@@ -143,7 +143,8 @@ public class TelegramChannel implements ChatChannel, DisposableBean {
       return;
     }
     if (!row.verified()) {
-      channels.state(NotifyChannel.TELEGRAM, "changed-outside", "The Telegram settings were changed outside GateRook. Save them again to turn Telegram back on.");
+      channels.state(NotifyChannel.TELEGRAM, "changed-outside", "The Telegram settings were changed outside "
+          + "GateRook. Save them again to turn Telegram back on.");
       return;
     }
     if (!row.enabled() || row.secretId("botToken") == null) {

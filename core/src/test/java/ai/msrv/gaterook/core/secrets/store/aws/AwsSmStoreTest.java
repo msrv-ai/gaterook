@@ -68,15 +68,15 @@ class AwsSmStoreTest {
               + "<Credentials><AccessKeyId>ASIACNRYSESSION00001</AccessKeyId><SecretAccessKey>" + SESSION_SECRET
               + "</SecretAccessKey><SessionToken>" + SESSION_TOKEN + "</SessionToken><Expiration>"
               + Instant.now().plus(1, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS) + "</Expiration>"
-              + "</Credentials><AssumedRoleUser><AssumedRoleId>AROA:mcp-gateway-aws-sm</AssumedRoleId><Arn>"
-              + "arn:aws:sts::412398765012:assumed-role/gw-secrets-read/mcp-gateway-aws-sm</Arn></AssumedRoleUser>"
+              + "</Credentials><AssumedRoleUser><AssumedRoleId>AROA:gaterook-aws-sm</AssumedRoleId><Arn>"
+              + "arn:aws:sts::412398765012:assumed-role/gw-secrets-read/gaterook-aws-sm</Arn></AssumedRoleUser>"
               + "</AssumeRoleResult><ResponseMetadata><RequestId>1</RequestId></ResponseMetadata>"
               + "</AssumeRoleResponse>");
         }
         if (body.contains("Action=GetCallerIdentity")) {
           return xml("<GetCallerIdentityResponse xmlns=\"https://sts.amazonaws.com/doc/2011-06-15/\">"
-              + "<GetCallerIdentityResult><Arn>arn:aws:sts::412398765012:assumed-role/gw-secrets-read/mcp-gateway-"
-              + "aws-sm</Arn><UserId>AROA:mcp-gateway-aws-sm</UserId><Account>412398765012</Account>"
+              + "<GetCallerIdentityResult><Arn>arn:aws:sts::412398765012:assumed-role/gw-secrets-read/gaterook-"
+              + "aws-sm</Arn><UserId>AROA:gaterook-aws-sm</UserId><Account>412398765012</Account>"
               + "</GetCallerIdentityResult><ResponseMetadata><RequestId>2</RequestId></ResponseMetadata>"
               + "</GetCallerIdentityResponse>");
         }
@@ -200,7 +200,7 @@ class AwsSmStoreTest {
   @Test
   void theSessionPolicyNamesEachReferenceOrNothing() {
     String none = store.sessionPolicy(List.of());
-    assertThat(none).contains("secret:mcp-gateway-none").doesNotContain("secret:*");
+    assertThat(none).contains("secret:gaterook-none").doesNotContain("secret:*");
     String two = store.sessionPolicy(List.of(SecretRef.parse("aws-sm://eu-central-1/a/b"),
         SecretRef.parse("aws-sm://arn:aws:secretsmanager:us-east-1:111122223333:secret:x-AbCdEf")));
     assertThat(two).contains("arn:aws:secretsmanager:eu-central-1:412398765012:secret:a/b-??????",

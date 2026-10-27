@@ -135,7 +135,7 @@ export function localInput(t: number): string {
 export const FACET_FIELDS: readonly { readonly key: string; readonly label: string; readonly visible: number }[] = [
   { key: 'decision', label: 'Decision', visible: 7 },
   { key: 'tool', label: 'Tool', visible: 6 },
-  { key: 'client', label: 'Client', visible: 6 },
+  { key: 'client', label: 'AI app', visible: 6 },
   { key: 'endpoint', label: 'Endpoint', visible: 6 },
   { key: 'connection', label: 'Connection', visible: 5 },
   { key: 'env', label: 'Environment', visible: 3 },

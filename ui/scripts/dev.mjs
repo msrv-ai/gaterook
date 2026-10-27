@@ -8,7 +8,10 @@
 // 2. A fresh launch secret (32 random bytes, base64url) and free local ports.
 // 3. The core on the JVM in dev mode (-Dgateway.dev=true + GW_DEV_INTERNAL_SECRET), with GW_DEMO=1 on an empty home
 //    under ui/target/dev-home: the demo world of BLUEPRINT §9, the data every page is compared with the kit on.
-//    --keep reuses the home of the last run (the demo seeds an empty home only); --no-demo starts empty.
+//    --keep reuses the home of the last run (the demo seeds an empty home only); --no-demo starts empty: Overview's
+//    and AI apps' first run, then setup once a connection is added. The AI apps it finds then live in a sandbox
+//    (<home>/demo-user-home, -Dgateway.clients.user-home) where Claude Desktop, Codex and Cursor are installed, so
+//    Connect never touches this computer's real apps (the demo world does the same on its own).
 // 4. Waits for the core's ready line, then `ng serve` with ui/proxy.conf.mjs signing every /api request with the
 //    secret as Electron's main process does.
 //
@@ -85,7 +88,17 @@ async function main() {
   if (!flag('--keep') && existsSync(home)) rmSync(home, { recursive: true, force: true });
   mkdirSync(home, { recursive: true });
 
-  console.log(`[dev] core: 127.0.0.1:${corePort} (public ${publicPort}), home ${home}${demo ? ', demo world' : ''}`);
+  // Without the demo: an empty gateway whose AI apps are found in a sandbox, never this user's real ones.
+  const userHome = join(home, 'demo-user-home');
+  if (!demo) {
+    for (const dir of [['Library', 'Application Support', 'Claude'], ['.config', 'Claude'], ['.codex'], ['.cursor']]) {
+      mkdirSync(join(userHome, ...dir), { recursive: true });
+    }
+  }
+  const coreEnv = { ...process.env, GW_DEV_INTERNAL_SECRET: secret, ...(demo ? { GW_DEMO: '1' } : {}) };
+  if (!demo) delete coreEnv.CODEX_HOME; // Codex's real home would win over the sandbox's ~/.codex
+
+  console.log(`[dev] core: 127.0.0.1:${corePort} (public ${publicPort}), home ${home}${demo ? ', demo world' : `, empty; AI apps in ${userHome}`}`);
   const core = spawn(
     java(),
     [
@@ -98,13 +111,13 @@ async function main() {
       // exist, so with GW_DEMO the core runs no rounds itself (HealthMonitor) and the rows show the health the seed
       // recorded; the deferred first round is a second lock for a core before that. Test connection and Test all
       // still check for real.
-      ...(demo ? ['-Dgateway.connections.health-interval=1m', '-Dgateway.connections.health-initial-delay=7d'] : []),
+      ...(demo ? ['-Dgateway.connections.health-interval=1m', '-Dgateway.connections.health-initial-delay=7d'] : [`-Dgateway.clients.user-home=${userHome}`]),
       '-jar',
       JAR,
     ],
     {
       cwd: ROOT,
-      env: { ...process.env, GW_DEV_INTERNAL_SECRET: secret, ...(demo ? { GW_DEMO: '1' } : {}) },
+      env: coreEnv,
       // stdin stays open: the core exits when its launcher's pipe closes (ARCHITECTURE.md §7.1).
       stdio: ['pipe', 'pipe', 'pipe'],
     },

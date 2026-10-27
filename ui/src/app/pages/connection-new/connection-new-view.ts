@@ -57,11 +57,14 @@ export interface StepView {
  * (`error`, "…, failed") until a test passes — the person may still continue and test later (kit).
  */
 export function stepperSteps(
-  current: StepNumber,
+  current: StepNumber | 5,
   facts: { readonly typeName: string | null; readonly name: string; readonly env: Env; readonly test: TestSummary | null; readonly endpoints: readonly string[] },
+  firstRun = false,
 ): StepView[] {
-  return STEP_NAMES.map((name, i) => {
+  return STEP_NAMES.map((stepName, i) => {
     const n = (i + 1) as StepNumber;
+    // First run: step 4 creates the first endpoint instead of picking among existing ones (kit ?state=first-run).
+    const name = n === 4 && firstRun ? 'Create endpoint' : stepName;
     const failed = n === 3 && !!facts.test && !facts.test.passed && current >= 3;
     const state: StepState = failed ? 'error' : n < current ? 'complete' : n === current ? 'current' : 'upcoming';
     let description: StepView['description'] = null;
@@ -69,6 +72,7 @@ export function stepperSteps(
       if (n === 1) description = facts.typeName ? { text: facts.typeName } : null;
       else if (n === 2) description = { name: facts.name || 'this connection', env: facts.env };
       else if (n === 3) description = facts.test ? { text: facts.test.text } : { text: 'Not tested' };
+      else if (firstRun) description = { text: `Endpoint ${facts.env}` };
       else description = { text: facts.endpoints.length ? `Endpoint ${facts.endpoints.join(', ')}` : 'No endpoint yet' };
     }
     return { n, name, state, current: n === current, description };
@@ -335,6 +339,112 @@ export function toolPreview(
     summary: [`${formatCount(n)} ${n === 1 ? 'tool' : 'tools'}`, ...parts].join(' · '),
     fromServer: dynamicTools && rows.length === 0,
   };
+}
+
+// ─── First run: the first endpoint ───
+
+/**
+ * Whether Add connection runs as the first run (kit connection-new `?state=first-run`): nothing is set up yet — no
+ * connection and no endpoint — so the wizard speaks to a beginner and step 4 creates the first endpoint.
+ */
+export function isFirstRun(connections: number, endpoints: number): boolean {
+  return connections === 0 && endpoints === 0;
+}
+
+/**
+ * The tools of the first endpoint, which Save creates and names after the connection's environment: the type's
+ * default modes for that env, and on prod nothing that waits for approval — "prod is read only by default" (kit) —
+ * so a tool that changes data starts Off there.
+ */
+export function firstRunPreview(tools: readonly ConnectorTool[], kind: ConnectorKind, dynamicTools: boolean, env: Env): ToolPreview {
+  const choice: EndpointChoice = { slug: env, description: '', meta: null, refusal: null, readOnly: false, published: false, env, warning: null };
+  const base = toolPreview(tools, kind, dynamicTools, choice);
+  if (env !== 'prod') return base;
+  const rows = base.rows.map((r): PreviewRow =>
+    r.mode === 'APPROVAL' ? { ...r, mode: 'OFF', note: { icon: 'lock', text: PROD_OFF_NOTE } } : r,
+  );
+  const count = (m: ToolMode) => rows.filter((r) => r.mode === m).length;
+  const parts = [
+    count('READ_ONLY') ? `${count('READ_ONLY')} read only` : null,
+    count('APPROVAL') ? `${count('APPROVAL')} approval` : null,
+    count('OFF') ? `${count('OFF')} off` : null,
+  ].filter(Boolean);
+  const n = rows.length;
+  return { ...base, rows, summary: [`${formatCount(n)} ${n === 1 ? 'tool' : 'tools'}`, ...parts].join(' · ') };
+}
+
+/** Tool names as the kit lists them: "sql_list_schemas, sql_describe_table and sql_query". */
+export interface ToolsLine {
+  /** The tools that run at once (read only). */
+  readonly reads: readonly string[];
+  /** The tools that wait for approval. */
+  readonly approval: readonly string[];
+  /** The tools that are off. */
+  readonly off: readonly string[];
+}
+
+export function toolsLine(rows: readonly Pick<PreviewRow, 'name' | 'mode'>[]): ToolsLine {
+  return {
+    reads: rows.filter((r) => r.mode === 'READ_ONLY').map((r) => r.name),
+    approval: rows.filter((r) => r.mode === 'APPROVAL').map((r) => r.name),
+    off: rows.filter((r) => r.mode === 'OFF').map((r) => r.name),
+  };
+}
+
+/** The toast of a first-run Save (kit: "Endpoint dev created with its tools. Next: connect your AI app."). */
+export function firstRunToast(name: string, endpoint: string): { readonly title: string; readonly body: string } {
+  return { title: `Connection ${name} saved`, body: `Endpoint ${endpoint} created with its tools. Next: connect your AI app.` };
+}
+
+/** The note of a tool that would wait for approval and starts Off on a first prod endpoint. */
+export const PROD_OFF_NOTE = 'Off on prod: read only by default';
+
+/** A sentence with the literals (tool names) the template sets in mono. */
+export interface Sentence {
+  readonly text: string;
+  readonly literals: readonly string[];
+}
+
+/**
+ * "What your AI apps can do" of the first endpoint (kit): "Reads run at once. Anything that changes data, like
+ * sql_execute, waits for your approval. You can change the modes later." — on prod "sql_execute is off: prod is
+ * read only by default." instead of the approval line.
+ */
+export function firstRunModes(preview: ToolPreview): Sentence {
+  const rows = preview.rows;
+  const approval = rows.filter((r) => r.mode === 'APPROVAL').map((r) => r.name);
+  const prodOff = rows.filter((r) => r.note?.text === PROD_OFF_NOTE).map((r) => r.name);
+  const parts: string[] = [];
+  if (preview.fromServer) parts.push('Its tools come from the server once it runs, and each one waits for your approval.');
+  if (rows.some((r) => r.mode === 'READ_ONLY')) parts.push('Reads run at once.');
+  if (approval.length) parts.push(`Anything that changes data, like ${approval[0]}, waits for your approval.`);
+  if (prodOff.length) parts.push(`${list(prodOff)} ${prodOff.length === 1 ? 'is' : 'are'} off: prod is read only by default.`);
+  parts.push('You can change the modes later.');
+  return { text: parts.join(' '), literals: [...approval.slice(0, 1), ...prodOff] };
+}
+
+/**
+ * The ready card's Tools (kit): "sql_list_schemas, sql_describe_table and sql_query run at once (read only);
+ * sql_execute waits for your approval" — on prod "sql_execute is off: prod is read only by default". From the
+ * endpoint's tools as the core answered them after Save.
+ */
+export function toolsSentence(line: ToolsLine, env: Env): Sentence {
+  const verb = (names: readonly string[], one: string, many: string) => (names.length === 1 ? one : many);
+  const parts = [
+    line.reads.length ? `${list(line.reads)} ${verb(line.reads, 'runs', 'run')} at once (read only)` : null,
+    line.approval.length ? `${list(line.approval)} ${verb(line.approval, 'waits', 'wait')} for your approval` : null,
+    line.off.length ? `${list(line.off)} ${verb(line.off, 'is', 'are')} off${env === 'prod' ? ': prod is read only by default' : ''}` : null,
+  ].filter((p): p is string => !!p);
+  return {
+    text: parts.length ? parts.join('; ') : 'They come from the server once it runs',
+    literals: [...line.reads, ...line.approval, ...line.off],
+  };
+}
+
+/** Step 3's description in a first run (kit): what the test does, "…what that user may do in the database". */
+export function firstRunTestText(target: string): string {
+  const where = target === 'the server' ? `on ${target}` : target === 'the API' || target === 'the service' ? `with ${target}` : `in ${target}`;
+  return `GateRook connects from this computer with what you entered and checks what that user may do ${where}.`;
 }
 
 // ─── Environment and safety: what prod turns on ───

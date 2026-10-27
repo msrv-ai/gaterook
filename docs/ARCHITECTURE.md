@@ -4,7 +4,7 @@ GateRook runs an Angular renderer inside Electron and a separate Java/Spring Boo
 
 This document describes the imported application and its architectural contracts. [Product decisions](DECISIONS.md) take precedence over exploratory [research](research/README.md). Research findings retain their original evidence dates and unresolved questions; they are not fresh compatibility certifications. Runtime contracts live in the source, schemas, migrations, and tests linked below. Implementation progress logs are intentionally excluded.
 
-The product name is GateRook. Existing `mcp-gateway` package names, binary names, paths, and protocol identifiers are retained where the source still uses them; the remaining naming work is distinguished from current behavior in decision 11.
+The product name is GateRook. The default home is `~/.gaterook`, the native core is `gaterook-core`, and deep links use `gaterook://`. Decision 11 starts a new default home without importing or modifying `~/.mcp-gateway`. Maven artifact IDs, plugin resource names, and `GW_*` / `gateway.*` configuration keys retain their existing contracts.
 
 ## 1. Architectural decisions
 
@@ -259,7 +259,7 @@ Approval text, structured fields, diff, warnings, and suspicious-character segme
 
 ### 8.6 Application and kit compatibility
 
-The kit has newer GateRook branding and screen composition in some areas, while parts of the application still use earlier naming and layouts. Preserve these distinctions during source migration; do not infer that a prototype is a current API capability. The following numbered contracts retain the references used by source comments, without an implementation progress log.
+The application follows the kit's first-run, setup, and in-use Overview compositions using current core data. First connection setup can create an endpoint for the selected environment, and AI-app setup shows the exact connection review before changing client configuration. Do not infer that every prototype is a current API capability. The following numbered contracts retain the references used by source comments, without an implementation progress log.
 
 1. Show the actual core runtime from the API: native in a native build, JVM in development. The plugin runtime is a separate JRE.
 2. Codex's `http_headers_helper` is a string. Claude Desktop uses an endpoint-specific bridge bundle. Cursor and Antigravity have supported token, browser, or bridge methods; production policy can disable methods.

@@ -163,7 +163,8 @@ public class ApprovalAnswers {
     String head = "Approved by you" + via(a) + " and executed on " + a.connectionName() + " (" + a.env().id() + ")";
     if (a.result() == null) {
       s.put("resultExpired", true);
-      return ToolResult.json(s, head + ". The result is no longer stored (it is kept 60 minutes); see Activity in GateRook.");
+      return ToolResult.json(s, head + ". The result is no longer stored (it is kept 60 minutes); see Activity in "
+          + "GateRook.");
     }
     if (a.result().structuredContent() != null) {
       s.set("result", a.result().structuredContent());

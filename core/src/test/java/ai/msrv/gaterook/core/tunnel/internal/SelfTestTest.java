@@ -119,7 +119,7 @@ class SelfTestTest {
     assertThat(run(new Probe(addresses("104.16.230.132"), open), gate).text()).contains("answered 200 instead of 401");
 
     Function<String, TunnelProbe.Answer> bare = q -> q.startsWith("POST") ? answer(401, "", Map.of(
-        "www-authenticate", List.of("Bearer realm=\"mcp-gateway\""))) : healthy().apply(q);
+        "www-authenticate", List.of("Bearer realm=\"gaterook\""))) : healthy().apply(q);
     assertThat(run(new Probe(addresses("104.16.230.132"), bare), gate).text()).contains("no resource_metadata");
 
     Function<String, TunnelProbe.Answer> down = q -> q.contains("authorization-server") ? null : healthy().apply(q);

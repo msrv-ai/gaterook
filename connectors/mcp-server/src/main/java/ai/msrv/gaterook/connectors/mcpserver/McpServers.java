@@ -116,7 +116,7 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
         resolved = p.get().toString();
         runs = l.argv(p.get(), argv.subList(1, argv.size()), workDir);
       } else {
-        warnings.add(argv.getFirst() + " isn't on the PATH MCP Gateway gives servers: " + l.path());
+        warnings.add(argv.getFirst() + " isn't on the PATH GateRook gives servers: " + l.path());
       }
     }
     String node = argv.isEmpty() ? null : l.nodeVersion(argv.getFirst(), workDir).orElse(null);
@@ -125,7 +125,7 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
       warnings.add("Not pinned: it can fetch new code on every start. Name an exact version (name@1.2.3).");
     }
     if (l.sandbox() == null) {
-      warnings.add("Not sandboxed on this system: it can read everything your account can, including MCP Gateway's "
+      warnings.add("Not sandboxed on this system: it can read everything your account can, including GateRook's "
           + "data.");
     }
     if (!variables.isEmpty()) {
@@ -201,7 +201,7 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
     }
     List<Thread> stopping = new ArrayList<>();
     for (Supervisor s : supervisors.values()) {
-      stopping.add(Thread.ofVirtual().start(() -> s.stop("MCP Gateway quit")));
+      stopping.add(Thread.ofVirtual().start(() -> s.stop("GateRook quit")));
     }
     for (Thread th : stopping) {
       try {
@@ -220,7 +220,7 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
   Session session(ConnectionConfig cfg, Snapshot snapshot, SecretResolver secrets, ExecContext ctx, boolean restart,
       Supervisor.Why why) throws ConnectorException {
     if (closed) {
-      throw ConnectorException.unavailable("MCP Gateway is quitting.", null);
+      throw ConnectorException.unavailable("GateRook is quitting.", null);
     }
     ServerConfig server = ServerConfig.of(cfg);
     Session.Request request = new Session.Request(cfg, server, snapshot.toolPrefix(), snapshot.npmIntegrity(),

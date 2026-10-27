@@ -49,7 +49,7 @@ final class KubernetesTools {
         ToolDefinition.builder(RESTART)
             .title("Restart a rollout")
             .description("Restart a deployment, statefulset or daemonset like kubectl rollout restart. Every call "
-                + "waits until a person approves it in MCP Gateway; you get a handle — poll approval_status.")
+                + "waits until a person approves it in GateRook; you get a handle — poll approval_status.")
             .inputSchema(schemas.load("k8s_rollout_restart.input"))
             .annotations(Annotations.write(true))
             .nature(Nature.MUTATION)
@@ -61,7 +61,7 @@ final class KubernetesTools {
         ToolDefinition.builder(APPLY)
             .title("Apply a manifest")
             .description("Server-side apply of a YAML or JSON manifest, at most 20 objects. A person approves the "
-                + "exact diff of the API server's dry run in MCP Gateway; you get a handle — poll approval_status.")
+                + "exact diff of the API server's dry run in GateRook; you get a handle — poll approval_status.")
             .inputSchema(schemas.load("k8s_apply.input"))
             .annotations(new Annotations(false, true, true, false))
             .nature(Nature.MUTATION)

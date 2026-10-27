@@ -125,7 +125,7 @@ class PoliciesController {
     return view(e);
   }
 
-  /** The person reviewed a policy changed outside MCP Gateway and keeps it as stored. */
+  /** The person reviewed a policy changed outside GateRook and keeps it as stored. */
   @PostMapping("/api/policies/{env}/confirm-integrity")
   EnvView confirmIntegrity(@PathVariable String env, @RequestBody(required = false) Reason request) {
     Env e = env(env);

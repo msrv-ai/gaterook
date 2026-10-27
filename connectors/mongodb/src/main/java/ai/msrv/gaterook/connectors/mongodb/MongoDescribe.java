@@ -140,7 +140,7 @@ final class MongoDescribe {
       try (MongoCursor<BsonDocument> it = database.getCollection(coll, BsonDocument.class)
           .aggregate(List.of(new BsonDocument("$sample", new BsonDocument("size", new BsonInt32(SAMPLE)))))
           .allowDiskUse(false).maxTime(Math.max(1, left(ctx) - MARGIN_MS), TimeUnit.MILLISECONDS)
-          .comment("mcp-gateway " + ctx.callId()).cursor()) {
+          .comment("gaterook " + ctx.callId()).cursor()) {
         while (it.hasNext()) {
           sampled++;
           for (Map.Entry<String, BsonValue> f : it.next().entrySet()) {

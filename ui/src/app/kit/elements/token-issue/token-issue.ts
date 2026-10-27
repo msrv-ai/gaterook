@@ -88,7 +88,7 @@ let nextId = 0;
 /**
  * `<div gwTokens slug="dev" [tokens]="rows" (issue)="…" (revoke)="…">` (elements/token-issue.html): the tokens of one
  * endpoint. Only the prefix is listed, never the token; Claude Desktop (the .mcpb bridge) and Codex (the gw-bridge
- * headers helper) get a 15-minute token on the fly, so their rows say how, and Revoke ends the client's grant. An expiry
+ * headers helper) get a 15-minute token on the fly, so their rows say how, and Revoke ends the AI app's grant. An expiry
  * within 7 days gets a warning badge, "Last used" opens Activity filtered by the token, Revoke asks with a confirmation
  * that names it. Expired and revoked tokens stay listed for the audit trail. No tokens: the empty state.
  */

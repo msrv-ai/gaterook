@@ -1,5 +1,5 @@
 {
-  "name": "@mcp-gateway/desktop",
+  "name": "@gaterook/desktop",
   "productName": "GateRook",
   "version": "0.4.0",
   "private": true,
@@ -24,7 +24,7 @@
     "node": ">=24.15.0"
   },
   "devDependencies": {
-    "@mcp-gateway/broker": "0.4.0",
+    "@gaterook/broker": "0.4.0",
     "@types/node": "24.19.2",
     "electron": "45.0.0",
     "electron-builder": "26.17.0",

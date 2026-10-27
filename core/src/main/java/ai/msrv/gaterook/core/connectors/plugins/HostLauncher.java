@@ -40,7 +40,7 @@ import tools.jackson.databind.JsonNode;
  * through the host's own first stage ({@code pluginhost.SandboxExec}), which confines its main thread with Landlock
  * and then execs the host's JVM — Landlock confines threads, not processes, so a host restricting itself would leave
  * its other threads, and with them the plugin's calls, unconfined (review 2026-10-27); on macOS the core wraps the
- * launch with {@code sandbox-exec} and an SBPL profile that denies reading MCP Gateway's home, the credential
+ * launch with {@code sandbox-exec} and an SBPL profile that denies reading GateRook's home, the credential
  * folders and the connected clients' configs (the API is deprecated, so this is UNVERIFIED in the kit's words).
  * Whether Landlock works here is asked once ({@code SandboxExec --probe}); where there is no sandbox the host runs
  * without one and the log says so.
@@ -434,8 +434,8 @@ public final class HostLauncher {
   }
 
   /**
-   * SBPL: everything as usual, but reading MCP Gateway's home, the credential folders and the configs of the clients
-   * MCP Gateway connects denied (report 16 §7.5; the same list as {@code gw-bridge sandbox-exec}: Cursor's and
+   * SBPL: everything as usual, but reading GateRook's home, the credential folders and the configs of the clients
+   * GateRook connects denied (report 16 §7.5; the same list as {@code gw-bridge sandbox-exec}: Cursor's and
    * Antigravity's configs may hold a gateway token), and writing anywhere but the plugin's data folder and the devices
    * denied too (review 2026-10-27: a login item or a shell profile written from inside would run unconfined later).
    * Seatbelt compares a {@code subpath} with the canonical path only, so every denied path is written as given and as

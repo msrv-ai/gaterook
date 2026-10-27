@@ -18,7 +18,7 @@
   </parent>
 
   <artifactId>app</artifactId>
-  <name>MCP Gateway · App</name>
+  <name>GateRook · App</name>
 
   <properties>
     <start-class>ai.msrv.gaterook.core.GatewayApplication</start-class>
@@ -266,7 +266,7 @@
             <groupId>org.graalvm.buildtools</groupId>
             <artifactId>native-maven-plugin</artifactId>
             <configuration>
-              <imageName>mcp-gateway-core</imageName>
+              <imageName>gaterook-core</imageName>
               <metadataRepository>
                 <enabled>true</enabled>
               </metadataRepository>

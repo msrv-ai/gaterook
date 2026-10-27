@@ -77,7 +77,7 @@ class KeysetFileTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"/home/ann/.mcp-gateway/master.keyset", "/Users/ann/Documents/backup.json",
+  @ValueSource(strings = {"/home/ann/.gaterook/master.keyset", "/Users/ann/Documents/backup.json",
       "/media/usb/backup.json"})
   void leavesLocalFoldersAlone(String path) {
     assertThat(SyncedFolders.isSynced(Path.of(path))).isFalse();

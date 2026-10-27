@@ -85,7 +85,7 @@ public final class KubernetesConnector implements Connector {
     try {
       s = K8sSettings.of(cfg);
     } catch (ConnectorException e) {
-      return Classification.deny(policy.rule("config-invalid"), e.getMessage(), "Fix the connection in MCP Gateway.");
+      return Classification.deny(policy.rule("config-invalid"), e.getMessage(), "Fix the connection in GateRook.");
     }
     Plan plan;
     try {
@@ -337,7 +337,7 @@ public final class KubernetesConnector implements Connector {
     ClusterAccess access = ClusterAccess.resolve(s, secrets, cfg.env(), ctx::taint);
     if (s.auth() == Auth.KUBECONFIG_FILE && !access.matchesPin(s)) {
       throw ConnectorException.denied(s.pinnedServer() == null
-          ? "Test " + cfg.name() + " once: MCP Gateway pins the cluster its kubeconfig file points to."
+          ? "Test " + cfg.name() + " once: GateRook pins the cluster its kubeconfig file points to."
           : "Kubeconfig changed: " + cfg.name() + " now points to " + access.server() + ". Test the connection again.");
     }
     if (access.exec() != null) {

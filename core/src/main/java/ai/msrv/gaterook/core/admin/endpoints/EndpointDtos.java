@@ -39,7 +39,7 @@ public final class EndpointDtos {
    * One row of Endpoints.
    *
    * @param status        {@code running} or {@code disabled}
-   * @param blockedReason why it serves nothing now (a row changed outside MCP Gateway), or {@code null}
+   * @param blockedReason why it serves nothing now (a row changed outside GateRook), or {@code null}
    */
   public record Summary(String slug, String description, String url, String env, String access, String status,
       ToolCounts tools, ConnectionCounts connections, Map<String, Integer> health, long approvalsWaiting,

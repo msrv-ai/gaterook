@@ -80,7 +80,7 @@
       </div>
       <div class="gw-settings-layout__inline">
         <button class="gw-btn" type="button" aria-haspopup="dialog" aria-describedby="st-port-change-hint" (click)="openPort($event)"><svg lucideIcon="ethernet-port" class="gw-icon"></svg> Change port</button>
-        <p class="gw-text-caption gw-fg-muted" id="st-port-change-hint">Restarts the core. Clients set up with the old port need to be connected again.</p>
+        <p class="gw-text-caption gw-fg-muted" id="st-port-change-hint">Restarts the core. AI apps set up with the old port need to be connected again.</p>
       </div>
       <dl class="gw-kv">
         @for (r of runtime(); track r.key) {
@@ -109,7 +109,7 @@
     <header class="gw-dialog__header">
       <span class="gw-icon-tile"><svg lucideIcon="ethernet-port" class="gw-icon"></svg></span>
       <h2 class="gw-dialog__title" id="st-port-dlg-t">Change the core port?</h2>
-      <p class="gw-dialog__description" id="st-port-dlg-d">The core restarts on the new port and every endpoint URL changes. Clients set up with the old URL stop reaching it until you connect them again.</p>
+      <p class="gw-dialog__description" id="st-port-dlg-d">The core restarts on the new port and every endpoint URL changes. AI apps set up with the old URL stop reaching it until you connect them again.</p>
       <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
     </header>
     <div class="gw-dialog__body">
@@ -125,7 +125,7 @@
         </div>
         <dl class="gw-kv gw-kv--dense">
           <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint URLs</dt><dd class="gw-kv__value">@for (p of newUrls(); track $index) {@if (p.mono) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</dd></div>
-          <div class="gw-kv__row"><dt class="gw-kv__key">Connect again</dt><dd class="gw-kv__value">@if (againText(); as again) {{{ again }}, from <a class="gw-link" routerLink="/clients">Clients</a>} @else {No client keeps the old URL in its config}</dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key">Connect again</dt><dd class="gw-kv__value">@if (againText(); as again) {{{ again }}, from <a class="gw-link" routerLink="/clients">AI apps</a>} @else {No AI app keeps the old URL in its config}</dd></div>
           @if (keepText(); as keep) {
             <div class="gw-kv__row"><dt class="gw-kv__key">Unchanged</dt><dd class="gw-kv__value">{{ keep }}: {{ clients().keep.length === 1 ? 'its bridge asks' : 'their bridges ask' }} GateRook for the address</dd></div>
           }

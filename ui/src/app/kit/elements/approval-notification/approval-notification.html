@@ -56,7 +56,7 @@
                 <div class="gw-kv__row"><dt class="gw-kv__key">Connection</dt><dd class="gw-kv__value"><code class="gw-code">{{ req.connection }}</code> <span [class]="'gw-env gw-env--' + req.env + ' gw-env--sm'">{{ req.env }}</span></dd></div>
               }
               <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">{{ req.endpoint }}</code></dd></div>
-              <div class="gw-kv__row"><dt class="gw-kv__key">Client</dt><dd class="gw-kv__value">{{ who() }}@if (req.tokenLabel && !prod()) { · <code class="gw-code">{{ req.tokenLabel }}</code>}</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">AI app</dt><dd class="gw-kv__value">{{ who() }}@if (req.tokenLabel && !prod()) { · <code class="gw-code">{{ req.tokenLabel }}</code>}</dd></div>
               <div class="gw-kv__row"><dt class="gw-kv__key">Auto-deny</dt><dd class="gw-kv__value gw-tabular">At {{ deadline() }}</dd></div>
             </dl>
             <gw-code-block wrap [copy]="false" [segments]="req.action?.segments ?? null" [text]="text()" [language]="req.action?.language ?? null" regionLabel="Action" />

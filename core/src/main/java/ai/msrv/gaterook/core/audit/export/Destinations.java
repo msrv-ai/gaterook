@@ -53,7 +53,7 @@ public class Destinations {
       return KebabCaseEnumConverter.idOf(kind);
     }
 
-    /** Where it writes: {@code siem.acme.internal:6514}, {@code s3://acme-audit/mcp-gateway/}, a table. */
+    /** Where it writes: {@code siem.acme.internal:6514}, {@code s3://acme-audit/gaterook/}, a table. */
     public String target() {
       return ExportSettings.describe(kind, config);
     }

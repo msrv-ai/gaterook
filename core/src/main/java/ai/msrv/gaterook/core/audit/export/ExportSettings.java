@@ -59,7 +59,7 @@ public final class ExportSettings {
   /** A destination's settings as the senders use them. */
   public sealed interface Target permits Siem, S3, BigQuery {
 
-    /** Where it writes, as Settings shows it: {@code siem.acme.internal:6514}, {@code s3://acme-audit/mcp-gateway/}. */
+    /** Where it writes, as Settings shows it: {@code siem.acme.internal:6514}, {@code s3://acme-audit/gaterook/}. */
     String describe();
   }
 
@@ -125,7 +125,7 @@ public final class ExportSettings {
         }
         out.put("facility", facility);
         String app = text(config, "appName");
-        app = app == null ? "mcp-gateway" : app;
+        app = app == null ? "gaterook" : app;
         if (!APP_NAME.matcher(app).matches()) {
           throw ProblemException.unprocessable("Invalid app name", "An app name has 1 to 48 printable ASCII "
               + "characters without spaces.", "/config/appName");
@@ -209,7 +209,7 @@ public final class ExportSettings {
   public static Target parse(ExportKind kind, JsonNode c) {
     return switch (kind) {
       case SIEM -> new Siem(c.path("host").asString(), c.path("port").asInt(6514), c.path("facility").asInt(13),
-          c.path("appName").asString("mcp-gateway"), certificates(c, "caCertificate"),
+          c.path("appName").asString("gaterook"), certificates(c, "caCertificate"),
           certificates(c, "clientCertificate"));
       case S3 -> {
         String region = c.path("region").asString();
@@ -265,7 +265,8 @@ public final class ExportSettings {
         throw ProblemException.unprocessable("Address not allowed", v.text(), pointer);
       }
     } else if (loopback && corePorts.contains(port)) {
-      throw ProblemException.unprocessable("Address not allowed", "Port " + port + " on this computer is GateRook itself.", pointer);
+      throw ProblemException.unprocessable("Address not allowed", "Port " + port + " on this computer is "
+          + "GateRook itself.", pointer);
     }
   }
 
@@ -301,7 +302,7 @@ public final class ExportSettings {
         + (uri.getPort() > 0 ? ":" + uri.getPort() : ""));
   }
 
-  /** {@code mcp-gateway/}: safe characters only, no leading slash or dot segment, ending with a slash. */
+  /** {@code gaterook/}: safe characters only, no leading slash or dot segment, ending with a slash. */
   private static String prefix(String prefix) {
     if (prefix == null || prefix.isEmpty()) {
       return "";
@@ -309,7 +310,7 @@ public final class ExportSettings {
     if (!PREFIX.matcher(prefix).matches() || prefix.startsWith("/") || prefix.contains("//")
         || List.of(prefix.split("/")).stream().anyMatch(s -> s.equals(".") || s.equals(".."))) {
       throw ProblemException.unprocessable("Invalid prefix", "A prefix has letters, digits and !_.*'()/- only, "
-          + "without a leading slash or . and .. folders, like mcp-gateway/.", "/config/prefix");
+          + "without a leading slash or . and .. folders, like gaterook/.", "/config/prefix");
     }
     return prefix.endsWith("/") ? prefix : prefix + "/";
   }

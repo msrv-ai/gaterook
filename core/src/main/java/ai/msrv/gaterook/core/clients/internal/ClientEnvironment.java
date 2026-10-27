@@ -10,7 +10,7 @@ import java.util.Optional;
 /**
  * Where the clients of this computer keep their configs, and where the gateway keeps what they run: the user's home,
  * the system, the variables a client honours ({@code CODEX_HOME}, {@code APPDATA}, {@code LOCALAPPDATA}), the gateway
- * home ({@code ~/.mcp-gateway}) with its shim and broker file, and the bundle of the desktop app.
+ * home ({@code ~/.gaterook}) with its shim and broker file, and the bundle of the desktop app.
  *
  * <p>A <em>sandboxed</em> environment (a test or demo home instead of the person's own) ignores the process's
  * variables: everything derives from its home, so nothing the developer's real clients read is ever touched.
@@ -100,7 +100,7 @@ public final class ClientEnvironment {
     return variable("LOCALAPPDATA").map(Path::of).orElse(userHome.resolve("AppData").resolve("Local"));
   }
 
-  /** {@code ~/.mcp-gateway/bin/gw-bridge} ({@code gw-bridge.cmd} on Windows): what client configs run. */
+  /** {@code ~/.gaterook/bin/gw-bridge} ({@code gw-bridge.cmd} on Windows): what client configs run. */
   public Path shim() {
     return gatewayHome.resolve("bin").resolve(os == Os.WINDOWS ? "gw-bridge.cmd" : "gw-bridge");
   }
@@ -113,7 +113,7 @@ public final class ClientEnvironment {
     return os == Os.WINDOWS ? gatewayHome.resolve("bin").resolve("gw-bridge.exe") : shim();
   }
 
-  /** {@code ~/.mcp-gateway/run/broker.json}: where Electron's broker says it listens. */
+  /** {@code ~/.gaterook/run/broker.json}: where Electron's broker says it listens. */
   public Path brokerInfo() {
     return gatewayHome.resolve("run").resolve("broker.json");
   }
@@ -135,8 +135,8 @@ public final class ClientEnvironment {
   public String helperCommand(String... args) {
     StringBuilder b = new StringBuilder();
     if (os == Os.WINDOWS) {
-      Path defaultHome = userHome.resolve(".mcp-gateway");
-      String shim = gatewayHome.equals(defaultHome) && !sandboxed ? "%USERPROFILE%\\.mcp-gateway\\bin\\gw-bridge.cmd"
+      Path defaultHome = userHome.resolve(".gaterook");
+      String shim = gatewayHome.equals(defaultHome) && !sandboxed ? "%USERPROFILE%\\.gaterook\\bin\\gw-bridge.cmd"
           : shim().toString();
       b.append('"').append(shim).append('"');
       for (String a : args) {
@@ -144,8 +144,8 @@ public final class ClientEnvironment {
       }
       return b.toString();
     }
-    if (gatewayHome.equals(userHome.resolve(".mcp-gateway"))) {
-      b.append("~/.mcp-gateway/bin/gw-bridge");
+    if (gatewayHome.equals(userHome.resolve(".gaterook"))) {
+      b.append("~/.gaterook/bin/gw-bridge");
     } else {
       b.append(shQuote(shim().toString()));
     }

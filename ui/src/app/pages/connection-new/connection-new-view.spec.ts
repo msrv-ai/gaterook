@@ -11,9 +11,14 @@ import {
   endpointChoices,
   endpointUses,
   findCard,
+  firstRunModes,
+  firstRunPreview,
+  firstRunTestText,
+  firstRunToast,
   fixSnippet,
   healthStat,
   initialEndpoints,
+  isFirstRun,
   list,
   policyDefaults,
   refusalFor,
@@ -27,6 +32,8 @@ import {
   testToast,
   toolMode,
   toolPreview,
+  toolsLine,
+  toolsSentence,
   usage,
   usedByMeta,
   usedByRows,
@@ -384,5 +391,77 @@ describe('Add connection: toasts and names', () => {
     expect(copyName('dev-db', ['dev-db-copy', 'dev-db-copy-2'])).toBe('dev-db-copy-3');
     expect(list(['a', 'b', 'c'])).toBe('a, b and c');
     expect(list(['a'])).toBe('a');
+  });
+});
+
+describe('Add connection: first run (kit ?state=first-run)', () => {
+  it('is the first run only while nothing is set up: no connection and no endpoint', () => {
+    expect(isFirstRun(0, 0)).toBe(true);
+    expect(isFirstRun(1, 0)).toBe(false);
+    expect(isFirstRun(0, 1)).toBe(false);
+  });
+
+  it('names step 4 Create endpoint, and once done says the endpoint after the environment', () => {
+    const facts = { typeName: 'PostgreSQL', name: 'dev-db', env: 'stage' as const, test: null, endpoints: [] };
+    expect(stepperSteps(1, facts, true).map((s) => s.name)).toEqual(['Choose type', 'Configure', 'Test', 'Create endpoint']);
+    // After Save every step is complete (5): the card takes the wizard's place.
+    const done = stepperSteps(5, facts, true);
+    expect(done.map((s) => s.state)).toEqual(['complete', 'complete', 'complete', 'complete']);
+    expect(done.filter((s) => s.current)).toEqual([]);
+    expect(done[3].description).toEqual({ text: 'Endpoint stage' });
+  });
+
+  it('previews the first endpoint’s tools: the defaults on dev, nothing waiting for approval on prod', () => {
+    const dev = firstRunPreview(SQL_TOOLS, 'built-in', false, 'dev');
+    expect(dev.slug).toBe('dev');
+    expect(dev.summary).toBe('4 tools · 3 read only · 1 approval');
+    const prod = firstRunPreview(SQL_TOOLS, 'built-in', false, 'prod');
+    expect(prod.slug).toBe('prod');
+    expect(prod.summary).toBe('4 tools · 3 read only · 1 off');
+    expect(prod.rows[3]).toMatchObject({ name: 'sql_execute', mode: 'OFF', note: { icon: 'lock', text: 'Off on prod: read only by default' } });
+  });
+
+  it('says what the AI apps can do there, in the kit words', () => {
+    expect(firstRunModes(firstRunPreview(SQL_TOOLS, 'built-in', false, 'dev'))).toEqual({
+      text: 'Reads run at once. Anything that changes data, like sql_execute, waits for your approval. You can change the modes later.',
+      literals: ['sql_execute'],
+    });
+    expect(firstRunModes(firstRunPreview(SQL_TOOLS, 'built-in', false, 'prod'))).toEqual({
+      text: 'Reads run at once. sql_execute is off: prod is read only by default. You can change the modes later.',
+      literals: ['sql_execute'],
+    });
+    expect(firstRunModes(firstRunPreview([], 'mcp-server', true, 'dev')).text).toBe(
+      'Its tools come from the server once it runs, and each one waits for your approval. You can change the modes later.',
+    );
+  });
+
+  it('words the ready card’s Tools from the endpoint’s tools as the core answered them', () => {
+    const line = toolsLine([
+      { name: 'sql_list_schemas', mode: 'READ_ONLY' },
+      { name: 'sql_describe_table', mode: 'READ_ONLY' },
+      { name: 'sql_query', mode: 'READ_ONLY' },
+      { name: 'sql_execute', mode: 'APPROVAL' },
+    ]);
+    expect(line).toEqual({ reads: ['sql_list_schemas', 'sql_describe_table', 'sql_query'], approval: ['sql_execute'], off: [] });
+    expect(toolsSentence(line, 'dev').text).toBe(
+      'sql_list_schemas, sql_describe_table and sql_query run at once (read only); sql_execute waits for your approval',
+    );
+    expect(toolsSentence({ reads: ['k8s_get'], approval: [], off: ['k8s_apply', 'k8s_rollout_restart'] }, 'prod')).toEqual({
+      text: 'k8s_get runs at once (read only); k8s_apply and k8s_rollout_restart are off: prod is read only by default',
+      literals: ['k8s_get', 'k8s_apply', 'k8s_rollout_restart'],
+    });
+    expect(toolsSentence({ reads: [], approval: [], off: [] }, 'dev').text).toBe('They come from the server once it runs');
+  });
+
+  it('says what the test checks where the type signs in, and what Save did', () => {
+    expect(firstRunTestText('the database')).toBe(
+      'GateRook connects from this computer with what you entered and checks what that user may do in the database.',
+    );
+    expect(firstRunTestText('the server')).toContain('may do on the server.');
+    expect(firstRunTestText('the API')).toContain('may do with the API.');
+    expect(firstRunToast('dev-db', 'dev')).toEqual({
+      title: 'Connection dev-db saved',
+      body: 'Endpoint dev created with its tools. Next: connect your AI app.',
+    });
   });
 });

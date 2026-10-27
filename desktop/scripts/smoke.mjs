@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // The Electron smoke (ARCHITECTURE.md §9 "Electron hardening", §10 E1): the development build started for real, per
-// scenario, each in a throwaway gateway home (never ~/.mcp-gateway) with OS protection off (no Keychain entries):
+// scenario, each in a throwaway gateway home (never ~/.gaterook) with OS protection off (no Keychain entries):
 //   switches  dangerous Chromium/Node switches: the app exits with code 3 before anything starts, and a requested
 //             DevTools port never opens
 //   fake      the fake core (test/fixtures/fake-core.mjs): the §9 hardening checks (no require, CSP blocks inline
@@ -13,7 +13,7 @@
 //   npm run smoke -w desktop                     all scenarios
 //   npm run smoke -w desktop -- --only fake      one of them (switches, fake, real; protect only on request)
 //   npm run smoke -w desktop -- --keep           keep the temporary homes (their logs) for a look
-//   npm run smoke -w desktop -- --only real --core-binary <mcp-gateway-core>
+//   npm run smoke -w desktop -- --only real --core-binary <gaterook-core>
 //                                                `real` against a native core (its libsqlitejdbc next to it or in
 //                                                native-libs/) instead of the jar
 //
@@ -36,7 +36,10 @@ const only = args.includes('--only') ? args[args.indexOf('--only') + 1] : null;
 const keep = args.includes('--keep');
 const electron = createRequire(join(desktop, 'package.json'))('electron');
 const fakeCore = join(desktop, 'test', 'fixtures', 'fake-core.mjs');
-const uiDist = join(repo, 'ui', 'dist', 'mcp-gateway-ui', 'browser');
+// The UI's build: the Angular project is gaterook-ui (mcp-gateway-ui before decision 11; the UI step renames it).
+const uiDistOf = (root) => ['gaterook-ui', 'mcp-gateway-ui'].map((p) => join(root, 'ui', 'dist', p, 'browser'))
+  .find((d) => existsSync(join(d, 'index.html'))) ?? join(root, 'ui', 'dist', 'gaterook-ui', 'browser');
+let uiDist = uiDistOf(repo);
 const jar = process.env.GW_CORE_JAR ?? join(repo, 'app', 'target', 'app.jar');
 const coreBinary = args.includes('--core-binary') ? args[args.indexOf('--core-binary') + 1] : null;
 
@@ -122,6 +125,7 @@ if (!existsSync(join(uiDist, 'index.html'))) {
   log('ui/dist is missing: npm run build -w ui');
   const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
   if (spawnSync(npm, ['run', 'build', '-w', 'ui'], { cwd: repo, stdio: 'inherit' }).status !== 0) process.exit(1);
+  uiDist = uiDistOf(repo);
 }
 const work = mkdtempSync(join(tmpdir(), 'gw-smoke-'));
 const ui = join(work, 'ui');
@@ -240,7 +244,7 @@ async function real() {
 
 // OS protection with the real core: opt-in (`--only protect`), it writes a Keychain / DPAPI / Secret Service entry.
 async function protect() {
-  log('scenario protect (writes the "MCP Gateway Dev Safe Storage" entry of the OS key store)');
+  log('scenario protect (writes the "GateRook Dev Safe Storage" entry of the OS key store)');
   if (!existsSync(jar)) {
     check(`protect: ${jar} exists`, false);
     return;

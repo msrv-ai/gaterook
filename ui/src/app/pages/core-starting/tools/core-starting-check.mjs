@@ -26,7 +26,8 @@ import { fileURLToPath } from 'node:url';
 const ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..', '..', '..', '..', '..');
 const require = createRequire(join(ROOT, 'ui', 'package.json'));
 const { chromium } = require('playwright-core');
-const DIST = join(ROOT, 'ui', 'dist', 'mcp-gateway-ui', 'browser');
+// The UI's build: the Angular project is gaterook-ui (mcp-gateway-ui before decision 11, an older build still found).
+const DIST = ['gaterook-ui', 'mcp-gateway-ui'].map((p) => join(ROOT, 'ui', 'dist', p, 'browser')).find((d) => existsSync(join(d, 'index.html'))) ?? join(ROOT, 'ui', 'dist', 'gaterook-ui', 'browser');
 const JAR = join(ROOT, 'app', 'target', 'app.jar');
 const JAVA = process.env.JAVA_HOME ? join(process.env.JAVA_HOME, 'bin', 'java') : 'java';
 const WORK = join(ROOT, 'ui', 'target', 'core-starting');

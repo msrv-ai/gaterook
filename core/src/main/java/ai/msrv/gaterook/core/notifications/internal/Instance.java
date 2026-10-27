@@ -8,10 +8,10 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.node.JsonNodeFactory;
 
 /**
- * Which MCP Gateway this is, as its messages say (report 13 §6.3). Slack hands an interaction to any connection of
+ * Which GateRook this is, as its messages say (report 13 §6.3). Slack hands an interaction to any connection of
  * the app, so two computers sharing one Slack app would get each other's clicks: every button carries this
  * installation's id ({@code setting notifications.instance-id}, made once), and a click with another id is answered
- * "This request belongs to another MCP Gateway". The host name goes into texts people read ("Linked to MCP Gateway on
+ * "This request belongs to another GateRook". The host name goes into texts people read ("Linked to GateRook on
  * ravi-mbp").
  */
 @Component

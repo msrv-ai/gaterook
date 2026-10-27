@@ -69,7 +69,7 @@ public final class PostgresDialect implements SqlDialect {
   @Override
   public Properties properties(ConnectionSettings s, Path certificates, int socketTimeoutMs) throws IOException {
     Properties p = new Properties();
-    p.setProperty("ApplicationName", "mcp-gateway");
+    p.setProperty("ApplicationName", "gaterook");
     int connectSeconds = Math.max(1, (s.connectTimeoutMs() + 999) / 1000);
     p.setProperty("connectTimeout", Integer.toString(connectSeconds));
     p.setProperty("loginTimeout", Integer.toString(connectSeconds));

@@ -112,7 +112,7 @@ final class GcpLoggingBackend implements Backend {
     while (requests < MAX_PAGES) {
       if (!call.ctx().acquire(s.quotaKey(), s.quotaPerMinute())) {
         if (requests == 0) {
-          throw ConnectorException.resourceError("MCP Gateway's share of Cloud Logging reads for "
+          throw ConnectorException.resourceError("GateRook's share of Cloud Logging reads for "
               + s.resourceNames().get(0) + " (" + s.quotaPerMinute() + " per minute) is used up. Try again in a "
               + "minute.", null);
         }
@@ -225,7 +225,7 @@ final class GcpLoggingBackend implements Backend {
       long started = System.nanoTime();
       JsonNode newest = probe.step("read", () -> {
         if (!call.ctx().acquire(s.quotaKey(), s.quotaPerMinute())) {
-          throw ConnectorException.resourceError("MCP Gateway's share of Cloud Logging reads is used up. Test again "
+          throw ConnectorException.resourceError("GateRook's share of Cloud Logging reads is used up. Test again "
               + "in a minute.", null);
         }
         long now = call.ctx().clock().instant().toEpochMilli() * 1_000_000L;
