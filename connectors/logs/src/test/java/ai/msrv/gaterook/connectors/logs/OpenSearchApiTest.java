@@ -56,7 +56,7 @@ class OpenSearchApiTest {
     server.start(InetAddress.getByName("127.0.0.1"), 0);
     scoped = Configs.openSearch("http://127.0.0.1:" + server.getPort());
     ObjectNode config = (ObjectNode) scoped.config().deepCopy();
-    config.put("apiAccess", "full");
+    config.remove("apiAccess");
     full = Configs.of("search-full", Env.DEV, config.toString(), "/auth/secret");
   }
 
@@ -68,7 +68,7 @@ class OpenSearchApiTest {
   }
 
   @Test
-  void fullAccessIsExplicitAndDoesNotApplyToOtherBackends() {
+  void fullAccessIsTheDefaultButExplicitLogOnlyAndOtherBackendsRemainRestricted() {
     for (String tool : List.of("opensearch_query", "opensearch_request")) {
       ToolCall call = Configs.call(tool, "{\"path\":\"/_cluster/settings\"}");
       assertThat(connector.classify(call, scoped, Configs.policy(Env.DEV, TestCtx.dev())).kind())
@@ -86,7 +86,7 @@ class OpenSearchApiTest {
   }
 
   @Test
-  void listsOnlyConfiguredPatternsUntilFullAccessIsEnabled() throws Exception {
+  void explicitLogOnlyModeRestrictsDiscoveryWhileDefaultFullAccessListsAll() throws Exception {
     String inventory = "{\"indices\":[{\"name\":\"logs-app-1\",\"attributes\":[\"open\"]}],"
         + "\"aliases\":[],\"data_streams\":[]}";
     server.enqueue(json(200, inventory));

@@ -224,7 +224,7 @@ sealed interface Settings permits Settings.Loki, Settings.Gcp, Settings.CloudWat
 
   private static OpenSearch openSearch(JsonNode c) {
     URI base = baseUrl(text(c, "url", null), false);
-    String apiAccess = text(c, "apiAccess", "logs");
+    String apiAccess = text(c, "apiAccess", "full");
     if (!apiAccess.equals("logs") && !apiAccess.equals("full")) {
       throw new InvalidSettingsException("Choose OpenSearch API access: logs or full.");
     }

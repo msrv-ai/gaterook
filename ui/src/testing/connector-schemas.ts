@@ -1358,13 +1358,13 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "logs",
               "full"
             ],
-            "default": "logs",
+            "default": "full",
             "title": "OpenSearch API access",
             "x-enumTitles": [
               "Scoped log search",
               "Full OpenSearch REST API"
             ],
-            "description": "Full API access enables arbitrary queries and approved server changes using this connection user's OpenSearch permissions. Log index patterns and scopeQuery restrict only logs_search and logs_tail; they do not restrict the REST tools. Existing connections default to scoped log search."
+            "description": "Full API access is the default and enables arbitrary queries and server operations using this connection user's OpenSearch permissions. Log index patterns and scopeQuery restrict only logs_search and logs_tail; they do not restrict REST tools. Select Scoped log search to disable the full REST tools."
           },
           "url": {
             "type": "string",
@@ -1455,7 +1455,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "if": {
               "properties": {
                 "apiAccess": {
-                  "const": "full"
+                  "const": "logs"
                 }
               },
               "required": [
@@ -1463,13 +1463,6 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               ]
             },
             "then": {
-              "properties": {
-                "indices": {
-                  "$ref": "#/$defs/openSearchLogIndices"
-                }
-              }
-            },
-            "else": {
               "required": [
                 "indices"
               ],
@@ -1480,6 +1473,13 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
                     "type": "string",
                     "pattern": "^[a-z0-9][a-z0-9._*-]{0,254}$"
                   }
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "indices": {
+                  "$ref": "#/$defs/openSearchLogIndices"
                 }
               }
             }
@@ -5172,14 +5172,14 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "pointer": "/indices",
         "kind": "tags",
         "title": "Log index patterns",
-        "required": false,
+        "required": true,
         "secret": null,
         "mono": true,
         "unit": null,
         "options": [],
         "when": [
           "backend in [\"opensearch\"]",
-          "apiAccess in [\"full\"]"
+          "apiAccess in [\"logs\"]"
         ],
         "multiline": false,
         "envDefault": {},
@@ -5191,14 +5191,14 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "pointer": "/indices",
         "kind": "tags",
         "title": "Log index patterns",
-        "required": true,
+        "required": false,
         "secret": null,
         "mono": true,
         "unit": null,
         "options": [],
         "when": [
           "backend in [\"opensearch\"]",
-          "not apiAccess in [\"full\"]"
+          "not apiAccess in [\"logs\"]"
         ],
         "multiline": false,
         "envDefault": {},

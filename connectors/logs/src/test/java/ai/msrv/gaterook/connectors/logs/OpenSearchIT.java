@@ -389,13 +389,13 @@ class OpenSearchIT {
 
   private static ConnectionConfig cfg() {
     return Configs.of("search-logs", Env.DEV, """
-        {"backend":"opensearch","url":"%s","indices":["logs-app-*"],"auth":{"mode":"none"},
+        {"backend":"opensearch","apiAccess":"logs","url":"%s","indices":["logs-app-*"],"auth":{"mode":"none"},
          "labelFields":["service.name","host.name"]}""".formatted(base));
   }
 
   private static ConnectionConfig cfgWithTwoPatterns() {
     return Configs.of("search-logs", Env.DEV, """
-        {"backend":"opensearch","url":"%s","indices":["logs-app-nanos","logs-app-millis"],"auth":{"mode":"none"},
+        {"backend":"opensearch","apiAccess":"logs","url":"%s","indices":["logs-app-nanos","logs-app-millis"],"auth":{"mode":"none"},
          "labelFields":["service.name"]}""".formatted(base));
   }
 

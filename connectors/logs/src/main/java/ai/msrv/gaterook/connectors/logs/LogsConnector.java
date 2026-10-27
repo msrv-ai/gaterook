@@ -36,8 +36,8 @@ import tools.jackson.databind.node.ObjectNode;
  * The Logs connector (report 07): {@code logs_search} and {@code logs_tail} over Loki, GCP Cloud Logging, AWS
  * CloudWatch Logs and OpenSearch.
  *
- * <p>The log tools only read within the connection's scope. OpenSearch also offers index discovery and an explicit
- * full API mode: known reads use {@code opensearch_query}; all other REST calls default to Approval through
+ * <p>The log tools only read within the connection's scope. OpenSearch defaults to full API access with index
+ * discovery: known reads use {@code opensearch_query}; all other REST calls default to Approval through
  * {@code opensearch_request}. The full API uses server permissions rather than the log query's index/filter scope.
  */
 public final class LogsConnector implements Connector {
@@ -73,8 +73,8 @@ public final class LogsConnector implements Connector {
         .name("Logs")
         .icon("scroll-text")
         .group("Logs")
-        .description("Search Loki, GCP Cloud Logging, AWS CloudWatch and OpenSearch logs; optionally enable the full "
-            + "OpenSearch REST API with administration in Approval mode by default.")
+        .description("Search Loki, GCP Cloud Logging, AWS CloudWatch and OpenSearch logs. OpenSearch includes full "
+            + "REST API access with administration in Approval mode by default.")
         .configSchema(schemas.load("config"))
         .policySchema(schemas.load("policy"))
         .tools(LogsTools.definitions(schemas))

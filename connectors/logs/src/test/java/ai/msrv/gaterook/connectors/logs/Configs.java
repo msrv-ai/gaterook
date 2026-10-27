@@ -38,7 +38,8 @@ final class Configs {
 
   static ConnectionConfig openSearch(String url) {
     return of("search-logs", Env.DEV, """
-        {"backend":"opensearch","url":"%s","indices":["logs-app-*"],"auth":{"mode":"basic","username":"gw_reader"},
+        {"backend":"opensearch","apiAccess":"logs","url":"%s","indices":["logs-app-*"],
+         "auth":{"mode":"basic","username":"gw_reader"},
          "labelFields":["service.name","host.name"]}""".formatted(url), "/auth/secret");
   }
 

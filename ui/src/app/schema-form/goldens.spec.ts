@@ -120,7 +120,7 @@ describe('schema-form: branches and conditions', () => {
     expect(cleanValue(form, model)['credentials']).toBeUndefined();
   });
 
-  it('OpenSearch: API access is explicit, scoped by default, and full access can omit log indices', () => {
+  it('OpenSearch: full API access is the default and explicit scoped access requires log indices', () => {
     const logs = CONNECTOR_FORMS['logs'];
     const form = compileSchema(logs);
     const access = form.all.find((n) => n.pointer === '/apiAccess')!;
@@ -130,28 +130,31 @@ describe('schema-form: branches and conditions', () => {
     expect(access.kind).toBe('select');
     expect(access.options.map((o) => o.value)).toEqual(['logs', 'full']);
     expect(isVisible(access, model)).toBe(true);
-    expect(cleanValue(form, model)['apiAccess']).toBe('logs');
-    expect(cleanValue(form, model)['indices']).toEqual([]);
+    expect(cleanValue(form, model)['apiAccess']).toBe('full');
+    expect(cleanValue(form, model)['indices']).toBeUndefined();
     const indices = form.all.filter((n) => n.pointer === '/indices');
-    expect(indices.filter((n) => isVisible(n, model))).toHaveLength(1);
-    expect(indices.find((n) => isVisible(n, model))?.required).toBe(true);
-    model = setAt(model, ['apiAccess'], 'full');
     expect(indices.filter((n) => isVisible(n, model))).toHaveLength(1);
     expect(indices.find((n) => isVisible(n, model))?.optional).toBe(true);
     expect(cleanValue(form, model)).toMatchObject({
       backend: 'opensearch', apiAccess: 'full', url: 'https://search.example.test:9200', auth: { mode: 'none' },
     });
     expect(cleanValue(form, model)['indices']).toBeUndefined();
+    model = setAt(model, ['apiAccess'], 'logs');
+    expect(indices.filter((n) => isVisible(n, model))).toHaveLength(1);
+    expect(indices.find((n) => isVisible(n, model))?.required).toBe(true);
+    expect(cleanValue(form, model)['indices']).toEqual([]);
     expect(isVisible(access, setAt(model, ['backend'], 'loki'))).toBe(false);
     expect(indices.some((n) => isVisible(n, setAt(model, ['backend'], 'loki')))).toBe(false);
     model = setAt(model, ['indices'], ['logs-*']);
     expect(cleanValue(form, model)['indices']).toEqual(['logs-*']);
-    expect(cleanValue(form, setAt(model, ['apiAccess'], 'logs'))['indices']).toEqual(['logs-*']);
+    expect(cleanValue(form, setAt(model, ['apiAccess'], 'full'))['indices']).toEqual(['logs-*']);
     const existing = initialValue(logs, {
       backend: 'opensearch', url: 'https://search.example.test:9200', indices: ['logs-existing-*'],
       auth: { mode: 'none' },
     });
     expect(cleanValue(form, existing)['indices']).toEqual(['logs-existing-*']);
+    expect(cleanValue(form, existing)['apiAccess']).toBe('full');
+    expect(cleanValue(form, initialValue(logs, { ...existing, apiAccess: 'logs' }))['apiAccess']).toBe('logs');
   });
 
   it('short fields share a row of at most three; anything with its own block stands alone', () => {

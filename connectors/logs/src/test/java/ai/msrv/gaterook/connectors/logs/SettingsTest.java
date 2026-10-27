@@ -35,10 +35,10 @@ class SettingsTest {
   }
 
   @Test
-  void openSearchReadsOnlyNamedIndexPatterns() {
+  void explicitLogOnlyOpenSearchReadsOnlyNamedIndexPatterns() {
     for (String bad : new String[] {"*", "logs-*,secrets", "remote:logs-*", "-logs", "_all", "Logs"}) {
       assertThatThrownBy(() -> Settings.parse(Configs.of("x", Env.DEV, """
-          {"backend":"opensearch","url":"https://search:9200","indices":["%s"]}""".formatted(bad))))
+          {"backend":"opensearch","apiAccess":"logs","url":"https://search:9200","indices":["%s"]}""".formatted(bad))))
           .as(bad).isInstanceOf(Settings.InvalidSettingsException.class);
     }
     assertThatThrownBy(() -> Settings.parse(Configs.of("x", Env.DEV, """
@@ -48,22 +48,23 @@ class SettingsTest {
         {"backend":"opensearch","url":"https://search:9200","indices":["logs-app-*"]}""")))
         .as("Basic is the form's default").hasMessage("Basic sign-in needs a username.");
     Settings.OpenSearch s = (Settings.OpenSearch) Settings.parse(Configs.of("x", Env.DEV, """
-        {"backend":"opensearch","url":"https://search:9200","indices":["logs-app-*"],
+        {"backend":"opensearch","apiAccess":"logs","url":"https://search:9200","indices":["logs-app-*"],
          "auth":{"username":"gw_reader"}}"""));
     assertThat(s.labelFields()).contains("service.name");
     assertThat(s.auth().mode()).isEqualTo(Settings.AuthMode.BASIC);
-    assertThat(s.fullApi()).as("Existing connections remain scoped").isFalse();
+    assertThat(s.fullApi()).as("Explicit log-only connections remain scoped").isFalse();
   }
 
   @Test
-  void fullOpenSearchApiAccessIsExplicitAndCanOmitLogIndices() {
+  void fullOpenSearchApiAccessIsTheDefaultAndCanOmitLogIndices() {
     Settings.OpenSearch full = (Settings.OpenSearch) Settings.parse(Configs.of("search", Env.DEV, """
-        {"backend":"opensearch","url":"https://search:9200","apiAccess":"full","auth":{"mode":"none"}}"""));
+        {"backend":"opensearch","url":"https://search:9200","auth":{"mode":"none"}}"""));
     assertThat(full.fullApi()).isTrue();
     assertThat(full.indices()).containsExactly("*");
     Settings.OpenSearch scopedLogs = (Settings.OpenSearch) Settings.parse(Configs.of("search", Env.DEV, """
-        {"backend":"opensearch","url":"https://search:9200","apiAccess":"full","indices":["logs-*"],
+        {"backend":"opensearch","url":"https://search:9200","indices":["logs-*"],
          "scopeQuery":"service.name:api","auth":{"mode":"none"}}"""));
+    assertThat(scopedLogs.fullApi()).as("Saved configurations without apiAccess use full access").isTrue();
     assertThat(scopedLogs.indices()).containsExactly("logs-*");
     assertThat(scopedLogs.scopeQuery()).isEqualTo("service.name:api");
     for (String mode : new String[] {"logs", "unknown"}) {

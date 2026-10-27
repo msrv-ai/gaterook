@@ -8,7 +8,7 @@ import com.networknt.schema.SpecificationVersion;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
 
-/** The forms and MCP schemas describe the full API without changing existing scoped connections. */
+/** The forms and MCP schemas default to the full API while preserving explicit scoped connections. */
 class OpenSearchSchemasTest {
 
   private static final SchemaResources RESOURCES = SchemaResources.of(LogsConnector.class, "logs");
@@ -16,23 +16,29 @@ class OpenSearchSchemasTest {
   private static final JsonMapper JSON = JsonMapper.builder().build();
 
   @Test
-  void fullApiConfigurationCanOmitLogIndicesWhileScopedConfigurationRequiresThem() {
+  void fullApiDefaultsCanOmitLogIndicesWhileExplicitScopedConfigurationRequiresThem() {
     var schema = SCHEMAS.getSchema(RESOURCES.load("config"));
     assertThat(schema.validate(JSON.readTree("""
         {"backend":"opensearch","url":"https://search.example.test:9200","apiAccess":"full",
          "auth":{"mode":"none"}}"""))).isEmpty();
     assertThat(schema.validate(JSON.readTree("""
         {"backend":"opensearch","url":"https://search.example.test:9200","auth":{"mode":"none"}}""")))
-        .isNotEmpty();
+        .as("Omitted API access defaults to full").isEmpty();
     assertThat(schema.validate(JSON.readTree("""
-        {"backend":"opensearch","url":"https://search.example.test:9200","indices":["logs-*"],
+        {"backend":"opensearch","url":"https://search.example.test:9200","apiAccess":"logs",
+         "auth":{"mode":"none"}}"""))).as("Explicit scoped access requires index patterns").isNotEmpty();
+    assertThat(schema.validate(JSON.readTree("""
+        {"backend":"opensearch","url":"https://search.example.test:9200","apiAccess":"logs","indices":["logs-*"],
          "auth":{"mode":"none"}}"""))).isEmpty();
     assertThat(schema.validate(JSON.readTree("""
-        {"backend":"opensearch","url":"https://search.example.test:9200","indices":["*"],
+        {"backend":"opensearch","url":"https://search.example.test:9200","apiAccess":"logs","indices":["*"],
          "auth":{"mode":"none"}}"""))).as("Scoped access cannot select every index").isNotEmpty();
     assertThat(schema.validate(JSON.readTree("""
         {"backend":"opensearch","url":"https://search.example.test:9200","apiAccess":"full","indices":["*"],
          "auth":{"mode":"none"}}"""))).isEmpty();
+    assertThat(schema.validate(JSON.readTree("""
+        {"backend":"opensearch","url":"https://search.example.test:9200","indices":["*"],
+         "auth":{"mode":"none"}}"""))).as("Default full access accepts all indices").isEmpty();
   }
 
   @Test

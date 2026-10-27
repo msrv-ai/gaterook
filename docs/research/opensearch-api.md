@@ -4,9 +4,9 @@ Reviewed against the official REST documentation on 2026-10-27. This document de
 
 ## Enable the tools
 
-An OpenSearch connection uses the `logs` connector with `backend: "opensearch"`. Existing connections default to `apiAccess: "logs"`. They retain `logs_search` and `logs_tail`, plus scoped index discovery through `opensearch_indices`.
+An OpenSearch connection uses the `logs` connector with `backend: "opensearch"`. Full REST access is the default: an omitted `apiAccess` value means `"full"`, including in existing configurations. The connection offers `logs_search`, `logs_tail`, `opensearch_indices`, `opensearch_query`, and `opensearch_request`, subject to endpoint tool modes.
 
-Set **OpenSearch API access** to **Full OpenSearch REST API** in the connection configuration to enable `opensearch_query` and `opensearch_request`. In configuration JSON this is `"apiAccess":"full"`. Full API connections can omit `indices`, which then defaults to `["*"]`. Authentication, TLS, and AWS signing settings remain those of the connection.
+**OpenSearch API access** starts at **Full OpenSearch REST API**. Full API connections can omit `indices`, which then defaults to `["*"]`. To restrict a connection to log tools and scoped index discovery, explicitly select **Scoped log search** (`"apiAccess":"logs"`) and configure its log index patterns. Existing explicit `"logs"` selections remain scoped. Authentication, TLS, and AWS signing settings remain those of the connection.
 
 Enable the desired tools on the endpoint as well. Existing endpoints have no configuration rows for newly added tools, so those tools remain Off until explicitly enabled. A connection's full API setting does not by itself grant an AI client endpoint access.
 
@@ -148,7 +148,7 @@ Examples of plugin-specific effects make a blanket plugin READ rule unsuitable: 
 
 ## Verification and practical limits
 
-The unit suite uses MockWebServer to verify opt-in behavior, index discovery scope, unmodified DSL and aggregation results, query parameter encoding, approval replay, JSON Patch, NDJSON, Basic authentication, SigV4 writes, path rejection, HTTP error bodies, text output, and response/request budgets. `OpenSearchIT` exercises index creation, discovery, bulk ingestion, GET-body aggregation, index settings, dynamic cluster settings with restoration, deletion, and existing log behavior against a disposable server.
+The unit suite uses MockWebServer to verify full API defaults, explicit scoped mode, index discovery scope, unmodified DSL and aggregation results, query parameter encoding, approval replay, JSON Patch, NDJSON, Basic authentication, SigV4 writes, path rejection, HTTP error bodies, text output, and response/request budgets. `OpenSearchIT` exercises index creation, discovery, bulk ingestion, GET-body aggregation, index settings, dynamic cluster settings with restoration, deletion, and existing log behavior against a disposable server.
 
 Run the module checks using the JDK and Maven versions in [development](../development.md):
 

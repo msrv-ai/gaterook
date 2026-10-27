@@ -76,11 +76,11 @@ class LogsConnectorTest {
   void openSearchToolsAreOfferedOnlyToCompatibleConnections() {
     ConnectionConfig logs = Configs.openSearch("http://127.0.0.1:9200");
     ConnectionConfig full = Configs.of("search", Env.DEV, """
-        {"backend":"opensearch","url":"http://127.0.0.1:9200","apiAccess":"full","auth":{"mode":"none"}}""");
+        {"backend":"opensearch","url":"http://127.0.0.1:9200","auth":{"mode":"none"}}""");
     ConnectionConfig loki = Configs.loki("http://127.0.0.1:3100");
     for (String tool : List.of("opensearch_indices", "opensearch_query", "opensearch_request")) {
       assertThat(connector.supportsTool(tool, loki)).as(tool + " on Loki").isFalse();
-      assertThat(connector.supportsTool(tool, full)).as(tool + " on full OpenSearch").isTrue();
+      assertThat(connector.supportsTool(tool, full)).as(tool + " on OpenSearch by default").isTrue();
       assertThat(connector.supportsTool(tool, logs)).as(tool + " on scoped OpenSearch")
           .isEqualTo(tool.equals("opensearch_indices"));
     }

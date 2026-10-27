@@ -128,7 +128,7 @@ class LogsCoreProcessIT {
 
     json(admin("POST", "/api/connections", """
         {"name":"search-logs","type":"logs","env":"dev","config":{"backend":"opensearch","url":"%s",
-         "indices":["logs-app-*"],"auth":{"mode":"none"}}}""".formatted(base)), 201);
+         "apiAccess":"logs","indices":["logs-app-*"],"auth":{"mode":"none"}}}""".formatted(base)), 201);
 
     json(admin("POST", "/api/endpoints", "{\"slug\":\"logs\",\"startFrom\":\"empty\"}"), 201);
     for (String c : List.of("app-logs", "gcp-logs", "aws-logs", "search-logs")) {
@@ -235,10 +235,10 @@ class LogsCoreProcessIT {
 
   @Test
   @Order(5)
-  void fullOpenSearchApisAreDiscoveredAndSettingsWaitForExactApproval() throws Exception {
+  void fullOpenSearchApisAreAvailableByDefaultAndSettingsWaitForExactApproval() throws Exception {
     String base = "http://127.0.0.1:" + fake.getPort();
     JsonNode tested = save("search-api", """
-        {"backend":"opensearch","url":"%s","apiAccess":"full","auth":{"mode":"none"}}
+        {"backend":"opensearch","url":"%s","auth":{"mode":"none"}}
         """.formatted(base), "{}");
     assertThat(tested.path("serverVersion").asString()).isEqualTo("OpenSearch 3.9.0");
     json(admin("POST", "/api/endpoints/logs/connections/search-api", "{}"), 200);

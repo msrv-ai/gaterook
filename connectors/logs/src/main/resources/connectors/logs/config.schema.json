@@ -337,13 +337,13 @@
             "logs",
             "full"
           ],
-          "default": "logs",
+          "default": "full",
           "title": "OpenSearch API access",
           "x-enumTitles": [
             "Scoped log search",
             "Full OpenSearch REST API"
           ],
-          "description": "Full API access enables arbitrary queries and approved server changes using this connection user's OpenSearch permissions. Log index patterns and scopeQuery restrict only logs_search and logs_tail; they do not restrict the REST tools. Existing connections default to scoped log search."
+          "description": "Full API access is the default and enables arbitrary queries and server operations using this connection user's OpenSearch permissions. Log index patterns and scopeQuery restrict only logs_search and logs_tail; they do not restrict REST tools. Select Scoped log search to disable the full REST tools."
         },
         "url": {
           "type": "string",
@@ -434,7 +434,7 @@
           "if": {
             "properties": {
               "apiAccess": {
-                "const": "full"
+                "const": "logs"
               }
             },
             "required": [
@@ -442,13 +442,6 @@
             ]
           },
           "then": {
-            "properties": {
-              "indices": {
-                "$ref": "#/$defs/openSearchLogIndices"
-              }
-            }
-          },
-          "else": {
             "required": [
               "indices"
             ],
@@ -459,6 +452,13 @@
                   "type": "string",
                   "pattern": "^[a-z0-9][a-z0-9._*-]{0,254}$"
                 }
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "indices": {
+                "$ref": "#/$defs/openSearchLogIndices"
               }
             }
           }

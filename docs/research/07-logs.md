@@ -4,7 +4,7 @@
 
 ## 1. Decision
 
-Implement one `logs` connector with four backend adapters and two shared log tools: `logs_search` and `logs_tail`. Share time parsing, limits, normalization, cursor handling, polling, masking metadata, and truncation. Both log tools classify only as READ or DENY; they have no write path. OpenSearch also exposes index discovery and explicitly enabled full REST tools, including administration in Approval mode by default; see [OpenSearch queries and administration](opensearch-api.md).
+Implement one `logs` connector with four backend adapters and two shared log tools: `logs_search` and `logs_tail`. Share time parsing, limits, normalization, cursor handling, polling, masking metadata, and truncation. Both log tools classify only as READ or DENY; they have no write path. OpenSearch also exposes index discovery and full REST tools by default. Administrative operations start in Approval mode; see [OpenSearch queries and administration](opensearch-api.md).
 
 Use JDK HTTP plus Jackson for Loki, GCP REST, and the scoped OpenSearch log adapter. Full OpenSearch REST tools use Apache HttpClient 5 with automatic retries, redirects, authentication negotiation, and cookies disabled. This preserves GET bodies and prevents a generic authorized GET operation from being replayed after a lost response. Google authentication supplies tokens without the full Cloud Logging gRPC stack. Use the synchronous AWS SDK for CloudWatch/STS and its SigV4 signer for Amazon OpenSearch, with a lightweight URLConnection transport. This avoids duplicate Jackson generations and reactive/network stacks for a small number of calls.
 
@@ -62,7 +62,7 @@ Configure the backend explicitly:
 - Loki: base URL, fixed tenant, bearer/basic/none auth, and optional CA.
 - GCP: fixed projects/log views, explicit ADC or service-account source, optional impersonation/delegates, always-applied filter, and quota share.
 - CloudWatch: region, allowed groups, explicit profile/key source, optional AssumeRole/ExternalId, and Insights/filter search mode.
-- OpenSearch: base URL, log index patterns, timestamp/message/severity/label fields, fixed scope query, explicit authentication, optional CA/SigV4 settings, and API access (`logs` by default; explicit `full` for REST queries and administration in Approval mode by default).
+- OpenSearch: base URL, log index patterns, timestamp/message/severity/label fields, fixed scope query, explicit authentication, optional CA/SigV4 settings, and API access (`full` by default, including when omitted; explicit `logs` restricts access to scoped log tools and discovery). Administrative operations default to Approval mode.
 
 Secrets are write-only core-managed values. Short-lived impersonation/AssumeRole credentials stay in memory and are refreshed; do not describe cached fifteen-minute tokens as “one token per call.” AWS SSO profiles need their supported SDK modules. Do not silently use credentials from an unselected ambient source.
 
