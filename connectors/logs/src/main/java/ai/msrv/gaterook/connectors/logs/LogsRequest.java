@@ -246,12 +246,10 @@ record LogsRequest(Tool tool, String query, String source, Instant from, Instant
           throw new Refusal("query_too_long", "Cloud Logging filters are at most " + MAX_GCP_FILTER
               + " characters, with the connection's scope filter and the time range.", null);
         }
-        // "--" starts a comment to the end of the line: it could hide what the gateway adds after the query (the
-        // time range). Refused wherever it stands, quoted or not: whether a quote opens a string is the backend's
-        // grammar, and the check doesn't guess it.
-        if (query.contains("--")) {
-          throw new Refusal("gcp_comment", "Cloud Logging reads -- as a comment to the end of the line; GateRook "
-              + "doesn't send comments in queries.", "Leave the comment out, or search for the words around --.");
+        try {
+          GcpLoggingFilter.expression(query);
+        } catch (IllegalArgumentException e) {
+          throw new Refusal("gcp_filter", e.getMessage(), "Close every quoted string and match the parentheses.");
         }
       }
       case Settings.Loki l -> {

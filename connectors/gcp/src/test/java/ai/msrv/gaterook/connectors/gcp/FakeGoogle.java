@@ -30,7 +30,7 @@ final class FakeGoogle implements AutoCloseable {
   static final String SA = "gw-reader@acme-stage.iam.gserviceaccount.com";
   static final List<String> KEYS = List.of("gcp.cloudasset", "gcp.monitoring", "gcp.cloudresourcemanager",
       "gcp.compute", "gcp.run", "gcp.sqladmin", "gcp.container", "gcp.pubsub", "gcp.storage", "gcp.cloudfunctions",
-      "gcp.redis");
+      "gcp.redis", "gcp.logging");
 
   final String token = "ya29.impersonated-cnry-" + Long.toHexString(System.nanoTime());
   final List<RecordedRequest> requests = new CopyOnWriteArrayList<>();

@@ -79,26 +79,27 @@ final class GcpLoggingBackend implements Backend {
 
   /**
    * {@code (scope) AND (query) AND timestamp>="…" AND timestamp<="…"}: what goes to Cloud Logging, one part per line.
-   * A comment ({@code --} to the end of the line) can't reach past its own part: not the time range the gateway
-   * adds, nor the query after the scope filter. The agent's query can't hold one at all ({@link LogsRequest}); a scope
-   * filter with a comment closes its parenthesis on the next line. {@code AND} binds weakest in this language (NOT,
-   * then OR, then AND), so no {@code OR} inside a part reaches past it.
+   * Comments are removed outside quoted values and expression boundaries are checked before grouping. Neither a
+   * comment nor an unmatched quote or parenthesis can consume a clause the gateway adds. {@code AND} binds weakest
+   * in this language (NOT, then OR, then AND), so no {@code OR} inside a part reaches past it.
    */
   static String filter(Settings.Gcp s, String query, long fromNs, long toNs) {
     List<String> parts = new ArrayList<>();
-    if (s.scopeFilter() != null) {
-      parts.add(group(s.scopeFilter()));
-    }
-    if (!query.isBlank()) {
-      parts.add(group(query));
-    }
+    String expression = filterExpression(s, query);
+    if (!expression.isBlank()) parts.add(expression);
     parts.add("timestamp>=\"" + instant(fromNs) + "\"");
     parts.add("timestamp<=\"" + instant(toNs) + "\"");
     return String.join("\nAND ", parts);
   }
 
-  private static String group(String part) {
-    return part.contains("--") ? "(" + part + "\n)" : "(" + part + ")";
+  /** The exact scope and query clauses, without time bounds supplied by a verified cursor at execution. */
+  static String filterExpression(Settings.Gcp s, String query) {
+    List<String> parts = new ArrayList<>();
+    String scope = s.scopeFilter() == null ? "" : GcpLoggingFilter.expression(s.scopeFilter());
+    String expression = GcpLoggingFilter.expression(query);
+    if (!scope.isBlank()) parts.add("(" + scope + ")");
+    if (!expression.isBlank()) parts.add("(" + expression + ")");
+    return String.join("\nAND ", parts);
   }
 
   private Page list(String query, String source, long fromNs, long toNs, int want, String continuation,
@@ -106,7 +107,8 @@ final class GcpLoggingBackend implements Backend {
     List<String> resources = source != null ? List.of(source) : s.resourceNames();
     String filter = filter(s, query, fromNs, toNs);
     List<LogEntry> entries = new ArrayList<>();
-    String token = continuation;
+    Paging paging = Paging.open(continuation, Math.min(MAX_PAGE_SIZE, Math.max(1, want)));
+    String token = paging.token();
     int requests = 0;
     String partial = null;
     while (requests < MAX_PAGES) {
@@ -124,7 +126,8 @@ final class GcpLoggingBackend implements Backend {
       resources.forEach(names::add);
       body.put("filter", filter);
       body.put("orderBy", orderBy);
-      body.put("pageSize", Math.min(MAX_PAGE_SIZE, Math.max(1, want - entries.size())));
+      // Google requires the same request parameters when pageToken is present, even after a short page.
+      body.put("pageSize", paging.pageSize());
       if (token != null) {
         body.put("pageToken", token);
       }
@@ -145,8 +148,31 @@ final class GcpLoggingBackend implements Backend {
         break;
       }
     }
-    Page p = Page.of(entries, token != null || entries.size() >= want, token, Page.Stats.requests(requests));
+    Page p = Page.of(entries, token != null || entries.size() >= want, paging.seal(token), Page.Stats.requests(requests));
     return partial == null ? p : p.withPartial(partial);
+  }
+
+  /** Stored inside the gateway's signed cursor, keeping pageSize stable if the next tool call changes limit. */
+  private record Paging(String token, int pageSize) {
+    private static final String PREFIX = "gcp1:";
+
+    static Paging open(String continuation, int pageSize) throws ConnectorException {
+      if (continuation == null || !continuation.startsWith(PREFIX)) return new Paging(continuation, pageSize);
+      int separator = continuation.indexOf(':', PREFIX.length());
+      try {
+        if (separator < 0) throw new IllegalArgumentException();
+        int savedSize = Integer.parseInt(continuation.substring(PREFIX.length(), separator));
+        String token = continuation.substring(separator + 1);
+        if (savedSize < 1 || savedSize > MAX_PAGE_SIZE || token.isBlank()) throw new IllegalArgumentException();
+        return new Paging(token, savedSize);
+      } catch (IllegalArgumentException e) {
+        throw ConnectorException.badInput("The Cloud Logging cursor is invalid. Search again without cursor.");
+      }
+    }
+
+    String seal(String nextToken) {
+      return nextToken == null ? null : PREFIX + pageSize + ":" + nextToken;
+    }
   }
 
   private LogEntry entry(JsonNode e) {
@@ -184,8 +210,12 @@ final class GcpLoggingBackend implements Backend {
     }
     String insertId = e.path("insertId").asString(null);
     String id = insertId != null ? insertId : LogEntry.hashId(Long.toString(ns), logName, message);
-    return LogEntry.of(ns, Severity.of(e.path("severity").asString(null)), message, labels, fields, id,
+    LogEntry entry = LogEntry.of(ns, Severity.of(e.path("severity").asString(null)), message, labels, fields, id,
         call.maxChars());
+    // insertId is unique only within a project at a timestamp. Different projects can reuse it in the same page.
+    int logs = logName.indexOf("/logs/");
+    String namespace = logs < 0 ? logName : logName.substring(0, logs);
+    return namespace.isEmpty() ? entry : entry.withCursorNamespace(namespace);
   }
 
   static long nanos(String timestamp, String fallback) {

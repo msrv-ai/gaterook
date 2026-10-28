@@ -780,6 +780,43 @@ Caused by: java.net.SocketTimeoutException: Connect timed out
         </div>
       </section>
   </section>
+  <section class="gw-section" aria-labelledby="s-google-sign-in">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-google-sign-in">Google sign-in after a failed test</h2>
+      <p class="gw-section__description">GCP connections using this computer's Google credentials can sign in from the failed test. The desktop runs Google Cloud CLI and tests the same connection again after successful sign-in.</p>
+    </header>
+    <section class="gw-card gw-card--muted gw-connection-form__test" aria-labelledby="gcp-test-t">
+      <header class="gw-card__header">
+        <div class="gw-card__heading">
+          <h3 class="gw-card__title" id="gcp-test-t">Test result</h3>
+          <p class="gw-card__description">this machine <span class="gw-env gw-env--sm gw-env--dev">dev</span></p>
+        </div>
+        <div class="gw-card__actions"><button class="gw-btn" type="button"><i class="gw-icon" data-lucide="refresh-cw"></i>Test again</button></div>
+      </header>
+      <div class="gw-card__body gw-connection-form__result" role="status">
+        <div class="gw-alert gw-alert--danger">
+          <i class="gw-icon gw-alert__icon" data-lucide="circle-alert"></i>
+          <div class="gw-alert__content">
+            <p class="gw-alert__title">The test failed</p>
+            <p class="gw-alert__body">The Google sign-in on this computer has expired.</p>
+            <p class="gw-alert__body" id="gcp-sign-in-help">Sign in through Google Cloud CLI to update this computer's Google credentials. Other local applications using the same sign-in will also use the selected account.</p>
+            <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" aria-describedby="gcp-sign-in-help gcp-sign-in-status">Sign in with Google</button></div>
+            <p class="gw-alert__body" id="gcp-sign-in-status">Runs <code class="gw-code">gcloud auth application-default login</code> and tests the connection again after sign-in.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="gw-card gw-card--muted gw-connection-form__test" aria-labelledby="gcp-pending-t">
+      <header class="gw-card__header">
+        <div class="gw-card__heading"><h3 class="gw-card__title" id="gcp-pending-t">Waiting for Google sign-in</h3></div>
+        <div class="gw-card__actions"><button class="gw-btn" type="button" aria-busy="true" aria-disabled="true" aria-describedby="gcp-pending-status"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>Test again</button></div>
+      </header>
+      <div class="gw-card__body gw-connection-form__result" role="status">
+        <p class="gw-text-small" id="gcp-pending-status">Complete Google sign-in in your browser. The connection will be tested again when you finish.</p>
+        <div><button class="gw-btn gw-btn--sm" type="button" aria-busy="true" aria-disabled="true" aria-describedby="gcp-pending-status"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>Sign in with Google</button></div>
+      </div>
+    </section>
+  </section>
   <section class="gw-section" aria-labelledby="s-invalid">
     <header class="gw-section__header">
       <h2 class="gw-section__title" id="s-invalid">Validation after submit</h2>

@@ -36,7 +36,7 @@ import { GwToggle } from '../../kit/disclosure';
 import { ConnectionFormValue, DatabaseDiscoveryRequest, GwConnectionForm, ProdDefault, signInTarget } from '../../kit/elements/connection-form/connection-form';
 import { FileBrowseRequest, FileBrowseTrust } from '../../kit/elements/connection-form/remote-files';
 import { databaseSelection, removeConfigPath } from '../../kit/elements/connection-form/database-selection';
-import { GwConnectionTest, TestState, testConfirmTitle, testFacts } from '../../kit/elements/connection-form/connection-test';
+import { GwConnectionTest, TestState, testConfirmTitle, testFacts, usesGoogleAdc } from '../../kit/elements/connection-form/connection-test';
 import { GwConnectorPicker } from '../../kit/elements/connector-card/connector-card';
 import { clientName } from '../../kit/elements/shared/client-mark';
 import { connectorIcon } from '../../kit/elements/shared/connector-icons';
@@ -245,6 +245,8 @@ export class ConnectionNewPage {
   private testRun = 0;
   /** The values Configure continued with (the test and Save send them). */
   private readonly draft = signal<ConnectionFormValue | null>(null);
+  protected readonly googleSignIn = computed(() => usesGoogleAdc(this.spec()?.type, this.draft()?.config ?? null));
+  protected readonly googleSignInContext = computed(() => this.step() === 3 ? this.draft() : null);
   protected readonly target = computed(() => testTarget(this.draft()?.config ?? this.startConfig()));
   protected readonly elementTarget = computed(() => {
     const t = this.target();

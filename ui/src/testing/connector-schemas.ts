@@ -2070,9 +2070,16 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "maxItems": 20,
         "uniqueItems": true,
         "title": "Projects, folders or organizations",
+        "description": "Include the resource prefix: projects/<project-id-or-number>, folders/<folder-number> or organizations/<organization-number>.",
         "items": {
           "type": "string",
-          "pattern": "^(projects/([a-z][a-z0-9-]{4,28}[a-z0-9]|\\d{1,19})|folders/\\d{1,19}|organizations/\\d{1,19})$"
+          "title": "Resource scope",
+          "pattern": "^(projects/([a-z][a-z0-9-]{4,28}[a-z0-9]|\\d{1,19})|folders/\\d{1,19}|organizations/\\d{1,19})$",
+          "examples": [
+            "projects/acme-stage",
+            "folders/123456",
+            "organizations/456789"
+          ]
         },
         "examples": [
           [
@@ -2082,12 +2089,17 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
       },
       "metricsProjects": {
         "type": "array",
+        "title": "Metrics projects",
         "maxItems": 20,
         "items": {
           "type": "string",
-          "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$"
+          "title": "Project ID",
+          "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$",
+          "examples": [
+            "acme-stage"
+          ]
         },
-        "description": "Default: the projects in scopes"
+        "description": "Project IDs without the projects/ prefix. Leave empty to use the projects listed above."
       },
       "credentials": {
         "type": "object",
@@ -2098,13 +2110,15 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "additionalProperties": false,
         "properties": {
           "source": {
+            "title": "Authentication",
+            "description": "Uses Application Default Credentials (ADC) on this computer. If sign-in is missing or expired, test the connection and choose Sign in with Google, or run gcloud auth application-default login in a terminal.",
             "enum": [
               "adc",
               "serviceAccountKey"
             ],
             "default": "adc",
             "x-enumTitles": [
-              "Google sign-in on this computer (gcloud auth application-default login)",
+              "Existing Google sign-in (ADC)",
               "Service account key (JSON)"
             ]
           },
@@ -7652,7 +7666,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/metricsProjects",
         "kind": "tags",
-        "title": "metricsProjects",
+        "title": "Metrics projects",
         "required": false,
         "secret": null,
         "mono": true,
@@ -7700,7 +7714,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       {
         "pointer": "/credentials/source",
         "kind": "select",
-        "title": "source",
+        "title": "Authentication",
         "required": true,
         "secret": null,
         "mono": false,

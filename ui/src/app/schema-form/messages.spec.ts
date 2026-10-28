@@ -36,3 +36,35 @@ describe('schema-form validation for metadata choices', () => {
     expect(valueProblem(auth, 'unrecognized')).toBe('Choose one of the listed options.');
   });
 });
+
+describe('schema-form validation for resource scopes', () => {
+  it('explains how to correct a bare GCP project ID and accepts each supported resource format', () => {
+    const scopes = compileSchema(CONNECTOR_FORMS['gcp']).all.find((node) => node.pointer === '/scopes')!;
+    expect(valueProblem(scopes, ['acme-stage'])).toBe(
+      'acme-stage is not a valid resource scope. Use a value such as projects/acme-stage.',
+    );
+    expect(valueProblem(scopes, ['projects/acme-stage', 'projects/123456789012', 'folders/123456789012', 'organizations/123456789012'])).toBeNull();
+  });
+
+  it('uses only a string example that matches the item pattern', () => {
+    const schema: JsonObject = {
+      type: 'object', properties: {
+        scopes: { type: 'array', items: { type: 'string', title: 'resource scope', pattern: '^projects/[a-z-]+$',
+          examples: [123, 'acme-stage', 'projects/acme-stage'] } },
+      },
+    };
+    const scopes = compileSchema(schema).all[0];
+    expect(valueProblem(scopes, ['acme-stage'])).toBe(
+      'acme-stage is not a valid resource scope. Use a value such as projects/acme-stage.',
+    );
+  });
+
+  it('keeps validation working for schemas without item examples', () => {
+    const schema: JsonObject = {
+      type: 'object', properties: {
+        scopes: { type: 'array', items: { type: 'string', title: 'resource scope', pattern: '^projects/[a-z-]+$' } },
+      },
+    };
+    expect(valueProblem(compileSchema(schema).all[0], ['acme-stage'])).toBe('acme-stage is not a valid resource scope.');
+  });
+});

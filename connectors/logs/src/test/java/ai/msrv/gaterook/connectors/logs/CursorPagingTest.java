@@ -1,6 +1,7 @@
 package ai.msrv.gaterook.connectors.logs;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.Limits;
@@ -236,6 +237,28 @@ class CursorPagingTest {
     org.assertj.core.api.Assertions.assertThatThrownBy(() -> connector.execute(Configs.call("logs_tail",
         "{\"query\":\"{app=\\\"api\\\"}\",\"cursor\":\"" + cursor + "\",\"wait\":0}"), cfg, secrets,
         TestCtx.of())).as("a search cursor isn't a tail cursor").hasMessageContaining("invalid or has expired");
+  }
+
+  @Test
+  void aSearchCursorCannotKeepItsWiderRangeAfterTheCurrentLimitIsReduced() throws Exception {
+    FakeLoki loki = new FakeLoki(9, () -> Long.MAX_VALUE);
+    server.setDispatcher(loki);
+    server.start();
+    Instant base = Instant.parse("2026-10-22T12:00:00Z");
+    for (int i = 0; i < 3; i++) loki.add("api", nanos(base.plusSeconds(i)), "line-" + i);
+    LogsConnector connector = new LogsConnector(cloud, Clock.systemUTC());
+    ConnectionConfig cfg = Configs.loki(server.url("/").toString());
+    TestSecrets secrets = new TestSecrets().with("/auth/secret", "t");
+    TestCtx ctx = TestCtx.of();
+    String cursor = connector.execute(Configs.call("logs_search", """
+        {"query":"{app=\\"api\\"}","from":"2026-10-20T12:00:00Z","to":"2026-10-22T12:30:00Z","limit":1}
+        """), cfg, secrets, ctx).structuredContent().path("nextCursor").asString();
+    int sent = loki.requests.size();
+    assertThatThrownBy(() -> connector.execute(Configs.call("logs_search",
+        "{\"query\":\"{app=\\\"api\\\"}\",\"cursor\":\"" + cursor + "\"}"),
+        cfg, secrets, ctx.with(TestCtx.prod())))
+        .hasMessageContaining("cursor's time range").hasMessageContaining("current connection or policy limit");
+    assertThat(loki.requests).hasSize(sent);
   }
 
   @Test

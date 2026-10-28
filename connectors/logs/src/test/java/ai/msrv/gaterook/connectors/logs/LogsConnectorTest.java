@@ -103,14 +103,15 @@ class LogsConnectorTest {
   }
 
   @Test
-  void descriptionsNameEachConnectionsLanguage() {
+  void sharedDescriptionsRemainIdenticalAcrossEndpoints() {
     EndpointView view = new EndpointView("dev", Env.DEV, List.of(Configs.loki("http://loki.dev.internal:3100"),
         Configs.gcp()), Map.of(), List.of());
 
     List<ToolDefinition> tools = connector.tools(view);
 
-    assertThat(tools.get(0).description()).contains("app-logs: LogQL (Loki), e.g. {app=\"api\"} |= \"ERROR\"")
-        .contains("prod-logs: Logging query language (GCP Cloud Logging), e.g. severity>=ERROR");
+    assertThat(tools).isEqualTo(connector.manifest().tools());
+    assertThat(tools.get(0).description()).contains("describe_connection", "Logs Explorer", "LogQL", "Logs Insights",
+        "Lucene");
     assertThat(tools.get(0).inputSchema()).isEqualTo(connector.manifest().tools().get(0).inputSchema());
     assertThat(connector.tools(new EndpointView("e", Env.DEV, List.of(), Map.of(), List.of())))
         .isEqualTo(connector.manifest().tools());
@@ -147,8 +148,8 @@ class LogsConnectorTest {
       gcp        ; {"query":"severity>=ERROR","source":"projects/other"}                    ; prod.logs.source_not_allowed
       gcp        ; {"query":"severity>=ERROR","from":"-2d"}                                  ; prod.logs.range
       gcp        ; {"query":"severity>=ERROR","from":"-23h"}                                 ; READ
-      gcp        ; {"query":"severity>=ERROR) AND timestamp>=\\"2015-01-01T00:00:00Z\\" --"} ; prod.logs.gcp_comment
-      gcp        ; {"query":"textPayload:\\"--dry-run\\""}                                   ; prod.logs.gcp_comment
+      gcp        ; {"query":"severity>=ERROR) AND timestamp>=\\"2015-01-01T00:00:00Z\\" --"} ; prod.logs.gcp_filter
+      gcp        ; {"query":"textPayload:\\"--dry-run\\""}                                   ; READ
       """)
   void classifiesTheSearchTableOfReport07(String backend, String arguments, String expected) {
     ConnectionConfig cfg = config(backend);
@@ -266,6 +267,31 @@ class LogsConnectorTest {
     assertThat(CloudWatchBackend.insightsQuery("fields @message | sort @timestamp asc"))
         .isEqualTo("fields @message | sort @timestamp asc");
     assertThat(CloudWatchBackend.insightsQuery("stats count(*) by bin(5m)")).isEqualTo("stats count(*) by bin(5m)");
+  }
+
+  @ParameterizedTest
+  @CsvSource({"logs_search, Range, range and position", "logs_tail, Since, since"})
+  void cursorApprovalShowsItsVerifiedTimeSourceInsteadOfCurrentArgumentOrDefaultTimes(String tool,
+      String field, String timeLabel) {
+    String times = tool.equals("logs_tail") ? ",\"since\":\"-2h\",\"wait\":3" : "";
+    ActionPreview preview = connector.describeAction(Configs.call(tool,
+        "{\"query\":\"severity>=ERROR\",\"cursor\":\"previous-page\",\"limit\":23" + times + "}"), Configs.gcp());
+
+    assertThat(preview.text()).contains("""
+        resources: projects/acme-prod
+        filter: (resource.type="k8s_container")
+        AND (severity>=ERROR)
+        """, timeLabel + ": from the previous cursor; verified and checked against current limits before execution",
+        "limit 23").doesNotContain("timestamp>=", "timestamp<=", "2026-10-22T");
+    assertThat(preview.fields()).contains(new ActionPreview.Field(field,
+        "from the previous cursor; verified and checked against current limits before execution"));
+    assertThat(preview.fields()).extracting(ActionPreview.Field::value)
+        .noneMatch(value -> value.contains("2026-10-22T"));
+    assertThat(preview.payload().path("arguments").path("cursor").asString()).isEqualTo("previous-page");
+    assertThat(preview.payload().path("arguments").path("query").asString()).isEqualTo("severity>=ERROR");
+    if (tool.equals("logs_tail")) {
+      assertThat(preview.text()).contains("waits up to 3 s");
+    }
   }
 
   private static ConnectionConfig config(String backend) {

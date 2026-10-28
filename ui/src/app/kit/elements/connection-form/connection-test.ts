@@ -1,8 +1,9 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, booleanAttribute, computed, inject, input, linkedSignal, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, booleanAttribute, computed, inject, input, linkedSignal, output, signal } from '@angular/core';
 import { GwCodeBlock } from '../../../code/code-block';
 import { TestHint, TestOutcome } from '../../../core/api/connections.api';
-import { JsonValue } from '../../../core/api/types';
+import { JsonObject, JsonValue } from '../../../core/api/types';
+import { DesktopBridge, desktopErrorText } from '../../../core/desktop/desktop-bridge';
 import { TimeService } from '../../../core/time/time.service';
 import { GwToggle } from '../../disclosure';
 import { GwIcon } from '../../icons';
@@ -16,6 +17,13 @@ export interface TestTarget {
 }
 
 export type TestState = 'idle' | 'testing' | 'done';
+
+/** Only local Google ADC connections can use the desktop sign-in command. */
+export function usesGoogleAdc(type: string | undefined, config: JsonObject | null): boolean {
+  if (type !== 'gcp' && !(type === 'logs' && config?.['backend'] === 'gcp-logging')) return false;
+  const credentials = config?.['credentials'];
+  return !!credentials && typeof credentials === 'object' && !Array.isArray(credentials) && credentials['source'] === 'adc';
+}
 
 const ERROR_TITLES: Record<string, (address: string | null) => string> = {
   unreachable: (a) => (a ? `Can't reach ${a}` : "Can't reach the server"),
@@ -142,8 +150,8 @@ function severity(h: TestHint): string {
         <p class="gw-card__description"><ng-content select="[gwTestDescription]">Connects from this machine with the values above. Nothing is saved.</ng-content></p>
       </div>
       <div class="gw-card__actions">
-        @if (state() === 'testing') {
-          <button class="gw-btn" type="button" aria-busy="true" aria-disabled="true" [attr.aria-describedby]="p + '-test-status'">
+        @if (state() === 'testing' || googleSigningIn()) {
+          <button class="gw-btn" type="button" aria-busy="true" aria-disabled="true" [attr.aria-describedby]="p + (googleSigningIn() ? '-google-status' : '-test-status')">
             <span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>{{ o ? 'Test again' : 'Test connection' }}
           </button>
         } @else if (state() === 'done') {
@@ -245,6 +253,29 @@ function severity(h: TestHint): string {
               <div class="gw-alert__content">
                 <p class="gw-alert__title"><ng-container *ngTemplateOutlet="parts; context: { $implicit: failureParts() }" /></p>
                 <p class="gw-alert__body">{{ o.error?.message ?? 'The test failed.' }}</p>
+                @if (googleSignIn()) {
+                  <p class="gw-alert__body" [id]="p + '-google-help'">Sign in through Google Cloud CLI to update this computer's Google credentials. Other local applications using the same sign-in will also use the selected account.</p>
+                  <div class="gw-alert__actions">
+                    <button class="gw-btn gw-btn--sm" type="button"
+                      [attr.aria-disabled]="googleSigningIn() || !desktop.googleSignInAvailable ? 'true' : null"
+                      [attr.aria-busy]="googleSigningIn() ? 'true' : null"
+                      [attr.aria-describedby]="p + '-google-help ' + p + '-google-status'"
+                      (click)="signInToGoogle()">
+                      @if (googleSigningIn()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}
+                      Sign in with Google
+                    </button>
+                  </div>
+                  <p class="gw-alert__body" [id]="p + '-google-status'">
+                    @if (googleSigningIn()) {
+                      Complete Google sign-in in your browser. The connection will be tested again when you finish.
+                    } @else if (!desktop.googleSignInAvailable) {
+                      Available in the desktop app. Run <code class="gw-code">gcloud auth application-default login</code> in a terminal, then test again.
+                    } @else {
+                      Runs <code class="gw-code">gcloud auth application-default login</code> and tests the connection again after sign-in.
+                    }
+                  </p>
+                  @if (googleSignInError(); as error) {<p class="gw-alert__body" role="alert">{{ error }}</p>}
+                }
                 @if (failureFacts().length) {
                   <dl class="gw-kv gw-kv--dense">
                     @for (f of failureFacts(); track f.key) {
@@ -294,6 +325,8 @@ function severity(h: TestHint): string {
 })
 export class GwConnectionTest {
   private readonly time = inject(TimeService);
+  protected readonly desktop = inject(DesktopBridge);
+  private readonly destroyRef = inject(DestroyRef);
   readonly idPrefix = input('cf');
   readonly state = input<TestState>('idle');
   readonly outcome = input<TestOutcome | null>(null);
@@ -310,6 +343,9 @@ export class GwConnectionTest {
   readonly changeUserButton = input(false, { transform: booleanAttribute });
   /** Trust is on its way (the page confirmed and tests again). */
   readonly trusting = input(false, { transform: booleanAttribute });
+  readonly googleSignIn = input(false, { transform: booleanAttribute });
+  /** Changes when the connection draft changes, so a late sign-in never tests a different configuration. */
+  readonly googleSignInContext = input<unknown>(null);
   readonly run = output<void>();
   readonly changeUser = output<void>();
   /** The person trusts what the test stopped for (`needsConfirmation`): the page sends `confirmationId`. */
@@ -319,6 +355,33 @@ export class GwConnectionTest {
   protected readonly permissionParts = permissionParts;
   protected readonly hintParts = hintParts;
   protected readonly severity = severity;
+  protected readonly googleSigningIn = signal(false);
+  protected readonly googleSignInError = linkedSignal<string | null>(() => {
+    this.outcome();
+    this.googleSignInContext();
+    return null;
+  });
+
+  protected async signInToGoogle(): Promise<void> {
+    const outcome = this.outcome();
+    if (this.googleSigningIn() || !this.googleSignIn() || !this.desktop.googleSignInAvailable
+        || this.state() !== 'done' || !outcome || outcome.ok || outcome.needsConfirmation) return;
+    const context = this.googleSignInContext();
+    const current = () => !this.destroyRef.destroyed && this.googleSignIn() && this.outcome() === outcome
+      && this.googleSignInContext() === context && this.state() === 'done';
+    this.googleSignInError.set(null);
+    this.googleSigningIn.set(true);
+    let signedIn = false;
+    try {
+      await this.desktop.signInToGoogle();
+      signedIn = true;
+    } catch (error) {
+      if (current()) this.googleSignInError.set(desktopErrorText(error, 'Google sign-in did not finish. Try again or run gcloud auth application-default login in a terminal.'));
+    } finally {
+      if (!this.destroyRef.destroyed) this.googleSigningIn.set(false);
+    }
+    if (signedIn && current()) this.run.emit();
+  }
 
   protected readonly timeout = computed(() => {
     const ms = this.target().timeoutMs;

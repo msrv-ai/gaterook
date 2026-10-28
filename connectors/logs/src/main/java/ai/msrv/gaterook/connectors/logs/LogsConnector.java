@@ -65,7 +65,7 @@ public final class LogsConnector implements Connector {
     this(cloud, Clock.systemUTC());
   }
 
-  LogsConnector(CloudCredentials cloud, Clock clock) {
+  public LogsConnector(CloudCredentials cloud, Clock clock) {
     this.cloud = Objects.requireNonNull(cloud, "cloud");
     this.clock = Objects.requireNonNull(clock, "clock");
     SchemaResources schemas = SchemaResources.of(LogsConnector.class, "logs");
