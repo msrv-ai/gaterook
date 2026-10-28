@@ -182,6 +182,8 @@ class EntityRoundTripTest {
   @Test
   void theWholeModelRoundTripsAndDeletesCascadeAsDesigned() {
     Instant now = clock.instant().truncatedTo(ChronoUnit.MILLIS);
+    List<String> existingEndpointToolIds = readOnly(() -> endpointTools.findAll().stream()
+        .map(EndpointToolEntity::getId).toList());
 
     // Settings, policies, secrets ────────────────────────────────────────────────────────────────────────────
     tx(() -> policies.save(new PolicyEntity(Env.PROD, Env.STAGE, Map.of("sql", Map.of("maxRows", 100),
@@ -378,8 +380,10 @@ class EntityRoundTripTest {
     assertThat(jdbc.queryForObject("select env || '/' || status || '/' || comment_policy from approval",
         String.class)).isEqualTo("dev/pending/optional");
     assertThat(jdbc.queryForObject("select what from setup_change", String.class)).isEqualTo("risk-warning");
-    assertThat(jdbc.queryForObject("select access from endpoint", String.class)).isEqualTo("standard");
-    assertThat(jdbc.queryForObject("select typeof(enabled) || ':' || enabled from endpoint", String.class))
+    assertThat(jdbc.queryForObject("select access from endpoint where id = ?", String.class, dev.getId()))
+        .isEqualTo("standard");
+    assertThat(jdbc.queryForObject("select typeof(enabled) || ':' || enabled from endpoint where id = ?",
+        String.class, dev.getId()))
         .isEqualTo("integer:1");
 
     // The approval CAS: exactly one winner, versions bump, expiry respected ─────────────────────────────────
@@ -428,7 +432,12 @@ class EntityRoundTripTest {
       endpoints.delete(endpoints.findBySlug("dev").orElseThrow());
       return null;
     });
-    for (String table : List.of("endpoint_tool", "client_grant", "api_token", "client_link", "oauth_grant",
+    assertThat(jdbc.queryForList("select id from endpoint_tool where endpoint_id = ?", String.class, dev.getId()))
+        .isEmpty();
+    assertThat(readOnly(() -> endpointTools.findAll().stream().map(EndpointToolEntity::getId).toList()))
+        .as("the startup endpoint's tools are preserved")
+        .containsExactlyInAnyOrderElementsOf(existingEndpointToolIds);
+    for (String table : List.of("client_grant", "api_token", "client_link", "oauth_grant",
         "oauth_token")) {
       assertThat(jdbc.queryForObject("select count(*) from " + table, Integer.class)).as(table).isZero();
     }
