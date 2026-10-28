@@ -94,6 +94,39 @@ class MongoConnectionIT {
   }
 
   @Test
+  void hostAndPortDiscoverAndReadWithCredentialsAndBothTlsChoices() throws Exception {
+    for (LocalMongod server : List.of(auth, tls)) {
+      boolean useTls = server == tls;
+      ObjectNode config = Fixtures.json("""
+          {"connection":{"mode":"host","host":"127.0.0.1"},
+           "credentials":{"user":"gw_ro","authSource":"admin","mechanism":"SCRAM-SHA-256"}}
+          """);
+      ObjectNode connection = (ObjectNode) config.path("connection");
+      connection.put("port", server.port).put("tls", useTls);
+      if (useTls) {
+        connection.put("caCertificate", server.caCertificate());
+      }
+      ConnectionConfig discoveryConfig = Fixtures.config("host-" + server.port, Env.DEV, config.toString(), 1);
+      Fixtures.Secrets secrets = Fixtures.Secrets.password(LocalMongod.password("gw_ro"));
+      TestResult discovery = connector.discoverDatabases(discoveryConfig, secrets, Fixtures.Context.of(Env.DEV));
+
+      assertThat(discovery.ok()).as(String.valueOf(discovery.error())).isTrue();
+      assertThat(discovery.details().path("databases").toString()).isEqualTo("[\"orders\"]");
+      connection.putArray("databases").add("orders");
+      ConnectionConfig selected = Fixtures.config("host-" + server.port, Env.DEV, config.toString(), 2);
+      TestResult tested = connector.test(selected, secrets, Fixtures.Context.of(Env.DEV));
+      ToolResult found = connector.execute(Fixtures.call("mongo_find", "{\"collection\":\"orders\",\"limit\":1}"),
+          selected, secrets, Fixtures.Context.of(Env.DEV));
+
+      assertThat(tested.ok()).as(String.valueOf(tested.error())).isTrue();
+      assertThat(tested.identity()).isEqualTo("gw_ro@admin");
+      assertThat(tested.details().at("/tls/enabled").asBoolean()).isEqualTo(useTls);
+      assertThat(found.structuredContent().path("returned").asInt()).isEqualTo(1);
+      assertThat(secrets.handedOut).containsOnly(MongoSettings.PASSWORD);
+    }
+  }
+
+  @Test
   void aUserThatCanWriteGetsTheKitsHintAndASnippet() {
     TestResult dev = test(cfg(auth, Env.DEV, "gw_rw", null, null), "gw_rw");
     TestResult prod = test(cfg(auth, Env.PROD, "gw_rw", "\"tls\":false", null), "gw_rw");

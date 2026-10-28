@@ -30,10 +30,12 @@ const cases: readonly ConnectionCase[] = [
     config: { connection: { host: 'db.example.test', databases: ['orders'] }, credentials: { user: 'reader' } },
   })),
   { name: 'MongoDB: selected database without authentication', type: 'mongodb',
-    config: { connection: { uri: 'mongodb://mongo.example.test:27017', databases: ['orders'] } } },
+    config: { connection: { host: 'mongo.example.test', databases: ['orders'] } } },
   { name: 'MongoDB: selected database and password', type: 'mongodb',
-    config: { connection: { uri: 'mongodb://mongo.example.test:27017', databases: ['orders'] }, credentials: { user: 'reader' } },
+    config: { connection: { host: 'mongo.example.test', port: 27018, tls: true, databases: ['orders'] }, credentials: { user: 'reader' } },
     secrets: { '/credentials/password': password } },
+  { name: 'MongoDB: connection string mode with selected database', type: 'mongodb',
+    config: { connection: { mode: 'uri', uri: 'mongodb://mongo.example.test:27017', databases: ['orders'] } } },
   { name: 'Redis: host only, default database and no authentication', type: 'redis',
     config: { connection: { host: 'redis.example.test' } } },
   { name: 'Redis: password without an ACL username', type: 'redis',
@@ -316,6 +318,8 @@ describe('schema-form: minimal active connector configurations', () => {
   }
 
   const missingRequired: readonly (ConnectionCase & { readonly pointer: string })[] = [
+    { name: 'MongoDB host', type: 'mongodb', config: {}, pointer: '/connection/host' },
+    { name: 'MongoDB connection string', type: 'mongodb', config: { connection: { mode: 'uri' } }, pointer: '/connection/uri' },
     { name: 'Redis host', type: 'redis', config: {}, pointer: '/connection/host' },
     { name: 'PostgreSQL username', type: 'postgres',
       config: { connection: { host: 'db.example.test', databases: ['orders'] } }, pointer: '/credentials/user' },
