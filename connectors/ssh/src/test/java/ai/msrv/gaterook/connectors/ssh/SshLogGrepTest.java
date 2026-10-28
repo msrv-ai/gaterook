@@ -19,6 +19,8 @@ class SshLogGrepTest {
     assertThat(found.start()).isEqualTo(empty.start());
     assertThat(found.end()).isEqualTo(empty.end());
     assertThat(found.lastCompleteEnd()).isEqualTo(empty.lastCompleteEnd());
+    assertThat(found.firstCompleteStart()).isEqualTo(empty.firstCompleteStart());
+    assertThat(found.overflow()).isFalse();
   }
 
   @Test
@@ -53,6 +55,6 @@ class SshLogGrepTest {
       long size) {
     var snapshot = new SshLogCommands.Snapshot("1:2", size, "123");
     return new SshLogCommands.Result(data.getBytes(StandardCharsets.UTF_8), snapshot, snapshot, start, end,
-        boundary, complete == end, complete);
+        boundary, complete == end, complete, start);
   }
 }

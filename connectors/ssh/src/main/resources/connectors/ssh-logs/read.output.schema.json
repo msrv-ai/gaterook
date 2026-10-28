@@ -21,7 +21,8 @@
     "skippedLines",
     "unparsedLines",
     "anchor",
-    "maxLines"
+    "maxLines",
+    "diagnosticCountsComplete"
   ],
   "properties": {
     "offset": {
@@ -49,7 +50,7 @@
     },
     "partialLine": {
       "type": "boolean",
-      "description": "False: only complete physical lines are returned. Oversized lines are counted in skippedLines."
+      "description": "False: only complete physical lines up to 256 KiB can be returned. See diagnosticCountsComplete and skippedLines for accounting coverage."
     },
     "lines": {
       "type": "array",
@@ -121,7 +122,7 @@
     },
     "scanComplete": {
       "type": "boolean",
-      "description": "Whether this query reached the end of its selected scan direction. False means remaining files or bytes must be examined using nextCursor, even if lines is empty. Check warnings and skippedLines before interpreting an empty result."
+      "description": "Whether this query reached the end of its selected scan direction. False means remaining files or bytes must be examined using nextCursor, even if lines is empty. Check warnings and diagnosticCountsComplete before interpreting an empty result."
     },
     "truncationReason": {
       "type": [
@@ -143,14 +144,20 @@
       }
     },
     "skippedLines": {
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "minimum": 0,
-      "description": "Physical lines skipped because they exceed the bounded line size; the response warns that results are incomplete."
+      "description": "Physical lines skipped because they exceed 256 KiB, or null when server-side filtering prevents a complete count."
     },
     "unparsedLines": {
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "minimum": 0,
-      "description": "Lines excluded because the active time filter could not obtain a usable event timestamp. Zero when no time filter is active."
+      "description": "Lines excluded by the time filter because their timestamp cannot be parsed, or null when server-side filtering prevents a complete count. Zero without a time filter when diagnosticCountsComplete is true."
     },
     "anchor": {
       "type": "string",
@@ -160,6 +167,10 @@
       "type": "integer",
       "minimum": 1,
       "description": "Effective page line limit after applying the environment policy."
+    },
+    "diagnosticCountsComplete": {
+      "type": "boolean",
+      "description": "False when server-side filtering omits records from diagnostic accounting; skippedLines and unparsedLines are then null, never evidence of zero excluded records."
     }
   }
 }

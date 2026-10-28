@@ -73,6 +73,7 @@ class SshLogCommandsTest {
     assertThat(partial.startsAtLineBoundary()).isFalse();
     assertThat(partial.endsAtLineBoundary()).isFalse();
     assertThat(partial.lastCompleteEnd()).isEqualTo(6);
+    assertThat(partial.firstCompleteStart()).isEqualTo(6);
 
     var tail = run(SshLogCommands.command(settings, "app.log", SshLogCommands.Kind.TAIL, 5, 0, 8));
     assertThat(tail.data()).hasSize(8);
@@ -98,6 +99,50 @@ class SshLogCommandsTest {
     assertThat(match.offset()).isEqualTo(none.offset()).isZero();
     assertThat(match.endOffset()).isEqualTo(none.endOffset()).isEqualTo(22);
     assertThat(match.lastCompleteEnd()).isEqualTo(none.lastCompleteEnd()).isEqualTo(21);
+    assertThat(match.firstCompleteStart()).isEqualTo(none.firstCompleteStart()).isZero();
+    var reverse = run(SshLogCommands.command(settings, "app.log", SshLogCommands.Kind.GREP, 2, 23, 1024, "ERROR"));
+    assertThat(reverse.firstCompleteStart()).isEqualTo(6);
+    assertThat(SshLogGrep.decode(reverse).lines().getFirst().offset()).isEqualTo(6);
+    var fragment = run(SshLogCommands.command(settings, "app.log", SshLogCommands.Kind.GREP, 2, 2, 1024, "r"));
+    assertThat(fragment.firstCompleteStart()).isEqualTo(4);
+    assertThat(fragment.lastCompleteEnd()).isEqualTo(2);
+  }
+
+  @Test
+  void capsDenseCandidatesWhileDrainingTheFixedSourceWindow() throws Exception {
+    Path root = temp.toRealPath();
+    Path file = root.resolve("app.log");
+    Files.writeString(file, "ERROR selected\n".repeat(100000));
+    var result = run(SshLogCommands.command(settings(root, "app.log"), "app.log", SshLogCommands.Kind.GREP,
+        0, 64L * 1024 * 1024, SshLogCommands.GREP_TRANSFER_BYTES, "ERROR"));
+    assertThat(result.data()).hasSize(SshLogCommands.GREP_TRANSFER_BYTES + 1);
+    assertThat(result.endOffset()).isEqualTo(Files.size(file));
+    assertThat(result.after()).isEqualTo(result.before());
+    var window = SshLogGrep.decode(result);
+    assertThat(window.overflow()).isTrue();
+    assertThat(window.lines()).isEmpty();
+    assertThat(window.end()).isEqualTo(Files.size(file));
+  }
+
+  @Test
+  void candidateOverflowDoesNotHideGrepFailure() throws Exception {
+    Path root = temp.toRealPath();
+    Files.writeString(root.resolve("app.log"), "ERROR selected\n");
+    Path bin = Files.createDirectory(root.resolve("bin"));
+    Path fakeGrep = bin.resolve("grep");
+    Files.writeString(fakeGrep, "#!/bin/sh\nhead -c 2048 /dev/zero\nexit 2\n");
+    assertThat(fakeGrep.toFile().setExecutable(true)).isTrue();
+    String command = "PATH=" + ShellQuote.quote(bin.toString()) + ":\"$PATH\"; export PATH\n"
+        + SshLogCommands.command(settings(root, "app.log"), "app.log", SshLogCommands.Kind.GREP,
+            0, 1024, 16, "ERROR");
+    Process process = process(command);
+    byte[] stdout = process.getInputStream().readAllBytes();
+    byte[] stderr = process.getErrorStream().readAllBytes();
+    assertThat(process.waitFor(5, TimeUnit.SECONDS)).isTrue();
+    assertThat(stdout).hasSize(17);
+    assertThat(text(stderr)).contains("GATEROOK_LOG_ERROR:45");
+    assertThatThrownBy(() -> SshLogCommands.decode(stdout, stderr))
+        .isInstanceOf(ConnectorException.class).hasMessageContaining("metadata");
   }
 
   @Test
@@ -170,7 +215,7 @@ class SshLogCommandsTest {
   }
 
   private static byte[] metadata(String before, String after) {
-    return ("GATEROOK_LOG_V1:" + before + "\nGATEROOK_LOG_WINDOW:0:0:1:1:0\nGATEROOK_LOG_V1:" + after + "\n")
+    return ("GATEROOK_LOG_V1:" + before + "\nGATEROOK_LOG_WINDOW:0:0:1:1:0:0\nGATEROOK_LOG_V1:" + after + "\n")
         .getBytes(StandardCharsets.US_ASCII);
   }
 }

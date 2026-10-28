@@ -63,7 +63,9 @@ public final class SshLogsConnector implements Connector {
             tool(READ, "Read a log file", "Read complete UTF-8 lines from a selected log file. Set tail for the latest N lines, or startLine/endLine for a line range. "
                 + "Scanning, output and deadline limits return an explicit continuation cursor.", schemas),
             tool(SEARCH, "Search a log file", "Search selected text or JSONL logs by literal text or a safe regular expression, time range and level. "
-                + "Scans beyond the output window; follow nextCursor with the same filters until scanComplete.", schemas)))
+                + "GateRook selects server-side grep/head/tail commands, including for tail and level filters. "
+                + "Omit scanBytes for normal searches; use maxLines to bound the answer. "
+                + "Follow nextCursor with the same filters until scanComplete.", schemas)))
         .build();
     clients = new SshClients(BuiltIn.VERSION);
     sessions = new SshSessions(clients);

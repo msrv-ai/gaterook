@@ -34,7 +34,7 @@ class SshLogQueryTest {
     assertThat(query("{}").files()).containsExactly("app.log", "nested/worker.log");
     assertThat(query("{\"files\":[\"nested/worker.log\",\"app.log\"]}").files())
         .containsExactly("app.log", "nested/worker.log");
-    assertThat(query("{}").scanBytes()).isEqualTo(16 * 1024 * 1024);
+    assertThat(query("{}").scanBytes()).isEqualTo(64 * 1024 * 1024);
     assertThat(query("{}").timeFiltered()).isFalse();
   }
 

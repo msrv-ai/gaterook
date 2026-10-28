@@ -12,7 +12,7 @@ final class SshLogGrep {
   record Line(long offset, long endOffset, byte[] textBytes) {}
 
   record SourceWindow(List<Line> lines, long start, long end, long lastCompleteEnd, boolean startsAtLineBoundary,
-      SshLogCommands.Snapshot before, SshLogCommands.Snapshot after) {}
+      SshLogCommands.Snapshot before, SshLogCommands.Snapshot after, long firstCompleteStart, boolean overflow) {}
 
   private SshLogGrep() {}
 
@@ -24,6 +24,12 @@ final class SshLogGrep {
   /** Only complete physical source lines are returned; a cut trailing line is reread from lastCompleteEnd. */
   static SourceWindow decode(SshLogCommands.Result result) throws ConnectorException {
     byte[] data = result.data();
+    if (data.length > SshLogCommands.GREP_TRANSFER_BYTES) {
+      // The extra byte signals a dense candidate window. Never turn this raw cutoff into public progress.
+      Arrays.fill(data, (byte) 0);
+      return new SourceWindow(List.of(), result.offset(), result.endOffset(), result.lastCompleteEnd(),
+          result.startsAtLineBoundary(), result.before(), result.after(), result.firstCompleteStart(), true);
+    }
     List<Line> lines = new ArrayList<>();
     int at = 0;
     long previousEnd = result.offset();
@@ -53,7 +59,7 @@ final class SshLogGrep {
       at++;
     }
     return new SourceWindow(List.copyOf(lines), result.offset(), result.endOffset(), result.lastCompleteEnd(),
-        result.startsAtLineBoundary(), result.before(), result.after());
+        result.startsAtLineBoundary(), result.before(), result.after(), result.firstCompleteStart(), false);
   }
 
   private static ConnectorException invalid() {

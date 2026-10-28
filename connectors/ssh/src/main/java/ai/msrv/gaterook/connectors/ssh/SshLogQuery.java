@@ -65,7 +65,7 @@ record SshLogQuery(List<String> files, boolean tail, int maxLines, long scanByte
     boolean tail = bool(args, "tail", false);
     int maxLines = (int) integer(args, "maxLines", 200, 1, 1000);
     maxLines = Math.min(maxLines, Math.max(1, limits == null ? 1000 : limits.maxLines()));
-    long scanBytes = integer(args, "scanBytes", 16 * MIB, MIB, 64 * MIB);
+    long scanBytes = integer(args, "scanBytes", 64 * MIB, MIB, 64 * MIB);
     long offset = integer(args, "offset", 0, 0, MAX_OFFSET);
     if (offset != 0 && (tail || args.has("cursor") || files.size() > 1)) {
       throw ConnectorException.badInput("A byte offset is only available for one forward file without a cursor.");

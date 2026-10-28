@@ -29,6 +29,7 @@ final class SshLogScanner {
   private static final String PURPOSE = "ssh-logs.scan";
   private static final String PREFIX = "lc1.";
   private static final int CHUNK_BYTES = 1024 * 1024;
+  private static final int GREP_WINDOW_BYTES = 64 * 1024 * 1024;
   private static final int MAX_LINE_BYTES = 256 * 1024;
   private static final Duration FINISH_MARGIN = Duration.ofMillis(500);
   private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
@@ -56,8 +57,9 @@ final class SshLogScanner {
     if (!nonce.matches("[A-Za-z0-9-]{16,80}")) {
       throw ConnectorException.badInput("The log cursor has an invalid scan identity. Start again without cursor.");
     }
-    String prefilter = query.tail() ? null : SshLogPrefilter.grepExpression(query, ctx).orElse(null);
+    String prefilter = SshLogPrefilter.grepExpression(query, ctx).orElse(null);
     State state = new State(query, cfg, ctx, anchor, fingerprintKey, epoch, nonce);
+    state.diagnosticCountsComplete = prefilter == null;
     state.fileIndex = saved == null ? (query.tail() ? query.files().size() - 1 : 0) : saved.path("index").asInt(-1);
     state.position = saved == null ? (query.tail() ? -1 : query.offset()) : saved.path("position").asLong(-1);
     state.discard = saved != null && saved.path("discard").asBoolean();
@@ -88,10 +90,9 @@ final class SshLogScanner {
               range.start(), range.end()).verify(first.before());
           state.snapshot = source.snapshot(first, range.start(), range.end(), state.activeFileKey);
         } else {
-          first = query.tail()
+          first = prefilter != null ? source.load(0, 256) : query.tail()
               ? source.tail(query.maxLines(), Math.min(query.scanBytes(), CHUNK_BYTES))
-              : prefilter != null ? source.load(0, 256)
-                  : state.position == 0 && query.needle() == null && !query.timeFiltered() && query.levels().isEmpty()
+              : state.position == 0 && query.needle() == null && !query.timeFiltered() && query.levels().isEmpty()
                       ? source.head(query.maxLines(), Math.min(state.scanLeft(), CHUNK_BYTES))
                       : source.load(state.position, (int) Math.min(CHUNK_BYTES, state.scanLeft()));
           state.snapshot = source.snapshot(first, 0, first.before().size(), state.activeFileKey);
@@ -111,8 +112,8 @@ final class SshLogScanner {
           throw ConnectorException.badInput("The byte offset must start at a complete line boundary. Use nextCursor or nextOffset from a previous result.");
         }
       }
-      if (query.tail()) reverse(source, state);
-      else if (prefilter != null && !state.discard) grepForward(source, state, prefilter);
+      if (prefilter != null && !state.discard) grep(source, state, prefilter);
+      else if (query.tail()) reverse(source, state);
       else forward(source, state);
       if (state.reason == null && ((query.tail() && state.position == state.snapshot.start)
           || (!query.tail() && state.position == state.snapshot.end))) {
@@ -145,36 +146,75 @@ final class SshLogScanner {
   }
 
   /** Candidate filtering changes transfer volume, never the source window or hidden-match scan progress. */
-  private static void grepForward(Source source, State state, String expression)
+  private static void grep(Source source, State state, String expression)
       throws IOException, ConnectorException {
-    while (state.position < state.snapshot.end && !state.shouldStop()) {
-      int amount = (int) Math.min(1024 * 1024, Math.min(state.scanLeft(), state.snapshot.end - state.position));
-      var window = SshLogGrep.read(source.session, source.settings, source.file, state.position, amount,
+    boolean backwards = state.query.tail();
+    while ((backwards ? state.position > state.snapshot.start : state.position < state.snapshot.end)
+        && !state.shouldStop()) {
+      long available = backwards ? state.position - state.snapshot.start : state.snapshot.end - state.position;
+      int amount = (int) Math.min(GREP_WINDOW_BYTES, Math.min(state.scanLeft(), available));
+      long start = backwards ? state.position - amount : state.position;
+      var window = SshLogGrep.read(source.session, source.settings, source.file, start, amount,
           expression, source.ctx);
       state.snapshot.verify(window.before());
-      if (!window.startsAtLineBoundary() || window.lastCompleteEnd() <= window.start()) {
-        // A physical line crossing the whole window needs the bounded oversized-line state machine.
-        forward(source, state);
+      boolean needsRawBoundary = backwards ? window.firstCompleteStart() >= window.end()
+          || window.lastCompleteEnd() != window.end()
+          : !window.startsAtLineBoundary() || window.lastCompleteEnd() <= window.start();
+      if (window.overflow() || needsRawBoundary) {
+        // Dense candidates or a line crossing the whole window use bounded raw reads from the same position.
+        // Never use a raw grep match cutoff as public progress: masking may remove those matches entirely.
+        if (window.overflow() && !needsRawBoundary) overflowFallback(source, state, window);
+        else if (backwards) reverse(source, state);
+        else forward(source, state);
         return;
       }
       state.scannedBytes += window.end() - window.start();
-      // A fixed, query-independent proof never exposes raw grep match locations in the cursor.
-      state.snapshot.proofOffset = Math.max(window.start(), window.end() - 256);
-      byte[] proof = source.read(state.snapshot.proofOffset, (int) (window.end() - state.snapshot.proofOffset));
-      state.snapshot.proofLength = proof.length;
-      state.snapshot.proof = digest(state.activeFileKey, proof);
-      for (var line : window.lines()) {
+      grepProof(source, state, window);
+      List<SshLogGrep.Line> candidates = backwards ? window.lines().reversed() : window.lines();
+      for (var line : candidates) {
         if (line.textBytes().length > MAX_LINE_BYTES) {
           state.skippedLines++;
         } else if (!state.accept(line.textBytes(), line.offset(), line.endOffset())) {
-          state.position = line.offset();
+          state.position = backwards ? line.endOffset() : line.offset();
           return;
         }
-        state.position = line.endOffset();
+        state.position = backwards ? line.offset() : line.endOffset();
         if (state.reason != null) return;
       }
-      state.position = window.lastCompleteEnd();
+      state.position = backwards ? window.firstCompleteStart() : window.lastCompleteEnd();
     }
+  }
+
+  /** An overflow changes transport strategy, not observable scan accounting or cursor boundary geometry. */
+  private static void overflowFallback(Source source, State state, SshLogGrep.SourceWindow window)
+      throws IOException, ConnectorException {
+    long scannedBefore = state.scannedBytes;
+    grepProof(source, state, window);
+    long proofOffset = state.snapshot.proofOffset;
+    int proofLength = state.snapshot.proofLength;
+    String proof = state.snapshot.proof;
+    if (state.query.tail()) reverse(source, state);
+    else forward(source, state);
+    state.snapshot.proofOffset = proofOffset;
+    state.snapshot.proofLength = proofLength;
+    state.snapshot.proof = proof;
+    if (!"timeout".equals(state.reason)) {
+      // The remote pipeline already scanned this entire window; raw rereads are not additional source bytes.
+      state.scannedBytes = scannedBefore + window.end() - window.start();
+      if (state.reason == null || "scan_limit".equals(state.reason)) {
+        state.position = state.query.tail() ? window.firstCompleteStart() : window.lastCompleteEnd();
+        state.discard = false;
+      }
+    }
+  }
+
+  /** A fixed, query-independent proof never exposes raw grep match locations in the cursor. */
+  private static void grepProof(Source source, State state, SshLogGrep.SourceWindow window)
+      throws ConnectorException {
+    state.snapshot.proofOffset = Math.max(window.start(), window.end() - 256);
+    byte[] proof = source.read(state.snapshot.proofOffset, (int) (window.end() - state.snapshot.proofOffset));
+    state.snapshot.proofLength = proof.length;
+    state.snapshot.proof = digest(state.activeFileKey, proof);
   }
 
   private static void forward(Source source, State state)
@@ -510,6 +550,7 @@ final class SshLogScanner {
     long scannedBytes;
     int skippedLines;
     int unparsedLines;
+    boolean diagnosticCountsComplete = true;
 
     State(SshLogQuery query, ConnectionConfig cfg, ExecContext ctx, Instant anchor, byte[] fingerprintKey, String epoch, String nonce) throws ConnectorException {
       this.query = query;
@@ -602,8 +643,15 @@ final class SshLogScanner {
       ObjectNode result = JSON.objectNode().put("file", query.files().size() == 1 ? query.files().getFirst() : "")
           .put("offset", query.offset()).put("nextOffset", Math.max(0, position)).put("bytesRead", scannedBytes)
           .put("tail", query.tail()).put("truncated", !complete).put("partialLine", false)
-          .put("scannedBytes", scannedBytes).put("scanComplete", complete).put("skippedLines", skippedLines)
-          .put("unparsedLines", unparsedLines).put("anchor", anchor.toString()).put("maxLines", query.maxLines());
+          .put("scannedBytes", scannedBytes).put("scanComplete", complete)
+          .put("diagnosticCountsComplete", diagnosticCountsComplete)
+          .put("anchor", anchor.toString()).put("maxLines", query.maxLines());
+      if (diagnosticCountsComplete) {
+        result.put("skippedLines", skippedLines).put("unparsedLines", unparsedLines);
+      } else {
+        // Candidate-only counts could disclose masked raw matches. Unknown is not zero.
+        result.putNull("skippedLines").putNull("unparsedLines");
+      }
       ArrayNode files = result.putArray("files");
       query.files().forEach(files::add);
       ArrayNode outputEntries = result.putArray("entries");
@@ -613,10 +661,14 @@ final class SshLogScanner {
         lines.add(entry.path("text").asString());
       });
       ArrayNode warnings = result.putArray("warnings");
-      if (skippedLines > 0 || discard) {
+      if (!diagnosticCountsComplete) {
+        warnings.add("Server-side filtering does not count excluded oversized or unparseable records. "
+            + "skippedLines and unparsedLines are unknown; only complete lines up to 256 KiB with valid timestamps when required can match.");
+      }
+      if (diagnosticCountsComplete && (skippedLines > 0 || discard)) {
         warnings.add("Physical lines larger than 256 KiB are skipped, never matched as complete records.");
       }
-      if (unparsedLines > 0) {
+      if (diagnosticCountsComplete && unparsedLines > 0) {
         warnings.add("Lines without a valid parsed timestamp were excluded by the time filter.");
       }
       if (query.files().size() > 1) {

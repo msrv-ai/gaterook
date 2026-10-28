@@ -26,8 +26,39 @@ class SshLogPrefilterTest {
     for (String expression : List.of("^ERROR", "ERR.*", "[A-Z]+", "(?i)error", "error|")) {
       assertThat(prefilter(expression, true, true, MARKER)).as(expression).isEmpty();
     }
-    var timed = args("ERROR", false, true).put("from", "-1h");
-    assertThat(SshLogPrefilter.grepExpression(parse(timed), context(MARKER))).isEmpty();
+  }
+
+  @Test
+  void filtersTimeAndTailQueriesWhileLocalParsingStillChecksTheirPredicates() throws Exception {
+    var timed = args("ERROR", false, true).put("from", "-1h").put("tail", true);
+    String expression = SshLogPrefilter.grepExpression(parse(timed), context(MARKER)).orElseThrow();
+    assertThat(grep(expression, List.of("ERROR without timestamp", "2026-10-28T14:00:00Z INFO normal")))
+        .containsExactly("ERROR without timestamp");
+    assertThat(parse(timed).matches(parse(timed).parseRecord("ERROR without timestamp"))).isFalse();
+  }
+
+  @Test
+  void levelOnlySearchIncludesEveryAliasRegardlessOfContentCaseSensitivity() throws Exception {
+    var args = TestConfigs.JSON.createObjectNode().put("file", "app.log").put("tail", true)
+        .put("from", "-1h").put("caseSensitive", true);
+    args.putArray("levels").add("WARNING").add("ERROR").add("FATAL");
+    String expression = SshLogPrefilter.grepExpression(parse(args), context(MARKER)).orElseThrow();
+    List<String> aliases = List.of("WARN event", "warning event", "ERROR event", "err event", "Severe event",
+        "fatal event", "CRITICAL event", "crit event", "ALERT event", "emergency event", "emerg event");
+    var source = new java.util.ArrayList<>(aliases);
+    source.add("INFO event");
+    assertThat(grep(expression, source)).containsExactlyElementsOf(aliases);
+  }
+
+  @Test
+  void unsupportedOrMaskSensitiveContentCanUseAnIndependentSafeSeverityFilter() throws Exception {
+    for (String content : List.of("ERR.*", "masked")) {
+      var args = args(content, true, true);
+      args.putArray("levels").add("ERROR");
+      String expression = SshLogPrefilter.grepExpression(parse(args), context(MARKER)).orElseThrow();
+      assertThat(grep(expression, List.of("ERROR event", "INFO event"))).containsExactly("ERROR event");
+      assertThat(SshLogPrefilter.grepExpression(parse(args), context("ERRmasked"))).isEmpty();
+    }
   }
 
   @Test
@@ -41,12 +72,13 @@ class SshLogPrefilterTest {
   }
 
   @Test
-  void retainsEveryLineThatMayChangeDuringNormalizationOrOversizeAccounting() throws Exception {
+  void retainsNormalizationCandidatesWithoutTransferringLongUnrelatedRecords() throws Exception {
     String expression = prefilter("ERROR", false, true, MARKER).orElseThrow();
     List<String> special = List.of(" {\"message\":\"\\u0045RROR\"}", "control\0line", "unicode échec",
-        "x".repeat(256), "ERROR request failed");
+        "ERROR request failed", "x".repeat(256) + " ERROR request failed");
     var source = new java.util.ArrayList<>(special);
     source.add("ordinary event");
+    source.add("x".repeat(4096));
     assertThat(grep(expression, source)).containsExactlyElementsOf(special);
   }
 
