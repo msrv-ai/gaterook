@@ -11,7 +11,7 @@ The product name is GateRook. The default home is `~/.gaterook`, the native core
 | ID | Choice | Rationale and boundary |
 | --- | --- | --- |
 | A1 | A thin JSON-RPC layer on Spring MVC serves `/mcp/{slug}`. | Endpoint-specific tool catalogs and protocol revisions stay under the gateway's control. The MCP Java SDK is used as an upstream/test client, not as the gateway's entire server stack. |
-| A2 | Support modern `2026-07-28` and legacy `2025-11-25`, `2025-06-18`, and `2025-03-26` request shapes. | Clients migrate at different times. MCP replies are JSON; there is no MCP SSE session. Administrative UI events use a separate SSE stream. |
+| A2 | Support modern `2026-07-28` and legacy `2025-11-25`, `2025-06-18`, and `2025-03-26` request shapes. | Clients migrate at different times. MCP POST replies are JSON; legacy clients can open an authenticated GET SSE stream for tool-list changes. No MCP session IDs are issued. Administrative UI events use a separate SSE stream. |
 | A3 | Persist one approval and execute its stored canonical call after a human decision. | The client never resubmits a mutable command as the approved action. Deliver results through URL elicitation when supported, otherwise a pending handle and `approval_status`. |
 | A4 | Use opaque 256-bit tokens and store their hashes. | Lookup on each request enables immediate revocation. Named, bridge, OAuth access, and refresh tokens have distinct purposes and lifetimes. |
 | A5 | Provide a small OAuth authorization server with desktop consent. | PKCE S256, resource/audience binding, issuer checking, and client metadata support serve both local and tunnel clients. |
@@ -148,6 +148,17 @@ Use short transactions around state changes. Do not hold a database transaction 
 10. **Decide and revalidate.** An approval atomically transitions from pending to running while unexpired and records the decision. Recheck integrity, policy, connection/template/tool versions, and canonical digest. Changes invalidate approval rather than modifying its meaning.
 11. **Execute the authorized payload once.** The gateway runs the stored approved payload or freshly prepared Bypass payload itself. A failure or timeout is not retried automatically; uncertain external outcomes are reported explicitly. Approved calls retain their masked results for subsequent status retrieval.
 12. **Correlate the trace.** Link MCP activity, the approval, and execution with trace IDs; propagate a valid parent trace when supplied. Telemetry export remains opt-in.
+
+Legacy `initialize` advertises `capabilities.tools.listChanged: true`. Clients listen on `GET /mcp/{slug}` with the
+same bearer token, the negotiated `MCP-Protocol-Version`, and `Accept: text/event-stream`. Opening a stream sends
+one `notifications/tools/list_changed` to refresh any cached list from before connection or reconnection. After committed changes
+invalidate the endpoint snapshot, each stream compares the published catalog hash and sends
+`notifications/tools/list_changed` when tool definitions change, including connection enums. Changes that leave
+the catalog unchanged do not send further notifications. Authentication and endpoint availability are checked before each
+notification and heartbeat; disconnected streams are released, and shutdown closes subscriptions before waiting
+for HTTP requests. The stream has no replay IDs; its initial notification refreshes changes missed while disconnected.
+Both stdio bridges forward these notifications. Modern requests retain their existing
+TTL-based discovery; `subscriptions/listen` is not implemented.
 
 ### 5.1 Policy truth table
 

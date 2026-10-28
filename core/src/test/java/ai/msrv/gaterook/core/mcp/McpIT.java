@@ -78,8 +78,10 @@ class McpIT {
 
   @Test
   void theTransportRefusesWhatIsNotOneJsonRpcRequest() {
-    assertThat(dev.send("GET", null, null, Map.of()).status()).isEqualTo(405);
-    assertThat(dev.send("GET", null, null, Map.of()).header("Allow")).isEqualTo("POST");
+    assertThat(dev.send("GET", null, null, Map.of("MCP-Protocol-Version", "2026-07-28")).status())
+        .isEqualTo(405);
+    assertThat(dev.send("GET", null, null, Map.of("MCP-Protocol-Version", "2026-07-28")).header("Allow"))
+        .isEqualTo("GET, POST");
     assertThat(dev.send("DELETE", null, null, Map.of()).status()).isEqualTo(405);
     assertThat(dev.send("POST", "{}", "text/plain", Map.of()).status()).isEqualTo(415);
     assertThat(dev.send("POST", "x".repeat((1 << 20) + 10), "application/json", Map.of()).status()).isEqualTo(413);
@@ -175,7 +177,7 @@ class McpIT {
     SpecSchemas.assertValid("2025-11-25", "InitializeResult", init.result());
     assertThat(init.result().path("protocolVersion").asString()).isEqualTo("2025-11-25");
     assertThat(init.result().path("serverInfo").path("title").asString()).isEqualTo("GateRook · dev");
-    assertThat(init.result().path("capabilities").path("tools").path("listChanged").asBoolean(true)).isFalse();
+    assertThat(init.result().path("capabilities").path("tools").path("listChanged").asBoolean()).isTrue();
     String instructions = init.result().path("instructions").asString();
     assertThat(instructions).startsWith("You are connected to GateRook, endpoint \"dev\" (local development).")
         .contains("- sql_execute changes data.\n  Every call waits until a person approves the exact action.")

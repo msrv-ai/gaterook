@@ -67,4 +67,6 @@ npm test -w bridge
 
 The bridge discovers the broker through `GW_BROKER` (a `broker.json` path) or `GW_HOME`. It refreshes a cached token before expiry and retries authentication once after a 401. The core's `McpbBuilder` includes this script as `server/gw-bridge.mjs`. The Java/native equivalent lives in `bridge-cli/` and supports `headers`, `stdio`, and `sandbox-exec`.
 
+When initialization advertises `tools.listChanged`, both stdio bridges open an authenticated GET event stream after `notifications/initialized`. They forward tool-list notifications immediately and reconnect after interruptions. The server sends an initial tool-list notification on every stream so clients refresh changes missed during startup or disconnection. Closing stdin also closes the event stream.
+
 For a separately running development core, set `GW_DEV_INTERNAL_SECRET` to the same development secret and run `node bridge/dev-broker.mjs --home ./.dev --origin http://127.0.0.1:7465 --confirm allow`. This development broker prints a ready record and stops on SIGTERM or stdin EOF. Use it only with a disposable development home.

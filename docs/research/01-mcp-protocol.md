@@ -2,6 +2,11 @@
 
 > Research snapshot: 2026-10-23. Scope: one desktop user, a local core on `127.0.0.1:7465`, and SQLite. The findings below preserve the original specification, package, and source review; migration into this repository is not a new compatibility test. **UNVERIFIED** marks behavior that the research did not establish. See the [architecture](../ARCHITECTURE.md) for the application contract.
 
+The current application contract extends this snapshot's POST-only transport with authenticated GET SSE streams
+and `notifications/tools/list_changed` for legacy clients. See [call flow](../ARCHITECTURE.md#5-call-flow) for
+catalog invalidation, stream lifetime, and reconnect behavior; the original transport alternatives below remain
+historical research.
+
 ## 1. Decision and alternatives
 
 Use a small, explicit JSON-RPC implementation on Spring MVC, with virtual threads, a shared dispatcher, and separate serializers for MCP `2025-11-25` and `2026-07-28`. The endpoint is `POST /mcp/{slug}`. Both revisions can use JSON responses without persistent sessions or an SSE stream. Endpoint-specific tool lists and connection enums must be computed for each authenticated caller.
