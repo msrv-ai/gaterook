@@ -107,10 +107,10 @@ Electron frameless titlebar (bg canvas, subtle bottom rule, --gw-layout-titlebar
 
 **States and behavior:**
 
-- Back is a native-disabled icon button until a previous application page exists; the renderer owns navigation history. Reference pages show the initial disabled state.
+- Back is a text button with a leading arrow, native-disabled until a previous application page exists; the renderer owns navigation history. Reference pages show the initial disabled state.
 - a gw-counter inside an icon button in __actions is pinned as a corner badge ringed in the canvas colour
 
-**Accessibility:** The <header> is the banner landmark. Back carries aria-label="Go back" and a title explaining its disabled state. Icon buttons carry aria-label ("Approvals, 3 waiting" with an aria-hidden counter; "Appearance"). The Search button's name starts with its visible text ("Search and commands") and its ⌘K kbd is aria-hidden. Overlays at the window edge use gw-menu--right / gw-popover--right. Popover titles are <p>, not headings, because they precede the page h1.
+**Accessibility:** The <header> is the banner landmark. Back uses its visible label as its accessible name and a title explaining its disabled state. Icon buttons carry aria-label ("Approvals, 3 waiting" with an aria-hidden counter; "Appearance"). The Search button's name starts with its visible text ("Search and commands") and its ⌘K kbd is aria-hidden. Overlays at the window edge use gw-menu--right / gw-popover--right. Popover titles are <p>, not headings, because they precede the page h1.
 
 ### `gw-sidebar`
 
@@ -1784,7 +1784,7 @@ These examples retain the original component and composition structures. Ellipse
 <div class="gw-shell">
   <header class="gw-titlebar">
     <div class="gw-titlebar__drag">
-      <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Go back" title="No previous page" disabled><i class="gw-icon" data-lucide="arrow-left"></i></button>
+      <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" title="No previous page" disabled><i class="gw-icon" data-lucide="arrow-left"></i> Back</button>
     </div>
     <span class="gw-titlebar__title">Overview</span>
     <div class="gw-titlebar__actions">…Search ⌘K, approvals bell, appearance popover…</div>

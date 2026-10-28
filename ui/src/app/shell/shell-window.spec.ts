@@ -96,7 +96,7 @@ describe('titlebar navigation', () => {
     router.setUpLocationChangeListener();
     await router.navigateByUrl('/overview');
     await fixture.whenStable();
-    const back = el.querySelector<HTMLButtonElement>('.gw-titlebar button[aria-label="Go back"]')!;
+    const back = el.querySelector<HTMLButtonElement>('.gw-titlebar__drag button')!;
     expect(back.disabled).toBe(true);
     expect(back.title).toBe('No previous page');
 
