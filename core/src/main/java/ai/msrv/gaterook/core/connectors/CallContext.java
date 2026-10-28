@@ -207,6 +207,11 @@ public final class CallContext implements ExecContext {
     return tree == null ? null : Masker.standard().tree(tree, taint, mask).tree();
   }
 
+  @Override
+  public Optional<String> textMaskMarker() {
+    return Optional.of(Masker.MASK);
+  }
+
   private static void runQuietly(Runnable action) {
     try {
       action.run();

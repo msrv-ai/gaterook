@@ -24,7 +24,8 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.JsonNodeFactory;
 
 /** Validated, immutable scan filters. Parsing and matching use only masked values and perform no I/O. */
-record SshLogQuery(List<String> files, boolean tail, int maxLines, long scanBytes, long offset, String queryHash,
+record SshLogQuery(List<String> files, boolean tail, int maxLines, long scanBytes, long offset,
+    long startLine, long endLine, String queryHash,
     Instant from, Instant to, SshLogParser parser, String needle, boolean caseSensitive, Pattern expression,
     Set<String> levels) {
   private static final long MIB = 1024 * 1024;
@@ -68,6 +69,15 @@ record SshLogQuery(List<String> files, boolean tail, int maxLines, long scanByte
     long offset = integer(args, "offset", 0, 0, MAX_OFFSET);
     if (offset != 0 && (tail || args.has("cursor") || files.size() > 1)) {
       throw ConnectorException.badInput("A byte offset is only available for one forward file without a cursor.");
+    }
+    boolean lineRange = args.has("startLine") || args.has("endLine");
+    long startLine = lineRange ? integer(args, "startLine", 1, 1, MAX_OFFSET) : 0;
+    long endLine = integer(args, "endLine", 0, 1, MAX_OFFSET);
+    if (lineRange && (tail || offset != 0 || files.size() != 1)) {
+      throw ConnectorException.badInput("A line range is only available for one forward file without a byte offset.");
+    }
+    if (endLine != 0 && endLine < startLine) {
+      throw ConnectorException.badInput("endLine must be greater than or equal to startLine.");
     }
 
     String query = text(args, "query", 1024);
@@ -129,6 +139,7 @@ record SshLogQuery(List<String> files, boolean tail, int maxLines, long scanByte
     var selected = fingerprint.putArray("files");
     files.forEach(selected::add);
     fingerprint.put("tail", tail).put("maxLines", maxLines).put("scanBytes", scanBytes)
+        .put("startLine", startLine).put("endLine", endLine)
         .put("query", query == null ? "" : query).put("matchMode", mode).put("caseSensitive", caseSensitive)
         .put("from", from == null ? null : from.toString()).put("to", to == null ? null : to.toString());
     var severity = fingerprint.putArray("levels");
@@ -136,7 +147,7 @@ record SshLogQuery(List<String> files, boolean tail, int maxLines, long scanByte
     fingerprint.set("parsing", settings.logsConfig());
     // The cursor supplies the continuation offset; bind the filters and the fixed relative-time anchor instead.
     String hash = sha256(fingerprint.toString());
-    return new SshLogQuery(List.copyOf(files), tail, maxLines, scanBytes, offset, hash, from, to, parser,
+    return new SshLogQuery(List.copyOf(files), tail, maxLines, scanBytes, offset, startLine, endLine, hash, from, to, parser,
         needle, caseSensitive, expression, Set.copyOf(levels));
   }
 

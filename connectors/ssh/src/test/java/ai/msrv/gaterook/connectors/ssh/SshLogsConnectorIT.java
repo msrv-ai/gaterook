@@ -32,7 +32,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
-/** Real SSH authentication and SFTP reads against a disposable in-process server; no shell commands. */
+/** Real SSH authentication, SFTP metadata and generated read-only commands against a disposable server. */
 class SshLogsConnectorIT {
   @TempDir Path temp;
   private Path root;
@@ -112,7 +112,7 @@ class SshLogsConnectorIT {
     var tail = connector.execute(call("ssh_logs_read", "{\"file\":\"app.log\",\"maxLines\":2,\"tail\":true}"),
         cfg, secrets, TestCtx.read()).structuredContent();
     assertThat(tail.path("lines")).isEqualTo(TestConfigs.json("[\"ERROR two\",\"last\"]"));
-    assertThat(sshd.commands).isEmpty();
+    assertThat(sshd.commands).isNotEmpty();
   }
 
   @Test
@@ -449,37 +449,29 @@ class SshLogsConnectorIT {
   }
 
   @Test
-  void cancellationClosesTheSessionWhileAReadIsBlocked() throws Exception {
-    var reading = new java.util.concurrent.CountDownLatch(1);
-    var release = new java.util.concurrent.CountDownLatch(1);
-    var factory = new SftpSubsystemFactory.Builder().build();
-    factory.addSftpEventListener(new org.apache.sshd.sftp.server.SftpEventListener() {
-      @Override
-      public void reading(org.apache.sshd.server.session.ServerSession session, String handle,
-          org.apache.sshd.sftp.server.FileHandle file, long offset, byte[] data, int dataOffset, int length)
-          throws java.io.IOException {
-        reading.countDown();
-        try {
-          release.await(5, java.util.concurrent.TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-          Thread.currentThread().interrupt();
-          throw new java.io.IOException("Test read interrupted", e);
-        }
-      }
+  void cancellationTerminatesTheBlockedRemoteReadCommand() throws Exception {
+    var commandStarted = new java.util.concurrent.CountDownLatch(1);
+    var commands = sshd.server.getCommandFactory();
+    sshd.server.setCommandFactory((channel, command) -> {
+      var blocked = commands.createCommand(channel, "sleep 30\n" + command);
+      commandStarted.countDown();
+      return blocked;
     });
-    sshd.server.setSubsystemFactories(List.of(factory));
     var context = TestCtx.read();
     try (var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
       var result = executor.submit(() -> connector.execute(call("ssh_logs_read", "{\"file\":\"app.log\"}"),
           cfg(true, "app.log"), secrets, context));
-      try {
-        assertThat(reading.await(3, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
-        context.cancel();
-        assertThatThrownBy(() -> result.get(2, java.util.concurrent.TimeUnit.SECONDS))
-            .isInstanceOf(java.util.concurrent.ExecutionException.class).hasCauseInstanceOf(ConnectorException.class);
-      } finally {
-        release.countDown();
+      assertThat(commandStarted.await(3, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+      long deadline = System.nanoTime() + Duration.ofSeconds(3).toNanos();
+      while (sshd.processes.isEmpty() && System.nanoTime() < deadline) {
+        Thread.sleep(10);
       }
+      assertThat(sshd.processes).isNotEmpty();
+      context.cancel();
+      assertThatThrownBy(() -> result.get(3, java.util.concurrent.TimeUnit.SECONDS))
+          .isInstanceOf(java.util.concurrent.ExecutionException.class).hasCauseInstanceOf(ConnectorException.class);
+      assertThat(sshd.signals).contains("TERM");
+      assertThat(sshd.allEnded()).isTrue();
     }
   }
 
@@ -491,6 +483,7 @@ class SshLogsConnectorIT {
       var call = new ToolCall("tc_denied", "ssh_logs_read", cfg.name(), args, null);
       assertThatThrownBy(() -> connector.execute(call, cfg, secrets, TestCtx.read())).isInstanceOf(ConnectorException.class);
     }
+    assertThat(sshd.commands).isEmpty();
     Files.createSymbolicLink(root.resolve("link.log"), root.resolve("private.txt"));
     Files.createSymbolicLink(root.resolve("linked"), root.resolve("nested"));
     for (String file : List.of("link.log", "linked/worker.log", "nested")) {
@@ -498,9 +491,10 @@ class SshLogsConnectorIT {
       assertThatThrownBy(() -> connector.execute(call("ssh_logs_read", "{\"file\":\"" + file + "\"}"),
           forbidden, secrets, TestCtx.read())).isInstanceOf(ConnectorException.class);
     }
+    int commandsBeforeBrowse = sshd.commands.size();
     var browser = connector.browseFiles(cfg(true), secrets, TestCtx.read(), root.toString());
     assertThat(browser.details().path("entries")).hasSize(3);
-    assertThat(sshd.commands).isEmpty();
+    assertThat(sshd.commands).hasSize(commandsBeforeBrowse);
   }
 
   @Test
@@ -537,7 +531,7 @@ class SshLogsConnectorIT {
     Files.writeString(key, "invalid replacement");
     assertThatThrownBy(() -> connector.execute(call("ssh_logs_read", "{\"file\":\"app.log\"}"), cfg, secrets,
         TestCtx.read())).isInstanceOf(ConnectorException.class);
-    assertThat(sshd.commands).isEmpty();
+    assertThat(sshd.commands).isNotEmpty();
   }
 
   @Test

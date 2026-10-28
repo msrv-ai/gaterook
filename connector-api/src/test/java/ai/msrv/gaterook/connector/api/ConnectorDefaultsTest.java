@@ -127,6 +127,8 @@ class ConnectorDefaultsTest {
 
     assertThat(context(now, now.plusSeconds(5)).remaining()).isEqualTo(Duration.ofSeconds(5));
     assertThat(context(now, now.minusSeconds(1)).remaining()).isEqualTo(Duration.ZERO);
+    assertThat(context(now, now.plusSeconds(5)).textMaskMarker()).as("unknown maskers do not enable source filtering")
+        .isEmpty();
   }
 
   private static ToolCall call() {
@@ -140,7 +142,7 @@ class ConnectorDefaultsTest {
         (proxy, method, args) -> switch (method.getName()) {
           case "clock" -> clock;
           case "deadline" -> deadline;
-          case "remaining" -> java.lang.reflect.InvocationHandler.invokeDefault(proxy, method, args);
+          case "remaining", "textMaskMarker" -> java.lang.reflect.InvocationHandler.invokeDefault(proxy, method, args);
           default -> throw new UnsupportedOperationException(method.getName());
         });
   }

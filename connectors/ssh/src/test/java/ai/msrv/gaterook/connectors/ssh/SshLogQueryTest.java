@@ -131,6 +131,45 @@ class SshLogQueryTest {
   }
 
   @Test
+  void acceptsInclusiveLineRangesAndOneSidedBoundsOnOneFile() throws Exception {
+    assertThat(query("{}").startLine()).isZero();
+    assertThat(query("{}").endLine()).isZero();
+    var bounded = query("{\"file\":\"app.log\",\"startLine\":20,\"endLine\":40,\"maxLines\":5}");
+    assertThat(bounded.startLine()).isEqualTo(20);
+    assertThat(bounded.endLine()).isEqualTo(40);
+    assertThat(bounded.maxLines()).isEqualTo(5);
+    var first = query("ssh_logs_read", "{\"file\":\"app.log\",\"endLine\":10}", TestCtx.devLimits());
+    assertThat(first.startLine()).isEqualTo(1);
+    assertThat(first.endLine()).isEqualTo(10);
+    var onward = query("{\"file\":\"app.log\",\"startLine\":20}");
+    assertThat(onward.startLine()).isEqualTo(20);
+    assertThat(onward.endLine()).isZero();
+    assertThat(query("{\"files\":[\"app.log\"],\"startLine\":1,\"endLine\":1}").endLine()).isEqualTo(1);
+  }
+
+  @Test
+  void rejectsInvalidLineRangesBeforeIo() {
+    for (String fields : new String[] {"\"startLine\":0", "\"endLine\":0", "\"startLine\":-1",
+        "\"startLine\":1.5", "\"startLine\":\"1\"", "\"startLine\":null",
+        "\"endLine\":9007199254740992", "\"startLine\":20,\"endLine\":10",
+        "\"startLine\":1,\"tail\":true", "\"endLine\":10,\"offset\":1"}) {
+      String args = "{\"file\":\"app.log\"," + fields + "}";
+      assertThatThrownBy(() -> query(args)).as(args).isInstanceOf(ConnectorException.class);
+    }
+    assertThatThrownBy(() -> query("{\"startLine\":1}"))
+        .isInstanceOf(ConnectorException.class).hasMessageContaining("one forward file");
+  }
+
+  @Test
+  void lineRangeCursorHashBindsEffectiveRangeAndAllowsContinuation() throws Exception {
+    String range = query("{\"file\":\"app.log\",\"startLine\":1,\"endLine\":10}").queryHash();
+    assertThat(query("{\"file\":\"app.log\",\"endLine\":10,\"cursor\":\"handle\"}").queryHash()).isEqualTo(range);
+    assertThat(query("{\"file\":\"app.log\",\"startLine\":2,\"endLine\":10}").queryHash()).isNotEqualTo(range);
+    assertThat(query("{\"file\":\"app.log\",\"startLine\":1,\"endLine\":11}").queryHash()).isNotEqualTo(range);
+    assertThat(query("{\"file\":\"app.log\"}").queryHash()).isNotEqualTo(range);
+  }
+
+  @Test
   void cursorHashBindsEffectiveFiltersAndAnchorButNotContinuationOffset() throws Exception {
     String base = query("{\"file\":\"app.log\",\"from\":\"-1h\"}").queryHash();
     assertThat(query("{\"file\":\"app.log\",\"from\":\"-1h\",\"cursor\":\"handle\"}").queryHash()).isEqualTo(base);

@@ -2861,7 +2861,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
       "credentials"
     ],
     "x-card": {
-      "description": "Read selected log files over SSH without running shell commands."
+      "description": "Read and search selected log files over SSH with bounded server-side commands."
     },
     "x-file-selection": {
       "rootPath": "/logs/root",
