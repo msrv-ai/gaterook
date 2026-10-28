@@ -50,7 +50,7 @@
     <fieldset class="gw-field" [id]="p + '-src-field'" [hidden]="beginner() && !sourcesOpen()">
       <legend class="gw-field__label">Secret source</legend>
       <div class="gw-grid gw-grid--auto gw-connection-form__sources">
-        @for (src of spec().secretSources; track src.id) {
+        @for (src of secretSources(); track src.id) {
           @let copy = sourceCopy(src.id, src.label);
           @let base = p + '-src-' + copy.kit;
           <label class="gw-choice-card gw-choice-card--compact">

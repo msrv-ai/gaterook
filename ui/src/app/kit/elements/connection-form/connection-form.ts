@@ -500,14 +500,17 @@ export class GwConnectionForm {
     return 'connection';
   }
 
-  /** Whether a source picker belongs here: a new connection, or one whose secret is a reference already. */
+  protected readonly secretSources = computed(() => this.spec().secretSources.filter((source) => secretSourceId(source.id) !== 'dynamic'));
+
+  /** Existing dynamic credentials stay configured, but their controls are not exposed. */
   protected readonly showSources = computed(() => {
-    if (this.spec().secretSources.length < 2) return false;
+    if (this.secretSources().length < 2 || this.state().source() === 'dynamic') return false;
     if (this.mode() !== 'edit') return true;
     return [...this.state().stored.values()].some(storedReference);
   });
 
   protected readonly credentialsText = computed(() => {
+    if (this.state().source() === 'dynamic') return 'Saved credentials are kept when you update the connection.';
     const custom = this.credentialsDescription();
     if (custom) return custom;
     if (this.beginner()) return `Your AI never sees these. GateRook uses them only to sign in to ${signInTarget(this.spec().type)}.`;
@@ -527,7 +530,7 @@ export class GwConnectionForm {
   });
 
   protected setSource(id: string, available: boolean, event: Event): void {
-    if (!available) {
+    if (!available || secretSourceId(id) === 'dynamic') {
       // aria-disabled cards stay focusable and say why; they never become the choice.
       event.preventDefault();
       (event.target as HTMLInputElement).checked = false;

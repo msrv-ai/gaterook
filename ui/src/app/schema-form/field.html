@@ -154,7 +154,6 @@
             [rotateReasonId]="stored?.canRotate === false ? id + '-rotate-why' : null"
             [provider]="f.source()"
             [ref]="stored?.name ?? ''"
-            [refNoun]="f.source() === 'dynamic' ? 'role' : 'reference'"
             changeable
             (changeRef)="f.replace(n, true)"
             (replace)="f.replace(n, true)"

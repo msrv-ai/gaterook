@@ -146,7 +146,7 @@ export class GwVaultPicker {
       }
       const keys = [...new Set(result.keys)].filter((key) => selectableVaultKey(initialUri, key)).sort();
       const message = result.type === 'dynamic'
-        ? 'This path issues short-lived credentials. Choose a KV secret, or use the Short-lived secret source.'
+        ? 'Choose a Vault KV secret path and key for this reference.'
         : !keys.length ? 'No selectable keys were returned for this secret.'
         : keys.length < result.keys.length ? 'Choose a key. Some key names cannot be used in a GateRook reference.'
         : 'Choose the key that contains the password or credential. Only key names are shown.';

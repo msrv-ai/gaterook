@@ -108,13 +108,6 @@
                 <span class="gw-choice-card__description" id="f1-src-aws-d">Resolve <span class="gw-mono">aws-sm://</span> with the core&#39;s AWS profile.</span>
                 <span class="gw-choice-card__meta">Needs GetSecretValue</span>
               </label>
-              <label class="gw-choice-card gw-choice-card--compact">
-                <input class="gw-choice-card__input" type="radio" name="f1-src" value="dynamic" aria-labelledby="f1-src-dynamic-t" aria-describedby="f1-src-dynamic-d">
-                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="timer"></i></span>
-                <span class="gw-choice-card__title" id="f1-src-dynamic-t">Short-lived (Vault dynamic credentials)</span>
-                <span class="gw-choice-card__description" id="f1-src-dynamic-d">Vault creates a short-lived database user, renewed automatically. Nothing is stored here.</span>
-                <span class="gw-choice-card__meta">Recommended for prod</span>
-              </label>
             </div>
           </fieldset>
           <div class="gw-field gw-connection-form__user">
@@ -173,14 +166,6 @@
               <span class="gw-secret__actions"><button class="gw-btn" type="button">Test reference</button></span>
             </div>
             <p class="gw-field__hint" id="f1-ref-aws-hint">Resolved at call time with the core's AWS profile.</p>
-          </div>
-          <div class="gw-field gw-connection-form__secret" data-source="dynamic">
-            <label class="gw-field__label" for="f1-role">Vault role</label>
-            <div class="gw-secret" data-state="empty">
-              <input class="gw-input gw-input--mono" type="text" id="f1-role" name="vaultRole" placeholder="database/creds/dev-readonly" autocomplete="off" spellcheck="false" aria-describedby="f1-role-hint">
-              <span class="gw-secret__actions"><button class="gw-btn" type="button">Test role</button></span>
-            </div>
-            <p class="gw-field__hint" id="f1-role-hint">Vault creates a short-lived database user, renewed automatically. No user or password is stored here.</p>
           </div>
         </div>
       </section>
@@ -335,13 +320,6 @@
                 <span class="gw-choice-card__description" id="f7-src-aws-d">Resolve <span class="gw-mono">aws-sm://</span> with the core&#39;s AWS profile.</span>
                 <span class="gw-choice-card__meta">Needs GetSecretValue</span>
               </label>
-              <label class="gw-choice-card gw-choice-card--compact">
-                <input class="gw-choice-card__input" type="radio" name="f7-src" value="dynamic" aria-labelledby="f7-src-dynamic-t" aria-describedby="f7-src-dynamic-d">
-                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="timer"></i></span>
-                <span class="gw-choice-card__title" id="f7-src-dynamic-t">Short-lived (Vault dynamic credentials)</span>
-                <span class="gw-choice-card__description" id="f7-src-dynamic-d">Vault creates a database user per call. Nothing is stored here.</span>
-                <span class="gw-choice-card__meta">Recommended for prod</span>
-              </label>
             </div>
           </fieldset>
           <div class="gw-field gw-connection-form__user">
@@ -401,14 +379,6 @@
             </div>
             <p class="gw-field__hint" id="f7-ref-aws-hint">Resolved at call time with the core's AWS profile.</p>
           </div>
-          <div class="gw-field gw-connection-form__secret" data-source="dynamic">
-            <label class="gw-field__label" for="f7-role">Vault role</label>
-            <div class="gw-secret" data-state="empty">
-              <input class="gw-input gw-input--mono" type="text" id="f7-role" name="vaultRole" placeholder="database/creds/dev-readonly" autocomplete="off" spellcheck="false" aria-describedby="f7-role-hint">
-              <span class="gw-secret__actions"><button class="gw-btn" type="button">Test role</button></span>
-            </div>
-            <p class="gw-field__hint" id="f7-role-hint">Vault creates a database user for each call, valid 5 min. No user or password is stored here.</p>
-          </div>
         </div>
       </section>
     </form>
@@ -416,7 +386,7 @@
   <section class="gw-section" aria-labelledby="s-ref">
     <header class="gw-section__header">
       <h2 class="gw-section__title" id="s-ref">Secret reference</h2>
-      <p class="gw-section__description">The secret lives in an external store and is resolved at call time: stage-db from Vault KV, prod-replica with short-lived Vault credentials (no User field: Vault issues a short-lived user, renewed automatically). Tested references show as a sunken well with the provider.</p>
+      <p class="gw-section__description">The secret lives in an external store and is resolved at call time: stage-db from Vault KV. Tested references show as a sunken well with the provider.</p>
     </header>
     <form class="gw-form gw-connection-form" method="dialog" novalidate aria-label="stage-db credentials, Vault reference">
       <section class="gw-form__section gw-connection-form__credentials" aria-labelledby="f2-cred-t">
@@ -456,13 +426,6 @@
                 <span class="gw-choice-card__description" id="f2-src-aws-d">Resolve <span class="gw-mono">aws-sm://</span> with the core&#39;s AWS profile.</span>
                 <span class="gw-choice-card__meta">Needs GetSecretValue</span>
               </label>
-              <label class="gw-choice-card gw-choice-card--compact">
-                <input class="gw-choice-card__input" type="radio" name="f2-src" value="dynamic" aria-labelledby="f2-src-dynamic-t" aria-describedby="f2-src-dynamic-d">
-                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="timer"></i></span>
-                <span class="gw-choice-card__title" id="f2-src-dynamic-t">Short-lived (Vault dynamic credentials)</span>
-                <span class="gw-choice-card__description" id="f2-src-dynamic-d">Vault creates a short-lived database user, renewed automatically. Nothing is stored here.</span>
-                <span class="gw-choice-card__meta">Recommended for prod</span>
-              </label>
             </div>
           </fieldset>
           <div class="gw-field gw-connection-form__user">
@@ -481,68 +444,6 @@
               </span>
             </div>
             <p class="gw-field__hint" id="f2-ref-hint">Resolved at call time. Last test 3 min ago · 18 ms.</p>
-          </div>
-        </div>
-      </section>
-    </form>
-    <form class="gw-form gw-connection-form" method="dialog" novalidate aria-label="prod-replica credentials, short-lived">
-      <section class="gw-form__section gw-connection-form__credentials" aria-labelledby="f2b-cred-t">
-        <header class="gw-form__section-header">
-          <h3 class="gw-form__legend" id="f2b-cred-t">Credentials</h3>
-          <p class="gw-form__description"><span class="gw-mono">prod-replica</span> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--prod">prod</span> gets a fresh read-only user from Vault for every call. Nothing to store, nothing to leak.</p>
-        </header>
-        <div class="gw-form__rows">
-          <fieldset class="gw-field">
-            <legend class="gw-field__label">Secret source</legend>
-            <div class="gw-grid gw-grid--auto gw-connection-form__sources">
-              <label class="gw-choice-card gw-choice-card--compact">
-                <input class="gw-choice-card__input" type="radio" name="f2b-src" value="local" aria-labelledby="f2b-src-local-t" aria-describedby="f2b-src-local-d">
-                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="lock-keyhole"></i></span>
-                <span class="gw-choice-card__title" id="f2b-src-local-t">Encrypted here</span>
-                <span class="gw-choice-card__description" id="f2b-src-local-d">Stored in the local database, encrypted with the master key. Write-only.</span>
-                <span class="gw-choice-card__meta">Default</span>
-              </label>
-              <label class="gw-choice-card gw-choice-card--compact">
-                <input class="gw-choice-card__input" type="radio" name="f2b-src" value="vault" aria-labelledby="f2b-src-vault-t" aria-describedby="f2b-src-vault-d">
-                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="vault"></i></span>
-                <span class="gw-choice-card__title" id="f2b-src-vault-t">HashiCorp Vault or OpenBao</span>
-                <span class="gw-choice-card__description" id="f2b-src-vault-d">Resolve a <span class="gw-mono">vault://</span> reference at call time.</span>
-                <span class="gw-choice-card__meta">KV v2</span>
-              </label>
-              <label class="gw-choice-card gw-choice-card--compact">
-                <input class="gw-choice-card__input" type="radio" name="f2b-src" value="gcp" aria-labelledby="f2b-src-gcp-t" aria-describedby="f2b-src-gcp-d">
-                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
-                <span class="gw-choice-card__title" id="f2b-src-gcp-t">GCP Secret Manager</span>
-                <span class="gw-choice-card__description" id="f2b-src-gcp-d">Resolve <span class="gw-mono">gcp-sm://</span> with the core&#39;s service account.</span>
-                <span class="gw-choice-card__meta">Needs secretAccessor</span>
-              </label>
-              <label class="gw-choice-card gw-choice-card--compact">
-                <input class="gw-choice-card__input" type="radio" name="f2b-src" value="aws" aria-labelledby="f2b-src-aws-t" aria-describedby="f2b-src-aws-d">
-                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="cloud"></i></span>
-                <span class="gw-choice-card__title" id="f2b-src-aws-t">AWS Secrets Manager</span>
-                <span class="gw-choice-card__description" id="f2b-src-aws-d">Resolve <span class="gw-mono">aws-sm://</span> with the core&#39;s AWS profile.</span>
-                <span class="gw-choice-card__meta">Needs GetSecretValue</span>
-              </label>
-              <label class="gw-choice-card gw-choice-card--compact">
-                <input class="gw-choice-card__input" type="radio" name="f2b-src" value="dynamic" checked aria-labelledby="f2b-src-dynamic-t" aria-describedby="f2b-src-dynamic-d">
-                <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="timer"></i></span>
-                <span class="gw-choice-card__title" id="f2b-src-dynamic-t">Short-lived (Vault dynamic credentials)</span>
-                <span class="gw-choice-card__description" id="f2b-src-dynamic-d">Vault creates a short-lived database user, renewed automatically. Nothing is stored here.</span>
-                <span class="gw-choice-card__meta">Recommended for prod</span>
-              </label>
-            </div>
-          </fieldset>
-          <div class="gw-field gw-connection-form__secret" data-source="dynamic">
-            <span class="gw-field__label" id="f2b-ref-l">Vault role</span>
-            <div class="gw-secret" data-state="reference" role="group" aria-labelledby="f2b-ref-l" aria-describedby="f2b-ref-hint">
-              <span class="gw-secret__status"><i class="gw-icon" data-lucide="timer"></i>Vault dynamic</span>
-              <code class="gw-secret__ref">vault://database/creds/prod-replica-readonly</code>
-              <span class="gw-secret__actions">
-                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Test role for prod-replica">Test role</button>
-                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Change role for prod-replica">Change</button>
-              </span>
-            </div>
-            <p class="gw-field__hint" id="f2b-ref-hint">A short-lived database user, renewed automatically. No user or password is stored here.</p>
           </div>
         </div>
       </section>
