@@ -13,7 +13,6 @@ import { Policies, PoliciesApi } from '../../core/api/policies.api';
 import { MasterKeyApi, MasterKeyStatus, SecretRow, SecretsApi } from '../../core/api/secrets.api';
 import { JsonObject, ToolMode } from '../../core/api/types';
 import { EVENT_STREAM_FETCH, EventStream } from '../../core/events/event-stream';
-import { TunnelStore } from '../../core/stores/tunnel.store';
 import { TimeService } from '../../core/time/time.service';
 import { Announcer } from '../../kit/announcer';
 import { AriaDisabledGuard } from '../../kit/aria-disabled';
@@ -348,7 +347,6 @@ beforeEach(() => {
       { provide: SecretsApi, useValue: secrets },
       { provide: ApprovalsApi, useValue: approvals },
       { provide: MasterKeyApi, useValue: masterKey },
-      { provide: TunnelStore, useValue: { summary: signal('off') } },
       { provide: EVENT_STREAM_FETCH, useValue: (() => new Promise<Response>(() => undefined)) as typeof fetch },
     ],
   });

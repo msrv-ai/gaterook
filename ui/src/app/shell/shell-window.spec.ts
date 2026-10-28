@@ -9,7 +9,7 @@ import { problemJsonInterceptor } from '../core/api/problem-json.interceptor';
 import { Onboarding } from '../core/api/overview.api';
 import { DesktopBridge } from '../core/desktop/desktop-bridge';
 import { EVENT_STREAM_FETCH, EventStream } from '../core/events/event-stream';
-import { DEMO_CONSENT } from '../dev/fixtures-clients';
+import { DEMO_CONSENT as REMOTE_CONSENT } from '../dev/fixtures-clients';
 import { ACTIVATION_DELAY_MS } from '../kit/activation-guard';
 import { provideKitIcons } from '../kit/icons';
 import { ToastService } from '../kit/toast.service';
@@ -17,11 +17,13 @@ import { requestToast } from './desktop-notice-toasts';
 import { onboardingGuard, resetOnboardingGuard } from './onboarding.guard';
 
 /**
- * What the window holds for every page (E1's findings, 2026-10-26): the OAuth consent dialog of a sign-in through
- * the tunnel (ARCHITECTURE.md §7.3, §9 "Self-approval through the GUI"), the in-app toast of a desktop notification while
+ * What the window holds for every page: the OAuth consent dialog of a local app sign-in,
+ * the in-app toast of a desktop notification while
  * the window is in front (§7.4, kit approval-notification "In-app toast"), and one decision where a start opens
  * (§8.1: Welcome on a first run, whatever else navigates meanwhile).
  */
+
+const DEMO_CONSENT = { ...REMOTE_CONSENT, ingress: 'LOCAL' as const, clientHost: 'Cursor', redirectHost: '127.0.0.1' };
 
 const HEALTH = { status: 'ok', version: '0.4.0', uptimeMs: 60_000, ports: { local: 7465, public: 7466 }, runtime: 'jvm', warnings: [] };
 
@@ -120,7 +122,7 @@ describe('the OAuth consent dialog is the window’s, on any page (§7.3)', () =
     const app = await runningApp();
     const consents = app.http.match('/api/oauth/consents');
     expect(consents.length).toBe(1);
-    consents[0].flush([DEMO_CONSENT]);
+    consents[0].flush([{ ...REMOTE_CONSENT, id: 'oc_remote', ingress: 'TUNNEL' }, DEMO_CONSENT]);
     await settle();
     await app.fixture.whenStable();
     await Promise.resolve();
@@ -133,7 +135,7 @@ describe('the OAuth consent dialog is the window’s, on any page (§7.3)', () =
     TestBed.inject(Router).navigateByUrl('/settings/general');
     await fixture.whenStable();
     expect(dialog.hasAttribute('open')).toBe(true);
-    expect(text(dialog.querySelector('.gw-dialog__title'))).toBe('Allow claude.ai to sign in to stage-readonly?');
+    expect(text(dialog.querySelector('.gw-dialog__title'))).toBe('Allow Cursor to sign in to stage-readonly?');
     expect(text(dialog)).toContain('4F7-2KQ');
     expect(document.activeElement).toBe(button(dialog, 'Deny'));
     // Outside the frame: the status screen's inert never covers it.

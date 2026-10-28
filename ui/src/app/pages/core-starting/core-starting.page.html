@@ -28,8 +28,8 @@
       <header class="gw-dialog__header">
         <span class="gw-icon-tile"><svg lucideIcon="ethernet-port" class="gw-icon"></svg></span>
         @if (publicMove() !== null) {
-          <h2 class="gw-dialog__title" id="core-port-dlg-t">Start the tunnel’s listener on another port?</h2>
-          <p class="gw-dialog__description" id="core-port-dlg-d">The core starts with the tunnel’s public listener on the new port. Endpoint URLs stay the same, and so do your AI apps’ configs.</p>
+          <h2 class="gw-dialog__title" id="core-port-dlg-t">Start the internal listener on another port?</h2>
+          <p class="gw-dialog__description" id="core-port-dlg-d">The core starts with its internal listener on the new port. Endpoint URLs stay the same, and so do your AI apps’ configs.</p>
         } @else {
           <h2 class="gw-dialog__title" id="core-port-dlg-t">Start the core on another port?</h2>
           <p class="gw-dialog__description" id="core-port-dlg-d">Every endpoint URL changes. AI apps set up with the old URL stop reaching the core until you connect them again.</p>
@@ -50,7 +50,7 @@
           </div>
           @if (publicMove() !== null) {
             <dl class="gw-kv gw-kv--dense">
-              <div class="gw-kv__row"><dt class="gw-kv__key">Tunnel listener</dt><dd class="gw-kv__value"><span class="gw-mono">127.0.0.1:{{ newPort ?? '…' }}</span>, which the tunnel connects to when it starts</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Internal listener</dt><dd class="gw-kv__value"><span class="gw-mono">127.0.0.1:{{ newPort ?? '…' }}</span></dd></div>
               <div class="gw-kv__row"><dt class="gw-kv__key">Unchanged</dt><dd class="gw-kv__value">Endpoint URLs on <span class="gw-mono">{{ core.address() }}</span>, and every AI app connected to them</dd></div>
             </dl>
           } @else {
@@ -69,7 +69,7 @@
               <div class="gw-kv__row"><dt class="gw-kv__key">Connect again</dt><dd class="gw-kv__value">AI apps with the URL in their config (Codex, Cursor, Antigravity), from AI apps once the core runs</dd></div>
               <div class="gw-kv__row">
                 <dt class="gw-kv__key">Unchanged</dt>
-                <dd class="gw-kv__value">Claude Desktop: its bridge asks the app for the new URL@if (stableTunnel()) {; claude.ai: the tunnel’s public URL stays the same}</dd>
+                <dd class="gw-kv__value">Claude Desktop: its bridge asks the app for the new URL</dd>
               </div>
             </dl>
           }

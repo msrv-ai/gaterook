@@ -88,8 +88,6 @@ export class GwSplitDialog {
   readonly clients = input<readonly SplitClient[]>([]);
   readonly preview = input<SplitPreview | null>(null);
   readonly address = input('127.0.0.1:7465');
-  /** Published endpoints keep their public URL; the dialog says the new one is local only. */
-  readonly published = input(false);
 
   readonly changed = output<SplitRequest>();
   readonly create = output<SplitRequest>();

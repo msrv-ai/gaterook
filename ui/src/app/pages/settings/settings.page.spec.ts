@@ -329,7 +329,7 @@ describe('Settings page: loading, failure, the layout', () => {
     expect($('#settings-general', el)).not.toBeNull();
   });
 
-  it('the kit’s ten sections in its order, with the header and Desktop mode', async () => {
+  it('the local settings sections in kit order, with the header and Desktop mode', async () => {
     const el = await render();
     expect(text($('h1', el))).toBe('Settings');
     expect(text($('.gw-page-header__meta', el))).toBe('Desktop mode One local user, no sign-in. Team settings show how server mode works.');
@@ -340,7 +340,6 @@ describe('Settings page: loading, failure, the layout', () => {
       'settings-users',
       'settings-notifications',
       'settings-approval-rules',
-      'settings-tunnel',
       'settings-local-api',
       'settings-audit',
       'settings-backup',
@@ -409,7 +408,7 @@ describe('Settings page: General', () => {
     const input = $<HTMLInputElement>('#st-port-new')!;
     await type(input, '7466');
     await submit($('form', dlg) as HTMLFormElement);
-    expect(text($('#st-port-new-err'))).toBe("7466 is the tunnel's port. Choose another one.");
+    expect(text($('#st-port-new-err'))).toBe("7466 is reserved by GateRook. Choose another one.");
     expect(calls).not.toContain('put local-api');
 
     await type(input, '7475');
@@ -564,29 +563,32 @@ describe('Settings page: Authorization', () => {
     world.update = (name, body) => Promise.resolve({ ...kitSections()[name], values: { ...kitSections()[name].values, ...(body as object) } } as SettingsSection);
     await submit($('#st-oauth') as HTMLFormElement);
     expect(bodies['authorization']).toEqual({ clientRegistration: 'cimd+dcr', version: 3 });
-    expect(toasts()).toContain('OAuth 2.1 for claude.ai saved');
+    expect(toasts()).toContain('OAuth settings saved');
   });
 
-  it('without K3 the issuer and sign-ins say they aren’t in this build', async () => {
+  it('keeps local OAuth settings without public issuer details or tunnel entry points', async () => {
     const el = await render();
     const a = $('#settings-authorization', el)!;
-    expect(text(a)).toContain('None yet: the issuer is the tunnel');
-    expect(text(a)).toContain('This version of the app has no tunnel yet');
+    expect($('#st-oauth', a)).not.toBeNull();
+    expect($('#st-issuer', a)).toBeNull();
+    expect(text(a)).not.toMatch(/claude\.ai|tunnel|public address/i);
     expect(text(a)).toContain("Sign-ins aren't listed in this build");
   });
 
   it('Revoke asks first with Cancel focused; the last one gone leaves the empty text with the focus', async () => {
     world.tunnel = () => Promise.resolve(kitTunnel());
-    world.grants = () => Promise.resolve([kitGrant()]);
+    world.grants = () => Promise.resolve([kitGrant(), kitGrant({ id: 'local-grant', client: 'Cursor', ingress: 'LOCAL' })]);
     const el = await render();
+    expect(text($('#settings-signed-in', el))).not.toContain('claude.ai');
+    expect(text($('#st-grants-count', el))).toBe('1 sign-in');
     await click(control($('#settings-signed-in', el)!, 'Revoke'));
     const dlg = $<HTMLDialogElement>('#st-revoke-ai-dlg')!;
     expect(dlg.hasAttribute('open')).toBe(true);
     expect(text(document.activeElement)).toBe('Cancel');
-    await click(control(dlg, 'Revoke claude.ai access'));
-    expect(calls).toContain('revoke g1');
+    await click(control(dlg, 'Revoke Cursor access'));
+    expect(calls).toContain('revoke local-grant');
     expect(document.activeElement?.id).toBe('st-grants-empty');
-    expect(toasts()).toContain('claude.ai access to stage-readonly revoked · claude.ai has to sign in again, and you allow it here.');
+    expect(toasts()).toContain('Cursor access to stage-readonly revoked · Cursor has to sign in again, and you allow it here.');
   });
 });
 
@@ -795,97 +797,6 @@ describe('Settings page: Approval rules', () => {
   });
 });
 
-describe('Settings page: Tunnel', () => {
-  it('without K3: the section keeps its shape and nothing acts', async () => {
-    const el = await render();
-    const t = $('#settings-tunnel', el)!;
-    const on = $<HTMLElement>('#st-tunnel-on-btn', t)!;
-    expect(on.getAttribute('aria-disabled')).toBe('true');
-    expect(reason(on)).toContain('This version of the app has no tunnel yet');
-    expect($<HTMLInputElement>('#st-anthropic-ips', t)!.getAttribute('aria-disabled')).toBe('true');
-    // Gate 1 per §8.6.4: the sign-in page opens in the person's own browser.
-    expect(text($('#st-gate-ips', t))).toBe('Only Anthropic IP ranges reach /mcp/stage-readonly; the sign-in page opens in your own browser');
-    expect(text($('#st-prov-cf-d', t))).toContain('A quick tunnel gets a new address each time it starts');
-  });
-
-  it('with K3: off since 12:10 with today’s period; Turn on asks first, Publish makes it public', async () => {
-    world.tunnel = () => Promise.resolve(kitTunnel());
-    world.grants = () => Promise.resolve([kitGrant()]);
-    const el = await render();
-    const t = $('#settings-tunnel', el)!;
-    expect(text(t)).toContain(`Off since ${clockTime('2026-10-22T10:10:00Z', false)}`);
-    expect(text(t)).toContain('19 while public');
-    await click($<HTMLElement>('#st-tunnel-on-btn', t)!);
-    const dlg = $<HTMLDialogElement>('#st-tunnel-dlg')!;
-    expect(dlg.hasAttribute('open')).toBe(true);
-    expect(text(document.activeElement)).toBe('Cancel');
-    expect(text(dlg)).toContain('/mcp/stage-readonly, /oauth/* and /.well-known/oauth-*');
-    expect(text(dlg)).toContain('You allow each new one here; 1 earlier sign-in is still valid');
-    expect(text(dlg)).toContain('endpoints dev and incident-prod');
-    await click($<HTMLElement>('#st-tunnel-confirm')!);
-    expect(calls).toContain('publish stage-readonly');
-    expect(toasts()[0]).toBe(
-      'stage-readonly is public · Anthropic IP ranges can reach https://gw-acme-7f3k.trycloudflare.com/mcp/stage-readonly. Add it in claude.ai under Settings, Connectors.',
-    );
-    expect(text($('#st-tunnel-on', t))).toContain('Public · stage-readonly · Cloudflare Tunnel');
-  });
-
-  it('Callers: off asks first (Cancel focused) and stays on until confirmed; on applies at once', async () => {
-    world.tunnel = () => Promise.resolve(kitTunnel());
-    const el = await render();
-    const sw = $<HTMLInputElement>('#st-anthropic-ips', el)!;
-    await toggle(sw);
-    expect(sw.checked).toBe(true);
-    const dlg = $<HTMLDialogElement>('#st-any-address-dlg')!;
-    expect(dlg.hasAttribute('open')).toBe(true);
-    expect(text(document.activeElement)).toBe('Cancel');
-    expect(text(dlg)).toContain('this applies the next time you publish');
-    world.tunnel = () => Promise.resolve(kitTunnel({ callers: { anthropicOnly: false } }));
-    await click($<HTMLElement>('#st-any-address-confirm')!);
-    expect(bodies['tunnel/callers']).toEqual({ anthropicOnly: false });
-    expect(sw.checked).toBe(false);
-    expect(toasts()).toContain('Calls from any address accepted · Sign-in still waits for you on this computer, and stage-readonly stays read only. Recorded in Setup changes.');
-  });
-
-  it('Provider saves with the section’s version; ngrok asks for its authtoken, which leaves with the save only', async () => {
-    world.tunnel = () => Promise.resolve(kitTunnel());
-    const el = await render();
-    const t = $('#settings-tunnel', el)!;
-    expect($('#st-ngrok-token', t)).toBeNull();
-    await toggle($<HTMLInputElement>('input[value="ngrok"]', t)!);
-    const token = $<HTMLInputElement>('#st-ngrok-token', t)!;
-    expect(token.type).toBe('password');
-    expect(saveBar('st-tunnel').hidden).toBe(false);
-
-    // No authtoken stored yet: Save says what is missing and sends nothing.
-    await submit($('#st-tunnel') as HTMLFormElement);
-    expect(text($('#st-ngrok-token-err', t))).toBe('Paste the authtoken of your ngrok account.');
-    expect(document.activeElement).toBe(token);
-    expect(calls).not.toContain('put tunnel');
-
-    await type(token, '2abcNgrokAuthtoken');
-    await submit($('#st-tunnel') as HTMLFormElement);
-    // `PUT /api/settings/tunnel` needs the version of the section (GET /api/settings/tunnel) or the core answers 422.
-    expect(bodies['tunnel']).toEqual({ provider: 'ngrok', version: 4, ngrokAuthtoken: '2abcNgrokAuthtoken' });
-    expect(token.value).toBe('');
-    expect(toasts()).toContain('Provider saved');
-  });
-
-  it('a 409 of the tunnel says the core’s reason, not "changed meanwhile"', async () => {
-    world.tunnel = () => Promise.resolve(kitTunnel({ state: 'on', host: 'gw-acme-7f3k.trycloudflare.com' }));
-    world.update = (name, body) =>
-      name === 'tunnel'
-        ? Promise.reject(ApiError.fromHttp(new HttpErrorResponse({ status: 409, error: { title: 'Tunnel on', detail: 'Turn the tunnel off to change its provider or address.' } })))
-        : Promise.resolve({ name, values: body as never, version: 1, updatedAt: null });
-    const el = await render();
-    const t = $('#settings-tunnel', el)!;
-    await toggle($<HTMLInputElement>('input[value="ngrok"]', t)!);
-    await type($<HTMLInputElement>('#st-ngrok-token', t)!, '2abcNgrokAuthtoken');
-    await submit($('#st-tunnel') as HTMLFormElement);
-    expect(text(t)).toContain('Turn the tunnel off to change its provider or address.');
-  });
-});
-
 describe('Settings page: Local API', () => {
   it('allowed origins: checked like the core does, removed with the keyboard kept, saved with a restart note', async () => {
     const el = await render();
@@ -1022,13 +933,18 @@ describe('Settings page: Backup', () => {
 describe('Settings page: routes and live updates', () => {
   it('a link to a section, or an anchor in it, puts the view and the keyboard there; an unknown one goes to General', async () => {
     const harness = await RouterTestingHarness.create();
-    await harness.navigateByUrl('/settings/tunnel#settings-tunnel-callers', SettingsPage);
+    await harness.navigateByUrl('/settings/local-api#st-origins', SettingsPage);
     for (let i = 0; i < 6; i++) {
       await new Promise((r) => setTimeout(r, 0));
       await harness.fixture.whenStable();
     }
-    expect(document.activeElement?.id).toBe('settings-tunnel-callers');
-    expect($('.gw-settings-layout__nav [aria-current="location"]')?.textContent).toContain('Tunnel');
+    expect(document.activeElement?.id).toBe('st-origins');
+    expect($('.gw-settings-layout__nav [aria-current="location"]')?.textContent).toContain('Local API');
+
+    await harness.navigateByUrl('/settings/tunnel#settings-tunnel-callers');
+    await new Promise((r) => setTimeout(r, 0));
+    await harness.fixture.whenStable();
+    expect(TestBed.inject(Router).url).toBe('/settings/general');
 
     await harness.navigateByUrl('/settings/nope');
     await new Promise((r) => setTimeout(r, 0));
@@ -1036,11 +952,13 @@ describe('Settings page: routes and live updates', () => {
     expect(TestBed.inject(Router).url).toBe('/settings/general');
   });
 
-  it('a tunnel event reads the tunnel again', async () => {
-    await render();
-    const before = calls.filter((c) => c === 'tunnel').length;
+  it('does not expose or load tunnel settings, including on live events', async () => {
+    const el = await render();
+    expect($('#settings-tunnel', el)).toBeNull();
+    expect($('.gw-settings-layout__nav [href="/settings/tunnel"]', el)).toBeNull();
+    expect($('.gw-settings-layout__jump option[value="tunnel"]', el)).toBeNull();
     events.emit('tunnel.state', { state: 'on' });
     await settle();
-    expect(calls.filter((c) => c === 'tunnel').length).toBe(before + 1);
+    expect(calls).not.toContain('tunnel');
   });
 });

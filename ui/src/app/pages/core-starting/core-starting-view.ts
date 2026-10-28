@@ -183,7 +183,7 @@ export function protectsWords(by: readonly MasterKeyProtects[]): TextPart[] {
         items.push([t(k === 1 ? 'the notification token' : n(k, 'notification token', 'notification tokens'))]);
         break;
       case 'tunnel':
-        items.push([t('the tunnel token')]);
+        items.push([t('an additional service token')]);
         break;
       case 'audit-export':
         items.push([t('the audit export credentials')]);
@@ -323,7 +323,7 @@ export function portError(text: string, current: number, publicPort: number | nu
   const port = Number(t);
   if (port < PORT_MIN || port > PORT_MAX) return `${port} is outside 1024 to 65535. Use a port in that range.`;
   if (port === current) return `${port} is the port that is in use. Choose another one.`;
-  if (publicPort !== null && port === publicPort) return `${port} is the tunnel’s port. Choose another one.`;
+  if (publicPort !== null && port === publicPort) return `${port} is reserved for an internal listener. Choose another one.`;
   return null;
 }
 

@@ -5,7 +5,6 @@ import { isApiError } from '../../core/api/api-error';
 import { OAuthGrant } from '../../core/api/tunnel.api';
 import { TimeService } from '../../core/time/time.service';
 import { Announcer } from '../../kit/announcer';
-import { GwCopy } from '../../kit/copy';
 import { GwDialog, GwDialogClose } from '../../kit/dialog';
 import { GwHowItWorks, GwHowItWorksStep } from '../../kit/elements/how-it-works/how-it-works';
 import { GwSaveBar } from '../../kit/elements/settings-layout/settings-layout';
@@ -22,9 +21,8 @@ const NO_ANSWER = 'The core didn’t answer. Try again.';
  * - How authorization works (four steps, `--vertical`, folded state remembered).
  * - MCP access applies at once: the default lifetime of new named tokens (`authorization.tokenTtlDays`), the IP
  *   allowlist as a server-mode fact, and a warning for named tokens that run out within 7 days.
- * - OAuth 2.1 for claude.ai is a Save form: client registration CIMD or CIMD + DCR (`authorization.clientRegistration`;
- *   picking DCR shows its warning). The issuer is the tunnel's public address and the callers its single switch, so
- *   both come from `/api/tunnel` (K3); without a tunnel the form says so.
+ * - OAuth 2.1 is a Save form: client registration CIMD or CIMD + DCR (`authorization.clientRegistration`;
+ *   picking DCR shows its warning).
  * - Signed in applies at once: the OAuth sign-ins you allowed (`/api/oauth/grants`, K3), Revoke asks first
  *   (`gw-dialog--sm --danger`, Cancel has focus) and focus goes to the empty text when the last one goes.
  * - Sign-in to the UI: server mode only, a read-only preview.
@@ -33,7 +31,7 @@ const NO_ANSWER = 'The core didn’t answer. Try again.';
  */
 @Component({
   selector: 'section[gwAuthorizationSettings]',
-  imports: [RouterLink, FormField, GwIcon, GwCopy, GwDialog, GwDialogClose, GwHowItWorks, GwHowItWorksStep, GwSaveBar],
+  imports: [RouterLink, FormField, GwIcon, GwDialog, GwDialogClose, GwHowItWorks, GwHowItWorksStep, GwSaveBar],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'gw-settings-layout__section', id: 'settings-authorization', 'aria-labelledby': 'st-auth-t' },
   templateUrl: './authorization.section.html',
@@ -58,18 +56,6 @@ export class GwAuthorizationSettings {
   protected readonly expiring = computed(() => expiringTokens(this.data.tokens(), this.time.minute()));
   protected readonly expiresText = (at: string) => expiresText(at, this.time.minute());
 
-  // ── OAuth 2.1 for claude.ai ───────────────────────────────────────────────────────────────────────────────────
-
-  protected readonly published = this.data.published;
-  protected readonly tunnel = computed(() => this.data.tunnel().value);
-  protected readonly tunnelUnavailable = computed(() => this.data.tunnel().unavailable);
-  protected readonly issuer = computed(() => {
-    const host = this.tunnel()?.host;
-    return host ? `https://${host}` : null;
-  });
-  protected readonly tunnelOn = computed(() => this.tunnel()?.state === 'on');
-  protected readonly anthropicOnly = computed(() => this.tunnel()?.callers?.anthropicOnly ?? true);
-
   private readonly savedRegistration = computed(() => registrationOf(this.values()));
   /** Follows the saved value until the person picks another card (a reload never overwrites the choice). */
   protected readonly oauthModel = linkedSignal<Registration, { registration: Registration }>({
@@ -84,7 +70,7 @@ export class GwAuthorizationSettings {
 
   // ── Signed in ─────────────────────────────────────────────────────────────────────────────────────────────────
 
-  protected readonly grants = computed(() => (this.data.grants().value ?? []).filter((g) => g.state === 'active' || g.state === 'address-changed'));
+  protected readonly grants = computed(() => (this.data.grants().value ?? []).filter((g) => g.ingress === 'LOCAL' && (g.state === 'active' || g.state === 'address-changed')));
   protected readonly revoking = signal<OAuthGrant | null>(null);
   protected readonly revokeBusy = signal(false);
   protected readonly revokeError = signal<string | null>(null);
@@ -117,7 +103,7 @@ export class GwAuthorizationSettings {
     this.oauthError.set(null);
     try {
       await this.data.save('authorization', { clientRegistration: this.oauthModel().registration });
-      this.toasts.show(formSavedToast('OAuth 2.1 for claude.ai'));
+      this.toasts.show(formSavedToast('OAuth settings'));
     } catch (err) {
       this.oauthError.set(this.errorText(err));
       this.announcer.announce('OAuth settings weren’t saved');

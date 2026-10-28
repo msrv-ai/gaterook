@@ -245,15 +245,6 @@
   }
 </ng-template>
 
-<!-- ─────────────── claude.ai through the tunnel ─────────────── -->
-<section class="gw-section" aria-labelledby="cl-web-t">
-  <header class="gw-section__header">
-    <h2 class="gw-section__title" id="cl-web-t">In the browser</h2>
-    <p class="gw-section__description">claude.ai connects from Anthropic's servers, not from this computer, so it can't reach <code class="gw-code">127.0.0.1</code>. Publishing opens a tunnel that gives one endpoint a public HTTPS address; only MCP and OAuth paths go out.</p>
-  </header>
-  <article gwClaudeAiAccess collapsible [(expanded)]="browserExpanded" [stage]="st" [tunnel]="data.tunnel()" [endpoint]="data.published()" [preview]="data.publishPreview()" [grants]="data.grants().value ?? []" [endpoints]="endpoints()" [busy]="tunnelBusy()" (publish)="onPublish($event)" (stop)="onStopTunnel()" (revoke)="onRevoke($event)"></article>
-</section>
-
 <!-- ─────────────── Manual setup: Inspector and anything else (none in first run; collapsed initially) ─────────────── -->
 @if (st !== 'first-run') {
 <section class="gw-section" aria-labelledby="cl-manual-t">

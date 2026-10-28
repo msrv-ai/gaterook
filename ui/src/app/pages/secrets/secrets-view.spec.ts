@@ -98,6 +98,7 @@ describe('stored secrets: cells', () => {
     expect(ownerCell(local('tg/token', 'telegram', 1, null, { ownerKind: 'notification' }), ctx)).toMatchObject({ label: 'telegram', caption: 'notifications', link: { route: '/settings/notifications' } });
     // A connection Connections didn't name: no marker rather than a guess.
     expect(ownerCell(local('x/password', 'unknown', 1, null), ctx).env).toBeNull();
+    expect(ownerCell(local('t/x', 'tunnel', 1, null, { ownerKind: 'tunnel' }), ctx).link).toBeNull();
   });
 
   it('Source: encrypted here, the store, and what is wrong in words with a status', () => {

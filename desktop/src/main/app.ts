@@ -124,6 +124,8 @@ export class Desktop {
   private readyDeliveredFor: string | null = null;
   private relayEvents = false;
   private readonly consents = new Set<string>();
+  private readonly requestedConsents = new Set<string>();
+  private consentRevision = 0;
   private quitting = false;
   private stopped = false;
   private resetting = false;
@@ -336,6 +338,8 @@ export class Desktop {
     this.events.stop();
     this.readyDeliveredFor = null;
     this.consents.clear();
+    this.requestedConsents.clear();
+    this.consentRevision++;
     this.window?.refreshProtection();
   }
 
@@ -354,18 +358,23 @@ export class Desktop {
       case 'approval.requested':
         void this.refreshCounters();
         break;
-      case 'oauth.consent.requested':
-        if (typeof data['id'] === 'string') this.consents.add(data['id']);
-        this.window?.refreshProtection();
-        // A decision appeared, also on a screen that was protected already (an approval): the 700 ms start again.
-        this.window?.gate.rearm();
-        this.notifications?.onConsent(e.data);
+      case 'oauth.consent.requested': {
+        const core = this.supervisor.endpoint();
+        if (core && !core.locked && typeof data['id'] === 'string') void this.syncConsents(core, data['id']);
         break;
-      case 'oauth.consent.resolved':
-        if (typeof data['id'] === 'string') this.consents.delete(data['id']);
+      }
+      case 'oauth.consent.resolved': {
+        this.consentRevision++;
+        if (typeof data['id'] === 'string') {
+          this.consents.delete(data['id']);
+          this.requestedConsents.delete(data['id']);
+        }
         this.window?.refreshProtection();
         this.notifications?.consentResolved(data['id']);
+        const core = this.supervisor.endpoint();
+        if (core && !core.locked) void this.syncConsents(core);
         break;
+      }
       case 'ui.open': {
         // "Open in app" in Slack or Telegram (§7.4 `ui.open {path}`): the window comes forward on that path, through
         // the allowlist a notification's Review uses; any other path only brings the window forward.
@@ -418,12 +427,23 @@ export class Desktop {
     }
   }
 
-  private async syncConsents(core: ReadyCore): Promise<void> {
+  private async syncConsents(core: ReadyCore, requestedId?: string): Promise<void> {
+    if (requestedId) this.requestedConsents.add(requestedId);
+    const revision = ++this.consentRevision;
     try {
       const answer = await callCore<unknown>(core, 'GET', '/api/oauth/consents');
+      if (revision !== this.consentRevision || core.instanceNonce !== this.supervisor.endpoint()?.instanceNonce) return;
       if (answer.status !== 200 || !Array.isArray(answer.body)) return;
       this.consents.clear();
-      for (const c of answer.body as { id?: unknown }[]) if (typeof c.id === 'string') this.consents.add(c.id);
+      for (const c of answer.body as { id?: unknown; ingress?: unknown }[]) {
+        if (c.ingress !== 'LOCAL' || typeof c.id !== 'string') continue;
+        this.consents.add(c.id);
+        if (this.requestedConsents.has(c.id)) {
+          this.window?.gate.rearm();
+          this.notifications?.onConsent(c);
+        }
+      }
+      this.requestedConsents.clear();
       this.window?.refreshProtection();
     } catch {
       // A core without K3's routes: no sign-ins to wait for.

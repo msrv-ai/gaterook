@@ -31,7 +31,7 @@ describe('desktop.json', () => {
 
   it('refuses to write a port the core would refuse', () => {
     assert.throws(() => writeDesktopConfig(join(t.dir, 'home-b'), { port: 80, publicPort: 7466 }), /1024/);
-    assert.throws(() => writeDesktopConfig(join(t.dir, 'home-b'), { port: 7466, publicPort: 7466 }), /tunnel/);
+    assert.throws(() => writeDesktopConfig(join(t.dir, 'home-b'), { port: 7466, publicPort: 7466 }), /reserved by GateRook/);
   });
 
   it('falls back to the defaults on a broken file and says why', () => {
@@ -47,7 +47,7 @@ describe('desktop.json', () => {
 
   it('checks ports like the core', () => {
     assert.equal(portProblem(7475, 7466), null);
-    assert.match(portProblem(7466, 7466) ?? '', /tunnel's port/);
+    assert.match(portProblem(7466, 7466) ?? '', /reserved by GateRook/);
     assert.match(portProblem(1023, 7466) ?? '', /1024 to 65535/);
     assert.match(portProblem(65536, 7466) ?? '', /1024 to 65535/);
     assert.match(portProblem('7475', 7466) ?? '', /port number/);
@@ -74,7 +74,7 @@ describe('Use another port (usePort)', () => {
 
   it('a number moves the local API, as before', () => {
     assert.deepEqual(portRequest(7475, current), { port: 7475, publicPort: 7466, named: ['port'] });
-    assert.match((portRequest(7466, current) as { problem: string }).problem, /tunnel's port/);
+    assert.match((portRequest(7466, current) as { problem: string }).problem, /reserved by GateRook/);
     assert.match((portRequest(80, current) as { problem: string }).problem, /1024/);
   });
 
@@ -87,7 +87,7 @@ describe('Use another port (usePort)', () => {
   it('refuses what the core would refuse, and nothing at all', () => {
     const problem = (raw: unknown): string => (portRequest(raw, current) as { problem?: string }).problem ?? '';
     assert.match(problem({ publicPort: 7465 }), /local API's port/);
-    assert.match(problem({ port: 7500, publicPort: 7500 }), /tunnel's port/);
+    assert.match(problem({ port: 7500, publicPort: 7500 }), /reserved by GateRook/);
     assert.match(problem({ publicPort: 1023 }), /1024/);
     assert.match(problem({ publicPort: '7476' }), /port number/);
     assert.match(problem({}), /port number/);

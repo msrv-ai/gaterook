@@ -503,6 +503,7 @@ describe('Activity page', () => {
       ['rel 18000s', 'ssh_exec on dev-vm, endpoint dev', 'Approval to Off', 'You', 'Runbooks cover what agents need on dev-vm.'],
       ['rel 21600s', 'Tunnel Cloudflare', 'Off to On', 'You', 'Try stage-readonly from claude.ai.'],
     ]);
+    expect(rows()[0].querySelector('a')).toBeNull();
     expect(rows()[1].querySelector('a')!.getAttribute('href')).toBe('/endpoints/dev?tab=tools');
     expect(rows()[1].querySelector('.gw-mode--read')).not.toBeNull();
     expect(text(el.querySelector('#ac-panel-changes .gw-paginator__info'))).toBe('All 4 changes in the last 24 hours');

@@ -137,10 +137,11 @@ export function denyRequest(n: DesktopNotice): { path: string; body: { decision:
   return { path: `/api/approvals/${n.id}/decision`, body: { decision: 'deny', via: 'desktop-notification' } };
 }
 
-/** "claude.ai wants to sign in · code 4F7-2KQ" (§7.3): the OS notification of an OAuth consent request. */
+/** The OS notification of a local app's OAuth consent request. */
 export function consentNotice(data: unknown): { id: string; title: string; body: string } | null {
   if (typeof data !== 'object' || data === null) return null;
   const d = data as Record<string, unknown>;
+  if (d['ingress'] !== 'LOCAL') return null;
   const id = text(d['id'], 64);
   const code = typeof d['code'] === 'string' && /^[A-Z0-9]{3}-[A-Z0-9]{3}$/.test(d['code']) ? d['code'] : null;
   if (!id || !code) return null;

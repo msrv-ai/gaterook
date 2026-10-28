@@ -139,7 +139,6 @@ export class SettingsData {
   start(): Promise<void> {
     const on = this.events.on.bind(this.events);
     this.unsubscribe.push(
-      on('tunnel.state', () => void this.reloadPart(this.tunnelSignal, () => this.tunnelApi.get())),
       on('notify.state', () => void this.reloadNotifications()),
       on('notify.link.updated', () => void this.reloadNotifications()),
       on('oauth.consent.resolved', () => void this.reloadPart(this.grantsSignal, () => this.oauthApi.grants())),
@@ -192,8 +191,6 @@ export class SettingsData {
       part(this.masterKeySignal, () => this.masterKeyApi.status()),
       part(this.endpointsSignal, () => this.endpointsApi.list()).then(() => this.loadTokens()),
       part(this.notificationsSignal, () => this.notificationsApi.get()).then(() => this.loadSlackChannels()),
-      part(this.tunnelSignal, () => this.tunnelApi.get()),
-      part(this.tunnelSettingsSignal, () => this.settingsApi.get('tunnel')),
       part(this.grantsSignal, () => this.oauthApi.grants()),
       part(this.exportsSignal, () => this.exportApi.list()),
       // Facts that only refine a sentence: without them the sentence is shorter, never wrong.

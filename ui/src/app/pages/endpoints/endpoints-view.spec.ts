@@ -116,12 +116,13 @@ describe('Endpoints view', () => {
     expect(healthParts(endpoint('empty'), kitConnections())).toEqual([]);
   });
 
-  it('lists the clients, and claude.ai with the tunnel on a published endpoint', () => {
+  it('lists local clients without the published client', () => {
     expect(clientParts(dev)).toEqual([
       { id: 'claude-desktop', name: 'Claude Desktop' },
       { id: 'codex', name: 'Codex' },
     ]);
-    expect(clientParts(stage)).toEqual([{ id: 'claude-ai', name: 'claude.ai' }]);
+    expect(clientParts(stage)).toEqual([]);
+    expect(clientParts({ ...dev, clients: [...dev.clients, 'claude-ai'] })).toEqual(clientParts(dev));
     expect(tunnelStatus(TUNNEL_OFF)).toEqual({ tone: 'neutral', text: 'Tunnel off', at: at(22, '12:10:00') });
     expect(tunnelStatus({ ...TUNNEL_OFF, state: 'on' }).tone).toBe('warning');
     expect(tunnelStatus(null)).toEqual({ tone: 'neutral', text: 'Tunnel off', at: null });
@@ -153,7 +154,7 @@ describe('Endpoints view', () => {
   it('says what Disable does, in the kit’s words', () => {
     const all = kitEndpoints();
     expect(disableBody(dev, all, tokens['dev'], NOW)).toBe('Claude Desktop and Codex get an error on their next call. Tokens and settings are kept.');
-    expect(disableBody(stage, all, [], NOW)).toBe('claude.ai gets an error on its next call, even with the tunnel on. Settings are kept.');
+    expect(disableBody(stage, all, [], NOW)).toBe('Agents get an error on their next call. Settings are kept.');
     expect(disableBody(prod, all, tokens['incident-prod'], NOW)).toBe('Claude Desktop gets an error on its next call to it. Settings are kept.');
     expect(disableBody(endpoint('lonely'), all, [], NOW)).toBe('Agents get an error on their next call. Settings are kept.');
   });
@@ -167,8 +168,8 @@ describe('Endpoints view', () => {
       waiting: '3 approval requests (denied)',
     });
     expect(deleteFacts(stage, [], NOW)).toEqual({
-      description: 'claude.ai loses this connector, and the tunnel stops publishing it. Connections, their secrets and the audit log stay.',
-      clients: 'claude.ai, through the tunnel',
+      description: 'Its URL stops answering at once. Connections, their secrets and the audit log stay.',
+      clients: 'None',
       tokens: 'None stored',
       waiting: null,
     });
@@ -247,7 +248,7 @@ describe('Endpoints view', () => {
     // The channel is the tool that can send data out, not the fixed runbooks listed before it.
     expect(channelSource(dev.risk)?.tool).toBe('http_request');
     expect(line(compactLine(dev.risk, true))).toBe('private data + untrusted content + external channel through `http_request`');
-    expect(line(compactLine(stage.risk, true))).toBe('private data + untrusted content + external channel through `http_get`, published to the internet');
+    expect(line(compactLine(stage.risk, true))).toBe('private data + untrusted content + external channel through `http_get`');
     expect(line(compactLine(prod.risk, true, 2))).toBe('private data + untrusted content + limited channel (2 fixed runbooks)');
     expect(line(compactLine(prod.risk, true, 1))).toBe('private data + untrusted content + limited channel (1 fixed runbook)');
     // Without `review` (elements/risk-callout.html "Compact, in the endpoint list"): no tool, no count.

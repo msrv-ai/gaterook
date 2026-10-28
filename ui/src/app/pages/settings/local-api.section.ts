@@ -41,7 +41,7 @@ const NO_ANSWER = 'The core didn’t answer. Try again.';
           <div class="gw-field">
             <label class="gw-field__label" for="st-listen">Address</label>
             <input class="gw-input gw-input--mono" id="st-listen" type="text" [value]="address()" readonly aria-describedby="st-listen-hint">
-            <p class="gw-field__hint" id="st-listen-hint">Loopback only: nothing else on your network can reach the core, and claude.ai comes in only through the tunnel.</p>
+            <p class="gw-field__hint" id="st-listen-hint">Loopback only: nothing else on your network can reach the core.</p>
           </div>
         </div>
       </section>

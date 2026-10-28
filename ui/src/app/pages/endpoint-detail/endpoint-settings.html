@@ -121,7 +121,7 @@
       <section class="gw-form__section" aria-labelledby="ep-st-oauth-legend">
         <header class="gw-form__section-header">
           <h3 class="gw-form__legend" id="ep-st-oauth-legend">OAuth 2.1</h3>
-          <p class="gw-form__description">Lets an AI app sign in through the browser instead of a pasted token. claude.ai needs it; tokens keep working.</p>
+          <p class="gw-form__description">Lets a local AI app sign in through the browser instead of a pasted token. Tokens keep working.</p>
         </header>
         <div class="gw-form__rows">
           <div class="gw-switch">
@@ -147,16 +147,6 @@
             <div class="gw-kv__row"><dt class="gw-kv__key">PKCE</dt><dd class="gw-kv__value">S256, required</dd></div>
             <div class="gw-kv__row"><dt class="gw-kv__key">Client registration</dt><dd class="gw-kv__value">{{ registration() }}, from <a class="gw-link" routerLink="/settings/authorization">Settings › Authorization</a></dd></div>
           </dl>
-          <div class="gw-alert gw-alert--info gw-alert--compact">
-            <svg lucideIcon="globe-lock" class="gw-icon gw-alert__icon"></svg>
-            <div class="gw-alert__content">
-              @if (published()) {
-                <p class="gw-alert__body">{{ ep }} is published through the tunnel: claude.ai signs in at its public URL. Local AI apps keep using <span class="gw-mono">127.0.0.1</span>.</p>
-              } @else {
-                <p class="gw-alert__body">claude.ai can't reach <span class="gw-mono">127.0.0.1</span>. It signs in only to endpoints you publish through the tunnel@if (publishedExample(); as ex) {, like <a class="gw-link gw-mono" [routerLink]="['/endpoints', ex]">{{ ex }}</a>}.</p>
-              }
-            </div>
-          </div>
         </div>
       </section>
     </div>

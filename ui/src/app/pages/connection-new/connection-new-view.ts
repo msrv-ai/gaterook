@@ -193,14 +193,14 @@ export function fixSnippet(outcome: TestOutcome | null, config: JsonObject | nul
 export interface EndpointChoice {
   readonly slug: string;
   readonly description: string;
-  /** "Claude Desktop, Codex", "claude.ai · tunnel off". */
+  /** Local AI apps using this endpoint. */
   readonly meta: string | null;
   readonly refusal: string | null;
   readonly readOnly: boolean;
   readonly published: boolean;
   /** The endpoint's env once the connection joined it (an empty endpoint takes the first connection's). */
   readonly env: Env;
-  /** "Dev data on a public endpoint" while it is published. */
+  /** Additional access review for an endpoint with existing access restrictions. */
   readonly warning: { readonly title: string; readonly body: string } | null;
 }
 
@@ -213,7 +213,7 @@ export interface EndpointChoice {
 export function refusalFor(e: EndpointSummary, conn: { readonly name: string; readonly env: Env }): string | null {
   if (e.blockedReason) return e.blockedReason;
   const prodConn = conn.env === 'prod';
-  if (prodConn && e.published) return `Published through the tunnel, and a prod connection never is; ${conn.name || 'this connection'} is prod.`;
+  if (prodConn && e.published) return `This endpoint does not accept production connections; ${conn.name || 'this connection'} is prod.`;
   if (e.connections.total === 0) return null;
   const name = conn.name || 'this connection';
   if (e.env === 'prod' && !prodConn) return `Accepts prod connections only; ${name} is ${conn.env}.`;
@@ -224,7 +224,6 @@ export function refusalFor(e: EndpointSummary, conn: { readonly name: string; re
 export function endpointChoices(
   endpoints: readonly EndpointSummary[],
   conn: { readonly name: string; readonly env: Env },
-  tunnelState: string | null = null,
 ): EndpointChoice[] {
   const name = conn.name || 'this connection';
   const choices = endpoints.map((e): EndpointChoice => {
@@ -234,16 +233,15 @@ export function endpointChoices(
       refusal ??
       e.description ??
       (readOnly ? 'Read only: tools that change data stay off.' : 'Reads run, writes wait for approval by default.');
-    const clients = e.clients.map(clientName);
-    const meta = e.published ? [...clients.filter((c) => c !== 'claude.ai'), 'claude.ai', `tunnel ${tunnelState ?? 'off'}`] : clients;
+    const meta = e.clients.filter((client) => client !== 'claude-ai').map(clientName);
     const warning =
       !refusal && e.published && conn.env === 'dev'
-        ? { title: 'Dev data on a public endpoint', body: `While the tunnel is on, claude.ai could read ${name} through ${e.slug}.` }
+        ? { title: 'Review endpoint access', body: `Check who can use ${e.slug} before giving it access to ${name}.` }
         : null;
     return {
       slug: e.slug,
       description,
-      meta: meta.length ? (e.published ? meta.join(' · ') : meta.join(', ')) : null,
+      meta: meta.length ? meta.join(', ') : null,
       refusal,
       readOnly,
       published: e.published,
@@ -625,7 +623,7 @@ export function endpointUses(rows: readonly ConnectionUsedBy[], endpoints: reado
   return slugs.map((slug) => ({
     slug,
     tools: rows.filter((r) => r.endpoint === slug && toolMode(r.mode) !== 'OFF').map((r) => r.tool),
-    clients: (endpoints.find((e) => e.slug === slug)?.clients ?? []).map(clientName),
+    clients: (endpoints.find((e) => e.slug === slug)?.clients ?? []).filter((client) => client !== 'claude-ai').map(clientName),
   }));
 }
 

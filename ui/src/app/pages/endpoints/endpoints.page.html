@@ -10,10 +10,6 @@
           @for (s of statuses(); track s.text) {
             <span [class]="'gw-status gw-status--' + s.tone"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ s.text }}</span></span>
           }
-          @if (published(); as p) {
-            <span class="gw-divider gw-divider--vertical" aria-hidden="true"></span>
-            <span>{{ p.text }}@if (p.tunnel; as t) { · {{ t.text }}@if (t.at; as at) { since <time [attr.datetime]="time.iso(at)" [title]="time.absolute(at, false)">{{ time.clock(at) }}</time>}}</span>
-          }
         </div>
       }
     </div>
@@ -91,9 +87,6 @@
               }
             </div>
             <div class="gw-card__actions">
-              @if (c.e.published) {
-                <span class="gw-badge gw-badge--info"><svg lucideIcon="globe" class="gw-icon gw-badge__icon"></svg>Published for claude.ai</span>
-              }
               @if (c.blocked) {
                 <span class="gw-status gw-status--warning" [id]="c.id + '-status'"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Needs review</span></span>
               } @else if (c.e.status === 'running') {
@@ -130,8 +123,8 @@
                 <div class="gw-kv__row"><dt class="gw-kv__key">Connection health</dt><dd class="gw-kv__value">@for (s of c.health; track $index) {@if (!$first) { }<span [class]="'gw-status gw-status--' + s.tone"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ s.text }}</span></span>}</dd></div>
               }
               <div class="gw-kv__row"><dt class="gw-kv__key">Tools</dt><dd class="gw-kv__value"><span class="gw-tabular">{{ c.tools.total }}</span>@if (c.tools.modes.length) { ·@for (m of c.tools.modes; track m.cls) { <span [class]="'gw-mode ' + m.cls"><svg [lucideIcon]="m.icon" class="gw-icon"></svg>{{ m.text }}</span>}}</dd></div>
-              <div class="gw-kv__row"><dt class="gw-kv__key">AI apps</dt><dd class="gw-kv__value">@for (cl of c.clients; track cl.id) {@if (!$first) { }<span [gwClientMark]="cl.id" size="sm"></span> {{ cl.name }}@if (cl.id === 'claude-ai') { <span [class]="'gw-status gw-status--' + c.tunnel.tone"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ c.tunnel.text }}@if (c.tunnel.at; as at) { since <time [attr.datetime]="time.iso(at)" [title]="time.absolute(at, false)">{{ time.clock(at) }}</time>}</span></span> <a class="gw-link" routerLink="/settings/tunnel">Tunnel settings</a>}} @empty {None · <a class="gw-link" routerLink="/clients">Connect your AI app<span class="gw-sr-only"> to {{ c.e.slug }}</span></a>}</dd></div>
-              <div class="gw-kv__row"><dt class="gw-kv__key">Tokens</dt><dd class="gw-kv__value">@if (c.tokens.counts; as counts) {{{ counts }}}@if (c.tokens.expiring; as soon) { <span class="gw-badge gw-badge--warning gw-badge--sm"><svg lucideIcon="hourglass" class="gw-icon gw-badge__icon"></svg>{{ soon }}</span>}@if (c.tokens.oauth; as oauth) {@if (c.tokens.counts) { · }{{ oauth }} · <a class="gw-link" routerLink="/clients" fragment="cl-ai-sessions">Manage<span class="gw-sr-only"> the OAuth sign-ins to {{ c.e.slug }}</span></a>}@if (c.tokens.none; as none) {{{ none }}}</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">AI apps</dt><dd class="gw-kv__value">@for (cl of c.clients; track cl.id) {@if (!$first) { }<span [gwClientMark]="cl.id" size="sm"></span> {{ cl.name }}} @empty {None · <a class="gw-link" routerLink="/clients">Connect your AI app<span class="gw-sr-only"> to {{ c.e.slug }}</span></a>}</dd></div>
+              <div class="gw-kv__row"><dt class="gw-kv__key">Tokens</dt><dd class="gw-kv__value">@if (c.tokens.counts; as counts) {{{ counts }}}@if (c.tokens.expiring; as soon) { <span class="gw-badge gw-badge--warning gw-badge--sm"><svg lucideIcon="hourglass" class="gw-icon gw-badge__icon"></svg>{{ soon }}</span>}@if (c.tokens.oauth; as oauth) {@if (c.tokens.counts) { · }{{ oauth }} · <a class="gw-link" [routerLink]="['/endpoints', c.e.slug]" [queryParams]="{ tab: 'tokens' }" fragment="ep-oauth-sessions">Manage<span class="gw-sr-only"> the OAuth sign-ins to {{ c.e.slug }}</span></a>}@if (c.tokens.none; as none) {{{ none }}}</dd></div>
               <div class="gw-kv__row"><dt class="gw-kv__key">Approvals</dt><dd class="gw-kv__value">@if (c.e.approvalsWaiting) {<a class="gw-link" routerLink="/approvals"><span class="gw-counter gw-counter--attention">{{ c.e.approvalsWaiting }}</span> waiting<span class="gw-sr-only"> for approval on {{ c.e.slug }}</span></a>} @else {None waiting}</dd></div>
             </dl>
             @if (c.blocked) {

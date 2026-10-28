@@ -28,7 +28,7 @@
           @switch (shown()) {
             @case ('present') {
               @if (risk().published) {
-                An agent that reads untrusted text can be steered into sending private data out, and this endpoint is published to claude.ai through the tunnel. Read only is not enough: a GET carries data in its URL.
+                An agent that reads untrusted text can be steered into sending private data out. Read only is not enough: a GET carries data in its URL.
               } @else {
                 An agent that reads untrusted text can be steered into sending private data out. This endpoint has all three ingredients@if (channelTool(); as tool) {; approval on <code class="gw-code">{{ tool }}</code> helps only if you read every request body} @else {; approval helps only if you read every request it sends out}.
               }

@@ -153,7 +153,7 @@ export class EndpointsData {
     const map = new Map<string, readonly TokenRow[]>();
     for (const entry of tokens) if (entry) map.set(entry[0], entry[1]);
     this.tokensSignal.set(map);
-    this.oauthSignal.set(oauth);
+    this.oauthSignal.set(oauth?.filter((g) => g.ingress === 'LOCAL') ?? null);
     if (templates) {
       const runbooks = new Map<string, number>();
       for (const t of templates) {

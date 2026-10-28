@@ -72,7 +72,7 @@ const PAGES: Record<string, { readonly label: string; readonly icon: string; rea
   playground: { label: 'Playground', icon: 'flask-conical', hint: 'Access', keywords: 'try call tool' },
   activity: { label: 'Activity', icon: 'activity', hint: 'Observe', keywords: 'log audit calls events traces' },
   insights: { label: 'Insights', icon: 'chart-column', hint: 'Observe', keywords: 'analytics charts latency errors' },
-  settings: { label: 'Settings', icon: 'settings', hint: null, keywords: 'preferences notifications tunnel authorization appearance' },
+  settings: { label: 'Settings', icon: 'settings', hint: null, keywords: 'preferences notifications authorization appearance' },
 };
 
 /** The core's actions in the kit's words (verb + object), icon, hint and keywords. */

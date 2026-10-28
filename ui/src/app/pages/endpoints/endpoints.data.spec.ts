@@ -150,12 +150,12 @@ describe('EndpointsData', () => {
     expect(data.error()).toBeNull();
   });
 
-  it('counts the OAuth sign-ins of each endpoint once the core has them', async () => {
+  it('counts local OAuth sign-ins without tunnel sign-ins', async () => {
     const data = setup();
-    const grant = (endpoint: string, state: OAuthGrant['state']): OAuthGrant => ({
-      id: `og_${endpoint}_${state}`, client: 'claude.ai', endpoint, ingress: 'TUNNEL', createdAt: at(22, '08:52:00'), expiresAt: at(29, '08:52:00'), lastUsedAt: null, state,
+    const grant = (endpoint: string, state: OAuthGrant['state'], ingress: OAuthGrant['ingress'] = 'LOCAL'): OAuthGrant => ({
+      id: `og_${endpoint}_${state}`, client: ingress === 'LOCAL' ? 'cursor' : 'claude.ai', endpoint, ingress, createdAt: at(22, '08:52:00'), expiresAt: at(29, '08:52:00'), lastUsedAt: null, state,
     });
-    oauthAnswer = () => Promise.resolve([grant('stage-readonly', 'active'), grant('stage-readonly', 'revoked'), grant('dev', 'active')]);
+    oauthAnswer = () => Promise.resolve([grant('stage-readonly', 'active'), grant('stage-readonly', 'revoked'), grant('dev', 'active'), grant('stage-readonly', 'active', 'TUNNEL')]);
     await data.start();
     expect(data.oauthSignIns('stage-readonly')).toBe(1);
     expect(data.oauthSignIns('incident-prod')).toBe(0);

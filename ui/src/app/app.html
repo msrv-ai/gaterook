@@ -91,11 +91,6 @@
             <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Core running</span></span>
           }
           <span class="gw-sidebar__meta">{{ core.address() }}</span>
-          @if (tunnel.on()) {
-            <span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel on</span></span>
-          } @else {
-            <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off</span></span>
-          }
           @if (core.version(); as version) {
             <span class="gw-sidebar__meta">v{{ version }}</span>
           }
@@ -105,24 +100,6 @@
 
     <main class="gw-shell__main" [attr.id]="showStatus() ? null : 'main'" tabindex="-1">
       <!-- App-wide banners go first inside main, before the page (never a fourth grid child). -->
-      @if (tunnel.on()) {
-        <div class="gw-alert gw-alert--warning gw-alert--banner" role="status">
-          <svg lucideIcon="globe" class="gw-icon gw-alert__icon"></svg>
-          <div class="gw-alert__content">
-            <p class="gw-alert__title">Tunnel is public</p>
-            <p class="gw-alert__body">
-              @if (tunnel.endpoint(); as endpoint) {
-                Endpoint <span class="gw-mono">{{ endpoint }}</span> is reachable from the internet for claude.ai.
-              } @else {
-                An endpoint is reachable from the internet for claude.ai.
-              }
-            </p>
-          </div>
-          <div class="gw-alert__actions">
-            <button class="gw-btn gw-btn--sm" type="button" [attr.aria-disabled]="tunnelOff() ? 'true' : null" (click)="turnOffTunnel()">Turn off tunnel</button>
-          </div>
-        </div>
-      }
       @for (w of warnings(); track w.kind + w.subject) {
         <div class="gw-alert gw-alert--warning gw-alert--banner" role="status">
           <svg [lucideIcon]="w.icon" class="gw-icon gw-alert__icon"></svg>
@@ -141,7 +118,7 @@
   </div>
   }
   <!--
-    A sign-in through the tunnel waits on any page (ARCHITECTURE.md §7.3): the oldest request, outside the frame so the
+    A local app sign-in waits on any page: the oldest request, outside the frame so the
     status screen's inert never covers it; it closes by itself when the core goes away (a restart denies it anyway).
   -->
   <gw-oauth-consent [consent]="consent()" (decide)="answerConsent($event)" />

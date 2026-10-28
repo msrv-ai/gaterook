@@ -169,7 +169,6 @@ export interface OwnerCell {
 
 const OTHER_OWNERS: Readonly<Record<string, { readonly caption: string; readonly route: string }>> = {
   notification: { caption: 'notifications', route: '/settings/notifications' },
-  tunnel: { caption: 'tunnel', route: '/settings/tunnel' },
   'audit-export': { caption: 'audit export', route: '/settings/audit' },
 };
 

@@ -33,7 +33,7 @@ export function portProblem(port: unknown, publicPort: number): string | null {
   if (!Number.isInteger(port)) return 'Enter a port number.';
   const p = port as number;
   if (p < MIN_USER_PORT || p > 65_535) return `Use a port from ${MIN_USER_PORT} to 65535.`;
-  if (p === publicPort) return `${p} is the tunnel's port. Choose another one.`;
+  if (p === publicPort) return `${p} is reserved by GateRook. Choose another one.`;
   return null;
 }
 

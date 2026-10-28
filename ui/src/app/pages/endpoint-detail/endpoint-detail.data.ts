@@ -271,7 +271,7 @@ export class EndpointDetailData {
     const slug = this.slugSignal();
     try {
       const all = await this.oauthApi.grants();
-      this.grantsSignal.set(all.filter((g) => g.endpoint === slug));
+      this.grantsSignal.set(all.filter((g) => g.endpoint === slug && g.ingress === 'LOCAL'));
       this.grantsStateSignal.set('ready');
     } catch (e) {
       this.grantsStateSignal.set(isApiError(e) && e.kind === 'not-available' ? 'not-available' : 'failed');
