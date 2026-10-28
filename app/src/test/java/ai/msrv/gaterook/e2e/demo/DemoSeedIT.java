@@ -69,7 +69,7 @@ class DemoSeedIT {
 
       EndpointService.Summary dev = endpoints.get("dev");
       assertThat(dev.connections()).isEqualTo(8);
-      assertThat(dev.tools()).as("14 read only · 3 approval · 5 off").isEqualTo(new EndpointService.ToolCounts(14, 3,
+      assertThat(dev.tools()).as("14 read only · 5 approval · 5 off").isEqualTo(new EndpointService.ToolCounts(14, 5,
           5));
       assertThat(dev.description()).startsWith("Local development. Agents read freely;");
       assertThat(endpoints.get("stage-readonly").access()).isEqualTo("read-only");

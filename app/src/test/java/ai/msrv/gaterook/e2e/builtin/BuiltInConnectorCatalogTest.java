@@ -38,16 +38,17 @@ import tools.jackson.databind.node.JsonNodeFactory;
  */
 class BuiltInConnectorCatalogTest {
 
-  /** BLUEPRINT §9 "Connectors": the one tool count every screen shows, "Built-in · 4 tools". */
+  /** Current built-in tool counts used by the runtime connector catalog. */
   private static final Map<String, Integer> TOOLS_PER_CONNECTOR = orderedMap(
-      "PostgreSQL", 4, "MySQL", 4, "MongoDB", 2, "Redis", 2, "SSH", 2, "Logs", 2, "Kubernetes", 4, "GCP", 2, "AWS", 2,
+      "PostgreSQL", 4, "MySQL", 4, "MongoDB", 4, "Redis", 2, "SSH", 2, "Logs", 2, "Kubernetes", 4, "GCP", 2, "AWS", 2,
       "HTTP API", 2);
 
-  /** BLUEPRINT §9 "Tools of endpoint dev": the tools of each connection type on {@code dev}, by mode. */
+  /** Current default modes for the connection types in BLUEPRINT §9's {@code dev} endpoint. */
   private static final Map<String, Map<String, Mode>> DEV_ENDPOINT = Map.of(
       "postgres", Map.of("sql_list_schemas", Mode.READ_ONLY, "sql_describe_table", Mode.READ_ONLY,
           "sql_query", Mode.READ_ONLY, "sql_execute", Mode.APPROVAL),
-      "mongodb", Map.of("mongo_find", Mode.READ_ONLY, "mongo_aggregate", Mode.READ_ONLY),
+      "mongodb", Map.of("mongo_find", Mode.READ_ONLY, "mongo_aggregate", Mode.READ_ONLY,
+          "mongo_update", Mode.APPROVAL, "mongo_update_many", Mode.APPROVAL),
       "redis", Map.of("redis_get", Mode.READ_ONLY, "redis_scan", Mode.READ_ONLY),
       "ssh", Map.of("ssh_run", Mode.READ_ONLY, "ssh_exec", Mode.OFF),
       "logs", Map.of("logs_search", Mode.READ_ONLY, "logs_tail", Mode.OFF),
@@ -99,7 +100,7 @@ class BuiltInConnectorCatalogTest {
   }
 
   @Test
-  void builtInToolCountsAreTheKits() {
+  void builtInToolCountsMatchTheCatalog() {
     Map<String, Integer> counts = new LinkedHashMap<>();
     byId.values().stream()
         .filter(m -> m.kind() == Kind.BUILT_IN)
@@ -129,8 +130,8 @@ class BuiltInConnectorCatalogTest {
   }
 
   @Test
-  void devEndpointHasTheKitsModes() {
-    // BLUEPRINT §9: dev has 22 tools, 14 read only · 3 approval · 5 off. Defaults of its 8 connection types, then the
+  void devEndpointUsesTheCurrentDefaultModes() {
+    // The demo endpoint has 24 tools, 14 read only · 5 approval · 5 off. Defaults of its 8 connection types, then the
     // Setup change of 10:40 (http_get on billing-api: Read only → Off), plus the core tools list_connections and
     // describe_connection, both Read only.
     Map<Mode, Integer> modes = new EnumMap<>(Mode.class);
@@ -151,7 +152,7 @@ class BuiltInConnectorCatalogTest {
     modes.merge(Mode.READ_ONLY, 2, Integer::sum);
 
     assertThat(modes).containsExactlyInAnyOrderEntriesOf(
-        Map.of(Mode.READ_ONLY, 14, Mode.APPROVAL, 3, Mode.OFF, 5));
+        Map.of(Mode.READ_ONLY, 14, Mode.APPROVAL, 5, Mode.OFF, 5));
   }
 
   @Test
@@ -168,7 +169,7 @@ class BuiltInConnectorCatalogTest {
         }
       }
     }
-    assertThat(seen).hasSize(22);
+    assertThat(seen).hasSize(24);
   }
 
   @Test

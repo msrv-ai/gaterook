@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  MongoDB (report 05): mongo_find and mongo_aggregate over the sync driver. RawBsonDocument, relaxed EJSON with
+  MongoDB: find, aggregate, and approved single/multiple updates over the sync driver. RawBsonDocument, relaxed EJSON with
   $numberLong outside ±2^53, a pipeline validator, connectionStatus{showPrivileges}; mongodb+srv:// through our own
   dnsClient (JNDI DNS isn't registered in native). Spring only in the .boot subpackage. Built by step C2.
 -->

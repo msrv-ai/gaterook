@@ -16,11 +16,15 @@ import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Nature;
+import com.networknt.schema.SchemaRegistry;
+import com.networknt.schema.SpecificationVersion;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /** The connector without a server: manifest, tools per endpoint, classification, the exact action, refusals. */
 class MongoConnectorTest {
@@ -46,21 +50,36 @@ class MongoConnectorTest {
   }
 
   @Test
-  void publishesTwoReadToolsWithOutputSchemas() {
+  void publishesReadToolsAndApprovalByDefaultUpdateTools() {
     List<ToolDefinition> tools = connector.manifest().tools();
 
-    assertThat(tools).extracting(ToolDefinition::name).containsExactly("mongo_find", "mongo_aggregate");
+    assertThat(tools).extracting(ToolDefinition::name)
+        .containsExactly("mongo_find", "mongo_aggregate", "mongo_update", "mongo_update_many");
     for (ToolDefinition t : tools) {
-      assertThat(t.nature()).as(t.name()).isEqualTo(Nature.READ);
-      assertThat(t.mutating()).as(t.name()).isFalse();
-      assertThat(t.defaultMode()).isEqualTo(Mode.READ_ONLY);
-      assertThat(t.prodDefaultMode()).isEqualTo(Mode.READ_ONLY);
-      assertThat(t.outputSchema()).as(t.name()).isNotNull();
-      assertThat(t.annotations().readOnlyHint()).isTrue();
-      assertThat(t.annotations().destructiveHint()).isFalse();
       assertThat(t.inputSchema().at("/properties/connection").toString()).isEqualTo("{\"type\":\"string\"}");
       assertThat(t.risk().privateData()).isTrue();
       assertThat(t.risk().untrustedContent()).isTrue();
+      if (List.of("mongo_find", "mongo_aggregate").contains(t.name())) {
+        assertThat(t.nature()).as(t.name()).isEqualTo(Nature.READ);
+        assertThat(t.mutating()).as(t.name()).isFalse();
+        assertThat(t.defaultMode()).isEqualTo(Mode.READ_ONLY);
+        assertThat(t.prodDefaultMode()).isEqualTo(Mode.READ_ONLY);
+        assertThat(t.outputSchema()).as(t.name()).isNotNull();
+        assertThat(t.annotations().readOnlyHint()).isTrue();
+        assertThat(t.annotations().destructiveHint()).isFalse();
+        assertThat(t.annotations().idempotentHint()).isTrue();
+      } else {
+        assertThat(t.nature()).as(t.name()).isEqualTo(Nature.MUTATION);
+        assertThat(t.mutating()).as(t.name()).isTrue();
+        assertThat(t.defaultMode()).isEqualTo(Mode.APPROVAL);
+        assertThat(t.prodDefaultMode()).isEqualTo(Mode.APPROVAL);
+        assertThat(t.outputSchema()).as(t.name()).isNull();
+        assertThat(t.readOnlyModeAllowed()).isFalse();
+        assertThat(t.annotations().readOnlyHint()).isFalse();
+        assertThat(t.annotations().destructiveHint()).isTrue();
+        assertThat(t.annotations().idempotentHint()).isFalse();
+      }
+      assertThat(t.annotations().openWorldHint()).isFalse();
     }
   }
 
@@ -85,6 +104,66 @@ class MongoConnectorTest {
     assertThat(connector.tools(incident).getFirst().description()).endsWith("Max 100 documents, 3 s.");
     assertThat(connector.tools(incident).getFirst().inputSchema()).isEqualTo(connector.manifest().tools()
         .getFirst().inputSchema());
+    for (ToolDefinition update : connector.tools(two).subList(2, 4)) {
+      assertThat(update.description()).endsWith("Time limit 1.5 s.").doesNotContain("Max 1,000 documents");
+    }
+    assertThat(connector.tools(incident).get(3).description())
+        .contains("all documents matching a filter", "read document limit does not cap updates")
+        .endsWith("Time limit 3 s.").doesNotContain("Max 100 documents");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"mongo_update", "mongo_update_many"})
+  void updateSchemasRequireAnExplicitFilterAndUpdateAndRejectReadLimits(String tool) {
+    ToolDefinition definition = connector.manifest().tools().stream().filter(t -> t.name().equals(tool))
+        .findFirst().orElseThrow();
+    var schema = SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12)
+        .getSchema(definition.inputSchema());
+    var valid = Fixtures.json("{\"connection\":\"orders-mongo\",\"collection\":\"orders\","
+        + "\"filter\":{},\"update\":{\"$set\":{\"status\":\"paid\"}}}");
+
+    assertThat(schema.validate(valid)).isEmpty();
+    for (String required : List.of("filter", "update")) {
+      assertThat(schema.validate(valid.deepCopy().remove(required))).as(required).isNotEmpty();
+      assertThat(schema.validate(valid.deepCopy().putNull(required))).as(required + " null").isNotEmpty();
+    }
+    assertThat(schema.validate(valid.deepCopy().put("limit", 1))).isNotEmpty();
+    assertThat(schema.validate(valid.deepCopy().put("many", false))).isNotEmpty();
+    assertThat(schema.validate(valid.deepCopy().put("upsert", "true"))).isNotEmpty();
+    assertThat(schema.validate(valid.deepCopy().set("update", Ejson.JSON.readTree(
+        "[{\"$set\":{\"status\":\"paid\"}}]")))).isEmpty();
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"mongo_update", "mongo_update_many"})
+  void updatePreviewShowsTheWriteScopeAndPreservesTheApprovedOperation(String tool) {
+    boolean many = tool.equals("mongo_update_many");
+    ConnectionConfig cfg = Fixtures.config(Env.PROD, "{\"connection\":{\"uri\":\"mongodb://mongo.example.com/orders\","
+        + "\"readPreference\":\"secondaryPreferred\"},\"advanced\":{\"maxTimeMs\":1500}}");
+    ToolCall call = Fixtures.call(tool, "{\"collection\":\"orders\",\"filter\":{\"status\":\"pending\"},"
+        + "\"update\":{\"$inc\":{\"attempts\":1}},\"upsert\":true}");
+
+    PreparedAction prepared = connector.prepare(call, cfg, Fixtures.Secrets.none(), Fixtures.Context.of(Env.PROD));
+    assertThat(prepared.outcome()).isEqualTo(PreparedAction.Outcome.APPROVAL);
+    ActionPreview p = prepared.preview();
+    assertThat(p.kind()).isEqualTo(ActionPreview.Kind.JSON);
+    assertThat(p.text()).isEqualTo("{\"update\": \"orders\", \"updates\": [{\"q\": {\"status\": \"pending\"}, "
+        + "\"u\": {\"$inc\": {\"attempts\": 1}}, \"multi\": " + many + ", \"upsert\": true}], \"ordered\": true, "
+        + "\"writeConcern\": {\"w\": 1}, \"maxTimeMS\": 1500}");
+    assertThat(p.target()).endsWith("· primary").doesNotContain("secondaryPreferred");
+    assertThat(p.summary()).startsWith((many ? "updateMany" : "update") + " orders.orders");
+    assertThat(p.fields()).contains(new ActionPreview.Field("Documents affected", many
+        ? "all matching documents" : "at most one"), new ActionPreview.Field("Upsert", "insert if no match"),
+        new ActionPreview.Field("Time limit", "1.5 s"));
+    assertThat(p.fields()).extracting(ActionPreview.Field::label)
+        .doesNotContain("Read preference", "Documents returned");
+    assertThat(p.payload().path("database").asString()).isEqualTo("orders");
+    assertThat(p.payload().path("filter").asString()).isEqualTo("{\"status\": \"pending\"}");
+    assertThat(p.payload().path("update").asString()).isEqualTo("{\"$inc\": {\"attempts\": {\"$numberInt\": \"1\"}}}");
+    assertThat(p.payload().path("many").asBoolean()).isEqualTo(many);
+    assertThat(p.payload().path("upsert").asBoolean()).isTrue();
+    assertThat(p.payload().path("maxTimeMS").asInt()).isEqualTo(1500);
+    assertThat(p.payload().has("limit")).isFalse();
   }
 
   @Test

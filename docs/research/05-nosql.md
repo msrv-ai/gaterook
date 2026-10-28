@@ -4,6 +4,16 @@
 
 ## 1. Decision and scope
 
+**Current extension (2026-10-28):** MongoDB also exposes `mongo_update` (one matching document) and
+`mongo_update_many` (all matching documents), classified as MUTATION and defaulting to Approval in every
+environment. Both require an explicit filter and accept update operators or an update pipeline, optional
+`upsert`, and `arrayFilters` for operator updates. Preparation performs no writes; execution uses the canonical
+approved payload, primary routing, acknowledged writes, and a bounded operation timeout without automatic write
+retries. Read document limits do not cap updates. Results report matched and modified counts and an upserted ID.
+The namespace and server-side JavaScript restrictions still apply, and aggregate write stages remain refused.
+Credentials need update privileges for these tools. The original read-only research decision and experiments
+below describe the earlier scope.
+
 Provide two built-in read-only connectors: MongoDB with `mongo_find` and `mongo_aggregate`, and Redis with `redis_get` and `redis_scan`. Do not expose arbitrary MongoDB or Redis commands. Classification is READ or DENY, never MUTATION. A user may still require approval for a read tool through endpoint policy.
 
 Use the synchronous MongoDB driver directly, with one bounded client per connection, and Jedis with a small pooled provider and a command-executor allowlist. Avoid entity frameworks, reactive stacks, and generic command tools that expand the reachable operation surface. OpenSearch is a backend of the Logs connector; an additional general-purpose search-data connector was deferred.

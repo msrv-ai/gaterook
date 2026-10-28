@@ -12,6 +12,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import org.bson.Document;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
@@ -124,15 +125,25 @@ class MongoCoreProcessIT {
 
     json(admin("POST", "/api/endpoints", "{\"slug\":\"mongo\",\"startFrom\":\"empty\"}"), 201);
     json(admin("POST", "/api/endpoints/mongo/connections/orders-mongo", "{}"), 200);
+    JsonNode settings = json(admin("GET", "/api/endpoints/mongo/settings", null), 200);
+    json(admin("PUT", "/api/endpoints/mongo/settings", "{\"approvalWait\":{\"firstWaitSeconds\":0},\"version\":"
+        + settings.path("version").asLong() + "}"), 200);
     // describe_connection is off on an empty endpoint: Read only, as the window's toggle does it.
     long version = -1;
+    List<String> updateTools = new ArrayList<>();
     for (JsonNode group : json(admin("GET", "/api/endpoints/mongo/tools", null), 200)) {
       for (JsonNode t : group.path("tools")) {
         if (t.path("toolKey").asString().equals("describe_connection")) {
           version = t.path("version").asLong();
         }
+        if (List.of("mongo_update", "mongo_update_many").contains(t.path("name").asString())) {
+          updateTools.add(t.path("name").asString());
+          assertThat(t.path("mode").asString()).as(t.toString()).isEqualTo("APPROVAL");
+          assertThat(t.path("readOnlyAllowed").asBoolean(true)).as(t.toString()).isFalse();
+        }
       }
     }
+    assertThat(updateTools).containsExactlyInAnyOrder("mongo_update", "mongo_update_many");
     assertThat(version).isNotNegative();
     json(admin("PUT", "/api/endpoints/mongo/tools", "{\"toolKey\":\"describe_connection\",\"mode\":\"READ_ONLY\","
         + "\"version\":" + version + "}"), 200);
@@ -147,11 +158,17 @@ class MongoCoreProcessIT {
   @Order(4)
   void findAndAggregateAnswerExtendedJson() throws Exception {
     JsonNode tools = mcp("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\",\"params\":{}}").at("/result/tools");
-    assertThat(names(tools)).contains("mongo_find", "mongo_aggregate", "describe_connection");
+    assertThat(names(tools)).contains("mongo_find", "mongo_aggregate", "mongo_update", "mongo_update_many",
+        "describe_connection", "approval_status");
     for (JsonNode t : tools) {
       if (t.path("name").asString().equals("mongo_find")) {
         assertThat(t.path("description").asString())
             .contains("orders-mongo (MongoDB " + mongod.majorMinor() + ", dev)").contains("Max 1,000 documents, 5 s.");
+      }
+      if (List.of("mongo_update", "mongo_update_many").contains(t.path("name").asString())) {
+        assertThat(t.at("/annotations/readOnlyHint").asBoolean(true)).as(t.toString()).isFalse();
+        assertThat(t.at("/annotations/destructiveHint").asBoolean()).as(t.toString()).isTrue();
+        assertThat(t.at("/annotations/idempotentHint").asBoolean(true)).as(t.toString()).isFalse();
       }
     }
 
@@ -213,6 +230,34 @@ class MongoCoreProcessIT {
 
   @Test
   @Order(8)
+  void updatesRunOnlyAfterApprovalWithSingleAndManySemantics() throws Exception {
+    int id = 20;
+    for (String tool : List.of("mongo_update", "mongo_update_many")) {
+      String field = tool.equals("mongo_update") ? "singleReviewed" : "manyReviewed";
+      int expected = tool.equals("mongo_update") ? 1 : 2;
+      JsonNode pending = call(id++, tool, "{\"connection\":\"orders-mongo\",\"collection\":\"orders\","
+          + "\"filter\":{\"status\":\"pending\"},\"update\":{\"$set\":{\"" + field + "\":true}}}");
+      String handle = pending.at("/result/structuredContent/handle").asString();
+      assertThat(handle).as(pending.toString()).startsWith("ap_");
+      assertThat(pending.at("/result/structuredContent/status").asString()).isEqualTo("pending");
+      assertThat(reviewedCount(field)).as("nothing changes before approval").isZero();
+
+      JsonNode detail = json(admin("GET", "/api/approvals/" + handle, null), 200);
+      assertThat(detail.at("/action/text").asString()).contains("orders", "pending", "$set", field);
+      json(admin("POST", "/api/approvals/" + handle + "/decision", "{\"decision\":\"approve\",\"digest\":\""
+          + detail.path("digest").asString() + "\",\"via\":\"app\"}"), 200);
+      JsonNode status = call(id++, "approval_status", "{\"handle\":\"" + handle + "\",\"wait_seconds\":20}");
+
+      assertThat(status.at("/result/structuredContent/status").asString()).as(status.toString())
+          .isEqualTo("completed");
+      assertThat(status.at("/result/structuredContent/result/matchedCount").asInt(-1)).isEqualTo(expected);
+      assertThat(status.at("/result/structuredContent/result/modifiedCount").asInt(-1)).isEqualTo(expected);
+      assertThat(reviewedCount(field)).isEqualTo(expected);
+    }
+  }
+
+  @Test
+  @Order(9)
   void aReleaseIgnoresTheTestDnsServer() throws Exception {
     // A native test binary is built as no release (BuildFlags is fixed at build time), so only the JVM can be one
     // here: -Dgateway.release=true is what the JVM fallback artifact's launcher sets.
@@ -238,6 +283,12 @@ class MongoCoreProcessIT {
   }
 
   // ── helpers ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+  private static long reviewedCount(String field) {
+    try (var client = mongod.client(true)) {
+      return client.getDatabase("orders").getCollection("orders").countDocuments(new Document(field, true));
+    }
+  }
 
   private static List<String> names(JsonNode tools) {
     List<String> out = new ArrayList<>();

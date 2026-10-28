@@ -317,18 +317,17 @@ final class MongoProbe {
     if (a.authOff()) {
       out.add(new Hint(env == Env.PROD ? Severity.DANGER : Severity.WARNING, "mongo.no-auth", "/credentials/user",
           "Access control is off: anyone who reaches this server can write. Turn on authorization and use a user "
-              + "with the read role."));
+              + "with only the read and update privileges needed by its enabled tools."));
     } else if (!a.admin().isEmpty()) {
       out.add(new Hint(Severity.DANGER, "mongo.user-is-admin", "/credentials/user", "This user is an administrator ("
-          + String.join(", ", a.admin()) + "): it can drop databases and manage users. Use a user with the read "
-          + "role."));
+          + String.join(", ", a.admin()) + "): it can drop databases and manage users. Use a user with only the "
+          + "read and update privileges needed by its enabled tools."));
     } else if (!a.write().isEmpty()) {
       boolean dev = env == Env.DEV;
       out.add(new Hint(dev ? Severity.INFO : Severity.WARNING, "mongo.user-can-write", "/credentials/user",
-          "This user can write. " + (dev ? "Fine for dev: the gateway refuses $out and $merge before they reach "
-              + "the server. For stage and prod use a user with the read role only."
-              : "The gateway refuses $out and $merge, but on " + env.id() + " use a user with the read role only: "
-              + "its roles are the real boundary.")));
+          "This user can write. mongo_update and mongo_update_many require approval by default. "
+              + "The gateway refuses $out and $merge. Use the read role for read-only access, or grant only the "
+              + "update privileges needed by enabled tools; upsert also needs insert privileges."));
     }
     if (env == Env.PROD && !s.tls()) {
       out.add(new Hint(Severity.WARNING, "mongo.tls-off", "/connection/tls", "The connection isn't encrypted. On "
