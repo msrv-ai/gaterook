@@ -157,7 +157,9 @@
   }
 } @else {
   <div class="gw-client-card__step" [attr.aria-busy]="loading() ? 'true' : null">
-    <ng-container [ngTemplateOutlet]="stepTitle" [ngTemplateOutletContext]="{ $implicit: 'What will change' }" />
+    @if (failure() || loading() || !preview()) {
+      <ng-container [ngTemplateOutlet]="stepTitle" [ngTemplateOutletContext]="{ $implicit: 'What will change' }" />
+    }
     @if (failure(); as f) {
       <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
         <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
@@ -172,29 +174,41 @@
     } @else if (loading() || !preview()) {
       <p class="gw-text-small gw-fg-muted" role="status"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> Preparing the exact change…</p>
     } @else {
-      @for (f of files(); track f.file.path) {
-        @if (f.diff) {
-          <gw-diff [diff]="f.diff" [filename]="f.file.display" [summary]="f.summary" [regionLabel]="'Changes to ' + f.file.display" [wrap]="wrap()" />
-        }
-        @if (f.file.kind === 'mcpb') {
-          <p class="gw-client-card__backup gw-text-small gw-fg-muted"><svg lucideIcon="package" class="gw-icon gw-icon--sm"></svg>New file: <code class="gw-code">{{ f.file.display }}</code></p>
-        } @else if (f.file.backupPath) {
-          <p class="gw-client-card__backup gw-text-small gw-fg-muted"><svg lucideIcon="archive" class="gw-icon gw-icon--sm"></svg>Backup: <code class="gw-code">{{ f.file.backupPath }}</code></p>
-        } @else if (!f.file.exists) {
-          <p class="gw-client-card__backup gw-text-small gw-fg-muted"><svg lucideIcon="archive" class="gw-icon gw-icon--sm"></svg>New file: nothing to back up</p>
-        }
-        @if (f.file.modeChange) {
-          <!-- The core's sentence: "Permissions change from rw-r--r-- to rw------- because it now holds a token". -->
-          <p class="gw-text-small gw-fg-muted">{{ f.file.modeChange }}</p>
-        }
+      <ng-template #changesToggle>
+        <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [(expanded)]="changesExpanded" [attr.aria-controls]="idPrefix() + '-changes'">
+          <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg>What will change
+        </button>
+      </ng-template>
+      @if (level() >= 4) {
+        <h4 class="gw-text-h3"><ng-container [ngTemplateOutlet]="changesToggle" /></h4>
+      } @else {
+        <h3 class="gw-text-h3"><ng-container [ngTemplateOutlet]="changesToggle" /></h3>
       }
-      @if (notes().length) {
-        <ul class="gw-stack gw-stack--sm" aria-label="Notes">
-          @for (n of notes(); track $index) {
-            <li class="gw-text-small gw-fg-secondary">{{ n }}</li>
+      <div class="gw-stack gw-stack--sm" [id]="idPrefix() + '-changes'" [hidden]="!changesExpanded()">
+        @for (f of files(); track f.file.path) {
+          @if (f.diff) {
+            <gw-diff [diff]="f.diff" [filename]="f.file.display" [summary]="f.summary" [regionLabel]="'Changes to ' + f.file.display" [wrap]="wrap()" />
           }
-        </ul>
-      }
+          @if (f.file.kind === 'mcpb') {
+            <p class="gw-client-card__backup gw-text-small gw-fg-muted"><svg lucideIcon="package" class="gw-icon gw-icon--sm"></svg>New file: <code class="gw-code">{{ f.file.display }}</code></p>
+          } @else if (f.file.backupPath) {
+            <p class="gw-client-card__backup gw-text-small gw-fg-muted"><svg lucideIcon="archive" class="gw-icon gw-icon--sm"></svg>Backup: <code class="gw-code">{{ f.file.backupPath }}</code></p>
+          } @else if (!f.file.exists) {
+            <p class="gw-client-card__backup gw-text-small gw-fg-muted"><svg lucideIcon="archive" class="gw-icon gw-icon--sm"></svg>New file: nothing to back up</p>
+          }
+          @if (f.file.modeChange) {
+            <!-- The core's sentence: "Permissions change from rw-r--r-- to rw------- because it now holds a token". -->
+            <p class="gw-text-small gw-fg-muted">{{ f.file.modeChange }}</p>
+          }
+        }
+        @if (notes().length) {
+          <ul class="gw-stack gw-stack--sm" aria-label="Notes">
+            @for (n of notes(); track $index) {
+              <li class="gw-text-small gw-fg-secondary">{{ n }}</li>
+            }
+          </ul>
+        }
+      </div>
     }
   </div>
 }

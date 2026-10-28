@@ -225,6 +225,7 @@ export class GwClientCard {
 
   /** Opens Connect (also Try again after a failure). */
   openConnect(opener?: HTMLElement | null): void {
+    this.flow()?.changesExpanded.set(false);
     this.connectStart.emit(this.card().client);
     this.connectDialog()?.open(opener ?? undefined);
     queueMicrotask(() => this.flow()?.emit());
