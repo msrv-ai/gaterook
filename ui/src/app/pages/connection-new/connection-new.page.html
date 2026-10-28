@@ -258,6 +258,8 @@
         [busy]="saving()"
         (save)="onFormSubmit($event)"
         (discoverDatabases)="loadDatabases($event)"
+        (browseFiles)="browseFiles($event)"
+        (trustFiles)="trustFiles($event)"
         (secretAction)="onSecretAction($event)"
       >
         <!-- Projected first inside the form; the slot's node is the ng-container itself (whitespace is preserved here). -->
@@ -739,7 +741,7 @@
     </header>
     <footer class="gw-dialog__footer">
       <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
-      <button class="gw-btn gw-btn--primary" type="button" (click)="sendToNewHost()">{{ h.discoveryKey ? 'Send and load databases' : 'Send and save' }}<span class="gw-sr-only"> {{ name() }}</span></button>
+      <button class="gw-btn gw-btn--primary" type="button" (click)="sendToNewHost()">{{ h.fileRequest ? 'Send and browse folders' : h.discoveryKey ? 'Send and load databases' : 'Send and save' }}<span class="gw-sr-only"> {{ name() }}</span></button>
     </footer>
   }
 </dialog>

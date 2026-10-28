@@ -50,6 +50,15 @@ public interface Connector extends AutoCloseable {
     return TestResult.failure("discovery-unavailable", "This connector can't list databases.", null);
   }
 
+  /**
+   * Lists a remote directory for the administrative connection form; saves nothing and grants no agent access.
+   * Like {@link #test}, this may require host-key confirmation before credentials are sent. Implementations return
+   * bounded entries in {@code details.entries}, with {@code path}, {@code parent} and {@code truncated} metadata.
+   */
+  default TestResult browseFiles(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, String path) {
+    return TestResult.failure("discovery-unavailable", "This connector can't browse remote files.", null);
+  }
+
   default HealthResult health(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
     TestResult t = test(cfg, secrets, ctx);
     return t.ok()

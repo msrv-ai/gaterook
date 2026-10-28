@@ -474,6 +474,7 @@ export const POLICY_SECTION: Readonly<Record<string, string>> = {
   ssh: 'ssh',
   kubernetes: 'k8s',
   logs: 'logs',
+  'ssh-logs': 'ssh',
   gcp: 'cloud',
   aws: 'cloud',
   http: 'http',
@@ -520,9 +521,11 @@ function sameJson(a: JsonValue | undefined, b: JsonValue | undefined): boolean {
  */
 export function policyDefaults(type: string, dev: EnvPolicy, prod: EnvPolicy, schema: JsonObject | null): ProdDefault[] {
   const out: ProdDefault[] = [];
-  const section = POLICY_SECTION[type] ?? null;
+  const primarySection = POLICY_SECTION[type] ?? null;
+  const applicable = primarySection ? [primarySection] : [];
+  if (type === 'ssh-logs') applicable.push('logs');
   const sections = (schema?.['sections'] ?? {}) as Record<string, JsonObject>;
-  if (section) {
+  for (const section of applicable) {
     const props = (sections[section]?.['properties'] ?? {}) as Record<string, JsonObject>;
     const p = (prod.sections[section] ?? {}) as Record<string, JsonValue>;
     const d = (dev.sections[section] ?? {}) as Record<string, JsonValue>;
@@ -530,6 +533,7 @@ export function policyDefaults(type: string, dev: EnvPolicy, prod: EnvPolicy, sc
     const order = KIT_ORDER[section] ?? [];
     keys.sort((a, b) => (order.includes(a) ? order.indexOf(a) : 99) - (order.includes(b) ? order.indexOf(b) : 99));
     for (const key of keys) {
+      if (type === 'ssh-logs' && section === 'logs' && key !== 'maxRangeHours') continue;
       const title = typeof props[key]?.['title'] === 'string' ? (props[key]['title'] as string) : key;
       const unit = typeof props[key]?.['x-unit'] === 'string' ? (props[key]['x-unit'] as string) : null;
       const pv = p[key];

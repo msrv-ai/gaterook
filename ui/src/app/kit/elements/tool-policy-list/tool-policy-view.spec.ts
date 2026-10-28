@@ -64,5 +64,8 @@ describe('tool-policy-list view (design/elements/tool-policy-list.html)', () => 
     expect(overrideCount(fields, { rowLimit: 200 })).toBe(1);
     expect(withUnit(1000, 'rows')).toBe('1,000 rows');
     expect(limitFields('ssh').map((f) => f.key)).toEqual(['commandTimeoutSeconds', 'maxOutputKb']);
+    expect(limitFields('ssh-logs').map((f) => [f.section, f.key])).toEqual([
+      ['limits', 'logLines'], ['limits', 'toolTimeoutSeconds'], ['limits', 'maxResponseKb'], ['ssh', 'maxOutputKb'],
+    ]);
   });
 });

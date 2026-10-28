@@ -225,6 +225,17 @@ describe('Policies page words', () => {
     expect(riskyEndpoints('prod', conns, kitEndpoints())).toEqual([]);
   });
 
+  it('associates SSH log files with SSH authentication/output and Logs time-range policies', () => {
+    const conns = kitConnections();
+    const ssh = conns.find((connection) => connection.type === 'ssh' && connection.env === 'dev')!;
+    const remoteLogs = { ...ssh, type: 'ssh-logs', name: 'remote-log-files' };
+    const all = [remoteLogs, ...conns];
+    expect(sectionConnections('ssh', 'dev', all).map((row) => row.name)).toEqual([ssh.name, 'remote-log-files']);
+    expect(sectionConnections('logs', 'dev', all).some((row) => row.name === 'remote-log-files')).toBe(true);
+    expect(envConnections('dev', all).findIndex((row) => row.name === 'remote-log-files'))
+      .toBeLessThan(envConnections('dev', all).findIndex((row) => row.type === 'logs'));
+  });
+
   it('asks for a number in range, in the unit the field shows', () => {
     expect(numberError(info('limits', 'rateLimitPerToken'), '0')).toBe('Enter a whole number from 1 to 10,000 calls per min.');
     expect(numberError(info('limits', 'rateLimitPerToken'), '1.5')).toBe('Enter a whole number from 1 to 10,000 calls per min.');

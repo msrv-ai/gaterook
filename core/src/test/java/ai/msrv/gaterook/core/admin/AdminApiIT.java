@@ -183,6 +183,20 @@ class AdminApiIT {
         {"type":"pgfake","env":"dev","config":%s,"secrets":{"/credentials/user":{"source":"local","value":"x"}}}"""
         .formatted(draft("db.test")));
     assertThat(wrongField.path("title").asString()).isEqualTo("Not a secret field");
+
+    JsonNode files = api.expect(200, HttpMethod.POST, "/api/connections/browse-files", """
+        {"type":"pgfake","env":"dev","config":%s,"path":"/var/log",
+         "secrets":{"/credentials/password":{"source":"local","value":"%s"}}}"""
+        .formatted(draft("db.test"), password()));
+    assertThat(files.path("ok").asBoolean()).isTrue();
+    assertThat(files.path("details").path("path").asString()).isEqualTo("/var/log");
+    assertThat(files.path("details").path("entries").get(0).path("name").asString()).isEqualTo("app.log");
+    assertThat(api.get("/api/connections").json().path("total").asInt()).as("browsing saves nothing").isZero();
+    JsonNode badPath = api.expect(422, HttpMethod.POST, "/api/connections/browse-files", """
+        {"type":"pgfake","env":"dev","config":%s,"path":"relative",
+         "secrets":{"/credentials/password":{"source":"local","value":"%s"}}}"""
+        .formatted(draft("db.test"), password()));
+    assertThat(badPath.path("title").asString()).isEqualTo("Invalid folder");
   }
 
   @Test

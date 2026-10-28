@@ -20,7 +20,7 @@ describe('schema-form goldens: every connector form the core serves', () => {
 
   it('covers the connector types of the catalog', () => {
     expect(Object.keys(CONNECTOR_FORMS).sort()).toEqual(
-      ['aws', 'gcp', 'http', 'kubernetes', 'logs', 'mcp-server', 'mongodb', 'mysql', 'postgres', 'redis', 'ssh'].sort(),
+      ['aws', 'gcp', 'http', 'kubernetes', 'logs', 'mcp-server', 'mongodb', 'mysql', 'postgres', 'redis', 'ssh', 'ssh-logs'].sort(),
     );
   });
 

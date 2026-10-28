@@ -275,6 +275,10 @@ MySQL, PostgreSQL, MongoDB, Redis, and ClickHouse retain existing connection for
 
 Redis setup does not require database discovery or selection. It defaults to logical database 0; an optional database number or allowlist can be configured in Advanced without changing saved connection scopes.
 
+SSH log files use the `ssh-logs` connector, separate from SSH command execution. A password or a local private-key file authenticates the connection after host-key verification. The form's `x-file-selection` extension opens a remote directory browser through `POST /api/connections/browse-files`; browsing uses the draft test's secret handling, deadline, masking, and trust confirmations without saving the draft. Saving requires a log folder and an explicit list of relative file paths. The read-only `ssh_logs_list`, `ssh_logs_read`, and `ssh_logs_search` tools use SFTP, enforce that selection on every call, reject symbolic links and nonregular files, and apply byte and line limits. Authentication follows the SSH environment policy, including its production credential restrictions. Remote log contents are untrusted data.
+
+SSH log scans stream through bounded source bytes independently of their response budget, in either direction, with signed continuations bound to the connection and query. Text and JSON Lines support event-time ranges, normalized levels, literal or RE2 regex matching and configurable timestamp parsing. Filters operate on masked records. Unknown timestamps and oversized records are reported instead of silently establishing an empty complete result. See [SSH log files](ssh-log-files.md) for ordering, time-zone, record-size and multi-file snapshot contracts.
+
 ### 8.4 Screens and data
 
 The [blueprint](../design/BLUEPRINT.md) specifies screens and a coherent demo world. Demo data and dev element routes are development facilities; production routing excludes the gallery. The core owns the clock used for expiry and state. UI tests cover behavior against core-shaped data; [visual comparison](../ui/README.md) helps inspect kit parity.

@@ -32,6 +32,11 @@
       <groupId>tools.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
     </dependency>
+    <!-- User-supplied log patterns use a linear-time engine rather than backtracking. -->
+    <dependency>
+      <groupId>com.google.re2j</groupId>
+      <artifactId>re2j</artifactId>
+    </dependency>
     <!-- Shaded MINA; the originals must never reach this classpath (MNG-5899). -->
     <dependency>
       <groupId>ai.msrv.gaterook</groupId>

@@ -106,6 +106,31 @@ class ConnectionsIT {
     configs = core.bean(ConnectionConfigs.class);
   }
 
+  @Test
+  void fileSelectionIsRequiredForSavingAndTestingButNotBrowsing() {
+    ObjectNode schema = TestCore.JSON.createObjectNode();
+    schema.put("type", "object");
+    schema.putObject("x-file-selection").put("rootPath", "/root").put("path", "/allowedFiles")
+        .put("required", true);
+    ObjectNode properties = schema.putObject("properties");
+    properties.putObject("root").put("type", "string");
+    properties.putObject("allowedFiles").put("type", "array").putObject("items").put("type", "string");
+    ConnectorManifest manifest = ConnectorManifest.builder("file-selection-test", "1.0.0",
+        ConnectorManifest.Kind.BUILT_IN).configSchema(schema).build();
+    ObjectNode config = TestCore.JSON.createObjectNode();
+    connections.validate(manifest, config, Set.of(), Env.DEV, true);
+    assertThatThrownBy(() -> connections.validate(manifest, config, Set.of(), Env.DEV))
+        .isInstanceOfSatisfying(ProblemException.class, e -> assertThat(e.field()).isEqualTo("/config/root"));
+    config.put("root", "/var/log");
+    config.putArray("allowedFiles");
+    connections.validate(manifest, config, Set.of(), Env.DEV, true);
+    assertThatThrownBy(() -> connections.validate(manifest, config, Set.of(), Env.DEV))
+        .isInstanceOfSatisfying(ProblemException.class,
+            e -> assertThat(e.field()).isEqualTo("/config/allowedFiles"));
+    config.withArray("allowedFiles").add("app.log");
+    connections.validate(manifest, config, Set.of(), Env.DEV);
+  }
+
   @AfterAll
   static void stop() {
     if (core != null) {
@@ -276,6 +301,55 @@ class ConnectionsIT {
     ConnectionTester.Outcome result = tester.discoverDatabases("pgfake", Env.DEV, TestCore.config("db.test"),
         Map.of(), "discovery-stored", null);
     assertThat(result.result().ok()).isTrue();
+  }
+
+  @Test
+  void browsingFilesUsesDraftSecretsWithoutSavingMasksFailuresAndHonorsTheDeadline() {
+    int before = core.jdbc().queryForObject("select count(*) from connection", Integer.class);
+    SecretInput password = SecretInput.local("browse-pass-7654321".toCharArray());
+    ConnectionTester.Outcome found = tester.browseFiles("pgfake", Env.DEV, TestCore.config("db.test"),
+        Map.of("/credentials/password", password), null, null, "/var/log");
+    assertThat(found.result().ok()).isTrue();
+    assertThat(found.result().details().path("path").asString()).isEqualTo("/var/log");
+    assertThat(found.result().details().path("entries").get(0).path("name").asString()).isEqualTo("app.log");
+    assertThat(password.value()).containsOnly('\0');
+    assertThat(core.jdbc().queryForObject("select count(*) from connection", Integer.class)).isEqualTo(before);
+
+    ConnectionTester.Outcome failed = tester.browseFiles("pgfake", Env.DEV, TestCore.config("fail.test"),
+        Map.of("/credentials/password", SecretInput.local("browse-pass-7654321".toCharArray())), null, null, "/");
+    assertThat(failed.result().error().message()).contains("‹masked›").doesNotContain("browse-pass-7654321");
+    ConnectionTester.Outcome slow = tester.browseFiles("pgfake", Env.DEV, TestCore.config("slow.test"),
+        Map.of("/credentials/password", SecretInput.local("browse-pass-7654321".toCharArray())), null, null, "/");
+    assertThat(slow.result().error().code()).isEqualTo("timeout");
+  }
+
+  @Test
+  void browsingFilesRetainsHostTrustAndStoredCredentialTargetChecks() {
+    core.connection("browse-stored", "pgfake", Env.DEV, "db.test");
+    assertThatThrownBy(() -> tester.browseFiles("pgfake", Env.DEV, TestCore.config("another.test"), Map.of(),
+        "browse-stored", null, "/"))
+        .isInstanceOfSatisfying(ProblemException.class,
+            e -> assertThat(e.confirm()).isEqualTo(ConnectionService.CONFIRM_NEW_HOST));
+    assertThat(tester.browseFiles("pgfake", Env.DEV, TestCore.config("db.test"), Map.of(), "browse-stored", null,
+        "/").result().ok()).isTrue();
+    ConnectionTester.Outcome first = tester.browseFiles("sshfake", Env.DEV, TestCore.config("hostkey.test"),
+        Map.of("/credentials/password", SecretInput.local("browse-pass-7654321".toCharArray())), null, null, "/");
+    assertThat(first.result().needsConfirmation()).isNotNull();
+    ConnectionTester.ConfirmOutcome trusted = tester.confirm(first.confirmationId(), "Verified fingerprint");
+    assertThat(tester.browseFiles("sshfake", Env.DEV, trusted.config(),
+        Map.of("/credentials/password", SecretInput.local("browse-pass-7654321".toCharArray())), null, null,
+        "/").result().ok()).isTrue();
+  }
+
+  @Test
+  void invalidBrowserPathsAreRejectedAndTypedSecretsAreCleared() {
+    for (String path : List.of("relative", "/var/\nlog", "/".repeat(4097))) {
+      SecretInput password = SecretInput.local("browse-pass-7654321".toCharArray());
+      assertThatThrownBy(() -> tester.browseFiles("pgfake", Env.DEV, TestCore.config("db.test"),
+          Map.of("/credentials/password", password), null, null, path))
+          .isInstanceOfSatisfying(ProblemException.class, e -> assertThat(e.field()).isEqualTo("/path"));
+      assertThat(password.value()).containsOnly('\0');
+    }
   }
 
   @Test

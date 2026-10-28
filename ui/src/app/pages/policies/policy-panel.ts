@@ -408,11 +408,11 @@ export class GwPolicyPanel {
   // ── Runbooks, meters, risk, channels ──────────────────────────────────────────────────────────────────────────
 
   protected readonly envRunbooks = computed(() => {
-    const conns = new Set(sectionConnections('ssh', this.env(), this.connections() ?? []).map((r) => r.name));
+    const conns = new Set(sectionConnections('ssh', this.env(), this.connections() ?? []).filter((r) => r.type === 'ssh').map((r) => r.name));
     return (this.runbooks() ?? []).filter((r) => conns.has(r.connection));
   });
 
-  protected readonly sshConnections = computed(() => sectionConnections('ssh', this.env(), this.connections() ?? []).map((r) => r.name));
+  protected readonly sshConnections = computed(() => sectionConnections('ssh', this.env(), this.connections() ?? []).filter((r) => r.type === 'ssh').map((r) => r.name));
 
   protected readonly tokenMeter = computed<MeterView | null>(() => {
     const u = this.usage();

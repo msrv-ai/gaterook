@@ -26,8 +26,8 @@ import org.apache.sshd.core.CoreModuleProperties;
  * The hardened MINA clients of the connector (report 06 §1, §6, §7.2): one with modern algorithms, one that also
  * speaks to old servers ({@code advanced.legacyAlgorithms}). MINA's defaults that would reach outside a connection's
  * config are replaced: every host key is checked by {@link HostKeys}, never accepted blindly; nothing is read from
- * {@code ~/.ssh} (config, keys) or an agent; credentials are added to each session, never to the client. Exec
- * channels only — no shell, PTY, agent or X11 forwarding is ever requested.
+ * {@code ~/.ssh} (config, keys) or an agent; credentials are added to each session, never to the client. Exec and SFTP
+ * subsystem channels only — no shell, PTY, agent or X11 forwarding is ever requested.
  *
  * <p>Each client owns MINA's I/O threads; both start lazily and stop with the connector.
  */

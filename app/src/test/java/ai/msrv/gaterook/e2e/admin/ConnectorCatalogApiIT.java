@@ -66,6 +66,8 @@ class ConnectorCatalogApiIT {
       new KitCard("Logs", "logs", "loki", "Loki", "scroll-text", "built-in", 2, "LogQL search and label browsing."),
       new KitCard("Logs", "logs", "opensearch", "OpenSearch", "scroll-text", "built-in", 5,
           "Scoped log search or full OpenSearch queries and approved administration."),
+      new KitCard("Logs", "ssh-logs", null, "SSH log files", "file-text", "built-in", 3,
+          "Read selected log files over SSH without running shell commands."),
       new KitCard("Kubernetes", "kubernetes", null, "Kubernetes", "ship-wheel", "built-in", 4,
           "Pods, logs and events; rollouts and apply with approval."),
       new KitCard("Cloud", "gcp", null, "GCP", "cloud", "built-in", 2,
@@ -124,7 +126,7 @@ class ConnectorCatalogApiIT {
 
     // Connectors › Installed: one row per type, the MCP server type isn't one (its servers are, with K5).
     List<String> installed = each(catalog.path("installed"), "id");
-    assertThat(installed).containsExactly("postgres", "mysql", "mongodb", "redis", "ssh", "logs", "kubernetes",
+    assertThat(installed).containsExactly("postgres", "mysql", "mongodb", "redis", "ssh", "logs", "ssh-logs", "kubernetes",
         "gcp", "aws", "http");
     for (JsonNode row : catalog.path("installed")) {
       assertThat(row.path("state").asString()).isEqualTo("enabled");

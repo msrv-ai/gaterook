@@ -40,8 +40,8 @@ class BuiltInConnectorCatalogTest {
 
   /** Current built-in tool counts used by the runtime connector catalog. */
   private static final Map<String, Integer> TOOLS_PER_CONNECTOR = orderedMap(
-      "PostgreSQL", 4, "MySQL", 4, "MongoDB", 4, "Redis", 2, "SSH", 2, "Logs", 2, "Kubernetes", 4, "GCP", 2, "AWS", 2,
-      "HTTP API", 2);
+      "PostgreSQL", 4, "MySQL", 4, "MongoDB", 4, "Redis", 2, "SSH", 2, "Logs", 5, "SSH log files", 3,
+      "Kubernetes", 4, "GCP", 2, "AWS", 2, "HTTP API", 2);
 
   /** Current default modes for the connection types in BLUEPRINT §9's {@code dev} endpoint. */
   private static final Map<String, Map<String, Mode>> DEV_ENDPOINT = Map.of(
@@ -58,9 +58,9 @@ class BuiltInConnectorCatalogTest {
       "http", Map.of("http_get", Mode.OFF, "http_request", Mode.APPROVAL));
 
   /** Names a tool of each built-in family must start with; reserved for them against plugins and MCP servers. */
-  private static final Map<String, String> TOOL_PREFIX = Map.of("postgres", "sql_", "mysql", "sql_",
-      "mongodb", "mongo_", "redis", "redis_", "ssh", "ssh_", "logs", "logs_", "kubernetes", "k8s_", "gcp", "gcp_",
-      "aws", "aws_", "http", "http_");
+  private static final Map<String, String> TOOL_PREFIX = orderedMap("postgres", "sql_", "mysql", "sql_",
+      "mongodb", "mongo_", "redis", "redis_", "ssh", "ssh_", "ssh-logs", "ssh_logs_", "logs", "logs_",
+      "kubernetes", "k8s_", "gcp", "gcp_", "aws", "aws_", "http", "http_");
 
   /** Property names that hold credentials: a connection form must never show them back (ARCHITECTURE.md §9). */
   private static final Set<String> SECRET_PROPERTIES = Set.of("password", "passphrase", "privateKey", "token",
@@ -94,7 +94,7 @@ class BuiltInConnectorCatalogTest {
 
   @Test
   void everyConnectorModuleRegistersItsConnectorTypes() {
-    assertThat(byId.keySet()).containsExactlyInAnyOrder("postgres", "mysql", "mongodb", "redis", "ssh", "logs",
+    assertThat(byId.keySet()).containsExactlyInAnyOrder("postgres", "mysql", "mongodb", "redis", "ssh", "logs", "ssh-logs",
         "kubernetes", "gcp", "aws", "http", "mcp-server");
     assertThat(connectors).hasSize(byId.size());
   }
@@ -107,6 +107,20 @@ class BuiltInConnectorCatalogTest {
         .forEach(m -> counts.put(m.name(), m.tools().size()));
 
     assertThat(counts).containsExactlyInAnyOrderEntriesOf(TOOLS_PER_CONNECTOR);
+  }
+
+  @Test
+  void sshLogFilesExposeReadOnlyToolsAndShareSshCredentialPolicy() {
+    ConnectorManifest logs = byId.get("ssh-logs");
+    assertThat(logs.policySchema()).isEqualTo(byId.get("ssh").policySchema());
+    assertThat(logs.tools()).extracting(ToolDefinition::name)
+        .containsExactly("ssh_logs_list", "ssh_logs_read", "ssh_logs_search");
+    assertThat(logs.tools()).allSatisfy(tool -> {
+      assertThat(tool.nature()).isEqualTo(ToolDefinition.Nature.READ);
+      assertThat(tool.defaultMode()).isEqualTo(Mode.READ_ONLY);
+      assertThat(tool.prodDefaultMode()).isEqualTo(Mode.READ_ONLY);
+      assertThat(tool.risk()).isEqualTo(new ToolDefinition.Risk(true, true, ToolDefinition.Egress.NONE));
+    });
   }
 
   @Test
@@ -137,6 +151,8 @@ class BuiltInConnectorCatalogTest {
     Map<Mode, Integer> modes = new EnumMap<>(Mode.class);
     DEV_ENDPOINT.forEach((type, expected) -> {
       Map<String, Mode> defaults = byId.get(type).tools().stream()
+          // The demo uses Loki: OpenSearch-only tools do not belong to that connection's catalog.
+          .filter(tool -> !type.equals("logs") || tool.name().startsWith("logs_"))
           .collect(Collectors.toMap(ToolDefinition::name, ToolDefinition::defaultMode));
       assertThat(defaults.keySet()).as(type).containsExactlyInAnyOrderElementsOf(expected.keySet());
       expected.forEach((tool, mode) -> {
@@ -160,7 +176,9 @@ class BuiltInConnectorCatalogTest {
     Map<String, ToolDefinition> seen = new HashMap<>();
     for (ConnectorManifest m : byId.values()) {
       for (ToolDefinition t : m.tools()) {
-        assertThat(t.name()).as(m.id()).matches("^[a-z][a-z0-9_]{0,63}$").startsWith(TOOL_PREFIX.get(m.id()));
+        String prefix = m.id().equals("logs") && t.name().startsWith("opensearch_")
+            ? "opensearch_" : TOOL_PREFIX.get(m.id());
+        assertThat(t.name()).as(m.id()).matches("^[a-z][a-z0-9_]{0,63}$").startsWith(prefix);
         ToolDefinition earlier = seen.putIfAbsent(t.name(), t);
         if (earlier != null) {
           // The core merges same-named tools of PostgreSQL and MySQL only if they are equal (§5 step 4).
@@ -169,7 +187,7 @@ class BuiltInConnectorCatalogTest {
         }
       }
     }
-    assertThat(seen).hasSize(24);
+    assertThat(seen).hasSize(30);
   }
 
   @Test

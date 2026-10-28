@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "offset",
+    "nextOffset",
+    "bytesRead",
+    "file",
+    "tail",
+    "truncated",
+    "partialLine",
+    "lines",
+    "files",
+    "entries",
+    "nextCursor",
+    "scannedBytes",
+    "scanComplete",
+    "truncationReason",
+    "warnings",
+    "skippedLines",
+    "unparsedLines",
+    "anchor",
+    "maxLines"
+  ],
+  "properties": {
+    "offset": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "nextOffset": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Legacy byte position. Use nextCursor to continue multi-file or reverse scans with snapshot validation."
+    },
+    "bytesRead": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "file": {
+      "type": "string",
+      "description": "The single selected file, or empty when multiple files are scanned. Each entry carries its own file."
+    },
+    "tail": {
+      "type": "boolean"
+    },
+    "truncated": {
+      "type": "boolean"
+    },
+    "partialLine": {
+      "type": "boolean",
+      "description": "False: only complete physical lines are returned. Oversized lines are counted in skippedLines."
+    },
+    "lines": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "file",
+          "offset",
+          "endOffset",
+          "timestamp",
+          "level",
+          "text"
+        ],
+        "properties": {
+          "file": {
+            "type": "string"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "endOffset": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "timestamp": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Parsed event time in UTC, or null when it cannot be parsed."
+          },
+          "level": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Matching complete physical lines in file order and ascending byte order within this page. Pages of a tail scan move towards older file positions. This is not a global timestamp sort."
+    },
+    "nextCursor": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Repeat the same request with this cursor to continue. Null when no unread positions remain."
+    },
+    "scannedBytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "scanComplete": {
+      "type": "boolean",
+      "description": "Whether this query reached the end of its selected scan direction. False means remaining files or bytes must be examined using nextCursor, even if lines is empty. Check warnings and skippedLines before interpreting an empty result."
+    },
+    "truncationReason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "line_limit",
+        "output_limit",
+        "scan_limit",
+        "timeout",
+        null
+      ]
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "skippedLines": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Physical lines skipped because they exceed the bounded line size; the response warns that results are incomplete."
+    },
+    "unparsedLines": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Lines excluded because the active time filter could not obtain a usable event timestamp. Zero when no time filter is active."
+    },
+    "anchor": {
+      "type": "string",
+      "description": "UTC instant used for relative time arguments; fixed across cursor pages."
+    },
+    "maxLines": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Effective page line limit after applying the environment policy."
+    }
+  }
+}

@@ -49,6 +49,9 @@ export function sectionDescription(x: SectionCtx): Hint {
         ? [...lead, t(parent ? `An empty field follows the ${parent} value shown in it.` : 'The gateway parses every statement: SELECT is a read, anything else is a mutation.')]
         : [t(`Limits and allowlists for ${x.env} databases.`)];
     case 'ssh':
+      if (x.connections.some((connection) => connection.type === 'ssh-logs')) {
+        return [...lead, t('SSH log files use the authentication and output limits here. They only read selected files and do not run shell commands. SSH connections can run saved runbooks with typed parameters.')];
+      }
       return has
         ? [...lead, t('Agents run runbooks: saved commands with typed parameters, so nothing is glued into a shell string.')]
         : [t(`Runbooks and limits for ${x.env} hosts.`)];
@@ -74,6 +77,9 @@ export function sectionDescription(x: SectionCtx): Hint {
         ? [...lead, t('This stops SSRF: an agent steered into using the gateway, which sits inside your network, to reach internal addresses.')]
         : [t(`Where HTTP tools may send requests from ${x.env}. This stops SSRF: an agent steered into using the gateway, which sits inside your network, to reach internal addresses.`)];
     case 'logs':
+      if (x.connections.some((connection) => connection.type === 'ssh-logs')) {
+        return [...lead, t('Longest time range limits the requested event-time period for SSH log files. Their line limit comes from Limits and their authentication and output settings come from SSH. The other settings here apply to log-store connectors.')];
+      }
       return has
         ? [...lead, t('How far back and how much '), c('logs_search'), t(' and '), c('logs_tail'), t(' read; Log lines per call in Limits caps every call.')]
         : [t('How far back and how much '), c('logs_search'), t(' and '), c('logs_tail'), t(` read on ${x.env}.`)];
