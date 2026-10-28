@@ -117,7 +117,8 @@ describe('deep links', () => {
 describe('links opened outside the app', () => {
   it('only https on documentation hosts or exact project URLs', () => {
     assert.equal(allowedExternalUrl('https://modelcontextprotocol.io/docs'), 'https://modelcontextprotocol.io/docs');
-    for (const url of ['https://www.linkedin.com/in/dobroskok/', 'https://provenbase.com/']) {
+    assert.equal(allowedExternalUrl('https://msrv.dev'), 'https://msrv.dev/');
+    for (const url of ['https://msrv.dev/', 'https://www.linkedin.com/in/dobroskok/', 'https://provenbase.com/']) {
       assert.equal(allowedExternalUrl(url), url);
     }
     for (const bad of ['http://modelcontextprotocol.io/', 'file:///etc/passwd', 'https://evil.example/',
@@ -126,6 +127,8 @@ describe('links opened outside the app', () => {
       'https://www.linkedin.com/in/dobroskok/?query=value', 'https://provenbase.com/?query=value',
       'https://www.linkedin.com.evil.example/in/dobroskok/', 'https://provenbase.com.evil.example/',
       'http://provenbase.com/', 'https://user@provenbase.com/', 'https://provenbase.com:8443/',
+      'https://msrv.dev/other', 'https://msrv.dev/?query=value', 'https://msrv.dev.evil.example/',
+      'http://msrv.dev/', 'https://user@msrv.dev/', 'https://msrv.dev:8443/',
       'smb://host/share', 'javascript:alert(1)', 'app://gw/', 42]) {
       assert.equal(allowedExternalUrl(bad), null, String(bad));
     }
