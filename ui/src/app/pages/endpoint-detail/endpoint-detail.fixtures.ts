@@ -195,7 +195,7 @@ function link(client: string, endpoint: string, method: string, over: object = {
     endpoint,
     env: 'stage',
     method,
-    entryName: `gateway-${endpoint}`,
+    entryName: `gaterook-${endpoint}`,
     configPath: null,
     configDisplay: null,
     grantPrefix: null,

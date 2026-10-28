@@ -2997,7 +2997,7 @@ Changing anything
                     <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">5</span><span class="gw-diff__gutter" aria-hidden="true">5</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">      "args": ["-y", "@modelcontextprotocol/server-github"]</span></div>
                     <div class="gw-diff__line gw-diff__line--del"><span class="gw-diff__gutter" aria-hidden="true">6</span><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__marker" aria-hidden="true">−</span><span class="gw-sr-only">Removed: </span><span class="gw-diff__text">    }</span></div>
                     <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">6</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">    },</span></div>
-                    <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">7</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text" data-ep-cu-diff="name">    "gateway-dev": {</span></div>
+                    <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">7</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text" data-ep-cu-diff="name">    "gaterook-dev": {</span></div>
                     <div class="gw-diff__line gw-diff__line--add" data-ep-cu-line="url"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">8</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text" data-ep-cu-diff="url">      "url": "http://127.0.0.1:7465/mcp/dev",</span></div>
                     <div class="gw-diff__line gw-diff__line--add" data-ep-cu-line="bridge" hidden><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">8</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">      "type": "stdio",</span></div>
                     <div class="gw-diff__line gw-diff__line--add" data-ep-cu-line="bridge" hidden><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">9</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">      "command": "/Users/me/.gaterook/bin/gw-bridge",</span></div>
@@ -3026,7 +3026,7 @@ Changing anything
                   <p class="gw-alert__body">Prefer to add it from Cursor? An Add to Cursor link carries only the endpoint URL; Cursor then signs in through the browser.</p>
                 </div>
                 <div class="gw-alert__actions">
-                  <button class="gw-btn gw-btn--link gw-btn--sm" type="button" data-ep-cu-deeplink data-gw-copy="cursor://anysphere.cursor-deeplink/mcp/install?name=gateway-dev&amp;config=eyJ1cmwiOiJodHRwOi8vMTI3LjAuMC4xOjc0NjUvbWNwL2RldiJ9">
+                  <button class="gw-btn gw-btn--link gw-btn--sm" type="button" data-ep-cu-deeplink data-gw-copy="cursor://anysphere.cursor-deeplink/mcp/install?name=gaterook-dev&amp;config=eyJ1cmwiOiJodHRwOi8vMTI3LjAuMC4xOjc0NjUvbWNwL2RldiJ9">
                     <span class="gw-btn__copy">Copy Add to Cursor link</span><span class="gw-btn__copied">Copied</span>
                   </button>
                 </div>
@@ -3068,7 +3068,7 @@ Changing anything
         </header>
         <div class="gw-dialog__body">
           <dl class="gw-kv gw-kv--dense">
-            <div class="gw-kv__row"><dt class="gw-kv__key">Removes</dt><dd class="gw-kv__value"><span class="gw-mono">[mcp_servers.gateway-dev]</span> from <span class="gw-mono">~/.codex/config.toml</span></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Removes</dt><dd class="gw-kv__value"><span class="gw-mono">[mcp_servers.gaterook-dev]</span> from <span class="gw-mono">~/.codex/config.toml</span></dd></div>
             <div class="gw-kv__row"><dt class="gw-kv__key">Revokes</dt><dd class="gw-kv__value">The helper's access <span class="gw-mono">codex-laptop</span>; no new tokens are issued to it</dd></div>
             <div class="gw-kv__row"><dt class="gw-kv__key">Backup</dt><dd class="gw-kv__value gw-mono">~/.codex/config.toml.bak-2026-10-22</dd></div>
           </dl>
@@ -3493,7 +3493,7 @@ Changing anything
       else if (cuAuth("bridge").checked) cuAuth("token").checked = true;
       var mode = (cuDialog.querySelector('input[name="ep-cu-auth"]:checked') || {}).value || "token";
       var url = "http://127.0.0.1:7465/mcp/" + slug, n = CU[mode];
-      cuDiff("name").textContent = '    "gateway-' + slug + '": {';
+      cuDiff("name").textContent = '    "gaterook-' + slug + '": {';
       cuDiff("url").textContent = '      "url": "' + url + '"' + (mode === "oauth" ? "" : ",");
       cuDiff("args").textContent = '      "args": ["stdio", "--endpoint", "' + slug + '", "--grant", "gr_Cu2mV8xR", "--client", "cursor"]';
       cuLines("url").forEach(function (l) { l.hidden = mode === "bridge"; });
@@ -3507,7 +3507,7 @@ Changing anything
       doc.getElementById("ep-cu-bridge-note").hidden = mode !== "bridge";
       doc.getElementById("ep-cu-deeplink").hidden = mode !== "oauth";
       cuDialog.querySelector("[data-ep-cu-deeplink]").setAttribute("data-gw-copy",
-        "cursor://anysphere.cursor-deeplink/mcp/install?name=gateway-" + slug + "&config=" + btoa(JSON.stringify({ url: url })));
+        "cursor://anysphere.cursor-deeplink/mcp/install?name=gaterook-" + slug + "&config=" + btoa(JSON.stringify({ url: url })));
       doc.getElementById("ep-cu-prod").hidden = !isProd;
       cuEp.setAttribute("aria-describedby", isProd ? "ep-cu-endpoint-hint ep-cu-prod" : "ep-cu-endpoint-hint");
       if (isProd) cuConfirm.setAttribute("aria-describedby", "ep-cu-prod"); else cuConfirm.removeAttribute("aria-describedby");

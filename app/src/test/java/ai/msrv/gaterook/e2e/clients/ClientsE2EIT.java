@@ -199,7 +199,7 @@ class ClientsE2EIT {
 
   private static JsonNode callTool(AppServer codex, String threadId) throws Exception {
     ObjectNode params = JSON.createObjectNode();
-    params.put("server", "gateway-dev");
+    params.put("server", "gaterook-dev");
     params.put("threadId", threadId);
     params.put("tool", CoreTools.LIST_CONNECTIONS);
     params.putObject("arguments");

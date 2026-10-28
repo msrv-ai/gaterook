@@ -110,7 +110,7 @@ describe('ClientsData: loading', () => {
     expect(data.endpointList().map((e) => e.slug)).toEqual(['dev', 'stage-readonly', 'incident-prod']);
     // Codex's entry, read once from its disconnect preview (a preview writes nothing); the bridge has no entry.
     expect(calls.filter((c) => c.startsWith('disconnect-preview'))).toEqual(['disconnect-preview cl_cx_dev']);
-    expect(data.entries().get('cl_cx_dev')?.text).toContain('[mcp_servers.gateway-dev]');
+    expect(data.entries().get('cl_cx_dev')?.text).toContain('[mcp_servers.gaterook-dev]');
     expect(calls).toContain('manual dev');
     expect(calls).toContain('tokens dev');
     expect(data.manual().value?.url).toBe('http://127.0.0.1:7465/mcp/dev');

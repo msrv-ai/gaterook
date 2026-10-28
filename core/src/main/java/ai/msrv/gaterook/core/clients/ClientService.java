@@ -1056,7 +1056,7 @@ public class ClientService {
   public Manual manual(String slug) {
     EndpointService.Summary e = endpoint(slug);
     String url = listener.origin() + "/mcp/" + e.slug();
-    String name = "gateway-" + e.slug();
+    String name = "gaterook-" + e.slug();
     ObjectNode server = JSON.createObjectNode();
     server.put("type", "streamable-http");
     server.put("url", url);
@@ -1213,16 +1213,16 @@ public class ClientService {
     return entry.tomlBlock() != null ? entry.tomlBlock() : JsonEntryEditor.pretty(entry.name(), entry.json());
   }
 
-  /** {@code gateway-<slug>}, or {@code gateway-<slug>-2}, … when the name belongs to an entry that isn't ours. */
+  /** {@code gaterook-<slug>}, or {@code gaterook-<slug>-2}, … when the name belongs to an entry that isn't ours. */
   private static String entryName(ClientKind client, String content, String slug) {
     Set<String> taken = new java.util.HashSet<>(client == ClientKind.CODEX ? TomlBlockEditor.names(content)
         : JsonEntryEditor.names(content, "mcpServers"));
-    String base = "gateway-" + slug;
+    String base = "gaterook-" + slug;
     String name = base;
     for (int i = 2; taken.contains(name); i++) {
       name = base + "-" + i;
     }
-    if (name.length() > 48) {
+    if (name.length() > 49) {
       throw ProblemException.unprocessable("Name too long", "The endpoint's slug is too long for a client entry.",
           "/endpoint");
     }

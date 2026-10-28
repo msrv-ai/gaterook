@@ -647,7 +647,7 @@ HTTP private networks remain blocked unless an explicit range is allowed. The de
 
 Claude Desktop connects to `dev` and `incident-prod` through separate `.mcpb` bridge rows (`gaterook-dev.mcpb`, `gaterook-incident-prod.mcpb`), with Add endpoint, Disconnect, and Remove bridge.
 
-Codex connects to dev through a managed `gateway-dev` block in `~/.codex/config.toml`; `http_headers_helper` runs the stable `~/.gaterook/bin/gw-bridge headers --endpoint dev --grant <grant-id>` shim. Its revocable access is `codex-laptop`, with no token value in configuration.
+Codex connects to dev through a managed `gaterook-dev` block in `~/.codex/config.toml`; `http_headers_helper` runs the stable `~/.gaterook/bin/gw-bridge headers --endpoint dev --grant <grant-id>` shim. Its revocable access is `codex-laptop`, with no token value in configuration.
 
 Cursor is detected but disconnected. Connect offers a named token in `~/.cursor/mcp.json`, explicitly warning about plaintext, or browser sign-in. Production uses the stdio bridge instead and does not store a token. Antigravity is not installed. claude.ai uses stage-readonly.
 

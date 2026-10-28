@@ -232,7 +232,7 @@ describe('Clients page: what it shows', () => {
     expect(entry.hidden).toBe(true);
     await click(entryToggle);
     expect(entry.hidden).toBe(false);
-    expect(text(entry)).toContain('[mcp_servers.gateway-dev]');
+    expect(text(entry)).toContain('[mcp_servers.gaterook-dev]');
 
     const ag = card('Antigravity');
     expect(text(ag)).toContain('Not found on this computer. Install it, then check again.');

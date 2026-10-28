@@ -89,7 +89,7 @@ describe('client-card view (design/elements/client-card.html)', () => {
   it('lists what Disconnect removes, revokes and keeps (pages/clients.html, pages/endpoint-detail.html)', () => {
     const link = DEMO_CLIENTS.codex.links[0];
     const f = disconnectFacts(DEMO_CLIENTS.codex, link, DEMO_DISCONNECT_CODEX);
-    expect(words(f.removes!)).toBe('[mcp_servers.gateway-dev] from ~/.codex/config.toml');
+    expect(words(f.removes!)).toBe('[mcp_servers.gaterook-dev] from ~/.codex/config.toml');
     expect(words(f.revokes!)).toBe("The helper's grant codex-laptop; no new tokens are issued to it");
     expect(f.backup).toBe('~/.codex/config.toml.bak-2026-10-22');
     const token: ClientLink = { ...link, grantLabel: null, tokenName: 'cursor-laptop', configDisplay: '~/.cursor/mcp.json', entryName: 'gateway-dev' };
@@ -129,7 +129,7 @@ describe('client-card view (design/elements/client-card.html)', () => {
       'Not found on this computer. Install it, then check again. One config file serves the Antigravity app, its IDE and its CLI.',
     );
     expect(notInstalledText(DEMO_CLIENTS.antigravity)).toBe('Not found on this machine. Install it, then check again.');
-    const entry = { file: '~/.codex/config.toml', language: 'toml' as const, text: '[mcp_servers.gateway-dev]\ndefault_tools_approval_mode = "writes"' };
+    const entry = { file: '~/.codex/config.toml', language: 'toml' as const, text: '[mcp_servers.gaterook-dev]\ndefault_tools_approval_mode = "writes"' };
     expect(approvalMode(entry)).toBe('writes');
     expect(approvalMode(null)).toBeNull();
     const [token, oauth, bridge] = DEMO_CLIENTS.cursor.methods;
@@ -156,13 +156,13 @@ describe('client-card view (design/elements/client-card.html)', () => {
     const card: ClientCard = DEMO_CLIENTS.cursor;
     const detail = 'The file has comments or trailing commas (line 4, column 3). GateRook writes only strict JSON, so it changes nothing; add the entry by hand.';
     // As ClientsController.EditProblem serialises it.
-    const body = { type: 'about:blank', title: "GateRook won't edit this file", detail, field: null, errors: [], reason: 'jsonc', line: 4, column: 3, fragment: '"gateway-dev": {"url": "…"}' };
+    const body = { type: 'about:blank', title: "GateRook won't edit this file", detail, field: null, errors: [], reason: 'jsonc', line: 4, column: 3, fragment: '"gaterook-dev": {"url": "…"}' };
     const err = ApiError.fromHttp(new HttpErrorResponse({ status: 422, error: body }));
-    expect(configEditProblem(err)).toEqual({ reason: 'jsonc', detail, line: 4, column: 3, fragment: '"gateway-dev": {"url": "…"}' });
+    expect(configEditProblem(err)).toEqual({ reason: 'jsonc', detail, line: 4, column: 3, fragment: '"gaterook-dev": {"url": "…"}' });
     const jsonc = clientFailure(err, card);
     expect(words(jsonc.title)).toBe("Can't edit ~/.cursor/mcp.json safely");
     expect(words(jsonc.body)).toBe(detail);
-    expect(jsonc.fix).toEqual({ title: 'Add by hand', label: 'entry', language: 'json', text: '"gateway-dev": {"url": "…"}' });
+    expect(jsonc.fix).toEqual({ title: 'Add by hand', label: 'entry', language: 'json', text: '"gaterook-dev": {"url": "…"}' });
 
     // No fragment (an invalid file): the sentence, no code block.
     const invalid = ApiError.fromHttp(new HttpErrorResponse({ status: 422, error: { ...body, reason: 'invalid', fragment: null } }));
