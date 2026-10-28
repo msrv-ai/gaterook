@@ -442,6 +442,24 @@ public final class StoreAdmin implements SecretOwners {
     }
   }
 
+  /** A bounded autocomplete scan; only paths and key names cross the renderer boundary. */
+  public SecretStores.VaultReferences vaultReferences(String idOrName) {
+    StoreClients.Row row = readTx.execute(s -> clients.row(find(idOrName)));
+    if (row.kind() != StoreKind.VAULT) {
+      throw ProblemException.unprocessable("Choose a Vault store", "Only Vault and OpenBao stores support Vault "
+          + "reference suggestions.", null);
+    }
+    Taint scratch = new Taint();
+    try {
+      VaultStore vault = (VaultStore) clients.client(row);
+      return vault.references(StoreCall.within(scratch::add, Duration.ofSeconds(30), clock));
+    } catch (StoreException error) {
+      throw ProblemException.unprocessable("Couldn't load Vault references", error.getMessage(), "/store");
+    } finally {
+      scratch.clear();
+    }
+  }
+
   /** Replace reference ({@code PUT /api/secrets/{id}/reference}). */
   public SecretInfo replaceReference(String secretId, String uri, String storeName, String reason) {
     SecretRef ref = StoreBinding.parse(uri, "/uri");

@@ -19,13 +19,16 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
@@ -70,6 +73,10 @@ public final class VaultStore implements SecretStore {
 
   private static final JsonFactory JSON = JsonFactory.builder().build();
   private static final int MAX_BROWSE_ENTRIES = 1000;
+  private static final int MAX_DISCOVERY_PATHS = 1000;
+  private static final int MAX_DISCOVERY_REFERENCES = 5000;
+  private static final int MAX_DISCOVERY_DEPTH = 64;
+  private static final int MAX_DISCOVERY_ISSUES = 100;
 
   private final VaultSettings settings;
   private final SignIn signIn;
@@ -123,7 +130,12 @@ public final class VaultStore implements SecretStore {
       rest = rest.substring(0, rest.length() - 1);
     }
     String apiPath = mount.path() + ("2".equals(mount.kvVersion()) ? "metadata/" : "") + rest;
-    try (VaultHttp.Response r = authorized(t -> http.send("LIST", apiPath, null, t, call), call)) {
+    // Use the same normalized root path as `vault kv list`; folders below it already have no trailing slash.
+    if (apiPath.endsWith("/")) {
+      apiPath = apiPath.substring(0, apiPath.length() - 1);
+    }
+    String listPath = apiPath;
+    try (VaultHttp.Response r = authorized(t -> http.send("LIST", listPath, null, t, call), call)) {
       if (r.status() == 403) {
         throw StoreException.denied("The gateway's token can't list " + apiPath + ". Grant list permission on "
             + "this path, or enter the secret reference manually.");
@@ -220,6 +232,97 @@ public final class VaultStore implements SecretStore {
     return new SecretStores.VaultBrowse(path, entries.stream().distinct()
         .sorted(Comparator.comparing(SecretStores.VaultEntry::directory).reversed()
             .thenComparing(SecretStores.VaultEntry::name)).toList(), unsupported);
+  }
+
+  /**
+   * Enumerates the accessible KV tree for autocomplete. Values exist only in a short-lived {@link RemoteValue}
+   * whose bytes are cleared before another path is processed; neither values nor a value cache are returned.
+   */
+  public SecretStores.VaultReferences references(StoreCall call) {
+    record Path(String path, boolean directory, int depth) {}
+    var pending = new ArrayDeque<Path>();
+    var scheduled = new HashSet<String>();
+    var references = new TreeSet<String>();
+    var issues = new ArrayList<SecretStores.VaultDiscoveryIssue>();
+    pending.add(new Path("", true, 0));
+    scheduled.add("D:");
+    boolean pathLimit = false;
+    while (!pending.isEmpty()) {
+      Path next = pending.removeFirst();
+      if (issues.size() >= MAX_DISCOVERY_ISSUES) {
+        issues.add(new SecretStores.VaultDiscoveryIssue(next.path(), "limit", "Discovery stopped after "
+            + MAX_DISCOVERY_ISSUES + " inaccessible or unsupported paths. The suggestions are incomplete."));
+        break;
+      }
+      try {
+        call.requestTimeout();
+        if (next.directory()) {
+          SecretStores.VaultBrowse folder = browse(next.path(), call);
+          if (folder.unsupportedEntries() > 0) {
+            issues.add(new SecretStores.VaultDiscoveryIssue(next.path(), "unsupported", "Some names in this "
+                + "folder cannot be used in GateRook references and were omitted."));
+          }
+          for (SecretStores.VaultEntry entry : folder.entries()) {
+            String identity = (entry.directory() ? "D:" : "S:") + entry.path();
+            if (scheduled.contains(identity)) {
+              continue;
+            }
+            if (next.depth() >= MAX_DISCOVERY_DEPTH || scheduled.size() >= MAX_DISCOVERY_PATHS) {
+              if (!pathLimit) {
+                issues.add(new SecretStores.VaultDiscoveryIssue(next.path(), "limit", "The Vault tree exceeds "
+                    + "the discovery limit of " + MAX_DISCOVERY_PATHS + " paths or " + MAX_DISCOVERY_DEPTH
+                    + " folder levels. The suggestions are incomplete."));
+                pathLimit = true;
+              }
+              continue;
+            }
+            scheduled.add(identity);
+            pending.addLast(new Path(entry.path(), entry.directory(), next.depth() + 1));
+          }
+        } else {
+          if (!mount(next.path(), call).type().equals("kv")) {
+            throw StoreException.invalid("Only Vault KV paths can supply reference suggestions.");
+          }
+          try (RemoteValue value = read(new SecretRef.Vault(next.path(), null, null), call)) {
+            boolean unsupported = false;
+            for (String key : value.keys()) {
+              String reference;
+              try {
+                SecretRef.Vault parsed = (SecretRef.Vault) SecretRef.parse("vault://" + next.path() + "#" + key);
+                if (!key.equals(parsed.key()) || parsed.version() != null) {
+                  unsupported = true;
+                  continue;
+                }
+                reference = parsed.uri();
+              } catch (IllegalArgumentException invalid) {
+                unsupported = true;
+                continue;
+              }
+              if (references.size() >= MAX_DISCOVERY_REFERENCES && !references.contains(reference)) {
+                issues.add(new SecretStores.VaultDiscoveryIssue(next.path(), "limit", "Vault contains more than "
+                    + MAX_DISCOVERY_REFERENCES + " selectable keys. The suggestions are incomplete."));
+                return new SecretStores.VaultReferences(List.copyOf(references), false, List.copyOf(issues));
+              }
+              references.add(reference);
+            }
+            if (unsupported) {
+              issues.add(new SecretStores.VaultDiscoveryIssue(next.path(), "unsupported", "Some key names in "
+                  + "this secret cannot be used in GateRook references and were omitted."));
+            }
+          }
+        }
+      } catch (StoreException error) {
+        issues.add(new SecretStores.VaultDiscoveryIssue(next.path(),
+            error.reason().name().toLowerCase(java.util.Locale.ROOT).replace('_', '-'), error.getMessage()));
+        if (error.reason() == StoreException.Reason.UNAVAILABLE) {
+          break;
+        }
+      } catch (IllegalArgumentException invalid) {
+        issues.add(new SecretStores.VaultDiscoveryIssue(next.path(), "invalid",
+            "Vault returned a secret response that GateRook could not read."));
+      }
+    }
+    return new SecretStores.VaultReferences(List.copyOf(references), issues.isEmpty(), List.copyOf(issues));
   }
 
   @Override

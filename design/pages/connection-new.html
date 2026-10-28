@@ -512,9 +512,13 @@
               </div>
               <div class="gw-field gw-connection-form__secret" data-source="vault">
                 <label class="gw-field__label" for="cf-ref-vault" id="cf-ref-vault-label">Secret reference</label>
-                <div class="gw-secret" data-state="empty" data-mode-show="add duplicate">
-                  <input class="gw-input gw-input--mono" type="text" id="cf-ref-vault" data-vault-reference name="secretRef" placeholder="vault://kv/dev/db#password" autocomplete="off" spellcheck="false" aria-describedby="cf-ref-vault-hint">
-                  <span class="gw-secret__actions"><button class="gw-btn" type="button" data-gw-toggle aria-expanded="false" aria-controls="cf-vault-browser">Browse Vault</button><button class="gw-btn" type="button" data-vault-keys-load aria-controls="cf-vault-keys" aria-describedby="cf-vault-keys-status"><span class="gw-spinner gw-spinner--sm" data-vault-keys-spinner aria-hidden="true" hidden></span>Load keys</button><button class="gw-btn" type="button">Test reference</button></span>
+                <div class="gw-secret gw-menu-host" data-state="empty" data-mode-show="add duplicate">
+                  <div class="gw-input-group">
+                    <span class="gw-input-group__affix gw-mono" id="cf-ref-vault-prefix">vault://</span>
+                    <input class="gw-input gw-input--mono" type="text" id="cf-ref-vault" data-vault-reference name="secretRef" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="cf-vault-suggestions" placeholder="Search Vault paths or keys" autocomplete="off" spellcheck="false" aria-describedby="cf-ref-vault-prefix cf-ref-vault-hint cf-vault-status">
+                  </div>
+                  <span class="gw-secret__actions"><button class="gw-btn" type="button">Test reference</button></span>
+                  <div class="gw-menu gw-menu--wide" id="cf-vault-suggestions" data-vault-suggestions role="listbox" aria-label="Vault secret references" hidden></div>
                 </div>
                 <div class="gw-secret" data-state="reference" role="group" aria-labelledby="cf-ref-vault-label" data-mode-show="edit" hidden>
                   <span class="gw-secret__status"><i class="gw-icon" data-lucide="vault"></i><span data-slot="ref-provider">Vault</span></span>
@@ -524,24 +528,10 @@
                     <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-ref-change>Change<span class="gw-sr-only"> reference of <span data-slot="name">dev-db</span></span></button>
                   </span>
                 </div>
-                <p class="gw-field__hint" id="cf-ref-vault-hint">Path and key in Vault or OpenBao, resolved at call time with the core's Vault token.</p>
-                <div class="gw-field" id="cf-vault-browser" hidden>
-                  <label class="gw-field__label" for="cf-vault-folder">Folder</label>
-                  <div class="gw-secret" data-state="empty">
-                    <input class="gw-input gw-input--mono" id="cf-vault-folder" data-vault-folder placeholder="All KV mounts" autocomplete="off" spellcheck="false" aria-describedby="cf-vault-folder-hint">
-                    <span class="gw-secret__actions"><button class="gw-btn" type="button" data-vault-secrets-load aria-describedby="cf-vault-browser-status">Load secrets</button></span>
-                  </div>
-                  <p class="gw-field__hint" id="cf-vault-folder-hint">Leave empty to list KV mounts, or enter a folder such as kv/dev. Listing needs Vault list permission; you can also enter a secret reference manually.</p>
-                  <label class="gw-field__label" for="cf-vault-secret">Secret or folder</label>
-                  <select class="gw-select gw-mono" id="cf-vault-secret" data-vault-secret-select disabled aria-describedby="cf-vault-browser-status"><option value="">Load secrets to choose a path</option></select>
-                  <p class="gw-field__hint" id="cf-vault-browser-status" data-vault-browser-status role="status">Choose a folder to open it, or a secret to load its keys.</p>
-                </div>
-                <div class="gw-field" data-vault-keys data-mode-show="add duplicate">
-                  <label class="gw-field__label" for="cf-vault-keys">Key in Vault</label>
-                  <select class="gw-select gw-mono" id="cf-vault-keys" data-vault-key-select disabled aria-describedby="cf-vault-keys-status">
-                    <option value="">Load keys to choose a key</option>
-                  </select>
-                  <p class="gw-field__hint" id="cf-vault-keys-status" data-vault-keys-status role="status">Enter a Vault secret path, then load its keys. Only key names are shown.</p>
+                <p class="gw-field__hint" id="cf-ref-vault-hint">Choose a path and key from Vault or OpenBao, or enter a reference manually.</p>
+                <div class="gw-toolbar" data-vault-feedback data-mode-show="add duplicate">
+                  <div class="gw-toolbar__start"><p class="gw-field__hint" id="cf-vault-status" data-vault-status role="status">Available paths and keys load automatically. Secret values are never shown.</p></div>
+                  <div class="gw-toolbar__end"><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-vault-refresh aria-describedby="cf-vault-status"><span class="gw-spinner gw-spinner--sm" data-vault-spinner aria-hidden="true" hidden></span>Refresh list</button></div>
                 </div>
               </div>
               <div class="gw-field gw-connection-form__secret" data-source="gcp">
@@ -1905,8 +1895,9 @@ Caused by: java.net.SocketTimeoutException: Connect timed out
       ref.value = well.querySelector(".gw-secret__ref").textContent;
       well.hidden = true;
       empty.hidden = false;
-      var keys = well.parentNode.querySelector("[data-vault-keys]");
-      if (keys) keys.hidden = false;
+      var feedback = well.parentNode.querySelector("[data-vault-feedback]");
+      if (feedback) feedback.hidden = false;
+      if (ref.hasAttribute("data-vault-reference")) ref.dispatchEvent(new Event("input", { bubbles: true }));
       ref.focus();
     } else if (e.target.closest("[data-ref-test]")) {
       toast({ tone: "success", title: "Reference of " + current + " works", body: "Resolved in 18 ms. The value was neither shown nor kept." });
