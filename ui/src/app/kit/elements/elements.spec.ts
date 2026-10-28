@@ -3,7 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { ActivityEvent, TraceDetail } from '../../core/api/activity.api';
 import { Decision } from '../../core/api/types';
-import { ClientLink, ConnectPreview } from '../../core/api/clients.api';
+import { ClientCard, ClientLink, ConnectPreview } from '../../core/api/clients.api';
 import { OAuthGrant } from '../../core/api/tunnel.api';
 import { TimeService } from '../../core/time/time.service';
 import { DEMO_CONNECTION_ENVS, DEMO_FACETS, DEMO_HISTOGRAM } from '../../dev/fixtures-activity';
@@ -19,6 +19,7 @@ import {
   DEMO_TUNNEL_OFF,
 } from '../../dev/fixtures-clients';
 import { DEMO_EVENTS, DEMO_EVENT_APPROVAL, DEMO_TRACE } from '../../dev/fixtures-events';
+import { connected } from '../../pages/clients/clients.fixtures';
 import { provideKitIcons } from '../icons';
 import { AriaDisabledGuard } from '../aria-disabled';
 import { GwClaudeAiCard } from './client-card/claude-ai-card';
@@ -143,11 +144,78 @@ describe('client-card', () => {
   });
 });
 
+describe('observed OAuth client cards', () => {
+  const observed = (endpoint = 'dev'): ClientLink => ({
+    ...connected('cursor', { endpoint, method: 'oauth' }).link,
+    id: `og_cursor_${endpoint}`, configPath: null, configDisplay: null, entryName: null,
+    status: 'connected', usedAt: '2026-10-22T12:29:00.000Z', lastCallAt: null,
+  });
+
+  @Component({
+    imports: [GwClientCard],
+    template: `<article gwClientCard [card]="card()" [variant]="variant()" endpoint="dev" [endpoints]="endpoints" (disconnectStart)="starts.push($event)" (openConfig)="opened = opened + 1"></article>`,
+  })
+  class Host {
+    card = signal<ClientCard>({ ...DEMO_CLIENTS.cursor, status: 'connected', links: [observed()] });
+    variant = signal<'grid' | 'alone' | 'compact'>('grid');
+    endpoints = DEMO_CLIENT_ENDPOINTS;
+    starts: ClientLink[] = [];
+    opened = 0;
+  }
+
+  for (const variant of ['grid', 'alone', 'compact'] as const) {
+    it(`${variant}: manages the sign-in without offering a managed config disconnect`, async () => {
+      const { el, fixture, host } = await render(Host);
+      host.variant.set(variant);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      const card = el.querySelector('article')!;
+      expect(text(card.querySelector('.gw-status__label'))).toBe('Connected');
+      expect(text(card.querySelector('.gw-client-card__main, .gw-card__heading'))).toContain('Signed in through the browser');
+      expect(text(card).toLowerCase()).toContain('no call yet');
+      const manage = Array.from(card.querySelectorAll('a')).find((a) => text(a).startsWith('Manage sign-in'))!;
+      expect(manage.getAttribute('href')).toBe('/endpoints/dev?tab=tokens#ep-oauth-sessions');
+      expect(button(card, 'Disconnect')).toBeUndefined();
+      expect(button(card, 'Open config')).toBeUndefined();
+      expect(host.starts).toEqual([]);
+      expect(host.opened).toBe(0);
+    });
+  }
+
+  it('lists only sign-in management for multiple observed endpoints', async () => {
+    const { el, fixture, host } = await render(Host);
+    host.card.update((c) => ({ ...c, links: [observed(), observed('stage-readonly')] }));
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const card = el.querySelector('article')!;
+    const manages = Array.from(card.querySelectorAll('a')).filter((a) => text(a).startsWith('Manage sign-in'));
+    expect(manages.map((a) => a.getAttribute('href'))).toEqual(['/endpoints/dev?tab=tokens#ep-oauth-sessions', '/endpoints/stage-readonly?tab=tokens#ep-oauth-sessions']);
+    expect(button(card, 'Disconnect')).toBeUndefined();
+    expect(button(card, 'Open config')).toBeUndefined();
+    expect(button(card, 'Add endpoint')).toBeUndefined();
+  });
+
+  it('keeps managed config actions for a mixed card and disconnects only its managed link', async () => {
+    const { el, fixture, host } = await render(Host);
+    const managed = connected('cursor', { endpoint: 'stage-readonly', method: 'token', token: { name: 'cursor-laptop', ttlDays: 7 } }).link;
+    host.card.update((c) => ({ ...c, links: [observed(), managed] }));
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const card = el.querySelector('article')!;
+    expect(text(card.querySelector('.gw-card__description'))).toBe('~/.cursor/mcp.json');
+    expect(button(card, 'Open config')).toBeTruthy();
+    expect(button(card, 'Add endpoint')).toBeTruthy();
+    expect(Array.from(card.querySelectorAll('a')).filter((a) => text(a).startsWith('Manage sign-in'))).toHaveLength(1);
+    button(card, 'Disconnect Cursor from stage-readonly').click();
+    expect(host.starts).toEqual([managed]);
+  });
+});
+
 describe('claude.ai card and the sign-in consent', () => {
   @Component({
     imports: [GwClaudeAiCard, GwOAuthConsent],
     template: `
-      <article gwClaudeAiCard [tunnel]="tunnel" [preview]="preview" [grants]="grants" [endpoints]="endpoints" (publish)="published.push($event)" (revoke)="revoked.push($event)"></article>
+      <article gwClaudeAiCard [tunnel]="tunnel" [preview]="preview" [grants]="grants()" [endpoints]="endpoints" (publish)="published.push($event)" (revoke)="revoked.push($event)"></article>
       <article gwClaudeAiCard></article>
       <gw-oauth-consent [consent]="consent()" (decide)="decisions.push($event.decision); consent.set(null)" />
     `,
@@ -155,7 +223,7 @@ describe('claude.ai card and the sign-in consent', () => {
   class Host {
     tunnel = DEMO_TUNNEL_OFF;
     preview = DEMO_PUBLISH;
-    grants = DEMO_GRANTS;
+    grants = signal<readonly OAuthGrant[]>(DEMO_GRANTS);
     endpoints = DEMO_CLIENT_ENDPOINTS;
     consent = signal<typeof DEMO_CONSENT | null>(null);
     published: string[] = [];
@@ -185,6 +253,24 @@ describe('claude.ai card and the sign-in consent', () => {
     const dialog = Array.from(card.querySelectorAll('dialog')).find((d) => d.hasAttribute('open'))!;
     button(dialog, 'Revoke claude.ai access').click();
     expect(host.revoked.map((g) => g.id)).toEqual(['og_7Hc2']);
+  });
+
+  it('names a registered client in sign-ins and revocation while preserving its grant identity', async () => {
+    const { el, fixture, host } = await render(Host);
+    const grant: OAuthGrant = { ...DEMO_GRANTS[0], client: 'localhost', clientName: 'Cursor', clientKind: 'dcr' };
+    host.grants.set([grant]);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const card = el.querySelector('article')!;
+    expect(text(card.querySelector('tbody th'))).toBe('Cursor');
+    button(card, 'Revoke Cursor access').click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const dialog = Array.from(card.querySelectorAll('dialog')).find((d) => d.hasAttribute('open'))!;
+    expect(text(dialog.querySelector('.gw-dialog__title'))).toBe('Revoke Cursor access to stage-readonly?');
+    button(dialog, 'Revoke Cursor access').click();
+    expect(host.revoked).toEqual([grant]);
+    expect(host.revoked[0].client).toBe('localhost');
   });
 
   it('without a tunnel in this build, the card says so and offers nothing', async () => {

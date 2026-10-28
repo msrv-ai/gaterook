@@ -140,16 +140,16 @@
         <div class="gw-table-wrap" id="st-grants-wrap" role="region" aria-labelledby="st-grants-cap" tabindex="0">
           <table class="gw-table gw-table--dense">
             <caption class="gw-sr-only" id="st-grants-cap">OAuth sign-ins you allowed</caption>
-            <thead><tr><th scope="col">AI app</th><th scope="col">Endpoint</th><th scope="col">Allowed</th><th scope="col">Last call</th><th scope="col">Expires</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th></tr></thead>
+            <thead><tr><th scope="col">AI app</th><th scope="col">Endpoint</th><th scope="col">Allowed</th><th scope="col">Last used</th><th scope="col">Expires</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th></tr></thead>
             <tbody>
               @for (g of grants(); track g.id) {
                 <tr>
-                  <th scope="row">{{ g.client }}@if (g.state === 'address-changed') { <span class="gw-text-caption gw-fg-muted">· the public address changed</span>}</th>
+                  <th scope="row">{{ clientLabel(g) }}@if (g.state === 'address-changed') { <span class="gw-text-caption gw-fg-muted">· the public address changed</span>}</th>
                   <td class="gw-table__cell--mono">{{ g.endpoint ?? 'a removed endpoint' }}</td>
                   <td><time [attr.datetime]="time.iso(g.createdAt)" [attr.title]="time.absolute(g.createdAt, false)">{{ allowedAt(g.createdAt) }}</time>, by you</td>
                   <td>@if (g.lastUsedAt) {<time [attr.datetime]="time.iso(g.lastUsedAt)" [attr.title]="time.absolute(g.lastUsedAt)">{{ time.clock(g.lastUsedAt) }}</time>} @else {Never}</td>
                   <td><time [attr.datetime]="time.iso(g.expiresAt)" [attr.title]="time.absolute(g.expiresAt, false)">{{ time.date(g.expiresAt) }}</time></td>
-                  <td class="gw-table__cell--actions"><button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askRevoke(g, $event)">Revoke<span class="gw-sr-only"> {{ g.client }} access to {{ g.endpoint ?? 'a removed endpoint' }}</span></button></td>
+                  <td class="gw-table__cell--actions"><button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askRevoke(g, $event)">Revoke<span class="gw-sr-only"> {{ clientLabel(g) }} access to {{ g.endpoint ?? 'a removed endpoint' }}</span></button></td>
                 </tr>
               }
             </tbody>
@@ -187,15 +187,15 @@
   @if (revoking(); as g) {
     <header class="gw-dialog__header">
       <span class="gw-icon-tile"><svg lucideIcon="key-round" class="gw-icon"></svg></span>
-      <h2 class="gw-dialog__title" id="st-revoke-ai-t">Revoke {{ g.client }} access to {{ g.endpoint ?? 'a removed endpoint' }}?</h2>
-      <p class="gw-dialog__description" id="st-revoke-ai-d">The sign-in stops working at once, also when the tunnel is on again. To come back, {{ g.client }} signs in again and you allow it here.</p>
+      <h2 class="gw-dialog__title" id="st-revoke-ai-t">Revoke {{ clientLabel(g) }} access to {{ g.endpoint ?? 'a removed endpoint' }}?</h2>
+      <p class="gw-dialog__description" id="st-revoke-ai-d">The sign-in stops working at once, also when the tunnel is on again. To come back, {{ clientLabel(g) }} signs in again and you allow it here.</p>
       <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
     </header>
     <div class="gw-dialog__body">
       <div class="gw-stack">
         <dl class="gw-kv gw-kv--dense">
           <div class="gw-kv__row"><dt class="gw-kv__key">Allowed</dt><dd class="gw-kv__value"><time [attr.datetime]="time.iso(g.createdAt)" [attr.title]="time.absolute(g.createdAt, false)">{{ allowedAt(g.createdAt) }}</time>, by you</dd></div>
-          <div class="gw-kv__row"><dt class="gw-kv__key">Last call</dt><dd class="gw-kv__value">@if (g.lastUsedAt) {<time [attr.datetime]="time.iso(g.lastUsedAt)" [attr.title]="time.absolute(g.lastUsedAt)">{{ time.clock(g.lastUsedAt) }}</time>} @else {Never}</dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key">Last used</dt><dd class="gw-kv__value">@if (g.lastUsedAt) {<time [attr.datetime]="time.iso(g.lastUsedAt)" [attr.title]="time.absolute(g.lastUsedAt)">{{ time.clock(g.lastUsedAt) }}</time>} @else {Never}</dd></div>
         </dl>
         @if (revokeError(); as err) {
           <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
@@ -207,7 +207,7 @@
     </div>
     <footer class="gw-dialog__footer">
       <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
-      <button class="gw-btn gw-btn--danger" type="button" [attr.aria-busy]="revokeBusy() ? 'true' : null" [attr.aria-disabled]="revokeBusy() ? 'true' : null" (click)="confirmRevoke()">Revoke {{ g.client }} access</button>
+      <button class="gw-btn gw-btn--danger" type="button" [attr.aria-busy]="revokeBusy() ? 'true' : null" [attr.aria-disabled]="revokeBusy() ? 'true' : null" (click)="confirmRevoke()">Revoke {{ clientLabel(g) }} access</button>
     </footer>
   }
 </dialog>

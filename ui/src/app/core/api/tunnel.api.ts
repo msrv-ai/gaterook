@@ -84,7 +84,11 @@ export interface OAuthConsent {
 /** "Signed in": an allowed OAuth grant (survives turning the tunnel off). */
 export interface OAuthGrant {
   readonly id: string;
+  /** The client host; for local registrations this can be a loopback callback host. */
   readonly client: string;
+  /** The registered display name, distinct from the callback host. */
+  readonly clientName?: string | null;
+  readonly clientKind?: 'cimd' | 'dcr';
   /** The endpoint's slug; null once that endpoint was deleted (`oauth.internal.Grants.list`). */
   readonly endpoint: string | null;
   readonly ingress: 'LOCAL' | 'TUNNEL';

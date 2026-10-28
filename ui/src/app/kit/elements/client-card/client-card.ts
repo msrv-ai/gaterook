@@ -39,6 +39,7 @@ import {
   keeps,
   lastCallAt,
   notInstalledText,
+  observedSignIn,
   restartAlert,
   tableLayout,
   toolCount,
@@ -167,8 +168,10 @@ export class GwClientCard {
   protected readonly restart = computed(() => restartAlert(this.card()));
   protected readonly installUrl = computed(() => INSTALL_URL[this.card().client]);
   protected readonly alone = computed(() => this.variant() === 'alone');
+  protected readonly observedSignIn = observedSignIn;
+  protected readonly observedOnly = computed(() => this.card().links.length > 0 && this.card().links.every(observedSignIn));
   /** Clients set up through a file have Open config; the bridge extension has no file. */
-  protected readonly hasConfig = computed(() => !this.bridge() && !!this.card().configPath);
+  protected readonly hasConfig = computed(() => !this.observedOnly() && !this.bridge() && !!this.card().configPath);
 
   protected readonly rows = computed(() =>
     this.card().links.map((l) => {
@@ -269,6 +272,7 @@ export class GwClientCard {
   }
 
   protected askDisconnect(link: ClientLink, opener: HTMLElement): void {
+    if (observedSignIn(link)) return;
     this.leaving.set(link);
     this.disconnectStart.emit(link);
     this.disconnectDialog()?.openAfterRender(opener);
@@ -277,7 +281,7 @@ export class GwClientCard {
   protected confirmDisconnect(): void {
     const l = this.leaving();
     const p = this.matchingPreview();
-    if (!l || !p) return;
+    if (!l || !p || observedSignIn(l)) return;
     this.disconnect.emit({ link: l, previewId: p.previewId });
     this.disconnectDialog()?.close('disconnect');
   }
@@ -292,6 +296,6 @@ export class GwClientCard {
   }
 
   protected onOpenConfig(): void {
-    if (this.canOpenConfig()) this.openConfig.emit(this.card().client);
+    if (this.hasConfig() && this.canOpenConfig()) this.openConfig.emit(this.card().client);
   }
 }

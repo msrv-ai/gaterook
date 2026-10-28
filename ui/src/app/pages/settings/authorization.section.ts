@@ -7,6 +7,7 @@ import { TimeService } from '../../core/time/time.service';
 import { Announcer } from '../../kit/announcer';
 import { GwCopy } from '../../kit/copy';
 import { GwDialog, GwDialogClose } from '../../kit/dialog';
+import { oauthClientLabel } from '../../kit/elements/client-card/tunnel-view';
 import { GwHowItWorks, GwHowItWorksStep } from '../../kit/elements/how-it-works/how-it-works';
 import { GwSaveBar } from '../../kit/elements/settings-layout/settings-layout';
 import { GwIcon } from '../../kit/icons';
@@ -85,6 +86,7 @@ export class GwAuthorizationSettings {
   // ── Signed in ─────────────────────────────────────────────────────────────────────────────────────────────────
 
   protected readonly grants = computed(() => (this.data.grants().value ?? []).filter((g) => g.state === 'active' || g.state === 'address-changed'));
+  protected readonly clientLabel = oauthClientLabel;
   protected readonly revoking = signal<OAuthGrant | null>(null);
   protected readonly revokeBusy = signal(false);
   protected readonly revokeError = signal<string | null>(null);
@@ -154,7 +156,8 @@ export class GwAuthorizationSettings {
       dialog.close('revoke');
       // The empty text is drawn by the render this change starts.
       if (empty) afterNextRender(() => document.getElementById('st-grants-empty')?.focus(), { injector: this.injector });
-      this.toasts.show({ tone: 'success', title: `${g.client} access to ${g.endpoint ?? 'a removed endpoint'} revoked`, body: `${g.client} has to sign in again, and you allow it here.` });
+      const client = oauthClientLabel(g);
+      this.toasts.show({ tone: 'success', title: `${client} access to ${g.endpoint ?? 'a removed endpoint'} revoked`, body: `${client} has to sign in again, and you allow it here.` });
     } catch (err) {
       this.revokeError.set(this.errorText(err));
     } finally {

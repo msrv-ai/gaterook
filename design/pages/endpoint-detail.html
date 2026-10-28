@@ -2070,7 +2070,7 @@
                 </div>
               </div>
             </section>
-            <!-- OAuth sign-ins: one row per browser sign-in you allowed (AI app, granted, last call, expires, Revoke).
+            <!-- OAuth sign-ins: one row per browser sign-in you allowed (AI app, granted, last used, expires, Revoke).
                  dev has OAuth off, so the empty state; clients.html shows the row of claude.ai on stage-readonly. -->
             <section class="gw-card gw-card--flush" id="ep-oauth-sessions" aria-labelledby="ep-oauth-title">
               <header class="gw-card__header">
@@ -2083,7 +2083,7 @@
                 <div class="gw-empty gw-empty--compact">
                   <span class="gw-empty__icon"><i class="gw-icon" data-lucide="log-in"></i></span>
                   <h3 class="gw-empty__title">No sign-ins: OAuth is off for dev</h3>
-                  <p class="gw-empty__text">Local apps use the tokens above. When OAuth is on, each sign-in you allow is listed here with its AI app, last call, expiry and Revoke.</p>
+                  <p class="gw-empty__text">Local apps use the tokens above. When OAuth is on, each sign-in you allow is listed here with its AI app, last used, expiry and Revoke.</p>
                   <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" href="#ep-st-auth">OAuth settings<span class="gw-sr-only"> of dev</span></a></div>
                 </div>
               </div>
@@ -3028,8 +3028,9 @@ Changing anything
                   <p class="gw-alert__body">Prefer to add it from Cursor? An Add to Cursor link carries only the endpoint URL; Cursor then signs in through the browser.</p>
                 </div>
                 <div class="gw-alert__actions">
-                  <button class="gw-btn gw-btn--link gw-btn--sm" type="button" data-ep-cu-deeplink data-gw-copy="cursor://anysphere.cursor-deeplink/mcp/install?name=gaterook-dev&amp;config=eyJ1cmwiOiJodHRwOi8vMTI3LjAuMC4xOjc0NjUvbWNwL2RldiJ9">
-                    <span class="gw-btn__copy">Copy Add to Cursor link</span><span class="gw-btn__copied">Copied</span>
+                  <a class="gw-btn gw-btn--sm" data-ep-cu-deeplink-open href="https://cursor.com/install-mcp?name=gaterook-dev&amp;config=eyJ1cmwiOiJodHRwOi8vMTI3LjAuMC4xOjc0NjUvbWNwL2RldiJ9" target="_blank" rel="noopener noreferrer"><i class="gw-icon gw-icon--sm" data-lucide="external-link"></i>Open in browser</a>
+                  <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Copy Add to Cursor link" title="Copy Add to Cursor link" data-ep-cu-deeplink data-gw-copy="cursor://anysphere.cursor-deeplink/mcp/install?name=gaterook-dev&amp;config=eyJ1cmwiOiJodHRwOi8vMTI3LjAuMC4xOjc0NjUvbWNwL2RldiJ9">
+                    <span class="gw-btn__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i></span><span class="gw-btn__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
                   </button>
                 </div>
               </div>
@@ -3508,8 +3509,9 @@ Changing anything
       doc.getElementById("ep-cu-token-note").hidden = mode !== "token";
       doc.getElementById("ep-cu-bridge-note").hidden = mode !== "bridge";
       doc.getElementById("ep-cu-deeplink").hidden = mode !== "oauth";
-      cuDialog.querySelector("[data-ep-cu-deeplink]").setAttribute("data-gw-copy",
-        "cursor://anysphere.cursor-deeplink/mcp/install?name=gaterook-" + slug + "&config=" + btoa(JSON.stringify({ url: url })));
+      var installQuery = new URLSearchParams({ name: "gaterook-" + slug, config: btoa(JSON.stringify({ url: url })) }).toString();
+      cuDialog.querySelector("[data-ep-cu-deeplink-open]").setAttribute("href", "https://cursor.com/install-mcp?" + installQuery);
+      cuDialog.querySelector("[data-ep-cu-deeplink]").setAttribute("data-gw-copy", "cursor://anysphere.cursor-deeplink/mcp/install?" + installQuery);
       doc.getElementById("ep-cu-prod").hidden = !isProd;
       cuEp.setAttribute("aria-describedby", isProd ? "ep-cu-endpoint-hint ep-cu-prod" : "ep-cu-endpoint-hint");
       if (isProd) cuConfirm.setAttribute("aria-describedby", "ep-cu-prod"); else cuConfirm.removeAttribute("aria-describedby");
@@ -3530,6 +3532,9 @@ Changing anything
       if (e.target.name === "ep-cu-auth") announce(mode === "oauth" ? "Sign in through the browser: no token is written." : mode === "bridge" ? "Through the bridge: no token is written." : "Token in the file: a token for Cursor is written into the config.");
     });
     cuName.addEventListener("input", syncCu);
+    cuConfirm.addEventListener("click", function () {
+      if (syncCu() === "oauth") window.open(cuDialog.querySelector("[data-ep-cu-deeplink-open]").href, "_blank", "noopener,noreferrer");
+    });
   }
 
   // ── Add connections: a prod connection's row is aria-disabled with the core's reason (kit.js refuses the

@@ -588,6 +588,26 @@ describe('Settings page: Authorization', () => {
     expect(document.activeElement?.id).toBe('st-grants-empty');
     expect(toasts()).toContain('claude.ai access to stage-readonly revoked · claude.ai has to sign in again, and you allow it here.');
   });
+
+  it('names a local DCR sign-in in the table, revoke dialog, and result without changing its identity', async () => {
+    const grant = kitGrant({ id: 'g_cursor', client: 'localhost', clientName: 'Cursor', clientKind: 'dcr', endpoint: 'dev', ingress: 'LOCAL' });
+    world.grants = () => Promise.resolve([grant]);
+    const el = await render();
+    const signedIn = $('#settings-signed-in', el)!;
+    expect(text($('tbody th', signedIn))).toBe('Cursor');
+    const revoke = control(signedIn, 'Revoke Cursor access to dev');
+    expect(revoke).toBeTruthy();
+    await click(revoke);
+
+    const dlg = $<HTMLDialogElement>('#st-revoke-ai-dlg')!;
+    expect(text($('#st-revoke-ai-t', dlg))).toBe('Revoke Cursor access to dev?');
+    expect(text($('#st-revoke-ai-d', dlg))).toContain('Cursor signs in again');
+    await click(control(dlg, 'Revoke Cursor access'));
+
+    expect(calls).toContain('revoke g_cursor');
+    expect(toasts()).toContain('Cursor access to dev revoked · Cursor has to sign in again, and you allow it here.');
+    expect(grant.client).toBe('localhost');
+  });
 });
 
 describe('Settings page: Notifications', () => {

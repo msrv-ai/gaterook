@@ -12,7 +12,8 @@ import { Announcer } from '../../kit/announcer';
 import { GwCopy } from '../../kit/copy';
 import { GwToggle } from '../../kit/disclosure';
 import { ClientPreviewRequest, GwClientCard } from '../../kit/elements/client-card/client-card';
-import { ConfigEntry, INSTALL_URL, tableLayout, viaText } from '../../kit/elements/client-card/client-view';
+import { ConfigEntry, INSTALL_URL, browserInstallUrl, tableLayout, viaText } from '../../kit/elements/client-card/client-view';
+import { oauthClientLabel } from '../../kit/elements/client-card/tunnel-view';
 import { GwClientMark } from '../../kit/elements/shared/client-mark';
 import { clientStatusLook } from '../../kit/elements/shared/dictionaries';
 import { literalParts } from '../../kit/elements/shared/literals';
@@ -320,6 +321,15 @@ export class ClientsPage {
       }
       const opened = done.result.link.method === 'mcpb' && this.desktopApp;
       if (opened) await this.desktop.openMcpb(done.result.link.id);
+      const browserUrl = card.client === 'cursor' && done.result.link.method === 'oauth' ? browserInstallUrl(done.preview?.link) : null;
+      if (browserUrl) {
+        try {
+          await this.desktop.openExternal(browserUrl);
+        } catch (e) {
+          this.toasts.show({ tone: 'danger', title: 'Cursor is configured, but the browser did not open', body: errorSentence(e) });
+          return;
+        }
+      }
       this.toasts.show({ tone: 'success', ...connectToast(card, request, done.preview, done.result, opened) });
     } finally {
       this.connecting.set(null);
@@ -407,11 +417,12 @@ export class ClientsPage {
   }
 
   protected async onRevoke(g: OAuthGrant): Promise<void> {
+    const client = oauthClientLabel(g);
     try {
       await this.data.revoke(g);
-      this.toasts.show({ tone: 'success', title: `${g.client} access to ${g.endpoint ?? 'a removed endpoint'} revoked`, body: `${g.client} has to sign in again, and you allow it here.` });
+      this.toasts.show({ tone: 'success', title: `${client} access to ${g.endpoint ?? 'a removed endpoint'} revoked`, body: `${client} has to sign in again, and you allow it here.` });
     } catch (e) {
-      this.toasts.show({ tone: 'danger', title: `${g.client} access wasn't revoked`, body: errorSentence(e) });
+      this.toasts.show({ tone: 'danger', title: `${client} access wasn't revoked`, body: errorSentence(e) });
     }
   }
 }

@@ -26,9 +26,9 @@ public final class ClientViews {
       String configDisplay, boolean detected, List<String> evidence, String version, List<String> warnings,
       List<Method> methods, List<Link> links) {
 
-    /** The card with links that know their last calls; a card waiting for a restart that a call proved is connected. */
+    /** Current connection evidence promotes detected cards too; a managed config error remains visible. */
     public Card withLinks(List<Link> updated) {
-      boolean connected = status.equals("needs-restart") && updated.stream().anyMatch(l -> l.status().equals(
+      boolean connected = !status.equals("error") && updated.stream().anyMatch(l -> l.status().equals(
           "connected"));
       return new Card(client, name, connected ? "connected" : status, connected ? "Connected" : statusText,
           configPath, configDisplay, detected, evidence, version, warnings, methods, List.copyOf(updated));
@@ -44,7 +44,7 @@ public final class ClientViews {
   public record Method(String id, String label, boolean prodAllowed, String reason) {}
 
   /**
-   * One entry GateRook wrote (one endpoint of one client).
+   * One managed config entry, or an observed OAuth sign-in with its grant id and no config path or entry name.
    *
    * @param status     {@code connected}, {@code needs-restart}, {@code removed-outside}, {@code needs-repair},
    *                   {@code revoked} or {@code error}
@@ -59,13 +59,25 @@ public final class ClientViews {
 
     /**
      * The same link with what the audit knows: its last call and the protocol revision it spoke. A call after Connect
-     * proves the client restarted: "needs restart" becomes "connected".
+     * proves a non-OAuth client restarted. OAuth additionally needs a current sign-in, through {@link #withSignIn}.
      */
     public Link withCall(Instant at, String rev) {
-      boolean proves = at != null && !at.isBefore(createdAt) && status.equals("needs-restart");
+      boolean proves = !provenBySignIn() && at != null && !at.isBefore(createdAt) && status.equals("needs-restart");
       return new Link(id, client, endpoint, env, method, entryName, configPath, configDisplay, grantPrefix, grantLabel,
           tokenName, proves ? "connected" : status, proves ? "Connected" : statusText, createdAt, usedAt, mcpbPath, at,
           rev);
+    }
+
+    /** A current OAuth sign-in can establish connectivity before an audited tool call exists. */
+    public Link withSignIn(Instant at) {
+      if (!provenBySignIn() || at == null || at.isBefore(createdAt)) {
+        return this;
+      }
+      boolean proves = status.equals("needs-restart");
+      Instant latest = usedAt == null || at.isAfter(usedAt) ? at : usedAt;
+      return new Link(id, client, endpoint, env, method, entryName, configPath, configDisplay, grantPrefix, grantLabel,
+          tokenName, proves ? "connected" : status, proves ? "Connected" : statusText, createdAt, latest, mcpbPath,
+          lastCallAt, revision);
     }
 
     /** The label calls of this link carry in the audit ({@code tool_call.token_label}). */

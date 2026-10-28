@@ -200,6 +200,7 @@ export function bridgeDisconnect(endpoint: string): ConnectPreview {
 
 /** What Connect answers: the new link. */
 export function connected(client: ClientCard['client'], request: ConnectRequest): ConnectResult {
+  const card = kitClients().clients.find((c) => c.client === client)!;
   return {
     link: {
       id: `cl_${client}_${request.endpoint}`,
@@ -208,8 +209,8 @@ export function connected(client: ClientCard['client'], request: ConnectRequest)
       env: 'dev',
       method: request.method,
       entryName: `gaterook-${request.endpoint}`,
-      configPath: null,
-      configDisplay: null,
+      configPath: request.method === 'mcpb' ? null : card.configPath,
+      configDisplay: request.method === 'mcpb' ? null : card.configDisplay,
       grantPrefix: null,
       grantLabel: request.grantLabel ?? null,
       tokenName: request.token?.name ?? null,

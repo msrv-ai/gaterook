@@ -13,6 +13,7 @@ import {
   ClientFailure,
   TOKEN_NAME,
   authNote,
+  browserInstallUrl,
   changeSummary,
   choiceMeta,
   defaultTokenName,
@@ -190,8 +191,9 @@ export class GwClientConnectFlow {
           (method === 'config-bridge' && n.startsWith('No token is written: the bridge gets'))));
     return notes.filter((n) => !echoes(n));
   });
-  /** The page: "Add to Cursor" carries only the endpoint URL; offered with sign-in through the browser. */
-  protected readonly deeplink = computed(() => (this.page() && this.method() === 'oauth' ? (this.current()?.link ?? null) : null));
+  /** "Add to Cursor" carries only the endpoint URL; offered with sign-in through the browser. */
+  protected readonly deeplink = computed(() => (this.method() === 'oauth' ? (this.current()?.link ?? null) : null));
+  protected readonly browserLink = computed(() => browserInstallUrl(this.deeplink()));
   protected readonly choiceMeta = choiceMeta;
 
   /** The access label a grant gets ("codex-laptop"); the token method names its token instead. */

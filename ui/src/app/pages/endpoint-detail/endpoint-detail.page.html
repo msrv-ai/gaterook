@@ -262,8 +262,8 @@
             <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retry()">Try again</button></div>
           </div>
         }
-        <!-- OAuth sign-ins: one row per browser sign-in you allowed (AI app, granted, last call, expires, Revoke). -->
-        <section class="gw-card gw-card--flush" id="ep-oauth-sessions" aria-labelledby="ep-oauth-title">
+        <!-- OAuth sign-ins: one row per browser sign-in you allowed (AI app, granted, last used, expires, Revoke). -->
+        <section class="gw-card gw-card--flush" id="ep-oauth-sessions" #oauthSessions aria-labelledby="ep-oauth-title">
           <header class="gw-card__header">
             <div class="gw-card__heading">
               <h2 class="gw-card__title" id="ep-oauth-title">OAuth sign-ins</h2>
@@ -275,7 +275,7 @@
               <div class="gw-empty gw-empty--compact">
                 <span class="gw-empty__icon"><svg lucideIcon="log-in" class="gw-icon"></svg></span>
                 <h3 class="gw-empty__title">No sign-ins: OAuth is off for {{ s.slug }}</h3>
-                <p class="gw-empty__text">Local apps use the tokens above. When OAuth is on, each sign-in you allow is listed here with its AI app, last call, expiry and Revoke.</p>
+                <p class="gw-empty__text">Local apps use the tokens above. When OAuth is on, each sign-in you allow is listed here with its AI app, last used, expiry and Revoke.</p>
                 <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" [routerLink]="[]" [queryParams]="{ tab: 'settings' }" queryParamsHandling="merge" fragment="ep-st-auth">OAuth settings<span class="gw-sr-only"> of {{ s.slug }}</span></a></div>
               </div>
             } @else if (data.grantsState() === 'not-available') {
@@ -295,17 +295,17 @@
               <div class="gw-table-wrap" role="region" aria-labelledby="ep-oauth-cap" tabindex="0">
                 <table class="gw-table">
                   <caption class="gw-sr-only" id="ep-oauth-cap">OAuth sign-ins of endpoint {{ s.slug }}</caption>
-                  <thead><tr><th scope="col">AI app</th><th scope="col">Granted</th><th scope="col">Last call</th><th scope="col">Expires</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th></tr></thead>
+                  <thead><tr><th scope="col">AI app</th><th scope="col">Granted</th><th scope="col">Last used</th><th scope="col">Expires</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th></tr></thead>
                   <tbody>
                     @for (g of data.grants(); track g.id) {
                       <tr>
-                        <th scope="row">{{ g.client }}@if (g.ingress === 'TUNNEL') { <span class="gw-badge gw-badge--outline gw-badge--sm">Through the tunnel</span>}</th>
+                        <th scope="row">{{ oauthClientLabel(g) }}@if (g.ingress === 'TUNNEL') { <span class="gw-badge gw-badge--outline gw-badge--sm">Through the tunnel</span>}</th>
                         <td><time [attr.datetime]="time.iso(g.createdAt)" [title]="time.absolute(g.createdAt)">{{ time.relative(g.createdAt) }}</time></td>
-                        <td>@if (g.lastUsedAt; as at) {<time [attr.datetime]="time.iso(at)" [title]="time.absolute(at)">{{ time.relative(at) }}</time>} @else {<span class="gw-fg-muted">No call yet</span>}</td>
+                        <td>@if (g.lastUsedAt; as at) {<time [attr.datetime]="time.iso(at)" [title]="time.absolute(at)">{{ time.relative(at) }}</time>} @else {<span class="gw-fg-muted">Never</span>}</td>
                         <td><time [attr.datetime]="time.iso(g.expiresAt)" [title]="time.absolute(g.expiresAt)">{{ time.date(g.expiresAt) }}</time></td>
                         <td class="gw-table__cell--actions">
                           @if (g.state === 'active' || g.state === 'address-changed') {
-                            <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" (click)="revokeGrant(g.id, g.client)">Revoke<span class="gw-sr-only"> sign-in of {{ g.client }}</span></button>
+                            <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" (click)="revokeGrant(g.id, oauthClientLabel(g))">Revoke<span class="gw-sr-only"> sign-in of {{ oauthClientLabel(g) }}</span></button>
                           }
                         </td>
                       </tr>

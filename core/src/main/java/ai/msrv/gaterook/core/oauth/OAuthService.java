@@ -68,6 +68,15 @@ public class OAuthService {
         r.revokedAt(), r.revokeReason(), r.state())).toList();
   }
 
+  /** A local AI app with a current sign-in that exchanged a token or authenticated a request. */
+  public record ClientUse(String grantId, String client, String endpoint, String env, Instant createdAt,
+      Instant usedAt) {}
+
+  /** Connection evidence for the AI app cards; consent alone does not establish a connection. */
+  public List<ClientUse> localClientUses() {
+    return server.localClientUses();
+  }
+
   /** The demo world's claude.ai sign-in: who, to which endpoint and URL, allowed when. */
   public record DemoSignIn(String clientId, String clientHost, String clientName, List<String> redirectUris,
       String endpoint, String resource, Instant allowedAt) {}

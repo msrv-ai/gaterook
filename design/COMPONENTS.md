@@ -1392,7 +1392,7 @@ One MCP client (Claude Desktop, Codex, Cursor, Antigravity, claude.ai): whether 
 - Connect secondary in a grid / primary when the card stands alone
 - compact row (endpoint-detail · AI apps)
 - claude.ai: what gets published (/mcp/stage-readonly, /oauth/*, /.well-known/oauth-*; UI, admin API, dev and incident-prod stay local), three gates, tunnel history ('Off since 12:10 · public today 08:40 to 12:10'), last call 12:08
-- claude.ai 'Signed in' table (OAuth grants: AI app, endpoint, allowed by you, last call, expires) with Revoke → gw-dialog--sm --danger
+- claude.ai 'Signed in' table (OAuth grants: AI app, endpoint, allowed by you, last used, expires) with Revoke → gw-dialog--sm --danger
 - publish confirm: gw-dialog--md --warning listing exactly what becomes public and the three gates, Cancel autofocus; Undo never re-publishes
 - sign-in consent: gw-dialog--md --warning with a code to match, Returns to, From = the IP of the browser that opened the sign-in page, Deny autofocus (Esc and no answer in 5 min deny), 'Allow access' primary (never --approve); it opens by itself when a request arrives (the demo trigger is in its own 'Sign-in request' section)
 - several endpoints (Claude Desktop): gw-table--dense, one row per endpoint with View activity + Disconnect; footer Add endpoint + Remove bridge (danger confirm listing every endpoint)

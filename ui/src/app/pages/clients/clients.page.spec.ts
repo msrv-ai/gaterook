@@ -15,6 +15,7 @@ import { absoluteTime, clockTime, isoLocal, relativeTime, shortDate } from '../.
 import { TimeService } from '../../core/time/time.service';
 import { DEMO_GRANTS, DEMO_PUBLISH, DEMO_TUNNEL_OFF } from '../../dev/fixtures-clients';
 import { Announcer } from '../../kit/announcer';
+import { ClipboardWriter } from '../../kit/clipboard';
 import { AriaDisabledGuard } from '../../kit/aria-disabled';
 import { provideKitIcons } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
@@ -121,7 +122,7 @@ function configure(): void {
       { provide: OAuthApi, useValue: { grants: () => world.grants(), revoke: (id: string) => (calls.push(`revoke ${id}`), Promise.resolve()) } },
       { provide: CoreApi, useValue: { counters: () => Promise.resolve({ approvals: 0, tunnel: 'off' }) } },
       { provide: EventStream, useValue: events },
-      { provide: DesktopBridge, useValue: { available: false, openMcpb: () => Promise.resolve(), openClientConfig: () => Promise.resolve() } },
+      { provide: DesktopBridge, useValue: { available: false, openMcpb: () => Promise.resolve(), openClientConfig: () => Promise.resolve(), openExternal: (url: string) => (calls.push(`open ${url}`), Promise.resolve()) } },
       { provide: CoreStore, useValue: { running: signal(true), instanceChanges: signal(0), address: signal('127.0.0.1:7465') } },
       { provide: TimeService, useValue: fakeTime },
     ],
@@ -179,6 +180,24 @@ async function choose(select: HTMLSelectElement, value: string): Promise<void> {
 // ── Tests ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 describe('Clients page: what it shows', () => {
+  it('shows an observed OAuth connection and routes its management to sign-ins without disconnecting a config', async () => {
+    const link = { ...connected('cursor', { endpoint: 'dev', method: 'oauth' }).link, id: 'og_cursor', configPath: null, configDisplay: null, entryName: null, lastCallAt: null };
+    world.list = () => Promise.resolve(kitClients({ clients: kitClients().clients.map((c) => c.client === 'cursor' ? { ...c, status: 'connected', links: [link] } : c) }));
+    await render();
+    const cursor = card('Cursor');
+    expect(text($('.gw-status__label', cursor))).toBe('Connected');
+    expect(text($('.gw-card__description', cursor))).toBe('Signed in through the browser');
+    expect(text(cursor)).toContain('No call yet');
+    expect(control(cursor, 'Disconnect')).toBeUndefined();
+    expect(control(cursor, 'Open config')).toBeUndefined();
+    const manage = control(cursor, 'Manage sign-in');
+    expect(manage.getAttribute('href')).toBe('/endpoints/dev?tab=tokens#ep-oauth-sessions');
+    calls = [];
+    await click(manage);
+    expect(TestBed.inject(Router).url).toBe('/endpoints/dev?tab=tokens#ep-oauth-sessions');
+    expect(calls.some((c) => c.startsWith('disconnect-preview'))).toBe(false);
+  });
+
   it('keeps the requested installation card available when no AI app is installed', async () => {
     world.list = () => Promise.resolve(noneFound());
     await TestBed.inject(Router).navigateByUrl('/clients#cl-ag-t');
@@ -333,6 +352,7 @@ describe('Clients page: Connect inline', () => {
 
     await click(control(cursor, 'Connect Cursor'));
     expect(calls).toContain('connect cursor pv_cursor_dev_token');
+    expect(calls.some((c) => c.startsWith('open '))).toBe(false);
     expect(toasts().map((t) => [t.title, t.body])).toContainEqual([
       'Cursor connected to dev',
       'One server added to ~/.cursor/mcp.json with token cursor-laptop, which expires in 7 days. Backup: ~/.cursor/mcp.json.bak-2026-10-22.',
@@ -376,7 +396,7 @@ describe('Clients page: Connect inline', () => {
     expect(again.find((r) => r.checked) && label(again.find((r) => r.checked)!)).toBe('Token in the file');
   });
 
-  it('sign-in through the browser offers the "Add to Cursor" link', async () => {
+  it('sign-in through the browser offers opening the link with a secondary copy action', async () => {
     await render();
     const cursor = card('Cursor');
     const oauth = $$<HTMLInputElement>('input[type="radio"]', cursor)[1];
@@ -384,8 +404,49 @@ describe('Clients page: Connect inline', () => {
     await settle();
     expect(calls).toContain('preview cursor dev oauth');
     expect(text(cursor)).toContain('Prefer to add it from Cursor? An Add to Cursor link carries only the endpoint URL');
-    expect(control(cursor, 'Copy Add to Cursor link')).toBeTruthy();
+    const open = control(cursor, 'Open in browser') as HTMLAnchorElement;
+    expect(open.href).toBe('https://cursor.com/install-mcp?name=gaterook-dev&config=eyJ1cmwiOiJodHRwOi8vMTI3LjAuMC4xOjc0NjUvbWNwL2RldiJ9');
+    expect(open.target).toBe('_blank');
+    expect(open.rel).toBe('noopener noreferrer');
+    const copy = $<HTMLButtonElement>('button[aria-label="Copy Add to Cursor link"]', cursor)!;
+    const write = vi.spyOn(TestBed.inject(ClipboardWriter), 'write').mockResolvedValue(true);
+    await click(copy);
+    expect(write).toHaveBeenCalledWith('cursor://anysphere.cursor-deeplink/mcp/install?name=gaterook-dev&config=eyJ1cmwiOiJodHRwOi8vMTI3LjAuMC4xOjc0NjUvbWNwL2RldiJ9');
+    expect(copy.hasAttribute('data-copied')).toBe(true);
     expect(text(cursor)).not.toContain('Turns on OAuth sign-in for endpoint dev.');
+  });
+
+  it('opens the browser after Connect enables Cursor sign-in successfully', async () => {
+    await render();
+    const cursor = card('Cursor');
+    await click($$<HTMLInputElement>('input[type="radio"]', cursor)[1]);
+    const url = (control(cursor, 'Open in browser') as HTMLAnchorElement).href;
+    let finish!: (value: ReturnType<typeof connected>) => void;
+    vi.spyOn(TestBed.inject(ClientsApi), 'connect').mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+    control(cursor, 'Connect Cursor').click();
+    expect(calls.some((c) => c.startsWith('open '))).toBe(false);
+    finish(connected('cursor', { endpoint: 'dev', method: 'oauth' }));
+    await settle();
+    expect(calls.filter((c) => c.startsWith('open '))).toEqual([`open ${url}`]);
+  });
+
+  it('does not open the browser when Connect fails', async () => {
+    await render();
+    const cursor = card('Cursor');
+    await click($$<HTMLInputElement>('input[type="radio"]', cursor)[1]);
+    vi.spyOn(TestBed.inject(ClientsApi), 'connect').mockRejectedValue(problem(409, { status: 409, detail: 'The config changed. Preview it again.' }));
+    await click(control(cursor, 'Connect Cursor'));
+    expect(calls.some((c) => c.startsWith('open '))).toBe(false);
+  });
+
+  it('keeps a successful connection when opening the browser fails', async () => {
+    await render();
+    const cursor = card('Cursor');
+    await click($$<HTMLInputElement>('input[type="radio"]', cursor)[1]);
+    vi.spyOn(TestBed.inject(ClientsApi), 'connect').mockResolvedValue(connected('cursor', { endpoint: 'dev', method: 'oauth' }));
+    vi.spyOn(TestBed.inject(DesktopBridge), 'openExternal').mockRejectedValue(new Error('Browser unavailable'));
+    await click(control(cursor, 'Connect Cursor'));
+    expect(toasts().at(-1)?.title).toBe('Cursor is configured, but the browser did not open');
   });
 
   it('a change the core refuses is the kit’s "Connect failed": nothing written, Open config, Details', async () => {

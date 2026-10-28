@@ -221,8 +221,11 @@
       <p class="gw-alert__body">Prefer to add it from {{ card().name }}? An Add to {{ card().name }} link carries only the endpoint URL; {{ card().name }} then signs in through the browser.</p>
     </div>
     <div class="gw-alert__actions">
-      <button class="gw-btn gw-btn--link gw-btn--sm" type="button" [gwCopy]="link">
-        <span class="gw-btn__copy">Copy Add to {{ card().name }} link</span><span class="gw-btn__copied">Copied</span>
+      @if (browserLink(); as url) {
+        <a class="gw-btn gw-btn--sm" [href]="url" target="_blank" rel="noopener noreferrer"><svg lucideIcon="external-link" class="gw-icon gw-icon--sm"></svg>Open in browser</a>
+      }
+      <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" [gwCopy]="link" [attr.aria-label]="'Copy Add to ' + card().name + ' link'" [title]="'Copy Add to ' + card().name + ' link'">
+        <span class="gw-btn__copy"><svg lucideIcon="copy" class="gw-icon gw-icon--sm"></svg></span><span class="gw-btn__copied"><svg lucideIcon="check" class="gw-icon gw-icon--sm"></svg></span>
       </button>
     </div>
   </div>

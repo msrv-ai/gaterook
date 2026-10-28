@@ -1,15 +1,17 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Router, provideRouter } from '@angular/router';
+import { Router, provideRouter, withComponentInputBinding } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { ActivityApi } from '../../core/api/activity.api';
 import { ApiError } from '../../core/api/api-error';
-import { ClientsApi } from '../../core/api/clients.api';
+import { ClientsApi, ConnectRequest, ConnectResult } from '../../core/api/clients.api';
 import { ConnectionsApi } from '../../core/api/connections.api';
 import { ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { EndpointDetail, EndpointSettings, EndpointSettingsUpdate, EndpointsApi, TokensApi } from '../../core/api/endpoints.api';
 import { PoliciesApi } from '../../core/api/policies.api';
 import { SettingsApi } from '../../core/api/settings.api';
-import { OAuthApi } from '../../core/api/tunnel.api';
+import { OAuthApi, OAuthGrant } from '../../core/api/tunnel.api';
+import { DesktopBridge } from '../../core/desktop/desktop-bridge';
 import { EventStream } from '../../core/events/event-stream';
 import { CoreStore } from '../../core/stores/core.store';
 import { EndpointsStore } from '../../core/stores/endpoints.store';
@@ -17,6 +19,7 @@ import { TimeService } from '../../core/time/time.service';
 import { AriaDisabledGuard } from '../../kit/aria-disabled';
 import { provideKitIcons } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
+import { connected, kitClients, previewFor } from '../clients/clients.fixtures';
 import { EndpointDetailPage, SKELETON_DELAY_MS } from './endpoint-detail.page';
 import { NOW, clientsView, connectionRow, connectionRows, detail, groups, policies, preview, settings, summary, tokens, wired } from './endpoint-detail.fixtures';
 
@@ -60,7 +63,10 @@ let detailAnswers: (() => Promise<EndpointDetail>)[];
 let settingsAnswer: (u: EndpointSettingsUpdate) => Promise<EndpointSettings>;
 let rows = connectionRows();
 
-function setup(first: () => Promise<EndpointDetail> = () => Promise.resolve(detail())): void {
+function setup(
+  first: () => Promise<EndpointDetail> = () => Promise.resolve(detail()),
+  clientOptions?: { readonly api: Partial<ClientsApi>; readonly desktop: Partial<DesktopBridge> },
+): void {
   calls = [];
   rows = connectionRows();
   detailAnswers = [first];
@@ -114,7 +120,7 @@ function setup(first: () => Promise<EndpointDetail> = () => Promise.resolve(deta
   };
   TestBed.configureTestingModule({
     providers: [
-      provideRouter([]),
+      provideRouter([{ path: 'endpoints/:slug', component: EndpointDetailPage }], withComponentInputBinding()),
       provideKitIcons(),
       { provide: TimeService, useValue: fakeTime },
       { provide: EndpointsApi, useValue: endpoints },
@@ -128,7 +134,8 @@ function setup(first: () => Promise<EndpointDetail> = () => Promise.resolve(deta
           },
         },
       },
-      { provide: ClientsApi, useValue: { list: () => Promise.resolve(clientsView()), disconnectPreview: (id: string) => (calls.push(`disconnect-preview ${id}`), Promise.reject(new Error('x'))) } },
+      { provide: ClientsApi, useValue: clientOptions?.api ?? { list: () => Promise.resolve(clientsView()), disconnectPreview: (id: string) => (calls.push(`disconnect-preview ${id}`), Promise.reject(new Error('x'))) } },
+      ...(clientOptions ? [{ provide: DesktopBridge, useValue: clientOptions.desktop }] : []),
       { provide: ConnectionsApi, useValue: { list: () => Promise.resolve({ items: rows, facets: {}, total: rows.length }) } },
       { provide: ConnectorTypesApi, useValue: { get: () => Promise.resolve({ tools: [] }) } },
       { provide: PoliciesApi, useValue: { all: () => Promise.resolve(policies()) } },
@@ -177,7 +184,107 @@ const toasts = () => TestBed.inject(ToastService).toasts();
 const openDialog = () => document.querySelector('dialog[open]');
 const button = (root: ParentNode, label: string) => Array.from(root.querySelectorAll<HTMLElement>('button, a')).find((b) => text(b) === label || text(b).startsWith(label))!;
 
+async function cursorConnection(method: 'oauth' | 'token' = 'oauth') {
+  const answer = deferred<ConnectResult>();
+  const request: ConnectRequest = { endpoint: 'dev', method };
+  const result = connected('cursor', request);
+  const cursor = kitClients().clients.find((c) => c.client === 'cursor')!;
+  let saved = false;
+  const openExternal = vi.fn(async (_url: string) => undefined);
+  setup(undefined, {
+    api: {
+      list: () => Promise.resolve({ ...clientsView(), clients: [{ ...cursor, links: saved ? [result.link] : [] }] }),
+      connectPreview: (client, next) => Promise.resolve(previewFor(client, next)),
+      connect: (client, previewId) => {
+        calls.push(`connect ${client} ${previewId}`);
+        return answer.promise.then((value) => {
+          saved = true;
+          return value;
+        });
+      },
+    },
+    desktop: { available: true, openExternal },
+  });
+  const { fixture, el } = await render({ slug: 'dev', tab: 'clients' });
+  button(el.querySelector('#clients')!, 'Connect Cursor').click();
+  await settle(fixture);
+  const dialog = openDialog()!;
+  if (method === 'oauth') {
+    dialog.querySelector<HTMLInputElement>('input[value="oauth"]')!.click();
+    await settle(fixture);
+  }
+  return { fixture, el, dialog, answer, result, openExternal };
+}
+
 describe('Endpoint detail page', () => {
+  it('manages an observed OAuth connection through its sign-in without requesting a config disconnect', async () => {
+    const link = { ...connected('cursor', { endpoint: 'dev', method: 'oauth' }).link, id: 'og_cursor', configPath: null, configDisplay: null, entryName: null, lastCallAt: null };
+    const cursor = kitClients().clients.find((c) => c.client === 'cursor')!;
+    const disconnectPreview = vi.fn();
+    setup(undefined, {
+      api: { list: () => Promise.resolve({ ...clientsView(), clients: [{ ...cursor, status: 'connected', links: [link] }] }), disconnectPreview },
+      desktop: { available: true },
+    });
+    const { el } = await render({ slug: 'dev', tab: 'clients' });
+    const card = el.querySelector('li[gwClientCard]')!;
+    expect(text(card.querySelector('.gw-status__label'))).toBe('Connected');
+    expect(text(card)).toContain('Signed in through the browser');
+    expect(text(card)).toContain('no call yet');
+    expect(button(card, 'Disconnect')).toBeUndefined();
+    expect(button(card, 'Open config')).toBeUndefined();
+    expect(button(card, 'Manage sign-in').getAttribute('href')).toBe('/endpoints/dev?tab=tokens#ep-oauth-sessions');
+    expect(disconnectPreview).not.toHaveBeenCalled();
+  });
+
+  describe('Cursor connection from AI apps', () => {
+    it('opens the browser install link only after OAuth Connect succeeds', async () => {
+      const { fixture, dialog, answer, result, openExternal } = await cursorConnection();
+      dialog.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+      await settle(fixture);
+      expect(calls).toContain('connect cursor pv_cursor_dev_oauth');
+      expect(openExternal).not.toHaveBeenCalled();
+
+      answer.resolve(result);
+      await settle(fixture);
+      expect(openExternal).toHaveBeenCalledExactlyOnceWith('https://cursor.com/install-mcp?name=gaterook-dev&config=eyJ1cmwiOiJodHRwOi8vMTI3LjAuMC4xOjc0NjUvbWNwL2RldiJ9');
+      expect(toasts().at(-1)).toMatchObject({ tone: 'success', title: 'Cursor connected to dev' });
+    });
+
+    it('does not open the browser when OAuth Connect fails', async () => {
+      const { fixture, dialog, answer, openExternal } = await cursorConnection();
+      dialog.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+      answer.reject(new ApiError('conflict', 409, { detail: 'The config changed since the preview.' }));
+      await settle(fixture);
+
+      expect(openExternal).not.toHaveBeenCalled();
+      expect(toasts().at(-1)).toMatchObject({ tone: 'danger', title: "Cursor wasn't connected", body: 'The config changed since the preview.' });
+    });
+
+    it('keeps token connections in the app', async () => {
+      const { fixture, dialog, answer, result, openExternal } = await cursorConnection('token');
+      dialog.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+      answer.resolve(result);
+      await settle(fixture);
+
+      expect(calls).toContain('connect cursor pv_cursor_dev_token');
+      expect(openExternal).not.toHaveBeenCalled();
+      expect(toasts().at(-1)).toMatchObject({ tone: 'success', title: 'Cursor connected to dev' });
+    });
+
+    it('keeps the saved connection when opening the browser fails', async () => {
+      const { fixture, el, dialog, answer, result, openExternal } = await cursorConnection();
+      openExternal.mockRejectedValueOnce(new Error('The browser could not be started.'));
+      dialog.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+      answer.resolve(result);
+      await settle(fixture);
+
+      expect(openExternal).toHaveBeenCalledOnce();
+      expect(toasts().at(-1)).toMatchObject({ tone: 'danger', title: 'Cursor is configured, but the browser did not open', body: 'The browser could not be started.' });
+      expect(text(el.querySelector('#clients'))).not.toContain("Cursor wasn't connected");
+      expect(button(el.querySelector('#clients')!, 'Disconnect Cursor')).toBeTruthy();
+    });
+  });
+
   it('shows nothing for a moment, then placeholders, then the endpoint', async () => {
     const answer = deferred<EndpointDetail>();
     setup(() => answer.promise);
@@ -445,6 +552,63 @@ describe('Endpoint detail page', () => {
     const { el } = await render({ slug: 'dev', tab: 'tokens' });
     expect(text(el.querySelector('#ep-oauth-sessions .gw-empty__title'))).toBe('No sign-ins: OAuth is off for dev');
     expect(el.querySelector('#ep-oauth-sessions a')?.getAttribute('href')).toBe('/?tab=settings#ep-st-auth');
+  });
+
+  it('brings an OAuth management link into view and focuses it once the endpoint loads', async () => {
+    const answer = deferred<EndpointDetail>();
+    setup(() => answer.promise);
+    const scrollIntoView = vi.fn();
+    const original = HTMLElement.prototype.scrollIntoView;
+    HTMLElement.prototype.scrollIntoView = scrollIntoView;
+    try {
+      const harness = await RouterTestingHarness.create();
+      await harness.navigateByUrl('/endpoints/dev?tab=tokens#ep-oauth-sessions', EndpointDetailPage);
+      expect(harness.routeNativeElement?.querySelector('#ep-oauth-sessions')).toBeNull();
+      answer.resolve(detail({ settings: { oauthEnabled: true } }));
+      await settle(harness.fixture);
+
+      const section = harness.routeNativeElement!.querySelector('#ep-oauth-sessions')!;
+      expect(harness.routeNativeElement!.querySelector('#tokens')?.hasAttribute('hidden')).toBe(false);
+      expect(document.activeElement).toBe(section);
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' });
+
+      await harness.navigateByUrl('/endpoints/dev?tab=clients', EndpointDetailPage);
+      await settle(harness.fixture);
+      const tab = harness.routeNativeElement!.querySelector<HTMLButtonElement>('#tab-clients')!;
+      tab.focus();
+      scrollIntoView.mockClear();
+      const events = TestBed.inject(EventStream) as unknown as FakeEvents;
+      events.emit('oauth.grant.changed', { id: 'og_cursor', endpoint: 'dev' });
+      await settle(harness.fixture);
+      expect(document.activeElement).toBe(tab);
+      expect(scrollIntoView).not.toHaveBeenCalled();
+    } finally {
+      if (original) HTMLElement.prototype.scrollIntoView = original;
+      else delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    }
+  });
+
+  it('shows the registered OAuth app name instead of its loopback callback host', async () => {
+    setup(() => Promise.resolve(detail({ settings: { oauthEnabled: true } })));
+    const grant: OAuthGrant = {
+      id: 'og_cursor', client: 'localhost', clientName: 'Cursor', clientKind: 'dcr', endpoint: 'dev', ingress: 'LOCAL',
+      createdAt: new Date(NOW - 240_000).toISOString(), expiresAt: new Date(NOW + 604_800_000).toISOString(), lastUsedAt: null, state: 'active',
+    };
+    const oauth = TestBed.inject(OAuthApi);
+    vi.spyOn(oauth, 'grants').mockResolvedValue([grant]);
+    const revoke = vi.fn(async () => undefined);
+    oauth.revoke = revoke;
+    const { fixture, el } = await render({ slug: 'dev', tab: 'tokens' });
+    const signIns = el.querySelector('#ep-oauth-sessions')!;
+    expect(text(signIns.querySelector('tbody th'))).toBe('Cursor');
+    expect(text(signIns.querySelector('thead'))).toContain('Last used');
+    expect(text(signIns.querySelector('tbody td:nth-of-type(2)'))).toBe('Never');
+    expect(text(signIns)).not.toContain('localhost');
+    button(signIns, 'Revoke sign-in of Cursor').click();
+    await settle(fixture);
+    expect(revoke).toHaveBeenCalledExactlyOnceWith('og_cursor');
+    expect(toasts().at(-1)?.title).toBe('Sign-in of Cursor revoked');
+    expect(grant.client).toBe('localhost');
   });
 
   describe('settings', () => {

@@ -178,6 +178,32 @@ describe('ClientsData: loading', () => {
     }
     data.stop();
   });
+
+  it('updates an OAuth connection and sign-ins after authentication without a tool call', async () => {
+    const data = setup();
+    const link = connected('cursor', { endpoint: 'dev', method: 'oauth' }).link;
+    let status: 'needs-restart' | 'connected' = 'needs-restart';
+    answers.list = () => Promise.resolve(kitClients({ clients: [{ ...DEMO_CLIENTS.cursor, status, links: [{ ...link, status }] }] }));
+    answers.grants = () => Promise.resolve([]);
+    await data.start();
+    expect(data.cards()[0].status).toBe('needs-restart');
+
+    status = 'connected';
+    const grant: OAuthGrant = { ...DEMO_GRANTS[0], id: 'og_cursor', client: 'localhost', clientName: 'Cursor', clientKind: 'dcr', endpoint: 'dev', ingress: 'LOCAL' };
+    answers.grants = () => Promise.resolve([grant]);
+    calls = [];
+    events.emit('oauth.grant.changed', { id: grant.id, endpoint: 'dev' });
+    await flush();
+    expect(calls).toEqual(['list', 'grants']);
+    expect(data.cards()[0].status).toBe('connected');
+    expect(data.grants().value).toEqual([grant]);
+
+    data.stop();
+    calls = [];
+    events.emit('oauth.grant.changed', { id: grant.id, endpoint: 'dev' });
+    await flush();
+    expect(calls).toEqual([]);
+  });
 });
 
 describe('ClientsData: Connect', () => {

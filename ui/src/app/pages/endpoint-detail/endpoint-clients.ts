@@ -2,9 +2,10 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, signal } f
 import { RouterLink } from '@angular/router';
 import { isApiError } from '../../core/api/api-error';
 import { ClientCard, ClientId, ClientLink, ConnectPreview, ConnectRequest } from '../../core/api/clients.api';
+import { DesktopBridge } from '../../core/desktop/desktop-bridge';
 import { EndpointsStore } from '../../core/stores/endpoints.store';
 import { GwClientCard } from '../../kit/elements/client-card/client-card';
-import { ClientEndpoint, ClientFailure, clientFailure, keeps, usesBridgeExtension } from '../../kit/elements/client-card/client-view';
+import { ClientEndpoint, ClientFailure, browserInstallUrl, clientFailure, keeps, usesBridgeExtension } from '../../kit/elements/client-card/client-view';
 import { GwIcon } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
 import { EndpointDetailData } from './endpoint-detail.data';
@@ -31,6 +32,7 @@ export class GwEndpointClients {
   protected readonly data = inject(EndpointDetailData);
   private readonly store = inject(EndpointsStore);
   private readonly toasts = inject(ToastService);
+  private readonly desktop = inject(DesktopBridge);
 
   readonly slug = input.required<string>();
 
@@ -89,8 +91,18 @@ export class GwEndpointClients {
 
   protected async connect(card: ClientCard, previewId: string, request: ConnectRequest | null): Promise<void> {
     this.setFailure(card.client, null);
+    const preview = this.preview();
     try {
       const result = await this.data.connect(card.client, previewId);
+      const browserUrl = card.client === 'cursor' && result.link.method === 'oauth' && preview?.previewId === previewId ? browserInstallUrl(preview.link) : null;
+      if (browserUrl) {
+        try {
+          await this.desktop.openExternal(browserUrl);
+        } catch (e) {
+          this.toasts.show({ tone: 'danger', title: 'Cursor is configured, but the browser did not open', body: e instanceof Error ? e.message : NO_ANSWER });
+          return;
+        }
+      }
       const t = connectedToast(card.name, request?.endpoint ?? this.slug(), result.notes);
       this.toasts.show({ tone: t.tone, title: t.title, body: t.body });
     } catch (e) {

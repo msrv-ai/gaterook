@@ -95,16 +95,16 @@
           <div class="gw-table-wrap" role="region" [attr.aria-labelledby]="uid + '-sessions-cap'" tabindex="0">
             <table class="gw-table gw-table--dense">
               <caption class="gw-sr-only" [id]="uid + '-sessions-cap'">OAuth sign-ins of claude.ai</caption>
-              <thead><tr><th scope="col">AI app</th><th scope="col">Endpoint</th><th scope="col">Allowed</th><th scope="col">Last call</th><th scope="col">Expires</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th></tr></thead>
+              <thead><tr><th scope="col">AI app</th><th scope="col">Endpoint</th><th scope="col">Allowed</th><th scope="col">Last used</th><th scope="col">Expires</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th></tr></thead>
               <tbody>
                 @for (g of signedIn(); track g.id) {
                   <tr>
-                    <th scope="row">{{ g.client }}</th>
+                    <th scope="row">{{ oauthClientLabel(g) }}</th>
                     <td class="gw-table__cell--mono">{{ g.endpoint }}</td>
                     <td><time [attr.datetime]="time.iso(g.createdAt)" [title]="time.absolute(g.createdAt, false)">{{ time.date(g.createdAt) }} {{ time.clock(g.createdAt) }}</time>, by you</td>
-                    <td>@if (g.lastUsedAt) {<time [attr.datetime]="time.iso(g.lastUsedAt)" [title]="time.absolute(g.lastUsedAt)">{{ time.clock(g.lastUsedAt) }}</time>} @else {<span class="gw-fg-muted">No call yet</span>}</td>
+                    <td>@if (g.lastUsedAt) {<time [attr.datetime]="time.iso(g.lastUsedAt)" [title]="time.absolute(g.lastUsedAt)">{{ time.clock(g.lastUsedAt) }}</time>} @else {<span class="gw-fg-muted">Never</span>}</td>
                     <td><time [attr.datetime]="time.iso(g.expiresAt)" [title]="time.absolute(g.expiresAt, false)">{{ time.date(g.expiresAt) }}</time></td>
-                    <td class="gw-table__cell--actions"><button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askRevoke(g, $any($event.currentTarget))">Revoke<span class="gw-sr-only"> {{ g.client }} access to {{ g.endpoint }}</span></button></td>
+                    <td class="gw-table__cell--actions"><button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askRevoke(g, $any($event.currentTarget))">Revoke<span class="gw-sr-only"> {{ oauthClientLabel(g) }} access to {{ g.endpoint }}</span></button></td>
                   </tr>
                 }
               </tbody>
@@ -187,13 +187,13 @@
   @if (revoking(); as g) {
     <header class="gw-dialog__header">
       <span class="gw-icon-tile"><svg lucideIcon="key-round" class="gw-icon"></svg></span>
-      <h2 class="gw-dialog__title" [id]="uid + '-rv-t'">Revoke {{ g.client }} access to {{ g.endpoint }}?</h2>
-      <p class="gw-dialog__description" [id]="uid + '-rv-d'">The sign-in stops working at once, also when the tunnel is on again. To come back, {{ g.client }} signs in again and you allow it here.</p>
+      <h2 class="gw-dialog__title" [id]="uid + '-rv-t'">Revoke {{ oauthClientLabel(g) }} access to {{ g.endpoint }}?</h2>
+      <p class="gw-dialog__description" [id]="uid + '-rv-d'">The sign-in stops working at once, also when the tunnel is on again. To come back, {{ oauthClientLabel(g) }} signs in again and you allow it here.</p>
       <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
     </header>
     <footer class="gw-dialog__footer">
       <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
-      <button class="gw-btn gw-btn--danger" type="button" (click)="confirmRevoke()">Revoke {{ g.client }} access</button>
+      <button class="gw-btn gw-btn--danger" type="button" (click)="confirmRevoke()">Revoke {{ oauthClientLabel(g) }} access</button>
     </footer>
   }
 </dialog>

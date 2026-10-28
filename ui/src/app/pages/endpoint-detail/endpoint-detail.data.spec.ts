@@ -2,15 +2,17 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ActivityApi } from '../../core/api/activity.api';
 import { ApiError } from '../../core/api/api-error';
-import { ClientsApi } from '../../core/api/clients.api';
+import { ClientsApi, ClientsView } from '../../core/api/clients.api';
 import { ConnectionsApi } from '../../core/api/connections.api';
 import { ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { EndpointDetail, EndpointsApi, TokensApi } from '../../core/api/endpoints.api';
 import { PoliciesApi } from '../../core/api/policies.api';
 import { SettingsApi } from '../../core/api/settings.api';
-import { OAuthApi } from '../../core/api/tunnel.api';
+import { OAuthApi, OAuthGrant } from '../../core/api/tunnel.api';
 import { EventStream } from '../../core/events/event-stream';
 import { EndpointsStore } from '../../core/stores/endpoints.store';
+import { DEMO_GRANTS } from '../../dev/fixtures-clients';
+import { connected } from '../clients/clients.fixtures';
 import { EndpointDetailData, LIVE_RELOAD_MS, builtInDescriptions } from './endpoint-detail.data';
 import { clientsView, connectionRows, detail, groups, policies, risk, settings, summary, tokens } from './endpoint-detail.fixtures';
 
@@ -34,6 +36,7 @@ let detailAnswer: () => Promise<EndpointDetail>;
 let setModeAnswer: () => Promise<unknown>;
 let addAnswer: (name: string) => Promise<EndpointDetail>;
 let grantsAnswer: () => Promise<unknown>;
+let clientsAnswer: () => Promise<ClientsView>;
 let settingsBodies: unknown[];
 
 function setup(): EndpointDetailData {
@@ -44,6 +47,7 @@ function setup(): EndpointDetailData {
   setModeAnswer = () => Promise.resolve(groups());
   addAnswer = () => Promise.resolve(detail());
   grantsAnswer = () => Promise.reject(new ApiError('not-available', 404, {}));
+  clientsAnswer = () => Promise.resolve(clientsView());
   const endpoints: Partial<EndpointsApi> = {
     get: (slug) => {
       calls.push(`get ${slug}`);
@@ -118,7 +122,7 @@ function setup(): EndpointDetailData {
         useValue: {
           list: () => {
             calls.push('clients');
-            return Promise.resolve(clientsView());
+            return clientsAnswer();
           },
         },
       },
@@ -133,7 +137,7 @@ function setup(): EndpointDetailData {
             Promise.resolve(r.q.includes('client:codex') ? { tool: [{ name: 'http_get', count: 1 }, { name: 'http_request', count: 3 }] } : { client: [{ name: 'codex', count: 4 }] }),
         },
       },
-      { provide: OAuthApi, useValue: { grants: () => grantsAnswer() } },
+      { provide: OAuthApi, useValue: { grants: () => (calls.push('grants'), grantsAnswer()) } },
       { provide: EventStream, useValue: events },
       { provide: EndpointsStore, useValue: { list: signal([summary()]), load: () => Promise.resolve() } },
     ],
@@ -142,6 +146,13 @@ function setup(): EndpointDetailData {
 }
 
 afterEach(() => vi.useRealTimers());
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
+}
 
 describe('EndpointDetailData', () => {
   it('loads the endpoint with its tools, tokens, clients, connections, policies and tool sentences', async () => {
@@ -219,6 +230,85 @@ describe('EndpointDetailData', () => {
     expect(calls).toEqual([]);
     await vi.advanceTimersByTimeAsync(1);
     expect(calls.sort()).toEqual(['clients', 'get dev', 'tokens']);
+  });
+
+  it('refreshes an OAuth connection and sign-ins only for this endpoint without a tool call', async () => {
+    const data = setup();
+    detailAnswer = () => Promise.resolve(detail({ settings: { oauthEnabled: true } }));
+    const link = connected('cursor', { endpoint: 'dev', method: 'oauth' }).link;
+    let status: 'needs-restart' | 'connected' = 'needs-restart';
+    clientsAnswer = () => Promise.resolve({ ...clientsView(), clients: clientsView().clients.map((c) => c.client === 'cursor' ? { ...c, status, links: [{ ...link, status }] } : c) });
+    grantsAnswer = () => Promise.resolve([]);
+    await data.open('dev');
+    expect(data.clients()?.clients.find((c) => c.client === 'cursor')?.status).toBe('needs-restart');
+    calls.length = 0;
+    events.emit('oauth.grant.changed', { id: 'og_other', endpoint: 'stage-readonly' });
+    await Promise.resolve();
+    expect(calls).toEqual([]);
+
+    status = 'connected';
+    const grant: OAuthGrant = { ...DEMO_GRANTS[0], id: 'og_cursor', client: 'localhost', clientName: 'Cursor', clientKind: 'dcr', endpoint: 'dev', ingress: 'LOCAL' };
+    grantsAnswer = () => Promise.resolve([grant]);
+    events.emit('oauth.grant.changed', { id: grant.id, endpoint: 'dev' });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(calls.sort()).toEqual(['clients', 'get dev', 'grants']);
+    expect(data.clients()?.clients.find((c) => c.client === 'cursor')?.status).toBe('connected');
+    expect(data.grants()).toEqual([grant]);
+  });
+
+  it.each(['success', 'failure'] as const)('ignores a late grant %s from the previous endpoint', async (outcome) => {
+    const data = setup();
+    detailAnswer = () => Promise.resolve(detail({ settings: { oauthEnabled: true } }));
+    grantsAnswer = () => Promise.resolve([]);
+    await data.open('dev');
+
+    const pending = deferred<OAuthGrant[]>();
+    grantsAnswer = () => pending.promise;
+    events.emit('oauth.grant.changed', { id: 'og_dev', endpoint: 'dev' });
+
+    const stageGrant = { ...DEMO_GRANTS[0], id: 'og_stage', endpoint: 'stage-readonly' };
+    grantsAnswer = () => Promise.resolve([stageGrant]);
+    detailAnswer = () => Promise.resolve(detail({ endpoint: { slug: 'stage-readonly' }, settings: { oauthEnabled: true } }));
+    await data.open('stage-readonly');
+    expect(data.grants()).toEqual([stageGrant]);
+    if (outcome === 'success') pending.resolve([{ ...DEMO_GRANTS[0], id: 'og_dev', endpoint: 'dev' }]);
+    else pending.reject(new ApiError('not-available', 404, {}));
+    await Promise.resolve();
+    expect(data.grants()).toEqual([stageGrant]);
+    expect(data.grantsState()).toBe('ready');
+  });
+
+  it('keeps a newly revoked grant from returning when an older reload finishes', async () => {
+    const data = setup();
+    const grant = { ...DEMO_GRANTS[0], id: 'og_cursor', endpoint: 'dev' };
+    detailAnswer = () => Promise.resolve(detail({ settings: { oauthEnabled: true } }));
+    grantsAnswer = () => Promise.resolve([grant]);
+    await data.open('dev');
+    const pending = deferred<OAuthGrant[]>();
+    grantsAnswer = () => pending.promise;
+    events.emit('oauth.grant.changed', { id: grant.id, endpoint: 'dev' });
+    grantsAnswer = () => Promise.resolve([]);
+    events.emit('oauth.grant.changed', { id: grant.id, endpoint: 'dev' });
+    await Promise.resolve();
+    expect(data.grants()).toEqual([]);
+    pending.resolve([grant]);
+    await Promise.resolve();
+    expect(data.grants()).toEqual([]);
+  });
+
+  it.each(['success', 'failure'] as const)('ignores a pending grant %s after disposal', async (outcome) => {
+    const data = setup();
+    const pending = deferred<OAuthGrant[]>();
+    detailAnswer = () => Promise.resolve(detail({ settings: { oauthEnabled: true } }));
+    grantsAnswer = () => pending.promise;
+    await data.open('dev');
+    data.stop();
+    if (outcome === 'success') pending.resolve([{ ...DEMO_GRANTS[0], endpoint: 'dev' }]);
+    else pending.reject(new ApiError('not-available', 404, {}));
+    await Promise.resolve();
+    expect(data.grants()).toBeNull();
+    expect(data.grantsState()).toBe('loading');
   });
 
   it('re-reads the tools when the core refuses a mode, and passes the refusal on', async () => {
@@ -301,7 +391,13 @@ describe('EndpointDetailData', () => {
     const data = setup();
     await data.open('dev');
     expect(events.handlers.get('audit.call')?.size).toBe(1);
+    expect(events.handlers.get('oauth.grant.changed')?.size).toBe(1);
     data.stop();
     expect(events.handlers.get('audit.call')?.size).toBe(0);
+    expect(events.handlers.get('oauth.grant.changed')?.size).toBe(0);
+    calls.length = 0;
+    events.emit('oauth.grant.changed', { id: 'og_cursor', endpoint: 'dev' });
+    await Promise.resolve();
+    expect(calls).toEqual([]);
   });
 });

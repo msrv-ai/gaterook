@@ -25,7 +25,11 @@ export interface ClientMethod {
   readonly reason: string | null;
 }
 
-/** One entry GateRook wrote: one endpoint of one client. */
+/**
+ * One endpoint of one client. Usually an entry GateRook wrote; an OAuth link with a null configPath is an
+ * observed browser sign-in instead. Its id is the OAuth grant id, and it is managed through OAuth grants, never
+ * the managed-config disconnect API.
+ */
 export interface ClientLink {
   readonly id: string;
   readonly client: ClientId;

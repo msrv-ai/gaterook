@@ -163,6 +163,7 @@ export class ClientsData {
       this.events.on('clients.drift', () => void this.reloadClients(true)),
       this.events.on('audit.call', () => this.onCall()),
       this.events.on('oauth.consent.resolved', () => void this.reloadGrants()),
+      this.events.on('oauth.grant.changed', () => void Promise.all([this.reloadClients(), this.reloadGrants()])),
       // The store reads the new state on this event too; what Publish would show follows once it has it.
       this.events.on('tunnel.state', () => void this.tunnelStore.refresh().then(() => this.reloadPublishPreview(true))),
     );
