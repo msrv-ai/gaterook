@@ -59,6 +59,14 @@ export function mountApprovalCard(win) {
   let observer;
   let expiredRefresh = false;
 
+  const argumentsToggle = byId('arguments-toggle');
+  const setArgumentsExpanded = expanded => {
+    argumentsToggle.setAttribute('aria-expanded', String(expanded));
+    byId('request-arguments').hidden = !expanded;
+  };
+  const toggleArguments = () => setArgumentsExpanded(argumentsToggle.getAttribute('aria-expanded') !== 'true');
+  argumentsToggle.addEventListener('click', toggleArguments);
+
   const send = message => {
     if (!destroyed) parent.postMessage(message, origin && origin !== 'null' ? origin : '*');
   };
@@ -139,6 +147,7 @@ export function mountApprovalCard(win) {
       generation++;
       operation = undefined;
       expiredRefresh = false;
+      setArgumentsExpanded(false);
     }
     card = next;
     receivedAt = win.performance.now();
@@ -239,6 +248,7 @@ export function mountApprovalCard(win) {
       }
     } else if (message.method === 'ui/notifications/tool-input') {
       // A new invocation invalidates outstanding responses before its result arrives.
+      setArgumentsExpanded(false);
       generation++;
       operation = undefined;
       card = undefined;
@@ -284,6 +294,7 @@ export function mountApprovalCard(win) {
     win.removeEventListener('message', onMessage);
     win.removeEventListener('pagehide', destroy);
     doc.removeEventListener('visibilitychange', onVisibility);
+    argumentsToggle.removeEventListener('click', toggleArguments);
     for (const [button, handler] of handlers) button.removeEventListener('click', handler);
     updateButtons();
   }

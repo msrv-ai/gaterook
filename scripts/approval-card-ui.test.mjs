@@ -131,6 +131,7 @@ test('data renders as text, flags truncation and comment policy, and never expos
   const h = harness(t);
   await h.initialize();
   const text = '<img src=x onerror=alert(1)>\n"</script><script>danger()</script>"';
+  const staticMediaCount = h.win.document.querySelectorAll('img, svg').length;
   h.show(result({ tool: '<svg onload=alert(1)>', connection: '<b>Database</b>', request: { language: 'sql', text, truncated: true }, commentRequired: true }));
   assert.equal(h.el('request-text').textContent, text);
   assert.equal(h.el('request-text').childElementCount, 0);
@@ -138,7 +139,7 @@ test('data renders as text, flags truncation and comment policy, and never expos
   assert.equal(h.el('request-connection').childElementCount, 0);
   assert.equal(h.el('request-truncated').hidden, false);
   assert.equal(h.el('comment-required').hidden, false);
-  assert.equal(h.win.document.querySelectorAll('img, svg').length, 0);
+  assert.equal(h.win.document.querySelectorAll('img, svg').length, staticMediaCount);
   h.el('approve-button').click();
   assert.deepEqual(h.calls()[0].params, { name: 'approval_card_action', arguments: { handle: HANDLE, action: 'open' } });
   assert.equal(h.el('approve-button').getAttribute('aria-busy'), 'true');

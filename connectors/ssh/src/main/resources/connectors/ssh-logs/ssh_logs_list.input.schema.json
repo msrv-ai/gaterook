@@ -8,6 +8,25 @@
   "properties": {
     "connection": {
       "type": "string"
+    },
+    "query": {
+      "type": "string",
+      "maxLength": 1024,
+      "description": "Literal substring or RE2 regular expression to find within an allowed root-relative file name, including its subfolders. Empty or omitted lists all allowed files. Matches file names, not log contents."
+    },
+    "matchMode": {
+      "type": "string",
+      "enum": [
+        "literal",
+        "regex"
+      ],
+      "default": "literal",
+      "description": "Literal substring or RE2 regex. Use anchors for an exact name or path. Regex supports alternation, groups and character classes; backreferences and look-around are not supported."
+    },
+    "caseSensitive": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether file-name matching is case-sensitive."
     }
   }
 }
