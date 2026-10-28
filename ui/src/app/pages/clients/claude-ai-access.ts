@@ -1,9 +1,10 @@
-import { ChangeDetectionStrategy, Component, booleanAttribute, computed, inject, input, output, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, booleanAttribute, computed, inject, input, model, output, signal, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { OAuthGrant, PublishPreview, TunnelState } from '../../core/api/tunnel.api';
 import { TimeService } from '../../core/time/time.service';
 import { GwDialog, GwDialogClose } from '../../kit/dialog';
 import { ClientEndpoint, activityQuery } from '../../kit/elements/client-card/client-view';
+import { GwClientDisclosure } from '../../kit/elements/client-card/client-disclosure';
 import { activeGrants, localEndpoints } from '../../kit/elements/client-card/tunnel-view';
 import { GwClientMark } from '../../kit/elements/shared/client-mark';
 import { GwIcon } from '../../kit/icons';
@@ -23,13 +24,15 @@ import { allowedAt, connectionEnvs, lastCallRow, providerName, tunnelRow } from 
  */
 @Component({
   selector: 'article[gwClaudeAiAccess]',
-  imports: [RouterLink, GwIcon, GwClientMark, GwDialog, GwDialogClose],
+  imports: [RouterLink, GwIcon, GwClientMark, GwDialog, GwDialogClose, GwClientDisclosure],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'gw-card gw-client-card', '[attr.aria-labelledby]': '"cl-ai-t"' },
+  host: { class: 'gw-card gw-client-card', '[class.gw-client-card--compact]': 'collapsible()', '[attr.aria-labelledby]': '"cl-ai-t"' },
   templateUrl: './claude-ai-access.html',
 })
 export class GwClaudeAiAccess {
   protected readonly time = inject(TimeService);
+  readonly collapsible = input(false, { transform: booleanAttribute });
+  readonly expanded = model(false);
 
   /** `GET /api/tunnel`; null while this build has no tunnel. */
   readonly tunnel = input<TunnelState | null>(null);

@@ -51,6 +51,12 @@
     </div>
   </div>
 } @else {
+  @if (collapsible()) {
+    <header gwClientDisclosure [client]="c().client" [name]="c().name" [tone]="look().tone" [status]="look().text" [headingId]="uid + '-t'" [panelId]="uid + '-details'" [(expanded)]="expanded"></header>
+    <div [id]="uid + '-details'" [hidden]="!expanded()">
+      <ng-container [ngTemplateOutlet]="details" />
+    </div>
+  } @else {
   <header class="gw-card__header gw-client-card__header">
     <div class="gw-client-card__identity">
       <span [gwClientMark]="c().client" size="lg"></span>
@@ -65,8 +71,14 @@
     </div>
     <span class="gw-status gw-status--{{ look().tone }} gw-client-card__status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ look().text }}</span></span>
   </header>
+  <ng-container [ngTemplateOutlet]="details" />
+  }
 
+  <ng-template #details>
   <div class="gw-card__body gw-stack gw-client-card__body">
+    @if (collapsible()) {
+      <p class="gw-card__description gw-client-card__via" [class.gw-mono]="via().mono">{{ via().text }}</p>
+    }
     @switch (state()) {
       @case ('error') {
         @if (failure(); as f) {
@@ -257,6 +269,7 @@
     }
   }
 
+  </ng-template>
 }
 
 <!-- Connect: the exact change before anything is written. Initial focus: the endpoint select. -->

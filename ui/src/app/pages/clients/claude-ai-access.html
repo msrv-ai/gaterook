@@ -1,3 +1,6 @@
+@if (collapsible()) {
+  <header gwClientDisclosure client="claude-ai" name="claude.ai" [tone]="look().tone" [status]="look().text" headingId="cl-ai-t" panelId="cl-ai-details" [(expanded)]="expanded"></header>
+} @else {
 <header class="gw-card__header gw-client-card__header">
   <div class="gw-client-card__identity">
     <span gwClientMark="claude-ai" size="lg"></span>
@@ -8,11 +11,14 @@
   </div>
   <span class="gw-status gw-status--{{ look().tone }} gw-client-card__status" id="cl-ai-status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ look().text }}</span></span>
 </header>
+}
 
+<div id="cl-ai-details" [hidden]="collapsible() && !expanded()">
 @switch (quiet()) {
   @case ('first-run') {
     <!-- First run: no endpoint yet, so Publish waits and says why (kit clients.html ?state=first-run). -->
     <div class="gw-card__body gw-stack gw-client-card__body">
+      @if (collapsible()) {<p class="gw-card__description gw-client-card__via">Public URL via tunnel · OAuth 2.1</p>}
       <dl class="gw-kv gw-kv--dense">
         <div class="gw-kv__row"><dt class="gw-kv__key">Tunnel</dt><dd class="gw-kv__value" id="cl-ai-tunnel">{{ neverText() }} · <a class="gw-link" routerLink="/settings/tunnel" fragment="settings-tunnel">Tunnel settings</a></dd></div>
       </dl>
@@ -21,6 +27,7 @@
   @case ('setup') {
     <!-- Setup: nothing published yet; Publish is secondary (the page's primary belongs to the local review). -->
     <div class="gw-card__body gw-stack gw-client-card__body">
+      @if (collapsible()) {<p class="gw-card__description gw-client-card__via">Public URL via tunnel · OAuth 2.1</p>}
       <p class="gw-text-small gw-fg-secondary">Publishing gives endpoint <span class="gw-mono">{{ slug() }}</span> a public HTTPS address behind three gates: {{ anthropicOnly() ? 'Anthropic IP ranges only' : 'callers from any address' }}, your OK on this computer for each new sign-in, and the endpoint's own modes.</p>
       <dl class="gw-kv gw-kv--dense">
         <div class="gw-kv__row"><dt class="gw-kv__key">Public URL</dt><dd class="gw-kv__value" id="cl-ai-url">None while the tunnel is off</dd></div>
@@ -31,6 +38,7 @@
   }
   @default {
     <div class="gw-card__body gw-stack gw-client-card__body">
+      @if (collapsible()) {<p class="gw-card__description gw-client-card__via">Public URL via tunnel · OAuth 2.1</p>}
       @if (t(); as tunnel) {
         @if (tunnel.state === 'error') {
           <div class="gw-alert gw-alert--danger">
@@ -142,6 +150,8 @@
     </div>
   </footer>
 }
+
+</div>
 
 <!-- Publish: makes one endpoint public. gw-dialog--warning (risky, reversible), Cancel autofocus. -->
 <dialog class="gw-dialog gw-dialog--md gw-dialog--warning" gwDialog #publishDialog="gwDialog" aria-labelledby="cl-dlg-publish-t" aria-describedby="cl-dlg-publish-d">

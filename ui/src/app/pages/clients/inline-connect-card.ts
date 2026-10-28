@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component, TemplateRef, afterNextRender, booleanAttribute, computed, input, output, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Injector, TemplateRef, afterNextRender, booleanAttribute, computed, effect, inject, input, model, output, signal, viewChild } from '@angular/core';
 import { ClientCard, ConnectPreview, ConnectRequest } from '../../core/api/clients.api';
 import { GwClientConnectFlow } from '../../kit/elements/client-card/client-connect-flow';
+import { GwClientDisclosure } from '../../kit/elements/client-card/client-disclosure';
 import { ClientEndpoint, ClientFailure, viaText } from '../../kit/elements/client-card/client-view';
 import { clientStatusLook } from '../../kit/elements/shared/dictionaries';
 import { GwClientMark } from '../../kit/elements/shared/client-mark';
@@ -9,8 +10,8 @@ import { GwIcon } from '../../kit/icons';
 let nextId = 0;
 
 /**
- * `<article gwInlineConnectCard [card]="cursor" …>` (pages/clients.html, Cursor): the detected client that is the
- * only thing left to do on this computer, first and full width, with Connect open in the card — the endpoint, how
+ * `<article gwInlineConnectCard [card]="cursor" …>` (pages/clients.html, Cursor): a detected client's connection
+ * review, revealed by its compact row on AI apps — the endpoint, how
  * it signs in, the token it would get, the exact change of its config and the backup — and Connect as the card's
  * primary. Nothing is written until Connect, and Connect writes only the change on screen: without a preview of the
  * current selection (it is on its way, or the core refused it) Connect asks the core again instead. A refused change
@@ -22,10 +23,13 @@ let nextId = 0;
  */
 @Component({
   selector: 'article[gwInlineConnectCard]',
-  imports: [GwIcon, GwClientMark, GwClientConnectFlow],
+  imports: [GwIcon, GwClientMark, GwClientConnectFlow, GwClientDisclosure],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'gw-card gw-client-card', '[attr.aria-labelledby]': 'headingId()' },
+  host: { class: 'gw-card gw-client-card', '[class.gw-client-card--compact]': 'collapsible()', '[attr.aria-labelledby]': 'headingId()' },
   template: `
+    @if (collapsible()) {
+      <header gwClientDisclosure [client]="card().client" [name]="card().name" [tone]="look().tone" [status]="look().text" [headingId]="headingId()" [panelId]="uid + '-details'" [(expanded)]="expanded"></header>
+    } @else {
     <header class="gw-card__header gw-client-card__header">
       <div class="gw-client-card__identity">
         <span [gwClientMark]="card().client" size="lg"></span>
@@ -36,7 +40,13 @@ let nextId = 0;
       </div>
       <span class="gw-status gw-status--{{ look().tone }} gw-client-card__status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ look().text }}</span></span>
     </header>
-    <div class="gw-card__body gw-client-card__body">
+    }
+    <div [id]="uid + '-details'" [hidden]="collapsible() && !expanded()">
+    @if (!collapsible() || opened()) {
+    <div class="gw-card__body gw-client-card__body" [class.gw-stack]="collapsible()">
+      @if (collapsible()) {
+        <p class="gw-card__description gw-client-card__via" [class.gw-mono]="via().mono">{{ via().text }}</p>
+      }
       <div gwClientConnectFlow #flow page [single]="review()" [lead]="uses()" [card]="card()" [endpoints]="endpoints()" [preview]="preview()" [loading]="loading()" [failure]="failure()" [idPrefix]="anchor() ?? uid" [level]="4" [wrap]="true" [canOpenConfig]="canOpenConfig()" (openConfig)="openConfig.emit()" (requestChange)="onRequest($event)"></div>
     </div>
     <footer class="gw-card__footer gw-client-card__footer">
@@ -53,10 +63,14 @@ let nextId = 0;
         <button class="gw-btn gw-btn--primary" type="button" [attr.aria-busy]="connecting() ? 'true' : null" [attr.aria-disabled]="busy() ? 'true' : null" [attr.aria-describedby]="describedBy()" (click)="onConnect()">@if (connecting()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="plug-zap" class="gw-icon"></svg>} Connect {{ card().name }}</button>
       </div>
     </footer>
+    }
+    </div>
   `,
 })
 export class GwInlineConnectCard {
   readonly card = input.required<ClientCard>();
+  readonly collapsible = input(false, { transform: booleanAttribute });
+  readonly expanded = model(false);
   readonly endpoints = input.required<readonly ClientEndpoint[]>();
   readonly preview = input<ConnectPreview | null>(null);
   readonly loading = input(false, { transform: booleanAttribute });
@@ -77,20 +91,29 @@ export class GwInlineConnectCard {
   readonly openConfig = output<void>();
 
   protected readonly uid = `icc-${++nextId}`;
-  private readonly flow = viewChild.required<GwClientConnectFlow>('flow');
-  protected readonly look = computed(() => clientStatusLook(this.card().status));
+  private readonly injector = inject(Injector);
+  private readonly flow = viewChild<GwClientConnectFlow>('flow');
+  protected readonly opened = signal(false);
+  protected readonly look = computed(() => clientStatusLook(this.failure() ? 'error' : this.card().status));
   protected readonly via = computed(() => viaText(this.card()));
   protected readonly headingId = computed(() => `${this.anchor() ?? this.uid}-t`);
   protected readonly busy = computed(() => this.loading() || this.connecting());
   /** Connect's description: why it waits, and the endpoint's warnings (prod) the flow shows under its select. */
   protected readonly describedBy = computed(() => {
-    const ids = [this.busy() ? `${this.uid}-busy` : null, this.flow().warnings().length ? this.flow().warningsId() : null].filter(Boolean);
+    const flow = this.flow();
+    const ids = [this.busy() ? `${this.uid}-busy` : null, flow?.warnings().length ? flow.warningsId() : null].filter(Boolean);
     return ids.length ? ids.join(' ') : null;
   });
 
   constructor() {
-    // Inline the flow is on screen from the start: preview the default selection once.
-    afterNextRender(() => this.flow().emit());
+    // Prepare the change only after the user opens this app; folding keeps their choices intact.
+    effect(() => {
+      if (this.expanded()) this.opened.set(true);
+    });
+    effect(() => {
+      const flow = this.flow();
+      if (flow) afterNextRender(() => flow.emit(), { injector: this.injector });
+    });
   }
 
   protected onRequest(request: ConnectRequest | null): void {
@@ -100,7 +123,7 @@ export class GwInlineConnectCard {
   /** Writes the change on screen; with none for this selection (refused, or never prepared) it asks again. */
   protected onConnect(): void {
     if (this.busy()) return;
-    const request = this.flow().request();
+    const request = this.flow()?.request();
     if (!request) return; // the token name is invalid: its field says why
     const p = this.preview();
     if (p && !this.failure() && p.endpoint === request.endpoint && p.method === request.method) {

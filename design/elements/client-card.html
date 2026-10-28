@@ -29,11 +29,41 @@
     </div>
   </header>
 
-  <!-- ───────────────────────── AI apps page grid ───────────────────────── -->
+  <section class="gw-section" aria-labelledby="s-disclosure">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-disclosure">Compact app list</h2>
+      <p class="gw-section__description">App and connection status stay visible. Click the row or press Enter or Space to show its details; click again to collapse them. The form contents remain in place. The full AI apps page uses the same row for every local app and claude.ai.</p>
+    </header>
+    <article class="gw-card gw-client-card gw-client-card--compact" aria-labelledby="cc-summary-t">
+      <h3 class="gw-card__title" id="cc-summary-t">
+        <button class="gw-client-card__row" type="button" data-gw-toggle aria-expanded="false" aria-controls="cc-summary-details">
+          <span class="gw-client-mark gw-client-mark--codex" aria-hidden="true">Cx</span>
+          <span class="gw-client-card__main"><span class="gw-text-ui">Codex</span></span>
+          <span class="gw-status gw-status--success gw-client-card__status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Connected</span></span>
+          <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i>
+        </button>
+      </h3>
+      <div id="cc-summary-details" hidden>
+        <div class="gw-card__body gw-stack gw-client-card__body">
+          <p class="gw-card__description gw-client-card__via gw-mono">~/.codex/config.toml</p>
+          <dl class="gw-kv gw-kv--dense">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><a class="gw-link gw-mono" href="../pages/endpoint-detail.html">dev</a> · 22 tools</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Auth</dt><dd class="gw-kv__value">A short-lived token issued by the headers helper, never written to the config.</dd></div>
+          </dl>
+        </div>
+        <footer class="gw-card__footer gw-card__footer--split gw-client-card__footer">
+          <a class="gw-btn gw-btn--link gw-btn--sm" href="../pages/activity.html?q=client:codex">View activity<span class="gw-sr-only"> of Codex</span></a>
+          <a class="gw-btn gw-btn--ghost gw-btn--sm" href="../pages/clients.html#cl-cx-t">Manage Codex</a>
+        </footer>
+      </div>
+    </article>
+  </section>
+
+  <!-- ───────────────────────── Expanded app details ───────────────────────── -->
   <section class="gw-section" aria-labelledby="s-grid">
     <header class="gw-section__header">
-      <h2 class="gw-section__title" id="s-grid">AI apps page</h2>
-      <p class="gw-section__description">The five AI apps of the demo set. Claude Desktop reaches two endpoints through its bridge, one extension per endpoint, so it takes the full width with one row per endpoint. Codex is connected, Cursor detected, Antigravity not installed, and claude.ai has the tunnel off. In a grid Connect is a secondary button; it opens the connect dialog. Open config appears only for AI apps set up through a file. A card whose token is issued on the fly says what that protects against: the trust boundary is the OS account.</p>
+      <h2 class="gw-section__title" id="s-grid">Expanded app details</h2>
+      <p class="gw-section__description">The details revealed by the compact rows on AI apps, shown open here to compare their states. Claude Desktop reaches two endpoints through its bridge, one extension per endpoint, so its details include one row per endpoint. Codex is connected, Cursor detected, Antigravity not installed, and claude.ai has the tunnel off. In a grid Connect is a secondary button; it opens the connect dialog. Open config appears only for AI apps set up through a file. A card whose token is issued on the fly says what that protects against: the trust boundary is the OS account.</p>
     </header>
 
     <div class="gw-stack">

@@ -7,8 +7,8 @@
 // writes blind: Connect opens a dialog that shows the exact change to the
 // client's config file and the backup path before anything is written.
 //
-// Where   pages/clients.html (grid of five cards, the claude.ai card with the
-//         tunnel), pages/endpoint-detail.html · AI apps tab (--compact rows),
+// Where   pages/clients.html (compact disclosure rows, including claude.ai),
+//         pages/endpoint-detail.html · AI apps tab (--compact rows),
 //         pages/onboarding.html · Connect your AI app (one card on its own).
 //
 // Composes  gw-card (__header __heading __title __description __body __footer
@@ -158,6 +158,11 @@
 //   As a hash target (clients first run / setup) the name is an
 //   h3.gw-text-ui with tabindex="-1". Nothing to connect yet: Connect is a
 //   <button aria-disabled> described by a visible reason under the list.
+//   On AI apps, an h3.gw-card__title contains a button.gw-client-card__row:
+//   mark, name, status and chevron. data-gw-toggle, aria-expanded and
+//   aria-controls disclose a hidden panel containing the existing body and
+//   footer. Details start collapsed; a deep link opens the app before focus.
+//   Keep form contents mounted when collapsed so selections are retained.
 //
 // Parts
 //   __header    the gw-card__header: wraps, so the status drops under the name
@@ -260,7 +265,7 @@
     margin: 0;
   }
 
-  // ─── Compact (endpoint lists) ───
+  // ─── Compact rows (endpoint lists and app disclosures) ───
   &--compact {
     height: auto;
   }
@@ -272,7 +277,22 @@
     gap: var(--gw-space-2) var(--gw-space-3);
     min-width: 0;
     padding: var(--gw-space-3) var(--gw-space-4);
+
+    &:is(button) {
+      width: 100%;
+      border-radius: inherit;
+      text-align: start;
+      cursor: pointer;
+      @include gw-hover-wash;
+      @include gw-focus-ring-inset;
+
+      &[aria-expanded="true"] > .gw-btn__chevron { transform: rotate(180deg); }
+    }
   }
+
+  // The heading can be direct or inside a semantic header supplied by the app.
+  > header:has(> .gw-card__title > .gw-client-card__row),
+  .gw-card__title:has(> .gw-client-card__row) { border-radius: inherit; }
 
   &__main {
     display: flex;
