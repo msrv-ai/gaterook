@@ -236,6 +236,13 @@ describe('Policies page words', () => {
       .toBeLessThan(envConnections('dev', all).findIndex((row) => row.type === 'logs'));
   });
 
+  it('applies log policies to concrete log connectors and keeps OpenSearch separate', () => {
+    const sample = kitConnections().find((connection) => connection.type === 'logs' && connection.env === 'dev')!;
+    const all = ['gcp-logging', 'cloudwatch', 'loki', 'opensearch'].map((type) => ({ ...sample, name: type, type }));
+    expect(sectionConnections('logs', 'dev', all).map((row) => row.type)).toEqual(['gcp-logging', 'cloudwatch', 'loki']);
+    expect(envConnections('dev', all).map((row) => row.type)).toEqual(['opensearch', 'gcp-logging', 'cloudwatch', 'loki']);
+  });
+
   it('asks for a number in range, in the unit the field shows', () => {
     expect(numberError(info('limits', 'rateLimitPerToken'), '0')).toBe('Enter a whole number from 1 to 10,000 calls per min.');
     expect(numberError(info('limits', 'rateLimitPerToken'), '1.5')).toBe('Enter a whole number from 1 to 10,000 calls per min.');

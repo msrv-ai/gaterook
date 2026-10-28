@@ -204,11 +204,19 @@ const PENDING = {
 
 /** The fake core: what it was sent, and what it answers next. */
 class FakeCore {
+  configuredTools: ConnectorTool[] | ApiError = structuredClone(TOOLS);
+  pendingTools: Promise<{ tools: ConnectorTool[] }> | null = null;
+  toolRequests: { type: string; config: JsonObject; env: string }[] = [];
   tests: TestDraftRequest[] = [];
   nextTest: TestOutcome | ApiError = OK;
   discoveries: TestDraftRequest[] = [];
   nextDiscovery: TestOutcome | ApiError = outcome({ ok: true, details: { databases: ['app', 'reports'] } });
   pendingDiscovery: Promise<TestOutcome> | null = null;
+  projectRequests: TestDraftRequest[] = [];
+  nextProjects: TestOutcome | ApiError = outcome({ ok: true, details: {
+    projects: [{ projectId: 'example-dev', displayName: 'Example development' }], discoveryComplete: true,
+  } });
+  pendingProjects: Promise<TestOutcome> | null = null;
   fileRequests: (TestDraftRequest & { readonly path: string })[] = [];
   nextFiles: TestOutcome | ApiError = outcome({ ok: true, details: { path: '/var/log', parent: '/var',
     entries: [{ name: 'app.log', path: '/var/log/app.log', type: 'file', size: 20 }], truncated: false } });
@@ -262,8 +270,20 @@ beforeEach(() => {
     }),
     form: vi.fn(async () => structuredClone(core.spec)),
     get: vi.fn(async () => structuredClone(TYPE)),
+    previewTools: vi.fn(async (type: string, config: JsonObject, env: string) => {
+      core.toolRequests.push(structuredClone({ type, config, env }));
+      if (core.pendingTools) return core.pendingTools;
+      if (core.configuredTools instanceof ApiError) throw core.configuredTools;
+      return { tools: structuredClone(core.configuredTools) };
+    }),
   };
   const connections: Partial<ConnectionsApi> = {
+    projects: vi.fn(async (r: TestDraftRequest) => {
+      core.projectRequests.push(structuredClone(r));
+      if (core.pendingProjects) return core.pendingProjects;
+      if (core.nextProjects instanceof ApiError) throw core.nextProjects;
+      return structuredClone(core.nextProjects);
+    }),
     browseFiles: vi.fn(async (r: TestDraftRequest & { readonly path: string }) => {
       core.fileRequests.push(structuredClone(r));
       if (core.pendingFiles) return core.pendingFiles;
@@ -446,6 +466,135 @@ async function openSearchToTest(p: Awaited<ReturnType<typeof open>>): Promise<vo
   p.button('Continue', p.q('#cf-form')!).click();
   await p.settle();
 }
+
+function cloudLogging(): void {
+  core.spec = { ...structuredClone(SPEC), type: 'logs', name: 'Logs', schema: CONNECTOR_FORMS['logs'],
+    secretFields: [{ pointer: '/credentials/serviceAccountKey', kind: 'value', title: 'Service account key (JSON)' }] };
+  core.catalog = { groups: [{ name: 'Logs', cards: [{ ...structuredClone(CATALOG.groups[0].cards[0]),
+    type: 'logs', variant: 'gcp-logging', name: 'Google Cloud Logging',
+    presetConfig: { backend: 'gcp-logging' }, tools: 2, connections: 0,
+  }] }], installed: [] };
+}
+
+describe('connection-specific tool preview', () => {
+  const gcpTools = [
+    tool({ name: 'gcp_logging_search', description: 'Search Google Cloud Logging using Logs Explorer filters.' }),
+    tool({ name: 'gcp_logging_tail', description: 'Read new Google Cloud Logging entries.', defaultMode: 'off' }),
+  ];
+
+  it('uses the configured connector tools in every endpoint card and mutation hint', async () => {
+    cloudLogging();
+    core.configuredTools = gcpTools;
+    const p = await open('/connections/new#step-4');
+    expect(core.toolRequests.at(-1)).toMatchObject({ type: 'logs', config: { backend: 'gcp-logging' } });
+    expect(core.toolRequests.at(-1)).not.toHaveProperty('secrets');
+    expect(text(p.q('#pv-rows'))).toContain('gcp_logging_search');
+    expect(text(p.q('#pv-rows'))).toContain('gcp_logging_tail');
+    expect(text(p.q('#step-4'))).not.toMatch(/sql_execute|opensearch_|Loki|CloudWatch/);
+    expect(text(p.q('#pv-rows .gw-card__description'))).toBe('2 tools · 1 read only · 1 off');
+  });
+
+  it('does not substitute a category tool list when discovery fails and allows retry', async () => {
+    cloudLogging();
+    core.configuredTools = new ApiError('server', 503, { detail: 'Tool metadata is temporarily unavailable.' });
+    const p = await open('/connections/new#step-4');
+    expect(text(p.q('#tools-preview-status'))).toContain('Tool metadata is temporarily unavailable.');
+    expect(text(p.q('#pv-rows'))).not.toContain('sql_query');
+    expect(p.button('Save connection', p.q('#step-4')!).getAttribute('aria-disabled')).toBe('true');
+    core.configuredTools = gcpTools;
+    p.button('Retry loading tools').click();
+    await p.settle();
+    expect(text(p.q('#pv-rows'))).toContain('gcp_logging_search');
+    expect(p.q('#tools-preview-status')).toBeNull();
+    expect(p.button('Save connection', p.q('#step-4')!).getAttribute('aria-disabled')).toBeNull();
+  });
+
+  it('ignores late tool metadata after the connection configuration changes', async () => {
+    cloudLogging();
+    let resolve!: (value: { tools: ConnectorTool[] }) => void;
+    core.pendingTools = new Promise((done) => { resolve = done; });
+    const p = await open('/connections/new#step-4');
+    expect(text(p.q('#tools-preview-status'))).toContain('Loading tools');
+    core.pendingTools = null;
+    core.configuredTools = [tool({ name: 'loki_search', description: 'Search Loki with LogQL.' })];
+    p.page().form()!.state().model.update((value) => ({ ...value, backend: 'loki', url: 'https://logs.example.test' }));
+    await p.settle();
+    expect(text(p.q('#pv-rows'))).toContain('loki_search');
+    resolve({ tools: gcpTools });
+    await p.settle();
+    expect(text(p.q('#pv-rows'))).toContain('loki_search');
+    expect(text(p.q('#pv-rows'))).not.toContain('gcp_logging_search');
+  });
+});
+
+describe('Google Cloud Logging project discovery', () => {
+  it('uses the draft project API before a resource is selected and carries the selected project into test and save', async () => {
+    cloudLogging();
+    const p = await open('/connections/new#step-2');
+    await p.type('cf-name', 'dev-logs');
+    p.button('Load projects').click();
+    await p.settle();
+    expect(core.projectRequests).toHaveLength(1);
+    expect(core.projectRequests[0]).toMatchObject({ type: 'logs', env: 'dev', config: {
+      backend: 'gcp-logging', credentials: { source: 'adc' },
+    }, secrets: {} });
+    expect(core.created).toEqual([]);
+    const select = p.q<HTMLSelectElement>('#cf-project-select')!;
+    select.value = 'example-dev';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    await p.settle();
+    p.button('Continue', p.q('#cf-form')!).click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-3']);
+    expect(core.tests[0].config['resourceNames']).toEqual(['projects/example-dev']);
+    p.button('Continue', p.q('#step-3')!).click();
+    await p.settle();
+    p.button('Save connection', p.q('#step-4')!).click();
+    await p.settle();
+    expect(core.created[0].config['resourceNames']).toEqual(['projects/example-dev']);
+  });
+
+  it('ignores a late project list after a credential change and retries an API failure', async () => {
+    cloudLogging();
+    const p = await open('/connections/new#step-2');
+    let answer!: (value: TestOutcome) => void;
+    core.pendingProjects = new Promise((resolve) => { answer = resolve; });
+    p.button('Load projects').click();
+    await p.settle();
+    await p.type('cf-credentials-impersonate', 'reader@example-dev.iam.gserviceaccount.com');
+    core.pendingProjects = null;
+    core.nextProjects = new ApiError('network', 0, { title: 'Network error', detail: 'The project API is unavailable.' });
+    p.button('Load projects').click();
+    await p.settle();
+    expect(text(p.q('#cf-form'))).toContain('The project API is unavailable.');
+    answer(outcome({ ok: true, details: { projects: [{ projectId: 'stale-project', displayName: 'Stale project' }] } }));
+    await p.settle();
+    expect(text(p.q('#cf-form'))).not.toContain('Stale project');
+    core.nextProjects = outcome({ ok: true, details: { projects: [{ projectId: 'current-project', displayName: 'Current project' }] } });
+    p.button('Load projects').click();
+    await p.settle();
+    expect(text(p.q('#cf-project-select'))).toContain('Current project');
+    expect(core.projectRequests.at(-1)?.config['credentials']).toMatchObject({ impersonate: 'reader@example-dev.iam.gserviceaccount.com' });
+  });
+
+  it('ignores a late project API validation failure after switching to another logging backend', async () => {
+    cloudLogging();
+    const p = await open('/connections/new#step-2');
+    let reject!: (error: ApiError) => void;
+    core.pendingProjects = new Promise((_resolve, rejectPromise) => { reject = rejectPromise; });
+    p.button('Load projects').click();
+    await p.settle();
+    const backend = p.q<HTMLSelectElement>('#cf-backend')!;
+    backend.value = 'loki';
+    backend.dispatchEvent(new Event('change', { bubbles: true }));
+    await p.settle();
+    expect(p.q('#cf-project-load')).toBeNull();
+    reject(new ApiError('unprocessable', 422, { title: 'Invalid credentials', detail: 'The old Google credential is invalid.',
+      errors: [{ field: '/config/credentials/serviceAccountKey', message: 'The old Google credential is invalid.' }] }));
+    await p.settle();
+    expect(text(p.q('#cf-form'))).not.toContain('The old Google credential is invalid.');
+  });
+});
 
 describe('Add connection: wizard', () => {
   it('OpenSearch highlights invalid visible fields and advances after the basic credentials are filled', async () => {

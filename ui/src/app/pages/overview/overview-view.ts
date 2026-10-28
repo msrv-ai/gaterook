@@ -282,9 +282,14 @@ export function checkPrompt(type: string | null, name: string | null): string {
       return `Show me the collections in ${name}`;
     case 'redis':
       return `Show me a few keys in ${name}`;
+    case 'opensearch':
+      return `Show me the indices in ${name}`;
     case 'kubernetes':
       return `Show me the pods in ${name}`;
     case 'logs':
+    case 'gcp-logging':
+    case 'cloudwatch':
+    case 'loki':
     case 'ssh-logs':
       return `Show me the latest errors in ${name}`;
     default:

@@ -189,7 +189,7 @@
               <i class="gw-icon gw-icon--xs gw-fg-muted gw-risk-callout__plus" data-lucide="plus"></i>
               <div class="gw-risk-callout__ingredient-body">
                 <span class="gw-badge gw-badge--danger"><i class="gw-icon gw-badge__icon" data-lucide="file-warning"></i>Untrusted content<span class="gw-sr-only">, present</span></span>
-                <span class="gw-text-caption gw-fg-secondary"><code class="gw-code">logs_search</code> returns log lines users wrote</span>
+                <span class="gw-text-caption gw-fg-secondary"><code class="gw-code">loki_search</code> returns log lines users wrote</span>
               </div>
             </li>
             <li class="gw-risk-callout__ingredient" data-present="true">
@@ -1152,59 +1152,59 @@
                         <tr class="gw-tool-policy-list__row" data-mode="read">
                           <th scope="row" class="gw-tool-policy-list__tool">
                             <div class="gw-tool-policy-list__name">
-                              <code class="gw-code">logs_search</code>
-                              <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of logs_search"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                              <code class="gw-code">loki_search</code>
+                              <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of loki_search"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
                             </div>
                             <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Search log lines with a LogQL query.</p>
                           </th>
                           <td>
                             <div class="gw-tool-policy-list__mode">
                               <fieldset class="gw-segmented gw-segmented--sm">
-                                <legend class="gw-sr-only">Mode for logs_search</legend>
-                                <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="ept-mode-logs_search" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
-                                <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="ept-mode-logs_search" value="read" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
-                                <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="ept-mode-logs_search" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
-                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="ept-mode-logs_search" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
+                                <legend class="gw-sr-only">Mode for loki_search</legend>
+                                <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="ept-mode-loki_search" value="off"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                                <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="ept-mode-loki_search" value="read" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                                <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="ept-mode-loki_search" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="ept-mode-loki_search" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
                               </fieldset>
                             </div>
                           </td>
                           <td class="gw-table__cell--actions">
-                            <button class="gw-btn gw-btn--ghost gw-btn--sm gw-tool-policy-list__limits-toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="ept-lim-logs_search">Limits<span class="gw-sr-only"> for logs_search</span><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--open" data-lucide="chevron-up"></i></button>
+                            <button class="gw-btn gw-btn--ghost gw-btn--sm gw-tool-policy-list__limits-toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="ept-lim-loki_search">Limits<span class="gw-sr-only"> for loki_search</span><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--open" data-lucide="chevron-up"></i></button>
                           </td>
                         </tr>
-                        <tr class="gw-tool-policy-list__limits" id="ept-lim-logs_search" hidden>
+                        <tr class="gw-tool-policy-list__limits" id="ept-lim-loki_search" hidden>
                           <td colspan="3">
-                            <div class="gw-card gw-card--muted" role="group" aria-label="Limits for logs_search">
+                            <div class="gw-card gw-card--muted" role="group" aria-label="Limits for loki_search">
                               <div class="gw-card__body">
                                 <div class="gw-tool-policy-list__limits-fields">
                                   <div class="gw-field">
-                                    <label class="gw-field__label" for="ept-lim-logs_search-lines">Line limit</label>
+                                    <label class="gw-field__label" for="ept-lim-loki_search-lines">Line limit</label>
                                     <div class="gw-input-group">
-                                      <input class="gw-input" id="ept-lim-logs_search-lines" type="text" inputmode="numeric" autocomplete="off" placeholder="1,000" aria-describedby="ept-lim-logs_search-lines-hint">
+                                      <input class="gw-input" id="ept-lim-loki_search-lines" type="text" inputmode="numeric" autocomplete="off" placeholder="1,000" aria-describedby="ept-lim-loki_search-lines-hint">
                                       <span class="gw-input-group__affix">lines</span>
                                     </div>
-                                    <p class="gw-field__hint" id="ept-lim-logs_search-lines-hint">Inherited from dev policy: 1,000 lines</p>
+                                    <p class="gw-field__hint" id="ept-lim-loki_search-lines-hint">Inherited from dev policy: 1,000 lines</p>
                                   </div>
                                   <div class="gw-field">
-                                    <label class="gw-field__label" for="ept-lim-logs_search-timeout">Timeout</label>
+                                    <label class="gw-field__label" for="ept-lim-loki_search-timeout">Timeout</label>
                                     <div class="gw-input-group">
-                                      <input class="gw-input" id="ept-lim-logs_search-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="10" aria-describedby="ept-lim-logs_search-timeout-hint">
+                                      <input class="gw-input" id="ept-lim-loki_search-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="10" aria-describedby="ept-lim-loki_search-timeout-hint">
                                       <span class="gw-input-group__affix">s</span>
                                     </div>
-                                    <p class="gw-field__hint" id="ept-lim-logs_search-timeout-hint">Inherited from dev policy: 10 s</p>
+                                    <p class="gw-field__hint" id="ept-lim-loki_search-timeout-hint">Inherited from dev policy: 10 s</p>
                                   </div>
                                   <div class="gw-field">
-                                    <label class="gw-field__label" for="ept-lim-logs_search-size">Max response size</label>
+                                    <label class="gw-field__label" for="ept-lim-loki_search-size">Max response size</label>
                                     <div class="gw-input-group">
-                                      <input class="gw-input" id="ept-lim-logs_search-size" type="text" inputmode="numeric" autocomplete="off" placeholder="512" aria-describedby="ept-lim-logs_search-size-hint">
+                                      <input class="gw-input" id="ept-lim-loki_search-size" type="text" inputmode="numeric" autocomplete="off" placeholder="512" aria-describedby="ept-lim-loki_search-size-hint">
                                       <span class="gw-input-group__affix">KB</span>
                                     </div>
-                                    <p class="gw-field__hint" id="ept-lim-logs_search-size-hint">Inherited from dev policy: 512 KB</p>
+                                    <p class="gw-field__hint" id="ept-lim-loki_search-size-hint">Inherited from dev policy: 512 KB</p>
                                   </div>
                                 </div>
                                 <div class="gw-tool-policy-list__limits-footer">
                                   <p class="gw-text-caption gw-fg-muted">Empty fields follow the <a class="gw-link" href="policies.html#dev">dev policy</a>. An override can only be stricter.</p>
-                                  <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" disabled><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i>Reset to dev policy<span class="gw-sr-only"> for logs_search</span></button>
+                                  <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" disabled><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i>Reset to dev policy<span class="gw-sr-only"> for loki_search</span></button>
                                 </div>
                               </div>
                             </div>
@@ -1213,59 +1213,59 @@
                         <tr class="gw-tool-policy-list__row" data-mode="off">
                           <th scope="row" class="gw-tool-policy-list__tool">
                             <div class="gw-tool-policy-list__name">
-                              <code class="gw-code">logs_tail</code>
-                              <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of logs_tail"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li></ul>
+                              <code class="gw-code">loki_tail</code>
+                              <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of loki_tail"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li></ul>
                             </div>
                             <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Stream new log lines for up to 5 minutes.</p>
                           </th>
                           <td>
                             <div class="gw-tool-policy-list__mode">
                               <fieldset class="gw-segmented gw-segmented--sm">
-                                <legend class="gw-sr-only">Mode for logs_tail</legend>
-                                <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="ept-mode-logs_tail" value="off" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
-                                <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="ept-mode-logs_tail" value="read"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
-                                <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="ept-mode-logs_tail" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
-                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="ept-mode-logs_tail" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
+                                <legend class="gw-sr-only">Mode for loki_tail</legend>
+                                <label class="gw-segmented__option" data-tone="off"><input class="gw-segmented__input" type="radio" name="ept-mode-loki_tail" value="off" checked><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="circle-off"></i>Off</span></label>
+                                <label class="gw-segmented__option" data-tone="read"><input class="gw-segmented__input" type="radio" name="ept-mode-loki_tail" value="read"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="eye"></i>Read only</span></label>
+                                <label class="gw-segmented__option" data-tone="approval"><input class="gw-segmented__input" type="radio" name="ept-mode-loki_tail" value="approval"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="user-check"></i>Approval</span></label>
+                      <label class="gw-segmented__option" data-tone="bypass"><input class="gw-segmented__input" type="radio" name="ept-mode-loki_tail" value="bypass" title="Run without approval; policy limits still apply"><span class="gw-segmented__label"><i class="gw-icon gw-icon--sm" data-lucide="shield-off"></i>Bypass</span></label>
                               </fieldset>
                             </div>
                           </td>
                           <td class="gw-table__cell--actions">
-                            <button class="gw-btn gw-btn--ghost gw-btn--sm gw-tool-policy-list__limits-toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="ept-lim-logs_tail">Limits<span class="gw-sr-only"> for logs_tail</span><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--open" data-lucide="chevron-up"></i></button>
+                            <button class="gw-btn gw-btn--ghost gw-btn--sm gw-tool-policy-list__limits-toggle" type="button" data-gw-toggle aria-expanded="false" aria-controls="ept-lim-loki_tail">Limits<span class="gw-sr-only"> for loki_tail</span><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--closed" data-lucide="chevron-down"></i><i class="gw-icon gw-icon--sm gw-tool-policy-list__chevron--open" data-lucide="chevron-up"></i></button>
                           </td>
                         </tr>
-                        <tr class="gw-tool-policy-list__limits" id="ept-lim-logs_tail" hidden>
+                        <tr class="gw-tool-policy-list__limits" id="ept-lim-loki_tail" hidden>
                           <td colspan="3">
-                            <div class="gw-card gw-card--muted" role="group" aria-label="Limits for logs_tail">
+                            <div class="gw-card gw-card--muted" role="group" aria-label="Limits for loki_tail">
                               <div class="gw-card__body">
                                 <div class="gw-tool-policy-list__limits-fields">
                                   <div class="gw-field">
-                                    <label class="gw-field__label" for="ept-lim-logs_tail-lines">Line limit</label>
+                                    <label class="gw-field__label" for="ept-lim-loki_tail-lines">Line limit</label>
                                     <div class="gw-input-group">
-                                      <input class="gw-input" id="ept-lim-logs_tail-lines" type="text" inputmode="numeric" autocomplete="off" placeholder="1,000" aria-describedby="ept-lim-logs_tail-lines-hint">
+                                      <input class="gw-input" id="ept-lim-loki_tail-lines" type="text" inputmode="numeric" autocomplete="off" placeholder="1,000" aria-describedby="ept-lim-loki_tail-lines-hint">
                                       <span class="gw-input-group__affix">lines</span>
                                     </div>
-                                    <p class="gw-field__hint" id="ept-lim-logs_tail-lines-hint">Inherited from dev policy: 1,000 lines</p>
+                                    <p class="gw-field__hint" id="ept-lim-loki_tail-lines-hint">Inherited from dev policy: 1,000 lines</p>
                                   </div>
                                   <div class="gw-field">
-                                    <label class="gw-field__label" for="ept-lim-logs_tail-timeout">Timeout</label>
+                                    <label class="gw-field__label" for="ept-lim-loki_tail-timeout">Timeout</label>
                                     <div class="gw-input-group">
-                                      <input class="gw-input" id="ept-lim-logs_tail-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="10" aria-describedby="ept-lim-logs_tail-timeout-hint">
+                                      <input class="gw-input" id="ept-lim-loki_tail-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="10" aria-describedby="ept-lim-loki_tail-timeout-hint">
                                       <span class="gw-input-group__affix">s</span>
                                     </div>
-                                    <p class="gw-field__hint" id="ept-lim-logs_tail-timeout-hint">Inherited from dev policy: 10 s</p>
+                                    <p class="gw-field__hint" id="ept-lim-loki_tail-timeout-hint">Inherited from dev policy: 10 s</p>
                                   </div>
                                   <div class="gw-field">
-                                    <label class="gw-field__label" for="ept-lim-logs_tail-size">Max response size</label>
+                                    <label class="gw-field__label" for="ept-lim-loki_tail-size">Max response size</label>
                                     <div class="gw-input-group">
-                                      <input class="gw-input" id="ept-lim-logs_tail-size" type="text" inputmode="numeric" autocomplete="off" placeholder="512" aria-describedby="ept-lim-logs_tail-size-hint">
+                                      <input class="gw-input" id="ept-lim-loki_tail-size" type="text" inputmode="numeric" autocomplete="off" placeholder="512" aria-describedby="ept-lim-loki_tail-size-hint">
                                       <span class="gw-input-group__affix">KB</span>
                                     </div>
-                                    <p class="gw-field__hint" id="ept-lim-logs_tail-size-hint">Inherited from dev policy: 512 KB</p>
+                                    <p class="gw-field__hint" id="ept-lim-loki_tail-size-hint">Inherited from dev policy: 512 KB</p>
                                   </div>
                                 </div>
                                 <div class="gw-tool-policy-list__limits-footer">
                                   <p class="gw-text-caption gw-fg-muted">Empty fields follow the <a class="gw-link" href="policies.html#dev">dev policy</a>. An override can only be stricter.</p>
-                                  <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" disabled><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i>Reset to dev policy<span class="gw-sr-only"> for logs_tail</span></button>
+                                  <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" disabled><i class="gw-icon gw-icon--sm" data-lucide="rotate-ccw"></i>Reset to dev policy<span class="gw-sr-only"> for loki_tail</span></button>
                                 </div>
                               </div>
                             </div>
@@ -2501,7 +2501,7 @@ Changing anything
                     <input class="gw-choice-card__input" type="radio" name="ep-split-move" value="app-logs" aria-labelledby="ep-split-logs-t" aria-describedby="ep-split-logs-d ep-split-logs-m">
                     <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="file-warning"></i></span>
                     <span class="gw-choice-card__title" id="ep-split-logs-t">Untrusted content: <span class="gw-mono">app-logs</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></span>
-                    <span class="gw-choice-card__description" id="ep-split-logs-d"><code class="gw-code">logs_search</code> and <code class="gw-code">logs_tail</code> move. Agents on dev no longer read text other people wrote.</span>
+                    <span class="gw-choice-card__description" id="ep-split-logs-d"><code class="gw-code">loki_search</code> and <code class="gw-code">loki_tail</code> move. Agents on dev no longer read text other people wrote.</span>
                     <span class="gw-choice-card__meta" id="ep-split-logs-m">Leaves private data and an external channel on dev</span>
                   </label>
                 </div>
@@ -3415,7 +3415,7 @@ Changing anything
   if (split) {
     var splitSlug = doc.getElementById("ep-split-slug");
     var SPLIT = { "billing-api": ["dev-billing", "http_request", "billing-api and its tools moved from dev. dev has no risky combination now."],
-                  "app-logs": ["dev-logs", "logs_search", "app-logs and its tools moved from dev. dev still has a risky combination."] };
+                  "app-logs": ["dev-logs", "loki_search", "app-logs and its tools moved from dev. dev still has a risky combination."] };
     var moving = function () { var r = split.querySelector('input[name="ep-split-move"]:checked'); return r ? r.value : "billing-api"; };
     var syncSplitName = function () {
       var name = splitSlug.value.trim() || "the new endpoint";

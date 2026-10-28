@@ -20,7 +20,7 @@ export type TestState = 'idle' | 'testing' | 'done';
 
 /** Only local Google ADC connections can use the desktop sign-in command. */
 export function usesGoogleAdc(type: string | undefined, config: JsonObject | null): boolean {
-  if (type !== 'gcp' && !(type === 'logs' && config?.['backend'] === 'gcp-logging')) return false;
+  if (type !== 'gcp' && type !== 'gcp-logging' && !(type === 'logs' && config?.['backend'] === 'gcp-logging')) return false;
   const credentials = config?.['credentials'];
   return !!credentials && typeof credentials === 'object' && !Array.isArray(credentials) && credentials['source'] === 'adc';
 }

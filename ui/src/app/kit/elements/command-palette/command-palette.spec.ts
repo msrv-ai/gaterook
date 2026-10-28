@@ -16,6 +16,17 @@ const RESULT: SearchResult = {
   endpoints: [{ slug: 'dev', env: 'dev', route: '/endpoints/dev' }],
 };
 
+it('names concrete connectors in search and presents OpenSearch as a database', () => {
+  const result: SearchResult = { ...RESULT, connections: [
+    { name: 'search-db', type: 'opensearch', env: 'dev', route: '/connections/search-db' },
+    { name: 'cloud-logs', type: 'gcp-logging', env: 'dev', route: '/connections/cloud-logs' },
+  ] };
+  const rows = paletteOptions(result, { pending: 0, address: '127.0.0.1:7465' }).filter((row) => row.group === 'connections');
+  expect(rows.map((row) => [row.label, row.hint, row.icon])).toEqual([
+    ['search-db', 'OpenSearch', 'database'], ['cloud-logs', 'GCP Cloud Logging', 'scroll-text'],
+  ]);
+});
+
 @Component({
   imports: [GwCommandPalette],
   template: `<button id="opener" type="button">Search</button><gw-command-palette #p [result]="result" address="127.0.0.1:7465" />`,

@@ -671,6 +671,45 @@ public class ConnectionService {
 
   void validate(ConnectorManifest manifest, ObjectNode config, Set<String> newSecretFields,
       Set<String> dynamicSecretFields, Env env, boolean discovery) {
+    validate(manifest, config, newSecretFields, dynamicSecretFields, env, discovery, manifest.configSchema());
+  }
+
+  /** Project choices need credentials first; their own value is irrelevant until the draft is tested or saved. */
+  void validateProjectDiscovery(ConnectorManifest manifest, ObjectNode config, Set<String> newSecretFields,
+      Set<String> dynamicSecretFields, Env env) {
+    String path = manifest.configSchema().path("x-project-selection").path("path").asString("");
+    if (!path.matches("/[^/]+")) {
+      throw ProblemException.unprocessable("Project discovery unavailable", "This connector can't list projects.",
+          "/type");
+    }
+    JsonNode schema = manifest.configSchema().deepCopy();
+    relaxProjectSelection(schema, path.substring(1).replace("~1", "/").replace("~0", "~"));
+    validate(manifest, config, newSecretFields, dynamicSecretFields, env, true, schema);
+  }
+
+  /** Only same-instance schema branches are relaxed; nested credentials retain every constraint. */
+  private static void relaxProjectSelection(JsonNode schema, String field) {
+    if (!(schema instanceof ObjectNode object)) return;
+    if (object.path("properties") instanceof ObjectNode properties && properties.has(field)) {
+      properties.putObject(field);
+    }
+    if (object.path("required").isArray()) {
+      List<JsonNode> required = new ArrayList<>();
+      for (JsonNode name : object.path("required")) {
+        if (!field.equals(name.asString())) required.add(name);
+      }
+      object.putArray("required").addAll(required);
+    }
+    for (String keyword : List.of("allOf", "anyOf", "oneOf")) {
+      for (JsonNode branch : object.path(keyword)) relaxProjectSelection(branch, field);
+    }
+    for (String keyword : List.of("if", "then", "else")) {
+      relaxProjectSelection(object.path(keyword), field);
+    }
+  }
+
+  private void validate(ConnectorManifest manifest, ObjectNode config, Set<String> newSecretFields,
+      Set<String> dynamicSecretFields, Env env, boolean discovery, JsonNode validationSchema) {
     Objects.requireNonNull(env, "env");
     ObjectNode probe = config.deepCopy();
     for (String field : SecretFields.placeholders(config).keySet()) {
@@ -680,7 +719,7 @@ public class ConnectionService {
       SecretFields.set(probe, field, StringNode.valueOf("‹secret›"));
     }
     SecretFields.dynamicLoginUsers(manifest.configSchema(), probe, dynamicSecretFields);
-    for (SchemaValidator.Violation v : validator.validate(manifest.configSchema(), probe)) {
+    for (SchemaValidator.Violation v : validator.validate(validationSchema, probe)) {
       throw ProblemException.unprocessable("Check the settings", v.message(), "/config" + v.pointer());
     }
     JsonNode selection = manifest.configSchema().path("x-database-selection");

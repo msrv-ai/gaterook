@@ -258,6 +258,7 @@
         [busy]="saving()"
         (save)="onFormSubmit($event)"
         (discoverDatabases)="loadDatabases($event)"
+        (discoverProjects)="loadProjects($event)"
         (browseFiles)="browseFiles($event)"
         (trustFiles)="trustFiles($event)"
         (secretAction)="onSecretAction($event)"
@@ -466,6 +467,15 @@
           }
         </header>
         <div class="gw-form__rows" id="pv-rows">
+          @if (toolPreviewState() === 'loading' || toolPreviewState() === 'idle') {
+            <p class="gw-field__hint" role="status" id="tools-preview-status"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> Loading tools for this connection…</p>
+          } @else if (toolPreviewState() === 'error') {
+            <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert" id="tools-preview-status">
+              <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+              <div class="gw-alert__content"><p class="gw-alert__title">Couldn't load this connection's tools</p><p class="gw-alert__body">{{ toolPreviewError() }}</p></div>
+              <button class="gw-btn gw-btn--sm" type="button" (click)="loadToolPreview(true)">Retry loading tools</button>
+            </div>
+          } @else {
           @if (first) {
             <!-- The starter endpoint's initial modes (prod: nothing waits for approval). -->
             <ng-container [ngTemplateOutlet]="toolCard" [ngTemplateOutletContext]="{ slug: firstEndpointSlug(), preview: firstPreview() }" />
@@ -496,6 +506,7 @@
           @if (!first) {
             <p class="gw-text-small gw-fg-muted"><code class="gw-code">list_connections</code> and <code class="gw-code">describe_connection</code> on the chosen endpoints will include <span class="gw-mono">{{ connName }}</span> too.</p>
           }
+          }
         </div>
       </section>
 
@@ -504,7 +515,7 @@
           <p class="gw-form__note"><svg [lucideIcon]="n.icon" class="gw-icon"></svg>{{ n.text }}</p>
         }
         <button class="gw-btn gw-btn--ghost" type="button" (click)="go(3)"><svg lucideIcon="arrow-left" class="gw-icon"></svg> Back</button>
-        <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="saving() ? 'true' : null" [attr.aria-disabled]="saving() || endpointsState() === 'loading' || endpointsState() === 'idle' ? 'true' : null" [attr.aria-describedby]="endpointsState() === 'loading' || endpointsState() === 'idle' ? 'endpoints-loading' : null">@if (saving()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Save connection</button>
+        <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="saving() ? 'true' : null" [attr.aria-disabled]="saving() || endpointsState() === 'loading' || endpointsState() === 'idle' || toolPreviewState() !== 'ready' ? 'true' : null" [attr.aria-describedby]="toolPreviewState() !== 'ready' ? 'tools-preview-status' : endpointsState() === 'loading' || endpointsState() === 'idle' ? 'endpoints-loading' : null">@if (saving()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Save connection</button>
       </div>
     </form>
   </section>
@@ -743,7 +754,7 @@
     </header>
     <footer class="gw-dialog__footer">
       <button class="gw-btn" type="button" gwDialogClose autofocus>Cancel</button>
-      <button class="gw-btn gw-btn--primary" type="button" (click)="sendToNewHost()">{{ h.fileRequest ? 'Send and browse folders' : h.discoveryKey ? 'Send and load databases' : 'Send and save' }}<span class="gw-sr-only"> {{ name() }}</span></button>
+      <button class="gw-btn gw-btn--primary" type="button" (click)="sendToNewHost()">{{ h.fileRequest ? 'Send and browse folders' : h.projectRequest ? 'Send and load projects' : h.discoveryKey ? 'Send and load databases' : 'Send and save' }}<span class="gw-sr-only"> {{ name() }}</span></button>
     </footer>
   }
 </dialog>

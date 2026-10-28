@@ -81,8 +81,8 @@ export function sectionDescription(x: SectionCtx): Hint {
         return [...lead, t('Longest time range limits the requested event-time period for SSH log files. Their line limit comes from Limits and their authentication and output settings come from SSH. The other settings here apply to log-store connectors.')];
       }
       return has
-        ? [...lead, t('How far back and how much '), c('logs_search'), t(' and '), c('logs_tail'), t(' read; Log lines per call in Limits caps every call.')]
-        : [t('How far back and how much '), c('logs_search'), t(' and '), c('logs_tail'), t(` read on ${x.env}.`)];
+        ? [...lead, t('How far back and how much each connector’s log search and tail tools read; Log lines per call in Limits caps every call.')]
+        : [t(`How far back and how much log search and tail tools read on ${x.env}.`)];
     case 'masking':
       return inheritors(x.policies, x.env).length || (base(x) && x.env === 'dev')
         ? [t('What the gateway replaces with '), chip('‹masked›', 'secret'), t(` in every result, before the agent, Playground or the audit log sees it. Applies to every ${x.env} connection.`)]

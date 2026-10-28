@@ -245,6 +245,11 @@ export class ConnectionsApi {
     return this.api.post('/api/connections/databases', request);
   }
 
+  /** Optional project suggestions using the draft's credentials; no connection is saved. */
+  projects(request: TestDraftRequest): Promise<TestOutcome> {
+    return this.api.post('/api/connections/projects', request);
+  }
+
   /** Read-only remote folder browsing for a draft; no connection is saved. */
   browseFiles(request: TestDraftRequest & { readonly path: string }): Promise<TestOutcome> {
     return this.api.post('/api/connections/browse-files', request);

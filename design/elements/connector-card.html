@@ -269,7 +269,7 @@
   <section class="gw-section" aria-labelledby="s-picker">
     <header class="gw-section__header">
       <h2 class="gw-section__title" id="s-picker">Picker: Add connection, step 1</h2>
-      <p class="gw-section__description">Radio cards grouped by category, as in step 1 of Add connection. One radio group across all categories, so arrow keys move through every type. Built-in types say so with their tool count (the Logs back ends Loki, GCP Cloud Logging, AWS CloudWatch and OpenSearch are built in, not plugins); installed plugins and templates carry their kind and trust badges. A catalog plugin that is not installed yet (ClickHouse) stays visible and focusable but unavailable: <code class="gw-code">aria-disabled</code>, its reason in the description.</p>
+      <p class="gw-section__description">Radio cards grouped by category, as in step 1 of Add connection. One radio group across all categories, so arrow keys move through every type. Built-in types say so with their tool count (Loki, GCP Cloud Logging, AWS CloudWatch and OpenSearch are separate built-in connectors with their own tools); installed plugins and templates carry their kind and trust badges. A catalog plugin that is not installed yet (ClickHouse) stays visible and focusable but unavailable: <code class="gw-code">aria-disabled</code>, its reason in the description.</p>
     </header>
 
     <fieldset class="gw-connector-card__picker">
@@ -307,6 +307,13 @@
             <span class="gw-choice-card__meta" id="pk-rd-m">Built-in · 2 tools</span>
           </label>
           <label class="gw-choice-card gw-connector-card__option">
+            <input class="gw-choice-card__input" type="radio" name="pk-type" value="opensearch" aria-labelledby="pk-os-t" aria-describedby="pk-os-d pk-os-m">
+            <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="database"></i></span>
+            <span class="gw-choice-card__title" id="pk-os-t">OpenSearch</span>
+            <span class="gw-choice-card__description" id="pk-os-d">Search indices with JSON Query DSL. Administration waits for approval.</span>
+            <span class="gw-choice-card__meta" id="pk-os-m">Built-in · 3 tools</span>
+          </label>
+          <label class="gw-choice-card gw-connector-card__option">
             <input class="gw-choice-card__input" type="radio" name="pk-type" value="clickhouse" aria-disabled="true" aria-labelledby="pk-ch-t" aria-describedby="pk-ch-d pk-ch-m">
             <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="database"></i></span>
             <span class="gw-choice-card__title" id="pk-ch-t">ClickHouse <span class="gw-badge gw-badge--outline gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="puzzle"></i>Plugin</span></span>
@@ -337,28 +344,21 @@
             <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="scroll-text"></i></span>
             <span class="gw-choice-card__title" id="pk-gcl-t">GCP Cloud Logging</span>
             <span class="gw-choice-card__description" id="pk-gcl-d">Search logs with service account impersonation.</span>
-            <span class="gw-choice-card__meta" id="pk-gcl-m">Built-in Logs · 2 tools</span>
+            <span class="gw-choice-card__meta" id="pk-gcl-m">Built-in · 2 tools</span>
           </label>
           <label class="gw-choice-card gw-connector-card__option">
             <input class="gw-choice-card__input" type="radio" name="pk-type" value="cloudwatch" aria-labelledby="pk-cw-t" aria-describedby="pk-cw-d pk-cw-m">
             <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="scroll-text"></i></span>
             <span class="gw-choice-card__title" id="pk-cw-t">AWS CloudWatch</span>
             <span class="gw-choice-card__description" id="pk-cw-d">Logs Insights queries with AssumeRole.</span>
-            <span class="gw-choice-card__meta" id="pk-cw-m">Built-in Logs · 2 tools</span>
+            <span class="gw-choice-card__meta" id="pk-cw-m">Built-in · 2 tools</span>
           </label>
           <label class="gw-choice-card gw-connector-card__option">
             <input class="gw-choice-card__input" type="radio" name="pk-type" value="loki" aria-labelledby="pk-loki-t" aria-describedby="pk-loki-d pk-loki-m">
             <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="scroll-text"></i></span>
             <span class="gw-choice-card__title" id="pk-loki-t">Loki</span>
-            <span class="gw-choice-card__description" id="pk-loki-d">LogQL search and label browsing.</span>
-            <span class="gw-choice-card__meta" id="pk-loki-m">Built-in Logs · 2 tools</span>
-          </label>
-          <label class="gw-choice-card gw-connector-card__option">
-            <input class="gw-choice-card__input" type="radio" name="pk-type" value="opensearch" aria-labelledby="pk-os-t" aria-describedby="pk-os-d pk-os-m">
-            <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="scroll-text"></i></span>
-            <span class="gw-choice-card__title" id="pk-os-t">OpenSearch</span>
-            <span class="gw-choice-card__description" id="pk-os-d">Lucene query search over log indices.</span>
-            <span class="gw-choice-card__meta" id="pk-os-m">Built-in Logs · 2 tools</span>
+            <span class="gw-choice-card__description" id="pk-loki-d">Search and tail logs with LogQL.</span>
+            <span class="gw-choice-card__meta" id="pk-loki-m">Built-in · 2 tools</span>
           </label>
         </div>
       </div>

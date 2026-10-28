@@ -198,6 +198,15 @@ class AdminApiIT {
          "secrets":{"/credentials/password":{"source":"local","value":"%s"}}}"""
         .formatted(draft("db.test"), password()));
     assertThat(badPath.path("title").asString()).isEqualTo("Invalid folder");
+
+    JsonNode projects = api.expect(200, HttpMethod.POST, "/api/connections/projects", """
+        {"type":"pgfake","env":"dev","config":%s,
+         "secrets":{"/credentials/password":{"source":"local","value":"%s"}}}"""
+        .formatted(draft("db.test"), password()));
+    assertThat(projects.path("ok").asBoolean()).isTrue();
+    assertThat(projects.at("/details/projects/0/projectId").asString()).isEqualTo("example-prod");
+    assertThat(projects.at("/details/discoveryComplete").asBoolean()).isTrue();
+    assertThat(api.get("/api/connections").json().path("total").asInt()).as("listing projects saves nothing").isZero();
   }
 
   @Test

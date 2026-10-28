@@ -67,6 +67,10 @@ final class Results {
       Page.Stats stats, List<String> notes) {}
 
   static ToolResult search(SearchAnswer a) {
+    return search(a, "logs");
+  }
+
+  static ToolResult search(SearchAnswer a, String connectorType) {
     ObjectNode s = base(a.settings(), a.entries(), a.truncatedReason(), a.nextCursor(), a.gapPossible(), a.stats(),
         a.notes());
     s.put("from", instant(a.fromNs()));
@@ -93,7 +97,8 @@ final class Results {
     if (a.truncatedReason() != null) {
       text.append('\n');
       if (a.nextCursor() != null) {
-        text.append("More entries are older: call logs_search again with the same query and cursor ")
+        text.append("More entries are older: call ").append(LogsTools.searchName(connectorType))
+            .append(" again with the same query and cursor ")
             .append(a.nextCursor());
       } else if (!a.entries().isEmpty()) {
         text.append("More entries match. Narrow the query, or search again with to=")
@@ -113,6 +118,10 @@ final class Results {
   }
 
   static ToolResult tail(TailAnswer a) {
+    return tail(a, "logs");
+  }
+
+  static ToolResult tail(TailAnswer a, String connectorType) {
     ObjectNode s = base(a.settings(), a.entries(), a.truncatedReason(), a.nextCursor(), a.gapPossible(), a.stats(),
         a.notes());
     s.put("waitedMs", a.waitedMs());
@@ -120,7 +129,7 @@ final class Results {
     String where = a.connection() + " (" + a.settings().title() + ")";
     if (a.entries().isEmpty()) {
       text.append("No new entries on ").append(where).append(" in ").append(seconds(a.waitedMs()))
-          .append(". Call logs_tail again with cursor ").append(a.nextCursor());
+          .append(". Call ").append(LogsTools.tailName(connectorType)).append(" again with cursor ").append(a.nextCursor());
     } else {
       int n = a.entries().size();
       text.append(n).append(n == 1 ? " new entry" : " new entries").append(" from ").append(where)
@@ -130,13 +139,15 @@ final class Results {
       }
       text.append('\n');
       if (a.truncatedReason() != null) {
-        text.append("More are waiting: call logs_tail again at once with cursor ").append(a.nextCursor());
+        text.append("More are waiting: call ").append(LogsTools.tailName(connectorType))
+            .append(" again at once with cursor ").append(a.nextCursor());
       } else {
-        text.append("Next: call logs_tail again with cursor ").append(a.nextCursor());
+        text.append("Next: call ").append(LogsTools.tailName(connectorType)).append(" again with cursor ").append(a.nextCursor());
       }
     }
     appendNotes(text, a.notes(), a.gapPossible(), "The cursor was more than an hour old or its boundary too full: "
-        + "entries before " + instant(a.gapBeforeNs()) + " may be missing. Use logs_search for them.");
+        + "entries before " + instant(a.gapBeforeNs()) + " may be missing. Use " + LogsTools.searchName(connectorType)
+        + " for them.");
     return finish(ToolResult.json(s, text.toString()), a.truncatedReason());
   }
 

@@ -4,6 +4,7 @@ import ai.msrv.gaterook.connector.api.Connector;
 import ai.msrv.gaterook.connectors.cloudauth.CloudCredentials;
 import ai.msrv.gaterook.connectors.cloudauth.CloudEndpoints;
 import ai.msrv.gaterook.connectors.logs.LogsConnector;
+import ai.msrv.gaterook.connectors.logs.BackendConnector;
 import java.time.Clock;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -26,6 +27,31 @@ public class LogsConnectorsAutoConfiguration {
   @Bean
   Connector logsConnector(ObjectProvider<CloudCredentials> cloud) {
     return new LogsConnector(cloud.getIfAvailable(() -> new CloudCredentials(CloudEndpoints.PRODUCTION,
+        Clock.systemUTC())));
+  }
+
+  @Bean
+  Connector gcpLoggingConnector(ObjectProvider<CloudCredentials> cloud) {
+    return backend("gcp-logging", cloud);
+  }
+
+  @Bean
+  Connector lokiConnector(ObjectProvider<CloudCredentials> cloud) {
+    return backend("loki", cloud);
+  }
+
+  @Bean
+  Connector cloudWatchLogsConnector(ObjectProvider<CloudCredentials> cloud) {
+    return backend("cloudwatch", cloud);
+  }
+
+  @Bean
+  Connector openSearchConnector(ObjectProvider<CloudCredentials> cloud) {
+    return backend("opensearch", cloud);
+  }
+
+  private static Connector backend(String type, ObjectProvider<CloudCredentials> cloud) {
+    return new BackendConnector(type, cloud.getIfAvailable(() -> new CloudCredentials(CloudEndpoints.PRODUCTION,
         Clock.systemUTC())));
   }
 }

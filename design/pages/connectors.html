@@ -162,7 +162,7 @@
                 <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="package"></i></span>
                 <span class="gw-how-it-works__arrow gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="chevron-right"></i></span>
                 <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">1</span>Built-in</p>
-                <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">SQL, MongoDB, Redis, SSH, logs, Kubernetes, clouds and HTTP ship with the core. Add a connection and go.</p>
+                <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">SQL, MongoDB, Redis, OpenSearch, SSH, log services, Kubernetes, clouds and HTTP ship with the core. Add a connection and go.</p>
               </li>
               <li class="gw-how-it-works__step">
                 <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="file-code"></i></span>
@@ -182,7 +182,7 @@
 
       <div class="gw-tabs">
         <div class="gw-tabs__list" role="tablist" aria-label="Connectors">
-          <button class="gw-tabs__tab" type="button" role="tab" id="tab-installed" aria-selected="true" aria-controls="installed"><i class="gw-icon" data-lucide="package-check"></i> Installed <span class="gw-tabs__count">12<span class="gw-sr-only"> connectors</span></span></button>
+          <button class="gw-tabs__tab" type="button" role="tab" id="tab-installed" aria-selected="true" aria-controls="installed"><i class="gw-icon" data-lucide="package-check"></i> Installed <span class="gw-tabs__count">15<span class="gw-sr-only"> connectors</span></span></button>
           <button class="gw-tabs__tab" type="button" role="tab" id="tab-catalog" aria-selected="false" aria-controls="catalog" tabindex="-1"><i class="gw-icon" data-lucide="library"></i> Catalog <span class="gw-tabs__count">5<span class="gw-sr-only"> connectors</span></span></button>
           <button class="gw-tabs__tab" type="button" role="tab" id="tab-templates" aria-selected="false" aria-controls="templates" tabindex="-1"><i class="gw-icon" data-lucide="file-code"></i> Templates <span class="gw-tabs__count">7<span class="gw-sr-only"> templates</span></span></button>
           <button class="gw-tabs__tab" type="button" role="tab" id="tab-mcp" aria-selected="false" aria-controls="mcp-servers" tabindex="-1"><i class="gw-icon" data-lucide="plug"></i> MCP servers <span class="gw-tabs__count">1<span class="gw-sr-only"> server</span></span></button>
@@ -199,7 +199,7 @@
                   <input class="gw-search__input" type="search" id="installed-search" placeholder="Search installed connectors" aria-label="Search installed connectors" aria-controls="installed-grid" data-filter-list="#installed-grid" data-filter-empty="#installed-empty" data-filter-count="#installed-count" data-filter-noun="installed connectors">
                   <button class="gw-search__clear" type="button" aria-label="Clear search"><i class="gw-icon gw-icon--sm" data-lucide="x"></i></button>
                 </div>
-                <p class="gw-text-small gw-fg-muted gw-tabular" id="installed-count" role="status" data-filter-all="10 built-in, 1 plugin, 1 MCP server">10 built-in, 1 plugin, 1 MCP server</p>
+                <p class="gw-text-small gw-fg-muted gw-tabular" id="installed-count" role="status" data-filter-all="13 built-in, 1 plugin, 1 MCP server">13 built-in, 1 plugin, 1 MCP server</p>
               </div>
             </div>
 
@@ -309,6 +309,32 @@
                 </article>
               </li>
               <li>
+                <article class="gw-card gw-connector-card" aria-labelledby="ci-os-t">
+                  <header class="gw-card__header">
+                    <div class="gw-connector-card__identity">
+                      <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="database"></i></span>
+                      <div class="gw-card__heading">
+                        <h3 class="gw-card__title" id="ci-os-t">OpenSearch</h3>
+                        <p class="gw-connector-card__meta">
+                          <span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="package"></i>Built-in</span>
+                          <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v0.4.0</span></span>
+                        </p>
+                      </div>
+                    </div>
+                  </header>
+                  <div class="gw-card__body gw-connector-card__body">
+                    <div class="gw-stack gw-stack--sm">
+                      <p class="gw-text-small gw-fg-secondary">Search indices with JSON Query DSL. Administration waits for approval.</p>
+                      <p class="gw-text-caption gw-fg-muted">No connections yet</p>
+                    </div>
+                  </div>
+                  <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+                    <span class="gw-connector-card__tools gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="wrench"></i>3 tools</span>
+                    <a class="gw-btn gw-btn--sm" href="connection-new.html?type=opensearch">Add connection<span class="gw-sr-only"> for OpenSearch</span></a>
+                  </footer>
+                </article>
+              </li>
+              <li>
                 <article class="gw-card gw-connector-card" aria-labelledby="ci-ssh-t">
                   <header class="gw-card__header">
                     <div class="gw-connector-card__identity">
@@ -335,12 +361,12 @@
                 </article>
               </li>
               <li>
-                <article class="gw-card gw-connector-card" aria-labelledby="ci-logs-t">
+                <article class="gw-card gw-connector-card" aria-labelledby="ci-gcl-t">
                   <header class="gw-card__header">
                     <div class="gw-connector-card__identity">
                       <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="scroll-text"></i></span>
                       <div class="gw-card__heading">
-                        <h3 class="gw-card__title" id="ci-logs-t">Logs</h3>
+                        <h3 class="gw-card__title" id="ci-gcl-t">GCP Cloud Logging</h3>
                         <p class="gw-connector-card__meta">
                           <span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="package"></i>Built-in</span>
                           <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v0.4.0</span></span>
@@ -350,13 +376,65 @@
                   </header>
                   <div class="gw-card__body gw-connector-card__body">
                     <div class="gw-stack gw-stack--sm">
-                      <p class="gw-text-small gw-fg-secondary">Loki, GCP Cloud Logging, AWS CloudWatch and OpenSearch, searched with the same tools.</p>
-                      <p class="gw-text-caption gw-fg-muted"><a class="gw-link" href="connections.html?type=logs">2 connections<span class="gw-sr-only"> use Logs</span></a> · <a class="gw-link" href="activity.html?q=connection:app-logs%20connection:prod-logs">View activity<span class="gw-sr-only"> for Logs</span></a></p>
+                      <p class="gw-text-small gw-fg-secondary">Search and tail Google Cloud logs with native Logs Explorer filters.</p>
+                      <p class="gw-text-caption gw-fg-muted"><a class="gw-link" href="connections.html?type=gcp-logging">1 connection<span class="gw-sr-only"> uses GCP Cloud Logging</span></a> · <a class="gw-link" href="activity.html?q=connection:prod-logs">View activity<span class="gw-sr-only"> for GCP Cloud Logging</span></a></p>
                     </div>
                   </div>
                   <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
                     <span class="gw-connector-card__tools gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="wrench"></i>2 tools</span>
-                    <a class="gw-btn gw-btn--sm" href="connection-new.html?type=logs">Add connection<span class="gw-sr-only"> for Logs</span></a>
+                    <a class="gw-btn gw-btn--sm" href="connection-new.html?type=gcp-logging">Add connection<span class="gw-sr-only"> for GCP Cloud Logging</span></a>
+                  </footer>
+                </article>
+              </li>
+              <li>
+                <article class="gw-card gw-connector-card" aria-labelledby="ci-cw-t">
+                  <header class="gw-card__header">
+                    <div class="gw-connector-card__identity">
+                      <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="scroll-text"></i></span>
+                      <div class="gw-card__heading">
+                        <h3 class="gw-card__title" id="ci-cw-t">AWS CloudWatch</h3>
+                        <p class="gw-connector-card__meta">
+                          <span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="package"></i>Built-in</span>
+                          <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v0.4.0</span></span>
+                        </p>
+                      </div>
+                    </div>
+                  </header>
+                  <div class="gw-card__body gw-connector-card__body">
+                    <div class="gw-stack gw-stack--sm">
+                      <p class="gw-text-small gw-fg-secondary">Search log groups with Logs Insights and tail with filter patterns.</p>
+                      <p class="gw-text-caption gw-fg-muted">No connections yet</p>
+                    </div>
+                  </div>
+                  <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+                    <span class="gw-connector-card__tools gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="wrench"></i>2 tools</span>
+                    <a class="gw-btn gw-btn--sm" href="connection-new.html?type=cloudwatch">Add connection<span class="gw-sr-only"> for AWS CloudWatch</span></a>
+                  </footer>
+                </article>
+              </li>
+              <li>
+                <article class="gw-card gw-connector-card" aria-labelledby="ci-loki-t">
+                  <header class="gw-card__header">
+                    <div class="gw-connector-card__identity">
+                      <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="scroll-text"></i></span>
+                      <div class="gw-card__heading">
+                        <h3 class="gw-card__title" id="ci-loki-t">Loki</h3>
+                        <p class="gw-connector-card__meta">
+                          <span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="package"></i>Built-in</span>
+                          <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v0.4.0</span></span>
+                        </p>
+                      </div>
+                    </div>
+                  </header>
+                  <div class="gw-card__body gw-connector-card__body">
+                    <div class="gw-stack gw-stack--sm">
+                      <p class="gw-text-small gw-fg-secondary">Search and tail logs with LogQL.</p>
+                      <p class="gw-text-caption gw-fg-muted"><a class="gw-link" href="connections.html?type=loki">1 connection<span class="gw-sr-only"> uses Loki</span></a> · <a class="gw-link" href="activity.html?q=connection:app-logs">View activity<span class="gw-sr-only"> for Loki</span></a></p>
+                    </div>
+                  </div>
+                  <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+                    <span class="gw-connector-card__tools gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="wrench"></i>2 tools</span>
+                    <a class="gw-btn gw-btn--sm" href="connection-new.html?type=loki">Add connection<span class="gw-sr-only"> for Loki</span></a>
                   </footer>
                 </article>
               </li>

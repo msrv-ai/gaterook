@@ -41,6 +41,12 @@ final class CloudLogs implements AutoCloseable {
     return logs.manifest().tools().stream().filter(t -> isTool(t.name())).toList();
   }
 
+  List<ToolDefinition> previewTools(ConnectionConfig cfg) {
+    ConnectionConfig preview = new ConnectionConfig(cfg.id(), cfg.name(), cfg.type(), cfg.env(), cfg.version(),
+        JsonNodeFactory.instance.objectNode().put("backend", "gcp-logging"), cfg.secretFields(), cfg.metadata());
+    return logs.previewTools(preview);
+  }
+
   Classification classify(ToolCall call, ConnectionConfig cfg, Settings settings, GcpPolicy policy,
       PolicyView view) {
     try {

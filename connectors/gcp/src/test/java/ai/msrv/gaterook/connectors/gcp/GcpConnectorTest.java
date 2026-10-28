@@ -79,6 +79,20 @@ class GcpConnectorTest {
   }
 
   @Test
+  void draftPreviewKeepsLegacyNamesWithGoogleOnlyGuidance() {
+    List<ToolDefinition> preview = connector.previewTools(Configs.of("draft", Env.DEV, "{}"));
+
+    assertThat(preview).extracting(ToolDefinition::name)
+        .containsExactly("gcp_describe", "gcp_metrics", "logs_search", "logs_tail");
+    assertThat(preview).allSatisfy(tool -> assertThat(tool.description())
+        .doesNotContain("OpenSearch", "Loki", "CloudWatch"));
+    assertThat(preview.stream().filter(tool -> CloudLogs.isTool(tool.name())))
+        .allSatisfy(tool -> assertThat(tool.description()).contains("Google Cloud Logging"));
+    assertThat(preview.get(2).inputSchema().at("/properties/query/description").asString())
+        .contains("Google Cloud Logging").doesNotContain("OpenSearch", "Loki", "CloudWatch");
+  }
+
+  @Test
   void anEndpointsToolsNameItsScopesAndProjects() {
     ConnectionConfig other = Configs.of("gcp-dev", Env.DEV, """
         {"scopes":["projects/acme-dev"],"credentials":{"source":"adc"},"liveGet":false}""");

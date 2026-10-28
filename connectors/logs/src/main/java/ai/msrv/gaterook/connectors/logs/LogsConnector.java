@@ -97,6 +97,12 @@ public final class LogsConnector implements Connector {
   }
 
   @Override
+  public List<ToolDefinition> previewTools(ConnectionConfig cfg) {
+    return LogsTools.forBackend(manifest.tools(), cfg.config().path("backend").asString(""), true).stream()
+        .filter(tool -> supportsTool(tool.name(), cfg)).toList();
+  }
+
+  @Override
   public boolean supportsTool(String tool, ConnectionConfig cfg) {
     if (!tool.startsWith("opensearch_")) {
       return true;
@@ -140,6 +146,10 @@ public final class LogsConnector implements Connector {
 
   @Override
   public ActionPreview describeAction(ToolCall call, ConnectionConfig cfg) {
+    return describeAction(call, cfg, call.tool());
+  }
+
+  ActionPreview describeAction(ToolCall call, ConnectionConfig cfg, String displayTool) {
     try {
       Settings s = Settings.parse(cfg);
       if (OpenSearchRequest.isTool(call.tool())) {
@@ -148,7 +158,7 @@ public final class LogsConnector implements Connector {
       }
       LogsRequest r = LogsRequest.of(call, s, cfg.env(), null, LogsRequest.PolicyLimits.defaults(cfg.env()),
           clock.instant().truncatedTo(ChronoUnit.SECONDS));
-      return Actions.preview(r, s, cfg);
+      return Actions.preview(r, s, cfg, displayTool);
     } catch (Settings.InvalidSettingsException | LogsRequest.Refusal | ConnectorException e) {
       // classify() denies such a call before any request exists; this preview only ever shows what was asked.
       return ActionPreview.of(ActionPreview.Kind.JSON, "json", call.arguments().toString(), cfg.name(),
@@ -165,6 +175,14 @@ public final class LogsConnector implements Connector {
       return TestResult.failure("logs.config", e.getMessage(), null);
     }
     return backend(s, cfg, secrets, ctx).test();
+  }
+
+  @Override
+  public TestResult discoverProjects(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
+    if (!"gcp-logging".equals(cfg.config().path("backend").asString())) {
+      return TestResult.failure("discovery-unavailable", "Project discovery requires Google Cloud Logging.", null);
+    }
+    return GcpProjects.discover(new Backend.Call(cfg, secrets, ctx, clients, cloud, ctx.limits().maxCellChars()));
   }
 
   @Override

@@ -12,7 +12,7 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 4096,
-      "description": "Index expression to resolve. In log-only mode, choose exactly one configured index pattern or omit to use all configured patterns. In full API mode, omit to resolve all indices visible to the server user."
+      "description": "Index expression to resolve. Omit to resolve all targets allowed by the connection. Connections with restricted targets require one exact configured expression. Server permissions control visibility."
     },
     "expandWildcards": {
       "enum": [

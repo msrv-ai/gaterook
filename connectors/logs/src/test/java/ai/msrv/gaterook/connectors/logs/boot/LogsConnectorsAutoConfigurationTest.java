@@ -20,12 +20,12 @@ class LogsConnectorsAutoConfigurationTest {
   }
 
   @Test
-  void registersTheConnector() {
+  void registersEachServiceAndTheLegacyConnector() {
     new ApplicationContextRunner()
         .withConfiguration(AutoConfigurations.of(LogsConnectorsAutoConfiguration.class))
         .run(ctx -> assertThat(ctx.getBeansOfType(Connector.class).values())
             .extracting(c -> c.manifest().id())
-            .containsExactly("logs"));
+            .containsExactly("logs", "gcp-logging", "loki", "cloudwatch", "opensearch"));
   }
 
   @Test

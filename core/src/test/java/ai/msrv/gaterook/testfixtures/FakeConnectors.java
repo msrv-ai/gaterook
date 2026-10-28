@@ -240,7 +240,9 @@ public class FakeConnectors {
 
   static JsonNode config() {
     return read("""
-        {"type":"object","additionalProperties":false,"required":["connection","credentials"],"properties":{
+        {"type":"object","additionalProperties":false,"required":["connection","credentials"],
+         "x-project-selection":{"path":"/resourceNames"},"properties":{
+         "resourceNames":{"type":"array","items":{"type":"string"}},
          "connection":{"type":"object","additionalProperties":false,"required":["host"],"properties":{
            "host":{"type":"string","minLength":1},"port":{"type":"integer","minimum":1},
            "hostKey":{"type":"string"},"note":{"type":"string","x-agent-visible":true}}},
@@ -399,6 +401,17 @@ public class FakeConnectors {
       if (!result.ok()) return result;
       ObjectNode details = JsonNodeFactory.instance.objectNode();
       details.putArray("databases").add("orders").add("analytics");
+      details.put("discoveryComplete", true);
+      return result.withDetails(details);
+    }
+
+    @Override
+    public TestResult discoverProjects(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
+      TestResult result = test(cfg, secrets, ctx);
+      if (!result.ok()) return result;
+      ObjectNode details = JsonNodeFactory.instance.objectNode();
+      details.putArray("projects").addObject().put("projectId", "example-prod")
+          .put("displayName", "Example production");
       details.put("discoveryComplete", true);
       return result.withDetails(details);
     }

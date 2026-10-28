@@ -1,6 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
+  "x-legacy": true,
+  "x-project-selection": {
+    "path": "/resourceNames"
+  },
   "required": [
     "backend"
   ],
@@ -211,22 +215,6 @@
         "backend": {
           "const": "gcp-logging"
         },
-        "resourceNames": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 100,
-          "uniqueItems": true,
-          "examples": [
-            [
-              "projects/acme-prod"
-            ]
-          ],
-          "items": {
-            "type": "string",
-            "pattern": "^(projects|folders|organizations|billingAccounts)/[A-Za-z0-9._:-]+(/locations/[a-z0-9-]+/buckets/[A-Za-z0-9_-]+/views/[A-Za-z0-9_-]+)?$"
-          },
-          "description": "Projects or log views. A log view is the tightest scope."
-        },
         "credentials": {
           "type": "object",
           "title": "Credentials",
@@ -295,6 +283,27 @@
               }
             }
           ]
+        },
+        "resourceNames": {
+          "type": "array",
+          "title": "Project or log view scope",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "examples": [
+            [
+              "projects/acme-prod"
+            ]
+          ],
+          "items": {
+            "type": "string",
+            "title": "Resource scope",
+            "examples": [
+              "projects/example-prod"
+            ],
+            "pattern": "^(projects|folders|organizations|billingAccounts)/[A-Za-z0-9._:-]+(/locations/[a-z0-9-]+/buckets/[A-Za-z0-9_-]+/views/[A-Za-z0-9_-]+)?$"
+          },
+          "description": "Use projects/<project-id>, for example projects/example-prod, or a full log view resource name. A log view is the tightest scope."
         },
         "scopeFilter": {
           "type": "string",

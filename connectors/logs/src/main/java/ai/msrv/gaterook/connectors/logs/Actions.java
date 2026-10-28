@@ -17,8 +17,12 @@ final class Actions {
   private Actions() {}
 
   static ActionPreview preview(LogsRequest r, Settings s, ConnectionConfig cfg) {
+    return preview(r, s, cfg, r.tool().id);
+  }
+
+  static ActionPreview preview(LogsRequest r, Settings s, ConnectionConfig cfg, String toolName) {
     List<String> lines = new ArrayList<>();
-    lines.add(r.tool().id + " · " + cfg.name() + " (" + s.title() + " · " + s.target() + " · " + cfg.env().id() + ")");
+    lines.add(toolName + " · " + cfg.name() + " (" + s.title() + " · " + s.target() + " · " + cfg.env().id() + ")");
     long from = Search.nanos(r.from());
     switch (s) {
       case Settings.Loki l -> lines.add("query: " + r.query());
@@ -65,7 +69,7 @@ final class Actions {
     }
     String text = String.join("\n", lines);
     String query = r.query().isBlank() ? "every entry" : r.query();
-    String summary = r.tool().id + " on " + cfg.name() + ": " + query;
+    String summary = toolName + " on " + cfg.name() + ": " + query;
     if (summary.length() > 120) {
       summary = summary.substring(0, 119) + "…";
     }

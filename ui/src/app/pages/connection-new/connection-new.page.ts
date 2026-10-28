@@ -20,7 +20,7 @@ import { GwCodeBlock } from '../../code/code-block';
 import { ApiError, isApiError } from '../../core/api/api-error';
 import { ApprovalItem, ApprovalsApi } from '../../core/api/approvals.api';
 import { ConnectionDetail, ConnectionHealth, ConnectionsApi, StoredSecret, TestOutcome } from '../../core/api/connections.api';
-import { ConnectionFormSpec, ConnectorCatalog, ConnectorTypeDetail, ConnectorTypesApi } from '../../core/api/connector-types.api';
+import { ConnectionFormSpec, ConnectorCatalog, ConnectorTool, ConnectorTypeDetail, ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { EndpointSummary, EndpointsApi, ToolGroup } from '../../core/api/endpoints.api';
 import { Policies, PoliciesApi } from '../../core/api/policies.api';
 import { MasterKeyApi, SecretRow, SecretsApi } from '../../core/api/secrets.api';
@@ -35,6 +35,7 @@ import { GwDialog, GwDialogClose } from '../../kit/dialog';
 import { GwToggle } from '../../kit/disclosure';
 import { ConnectionFormValue, DatabaseDiscoveryRequest, GwConnectionForm, ProdDefault, signInTarget } from '../../kit/elements/connection-form/connection-form';
 import { FileBrowseRequest, FileBrowseTrust } from '../../kit/elements/connection-form/remote-files';
+import { ProjectDiscoveryRequest } from '../../kit/elements/connection-form/cloud-projects';
 import { databaseSelection, removeConfigPath } from '../../kit/elements/connection-form/database-selection';
 import { GwConnectionTest, TestState, testConfirmTitle, testFacts, usesGoogleAdc } from '../../kit/elements/connection-form/connection-test';
 import { GwConnectorPicker } from '../../kit/elements/connector-card/connector-card';
@@ -262,12 +263,27 @@ export class ConnectionNewPage {
   readonly chosen = signal<readonly string[]>([]);
   private chosenTouched = false;
   protected readonly saving = signal(false);
+  private toolRun = 0;
+  private readonly toolScope = computed(() => {
+    const spec = this.spec();
+    const value = this.draft() ?? this.form()?.value();
+    if (!spec || !value) return null;
+    return { type: spec.type, config: value.config, env: value.env,
+      key: JSON.stringify([spec.type, value.env, value.config]) };
+  });
+  private readonly toolResult = signal<{ readonly key: string; readonly state: LoadState; readonly tools: ConnectorTool[]; readonly error: string | null } | null>(null);
+  protected readonly toolPreviewState = computed(() => {
+    const result = this.toolResult();
+    return result && result.key === this.toolScope()?.key ? result.state : 'idle';
+  });
+  protected readonly toolPreviewError = computed(() => this.toolPreviewState() === 'error' ? this.toolResult()?.error : null);
+  private readonly configuredTools = computed(() => this.toolPreviewState() === 'ready' ? this.toolResult()!.tools : []);
   protected readonly choices = computed<EndpointChoice[]>(() =>
     endpointChoices(this.endpoints() ?? [], this.current()),
   );
   protected readonly previews = computed(() => {
     const card = this.card();
-    const tools = this.typeDetail()?.tools ?? [];
+    const tools = this.configuredTools();
     const kind = card?.kind ?? this.typeDetail()?.type.kind ?? 'built-in';
     const dynamic = card ? card.tools === null : false;
     const chosen = this.chosen();
@@ -277,7 +293,7 @@ export class ConnectionNewPage {
   });
   /** The type's tools that change data; their initial modes are shown before saving. */
   protected readonly mutatingTools = computed(() =>
-    (this.typeDetail()?.tools ?? []).filter((t) => (t.nature ?? '').toLowerCase() !== 'read').map((t) => t.name),
+    this.configuredTools().filter((t) => (t.nature ?? '').toLowerCase() !== 'read').map((t) => t.name),
   );
   /** "The password is encrypted with your master key on save" (what Save does with the secrets typed). */
   protected readonly saveNote = computed(() => {
@@ -348,7 +364,7 @@ export class ConnectionNewPage {
   protected readonly firstPreview = computed(() => {
     const card = this.card();
     const kind = card?.kind ?? this.typeDetail()?.type.kind ?? 'built-in';
-    return firstRunPreview(this.typeDetail()?.tools ?? [], kind, card ? card.tools === null : false, this.current().env, this.firstEndpointSlug());
+    return firstRunPreview(this.configuredTools(), kind, card ? card.tools === null : false, this.current().env, this.firstEndpointSlug());
   });
   /** "sql_execute" in "Anything that changes data, like sql_execute, waits for your approval." */
   protected readonly firstMutating = computed(() => this.mutatingTools()[0] ?? null);
@@ -419,7 +435,7 @@ export class ConnectionNewPage {
   protected readonly confirmTitle = computed(() => testConfirmTitle(this.editConfirm(), this.host()));
   protected readonly confirmFacts = computed(() => testFacts(this.editConfirm()?.needsConfirmation?.data));
   /** The core asked before sending the stored secret to a new host (409 `send-secret-to-new-host`). */
-  protected readonly newHost = signal<{ readonly title: string; readonly detail: string; readonly value: ConnectionFormValue; readonly discoveryKey?: string; readonly fileRequest?: FileBrowseRequest } | null>(null);
+  protected readonly newHost = signal<{ readonly title: string; readonly detail: string; readonly value: ConnectionFormValue; readonly discoveryKey?: string; readonly fileRequest?: FileBrowseRequest; readonly projectRequest?: ProjectDiscoveryRequest } | null>(null);
   /** A prod save the core stopped for the rights of the connection's user (409 `confirm: danger`). */
   protected readonly dangerDialog = viewChild<GwDialog>('dangerDialog');
   protected readonly danger = signal<{ readonly title: string; readonly detail: string; readonly retry: () => void } | null>(null);
@@ -432,6 +448,11 @@ export class ConnectionNewPage {
 
   constructor() {
     const destroy = inject(DestroyRef);
+    destroy.onDestroy(() => ++this.toolRun);
+    effect(() => {
+      if (this.mode() === 'edit' || this.step() < 3 || !this.toolScope()) return;
+      untracked(() => void this.loadToolPreview());
+    });
     // One start per mode and subject: the same component serves ?type=, ?duplicate= and the edit view.
     effect(() => {
       const mode = this.mode();
@@ -459,8 +480,27 @@ export class ConnectionNewPage {
 
   // ─── Start ───
 
+  protected async loadToolPreview(retry = false): Promise<void> {
+    const scope = this.toolScope();
+    if (!scope || (!retry && this.toolResult()?.key === scope.key)) return;
+    const run = ++this.toolRun;
+    const gen = this.gen;
+    this.toolResult.set({ key: scope.key, state: 'loading', tools: [], error: null });
+    try {
+      const result = await this.typesApi.previewTools(scope.type, scope.config, scope.env);
+      if (run !== this.toolRun || gen !== this.gen || scope.key !== this.toolScope()?.key) return;
+      this.toolResult.set({ key: scope.key, state: 'ready', tools: result.tools, error: null });
+    } catch (error) {
+      if (run !== this.toolRun || gen !== this.gen || scope.key !== this.toolScope()?.key) return;
+      this.toolResult.set({ key: scope.key, state: 'error', tools: [],
+        error: isApiError(error) ? error.detail : "The core didn't return this connection's tools. Try again." });
+    }
+  }
+
   private async start(mode: Mode): Promise<void> {
     const gen = ++this.gen;
+    ++this.toolRun;
+    this.toolResult.set(null);
     ++this.databaseRun;
     this.step.set(mode === 'duplicate' ? 2 : 1);
     this.outcome.set(null);
@@ -748,6 +788,29 @@ export class ConnectionNewPage {
     }
   }
 
+  async loadProjects(request: ProjectDiscoveryRequest, confirm: string | null = null): Promise<void> {
+    const form = this.form();
+    const picker = form?.projects();
+    const spec = this.spec();
+    if (!form || !picker || !spec || !picker.start(request)) return;
+    this.formProblem.set(null);
+    const gen = this.gen;
+    try {
+      const result = await this.connections.projects({ type: spec.type, env: request.value.env,
+        config: request.value.config, secrets: request.value.secrets,
+        ...(this.mode() === 'edit' ? { existing: this.name() } : {}), ...(confirm ? { confirm } : {}) });
+      if (gen === this.gen && form === this.form() && picker === form.projects()) picker.complete(request, result);
+    } catch (e) {
+      if (gen !== this.gen || form !== this.form() || picker !== form.projects()) return;
+      const error = isApiError(e) ? e : null;
+      if (!picker.complete(request, null, error?.detail ?? "The core didn't answer. Try again.")) return;
+      if (error?.confirm === 'send-secret-to-new-host') {
+        this.newHost.set({ title: error.title, detail: error.detail, value: request.value, projectRequest: request });
+        this.hostDialog()?.openAfterRender();
+      } else if (error?.kind === 'unprocessable') this.applyFormErrors(error, true, request.value.name);
+    }
+  }
+
   /** Browsing uses the same draft credential and host-consent boundary as testing. */
   async browseFiles(request: FileBrowseRequest, confirm: string | null = null): Promise<void> {
     const form = this.form();
@@ -925,7 +988,8 @@ export class ConnectionNewPage {
     event?.preventDefault();
     const form = this.form();
     const spec = this.spec();
-    if (this.saving() || this.endpointsState() === 'loading' || this.endpointsState() === 'idle' || !form || !spec) return;
+    if (this.saving() || this.endpointsState() === 'loading' || this.endpointsState() === 'idle'
+      || this.toolPreviewState() !== 'ready' || !form || !spec) return;
     if (!form.databaseSelectionValid()) {
       this.go(2);
       return;
@@ -1154,6 +1218,7 @@ export class ConnectionNewPage {
     const pending = this.newHost();
     this.hostDialog()?.close('send');
     if (pending?.fileRequest) void this.browseFiles(pending.fileRequest, 'send-secret-to-new-host');
+    else if (pending?.projectRequest) void this.loadProjects(pending.projectRequest, 'send-secret-to-new-host');
     else if (pending?.discoveryKey) void this.loadDatabases({ key: pending.discoveryKey, value: pending.value }, 'send-secret-to-new-host');
     else if (pending) void this.saveEdit(pending.value, 'send-secret-to-new-host');
   }
