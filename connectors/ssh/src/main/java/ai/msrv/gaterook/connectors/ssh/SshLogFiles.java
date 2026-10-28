@@ -144,7 +144,7 @@ final class SshLogFiles {
     }
   }
 
-  static ToolResult list(SftpClient sftp, SshLogSettings settings, ExecContext ctx)
+  static ToolResult list(SftpClient sftp, SshLogSettings settings, SshLogFileQuery query, ExecContext ctx)
       throws IOException, ConnectorException {
     ObjectNode result = JsonNodeFactory.instance.objectNode().put("root", settings.root());
     ArrayNode files = result.putArray("files");
@@ -155,6 +155,7 @@ final class SshLogFiles {
       throw ConnectorException.badInput("The response limit is too small to list this log folder.");
     }
     for (String file : settings.allowedFiles()) {
+      if (!query.matches(file)) continue;
       if (files.size() == max || bytes + file.length() * 6L + 80 > byteLimit) {
         result.put("truncated", true);
         return ToolResult.json(result, null).truncated(files.size() == max ? "row_limit" : "size_limit");
