@@ -3,7 +3,7 @@
   <p>The one window frame of the app: titlebar across the top, sidebar on the left, main on the right. The window never scrolls as a whole; the sidebar body and main scroll on their own. Every page copies the shell verbatim from <code class="gw-code">pages/_shell.html</code> and changes only the title, <code class="gw-code">aria-current</code> and the page content. Do not build a second navigation, a page-level sidebar or a custom header: sub-navigation inside a page is <code class="gw-code">gw-tabs</code>, settings groups are the <code class="gw-code">settings-layout</code> element.</p>
 
   <h3>Expanded and collapsed</h3>
-  <p class="sc-lead">Left: the default 240px sidebar. Right: <code class="gw-code">.gw-shell[data-collapsed]</code>, set by the panel button (<code class="gw-code">data-gw-sidebar-toggle</code>; kit.js keeps <code class="gw-code">aria-expanded</code> in sync and remembers the choice across pages) and applied automatically below 960px. Collapsed, labels stay in the accessibility tree, groups are split by hairlines, the Approvals counter becomes an amber dot on the icon, and hovering or tabbing to an icon shows its label beside it. Markup: copy <code class="gw-code">pages/_shell.html</code>.</p>
+  <p class="sc-lead">Left: the default 240px sidebar. Right: <code class="gw-code">.gw-shell[data-collapsed]</code>, set by the panel button (<code class="gw-code">data-gw-sidebar-toggle</code>; kit.js keeps <code class="gw-code">aria-expanded</code> in sync and remembers the choice across pages) and applied automatically below 960px. The footer examples show an available update and a download in progress. Collapsed, labels stay in the accessibility tree, groups are split by hairlines, the Approvals counter becomes an amber dot on the icon, and hovering or tabbing to an icon shows its label beside it. Markup: copy <code class="gw-code">pages/_shell.html</code>.</p>
   <div class="sc-demo sc-demo--canvas sc-demo--col">
     <div class="gw-grid gw-grid--2">
       <div class="gw-card gw-card--flush" style="height: 520px; overflow: hidden">
@@ -92,6 +92,8 @@
               <span class="gw-sidebar__meta">127.0.0.1:7465</span>
               <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off</span></span>
               <span class="gw-sidebar__meta">v0.4.0</span>
+              <button class="gw-btn gw-btn--primary gw-btn--sm gw-btn--block gw-sidebar__update" type="button" aria-describedby="sc-update-available" title="Download GateRook 0.4.1 and restart the app"><i class="gw-icon gw-icon--sm" data-lucide="download"></i><span class="gw-sidebar__update-label">Update and restart</span></button>
+              <p class="gw-sidebar__update-message gw-sr-only" id="sc-update-available">Download GateRook 0.4.1 and restart the app.</p>
             </div>
           </div>
           <div class="gw-shell__main">
@@ -230,6 +232,8 @@
               <span class="gw-sidebar__meta">127.0.0.1:7465</span>
               <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off</span></span>
               <span class="gw-sidebar__meta">v0.4.0</span>
+              <button class="gw-btn gw-btn--primary gw-btn--sm gw-btn--block gw-sidebar__update" type="button" aria-disabled="true" aria-busy="true" aria-describedby="sc-update-downloading" title="Downloading GateRook 0.4.1"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span><span class="gw-sidebar__update-label">Downloading 42%</span></button>
+              <p class="gw-sidebar__update-message gw-sr-only" id="sc-update-downloading" role="status">Downloading GateRook 0.4.1. The app will restart when the update is ready.</p>
             </div>
           </div>
           <div class="gw-shell__main">
@@ -440,6 +444,8 @@
         <span class="gw-sidebar__meta">127.0.0.1:7465</span>
         <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off</span></span>
         <span class="gw-sidebar__meta">v0.4.0</span>
+              <button class="gw-btn gw-btn--primary gw-btn--sm gw-btn--block gw-sidebar__update" type="button" aria-describedby="sc-update-error" title="Retry downloading GateRook 0.4.1 and restart the app"><i class="gw-icon gw-icon--sm" data-lucide="refresh-cw"></i><span class="gw-sidebar__update-label">Retry update</span></button>
+        <p class="gw-sidebar__update-message gw-text-caption gw-fg-danger" id="sc-update-error" role="status">The download failed. Check your connection and try again.</p>
       </div>
     </div>
   </div>

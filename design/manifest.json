@@ -216,19 +216,23 @@
     {
       "name": "gw-sidebar",
       "scss": "scss/components/_shell.scss",
-      "purpose": "Navigation column (bg.sidebar, end border): logo and collapse toggle, the scrolling nav, and a footer that always shows the local core and the tunnel (gw-status, static) plus compact mono metadata: the address below the core status and the version on its own final line, with bottom padding. Metadata uses the 11px font token and wraps long values instead of truncating them.",
+      "purpose": "Navigation column (bg.sidebar, end border): logo and collapse toggle, the scrolling nav, and a footer that always shows the local core and the tunnel (gw-status, static) plus compact mono metadata: the address below the core status and the version on its own final line, with bottom padding. Metadata uses the 11px font token and wraps long values instead of truncating them. When an update is available, an optional gw-btn below the version downloads it and restarts the app only after activation.",
       "variants": [],
       "subparts": [
         "__header",
         "__toggle",
         "__body",
         "__footer",
-        "__meta"
+        "__meta",
+        "__update",
+        "__update-label",
+        "__update-message"
       ],
       "states": [
-        "collapsed (.gw-shell[data-collapsed] or below md): the header stacks; the logo name, footer status labels and __meta become sr-only; status dots stay; __toggle is hidden below md"
+        "collapsed (.gw-shell[data-collapsed] or below md): the header stacks; the logo name, footer status labels and __meta become sr-only; status dots stay; __toggle is hidden below md",
+        "Update available: primary small block button; downloading/installing: aria-disabled and aria-busy with spinner and retained label; failed: Retry update with a linked error. Collapsed: the update icon stays visible and its label and message remain accessible."
       ],
-      "a11y": "A plain <div>, not <aside>, because primary navigation is not complementary. The toggle is a button with data-gw-sidebar-toggle, aria-controls pointing at the sidebar id and aria-expanded kept in sync by kit.js. While expanded, the footer uses gw-status with words, never a dot alone. It is never gw-status--live: an endless pulse on every screen fails WCAG 2.2.2."
+      "a11y": "A plain <div>, not <aside>, because primary navigation is not complementary. The toggle is a button with data-gw-sidebar-toggle, aria-controls pointing at the sidebar id and aria-expanded kept in sync by kit.js. While expanded, the footer uses gw-status with words, never a dot alone. It is never gw-status--live: an endless pulse on every screen fails WCAG 2.2.2. The update button keeps its text as an accessible name when collapsed, with aria-describedby linking its polite status or error."
     },
     {
       "name": "gw-nav",

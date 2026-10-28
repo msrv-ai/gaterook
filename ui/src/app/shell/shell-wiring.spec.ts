@@ -65,6 +65,7 @@ describe('the shell routes what comes from outside and follows core restarts', (
       return () => (deepLink = null);
     },
     onCoreState: () => () => undefined,
+    onUpdateState: () => () => undefined,
     onEvent: () => null,
     setNativeTheme: () => undefined,
   };

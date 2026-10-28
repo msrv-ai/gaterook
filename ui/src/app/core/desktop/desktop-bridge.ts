@@ -73,8 +73,9 @@ export type DesktopCoreState =
     };
 
 export type UpdateState =
-  | { readonly state: 'checking' | 'available' | 'downloaded' | 'up-to-date'; readonly version?: string; readonly lastCheckedAt?: string }
-  | { readonly state: 'error'; readonly message: string; readonly lastCheckedAt?: string };
+  | { readonly state: 'checking' | 'available' | 'downloaded' | 'installing' | 'up-to-date'; readonly version?: string; readonly lastCheckedAt?: string }
+  | { readonly state: 'downloading'; readonly version?: string; readonly percent?: number; readonly lastCheckedAt?: string }
+  | { readonly state: 'error'; readonly message: string; readonly version?: string; readonly lastCheckedAt?: string };
 
 /** The listeners `usePort` may move: the local API's, the tunnel's public one, or both. */
 export interface DesktopPorts {
@@ -115,6 +116,8 @@ export interface GwDesktop {
   /** Quits the app (the status screen's Quit). */
   quit(): void;
   checkForUpdates(): Promise<void>;
+  /** Downloads the available update, then installs it and restarts GateRook. */
+  installUpdate(): Promise<void>;
   onUpdateState(cb: (state: UpdateState) => void): () => void;
 }
 
@@ -234,6 +237,11 @@ export class DesktopBridge {
 
   async checkForUpdates(): Promise<void> {
     await this.desktop?.checkForUpdates();
+  }
+
+  async installUpdate(): Promise<void> {
+    if (typeof this.desktop?.installUpdate !== 'function') throw new Error('Installing updates requires a supported desktop app.');
+    await this.desktop.installUpdate();
   }
 
   onUpdateState(cb: (state: UpdateState) => void): () => void {

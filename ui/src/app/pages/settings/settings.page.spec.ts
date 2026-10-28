@@ -13,7 +13,7 @@ import { OverviewApi } from '../../core/api/overview.api';
 import { MasterKeyApi, SecretsApi } from '../../core/api/secrets.api';
 import { AuditExportApi, AuditExportDestination, SettingsApi, SettingsSection } from '../../core/api/settings.api';
 import { OAuthApi, OAuthGrant, TunnelApi, TunnelState } from '../../core/api/tunnel.api';
-import { DesktopBridge } from '../../core/desktop/desktop-bridge';
+import { DesktopBridge, UpdateState } from '../../core/desktop/desktop-bridge';
 import { EventStream } from '../../core/events/event-stream';
 import { ApprovalsStore } from '../../core/stores/approvals.store';
 import { CoreStore } from '../../core/stores/core.store';
@@ -94,7 +94,7 @@ let desktop: {
   applyGeneral: (v: object) => Promise<void>;
   resetApplication: (confirmation: string) => Promise<void>;
   checkForUpdates: () => Promise<void>;
-  onUpdateState: (h: unknown) => () => void;
+  onUpdateState: (h: (state: UpdateState) => void) => () => void;
   setNativeTheme: (theme: string) => void;
 };
 const now = signal(NOW);
@@ -360,6 +360,43 @@ describe('Settings page: loading, failure, the layout', () => {
 });
 
 describe('Settings page: General', () => {
+  it('shows shared update progress and announces a manual check without downloading', async () => {
+    desktop.available = true;
+    let push!: (state: UpdateState) => void;
+    desktop.onUpdateState = (cb) => { push = cb; return () => undefined; };
+    const check = vi.fn(async () => {
+      push({ state: 'checking' });
+      await Promise.resolve();
+      push({ state: 'available', version: '0.4.1' });
+    });
+    desktop.checkForUpdates = check;
+    const el = await render();
+    await click(control($('#settings-general', el)!, 'Check now'));
+    expect(check).toHaveBeenCalledTimes(1);
+    expect(text($('#settings-general', el))).toContain('Update available · version 0.4.1');
+    expect(toasts()).toContain('Version 0.4.1 is available · Choose Update and restart in the sidebar to download and install it.');
+    push({ state: 'downloading', version: '0.4.1', percent: 52 });
+    await settle();
+    expect(text($('#settings-general', el))).toContain('Downloading update · 52%');
+    const button = control($('#settings-general', el)!, 'Check now');
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    await click(button);
+    expect(check).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not latch Check now when main keeps an already downloaded update', async () => {
+    desktop.available = true;
+    desktop.onUpdateState = (cb) => { cb({ state: 'downloaded', version: '0.4.1' }); return () => undefined; };
+    const check = vi.fn(async () => undefined);
+    desktop.checkForUpdates = check;
+    const el = await render();
+    const button = control($('#settings-general', el)!, 'Check now');
+    await click(button);
+    await click(button);
+    expect(check).toHaveBeenCalledTimes(2);
+    expect(text($('#settings-general', el))).toContain('Ready to install · version 0.4.1');
+  });
+
   it('the core as it runs: port, example URL, runtime rows (§8.6.1), files; desktop-only actions say why', async () => {
     const el = await render();
     const g = $('#settings-general', el)!;

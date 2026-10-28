@@ -111,12 +111,21 @@ const gwDesktop = {
   checkForUpdates(): Promise<void> {
     return ipcRenderer.invoke(IPC.checkForUpdates);
   },
+  installUpdate(): Promise<void> {
+    return ipcRenderer.invoke(IPC.installUpdate);
+  },
   onUpdateState(cb: (state: UpdateState) => void): Off {
-    const off = subscribe<UpdateState>(IPC.updateStatePush, cb);
-    void ipcRenderer.invoke(IPC.updateState).then((s: unknown) => {
-      if (s && typeof s === 'object') cb(s as UpdateState);
+    let active = true;
+    let pushed = false;
+    const off = subscribe<UpdateState>(IPC.updateStatePush, (state) => {
+      pushed = true;
+      if (active) cb(state);
     });
-    return off;
+    void ipcRenderer.invoke(IPC.updateState).then((s: unknown) => {
+      // A push may overtake this initial snapshot, or the subscriber may already have gone away.
+      if (active && !pushed && s && typeof s === 'object') cb(s as UpdateState);
+    }).catch((e: unknown) => console.error('gwDesktop: could not read update state', e));
+    return () => { active = false; off(); };
   },
 };
 

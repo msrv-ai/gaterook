@@ -101,6 +101,11 @@ describe('settings-view: General › Core', () => {
     expect(updateView(null, '0.4.0', false)).toMatchObject({ tone: 'neutral', label: 'Version', version: '0.4.0' });
     expect(updateView({ state: 'up-to-date', version: '0.4.0', lastCheckedAt: null } as never, null, true)).toMatchObject({ tone: 'success', label: 'Up to date · version', version: '0.4.0' });
     expect(updateView({ state: 'checking' } as never, '0.4.0', true)).toMatchObject({ tone: 'checking', busy: true });
+    expect(updateView({ state: 'available', version: '0.4.1' }, '0.4.0', true)).toMatchObject({ label: 'Update available · version', busy: false });
+    expect(updateView({ state: 'downloading', version: '0.4.1', percent: 42.9 }, '0.4.0', true)).toMatchObject({ label: 'Downloading update · 42%', busy: true });
+    expect(updateView({ state: 'installing', version: '0.4.1' }, '0.4.0', true)).toMatchObject({ label: 'Restarting to install update', busy: true });
+    expect(updateView({ state: 'error', version: '0.4.1', message: 'Offline' }, '0.4.0', true).label).toBe('Couldn’t install update');
+    expect(updateToast({ state: 'available', version: '0.4.1' }, null)).toEqual({ tone: 'info', title: 'Version 0.4.1 is available', body: 'Choose Update and restart in the sidebar to download and install it.' });
     expect(updateToast({ state: 'up-to-date', version: '0.4.0' } as never, null)).toEqual({ tone: 'success', title: 'You’re on the latest version', body: 'GateRook 0.4.0' });
   });
 });

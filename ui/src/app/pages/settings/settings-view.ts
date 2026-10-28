@@ -7,6 +7,7 @@ import { BackupCopy, AuditExportDestination } from '../../core/api/settings.api'
 import { TunnelProviderId, TunnelState } from '../../core/api/tunnel.api';
 import { Env, Iso, JsonObject, JsonValue } from '../../core/api/types';
 import { UpdateState } from '../../core/desktop/desktop-bridge';
+import { downloadPercent } from '../../core/stores/updates.store';
 import { clockTime, relativeTime, shortDate } from '../../core/time/time-format';
 import { clientName } from '../../kit/elements/shared/client-mark';
 import { ToastOptions } from '../../kit/toast.service';
@@ -199,11 +200,17 @@ export function updateView(state: UpdateState | null, version: string | null, de
     case 'up-to-date':
       return { ...base, tone: 'success', label: 'Up to date · version', version: state.version ?? version };
     case 'available':
-      return { ...base, tone: 'info', label: 'Downloading version', version: state.version ?? null };
+      return { ...base, tone: 'info', label: 'Update available · version', version: state.version ?? null };
+    case 'downloading': {
+      const percent = downloadPercent(state.percent);
+      return { ...base, tone: 'checking', label: percent === null ? 'Downloading update' : `Downloading update · ${percent}%`, version: null, busy: true };
+    }
     case 'downloaded':
-      return { ...base, tone: 'info', label: 'Restart the app to update to version', version: state.version ?? null };
+      return { ...base, tone: 'info', label: 'Ready to install · version', version: state.version ?? null };
+    case 'installing':
+      return { ...base, tone: 'checking', label: 'Restarting to install update', version: null, busy: true };
     case 'error':
-      return { ...base, tone: 'danger', label: 'Couldn’t check for updates', version: null, error: state.message };
+      return { ...base, tone: 'danger', label: state.version ? 'Couldn’t install update' : 'Couldn’t check for updates', version: null, error: state.message };
   }
 }
 
@@ -213,11 +220,11 @@ export function updateToast(state: UpdateState, version: string | null): ToastOp
     case 'up-to-date':
       return { tone: 'success', title: 'You’re on the latest version', body: `GateRook ${state.version ?? version ?? ''}`.trim() };
     case 'available':
-      return { tone: 'info', title: `Version ${state.version ?? ''} is downloading`.replace('  ', ' '), body: 'It installs when you restart the app, never in the middle of a call.' };
+      return { tone: 'info', title: `Version ${state.version ?? ''} is available`.replace('  ', ' '), body: 'Choose Update and restart in the sidebar to download and install it.' };
     case 'downloaded':
-      return { tone: 'info', title: `Version ${state.version ?? ''} is ready`.replace('  ', ' '), body: 'It installs when you restart the app.' };
+      return { tone: 'info', title: `Version ${state.version ?? ''} is ready`.replace('  ', ' '), body: 'Choose Restart to update in the sidebar to install it.' };
     case 'error':
-      return { tone: 'danger', title: 'Couldn’t check for updates', body: state.message };
+      return { tone: 'danger', title: state.version ? 'Couldn’t install update' : 'Couldn’t check for updates', body: state.message };
     default:
       return null;
   }

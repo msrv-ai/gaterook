@@ -1,9 +1,10 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, Injector, computed, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Injector, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { FormField, form, validate } from '@angular/forms/signals';
 import { RouterLink } from '@angular/router';
 import { isApiError } from '../../core/api/api-error';
 import { DesktopBridge, UpdateState, desktopErrorText } from '../../core/desktop/desktop-bridge';
 import { ApprovalsStore } from '../../core/stores/approvals.store';
+import { UpdatesStore } from '../../core/stores/updates.store';
 import { TimeService } from '../../core/time/time.service';
 import { Announcer } from '../../kit/announcer';
 import { GwDialog, GwDialogClose } from '../../kit/dialog';
@@ -71,10 +72,10 @@ export class GwGeneralSettings {
 
   // ── Updates ───────────────────────────────────────────────────────────────────────────────────────────────────
 
-  private readonly updateState = signal<UpdateState | null>(null);
+  private readonly updates = inject(UpdatesStore);
   private readonly checking = signal(false);
   protected readonly version = computed(() => this.data.info().value?.version ?? this.data.health().value?.version ?? null);
-  protected readonly update = computed(() => updateView(this.updateState(), this.version(), this.desktop.available));
+  protected readonly update = computed(() => updateView(this.updates.state(), this.version(), this.desktop.available));
 
   // ── Core ──────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -125,8 +126,10 @@ export class GwGeneralSettings {
   protected readonly resetError = signal<string | null>(null);
 
   constructor() {
-    const off = this.desktop.onUpdateState((s) => this.onUpdate(s));
-    inject(DestroyRef).onDestroy(off);
+    effect(() => {
+      const state = this.updates.state();
+      if (state) untracked(() => this.onUpdate(state));
+    });
   }
 
   protected portFieldError(): string | null {
@@ -160,19 +163,22 @@ export class GwGeneralSettings {
 
   /** Check now: Electron's updater answers through `onUpdateState`; the toast follows that answer. */
   protected async checkNow(): Promise<void> {
-    if (!this.desktop.available || this.checking() || this.update().busy) return;
+    if (!this.desktop.available || this.checking() || this.update().busy || this.updates.busy()) return;
     this.checking.set(true);
     this.announcer.announce('Checking for updates');
     try {
       await this.desktop.checkForUpdates();
+      // A downloaded update can make main keep its current state instead of sending another event.
+      const state = this.updates.state();
+      if (state) this.onUpdate(state);
     } catch (err) {
-      this.checking.set(false);
       this.toasts.show({ tone: 'danger', title: 'Couldn’t check for updates', body: err instanceof Error ? err.message : NO_ANSWER });
+    } finally {
+      this.checking.set(false);
     }
   }
 
   private onUpdate(state: UpdateState): void {
-    this.updateState.set(state);
     if (state.state === 'checking' || !this.checking()) return;
     this.checking.set(false);
     const toast = updateToast(state, this.version());
