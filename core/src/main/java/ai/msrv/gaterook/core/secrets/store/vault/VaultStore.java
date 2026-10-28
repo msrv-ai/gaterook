@@ -112,8 +112,8 @@ public final class VaultStore implements SecretStore {
       throw StoreException.invalid("vault://" + ref.path() + " names a secrets engine, not a secret in it.");
     }
     if (mount.type().equals("database") || ref.credsPath() && !mount.type().equals("kv")) {
-      throw StoreException.invalid("vault://" + ref.path() + " issues short-lived credentials: choose Short-lived "
-          + "(Vault dynamic credentials) for this field.");
+      throw StoreException.invalid("vault://" + ref.path() + " cannot be used as a secret reference. "
+          + "Use a Vault KV path and key, such as vault://kv/dev/db#password.");
     }
     boolean kv2 = mount.type().equals("kv") && "2".equals(mount.kvVersion());
     if (!kv2 && ref.version() != null) {

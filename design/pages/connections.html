@@ -536,8 +536,8 @@
               </th>
               <td class="gw-table__cell--optional"><i class="gw-icon gw-icon--sm" data-lucide="database"></i> PostgreSQL 16 <span class="gw-badge gw-badge--outline gw-badge--sm">Read replica</span></td>
               <td class="gw-table__cell--optional">
-                <i class="gw-icon gw-icon--sm" data-lucide="timer"></i> Short-lived
-                <div class="gw-text-caption gw-fg-muted">Vault dynamic user</div>
+                <i class="gw-icon gw-icon--sm" data-lucide="vault"></i> Vault reference
+                <div class="gw-text-caption gw-fg-muted gw-mono">kv/prod/prod-replica#password</div>
               </td>
               <td>
                 <span class="gw-status gw-status--success" data-conn-status><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy · 31 ms</span></span>
@@ -1011,7 +1011,7 @@
     "dev-vm": { secret: "Nothing is stored here: certificates come from the Vault SSH CA.", eps: [["dev", ["ssh_run"]]] },
     "orders-mongo": { secret: "Its encrypted password is destroyed.", eps: [["dev", ["mongo_find", "mongo_aggregate"]]] },
     "prod-logs": { secret: "Nothing is stored here: the gw-reader service account stays in GCP.", eps: [["incident-prod", ["gcp_logging_search"]]] },
-    "prod-replica": { secret: "Nothing is stored here: the Vault role stays.", eps: [["incident-prod", ["sql_list_schemas", "sql_describe_table", "sql_query"]]] },
+    "prod-replica": { secret: "The Vault reference is removed; the secret itself stays in Vault.", eps: [["incident-prod", ["sql_list_schemas", "sql_describe_table", "sql_query"]]] },
     "prod-vm": { secret: "Nothing is stored here: certificates come from the Vault SSH CA.", eps: [["incident-prod", ["ssh_run"]]] },
     "stage-db": { secret: "The Vault reference is removed; the secret itself stays in Vault.", eps: [["stage-readonly", ["sql_list_schemas", "sql_describe_table", "sql_query"]]] }
   };

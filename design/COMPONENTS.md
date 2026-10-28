@@ -1420,7 +1420,7 @@ Cursor browser sign-in enables OAuth for the selected local endpoint and opens i
 
 ### `connection-form`
 
-The schema-driven Configure step of Add connection (PostgreSQL demo), also the form of connection-new ?duplicate=<name> (settings copied, credentials never) and ?edit=<name> (secret stored: Replace / Rotate, or a reference). It has four gw-form sections: Connection (name slug, host, port, database, SSL mode); Credentials (User, plus a secret source picker of five gw-choice-cards that switches the gw-secret control: Encrypted here, Vault or OpenBao, GCP SM, AWS SM, short-lived Vault dynamic credentials: a short-lived database user, renewed automatically); Environment and safety (dev / stage / prod cards with gw-env, where prod shows the stricter defaults: read-only transactions, row limit 100, statement timeout 3 s, no DDL, approval timeout 10 min, a comment required to approve); and Advanced (a disclosure with an optional statement timeout — empty means the environment's one policy value —, pool size and a schema allowlist as tags). A Test connection panel follows with idle, testing, success (detected permissions, write grant flagged) and failure states.
+The schema-driven Configure step of Add connection (PostgreSQL demo), also the form of connection-new ?duplicate=<name> (settings copied, credentials never) and ?edit=<name> (secret stored: Replace / Rotate, or a reference). It has four gw-form sections: Connection (name slug, host, port, database, SSL mode); Credentials (User, plus a secret source picker of four gw-choice-cards that switches the gw-secret control: Encrypted here, Vault or OpenBao, GCP SM, AWS SM); Environment and safety (dev / stage / prod cards with gw-env, where prod shows the stricter defaults: read-only transactions, row limit 100, statement timeout 3 s, no DDL, approval timeout 10 min, a comment required to approve); and Advanced (a disclosure with an optional statement timeout — empty means the environment's one policy value —, pool size and a schema allowlist as tags). A Test connection panel follows with idle, testing, success (detected permissions, write grant flagged) and failure states.
 
 [SCSS](elements/_connection-form.scss) · [Interactive demo](elements/connection-form.html)
 
@@ -1453,7 +1453,6 @@ The schema-driven Configure step of Add connection (PostgreSQL demo), also the f
 - new connection, Encrypted here (gw-secret empty, reveal only while typing a new value)
 - reference source, new (mono reference input + Test reference)
 - secret reference, tested (gw-secret reference well, Vault KV, stage-db)
-- short-lived Vault dynamic credentials (User field hidden, reference well with the role, prod-replica)
 - stored password in the edit view (gw-secret stored: Encrypted · version 3, Replace / Rotate, no reveal)
 - Rotate unavailable (a connector that can't set a value at the source, cache-redis): aria-disabled with the reason under the field
 - replacing a stored password (gw-secret editing: Cancel / Save)
@@ -1688,7 +1687,7 @@ Stands in for the whole window while the gateway core is unavailable: fixed, z s
 - unlock-required, unlocking: keep the Unlock GateRook label with gw-spinner--sm, aria-busy and aria-disabled; describe the busy button with visible role=status text naming the available system method: 'Complete Touch ID or enter your Mac password in the system dialog to continue.', 'Complete Windows Hello in the system dialog to continue.', or 'Complete the request from your operating system to continue.'; prevent duplicate requests
 - starting: 'Starting the native core and the local API on 127.0.0.1:7465. This usually takes about a second.'; gw-progress--indeterminate named by the title; stepper Native core ('Native image · 0.1 s'), Master key and Database migrations complete + Local API current (gw-spinner--sm in the marker); sr-only role=status line updated per step
 - failed, port in use: danger tile; Local API step data-state=error with the reason; the text says what another port costs (endpoint URLs change; clients with the URL in their config, such as Codex and Cursor, reconnect); open disclosure with the lsof command (copy) + netstat for Windows; footer Quit + Use another port (primary)
-- failed, master key not found: error on the Master key step; Database migrations and Local API complete (the locked core has migrated and listens); gw-alert--danger (circle-alert) says a new key makes the 8 secrets encrypted here unreadable (6 connections, github-mcp, the Vault sign-in) while the 3 references keep working (11 in all, as in Secrets), with a danger-ghost 'Create a new key' that opens gw-dialog--danger (Cancel autofocus, confirm 'Create a new master key'); footer Quit + Restore from backup (primary)
+- failed, master key not found: error on the Master key step; Database migrations and Local API complete (the locked core has migrated and listens); gw-alert--danger (circle-alert) says a new key makes the 8 secrets encrypted here unreadable (6 connections, github-mcp, the Vault sign-in) while the 4 references keep working (12 in all, as in Secrets), with a danger-ghost 'Create a new key' that opens gw-dialog--danger (Cancel autofocus, confirm 'Create a new master key'); footer Quit + Restore from backup (primary)
 - failed, didn't start (any other ready:false reason, e.g. DB_LOCKED 'Another core is using the database'): lock tile, the stopped card's facts (exit code 2, reason in mono, log file), last log lines under a disclosure, stepper only when the core reached a step; footer Open logs + Restart core (primary)
 - stopped unexpectedly: gw-kv --dense facts (exit code, reason, uptime, log file in mono); last log lines under a closed disclosure; pending approval requests are kept; footer Open logs + Restart core (primary)
 - --contained: in flow, fills a gw-card.gw-status-screen__frame (demos, reviews)
@@ -2120,7 +2119,7 @@ Press <kbd class="gw-kbd">⌘</kbd><kbd class="gw-kbd">K</kbd> to search.
       <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="vault"></i></span>
       <span class="gw-choice-card__title" id="src-vault-t">Vault</span>
       <span class="gw-choice-card__description" id="src-vault-d">Resolve a vault:// reference at call time.</span>
-      <span class="gw-choice-card__meta">KV v2 · dynamic database secrets</span>
+      <span class="gw-choice-card__meta">KV v2</span>
     </label>
   </div>
 </fieldset>
@@ -2546,7 +2545,7 @@ The password stays in the gateway: <code class="gw-code gw-code--secret">‹mask
         <span class="gw-icon-tile gw-icon-tile--brand gw-setup-map__tile"><i class="gw-icon" data-lucide="key-round"></i></span>
         <h3 class="gw-card__title gw-setup-map__title">Secrets &amp; resources</h3>
         <p class="gw-card__description gw-setup-map__desc">Credentials the agent never sees</p>
-        <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">11 secrets · master key backed up</p>
+        <p class="gw-setup-map__status gw-text-small gw-fg-secondary gw-tabular">12 secrets · master key backed up</p>
         <span class="gw-badge gw-badge--success gw-setup-map__state"><i class="gw-icon gw-badge__icon" data-lucide="circle-check"></i>Done</span>
         <a class="gw-btn gw-btn--link gw-setup-map__action" href="secrets.html">Configure<span class="gw-sr-only"> secrets</span></a>
       </div>

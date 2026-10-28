@@ -21,7 +21,7 @@
   <section class="gw-section" aria-labelledby="s-ref">
     <header class="gw-section__header">
       <h2 class="gw-section__title" id="s-ref">Secret reference</h2>
-      <p class="gw-section__description">The secret lives in an external store and is resolved at call time: stage-db from Vault KV, prod-replica with short-lived Vault credentials (no User field: Vault issues a user per call). Tested references show as a sunken well with the provider.</p>
+      <p class="gw-section__description">The secret lives in an external store and is resolved at call time: stage-db and prod-replica read their passwords from Vault KV. Tested references show as a sunken well with the provider.</p>
     </header>
     <form
       gwConnectionForm
@@ -39,7 +39,7 @@
     <form
       gwConnectionForm
       idPrefix="f2b"
-      aria-label="prod-replica credentials, short-lived"
+      aria-label="prod-replica credentials, Vault reference"
       [spec]="d.withStores"
       mode="edit"
       name="prod-replica"
@@ -47,7 +47,7 @@
       [config]="d.prodReplica.config"
       [stored]="references.prodReplica"
       [parts]="['credentials']"
-      credentialsDescription="prod-replica gets a fresh read-only user from Vault for every call. Nothing to store, nothing to leak."
+      credentialsDescription="prod-replica reads its password from Vault. The reference is not a secret: it is shown in full and can be copied."
     ></form>
   </section>
 

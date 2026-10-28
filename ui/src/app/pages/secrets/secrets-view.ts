@@ -10,6 +10,7 @@ import {
   ShortLivedCredential,
 } from '../../core/api/secrets.api';
 import { Env, JsonObject, JsonValue } from '../../core/api/types';
+import { isVaultDynamicCredential } from '../../core/secret-visibility';
 import { duration, relativeTime, shortDate } from '../../core/time/time-format';
 
 /**
@@ -65,7 +66,7 @@ export const STORE_KINDS: readonly StoreKindInfo[] = [
     title: 'HashiCorp Vault',
     short: 'Vault',
     icon: 'vault',
-    pitch: 'The gateway signs in with AppRole or a token and reads references at call time. Vault can also issue SSH certificates and database users.',
+    pitch: 'The gateway signs in with AppRole or a token and reads references at call time. Vault can also issue SSH certificates.',
     scheme: 'vault://',
   },
   {
@@ -740,16 +741,10 @@ export function renewText(inc: string): string {
   return unit === 'hour' ? `${n} hours` : `${n} ${unit}`;
 }
 
-/**
- * What a store issues (the Issues row): database users for its dynamic references; the rest of `issues` are SSH
- * certificates, the only other credential a store signs (S1 counts the connections it issued for since start).
- */
-export function storeIssuesText(s: SecretStore): string {
+/** The visible Issues count excludes Vault database credentials; SSH certificates remain visible. */
+export function storeIssuesCount(s: SecretStore): number {
   const dynamic = new Set((s.references ?? []).filter((r) => r.kind === 'dynamic').map((r) => r.owner)).size;
-  const issues = s.issues ?? 0;
-  if (dynamic > 0 && issues > dynamic) return 'SSH certificates and database users';
-  if (dynamic > 0) return 'Database users';
-  return issues > 0 ? 'SSH certificates' : 'Short-lived credentials';
+  return Math.max(0, (s.issues ?? 0) - dynamic);
 }
 
 /** The keyset row: how many keys, and that older ones go once the new key is backed up. */
@@ -772,7 +767,7 @@ export function keysText(s: MasterKeyStatus): string {
   return `${n} in the keyset · ${older === 1 ? 'the older one goes' : 'older ones go'} at the next backup`;
 }
 
-/** References read through a store (dynamic credentials are counted under Issues instead). */
+/** References read through a store, excluding hidden Vault database credentials. */
 export function storeReferences(s: SecretStore): { readonly name: string; readonly ref: string }[] {
   return (s.references ?? []).filter((r) => r.kind !== 'dynamic').map((r) => ({ name: r.name, ref: r.ref }));
 }
@@ -892,7 +887,7 @@ interface Mechanism {
 }
 
 /**
- * The kit's four cards (Secrets › Short-lived credentials), keyed by the core's mechanism names. Texts per decision
+ * The kit's three cards (Secrets › Short-lived credentials), keyed by the core's mechanism names. Texts per decision
  * 10 (ARCHITECTURE §8.6.5): a credential is reused and renewed, not issued for every call — except SSH certificates.
  */
 const MECHANISMS: readonly [string, Mechanism][] = [
@@ -929,17 +924,6 @@ const MECHANISMS: readonly [string, Mechanism][] = [
       lifetimeSuffix: '',
     },
   ],
-  [
-    'Vault dynamic database user',
-    {
-      title: 'Vault dynamic database users',
-      icon: 'database',
-      description: 'Vault creates a short-lived database user, renews it automatically and revokes it when the connection goes idle.',
-      identityLabel: 'Role',
-      lifetimeLabel: 'Lease',
-      lifetimeSuffix: ', renewed automatically',
-    },
-  ],
 ];
 
 export function shortLivedGroups(items: readonly ShortLivedCredential[], envOf: ReadonlyMap<string, Env>, secrets: readonly SecretRow[] = []): ShortLivedGroup[] {
@@ -949,6 +933,7 @@ export function shortLivedGroups(items: readonly ShortLivedCredential[], envOf: 
   };
   const groups = new Map<string, { m: string; identity: string; items: ShortLivedCredential[] }>();
   for (const c of items) {
+    if (isVaultDynamicCredential(c)) continue;
     const key = `${c.mechanism}\u0000${c.identity}`;
     const g = groups.get(key) ?? { m: c.mechanism, identity: c.identity, items: [] };
     g.items.push(c);

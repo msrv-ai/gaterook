@@ -278,21 +278,20 @@ export const DEMO_CONNECTOR_CARDS: ConnectorCardView[] = [
 
 /**
  * Secret sources as a gateway with Vault, GCP and AWS stores connected shows them (the demo world connects none, so
- * the live form spec marks them unavailable); Short-lived as with Vault dynamic credentials configured.
+ * the live form spec marks them unavailable).
  */
 export const DEMO_SECRET_SOURCES: SecretSourceOption[] = [
   { id: 'local', label: 'Encrypted here', available: true, reason: null },
   { id: 'vault', label: 'HashiCorp Vault', available: true, reason: null },
   { id: 'gcp-sm', label: 'GCP Secret Manager', available: true, reason: null },
   { id: 'aws-sm', label: 'AWS Secrets Manager', available: true, reason: null },
-  { id: 'dynamic', label: 'Short-lived (Vault dynamic credentials)', available: true, reason: null },
 ];
 
-/** stage-db's password from Vault KV, prod-replica's user from Vault dynamic credentials (connection-form). */
+/** stage-db and prod-replica passwords from Vault KV (connection-form). */
 export const DEMO_REFERENCES: Record<'stage' | 'prodReplica', StoredSecret[]> = {
   stage: [{ field: '/credentials/password', secretId: null, name: 'vault://kv/stage/db#password', state: 'reference', version: null, source: 'vault' }],
   prodReplica: [
-    { field: '/credentials/password', secretId: null, name: 'vault://database/creds/prod-replica-readonly', state: 'reference', version: null, source: 'dynamic' },
+    { field: '/credentials/password', secretId: null, name: 'vault://kv/prod/prod-replica#password', state: 'reference', version: null, source: 'vault' },
   ],
 };
 

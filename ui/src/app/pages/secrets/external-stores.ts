@@ -38,7 +38,7 @@ import {
   storeAnchors,
   storeConnections,
   storeDescription,
-  storeIssuesText,
+  storeIssuesCount,
   storeKind,
   storeReferences,
   storeSignIn,
@@ -102,7 +102,7 @@ export class GwExternalStores {
   protected readonly storeReferences = storeReferences;
   protected readonly storeStatus = storeStatus;
   protected readonly storeDescription = storeDescription;
-  protected readonly storeIssuesText = storeIssuesText;
+  protected readonly storeIssuesCount = storeIssuesCount;
   protected readonly connectionsQuery = connectionsQuery;
   protected readonly storeConnections = storeConnections;
 

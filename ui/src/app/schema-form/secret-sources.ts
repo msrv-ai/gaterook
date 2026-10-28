@@ -4,7 +4,7 @@
  * (`secretSources` of the form spec); these are only how each one reads.
  */
 export interface SecretSourceCopy {
-  /** The value of the radio and `data-source` in the kit (local · vault · gcp · aws · dynamic). */
+  /** The value of the radio and `data-source` in the kit (local · vault · gcp · aws). */
   readonly kit: string;
   readonly title: string;
   readonly icon: string;
@@ -63,17 +63,6 @@ export const SECRET_SOURCE_COPY: Readonly<Record<string, SecretSourceCopy>> = {
     hint: "Resolved at call time with the core's AWS profile.",
     test: 'Test reference',
   },
-  dynamic: {
-    kit: 'dynamic',
-    title: 'Short-lived (Vault dynamic credentials)',
-    icon: 'timer',
-    description: 'Vault creates a database user per call. Nothing is stored here.',
-    scheme: 'vault://',
-    meta: 'Recommended for prod',
-    label: 'Vault role reference',
-    hint: 'Vault creates a database user for each call. No user or password is stored here.',
-    test: 'Test role',
-  },
 };
 
 /** Copy for a source the kit doesn't know (a future store): its label from the core, a link icon. */
@@ -108,8 +97,6 @@ export function referencePlaceholder(source: string, env: string, name: string, 
       return `gcp-sm://projects/<project>/secrets/${n}-${key}/versions/latest`;
     case 'aws-sm':
       return `aws-sm://<region>/${env}/${n}#${key}`;
-    case 'dynamic':
-      return `vault://database/creds/${env}-readonly`;
     default:
       return '';
   }

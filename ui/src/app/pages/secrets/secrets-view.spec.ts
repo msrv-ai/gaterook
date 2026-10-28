@@ -35,7 +35,7 @@ import {
   sourceGroup,
   storeAnchors,
   storeDescription,
-  storeIssuesText,
+  storeIssuesCount,
   storeSignIn,
   storeStatus,
   storeTestToast,
@@ -308,10 +308,11 @@ describe('external stores', () => {
     expect(text(storeSignIn({ ...vault, config: { address: 'https://v', auth: { method: 'cli-token' } } }))).toBe('Your vault login on this computer (~/.vault-token)');
   });
 
-  it('what a store issues: database users for dynamic references, SSH certificates for the rest', () => {
-    expect(storeIssuesText(vault)).toBe('SSH certificates and database users');
-    expect(storeIssuesText({ ...vault, issues: 1 })).toBe('Database users');
-    expect(storeIssuesText({ ...gcp, issues: 2 })).toBe('SSH certificates');
+  it('counts SSH certificate connections without hidden Vault database credentials', () => {
+    expect(storeIssuesCount(vault)).toBe(2);
+    expect(storeIssuesCount({ ...vault, issues: 1 })).toBe(0);
+    expect(storeIssuesCount({ ...vault, issues: 0 })).toBe(0);
+    expect(storeIssuesCount({ ...gcp, issues: 2 })).toBe(2);
   });
 
   it('counts connected kinds and lists the references waiting for a store', () => {
@@ -348,18 +349,17 @@ describe('external stores', () => {
 describe('short-lived credentials', () => {
   it('groups by mechanism and identity in the kit’s order, with envs, lifetimes and the latest issue', () => {
     const groups = shortLivedGroups(kitShortLived(), ENVS, kitSecrets());
-    expect(groups.map((g) => g.title)).toEqual(['GCP service account impersonation', 'AWS AssumeRole with ExternalId', 'SSH certificates from Vault CA', 'Vault dynamic database users']);
+    expect(groups.map((g) => g.title)).toEqual(['GCP service account impersonation', 'AWS AssumeRole with ExternalId', 'SSH certificates from Vault CA']);
     const ssh = groups[2];
     expect(ssh.connections).toEqual([{ name: 'dev-vm', env: 'dev' }, { name: 'prod-vm', env: 'prod' }]);
     expect(ssh.lastIssuedAt).toBe('2026-10-22T12:24:00Z');
     expect(ssh.lifetime).toBe('5 min');
-    expect(groups[3]).toMatchObject({ lifetimeLabel: 'Lease', lifetime: '10 min, renewed automatically' });
     expect(groups[1].assumedWith).toBe('aws-stage/access-key');
     // Without step API's fields, no ExternalId or Principal row.
-    expect(groups.map((g) => [g.externalId, g.principal])).toEqual([[null, null], [null, null], [null, null], [null, null]]);
+    expect(groups.map((g) => [g.externalId, g.principal])).toEqual([[null, null], [null, null], [null, null]]);
     // Decision 10 (§8.6.5): a token is renewed, not issued for every call.
     expect(groups[0].description).not.toMatch(/per call/);
-    expect(shortLivedSummary(groups)).toMatch(/5 connections work this way\.$/);
+    expect(shortLivedSummary(groups)).toMatch(/4 connections work this way\.$/);
   });
 
   it("names the role's ExternalId and the certificate's principal when the core says them (step API)", () => {

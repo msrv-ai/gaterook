@@ -207,8 +207,11 @@ describe('Secrets page: what it shows', () => {
     expect(aws.classList).toContain('gw-card--dashed');
     expect(text(aws)).toContain("billing-api/webhook-secret points here and can't be resolved until you connect.");
 
-    expect($$('#short-lived article', el)).toHaveLength(4);
+    expect($$('#short-lived article', el)).toHaveLength(3);
     expect(text($('#short-lived', el))).toContain('gw-runbooks');
+    expect(text($('#short-lived', el))).not.toContain('prod-replica');
+    expect(text($('#store-vault', el))).toContain('SSH certificates for 2 connections');
+    expect(text(el)).not.toContain('database users');
   });
 
   it("what the core adds since step API: when the key was made, the role's ExternalId, the certificate's principal", async () => {

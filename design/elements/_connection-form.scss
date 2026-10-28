@@ -64,8 +64,8 @@
 // Behaviour (CSS only, no script; the app renders the same states from data)
 //   Secret source  every source has its own secret field marked data-source;
 //                  the field of the checked source is shown, the others are
-//                  display: none. "Short-lived" also hides the User field
-//                  (Vault issues user and password per call). In the app, render
+//                  display: none. Existing provider-managed credentials also
+//                  hide the User field. In the app, render
 //                  only the chosen field (hidden inputs would still submit).
 //                  Without :has() support every field shows.
 //   Prod           __prod-defaults (gw-alert--info: the prod policy's values,
@@ -90,8 +90,8 @@
 //   vault / gcp / aws       new: empty with a mono reference input (vault://…,
 //                           gcp-sm://…, aws-sm://…) + Test reference; once
 //                           tested: reference well (provider + ref + actions)
-//   dynamic (Short-lived)   new: Vault role input + Test role; once tested:
-//                           reference well with the role path; no User field
+//   dynamic (existing)      provider-managed credentials for GCP and SSH;
+//                           reference well with the identity; no User field
 //
 // Test connection panel (__test, gw-card --muted, __result is role="status")
 //   idle     gw-status --neutral "Not tested yet" + what the test shows

@@ -171,33 +171,47 @@ describe('connection form: GCP setup', () => {
 });
 
 describe('connection form: database discovery', () => {
-  it('uses the API dynamic-login source without requiring a manually entered username', async () => {
+  it('offers supported secret sources while omitting every dynamic-login alias', async () => {
+    const { el, host, settle } = await render();
+    host.spec.set({ ...spec('mysql'), secretSources: [
+      { id: 'local', label: 'Encrypted here', available: true, reason: null },
+      { id: 'vault', label: 'Vault', available: true, reason: null },
+      ...['dynamic', 'vault-dynamic', 'short-lived'].map((id) => ({ id, label: 'Vault dynamic', available: true, reason: null })),
+    ] });
+    await settle();
+    expect([...el.querySelectorAll<HTMLInputElement>('input[name="cf-src"]')].map((input) => input.value)).toEqual(['local', 'vault']);
+    expect(el.textContent).not.toContain('Vault dynamic');
+    expect(el.querySelector('#cf-credentials-user')).not.toBeNull();
+    expect(el.querySelector('#cf-credentials-password')).not.toBeNull();
+  });
+
+  it('keeps saved dynamic-login credentials when editing without exposing their controls', async () => {
     const { el, host, settle } = await render();
     host.spec.set({ ...spec('mysql'), secretSources: [
       { id: 'local', label: 'Encrypted here', available: true, reason: null },
       { id: 'vault-dynamic', label: 'Short-lived', available: true, reason: null },
     ] });
+    host.mode.set('edit');
+    host.stored.set([{
+      field: '/credentials/password', secretId: 'saved-login', name: 'vault://database/creds/orders-reader',
+      state: 'short-lived', version: null, source: 'vault',
+    }]);
     host.config.set({ connection: { host: 'db.example.test', databases: ['orders'] } });
     await settle();
-    const source = el.querySelector<HTMLInputElement>('input[name="cf-src"][value="dynamic"]')!;
-    source.click();
-    await settle();
-    expect(source.checked).toBe(true);
+    expect(el.querySelector('input[name="cf-src"]')).toBeNull();
     expect(el.querySelector('#cf-credentials-user')).toBeNull();
-    const reference = el.querySelector<HTMLInputElement>('#cf-credentials-password')!;
-    reference.value = 'vault://database/creds/orders-reader';
-    reference.dispatchEvent(new Event('input', { bubbles: true }));
-    await settle();
+    expect(el.querySelector('#cf-credentials-password')).toBeNull();
+    expect(el.textContent).not.toContain('vault://database/creds/orders-reader');
+    expect(host.form().state().source()).toBe('dynamic');
     el.querySelector<HTMLButtonElement>('#cf-database-load')!.click();
     await settle();
+    expect(host.discoveries.at(-1)!.value.secrets).toEqual({});
     host.form().completeDatabaseDiscovery(host.discoveries.at(-1)!.key, discovered(['orders']));
     await settle();
     el.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     await settle();
     expect(host.saved).toHaveLength(1);
-    expect(host.saved[0].secrets).toEqual({ '/credentials/password': {
-      source: 'vault-dynamic', ref: 'vault://database/creds/orders-reader',
-    } });
+    expect(host.saved[0].secrets).toEqual({});
     expect(host.saved[0].config['credentials']).not.toHaveProperty('user');
   });
 

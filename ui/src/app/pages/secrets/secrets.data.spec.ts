@@ -4,7 +4,7 @@ import { ApiError } from '../../core/api/api-error';
 import { ConnectionsApi } from '../../core/api/connections.api';
 import { MasterKeyApi, MasterKeyStatus, SecretRow, SecretStore, SecretsApi } from '../../core/api/secrets.api';
 import { EventStream } from '../../core/events/event-stream';
-import { kitMasterKey, kitSecrets, kitShortLived, kitStores } from './secrets.fixtures';
+import { kitMasterKey, kitSecrets, kitShortLived, kitStores, reference } from './secrets.fixtures';
 import { SecretsData } from './secrets.data';
 
 /** The page's data against fake API services: what loads, what each action asks the core, what it keeps. */
@@ -80,9 +80,20 @@ function setup(): SecretsData {
 describe('SecretsData', () => {
   it('loads every part, with each connection’s env', async () => {
     const data = setup();
+    answers.list = () => Promise.resolve([
+      ...kitSecrets(),
+      reference('prod-replica/password', 'prod-replica', 'vault', 'vault://database/creds/prod-replica-readonly', { state: 'short-lived' }),
+      reference('unbound/password', 'unbound', 'vault', 'vault://custom-db/creds/readonly', { state: 'not-connected' }),
+      reference('legacy/password', 'legacy', 'dynamic', '', { state: 'reference' }),
+      reference('kv-key/password', 'kv-key', 'vault', 'vault://kv/dev/creds/app#password'),
+      reference('kv-version/password', 'kv-version', 'vault', 'vault://kv/dev/creds/app?version=2'),
+      reference('kv-path/password', 'kv-path', 'vault', 'vault://kv/dev/creds/app/password'),
+    ]);
     await data.start();
     expect(data.masterKey().value?.protects).toBe(8);
-    expect(data.rows().value).toHaveLength(11);
+    expect(data.rows().value?.map((row) => row.name)).toEqual([
+      ...kitSecrets().map((row) => row.name), 'kv-key/password', 'kv-version/password', 'kv-path/password',
+    ]);
     expect(data.stores().value?.map((s) => s.name)).toEqual(['vault', 'gcp-acme-stage']);
     expect(data.shortLived().value).toHaveLength(5);
     expect(data.envOf().get('prod-replica')).toBe('prod');

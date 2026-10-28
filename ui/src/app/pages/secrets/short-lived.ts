@@ -9,7 +9,7 @@ import { connectionsQuery, idOf, shortLivedGroups, shortLivedSummary } from './s
 /**
  * Secrets › Short-lived credentials (design/pages/secrets.html `#short-lived`; ARCHITECTURE.md §6
  * `/api/secrets/short-lived`): what the gateway gets instead of a static key — GCP impersonation, AWS AssumeRole,
- * SSH certificates from Vault CA, Vault dynamic database users — one card per mechanism and identity, with the
+ * SSH certificates from Vault CA — one card per mechanism and identity, with the
  * connections that use it and when it was last issued. The core knows only what it issued since it started: before a
  * first call the section says so.
  */
@@ -71,7 +71,7 @@ import { connectionsQuery, idOf, shortLivedGroups, shortLivedSummary } from './s
           <div class="gw-empty gw-empty--compact">
             <span class="gw-empty__icon"><svg lucideIcon="timer" class="gw-icon"></svg></span>
             <h3 class="gw-empty__title">Nothing issued since the core started</h3>
-            <p class="gw-empty__text">Connections that use impersonation, AssumeRole, SSH certificates or Vault database users show here after their first call.</p>
+            <p class="gw-empty__text">Connections that use impersonation, AssumeRole or SSH certificates show here after their first call.</p>
           </div>
         </div>
       }

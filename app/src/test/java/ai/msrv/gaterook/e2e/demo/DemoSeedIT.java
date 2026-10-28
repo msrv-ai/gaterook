@@ -85,10 +85,10 @@ class DemoSeedIT {
       assertThat(servers.tools("github-mcp")).hasSize(26).allSatisfy(t -> assertThat(t.name()).startsWith("github_"));
       assertThat(rows.get("github-mcp").usedBy()).isEmpty();
 
-      // Secrets: 11, 8 of them encrypted here (6 connections, the github-mcp token, the Vault sign-in), 3 references.
+      // Secrets: 12, 8 of them encrypted here (6 connections, the github-mcp token, the Vault sign-in), 4 references.
       List<ai.msrv.gaterook.core.secrets.SecretInfo> secrets = core.getBean(ai.msrv.gaterook.core.secrets.SecretService.class)
           .list();
-      assertThat(secrets).hasSize(11);
+      assertThat(secrets).hasSize(12);
       assertThat(secrets).filteredOn(s -> s.source().equals("local")).hasSize(8);
       ai.msrv.gaterook.core.secrets.MasterKeyStatus key = core.getBean(ai.msrv.gaterook.core.secrets.MasterKeyService.class)
           .status();

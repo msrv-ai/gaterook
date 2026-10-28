@@ -14,7 +14,6 @@ const PROVIDERS: Record<string, { readonly name: string; readonly icon: string }
   'gcp-sm': { name: 'GCP Secret Manager', icon: 'cloud' },
   'aws-sm': { name: 'AWS Secrets Manager', icon: 'cloud' },
   'short-lived': { name: 'Short-lived', icon: 'timer' },
-  dynamic: { name: 'Vault dynamic', icon: 'timer' },
 };
 
 /**
@@ -174,7 +173,7 @@ export class GwSecret implements FormValueControl<string> {
   /** `vault`, `gcp-sm`, `aws-sm`, `short-lived`. */
   readonly provider = input<string>('vault');
   readonly ref = input<string>('');
-  /** "reference", or "role" for Vault dynamic credentials ("Test role"). */
+  /** The reference noun used by its Test action. */
   readonly refNoun = input('reference');
   /** A Change button next to Test (the form swaps the well for an input). */
   readonly changeable = input(false, { transform: booleanAttribute });

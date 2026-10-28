@@ -29,7 +29,7 @@ import org.springframework.context.ConfigurableApplicationContext;
 /**
  * The secret references of the demo world (design/BLUEPRINT.md §9, ARCHITECTURE.md §10 S1) on the assembled core with
  * the real built-in connectors: Vault and GCP Secret Manager connected, AWS Secrets Manager not, so
- * {@code billing-api/webhook-secret} says so; {@code prod-replica} is short-lived and not a row of Secrets; the SSH
+ * {@code billing-api/webhook-secret} says so; {@code prod-replica} reads a Vault KV reference; the SSH
  * hosts sign in with Vault's CA. Nothing contacts a store while seeding or here.
  */
 class DemoReferencesIT {
@@ -71,10 +71,15 @@ class DemoReferencesIT {
         assertThat(s.store()).isNull();
       });
       assertThat(secrets.get("vault/approle-secret-id").source()).isEqualTo("local");
-      assertThat(secrets).as("short-lived credentials aren't rows of Secrets").doesNotContainKey(
-          "prod-replica/password");
+      assertThat(secrets.get("prod-replica/password")).satisfies(s -> {
+        assertThat(s.source()).isEqualTo("vault");
+        assertThat(s.state()).isEqualTo("reference");
+        assertThat(s.ref()).isEqualTo("vault://kv/prod/prod-replica#password");
+      });
 
       ConnectionConfigs configs = core.getBean(ConnectionConfigs.class);
+      assertThat(configs.byName("prod-replica").orElseThrow().config().config()
+          .at("/credentials/user").asString()).isEqualTo("read_only");
       ConnectionConfig billing = configs.byName("billing-api").orElseThrow().config();
       try (ScopedSecretResolver r = core.getBean(SecretService.class).resolver(billing, new Taint())) {
         assertThatThrownBy(() -> r.secret("/secretHeaders/0/value")).isInstanceOf(SecretUnavailableException.class)
