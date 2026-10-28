@@ -890,6 +890,7 @@ Literals shown verbatim in mono with ligatures off. gw-code is an inline chip fo
 
 - [data-copied] on the copy button (kit.js, 1.6 s) swaps __copy for __copied
 - __body:focus-visible (inset ring)
+- JSON actions may compose `gw-segmented--sm` in __actions for Pretty / Original views. Pretty adds structural whitespace without changing literal tokens or safety markers; Original restores the source segments. Copy follows the selected view. Hide the switch when formatting is unavailable or would leave the text unchanged.
 
 **Accessibility:** __body is a keyboard-scrollable region: tabindex=0 + role=region + aria-label. The copy button has visible text plus a gw-sr-only object ('Copy SQL query'). The copied face changes the accessible name to 'Copied', and kit.js announces it. Line numbers use content: counter() / "", so they are neither read nor copied. With line spans present, the line container becomes a grid, so the copy stays exact. Every token colour is 4.5:1 or more on code.bg in all four modes.
 

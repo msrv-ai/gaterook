@@ -73,6 +73,7 @@ public class ResourcesHandler {
   public ObjectNode list(McpRequest r, boolean templates) {
     ObjectNode out = JsonNodeFactory.instance.objectNode();
     ArrayNode items = out.putArray(templates ? "resourceTemplates" : "resources");
+    if (!templates && !r.snapshot().blocked() && r.env().supportsUi()) items.add(McpAppResource.descriptor());
     for (Offer o : offers(r.snapshot())) {
       if ((o.template() != null) != templates || decide(o).outcome() != Decision.Outcome.ALLOW) {
         continue;
@@ -95,6 +96,7 @@ public class ResourcesHandler {
     if (uri == null || uri.isEmpty()) {
       throw McpException.invalidParams("params.uri is required");
     }
+    if (McpAppResource.URI.equals(uri) && !r.snapshot().blocked()) return McpAppResource.read();
     Optional<Offer> offer = offers(r.snapshot()).stream().filter(o -> o.template() == null
         ? o.descriptor().uri().equals(uri) : o.template().matcher(uri).matches()).findFirst();
     if (offer.isEmpty()) {

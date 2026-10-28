@@ -97,6 +97,28 @@ class ApprovalDeliveryTest {
     verify(approvals, never()).await(anyString(), any());
   }
 
+  @Test
+  void appsGetTheHandleAtOnceWithoutMisreportingAnAlreadyRunningRequest() {
+    McpRequest r = request(true, "auto", 25);
+    ((ObjectNode) r.env().clientCapabilities()).putObject("extensions").putObject(McpAppResource.EXTENSION)
+        .putArray("mimeTypes").add(McpAppResource.MIME_TYPE);
+    assertThat(ApprovalDelivery.mrtr(r)).isFalse();
+    for (String status : List.of("pending", "running", "rejected")) {
+      ApprovalDelivery.Answer a = delivery.first(r, view(status, null), digest);
+      assertThat(a.inputRequired()).isNull();
+      assertThat(a.result().structuredContent().path("status").asString()).isEqualTo(status);
+    }
+    verify(approvals, never()).await(anyString(), any());
+  }
+
+  @Test
+  void theHandleFlowAlsoKeepsTheRunningStateAfterItsFirstWait() {
+    when(approvals.await("ap_1", Duration.ofSeconds(15))).thenReturn(view("running", null));
+    ApprovalDelivery.Answer a = delivery.first(request(false, "auto", 15), view("pending", null), digest);
+    assertThat(a.result().structuredContent().path("status").asString()).isEqualTo("running");
+    assertThat(a.result().content().getFirst().text()).contains("is running").doesNotContain("NOT EXECUTED YET");
+  }
+
   // ── Retries ─────────────────────────────────────────────────────────────────────────────────────────────────
 
   @Test

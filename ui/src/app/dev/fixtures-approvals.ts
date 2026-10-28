@@ -73,7 +73,7 @@ const K8S_NOTE = 'The api pods still use the old ORDER_SYNC_URL after the Config
 
 /** The kit's demo states, in its order. */
 export const DEMO_APPROVALS: Record<
-  'sql' | 'k8s' | 'http' | 'prod' | 'hidden' | 'approved' | 'rejected' | 'expired' | 'executed' | 'failed',
+  'sql' | 'mongo' | 'k8s' | 'http' | 'prod' | 'hidden' | 'approved' | 'rejected' | 'expired' | 'executed' | 'failed',
   ApprovalDetail
 > = {
   sql: base({
@@ -88,6 +88,27 @@ export const DEMO_APPROVALS: Record<
     rule: SQL_RULE,
     impact: [...SQL_IMPACT, { label: 'Statement timeout', text: '30 s' }],
     agentNote: SQL_NOTE,
+  }),
+  mongo: base({
+    id: 'ap_4nq8m2v7kt5x',
+    tool: 'mongo_update',
+    connection: 'dev-mongo',
+    env: 'dev',
+    requestedAt: '2026-10-22T14:29:12+02:00',
+    expiresAt: '2026-10-22T14:34:12+02:00',
+    action: action(
+      'json',
+      'json',
+      '{"update":"orders","updates":[{"q":{"_id":{"$oid":"507f1f77bcf86cd799439011"},"status":"pending"},"u":{"$set":{"status":"cancelled","audit":{"reason":"Customer request","ticket":"SUP-1182"}}},"multi":false,"upsert":false}]}',
+    ),
+    target: 'dev-mongo · orders',
+    rule: { id: 'dev.mongo.write-approval', text: 'Updating documents requires approval.' },
+    impact: [
+      { label: 'Target collection', text: 'orders' },
+      { label: 'Maximum documents updated', text: '1 (multi is false)' },
+      { label: 'Insert if missing', text: 'No (upsert is false)' },
+    ],
+    agentNote: 'The customer requested cancellation in ticket SUP-1182. Cancel the matching pending order and record the reason.',
   }),
   k8s: base({
     id: 'ap_8hx2c4k1rw7q',

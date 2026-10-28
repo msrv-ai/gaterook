@@ -100,6 +100,10 @@ An approval shows the exact action, environment-marked connection, endpoint, cli
 
 Wrap SQL, commands, HTTP text, and diff lines so a dangerous suffix cannot be hidden beyond the right edge. Display control characters, bidi markers, zero-width characters, tabs, and trailing spaces as visible code-point tokens. Frame non-ASCII look-alikes outside string literals with `gw-tok-confusable`; announce the count in a compact warning.
 
+JSON actions may use a Pretty / Original switch built from `gw-segmented--sm` in the code block header. Pretty changes structural whitespace only; keep every literal and suspicious-character marker intact. Original shows the core's displayed text, and Copy follows the selected view. Fall back to Original when safe formatting is unavailable.
+
+MCP Apps cards reuse the canonical card, key/value, code block, environment, status, alert, and button primitives. Show a masked caller-visible preview, status, and remaining time. **Deny** declines through the client channel; **Details** and the violet **Approve in GateRook** action open desktop review. Reserve the green **Approve and run** action for the protected exact-action review screen. A chat card must not imply that the preview itself authorizes execution.
+
 Place **Deny** (`--danger`) on the left and **Approve and run** (`--approve`) last on the right. Comments are optional on dev/stage. Production requires a comment by default: use a visible required marker, `required` or `aria-required`, and an explained `aria-disabled` approve button until nonempty text exists. Deny stays available.
 
 Desktop decisions are **by you** and require one approver. Multiple approvers appear only in labeled server-mode previews; a partial state says **Approved by 1 of 2**, and an existing approver cannot approve twice. Audit records include the approved action's SHA-256 and whether execution matched it.

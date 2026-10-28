@@ -117,7 +117,7 @@ class EndpointsIT {
     EndpointSnapshot s = wiring.add("mixed", "m-my", null);
     ToolCatalog.Catalog list = catalog.forEndpoint(s);
     assertThat(list.tools()).extracting(ToolCatalog.PublishedTool::name)
-        .containsExactly("approval_status", "sql_execute", "sql_query");
+        .containsExactly("approval_card", "approval_card_action", "approval_status", "sql_execute", "sql_query");
     ToolCatalog.PublishedTool query = list.tool("sql_query").orElseThrow();
     assertThat(query.inputSchema().at("/properties/connection/enum")).extracting(n -> n.asString())
         .containsExactly("m-my", "m-pg");

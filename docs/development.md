@@ -127,6 +127,8 @@ Tests reset their service databases and users. Use only disposable test servers.
 
 Run a focused Java module with `mvn -B -ntp -pl core -am verify` or `-pl connectors/sql -am verify`. Individual integration tests can be selected with `-Dit.test=NameIT -Dit.failIfNoSpecifiedTests=false`; add `-Dtest=none -Dsurefire.failIfNoSpecifiedTests=false` when skipping unit tests for that focused run.
 
+MCP Apps approval cards live in `core/src/main/resources/ai/msrv/gaterook/core/mcp/apps/`. Maven packages the versioned `design/dist/gw-kit.css` alongside the HTML and script; regenerate that CSS through the design build when changing its source. `npm test` exercises the card's sandbox message lifecycle. `McpApprovalCardsIT` uses local fake connectors to cover authenticated negotiation, caller isolation, denial, navigation, and approval-forgery rejection. To verify rendering in a real chat, rebuild/restart GateRook and reconnect an MCP Apps-capable client so it refreshes capabilities and tool metadata; ordinary MCP clients retain the handle flow. Protocol fixtures do not establish compatibility with every host or replace a real host smoke test.
+
 The desktop smoke suite starts real Electron instances in disposable homes, including a real JVM core scenario:
 
 ```bash

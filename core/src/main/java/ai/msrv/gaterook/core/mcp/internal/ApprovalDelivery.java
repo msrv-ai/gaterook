@@ -19,6 +19,8 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * How the outcome of an approval reaches the agent (ARCHITECTURE.md A3, §5 step 11):
  * <ul>
+ *   <li><b>MCP App</b> — a client advertising the MCP Apps HTML MIME type gets the handle immediately, so it can
+ *       render an approval card. The person reviews and approves the exact action in GateRook;</li>
  *   <li><b>MRTR</b> — a modern client that declared {@code elicitation.url} in this request, on an endpoint with
  *       {@code approvalDelivery = auto}: {@code input_required} with a URL elicitation of {@code /approvals/<id>} and a
  *       sealed {@code requestState}; each retry is held up to 20 s; {@code decline} rejects the request (always
@@ -60,11 +62,15 @@ public class ApprovalDelivery {
 
   /** Whether this request gets MRTR. */
   public static boolean mrtr(McpRequest r) {
-    return r.env().elicitationUrl() && r.mrtrAllowed();
+    return !r.env().supportsUi() && r.env().elicitationUrl() && r.mrtrAllowed();
   }
 
   /** The first answer to the call that made (or reused) the request. */
   public Answer first(McpRequest r, ApprovalView a, String argumentsDigest) {
+    // The host needs the handle before it can render a card. Do not hold the call or open a parallel URL flow.
+    if (r.env().supportsUi()) {
+      return new Answer(a.pending() ? answers.pending(a) : answers.state(a), null, a);
+    }
     if (mrtr(r)) {
       Instant now = clock.instant();
       ObjectNode requests = JsonNodeFactory.instance.objectNode();
@@ -78,7 +84,7 @@ public class ApprovalDelivery {
     }
     ApprovalView now = r.firstWaitSeconds() > 0 ? approvals.await(a.id(), Duration.ofSeconds(r.firstWaitSeconds()))
         : a;
-    return new Answer(now.terminal() ? answers.state(now) : answers.pending(now), null, now);
+    return new Answer(now.pending() ? answers.pending(now) : answers.state(now), null, now);
   }
 
   /**

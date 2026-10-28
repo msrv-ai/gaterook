@@ -17,6 +17,7 @@ public final class CoreHints implements RuntimeHintsRegistrar {
   public void registerHints(RuntimeHints hints, ClassLoader classLoader) {
     // CoreBuild.VERSION: the filtered build version.
     hints.resources().registerPattern("ai/msrv/gaterook/core/platform/core.properties");
+    hints.resources().registerPattern("ai/msrv/gaterook/core/mcp/apps/*");
     // The core's policy sections (Masking, Limits, Approvals).
     hints.resources().registerPattern("ai/msrv/gaterook/core/policy/*.schema.json");
     // GW_DEMO=1: the kit's demo world (admin.demo.DemoSeed); a non-release image needs it at run time.
