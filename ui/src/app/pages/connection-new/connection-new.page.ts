@@ -376,6 +376,8 @@ export class ConnectionNewPage {
   protected readonly detailError = signal<ApiError | null>(null);
   protected readonly host = signal<string | null>(null);
   protected readonly health = signal<ConnectionHealth | null>(null);
+  /** Health events received while a detail request is in flight must survive its older snapshot. */
+  private healthRevision = 0;
   protected readonly editTesting = signal(false);
   private version = 0;
   protected readonly healthView = computed(() => {
@@ -438,6 +440,7 @@ export class ConnectionNewPage {
     });
     const offHealth = this.events.on('connection.health', (h) => {
       if (this.mode() !== 'edit' || h.name !== this.name()) return;
+      this.healthRevision++;
       this.health.set({ state: h.state, latencyMs: h.latencyMs ?? null, message: h.message, checkedAt: h.checkedAt });
     });
     destroy.onDestroy(offHealth);
@@ -564,6 +567,7 @@ export class ConnectionNewPage {
   private async startEdit(name: string, gen: number): Promise<void> {
     this.detailState.set('loading');
     this.specState.set('loading');
+    const healthRevision = this.healthRevision;
     try {
       const detail = await this.connections.get(name);
       const [spec, typeDetail, secrets, rows, endpoints] = await Promise.all([
@@ -580,7 +584,7 @@ export class ConnectionNewPage {
       this.startConfig.set(detail.config);
       this.stored.set(this.enrich(detail.secrets, secrets));
       this.host.set(detail.host ?? rows?.items.find((r) => r.name === name)?.host ?? testTarget(detail.config).address);
-      this.health.set(detail.health);
+      if (healthRevision === this.healthRevision) this.health.set(detail.health);
       this.typeDetail.set(typeDetail);
       this.endpoints.set(endpoints);
       this.spec.set(spec);
@@ -1115,19 +1119,21 @@ export class ConnectionNewPage {
   /** The detail after a save: the form opens on the saved settings, the version follows. */
   private async reloadDetail(): Promise<void> {
     const name = this.name()!;
+    const healthRevision = this.healthRevision;
     const [detail, secrets] = await Promise.all([this.connections.get(name), this.secretsApi.list().catch(() => [] as SecretRow[])]);
     this.version = detail.version;
     this.startEnv.set(detail.env);
     this.startConfig.set(detail.config);
     this.stored.set(this.enrich(detail.secrets, secrets));
-    this.health.set(detail.health);
+    if (healthRevision === this.healthRevision) this.health.set(detail.health);
     this.detail.set(detail);
   }
 
   private async refreshHealth(): Promise<void> {
+    const healthRevision = this.healthRevision;
     try {
       const detail = await this.connections.get(this.name()!);
-      this.health.set(detail.health);
+      if (healthRevision === this.healthRevision) this.health.set(detail.health);
     } catch {
       // The next event or a reload brings it.
     }

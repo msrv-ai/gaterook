@@ -123,6 +123,26 @@ describe('ConnectionsData', () => {
     expect(data.secrets()).toEqual([]);
   });
 
+  it.each([false, true])('keeps health received while the connection list is loading (reload: %s)', async (reload) => {
+    const data = setup();
+    if (reload) await data.start();
+    const secrets = deferred<unknown>();
+    secretsAnswer = () => secrets.promise;
+    listAnswer = () => Promise.resolve(list(kitRows().map((row) => row.name === 'dev-db'
+      ? { ...row, health: { state: 'unknown', latencyMs: null, message: null, checkedAt: null } }
+      : row)));
+    const loading = reload ? data.refresh() : data.start();
+    await tick();
+
+    events.emit('connection.health', health('dev-db', 'healthy', 23));
+    secrets.resolve(SECRETS);
+    await loading;
+
+    expect(data.rows()?.find((row) => row.name === 'dev-db')?.health).toEqual({
+      state: 'healthy', latencyMs: 23, message: null, checkedAt: at('14:30:05'), since: at('14:30:05'),
+    });
+  });
+
   it('tells a failed first load from a failed reload', async () => {
     const data = setup();
     listAnswer = () => Promise.reject(new ApiError('server', 500, { detail: 'Locked.' }));

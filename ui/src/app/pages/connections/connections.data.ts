@@ -1,6 +1,6 @@
 import { DestroyRef, Injectable, inject, signal } from '@angular/core';
 import { ApprovalsApi } from '../../core/api/approvals.api';
-import { ConnectionDetail, ConnectionDeleted, ConnectionRow, ConnectionsApi, TestOutcome } from '../../core/api/connections.api';
+import { ConnectionDetail, ConnectionDeleted, ConnectionHealth, ConnectionRow, ConnectionsApi, TestOutcome } from '../../core/api/connections.api';
 import { ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { EndpointsApi } from '../../core/api/endpoints.api';
 import { SecretRow, SecretsApi, ShortLivedCredential } from '../../core/api/secrets.api';
@@ -85,6 +85,8 @@ export class ConnectionsData {
   readonly healthInterval = this.intervalSignal.asReadonly();
 
   private inFlight: Promise<void> | null = null;
+  /** Events received during a load also apply to rows that have not reached the screen yet. */
+  private readonly loadingHealth = new Map<string, ConnectionHealth>();
   private again = false;
   private stopped = false;
   private run: TestAllRun | null = null;
@@ -125,6 +127,7 @@ export class ConnectionsData {
   }
 
   private async load(): Promise<void> {
+    this.loadingHealth.clear();
     let items: ConnectionRow[];
     try {
       // Unfiltered: the filters and their counts work on the whole list, at once as the person types. External MCP
@@ -142,7 +145,13 @@ export class ConnectionsData {
       this.secretsApi.shortLived().catch(() => null),
     ]);
     if (this.stopped) return;
-    this.rowsSignal.set(sortRows(items));
+    this.rowsSignal.set(sortRows(items.map((row) => {
+      const health = this.loadingHealth.get(row.name);
+      return health && (!row.health.checkedAt || Date.parse(health.checkedAt!) > Date.parse(row.health.checkedAt))
+        ? { ...row, health: nextHealth(row.health, health) }
+        : row;
+    })));
+    this.loadingHealth.clear();
     this.errorSignal.set(null);
     this.staleSignal.set(null);
     this.secretsSignal.set((secrets ?? []).filter((s) => s.ownerKind === 'connection'));
@@ -157,11 +166,13 @@ export class ConnectionsData {
   // ── Health ────────────────────────────────────────────────────────────────────────────────────────────────────
 
   private onHealth(h: { readonly name: string; readonly state: string; readonly latencyMs?: number; readonly message: string | null; readonly checkedAt: string }): void {
+    const health: ConnectionHealth = { state: h.state, latencyMs: h.latencyMs ?? null, message: h.message, checkedAt: h.checkedAt };
+    if (this.inFlight) this.loadingHealth.set(h.name, health);
     this.rowsSignal.update((rows) =>
       rows
         ? rows.map((r) =>
             r.name === h.name
-              ? { ...r, health: nextHealth(r.health, { state: h.state, latencyMs: h.latencyMs ?? null, message: h.message, checkedAt: h.checkedAt }) }
+              ? { ...r, health: nextHealth(r.health, health) }
               : r,
           )
         : rows,
