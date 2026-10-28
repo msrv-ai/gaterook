@@ -17,11 +17,13 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import mockwebserver3.MockWebServer;
 import mockwebserver3.RecordedRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The Vault client against a fake Vault 2.2.1 (report 12 §5, §6): texts for 403, 307, destroyed and deleted versions,
@@ -248,18 +250,47 @@ class VaultStoreTest {
   }
 
   @Test
-  void anAddressMustBeHttpsUnlessItIsThisComputer() {
-    assertThatThrownBy(() -> StoreAddress.check("http://vault.acme.internal", java.util.Set.of()))
-        .hasMessageStartingWith("Use https:// for a store on another computer");
-    assertThatThrownBy(() -> StoreAddress.check("https://169.254.169.254", java.util.Set.of()))
-        .isInstanceOf(StoreException.class);
-    assertThatThrownBy(() -> StoreAddress.check("http://127.0.0.1:7777", java.util.Set.of(7777)))
-        .isInstanceOf(StoreException.class);
-    assertThatThrownBy(() -> StoreAddress.check("https://user@vault.acme.internal", java.util.Set.of()))
-        .hasMessage("Write the address without a user, query or fragment.");
-    assertThat(StoreAddress.check("https://vault.acme.internal:8200/", java.util.Set.of()))
+  void remoteHttpRequiresExplicitConsent() {
+    for (String address : List.of("http://vault.acme.internal", "http://10.0.4.2:8200", "http://8.8.8.8:8200")) {
+      assertThatThrownBy(() -> StoreAddress.check(address, Set.of()))
+          .hasMessageStartingWith("Use https:// or confirm the risk of HTTP");
+      assertThatThrownBy(() -> StoreAddress.check(address, Set.of(), false))
+          .isInstanceOf(StoreException.class);
+      assertThat(StoreAddress.check(address + "/", Set.of(), true)).hasToString(address);
+    }
+    assertThat(StoreAddress.check("http://127.0.0.1:8200", Set.of())).hasToString("http://127.0.0.1:8200");
+    assertThat(StoreAddress.check("http://localhost:8200", Set.of())).hasToString("http://localhost:8200");
+    assertThat(StoreAddress.check("http://[::1]:8200", Set.of())).hasToString("http://[::1]:8200");
+    assertThat(StoreAddress.check("https://vault.acme.internal:8200/", Set.of()))
         .hasToString("https://vault.acme.internal:8200");
-    assertThat(StoreAddress.check("https://10.0.4.2:8200", java.util.Set.of())).hasToString("https://10.0.4.2:8200");
+    assertThat(StoreAddress.check("https://10.0.4.2:8200", Set.of())).hasToString("https://10.0.4.2:8200");
+  }
+
+  @Test
+  void httpConsentDoesNotBypassAddressProtections() {
+    for (String address : List.of("http://169.254.169.254", "http://169.254.10.20", "http://[fe80::1]",
+        "http://127.0.0.1:7777", "http://localhost:7777", "http://[::1]:7777", "http://2130706433",
+        "http://0177.0.0.1", "http://203.0.113.10", "http://user@vault.acme.internal", "http://vault.acme.internal?token=test",
+        "http://vault.acme.internal#fragment", "http://vault.acme.internal/../secret",
+        "http://vault.acme.internal/%2e%2e/secret", "ftp://vault.acme.internal")) {
+      assertThatThrownBy(() -> StoreAddress.check(address, Set.of(7777), true)).as(address)
+          .isInstanceOf(StoreException.class);
+    }
+    assertThatThrownBy(() -> StoreAddress.check("https://169.254.169.254", Set.of()))
+        .isInstanceOf(StoreException.class);
+    assertThatThrownBy(() -> StoreAddress.check("https://user@vault.acme.internal", Set.of()))
+        .hasMessage("Write the address without a user, query or fragment.");
+  }
+
+  @Test
+  void vaultSettingsReadThePersistedHttpConsent() {
+    var config = JsonMapper.builder().build().createObjectNode().put("address", "http://vault.acme.internal:8200");
+    config.putObject("auth").put("method", "token");
+    assertThatThrownBy(() -> VaultSettings.of(config, Set.of())).isInstanceOf(StoreException.class);
+    config.put("allowPlainHttp", false);
+    assertThatThrownBy(() -> VaultSettings.of(config, Set.of())).isInstanceOf(StoreException.class);
+    config.put("allowPlainHttp", true);
+    assertThat(VaultSettings.of(config, Set.of()).address()).hasToString("http://vault.acme.internal:8200");
   }
 
   /** A clock the test moves. */

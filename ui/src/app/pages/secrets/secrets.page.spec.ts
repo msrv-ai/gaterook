@@ -442,6 +442,124 @@ describe('Secrets page: Replace and Rotate', () => {
 });
 
 describe('Secrets page: external stores', () => {
+  async function openVault(address: string): Promise<HTMLInputElement> {
+    world.stores = () => Promise.resolve([]);
+    await render();
+    await click(control($('#store-vault')!, 'Connect'));
+    await type($<HTMLInputElement>('#vault-address')!, address);
+    await type($<HTMLSelectElement>('#vault-method')!, 'token');
+    const token = $<HTMLInputElement>('#vault-token')!;
+    token.value = 'test-vault-token';
+    return token;
+  }
+
+  it('HTTP Vault waits for confirmation before creating or testing; Cancel preserves the form and returns focus', async () => {
+    const token = await openVault('http://192.0.2.10:8200/');
+    await submit('#dlg-connect-store');
+    const warning = $<HTMLDialogElement>('#dlg-vault-http')!;
+    expect(warning.open).toBe(true);
+    expect(warning.classList).toContain('gw-dialog--warning');
+    expect(text(warning)).toContain('http://192.0.2.10:8200/');
+    expect(text(warning)).toContain('Sign-in credentials and secrets will travel without encryption');
+    expect(text(warning)).not.toContain(token.value);
+    expect(document.activeElement).toBe(control(warning, 'Cancel'));
+    expect(calls.some((c) => c.startsWith('create') || c.startsWith('test-store'))).toBe(false);
+
+    await click(control(warning, 'Cancel'));
+    expect(warning.open).toBe(false);
+    expect($<HTMLDialogElement>('#dlg-connect-store')!.open).toBe(true);
+    expect(token.value).toBe('test-vault-token');
+    expect(document.activeElement).toBe(control($('#dlg-connect-store')!, 'Test and connect'));
+    expect(requests).toHaveLength(0);
+
+    await type($<HTMLInputElement>('#vault-address')!, 'http://vault.acme.internal:8200');
+    await submit('#dlg-connect-store');
+    expect(warning.open).toBe(true);
+    expect(text(warning)).toContain('http://vault.acme.internal:8200');
+    await click(control(warning, 'Connect over HTTP'));
+    expect(requests).toEqual([{
+      kind: 'vault', name: 'vault',
+      config: { address: 'http://vault.acme.internal:8200', auth: { method: 'token' }, allowPlainHttp: true },
+      secrets: { '/auth/token': 'test-vault-token' },
+    }]);
+    expect(calls).toContain('test-store st-aws');
+    expect(warning.open).toBe(false);
+    expect($<HTMLDialogElement>('#dlg-connect-store')!.open).toBe(false);
+    expect(token.value).toBe('');
+  });
+
+  it('HTTPS Vault connects without an HTTP warning or opt-in', async () => {
+    await openVault('https://vault.acme.internal/');
+    await submit('#dlg-connect-store');
+    expect($<HTMLDialogElement>('#dlg-vault-http')!.open).toBe(false);
+    expect((requests[0] as SecretStoreCreate).config).toEqual({ address: 'https://vault.acme.internal', auth: { method: 'token' } });
+    expect(calls).toContain('test-store st-aws');
+  });
+
+  it('local HTTP Vault also asks first, and dismissing the warning never connects', async () => {
+    await openVault('http://localhost:8200');
+    await submit('#dlg-connect-store');
+    const warning = $<HTMLDialogElement>('#dlg-vault-http')!;
+    expect(warning.open).toBe(true);
+    // Native Escape closes a dialog without a return value.
+    warning.dispatchEvent(new Event('cancel', { cancelable: true }));
+    warning.close();
+    await settle();
+    expect(requests).toHaveLength(0);
+    await submit('#dlg-connect-store');
+    expect(warning.open).toBe(true);
+    expect(document.activeElement).toBe(control(warning, 'Cancel'));
+    await click(control(warning, 'Cancel'));
+    await type($<HTMLInputElement>('#vault-address')!, 'https://vault.acme.internal');
+    await submit('#dlg-connect-store');
+    expect((requests[0] as SecretStoreCreate).config['allowPlainHttp']).toBeUndefined();
+  });
+
+  it('HTTP consent applies to the displayed address and a single attempt', async () => {
+    await openVault('http://vault.acme.internal');
+    await submit('#dlg-connect-store');
+    const warning = $<HTMLDialogElement>('#dlg-vault-http')!;
+    // Browsers queue the close event; the shared jsdom shim dispatches it synchronously.
+    const close = vi.spyOn(warning, 'close').mockImplementation((value?: string) => {
+      if (!warning.open) return;
+      if (value !== undefined) warning.returnValue = value;
+      warning.removeAttribute('open');
+      setTimeout(() => warning.dispatchEvent(new Event('close')), 0);
+    });
+    // Programmatic changes must not reuse a confirmation for a different destination.
+    await type($<HTMLInputElement>('#vault-address')!, 'http://vault2.acme.internal');
+    await click(control(warning, 'Connect over HTTP'));
+    expect(requests).toHaveLength(0);
+    expect(warning.open).toBe(true);
+    expect(text(warning)).toContain('http://vault2.acme.internal');
+    world.createStore = () => Promise.reject(problem(422, { title: 'Invalid store', detail: 'Fix the store settings.' }));
+    await click(control(warning, 'Connect over HTTP'));
+    expect(requests).toHaveLength(1);
+    expect(text($('#dlg-connect-store'))).toContain('Fix the store settings.');
+    await submit('#dlg-connect-store');
+    expect(warning.open).toBe(true);
+    expect(requests).toHaveLength(1);
+    await click(control(warning, 'Cancel'));
+    await click(control($('#dlg-connect-store')!, 'Cancel'));
+    await click(control($('#store-vault')!, 'Connect'));
+    expect($<HTMLInputElement>('#vault-address')!.value).toBe('');
+    expect(warning.open).toBe(false);
+    close.mockRestore();
+  });
+
+  it('HTTP confirmation cannot submit the same connection twice while the request is pending', async () => {
+    await openVault('http://vault.acme.internal');
+    await submit('#dlg-connect-store');
+    world.createStore = () => never<SecretStore>();
+    const confirm = control($('#dlg-vault-http')!, 'Connect over HTTP');
+    confirm.click();
+    confirm.click();
+    await settle();
+    await submit('#dlg-connect-store');
+    expect(requests).toHaveLength(1);
+    expect(control($('#dlg-connect-store')!, 'Test and connect').getAttribute('aria-busy')).toBe('true');
+  });
+
   it('until the core has the stores’ API it says they aren’t available yet, and the rest works', async () => {
     world.stores = () => Promise.reject(notAvailable());
     const el = await render();
