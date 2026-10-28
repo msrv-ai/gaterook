@@ -61,6 +61,13 @@ let nextId = 0;
         <!-- A line with an address wraps (kit: "HTTP API · billing.stage.acme.dev"); a plain one is cut, whole in title. -->
         <p class="gw-text-caption gw-fg-muted" [class.gw-truncate]="!hasLiteral()" [attr.title]="hasLiteral() ? null : metaText()">@for (p of metaParts(); track $index) {@if (p.mono) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</p>
       }
+      @if (endpoints().length) {
+        <ul class="gw-tag-list" role="list" [attr.aria-label]="'Connected endpoints for ' + name()">
+          @for (endpoint of endpoints(); track endpoint) {
+            <li class="gw-badge gw-badge--neutral gw-badge--sm gw-badge--wrap"><span class="gw-mono">{{ endpoint }}</span></li>
+          }
+        </ul>
+      }
     </div>
     <div class="gw-status-tile__end">
       @if (checking()) {
@@ -103,6 +110,8 @@ export class GwStatusTile {
   readonly client = input<string | null>(null);
   /** The one meta line: type, where it connects, what it can use. */
   readonly meta = input<string | readonly TilePart[] | null>(null);
+  /** The AI app's connected endpoints, each once, shown as badges below its metadata. */
+  readonly endpoints = input<readonly string[]>([]);
   readonly state = input<TileState | null>(null);
   /** The tile's action runs: the state says "Checking…" (role=status) until the result comes. */
   readonly checking = input(false, { transform: booleanAttribute });

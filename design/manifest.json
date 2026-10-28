@@ -441,6 +441,7 @@
         "gw-badge--prod",
         "gw-badge--solid (env tones keep the tint and get a solid edge)",
         "gw-badge--outline (wins over --solid)",
+        "gw-badge--wrap (long labels wrap within the available width)",
         "gw-badge--sm (18px)",
         "gw-counter (default: bg.active wash)",
         "gw-counter--attention (warning solid, dark text)",
@@ -451,7 +452,8 @@
       ],
       "states": [
         "display only: no interactive states",
-        "never wraps or truncates: keep the words short"
+        "never truncates; stays on one line by default, so keep the words short",
+        "--wrap preserves the complete label across multiple lines, including unbroken endpoint slugs and nested monospaced text"
       ],
       "a11y": "Words are always present; the icon is an aria-hidden second cue. Tone fg on tone subtle and on-solid on solid are verified 4.5:1 in all four modes. A counter needs sr-only context ('3 waiting') or a control name that says what is counted. The badge border and the counter's transparent border keep the shape in forced colors."
     },
@@ -2052,7 +2054,7 @@
       "name": "status-tile",
       "scss": "elements/_status-tile.scss",
       "html": "elements/status-tile.html",
-      "purpose": "One compact card that names one thing (a connection, an AI app) and says its state in words, with at most one action (Connect, Test again, How to install). For pages that answer 'what is connected and is it working' at a glance; sets of tiles sit in a gw-grid --3 list (--2 for the fixed set of four AI apps), problems first. The title links to the thing's page; when the action is the tile's only destination the title is plain text and the tile is not interactive.",
+      "purpose": "One compact card that names one thing (a connection, an AI app) and says its state in words, with at most one action (Connect, Test again, How to install). For pages that answer 'what is connected and is it working' at a glance; sets of tiles sit in a gw-grid --3 list (--2 for the fixed set of four AI apps), problems first. AI app tiles show each connected or restart-pending endpoint once as a neutral small badge below the metadata. The title links to the thing's page; when the action is the tile's only destination the title is plain text and the tile is not interactive.",
       "composes": [
         "gw-card",
         "gw-icon-tile",
@@ -2062,7 +2064,9 @@
         "gw-btn",
         "gw-spinner",
         "gw-mono",
-        "gw-grid"
+        "gw-grid",
+        "gw-badge",
+        "gw-tag-list"
       ],
       "states": [
         "healthy / connected (success)",

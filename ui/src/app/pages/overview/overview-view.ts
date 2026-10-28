@@ -165,6 +165,8 @@ export interface AppTile {
   readonly client: string;
   readonly name: string;
   readonly meta: string;
+  /** Configured endpoints with current access or awaiting a client restart, each shown once. */
+  readonly endpoints: readonly string[];
   readonly state: TileState;
   /** The app has its own card to open (connected, needing a restart, failing, claude.ai): the title links there. */
   readonly linked: boolean;
@@ -177,17 +179,18 @@ export interface AppTile {
 
 /** An app the guide or the home screen offers to connect, or one to install (a card's state in the tile's words). */
 export function guideAppTile(card: ClientCard): AppTile {
+  const endpoints = [...new Set(card.links.filter((link) => link.status === 'connected' || link.status === 'needs-restart').map((link) => link.endpoint))];
   switch (card.status) {
     case 'connected':
-      return { client: card.client, name: card.name, meta: canUse(card, null), state: { tone: 'success', label: 'Connected' }, linked: true, action: null };
+      return { client: card.client, name: card.name, meta: canUse(card, null), endpoints, state: { tone: 'success', label: 'Connected' }, linked: true, action: null };
     case 'needs-restart':
-      return { client: card.client, name: card.name, meta: card.statusText || 'Restart it to load GateRook', state: { tone: 'warning', label: 'Needs restart' }, linked: true, action: null };
+      return { client: card.client, name: card.name, meta: card.statusText || 'Restart it to load GateRook', endpoints, state: { tone: 'warning', label: 'Needs restart' }, linked: true, action: null };
     case 'error':
-      return { client: card.client, name: card.name, meta: card.statusText || card.warnings[0] || 'Open it to see what failed', state: { tone: 'danger', label: 'Error' }, linked: true, action: null };
+      return { client: card.client, name: card.name, meta: card.statusText || card.warnings[0] || 'Open it to see what failed', endpoints, state: { tone: 'danger', label: 'Error' }, linked: true, action: null };
     case 'not-installed':
-      return { client: card.client, name: card.name, meta: 'Not found on this computer', state: { tone: 'neutral', label: 'Not installed' }, linked: false, action: 'install' };
+      return { client: card.client, name: card.name, meta: 'Not found on this computer', endpoints, state: { tone: 'neutral', label: 'Not installed' }, linked: false, action: 'install' };
     default:
-      return { client: card.client, name: card.name, meta: 'Found on this computer', state: { tone: 'info', label: 'Not connected' }, linked: false, action: 'connect' };
+      return { client: card.client, name: card.name, meta: 'Found on this computer', endpoints, state: { tone: 'info', label: 'Not connected' }, linked: false, action: 'connect' };
   }
 }
 
@@ -239,7 +242,7 @@ export function homeAppTiles(
  */
 export function claudeAiTile(tunnel: TunnelState | null, clock: (at: string) => string): AppTile | null {
   if (!tunnel) return null;
-  const tile = (meta: string, state: TileState): AppTile => ({ client: 'claude-ai', name: 'claude.ai', meta, state, linked: true, action: null });
+  const tile = (meta: string, state: TileState): AppTile => ({ client: 'claude-ai', name: 'claude.ai', meta, endpoints: [], state, linked: true, action: null });
   if (tunnel.state === 'on' || tunnel.state === 'starting') {
     const slug = tunnel.endpoint;
     return tile(tunnel.since ? `In the browser · public since ${clock(tunnel.since)}` : 'In the browser', {

@@ -61,6 +61,16 @@
     <span class="gw-badge gw-badge--warning gw-badge--sm">Expires in 3 days</span>
   </div>
 
+  <h3>Wrapping endpoint labels</h3>
+  <p class="gw-text-small gw-fg-muted">Use <code class="gw-code">gw-badge--wrap</code> for endpoint slugs that must remain fully readable in a narrow card. The badge grows to fit the complete label.</p>
+  <div class="sc-demo" data-sc-code>
+    <!-- The sidebar-width token gives this demonstration a narrow card-sized area. -->
+    <ul class="gw-tag-list" role="list" aria-label="Endpoint label examples" style="max-width: var(--gw-layout-sidebar-width)">
+      <li class="gw-badge gw-badge--neutral gw-badge--sm gw-badge--wrap"><span class="gw-mono">dev</span></li>
+      <li class="gw-badge gw-badge--neutral gw-badge--sm gw-badge--wrap"><span class="gw-mono">customer-support-production-incident-investigation-readonly</span></li>
+    </ul>
+  </div>
+
   <h3>In context: tokens of endpoint dev</h3>
   <div class="sc-demo sc-demo--col" data-sc-code>
     <dl class="gw-kv">

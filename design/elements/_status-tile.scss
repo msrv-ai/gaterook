@@ -12,6 +12,7 @@
 //
 // Composes  gw-card (--interactive, __link), gw-icon-tile / gw-client-mark,
 //           gw-env --sm, gw-status (incl. --checking), gw-btn --sm, gw-mono,
+//           gw-badge --neutral --sm --wrap in gw-tag-list for connected endpoints,
 //           gw-text-* and gw-fg-* utilities, gw-grid for a set of tiles.
 //
 //   <ul class="gw-grid gw-grid--3" role="list" aria-label="Your connections">
@@ -30,7 +31,10 @@
 //     </li>
 //   </ul>
 //
-// Parts   __main   title + one meta line (type, where it connects, what it can use)
+// Parts   __main   title + one meta line (type, where it connects, what it can use),
+//                  then an optional wrapping gw-tag-list of endpoint badges.
+//                  Show each connected or restart-pending endpoint once; omit
+//                  failed/revoked links and the list when no endpoints remain.
 //         __title  the name, as a heading one level below the set's heading (h3 in
 //                  a section, h4 inside a gw-stepper --guide step). With a link
 //                  (gw-card--interactive + .gw-card__link) when the thing has its

@@ -235,7 +235,7 @@
     get past it). A connected app's tile opens its card.
   -->
   <ng-template #appTile let-a let-level="level" let-wait="wait">
-    <li gwStatusTile [level]="level" [name]="a.name" [client]="a.client" [meta]="a.meta" [state]="a.state" [link]="a.linked ? '/clients' : null" [fragment]="a.linked ? appAnchor(a.client) : null">
+    <li gwStatusTile [level]="level" [name]="a.name" [client]="a.client" [meta]="a.meta" [endpoints]="a.endpoints" [state]="a.state" [link]="a.linked ? '/clients' : null" [fragment]="a.linked ? appAnchor(a.client) : null">
       @if (a.action === 'connect') {
         @if (wait) {
           <button class="gw-btn gw-btn--sm" type="button" aria-disabled="true" aria-describedby="ov-first-why">Connect<span class="gw-sr-only"> {{ a.name }}</span></button>
