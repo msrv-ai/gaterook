@@ -28,12 +28,19 @@
           <div class="gw-kv__row" id="expiry-row"><dt class="gw-kv__key">Time remaining</dt><dd class="gw-kv__value gw-tabular" id="request-expiry" role="timer" aria-live="off"></dd></div>
         </dl>
         <section class="gw-stack gw-stack--sm" aria-labelledby="request-label">
-          <h2 class="gw-text-small" id="request-label">Requested arguments</h2>
-          <div class="gw-code-block gw-code-block--wrap gw-code-block--scroll">
-            <div class="gw-code-block__header"><span class="gw-code-block__lang" id="request-language"></span></div>
-            <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Requested arguments"><pre class="gw-code-block__pre"><code id="request-text"></code></pre></div>
+          <h2 class="gw-text-small" id="request-label">
+            <button class="gw-btn gw-btn--ghost gw-btn--sm" id="arguments-toggle" type="button" aria-expanded="false" aria-controls="request-arguments">
+              <svg class="gw-icon gw-icon--sm gw-btn__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+              Requested arguments
+            </button>
+          </h2>
+          <div class="gw-stack gw-stack--sm" id="request-arguments" hidden>
+            <div class="gw-code-block gw-code-block--wrap gw-code-block--scroll">
+              <div class="gw-code-block__header"><span class="gw-code-block__lang" id="request-language"></span></div>
+              <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Requested arguments"><pre class="gw-code-block__pre"><code id="request-text"></code></pre></div>
+            </div>
+            <p class="gw-text-small" id="request-truncated" hidden>Preview shortened. Open GateRook to review the complete action.</p>
           </div>
-          <p class="gw-text-small" id="request-truncated" hidden>Preview shortened. Open GateRook to review the complete action.</p>
         </section>
         <div class="gw-alert gw-alert--info">
           <div class="gw-alert__content gw-stack gw-stack--sm">
