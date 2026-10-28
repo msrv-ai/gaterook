@@ -47,22 +47,6 @@ export function headerCounts(cards: readonly ClientCard[]): Count[] {
   return out;
 }
 
-/** Where each card goes on the page. */
-export interface ClientsLayout {
-  /** The first detected client: the only thing to do here, so it comes first, wide, with Connect open inline. */
-  readonly inline: ClientCard | null;
-  /** Clients on several endpoints or through the bridge extension: wide, one row per endpoint. */
-  readonly wide: ClientCard[];
-  /** Everyone else, two by two. */
-  readonly grid: ClientCard[];
-}
-
-export function clientsLayout(cards: readonly ClientCard[], wide: (c: ClientCard) => boolean): ClientsLayout {
-  const inline = cards.find((c) => c.status === 'detected' && c.links.length === 0) ?? null;
-  const rest = cards.filter((c) => c !== inline);
-  return { inline, wide: rest.filter((c) => wide(c)), grid: rest.filter((c) => !wide(c)) };
-}
-
 /** The scan found no AI app at all: "No AI apps found" stands in for the cards. */
 export function noClients(cards: readonly ClientCard[]): boolean {
   return cards.every((c) => !c.detected && c.links.length === 0);

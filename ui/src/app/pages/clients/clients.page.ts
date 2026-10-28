@@ -12,7 +12,7 @@ import { Announcer } from '../../kit/announcer';
 import { GwCopy } from '../../kit/copy';
 import { GwToggle } from '../../kit/disclosure';
 import { ClientPreviewRequest, GwClientCard } from '../../kit/elements/client-card/client-card';
-import { ConfigEntry, INSTALL_URL, tableLayout, viaText } from '../../kit/elements/client-card/client-view';
+import { ConfigEntry, INSTALL_URL, viaText } from '../../kit/elements/client-card/client-view';
 import { GwClientMark } from '../../kit/elements/shared/client-mark';
 import { clientStatusLook } from '../../kit/elements/shared/dictionaries';
 import { literalParts } from '../../kit/elements/shared/literals';
@@ -28,7 +28,6 @@ import {
   anchorClient,
   bridgeRemovedToast,
   checkSummary,
-  clientsLayout,
   connectToast,
   disconnectToast,
   endpointAddedToast,
@@ -51,10 +50,9 @@ export const SKELETON_DELAY_MS = 300;
  * Clients (design/pages/clients.html; ARCHITECTURE.md §8.4 "clients"): which AI apps reach the gateway, and how.
  * Top to bottom, as the kit answers it:
  * 1. What does Connect do? — How it works (find → show the diff → back up and write → Disconnect undoes).
- * 2. What is left to do here? — the first detected client, wide, with Connect open inline and Connect as its primary.
- * 3. What is already connected? — Claude Desktop through its bridge (a row per endpoint, Add endpoint, Remove
- *    bridge), the other apps two by two (Codex with its helper and its entry, an app that isn't installed…);
- *    "No AI apps found" when the scan finds none.
+ * 2. Which apps are connected? — compact app rows with live status, in a stable order. Opening a row reveals the
+ *    existing connection details and actions, or the Connect review for a detected app. Folding preserves choices.
+ * 3. "No AI apps found" when the scan finds none.
  * 4. How does claude.ai get in? — the tunnel card (step K3; "not available yet" without it).
  * 5. Anything else? — manual setup: the endpoint URL, the snippets, where tokens come from.
  *
@@ -117,11 +115,8 @@ export class ClientsPage {
   protected readonly cards = this.data.cards;
   protected readonly selectedCard = computed(() => this.cards().find((c) => this.clientAnchor(c.client) === this.fragment()) ?? null);
   protected readonly counts = computed(() => headerCounts(this.cards()));
-  protected readonly layout = computed(() => {
-    const cards = this.cards();
-    const selected = this.selectedCard();
-    return clientsLayout(selected ? [selected, ...cards.filter((c) => c !== selected)] : cards, tableLayout);
-  });
+  protected readonly expandedApps = signal<ReadonlySet<string>>(new Set());
+  protected readonly browserExpanded = signal(false);
   protected readonly none = computed(() => this.cards().length > 0 && noClients(this.cards()));
   protected readonly endpoints = this.data.endpointList;
   protected readonly hand = computed(() => handTokens(this.data.tokens(), this.cards()));
@@ -164,7 +159,7 @@ export class ClientsPage {
     const f = this.data.first();
     return checkPrompt(f?.type ?? null, f?.name ?? null);
   });
-  /** Setup: manual setup stays behind "Show manual setup". */
+  /** Manual setup stays behind "Show manual setup". */
   protected readonly manualOpen = signal(false);
   protected readonly anchorBase = anchorBase;
   protected readonly literalParts = literalParts;
@@ -211,6 +206,7 @@ export class ClientsPage {
    */
   protected jump(e: MouseEvent, id: string): void {
     if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    if (id === 'cl-manual-t') this.manualOpen.set(true);
     queueMicrotask(() => {
       const target = this.doc.getElementById(id);
       if (!target) return;
@@ -228,6 +224,7 @@ export class ClientsPage {
     const client = anchorClient(fragment);
     if (!client) return;
     if (client === 'claude-ai') {
+      this.browserExpanded.set(true);
       this.focus('cl-ai-t');
       return;
     }
@@ -235,6 +232,7 @@ export class ClientsPage {
     if (!card) return;
     const base = anchorBase(client);
     const st = this.stage();
+    this.expandApp(client, true);
     if (this.none()) {
       // With no detected apps, a selected missing app keeps its installation card above the empty state.
       this.focus(null, client);
@@ -246,6 +244,16 @@ export class ClientsPage {
     } else {
       this.focus(null, client);
     }
+  }
+
+  /** Keep disclosure state independent of connection updates and card replacements. */
+  protected expandApp(client: string, expanded: boolean): void {
+    this.expandedApps.update((current) => {
+      const next = new Set(current);
+      if (expanded) next.add(client);
+      else next.delete(client);
+      return next;
+    });
   }
 
   /** A row's Connect (setup): the same anchor again doesn't navigate, so the review opens here too. */
@@ -316,8 +324,8 @@ export class ClientsPage {
       if (this.stage() === 'setup') {
         // The review gives way to the app's card, which stays on top with "Check that it works" (kit).
         this.fresh.update((s) => new Set(s).add(card.client));
-        this.focus(null, card.client);
       }
+      this.focus(null, card.client);
       const opened = done.result.link.method === 'mcpb' && this.desktopApp;
       if (opened) await this.desktop.openMcpb(done.result.link.id);
       this.toasts.show({ tone: 'success', ...connectToast(card, request, done.preview, done.result, opened) });

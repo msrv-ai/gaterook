@@ -3,14 +3,12 @@ import { ApiError } from '../../core/api/api-error';
 import { ClientCard } from '../../core/api/clients.api';
 import { clockTime } from '../../core/time/time-format';
 import { DEMO_CLIENTS, DEMO_GRANTS, DEMO_PREVIEW_CURSOR, DEMO_PUBLISH, DEMO_TUNNEL_OFF, DEMO_TUNNEL_ON } from '../../dev/fixtures-clients';
-import { tableLayout } from '../../kit/elements/client-card/client-view';
 import {
   allowedAt,
   anchorBase,
   anchorClient,
   bridgeRemovedToast,
   checkSummary,
-  clientsLayout,
   connectFailure,
   connectToast,
   connectionEnvs,
@@ -55,16 +53,6 @@ describe('Clients view: header and layout', () => {
     // A restart or an error is counted on its own, so the header says what needs the person.
     const restart = headerCounts([DEMO_CLIENTS.codexRestart, { ...cursor, status: 'error', statusText: 'Config changed outside the app' }]);
     expect(restart.map((c) => c.text)).toEqual(['1 needs restart', '1 needs you']);
-  });
-
-  it('puts the first detected client first and wide, the bridge wide, everyone else two by two', () => {
-    const layout = clientsLayout(kitClients().clients, tableLayout);
-    expect(layout.inline?.client).toBe('cursor');
-    expect(layout.wide.map((c) => c.client)).toEqual(['claude-desktop']);
-    expect(layout.grid.map((c) => c.client)).toEqual(['codex', 'antigravity']);
-    // Once connected, Cursor is a card like the others.
-    const done = clientsLayout([{ ...cursor, status: 'connected', links: codex.links }], tableLayout);
-    expect(done.inline).toBeNull();
   });
 
   it('shows "No AI apps found" only when the scan found nothing at all', () => {

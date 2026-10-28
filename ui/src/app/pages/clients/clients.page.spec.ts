@@ -160,14 +160,24 @@ const $ = <E extends Element = HTMLElement>(sel: string, root: ParentNode = docu
 const $$ = <E extends Element = HTMLElement>(sel: string, root: ParentNode = document) => [...root.querySelectorAll<E>(sel)];
 /** A control by its words (sr-only parts included, as a screen reader reads it). */
 const control = (root: ParentNode, words: string) => $$<HTMLElement>('button, a', root).find((b) => text(b) === words || text(b).startsWith(words))!;
-/** A client's card, by the name in its title. */
-const card = (name: string) => $$('article').find((a) => text($('.gw-card__title', a)) === name)!;
+/** A client's card by its stable app identity, independent of the compact heading's status text. */
+const clientId: Readonly<Record<string, string>> = { 'Claude Desktop': 'claude-desktop', Codex: 'codex', Cursor: 'cursor', Antigravity: 'antigravity' };
+const card = (name: string) => name === 'claude.ai' ? $('article[aria-labelledby="cl-ai-t"]')! : $(`article[data-client="${clientId[name]}"]`)!;
+const disclosure = (app: ParentNode) => $<HTMLButtonElement>('button.gw-client-card__row[aria-controls]', app)!;
+const details = (app: ParentNode) => document.getElementById(disclosure(app).getAttribute('aria-controls')!)!;
 const openDialog = () => $<HTMLDialogElement>('dialog[open]');
 const toasts = () => TestBed.inject(ToastService).toasts();
 
 async function click(el: HTMLElement): Promise<void> {
   el.click();
   await settle();
+}
+
+async function expandCard(name: string): Promise<HTMLElement> {
+  const app = card(name);
+  const toggle = disclosure(app);
+  if (toggle?.getAttribute('aria-expanded') === 'false') await click(toggle);
+  return app;
 }
 
 async function choose(select: HTMLSelectElement, value: string): Promise<void> {
@@ -196,36 +206,50 @@ describe('Clients page: what it shows', () => {
       : c) }));
     await TestBed.inject(Router).navigateByUrl('/clients#cl-cx-t');
     const el = await render();
-    const first = $('section[aria-labelledby="cl-local-t"] article', el)!;
-    expect(first.id).toBe('cl-cx-t');
-    expect(text($('.gw-card__title', first))).toBe('Codex');
-    expect(first.hasAttribute('gwInlineConnectCard')).toBe(true);
-    expect(document.activeElement).toBe($('.gw-card__title', first));
+    const selected = $('#cl-cx-t', el)!;
+    expect(selected.hasAttribute('gwInlineConnectCard')).toBe(true);
+    expect(disclosure(selected).getAttribute('aria-expanded')).toBe('true');
+    expect(details(selected).hidden).toBe(false);
+    expect(document.activeElement).toBe($('.gw-card__title', selected));
+    expect(calls).toContain('preview codex dev helper');
+    expect(calls.some((call) => call.startsWith('preview cursor '))).toBe(false);
     expect(calls.some((call) => call.startsWith('connect '))).toBe(false);
   });
 
-  it('the kit’s world: counts, Cursor first with Connect open, the bridge, Codex, Antigravity, claude.ai, manual setup', async () => {
+  it('starts with compact app statuses and reveals the existing details only when opened', async () => {
     const el = await render();
     expect(text($('h1', el))).toBe('AI apps');
     expect($$('.gw-page-header__meta .gw-status__label', el).map(text)).toEqual(['2 connected', '1 detected, not connected', '1 not installed']);
     expect(text($('#cl-scanned', el))).toBe('1 min ago');
     expect(text($('section[aria-labelledby="cl-local-t"] .gw-section__description', el))).toContain('127.0.0.1:7465');
 
-    // What is left to do comes first: Cursor, wide, with Connect inline and its own primary.
     const articles = $$('section[aria-labelledby="cl-local-t"] article', el);
-    expect(text($('.gw-card__title', articles[0]))).toBe('Cursor');
-    const cursor = card('Cursor');
+    expect(articles).toHaveLength(4);
+    expect($('section[aria-labelledby="cl-local-t"] ul.gw-grid--2', el)).toBeNull();
+    for (const app of [...articles, card('claude.ai')]) {
+      const toggle = disclosure(app);
+      expect(toggle.tagName).toBe('BUTTON');
+      expect(toggle.getAttribute('aria-expanded')).toBe('false');
+      expect(details(app).hidden).toBe(true);
+      expect($('.gw-status__label', toggle)?.closest('[hidden]')).toBeNull();
+    }
+    expect(calls.some((call) => call.startsWith('preview '))).toBe(false);
+    expect($('.gw-how-it-works button[aria-expanded]', el)?.getAttribute('aria-expanded')).toBe('false');
+
+    const cursor = await expandCard('Cursor');
+    expect(disclosure(cursor).getAttribute('aria-expanded')).toBe('true');
+    expect(details(cursor).hidden).toBe(false);
     expect(text(cursor)).toContain('Found on this computer. Pick an endpoint and how Cursor signs in, then check the change; nothing is written until you connect.');
     expect($$('.gw-btn--primary', cursor).map(text)).toEqual(['Connect Cursor']);
 
-    const cd = card('Claude Desktop');
+    const cd = await expandCard('Claude Desktop');
     expect(text(cd)).toContain('A short-lived token per endpoint, issued on the fly and never written to the config');
     const rows = $$('tbody tr', cd);
     expect(rows.map((r) => text($('a', r)))).toEqual(['dev', 'incident-prod']);
     expect($('.gw-env-marker, [class*="env"]', rows[1])).toBeTruthy();
     expect(control(cd, 'Remove bridge from Claude Desktop')).toBeTruthy();
 
-    const codex = card('Codex');
+    const codex = await expandCard('Codex');
     expect(text(codex)).toContain('Codex asks before write tools too: default_tools_approval_mode = "writes"');
     const entryToggle = control(codex, 'Entry in config.toml of Codex');
     const entry = document.getElementById(entryToggle.getAttribute('aria-controls')!)!;
@@ -234,7 +258,7 @@ describe('Clients page: what it shows', () => {
     expect(entry.hidden).toBe(false);
     expect(text(entry)).toContain('[mcp_servers.gaterook-dev]');
 
-    const ag = card('Antigravity');
+    const ag = await expandCard('Antigravity');
     expect(text(ag)).toContain('Not found on this computer. Install it, then check again.');
     expect(control(ag, 'Check again for Antigravity')).toBeTruthy();
 
@@ -244,6 +268,9 @@ describe('Clients page: what it shows', () => {
     expect($('.gw-card__footer', ai)).toBeNull();
     expect(control(ai, 'Publish for claude.ai')).toBeUndefined();
 
+    expect($('#cl-manual-p', el)!.hidden).toBe(true);
+    await click(control($('section[aria-labelledby="cl-manual-t"]', el)!, 'Show manual setup'));
+    expect($('#cl-manual-p', el)!.hidden).toBe(false);
     expect($<HTMLInputElement>('#cl-man-url', el)!.value).toBe('http://127.0.0.1:7465/mcp/dev');
     expect($$('[role="tab"]', el).map(text)).toEqual(['MCP Inspector', 'JSON', 'TOML']);
     expect(text($('section[aria-labelledby="cl-manual-t"] .gw-card__footer', el))).toContain('Set up by hand: token inspector-debug gwt_K9xP…, expires in 3 days');
@@ -320,10 +347,36 @@ describe('Clients page: what it shows', () => {
 });
 
 describe('Clients page: Connect inline', () => {
+  it('keeps the chosen endpoint and sign-in when details are closed and reopened', async () => {
+    await render();
+    const cursor = await expandCard('Cursor');
+    const endpoint = $<HTMLSelectElement>('select', cursor)!;
+    await choose(endpoint, 'incident-prod');
+    const previews = calls.filter((call) => call.startsWith('preview '));
+    const toggle = disclosure(cursor);
+
+    toggle.focus();
+    await click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(details(cursor).hidden).toBe(true);
+    expect(document.activeElement).toBe(toggle);
+    expect($('.gw-status__label', toggle)?.closest('[hidden]')).toBeNull();
+
+    await click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(details(cursor).hidden).toBe(false);
+    expect($('select', cursor)).toBe(endpoint);
+    expect(endpoint.value).toBe('incident-prod');
+    const selected = $<HTMLInputElement>('input[type="radio"]:checked', cursor)!;
+    expect(text(document.getElementById(selected.getAttribute('aria-labelledby')!))).toBe('Through the bridge');
+    expect(calls.filter((call) => call.startsWith('preview '))).toEqual(previews);
+    expect(calls.some((call) => call.startsWith('connect '))).toBe(false);
+  });
+
   it('shows the exact change before anything is written; Connect writes exactly that change', async () => {
     await render();
+    const cursor = await expandCard('Cursor');
     expect(calls).toContain('preview cursor dev token');
-    const cursor = card('Cursor');
     expect(text(cursor)).toContain('Token cursor-laptop · expires in 7 days · written in plain text to ~/.cursor/mcp.json · Revoke');
     expect(text(cursor)).toContain('7 additions, 1 deletion');
     expect(text(cursor)).toContain('~/.cursor/mcp.json.bak-2026-10-22');
@@ -341,7 +394,7 @@ describe('Clients page: Connect inline', () => {
 
   it('a prod endpoint: the sign-in follows before the change is asked for; what prod refuses stays, unavailable', async () => {
     await render();
-    const cursor = card('Cursor');
+    const cursor = await expandCard('Cursor');
     calls = [];
     await choose($<HTMLSelectElement>('select', cursor)!, 'incident-prod');
     expect(calls).toEqual(['preview cursor incident-prod config-bridge']);
@@ -378,7 +431,7 @@ describe('Clients page: Connect inline', () => {
 
   it('sign-in through the browser offers the "Add to Cursor" link', async () => {
     await render();
-    const cursor = card('Cursor');
+    const cursor = await expandCard('Cursor');
     const oauth = $$<HTMLInputElement>('input[type="radio"]', cursor)[1];
     oauth.click();
     await settle();
@@ -391,7 +444,7 @@ describe('Clients page: Connect inline', () => {
   it('a change the core refuses is the kit’s "Connect failed": nothing written, Open config, Details', async () => {
     world.preview = () => Promise.reject(problem(422, { title: 'Not editable', status: 422, detail: 'The file isn’t valid JSON (line 7, column 5).', reason: 'invalid', line: 7, column: 5 }));
     await render();
-    const cursor = card('Cursor');
+    const cursor = await expandCard('Cursor');
     const alert = $('.gw-alert--danger', cursor)!;
     expect(alert.getAttribute('role')).toBe('alert');
     expect(text($('.gw-alert__title', alert))).toBe("Can't connect Cursor: ~/.cursor/mcp.json is not valid JSON");
@@ -419,7 +472,7 @@ describe('Clients page: Connect inline', () => {
 describe('Clients page: Disconnect and Remove bridge', () => {
   it('Codex: the confirm says what goes and from where, Cancel has the keyboard, Disconnect takes it back', async () => {
     await render();
-    const codex = card('Codex');
+    const codex = await expandCard('Codex');
     const opener = control(codex, 'Disconnect Codex');
     await click(opener);
     expect(calls).toContain('disconnect-preview cl_cx_dev');
@@ -437,7 +490,7 @@ describe('Clients page: Disconnect and Remove bridge', () => {
 
   it('Claude Desktop from one endpoint keeps the other; Remove bridge takes every endpoint', async () => {
     await render();
-    const cd = card('Claude Desktop');
+    const cd = await expandCard('Claude Desktop');
     await click(control(cd, 'Disconnect Claude Desktop from dev'));
     const dialog = openDialog()!;
     expect(text($('.gw-dialog__title', dialog))).toBe('Disconnect Claude Desktop from dev?');
@@ -457,7 +510,7 @@ describe('Clients page: Disconnect and Remove bridge', () => {
 
   it('Check again is busy while it looks and says what it found', async () => {
     await render();
-    const check = control(card('Antigravity'), 'Check again for Antigravity');
+    const check = control(await expandCard('Antigravity'), 'Check again for Antigravity');
     await click(check);
     expect(calls).toContain('scan');
     expect(announced).toEqual(['Looking for Antigravity', 'Antigravity is still not installed.']);
@@ -470,9 +523,20 @@ describe('Clients page: claude.ai', () => {
     world.grants = () => Promise.resolve(DEMO_GRANTS);
   });
 
+  it('opens the browser app details when arriving at its anchor', async () => {
+    await TestBed.inject(Router).navigateByUrl('/clients#cl-ai-t');
+    await render();
+    const ai = card('claude.ai');
+    expect(disclosure(ai).getAttribute('aria-expanded')).toBe('true');
+    expect(details(ai).hidden).toBe(false);
+    expect(document.activeElement?.id).toBe('cl-ai-t');
+    expect(disclosure(card('Cursor')).getAttribute('aria-expanded')).toBe('false');
+    expect(calls.some((call) => call.startsWith('preview '))).toBe(false);
+  });
+
   it('Publish asks first: exactly what becomes public, Cancel has the keyboard', async () => {
-    const el = await render();
-    const ai = $('article[aria-labelledby="cl-ai-t"]', el)!;
+    await render();
+    const ai = await expandCard('claude.ai');
     expect(text($('.gw-status__label', ai))).toBe('Tunnel off');
     expect(text(ai)).toContain('stage-db');
     expect(text(ai)).toContain('19 calls today');
@@ -496,8 +560,8 @@ describe('Clients page: claude.ai', () => {
   });
 
   it('Revoke a sign-in asks first, then cuts it off', async () => {
-    const el = await render();
-    const ai = $('article[aria-labelledby="cl-ai-t"]', el)!;
+    await render();
+    const ai = await expandCard('claude.ai');
     await click(control(ai, 'Revoke'));
     const dialog = openDialog()!;
     expect(text($('.gw-dialog__title', dialog))).toBe('Revoke claude.ai access to stage-readonly?');
@@ -508,6 +572,25 @@ describe('Clients page: claude.ai', () => {
 });
 
 describe('Clients page: live', () => {
+  it('updates a collapsed app status without opening its details or moving its row', async () => {
+    await render();
+    const codex = card('Codex');
+    const order = $$('section[aria-labelledby="cl-local-t"] article').map((app) => app.dataset['client']);
+    world.list = () => Promise.resolve(kitClients({ clients: kitClients().clients.map((client) => client.client === 'codex'
+      ? { ...client, status: 'error', statusText: 'The entry changed outside GateRook.' }
+      : client) }));
+
+    events.emit('clients.drift', { client: 'codex' });
+    await settle();
+
+    expect(card('Codex')).toBe(codex);
+    expect(text($('.gw-status__label', disclosure(codex)))).toBe('Error');
+    expect(disclosure(codex).getAttribute('aria-expanded')).toBe('false');
+    expect(details(codex).hidden).toBe(true);
+    expect($$('section[aria-labelledby="cl-local-t"] article').map((app) => app.dataset['client'])).toEqual(order);
+    expect(calls.some((call) => call.startsWith('preview '))).toBe(false);
+  });
+
   it('clients.drift reads the cards again', async () => {
     await render();
     calls = [];
@@ -515,7 +598,7 @@ describe('Clients page: live', () => {
     events.emit('clients.drift', { client: 'codex' });
     await settle();
     expect(calls[0]).toBe('list');
-    expect($$('article').some((a) => text($('.gw-card__title', a)) === 'Codex')).toBe(false);
+    expect(card('Codex')).toBeNull();
     expect($$('.gw-page-header__meta .gw-status__label').map(text)).toEqual(['1 connected', '1 detected, not connected', '1 not installed']);
   });
 });
@@ -691,7 +774,7 @@ describe('Clients page: first run and setup (kit ?state=first-run | setup)', () 
     setup();
     const el = await render();
     const ai = $('article[aria-labelledby="cl-ai-t"]', el)!;
-    expect(text($('.gw-card__body > p', ai))).toBe(
+    expect(text($('.gw-card__body > p.gw-text-small', ai))).toBe(
       "Publishing gives endpoint dev a public HTTPS address behind three gates: Anthropic IP ranges only, your OK on this computer for each new sign-in, and the endpoint's own modes.",
     );
     expect(kv($('.gw-card__body', ai)!)).toEqual([
@@ -710,6 +793,9 @@ describe('Clients page: first run and setup (kit ?state=first-run | setup)', () 
     await arrive('cl-cd-t');
     await settle();
     expect(document.activeElement).toBe($('.gw-card__title', card('Claude Desktop')));
+    expect(disclosure(card('Claude Desktop')).getAttribute('aria-expanded')).toBe('true');
+    expect(details(card('Claude Desktop')).hidden).toBe(false);
+    expect(disclosure(card('Cursor')).getAttribute('aria-expanded')).toBe('false');
     expect($('.gw-how-it-works')).not.toBeNull();
   });
 });

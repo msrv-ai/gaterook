@@ -8993,6 +8993,32 @@ th[aria-sort=descending] .gw-table__sort .gw-table__sort-icon--desc {
   min-width: 0;
   padding: var(--gw-space-3) var(--gw-space-4);
 }
+.gw-client-card__row:is(button) {
+  width: 100%;
+  border-radius: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.gw-client-card__row:is(button):hover:not(:disabled):not([aria-disabled=true]) {
+  background: var(--gw-color-bg-hover);
+}
+.gw-client-card__row:is(button):active:not(:disabled):not([aria-disabled=true]) {
+  background: var(--gw-color-bg-active);
+}
+.gw-client-card__row:is(button):focus {
+  outline: none;
+}
+.gw-client-card__row:is(button):focus-visible {
+  outline: var(--gw-focus-width) solid var(--gw-color-border-focus);
+  outline-offset: calc(-1 * var(--gw-focus-width));
+}
+.gw-client-card__row:is(button)[aria-expanded=true] > .gw-btn__chevron {
+  transform: rotate(180deg);
+}
+.gw-client-card > header:has(> .gw-card__title > .gw-client-card__row),
+.gw-client-card .gw-card__title:has(> .gw-client-card__row) {
+  border-radius: inherit;
+}
 .gw-client-card__main {
   display: flex;
   flex-direction: column;

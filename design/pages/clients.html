@@ -210,12 +210,12 @@
               <h2 class="gw-card__title" id="cl-hiw-t">How it works</h2>
               <p class="gw-card__description">Connect writes one entry into the app's config, with a backup first. The app gets the tools of one endpoint and never a secret.</p>
             </div>
-            <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-how-it-works__toggle" type="button" data-gw-toggle data-gw-toggle-persist="clients-how-it-works" aria-expanded="true" aria-controls="cl-hiw-p" aria-labelledby="cl-hiw-t">
+            <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-how-it-works__toggle" type="button" data-gw-toggle data-gw-toggle-persist="clients-how-it-works" aria-expanded="false" aria-controls="cl-hiw-p" aria-labelledby="cl-hiw-t">
               <i class="gw-icon gw-how-it-works__toggle-icon gw-how-it-works__toggle-icon--collapse" data-lucide="chevron-up"></i>
               <i class="gw-icon gw-how-it-works__toggle-icon gw-how-it-works__toggle-icon--expand" data-lucide="chevron-down"></i>
             </button>
           </div>
-          <div class="gw-how-it-works__panel" id="cl-hiw-p">
+          <div class="gw-how-it-works__panel" id="cl-hiw-p" hidden>
             <ol class="gw-how-it-works__steps" aria-label="What one-click Connect does">
               <li class="gw-how-it-works__step">
                 <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="scan-search"></i></span>
@@ -787,21 +787,20 @@
             <p class="gw-text-caption gw-fg-muted" id="cl-first-why" data-cl-show="first-run" hidden><i class="gw-icon gw-icon--xs" data-lucide="lock"></i> Add a connection first: your AI app needs something to work with.</p>
           </div>
 
-          <!-- Cursor · detected, not connected. The only thing to do in this section, so it comes first, full width,
-               with the Connect flow open (client-card __flow as an inline preview) and Connect as the card's primary.
-               The flow is stacked (choices, then the diff at full width), so every line written to the config stays readable. -->
-          <article class="gw-card gw-client-card" aria-labelledby="cl-cu-t" data-cl-show="in-use">
-            <header class="gw-card__header gw-client-card__header">
-              <div class="gw-client-card__identity">
-                <span class="gw-client-mark gw-client-mark--cursor gw-client-mark--lg" aria-hidden="true">Cu</span>
-                <div class="gw-card__heading">
-                  <h3 class="gw-card__title" id="cl-cu-t">Cursor</h3>
-                  <p class="gw-card__description gw-client-card__via gw-mono">~/.cursor/mcp.json</p>
-                </div>
-              </div>
-              <span class="gw-status gw-status--info gw-client-card__status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Detected, not connected</span></span>
-            </header>
-            <div class="gw-card__body gw-client-card__body">
+          <!-- Local apps start as compact disclosure rows. Opening Cursor reveals its existing Connect flow;
+               the endpoint, sign-in choice and exact change stay together before the primary Connect action. -->
+          <article class="gw-card gw-client-card gw-client-card--compact" aria-labelledby="cl-cu-t" data-cl-show="in-use">
+            <h3 class="gw-card__title" id="cl-cu-t">
+              <button class="gw-client-card__row" type="button" data-gw-toggle aria-expanded="false" aria-controls="cl-cu-details">
+                <span class="gw-client-mark gw-client-mark--cursor" aria-hidden="true">Cu</span>
+                <span class="gw-client-card__main"><span class="gw-text-ui">Cursor</span></span>
+                <span class="gw-status gw-status--info gw-client-card__status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Detected, not connected</span></span>
+                <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i>
+              </button>
+            </h3>
+            <div id="cl-cu-details" hidden>
+            <div class="gw-card__body gw-stack gw-client-card__body">
+              <p class="gw-card__description gw-client-card__via gw-mono">~/.cursor/mcp.json</p>
               <div class="gw-client-card__flow">
                 <p class="gw-text-small gw-fg-secondary">Found on this computer. Pick an endpoint and how Cursor signs in, then check the change; nothing is written until you connect.</p>
                 <div class="gw-grid gw-grid--2">
@@ -943,22 +942,23 @@
                 <button class="gw-btn gw-btn--primary" type="button" id="cl-cu-connect" data-gw-toast="One server added to ~/.cursor/mcp.json with token cursor-laptop, which expires in 7 days. Backup: ~/.cursor/mcp.json.bak-2026-10-22." data-gw-toast-title="Cursor connected to dev" data-gw-toast-tone="success"><i class="gw-icon" data-lucide="plug-zap"></i> Connect Cursor</button>
               </div>
             </footer>
+            </div>
           </article>
 
           <!-- Claude Desktop · connected through the .mcpb bridge to TWO endpoints, one of them prod (BLUEPRINT §9).
-               Full width so each endpoint gets its own row with View activity and Disconnect; Remove bridge cuts both. -->
-          <article class="gw-card gw-client-card" aria-labelledby="cl-cd-t" data-cl-show="in-use">
-            <header class="gw-card__header gw-client-card__header">
-              <div class="gw-client-card__identity">
-                <span class="gw-client-mark gw-client-mark--claude gw-client-mark--lg" aria-hidden="true">CD</span>
-                <div class="gw-card__heading">
-                  <h3 class="gw-card__title" id="cl-cd-t">Claude Desktop</h3>
-                  <p class="gw-card__description gw-client-card__via">Bridge extension (.mcpb) · 2 endpoints, one of them prod</p>
-                </div>
-              </div>
-              <span class="gw-status gw-status--success gw-client-card__status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Connected</span></span>
-            </header>
+               Opening the row reveals each endpoint with View activity and Disconnect; Remove bridge cuts both. -->
+          <article class="gw-card gw-client-card gw-client-card--compact" aria-labelledby="cl-cd-t" data-cl-show="in-use">
+            <h3 class="gw-card__title" id="cl-cd-t">
+              <button class="gw-client-card__row" type="button" data-gw-toggle aria-expanded="false" aria-controls="cl-cd-details">
+                <span class="gw-client-mark gw-client-mark--claude" aria-hidden="true">CD</span>
+                <span class="gw-client-card__main"><span class="gw-text-ui">Claude Desktop</span></span>
+                <span class="gw-status gw-status--success gw-client-card__status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Connected</span></span>
+                <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i>
+              </button>
+            </h3>
+            <div id="cl-cd-details" hidden>
             <div class="gw-card__body gw-stack gw-client-card__body">
+              <p class="gw-card__description gw-client-card__via">Bridge extension (.mcpb) · 2 endpoints, one of them prod</p>
               <dl class="gw-kv gw-kv--dense">
                 <div class="gw-kv__row"><dt class="gw-kv__key">Auth</dt><dd class="gw-kv__value">A short-lived token per endpoint, issued on the fly and never written to the config</dd></div>
                 <div class="gw-kv__row"><dt class="gw-kv__key">Last call</dt><dd class="gw-kv__value"><time datetime="2026-10-22T14:27:40+02:00" title="2026-10-22 14:27:40 +02:00">2 min ago</time></dd></div>
@@ -1002,25 +1002,26 @@
                 <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" data-gw-dialog-open="cl-dlg-disc-cd">Remove bridge<span class="gw-sr-only"> from Claude Desktop</span></button>
               </div>
             </footer>
+            </div>
           </article>
 
-          <ul class="gw-grid gw-grid--2" aria-label="Other apps on this computer" data-cl-show="in-use">
+          <ul class="gw-stack" aria-label="Other apps on this computer" data-cl-show="in-use">
             <!-- Codex · connected through ~/.codex/config.toml; http_headers_helper is one command string that runs the
                  shim ~/.gaterook/bin/gw-bridge headers, which gets a 15-minute token on the fly (access codex-laptop,
                  no gwt_ value anywhere). The entry is the managed block exactly as it is in the file. -->
             <li>
-              <article class="gw-card gw-client-card" aria-labelledby="cl-cx-t">
-                <header class="gw-card__header gw-client-card__header">
-                  <div class="gw-client-card__identity">
-                    <span class="gw-client-mark gw-client-mark--codex gw-client-mark--lg" aria-hidden="true">Cx</span>
-                    <div class="gw-card__heading">
-                      <h3 class="gw-card__title" id="cl-cx-t">Codex</h3>
-                      <p class="gw-card__description gw-client-card__via gw-mono">~/.codex/config.toml</p>
-                    </div>
-                  </div>
-                  <span class="gw-status gw-status--success gw-client-card__status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Connected</span></span>
-                </header>
+              <article class="gw-card gw-client-card gw-client-card--compact" aria-labelledby="cl-cx-t">
+                <h3 class="gw-card__title" id="cl-cx-t">
+                  <button class="gw-client-card__row" type="button" data-gw-toggle aria-expanded="false" aria-controls="cl-cx-details">
+                    <span class="gw-client-mark gw-client-mark--codex" aria-hidden="true">Cx</span>
+                    <span class="gw-client-card__main"><span class="gw-text-ui">Codex</span></span>
+                    <span class="gw-status gw-status--success gw-client-card__status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Connected</span></span>
+                    <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i>
+                  </button>
+                </h3>
+                <div id="cl-cx-details" hidden>
                 <div class="gw-card__body gw-stack gw-client-card__body">
+                  <p class="gw-card__description gw-client-card__via gw-mono">~/.codex/config.toml</p>
                   <dl class="gw-kv gw-kv--dense">
                     <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><a class="gw-link gw-mono" href="endpoint-detail.html">dev</a> · 22 tools</dd></div>
                     <div class="gw-kv__row"><dt class="gw-kv__key">Auth</dt><dd class="gw-kv__value">Short-lived token from <code class="gw-code">gw-bridge headers</code> (<code class="gw-code">http_headers_helper</code>), issued on the fly, not written to the config · access <code class="gw-code">codex-laptop</code></dd></div>
@@ -1066,23 +1067,24 @@
                     <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" data-gw-dialog-open="cl-dlg-disc-cx">Disconnect<span class="gw-sr-only"> Codex</span></button>
                   </div>
                 </footer>
+                </div>
               </article>
             </li>
 
             <!-- Antigravity · not installed -->
             <li>
-              <article class="gw-card gw-client-card" aria-labelledby="cl-ag-t">
-                <header class="gw-card__header gw-client-card__header">
-                  <div class="gw-client-card__identity">
-                    <span class="gw-client-mark gw-client-mark--antigravity gw-client-mark--lg" aria-hidden="true">Ag</span>
-                    <div class="gw-card__heading">
-                      <h3 class="gw-card__title" id="cl-ag-t">Antigravity</h3>
-                      <p class="gw-card__description gw-client-card__via gw-mono">~/.gemini/config/mcp_config.json</p>
-                    </div>
-                  </div>
-                  <span class="gw-status gw-status--neutral gw-client-card__status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Not installed</span></span>
-                </header>
+              <article class="gw-card gw-client-card gw-client-card--compact" aria-labelledby="cl-ag-t">
+                <h3 class="gw-card__title" id="cl-ag-t">
+                  <button class="gw-client-card__row" type="button" data-gw-toggle aria-expanded="false" aria-controls="cl-ag-details">
+                    <span class="gw-client-mark gw-client-mark--antigravity" aria-hidden="true">Ag</span>
+                    <span class="gw-client-card__main"><span class="gw-text-ui">Antigravity</span></span>
+                    <span class="gw-status gw-status--neutral gw-client-card__status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Not installed</span></span>
+                    <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i>
+                  </button>
+                </h3>
+                <div id="cl-ag-details" hidden>
                 <div class="gw-card__body gw-stack gw-client-card__body">
+                  <p class="gw-card__description gw-client-card__via gw-mono">~/.gemini/config/mcp_config.json</p>
                   <p class="gw-text-small gw-fg-secondary">Not found on this computer. Install it, then check again. One config file serves the Antigravity app, its IDE and its CLI.</p>
                   <dl class="gw-kv gw-kv--dense">
                     <div class="gw-kv__row"><dt class="gw-kv__key">Auth</dt><dd class="gw-kv__value">Token in headers</dd></div>
@@ -1094,6 +1096,7 @@
                     <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-cl-busy="antigravity"><i class="gw-icon gw-icon--sm" data-lucide="refresh-cw"></i>Check again<span class="gw-sr-only"> for Antigravity</span></button>
                   </div>
                 </footer>
+                </div>
               </article>
             </li>
           </ul>
@@ -1116,19 +1119,19 @@
           <p class="gw-section__description">claude.ai connects from Anthropic's servers, not from this computer, so it can't reach <code class="gw-code">127.0.0.1</code>. Publishing opens a tunnel that gives one endpoint a public HTTPS address; only MCP and OAuth paths go out.</p>
         </header>
 
-        <article class="gw-card gw-client-card" aria-labelledby="cl-ai-t">
-          <header class="gw-card__header gw-client-card__header">
-            <div class="gw-client-card__identity">
-              <span class="gw-client-mark gw-client-mark--claudeai gw-client-mark--lg" aria-hidden="true">ai</span>
-              <div class="gw-card__heading">
-                <h3 class="gw-card__title" id="cl-ai-t">claude.ai</h3>
-                <p class="gw-card__description gw-client-card__via">Public URL via tunnel · OAuth 2.1</p>
-              </div>
-            </div>
-            <span class="gw-status gw-status--neutral gw-client-card__status" id="cl-ai-status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off</span></span>
-          </header>
+        <article class="gw-card gw-client-card gw-client-card--compact" aria-labelledby="cl-ai-t">
+          <h3 class="gw-card__title" id="cl-ai-t">
+            <button class="gw-client-card__row" type="button" data-gw-toggle aria-expanded="false" aria-controls="cl-ai-details">
+              <span class="gw-client-mark gw-client-mark--claudeai" aria-hidden="true">ai</span>
+              <span class="gw-client-card__main"><span class="gw-text-ui">claude.ai</span></span>
+              <span class="gw-status gw-status--neutral gw-client-card__status" id="cl-ai-status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off</span></span>
+              <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i>
+            </button>
+          </h3>
+          <div id="cl-ai-details" hidden>
           <!-- Setup: nothing published yet; Publish is secondary (the page's primary belongs to the local review). -->
           <div class="gw-card__body gw-stack gw-client-card__body" data-cl-show="setup" hidden>
+            <p class="gw-card__description gw-client-card__via">Public URL via tunnel · OAuth 2.1</p>
             <p class="gw-text-small gw-fg-secondary">Publishing gives endpoint <span class="gw-mono">dev</span> a public HTTPS address behind three gates: Anthropic IP ranges only, your OK on this computer for each new sign-in, and the endpoint's own modes.</p>
             <dl class="gw-kv gw-kv--dense">
               <div class="gw-kv__row"><dt class="gw-kv__key">Public URL</dt><dd class="gw-kv__value" id="cl-ai-url-s">None while the tunnel is off</dd></div>
@@ -1144,6 +1147,7 @@
           </footer>
           <!-- First run: no endpoint yet, so Publish waits and says why. -->
           <div class="gw-card__body gw-stack gw-client-card__body" data-cl-show="first-run" hidden>
+            <p class="gw-card__description gw-client-card__via">Public URL via tunnel · OAuth 2.1</p>
             <dl class="gw-kv gw-kv--dense">
               <div class="gw-kv__row"><dt class="gw-kv__key">Tunnel</dt><dd class="gw-kv__value">Never published · <a class="gw-link" href="settings.html#settings-tunnel">Tunnel settings</a></dd></div>
             </dl>
@@ -1155,6 +1159,7 @@
             </div>
           </footer>
           <div class="gw-card__body gw-stack gw-client-card__body" data-cl-show="in-use">
+            <p class="gw-card__description gw-client-card__via">Public URL via tunnel · OAuth 2.1</p>
             <div class="gw-grid gw-grid--2">
               <div class="gw-stack gw-stack--sm">
                 <h4 class="gw-text-h3" id="cl-ai-pub-t">What gets published</h4>
@@ -1221,6 +1226,7 @@
               <button class="gw-btn gw-btn--primary" type="button" id="cl-ai-publish" data-gw-dialog-open="cl-dlg-publish"><i class="gw-icon" data-lucide="globe-lock"></i> Publish for claude.ai</button>
             </div>
           </footer>
+          </div>
         </article>
       </section>
 
@@ -1232,12 +1238,12 @@
         <header class="gw-section__header">
           <h2 class="gw-section__title" id="cl-manual-t">Manual setup</h2>
           <p class="gw-section__description">For MCP Inspector, scripts and any app not listed above: point it at the endpoint URL and give it a token.</p>
-          <div class="gw-section__actions" data-cl-show="setup" hidden>
+          <div class="gw-section__actions">
             <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="cl-manual-p">Show manual setup<span class="gw-sr-only"> for MCP Inspector and other apps</span> <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i></button>
           </div>
         </header>
 
-        <div class="gw-card" id="cl-manual-p">
+        <div class="gw-card" id="cl-manual-p" hidden>
           <div class="gw-card__body gw-stack">
             <div class="gw-grid gw-grid--2">
               <div class="gw-field">
@@ -1875,6 +1881,27 @@
     }
     if (state === "setup" && $("cl-manual-p")) $("cl-manual-p").hidden = true; // behind "Show manual setup"
   }
+
+  // Compact cards open in place. Hash links reveal the matching app before moving keyboard focus.
+  // The setup and first-run local rows keep their onboarding route below.
+  function revealAppFromHash() {
+    var id = decodeURIComponent(window.location.hash.slice(1));
+    var heading = $(id);
+    var button = heading && heading.querySelector("button.gw-client-card__row[aria-controls]");
+    if (!button) return;
+    var panel = $(button.getAttribute("aria-controls"));
+    if (!panel) return;
+    panel.hidden = false;
+    button.setAttribute("aria-expanded", "true");
+    heading.closest("article").scrollIntoView({ block: "nearest" });
+    button.focus({ preventScroll: true });
+  }
+  doc.addEventListener("DOMContentLoaded", revealAppFromHash);
+  window.addEventListener("hashchange", revealAppFromHash);
+  doc.addEventListener("click", function (event) {
+    var link = event.target.closest('a[href^="#cl-"]');
+    if (link && link.getAttribute("href") === window.location.hash) revealAppFromHash();
+  });
 
   // ── 2. Busy buttons: Scan again, Check again ──
   doc.addEventListener("click", function (e) {

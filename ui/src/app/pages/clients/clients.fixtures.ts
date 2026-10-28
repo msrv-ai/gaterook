@@ -10,7 +10,7 @@ import { DEMO_CLIENTS, DEMO_CLIENT_ENDPOINTS, DEMO_PREVIEW_CURSOR } from '../../
 
 export const NOW = Date.parse('2026-10-22T12:30:00Z');
 
-/** Cursor detected (first, with Connect inline), Claude Desktop through the bridge, Codex, Antigravity not installed. */
+/** Claude Desktop through the bridge, Codex connected, Cursor detected, Antigravity not installed. */
 export function kitClients(extra: Partial<ClientsView> = {}): ClientsView {
   return {
     scannedAt: '2026-10-22T14:29:00+02:00',

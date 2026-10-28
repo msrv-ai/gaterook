@@ -6,6 +6,7 @@ import {
   computed,
   inject,
   input,
+  model,
   numberAttribute,
   output,
   signal,
@@ -21,6 +22,7 @@ import { GwIcon } from '../../icons';
 import { GwClientMark } from '../shared/client-mark';
 import { clientStatusLook } from '../shared/dictionaries';
 import { GwClientConnectFlow } from './client-connect-flow';
+import { GwClientDisclosure } from './client-disclosure';
 import {
   ClientEndpoint,
   ClientFailure,
@@ -69,11 +71,11 @@ export interface ClientPreviewRequest {
  */
 @Component({
   selector: 'article[gwClientCard], li[gwClientCard]',
-  imports: [NgTemplateOutlet, RouterLink, GwIcon, GwClientMark, GwCodeBlock, GwDialog, GwDialogClose, GwToggle, GwClientConnectFlow],
+  imports: [NgTemplateOutlet, RouterLink, GwIcon, GwClientMark, GwCodeBlock, GwDialog, GwDialogClose, GwToggle, GwClientConnectFlow, GwClientDisclosure],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     class: 'gw-card gw-client-card',
-    '[class.gw-client-card--compact]': 'variant() === "compact"',
+    '[class.gw-client-card--compact]': 'collapsible() || variant() === "compact"',
     '[attr.aria-labelledby]': 'variant() === "compact" ? null : uid + "-t"',
   },
   templateUrl: './client-card.html',
@@ -82,6 +84,9 @@ export class GwClientCard {
   protected readonly time = inject(TimeService);
 
   readonly card = input.required<ClientCard>();
+  /** AI apps starts with the name and status; details stay mounted while folded. */
+  readonly collapsible = input(false, { transform: booleanAttribute });
+  readonly expanded = model(false);
   /** The endpoints of this computer (tools per endpoint, the Connect choices). */
   readonly endpoints = input<readonly ClientEndpoint[]>([]);
   /** The client's name heading level (3 on Clients; sections inside are one below). */
