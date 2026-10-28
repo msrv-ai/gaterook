@@ -20,7 +20,7 @@ import {
   setAt,
 } from './compile';
 import { jsonProblem, requiredMessage, valueProblem } from './messages';
-import { secretSourceId } from './secret-sources';
+import { completeReference, secretSourceId } from './secret-sources';
 
 /** Sources whose secret is a reference the core resolves at call time (the value never passes through here). */
 export const REFERENCE_SOURCES: ReadonlySet<string> = new Set(['vault', 'gcp-sm', 'aws-sm', 'dynamic']);
@@ -345,6 +345,11 @@ export class SchemaForm {
     this.secrets.update((s) => ({ ...s, [node.pointer]: value }));
   }
 
+  /** The typed reference with the selected store's scheme, shared by validation, testing and saving. */
+  secretReference(node: SchemaNode): string {
+    return completeReference(this.source(), this.secrets()[node.pointer] ?? '');
+  }
+
   /**
    * The stored secrets after the page changed one (a replaced value is version N+1, a new reference): the fields
    * whose secret changed leave the editing state and forget what was typed; the rest of the form stays as edited.
@@ -404,7 +409,7 @@ export class SchemaForm {
       const typed = this.secrets()[node.pointer]?.trim() ?? '';
       if (!typed) continue;
       out[node.pointer] = reference
-        ? { source: this.source() === 'dynamic' ? 'vault-dynamic' : 'reference', ref: typed }
+        ? { source: this.source() === 'dynamic' ? 'vault-dynamic' : 'reference', ref: this.secretReference(node) }
         : { source: 'local', value: this.secrets()[node.pointer] };
     }
     return out;
@@ -429,7 +434,7 @@ export class SchemaForm {
       if (!typed && !node.required && state !== 'editing' && !dynamicLogin) return null;
       if (!typed) return this.source() === 'dynamic' ? 'Enter the Vault role.' : 'Enter the secret reference.';
       const scheme = this.source() === 'dynamic' ? 'vault://' : `${this.source()}://`;
-      if (!typed.startsWith(scheme)) return `A reference starts with ${scheme}. Copy it from the store.`;
+      if (!this.secretReference(node).startsWith(scheme)) return `A reference starts with ${scheme}. Copy it from the store.`;
       return null;
     }
     if (!typed && (node.required || state === 'editing')) return `${node.title} is required.`;

@@ -162,20 +162,26 @@
             (testReference)="testReference()"
           ></div>
         } @else if (reference()) {
+          @let prefix = referencePrefix();
           <label class="gw-field__label" [for]="id">{{ secretLabel(state) }}</label>
           <div class="gw-secret" data-state="empty">
-            <input
-              class="gw-input gw-input--mono"
-              type="text"
-              [id]="id"
-              [value]="secretTyped()"
-              [attr.placeholder]="referencePlaceholder()"
-              autocomplete="off"
-              spellcheck="false"
-              [attr.aria-describedby]="join(errId, secretHintId)"
-              [attr.aria-invalid]="error ? 'true' : null"
-              (input)="f.setSecret(n, $any($event.target).value)"
-            />
+            <div class="gw-input-group">
+              @if (prefix) {
+                <span class="gw-input-group__affix gw-mono" [id]="id + '-prefix'">{{ prefix }}</span>
+              }
+              <input
+                class="gw-input gw-input--mono"
+                type="text"
+                [id]="id"
+                [value]="referenceText()"
+                [attr.placeholder]="referencePlaceholder()"
+                autocomplete="off"
+                spellcheck="false"
+                [attr.aria-describedby]="join(errId, prefix ? id + '-prefix' : null, secretHintId)"
+                [attr.aria-invalid]="error ? 'true' : null"
+                (input)="setReference($event)"
+              />
+            </div>
             <span class="gw-secret__actions"><button class="gw-btn" type="button" (click)="testReference()">{{ copy.test }}</button></span>
           </div>
         } @else if (n.multiline) {
