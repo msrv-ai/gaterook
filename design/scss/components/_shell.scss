@@ -12,8 +12,8 @@
 //   <a class="gw-skip-link" href="#main">Skip to content</a>
 //   <div class="gw-shell">
 //     <header class="gw-titlebar">                     (+ gw-titlebar--mac on macOS)
+//       <div class="gw-titlebar__drag">…Back icon button…</div>
 //       <span class="gw-titlebar__title">Overview</span>
-//       <div class="gw-titlebar__drag"></div>
 //       <div class="gw-titlebar__actions">…search, approvals, appearance…</div>
 //     </header>
 //     <div class="gw-sidebar" id="gw-sidebar">
@@ -55,8 +55,8 @@
 // gw-titlebar     Electron frameless titlebar (bg canvas, subtle bottom rule). The
 //                 whole bar is a drag region; links, buttons, inputs, labels, menus and
 //                 popovers inside opt out (no-drag) automatically.
-//   __title       current section name (ui role, truncates)
-//   __drag        flexible spacer that guarantees a grab area between title and actions
+//   __title       current section name (ui role, centered in the window, truncates)
+//   __drag        leading drag area and optional Back icon button; empty on Welcome.
 //   __actions     search / ⌘K, approvals bell with gw-counter, appearance popover.
 //                 A gw-counter inside an icon button becomes a corner badge. Overlays
 //                 here sit at the window's end edge: use gw-menu--right / gw-popover--right.
@@ -166,15 +166,11 @@
   grid-area: titlebar;
   position: relative;
   z-index: var(--gw-z-titlebar);
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: center;
-  gap: var(--gw-space-2);
   min-width: 0;
   height: var(--gw-layout-titlebar-height);
-  // Physical sides: window controls sit at physical edges. With Window Controls
-  // Overlay the env() values reserve their area; without it they cancel out.
-  padding-left: calc(var(--gw-space-3) + env(titlebar-area-x, 0px));
-  padding-right: calc(var(--gw-space-2) + 100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
   color: var(--gw-color-text-secondary);
   background: var(--gw-color-bg-canvas);
   border-bottom: var(--gw-border-width-default) solid var(--gw-color-border-subtle);
@@ -185,27 +181,43 @@
     @include gw-no-drag;
   }
 
-  &--mac { padding-left: var(--gw-layout-titlebar-inset-mac); }
+  // Insets belong to the side slots so the section stays at the window's center.
+  &--mac &__drag {
+    padding-left: calc(var(--gw-layout-titlebar-inset-mac) + var(--gw-space-2));
+  }
 
   &__title {
-    flex: 0 1 auto;
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    padding-inline: var(--gw-space-4);
+    text-align: center;
     @include gw-type(ui);
     color: var(--gw-color-text-primary);
     @include gw-truncate;
   }
 
   &__drag {
-    flex: 1 1 auto;
+    grid-column: 1;
+    grid-row: 1;
+    display: flex;
+    align-items: center;
     align-self: stretch;
-    min-width: var(--gw-space-8);
+    min-width: 0;
+    // Physical sides: native controls stay at physical window edges.
+    padding-left: calc(var(--gw-space-3) + env(titlebar-area-x, 0px));
     @include gw-drag-region;
   }
 
   &__actions {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
     display: flex;
     align-items: center;
     gap: var(--gw-space-1);
-    flex: none;
+    // Window Controls Overlay reserves the native controls; the fallbacks cancel out.
+    padding-right: calc(var(--gw-space-2) + 100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw));
 
     // Approvals bell: the counter sits on the icon's corner, ringed in the bar colour.
     .gw-btn--icon { position: relative; }
