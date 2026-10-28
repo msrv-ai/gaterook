@@ -152,8 +152,6 @@ Windows outputs use `.exe`. Native runtime libraries must remain next to the exe
 
 Installer inputs and staging scripts are retained in `desktop/` and `scripts/`. Packaging also requires a plugin-host JRE (`scripts/jlink.sh`), platform binaries, and staged resources. Signing, notarization, release credentials, and publication are separate concerns. Do not treat a successful JVM build as installer validation or run publishing commands as part of local setup.
 
-For Windows x64, [`npm run prepare:win` and `npm run dist:win:docker`](windows-build.md) prepare the native inputs on Windows and package them through `electronuserland/builder:wine` on a Docker host. The input bundle is tied to the application commit and checked before packaging; Linux or macOS binaries cannot substitute for its Windows executables and runtime.
-
 ## Troubleshooting
 
 - **Wrong Node or Java:** select the pinned Node and JDK before running npm or Maven. A stale Intel Maven installation on Apple Silicon can reference an incompatible Java executable; use a Maven 3.9+ installation with the correct `JAVA_HOME`.

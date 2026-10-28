@@ -16,9 +16,7 @@
     "test": "node --disable-warning=ExperimentalWarning --test \"test/**/*.test.ts\" \"test/**/*.test.mjs\"",
     "smoke": "node scripts/smoke.mjs",
     "dev": "node scripts/dev.mjs",
-    "stage": "node ../scripts/stage.mjs",
-    "dist": "node ../scripts/stage.mjs && node scripts/build.mjs --release && electron-builder --config electron-builder.yml",
-    "dist:dir": "node ../scripts/stage.mjs && node scripts/build.mjs --release && electron-builder --config electron-builder.yml --dir"
+    "stage": "node ../scripts/stage.mjs"
   },
   "engines": {
     "node": ">=24.15.0"
