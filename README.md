@@ -94,7 +94,7 @@ All documentation is in English. Internal AI scratch files, temporary research, 
 
 ## Author
 
-GateRook was created by **Vadym Dobroskok**, Tech Lead at **ProvenBase Inc.**
+GateRook was created by Vadym Dobroskok, Tech Lead at ProvenBase Inc.
 
 ## License
 
