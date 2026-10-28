@@ -4,6 +4,18 @@ GateRook is a desktop MCP gateway that gives AI clients scoped access to databas
 
 [Website](https://msrv.dev) · [Issues](https://github.com/msrv-ai/gaterook/issues) · [Architecture](docs/ARCHITECTURE.md) · [Research](docs/research/README.md) · [Design kit](design/README.md)
 
+## How it works
+
+Connect your services to GateRook, then choose which connections and tools each AI app can use. GateRook sits between your services and AI apps, keeps credentials local, and applies your access rules to tool calls.
+
+![Diagram showing MySQL, MongoDB, OpenSearch, and Redis connected through GateRook to Claude Desktop, Codex, Cursor, and Antigravity.](docs/images/gaterook-gateway.png)
+
+## Application overview
+
+The Overview page brings pending approvals, connection health, and AI app access into one place. Use the sidebar to manage connections, secrets, policies, and endpoints, or inspect tool calls in Activity.
+
+![GateRook Overview page showing connection health, AI app connection status, and navigation for managing access and reviewing activity.](docs/images/gaterook-overview.png)
+
 This repository contains the complete application, its tests, the canonical design kit, and everything needed for a local development build. The application is in development; a source build is not a signed release installer.
 
 ## Build and run locally
