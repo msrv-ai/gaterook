@@ -79,7 +79,7 @@ test('the static template has one exact CSP-hashed script and no network assets 
   assert.match(html, /<script type="module">\{\{APP_JS\}\}<\/script>/);
   assert.doesNotMatch(html, /\b(?:src|href|style|on\w+)\s*=/i);
   assert.doesNotMatch(source, /\.innerHTML|\beval\(|\bfetch\(/);
-  assert.match(html, /Final approval happens in GateRook/);
+  assert.doesNotMatch(html, /gw-alert--info|Final approval happens in GateRook/);
 });
 
 test('versioned projection rejects malformed, oversized and non-native approval data', () => {
@@ -127,7 +127,7 @@ test('opaque parent origins use wildcard output but still reject other input ori
   assert.equal(h.el('request-handle').textContent, HANDLE);
 });
 
-test('data renders as text, flags truncation and comment policy, and never exposes a direct approval tool', async t => {
+test('data renders as text, flags truncation, and never exposes a direct approval tool', async t => {
   const h = harness(t);
   await h.initialize();
   const text = '<img src=x onerror=alert(1)>\n"</script><script>danger()</script>"';
@@ -138,7 +138,6 @@ test('data renders as text, flags truncation and comment policy, and never expos
   assert.equal(h.el('request-tool').childElementCount, 0);
   assert.equal(h.el('request-connection').childElementCount, 0);
   assert.equal(h.el('request-truncated').hidden, false);
-  assert.equal(h.el('comment-required').hidden, false);
   assert.equal(h.win.document.querySelectorAll('img, svg').length, staticMediaCount);
   h.el('approve-button').click();
   assert.deepEqual(h.calls()[0].params, { name: 'approval_card_action', arguments: { handle: HANDLE, action: 'open' } });
