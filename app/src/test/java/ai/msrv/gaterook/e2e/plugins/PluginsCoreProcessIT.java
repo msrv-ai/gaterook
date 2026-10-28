@@ -372,7 +372,7 @@ class PluginsCoreProcessIT {
   // ── Fixtures ────────────────────────────────────────────────────────────────────────────────────────────────
 
   private static Path jiraJar(String version) {
-    return plugin("jira-service-desk", "plugins-jira-service-desk-0.4.0-SNAPSHOT-" + version + ".jar");
+    return plugin("jira-service-desk", "plugins-jira-service-desk-0.4.1-" + version + ".jar");
   }
 
   private static Path plugin(String module, String file) {

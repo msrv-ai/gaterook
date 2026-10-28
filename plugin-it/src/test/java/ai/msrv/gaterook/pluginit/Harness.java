@@ -402,12 +402,12 @@ final class Harness implements AutoCloseable {
   }
 
   static Path jiraJar(String version) {
-    return Path.of(System.getProperty("gateway.jiraDir"), "plugins-jira-service-desk-0.4.0-SNAPSHOT-" + version
+    return Path.of(System.getProperty("gateway.jiraDir"), "plugins-jira-service-desk-0.4.1-" + version
         + ".jar");
   }
 
   static Path fixtureJar(String name) {
-    return Path.of(System.getProperty("gateway.fixturesDir"), "plugins-test-fixtures-0.4.0-SNAPSHOT-" + name + ".jar");
+    return Path.of(System.getProperty("gateway.fixturesDir"), "plugins-test-fixtures-0.4.1-" + name + ".jar");
   }
 
   /** A catalog plugin's release JAR, as its module builds it ({@code plugins/<module>/target/<file>}, step K6). */

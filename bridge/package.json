@@ -1,6 +1,6 @@
 {
   "name": "@gaterook/broker",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "description": "The token broker Electron's main process runs, and gw-bridge.mjs, the zero-dependency stdio bridge inside GateRook's Claude Desktop extensions (ARCHITECTURE.md §7.2).",
   "type": "module",

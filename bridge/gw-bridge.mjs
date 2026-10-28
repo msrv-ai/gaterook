@@ -20,7 +20,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '0.4.0';
+const VERSION = '0.4.1';
 const MAX_ANSWER = 64 * 1024 * 1024;
 const BROKER_WAIT_MS = 60_000;
 const REQUEST_WAIT_MS = 120_000;

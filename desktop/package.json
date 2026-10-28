@@ -1,7 +1,7 @@
 {
   "name": "@gaterook/desktop",
   "productName": "GateRook",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "description": "GateRook desktop app: Electron main and preload around the gateway core (ARCHITECTURE.md \u00a77.1).",
   "author": "GateRook",
@@ -22,7 +22,7 @@
     "node": ">=24.15.0"
   },
   "devDependencies": {
-    "@gaterook/broker": "0.4.0",
+    "@gaterook/broker": "0.4.1",
     "@types/node": "24.19.2",
     "electron": "45.0.0",
     "electron-builder": "26.17.0",
