@@ -12,6 +12,8 @@ Read `README.md`, `docs/repository-layout.md`, and the instructions for affected
 
 This repository contains the complete application source, tests and fixtures, the canonical design kit, architecture and curated research, and the manifests, lockfiles, toolchain pins, and scripts required to build, test, and run locally. Keep these inputs together so a clone builds without another checkout. Deployment credentials and production operations do not belong here.
 
+Do not add production release orchestration or production installer workflows to this repository. Keep local development builds and reusable build inputs independent of release operations.
+
 Preserve runtime behavior, dependency relationships, resources, and third-party notices. Use **GateRook** as the product name and `gaterook` as its slug. Existing Java packages, protocol names, persisted paths, application IDs, and client settings are compatibility contracts: do not rename them indiscriminately. Do not choose or replace the application license without an explicit instruction.
 
 ## Internal AI work

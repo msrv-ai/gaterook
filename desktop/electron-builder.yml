@@ -2,10 +2,8 @@
 #   dist/          main and preload bundles (scripts/build.mjs --release: no development code, no node_modules)
 #   stage/         everything else, laid out by ../scripts/stage.mjs (UI, native core, JRE, plugin host, bridges,
 #                  cloudflared, icon)
-#   npm run dist -w desktop        stage + release bundle + installers of this platform
-#   npm run dist:dir -w desktop    the same, unpacked (release/<platform>-unpacked), for a quick look
-# Signing, notarization and Windows Azure signing: .github/workflows/release.yml passes them from the repository's
-# secrets (step R1; UNVERIFIED without the certificates), and signs ad hoc when there are none.
+# This file defines packaging inputs and target configuration. Production build execution,
+# signing, notarization, and publication are separate from local application development.
 appId: ai.msrv.gaterook.desktop          # = the Windows AUMID main sets (app.ts APP_ID): notifications belong to it
 productName: GateRook
 copyright: Copyright © 2026 GateRook
