@@ -388,6 +388,29 @@ class ConnectionsIT {
   }
 
   @Test
+  void optionalMetadataLearningPreservesMeasuredHealthWhileManualTestsRecordFailure() {
+    HealthMonitor monitor = core.bean(HealthMonitor.class);
+    for (String host : List.of("slow.test", "fail.test")) {
+      String name = "facts-" + host.substring(0, host.indexOf('.'));
+      core.connection(name, "pgfake", Env.DEV, host);
+      monitor.check(configs.byName(name).orElseThrow());
+      var afterLearning = configs.byName(name).orElseThrow();
+      assertThat(afterLearning.health().state()).as(host).isEqualTo(HealthResult.State.HEALTHY);
+      assertThat(afterLearning.health().latencyMs()).as("the bounded probe's latency").isEqualTo(5L);
+      assertThat(tester.testStored(name).result().ok()).isFalse();
+      assertThat(configs.byName(name).orElseThrow().health().state()).isEqualTo(HealthResult.State.UNREACHABLE);
+      monitor.check(configs.byName(name).orElseThrow());
+      assertThat(configs.byName(name).orElseThrow().health().state()).isEqualTo(HealthResult.State.HEALTHY);
+    }
+    core.connection("facts-success", "pgfake", Env.DEV, "db.test");
+    monitor.check(configs.byName("facts-success").orElseThrow());
+    var successful = configs.byName("facts-success").orElseThrow();
+    assertThat(successful.config().metadata().path("serverVersion").asString()).isEqualTo("FakePG 16");
+    assertThat(successful.health().latencyMs()).isEqualTo(5L);
+    assertThat(successful.verified()).isTrue();
+  }
+
+  @Test
   void aRowEditedOutsideTheCoreServesNothingUntilReviewed() {
     core.connection("tampered-db", "pgfake", Env.DEV, "db.test");
     core.jdbc().update("update connection set config = replace(config, 'db.test', 'evil.test') where name = "

@@ -251,7 +251,7 @@ async function hardening(host: SmokeHost): Promise<void> {
     page['require'] === 'undefined' && page['process'] === 'undefined' && page['module'] === 'undefined'
       && page['Buffer'] === 'undefined' && page['ipc'] === 'undefined', page);
   expect('window.gwDesktop is the contract and nothing else', JSON.stringify(page['keys']) === JSON.stringify([
-    'applyGeneral', 'checkForUpdates', 'findFreePort', 'onCoreState', 'onDeepLink', 'onEvent', 'onUpdateState',
+    'applyGeneral', 'checkForUpdates', 'choosePrivateKeyFile', 'findFreePort', 'onCoreState', 'onDeepLink', 'onEvent', 'onUpdateState',
     'openClientConfig', 'openExternal', 'openFile', 'openMcpb', 'platform', 'quit', 'resetApplication', 'restartCore', 'revealInFolder',
     'saveFile', 'setNativeTheme', 'unlock', 'usePort']), page['keys']);
   expect('a script injected into the DOM is refused (Trusted Types)', /TypeError/.test(String(page['inject'])), page['inject']);

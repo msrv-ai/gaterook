@@ -1,9 +1,10 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, forwardRef, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, forwardRef, inject, input, signal } from '@angular/core';
 import { FieldTree, FormField } from '@angular/forms/signals';
 import { LucideDynamicIcon } from '@lucide/angular';
 import { GwCodeEditor } from '../code/code-editor';
 import { JsonValue } from '../core/api/types';
+import { DesktopBridge, desktopErrorText } from '../core/desktop/desktop-bridge';
 import { GwSecret } from '../kit/secret';
 import { literalParts } from '../kit/elements/shared/literals';
 import { SchemaNode, getAt, tagNoun } from './compile';
@@ -29,12 +30,42 @@ const join = (...ids: (string | null | undefined)[]) => ids.filter(Boolean).join
   templateUrl: './field.html',
 })
 export class GwSchemaField {
+  protected readonly desktop = inject(DesktopBridge);
+  private readonly destroyRef = inject(DestroyRef);
   readonly form = input.required<SchemaForm>();
   readonly node = input.required<SchemaNode>();
   protected readonly join = join;
   protected readonly lowerFirst = lowerFirst;
   protected readonly String = String;
   protected readonly sourceCopy = sourceCopy;
+  protected readonly choosingFile = signal(false);
+  protected readonly filePickerError = signal<string | null>(null);
+
+  protected filePicker(): boolean {
+    return this.node().schema['x-file-picker'] === 'ssh-private-key';
+  }
+
+  protected async chooseFile(): Promise<void> {
+    if (!this.filePicker() || !this.desktop.privateKeyPickerAvailable || this.choosingFile() || this.form().locked(this.node())) return;
+    const form = this.form();
+    const node = this.node();
+    const previous = this.value();
+    this.choosingFile.set(true);
+    this.filePickerError.set(null);
+    try {
+      const path = await this.desktop.choosePrivateKeyFile();
+      // A dialog may outlive its form or an edit made while it was open.
+      if (!this.destroyRef.destroyed && this.form() === form && this.node() === node
+          && form.visible(node) && !form.locked(node) && this.value() === previous && path) {
+        form.set(node, path);
+        form.touch(node);
+      }
+    } catch (error) {
+      if (!this.destroyRef.destroyed) this.filePickerError.set(desktopErrorText(error, 'Could not open the file picker. Enter the path manually.'));
+    } finally {
+      if (!this.destroyRef.destroyed) this.choosingFile.set(false);
+    }
+  }
 
   protected value(): JsonValue {
     return getAt(this.form().model(), this.node().path);

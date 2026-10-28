@@ -9,12 +9,19 @@ import { callCore, callCoreOk } from './core-client.ts';
 import { clientId, defaultFileName, filePurpose, linkId, openableConfig, revealableFolder, revealKind } from './file-purposes.ts';
 import type { Logger } from './log.ts';
 import type { CoreEndpoint } from './proxy.ts';
+import { choosePrivateKeyPath } from './private-key-picker.ts';
 
 export interface FilesOptions {
   readonly home: string;
   readonly core: () => CoreEndpoint | null;
   readonly window: () => BrowserWindow | null;
   readonly log: Logger;
+}
+
+/** A configured SSH key path is displayed in the form; its contents stay outside the renderer. */
+export async function choosePrivateKeyFile(o: FilesOptions): Promise<string | null> {
+  const win = o.window();
+  return choosePrivateKeyPath((options) => win ? dialog.showOpenDialog(win, options) : dialog.showOpenDialog(options));
 }
 
 function requireCore(o: FilesOptions): CoreEndpoint {

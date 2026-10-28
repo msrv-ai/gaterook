@@ -82,7 +82,7 @@ export interface DesktopPorts {
   readonly publicPort?: number;
 }
 
-/** What Electron's preload exposes as `window.gwDesktop` (§7.1): Web API only, opaque ids, never a secret or path. */
+/** What Electron's preload exposes as `window.gwDesktop` (§7.1): no secrets; paths only from an explicit key selection. */
 export interface GwDesktop {
   readonly platform: 'darwin' | 'win32' | 'linux';
   setNativeTheme(theme: 'system' | 'light' | 'dark'): void;
@@ -90,6 +90,8 @@ export interface GwDesktop {
   /** Shows a save dialog in main; resolves the one-time `saveToken` for the core, or null when cancelled. */
   saveFile(purpose: string): Promise<string | null>;
   openFile(purpose: string): Promise<string | null>;
+  /** Shows the native picker and returns the selected private key path, without reading its contents. */
+  choosePrivateKeyFile(): Promise<string | null>;
   openMcpb(linkId: string): Promise<void>;
   /** Opens an MCP client's config file in the default editor; main resolves the path from the client id itself. */
   openClientConfig(client: string): Promise<void>;
@@ -145,6 +147,9 @@ export class DesktopBridge {
   /** Whether the app runs inside Electron. */
   readonly available = this.desktop !== undefined;
 
+  /** Also false when a browser UI connects to an older desktop shell. */
+  readonly privateKeyPickerAvailable = typeof this.desktop?.choosePrivateKeyFile === 'function';
+
   /** The OS, for `gw-titlebar--mac`; `web` in a browser. */
   readonly platform: GwDesktop['platform'] | 'web' = this.desktop?.platform ?? 'web';
 
@@ -164,6 +169,10 @@ export class DesktopBridge {
 
   async openFile(purpose: string): Promise<string | null> {
     return this.desktop ? this.desktop.openFile(purpose) : null;
+  }
+
+  async choosePrivateKeyFile(): Promise<string | null> {
+    return this.desktop?.choosePrivateKeyFile?.() ?? null;
   }
 
   async openMcpb(linkId: string): Promise<void> {

@@ -7,6 +7,7 @@ import ai.msrv.gaterook.connector.api.Connector;
 import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.ConnectorManifest;
 import ai.msrv.gaterook.connector.api.ExecContext;
+import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.SecretResolver;
 import ai.msrv.gaterook.connector.api.TestResult;
@@ -30,6 +31,8 @@ import org.apache.sshd.sftp.SftpModuleProperties;
 import org.apache.sshd.sftp.client.SftpClient;
 import org.apache.sshd.sftp.client.SftpClientFactory;
 import org.apache.sshd.sftp.client.impl.AbstractSftpClient;
+import org.apache.sshd.sftp.common.SftpConstants;
+import org.apache.sshd.sftp.common.SftpException;
 import tools.jackson.databind.node.JsonNodeFactory;
 
 /** Selected remote log files over SFTP. No shell or write-capable operation is exposed. */
@@ -118,15 +121,25 @@ public final class SshLogsConnector implements Connector {
 
   @Override
   public TestResult test(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
-    return inspect(cfg, secrets, ctx, null);
+    return inspect(cfg, secrets, ctx, null, true);
+  }
+
+  /** Reachability checks authenticate SFTP and the selected root; their cost does not grow with file selection. */
+  @Override
+  public HealthResult health(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
+    TestResult result = inspect(cfg, secrets, ctx, null, false);
+    return result.ok() ? HealthResult.healthy(result.latencyMs()) : HealthResult.unreachable(
+        result.error() == null ? "The SSH host key needs confirmation. Test the connection and verify its fingerprint."
+            : result.error().message());
   }
 
   @Override
   public TestResult browseFiles(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, String path) {
-    return inspect(cfg, secrets, ctx, path == null || path.isBlank() ? "/" : path);
+    return inspect(cfg, secrets, ctx, path == null || path.isBlank() ? "/" : path, false);
   }
 
-  private TestResult inspect(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, String path) {
+  private TestResult inspect(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, String path,
+      boolean checkFiles) {
     HostKeys.Check check = null;
     SshLogSettings settings = null;
     long started = System.nanoTime();
@@ -138,21 +151,30 @@ public final class SshLogsConnector implements Connector {
         var details = path == null ? JsonNodeFactory.instance.objectNode() : SshLogFiles.browse(opened.sftp(), path, ctx);
         if (path == null) {
           SshLogFiles.directory(opened.sftp(), settings.root(), ctx);
-          for (String file : settings.allowedFiles()) {
-            SshLogFiles.file(opened.sftp(), settings, file, ctx);
-            try (var handle = opened.sftp().open(settings.allowed(file), SftpClient.OpenMode.Read)) {
-              SshLogFiles.file(opened.sftp(), settings, file, ctx);
-              if (!opened.sftp().stat(handle).isRegularFile()) {
-                throw ConnectorException.denied("Only regular log files can be read.");
+          if (checkFiles) {
+            for (String file : settings.allowedFiles()) {
+              try {
+                SshLogFiles.inspectFile(opened.sftp(), settings, file, ctx);
+                try (var handle = opened.sftp().open(settings.allowed(file), SftpClient.OpenMode.Read)) {
+                  SshLogFiles.inspectFile(opened.sftp(), settings, file, ctx);
+                  SshLogFiles.budget(opened.sftp(), ctx);
+                  if (!opened.sftp().stat(handle).isRegularFile()) {
+                    throw ConnectorException.denied("Only regular log files can be read.");
+                  }
+                }
+              } catch (IOException e) {
+                throw selectedFileError(file, e, ctx);
               }
             }
+            SshLogFiles.directory(opened.sftp(), settings.root(), ctx);
           }
           details.put("root", settings.root()).put("selectedFiles", settings.allowedFiles().size());
         }
+        String version = SshProbe.serverVersion(opened.session().getServerVersion());
         return TestResult.success((System.nanoTime() - started) / 1_000_000,
-            SshProbe.serverVersion(opened.session().getServerVersion()), settings.ssh().target().label(),
+            version, settings.ssh().target().label(),
             new TestResult.Permissions(TestResult.Level.READ, "Selected log files over SFTP", "No write tools", List.of(), null))
-            .withDetails(details);
+            .withDetails(details).withMetadata(JsonNodeFactory.instance.objectNode().put("serverVersion", version));
       }
     } catch (ConnectorException e) {
       if (check != null && check.verdict() == HostKeys.Verdict.UNKNOWN && check.seen() != null) {
@@ -166,6 +188,25 @@ public final class SshLogsConnector implements Connector {
     } catch (IOException e) {
       return TestResult.failure("ssh-logs.sftp", "Cannot read the remote folder or files. Check the path, permissions and SFTP support.", null);
     }
+  }
+
+  private static ConnectorException selectedFileError(String file, IOException failure, ExecContext ctx) {
+    if (ctx.cancelled() || ctx.remaining().isZero() || Thread.currentThread().isInterrupted()) {
+      return ConnectorException.timeout("The selected log files could not all be checked before the deadline.");
+    }
+    if (failure instanceof SftpException sftp) {
+      if (sftp.getStatus() == SftpConstants.SSH_FX_PERMISSION_DENIED) {
+        return ConnectorException.resourceError("Cannot read selected log file " + file
+            + ". Grant this SSH account read access or remove the file from the selection.", failure);
+      }
+      if (sftp.getStatus() == SftpConstants.SSH_FX_NO_SUCH_FILE
+          || sftp.getStatus() == SftpConstants.SSH_FX_NO_SUCH_PATH) {
+        return ConnectorException.resourceError("Selected log file " + file
+            + " no longer exists. Choose its current name or remove it from the selection.", failure);
+      }
+    }
+    return ConnectorException.resourceError("Cannot inspect selected log file " + file
+        + ". Check its path, permissions and the SFTP connection.", failure);
   }
 
   @Override

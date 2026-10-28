@@ -116,6 +116,34 @@ final class SshLogFiles {
     return attributes;
   }
 
+  /**
+   * A connection test checks the shared root's ancestry before and after the batch. Check every relative component
+   * before and after opening each file without repeating the same root lstat requests. Canonical comparison alone
+   * is insufficient: some SFTP servers return normalized paths without resolving symbolic parents.
+   * Tool reads keep the full per-component checks in {@link #file}.
+   */
+  static void inspectFile(SftpClient sftp, SshLogSettings settings, String file, ExecContext ctx)
+      throws IOException, ConnectorException {
+    String path = settings.allowed(file);
+    String at = settings.root();
+    String[] parts = file.split("/");
+    for (int i = 0; i < parts.length - 1; i++) {
+      at = SshLogSettings.join(at, parts[i]);
+      budget(sftp, ctx);
+      if (sftp.lstat(at).isSymbolicLink()) {
+        throw ConnectorException.denied("Symbolic links are not allowed in selected log paths.");
+      }
+    }
+    budget(sftp, ctx);
+    if (!SshLogSettings.absolute(sftp.canonicalPath(path)).equals(path)) {
+      throw ConnectorException.denied("Symbolic links are not allowed in selected log paths.");
+    }
+    budget(sftp, ctx);
+    if (!sftp.lstat(path).isRegularFile()) {
+      throw ConnectorException.denied("Only regular log files can be read.");
+    }
+  }
+
   static ToolResult list(SftpClient sftp, SshLogSettings settings, ExecContext ctx)
       throws IOException, ConnectorException {
     ObjectNode result = JsonNodeFactory.instance.objectNode().put("root", settings.root());
