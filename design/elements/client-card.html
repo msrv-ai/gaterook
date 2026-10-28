@@ -337,37 +337,41 @@
             </div>
 
             <div class="gw-client-card__step">
-              <h3 class="gw-text-h3">What will change</h3>
-              <div class="gw-diff gw-diff--wrap">
-                <div class="gw-diff__header">
-                  <span class="gw-diff__filename">~/.cursor/mcp.json</span>
-                  <span class="gw-diff__summary">7 additions, 1 deletion</span>
+              <h3 class="gw-text-h3">
+                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="dlg-cu-changes"><i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i>What will change</button>
+              </h3>
+              <div class="gw-stack gw-stack--sm" id="dlg-cu-changes" hidden>
+                <div class="gw-diff gw-diff--wrap">
+                  <div class="gw-diff__header">
+                    <span class="gw-diff__filename">~/.cursor/mcp.json</span>
+                    <span class="gw-diff__summary">7 additions, 1 deletion</span>
+                  </div>
+                  <div class="gw-diff__body" tabindex="0" role="region" aria-label="Changes to ~/.cursor/mcp.json">
+                    <div class="gw-diff__line gw-diff__line--hunk"><span class="gw-diff__text">@@ -1,8 +1,14 @@</span></div>
+                    <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">1</span><span class="gw-diff__gutter" aria-hidden="true">1</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">{</span></div>
+                    <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">2</span><span class="gw-diff__gutter" aria-hidden="true">2</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">  "mcpServers": {</span></div>
+                    <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">3</span><span class="gw-diff__gutter" aria-hidden="true">3</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">    "github": {</span></div>
+                    <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">4</span><span class="gw-diff__gutter" aria-hidden="true">4</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">      "command": "npx",</span></div>
+                    <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">5</span><span class="gw-diff__gutter" aria-hidden="true">5</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">      "args": ["-y", "@modelcontextprotocol/server-github"]</span></div>
+                    <div class="gw-diff__line gw-diff__line--del"><span class="gw-diff__gutter" aria-hidden="true">6</span><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__marker" aria-hidden="true">−</span><span class="gw-sr-only">Removed: </span><span class="gw-diff__text">    }</span></div>
+                    <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">6</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">    },</span></div>
+                    <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">7</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">    "gateway-dev": {</span></div>
+                    <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">8</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">      "url": "http://127.0.0.1:7465/mcp/dev",</span></div>
+                    <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">9</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">      "headers": {</span></div>
+                    <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">10</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">        "Authorization": "Bearer ‹new token›"</span></div>
+                    <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">11</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">      }</span></div>
+                    <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">12</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">    }</span></div>
+                    <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">7</span><span class="gw-diff__gutter" aria-hidden="true">13</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">  }</span></div>
+                    <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">8</span><span class="gw-diff__gutter" aria-hidden="true">14</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">}</span></div>
+                  </div>
                 </div>
-                <div class="gw-diff__body" tabindex="0" role="region" aria-label="Changes to ~/.cursor/mcp.json">
-                  <div class="gw-diff__line gw-diff__line--hunk"><span class="gw-diff__text">@@ -1,8 +1,14 @@</span></div>
-                  <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">1</span><span class="gw-diff__gutter" aria-hidden="true">1</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">{</span></div>
-                  <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">2</span><span class="gw-diff__gutter" aria-hidden="true">2</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">  "mcpServers": {</span></div>
-                  <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">3</span><span class="gw-diff__gutter" aria-hidden="true">3</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">    "github": {</span></div>
-                  <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">4</span><span class="gw-diff__gutter" aria-hidden="true">4</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">      "command": "npx",</span></div>
-                  <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">5</span><span class="gw-diff__gutter" aria-hidden="true">5</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">      "args": ["-y", "@modelcontextprotocol/server-github"]</span></div>
-                  <div class="gw-diff__line gw-diff__line--del"><span class="gw-diff__gutter" aria-hidden="true">6</span><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__marker" aria-hidden="true">−</span><span class="gw-sr-only">Removed: </span><span class="gw-diff__text">    }</span></div>
-                  <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">6</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">    },</span></div>
-                  <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">7</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">    "gateway-dev": {</span></div>
-                  <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">8</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">      "url": "http://127.0.0.1:7465/mcp/dev",</span></div>
-                  <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">9</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">      "headers": {</span></div>
-                  <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">10</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">        "Authorization": "Bearer ‹new token›"</span></div>
-                  <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">11</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">      }</span></div>
-                  <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">12</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">    }</span></div>
-                  <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">7</span><span class="gw-diff__gutter" aria-hidden="true">13</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">  }</span></div>
-                  <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">8</span><span class="gw-diff__gutter" aria-hidden="true">14</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">}</span></div>
-                </div>
+                <p class="gw-client-card__backup gw-text-small gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="archive"></i>Backup: <code class="gw-code">~/.cursor/mcp.json.bak-2026-10-22</code></p>
+                <p class="gw-text-small gw-fg-muted">Permissions change from rw-r--r-- to rw------- because it now holds a token</p>
+                <ul class="gw-stack gw-stack--sm" aria-label="Notes">
+                  <li class="gw-text-small gw-fg-secondary">Token cursor-laptop · expires in 7 days · written in plain text to ~/.cursor/mcp.json · Revoke it on the Tokens tab of the endpoint</li>
+                  <li class="gw-text-small gw-fg-secondary">Turn the server on in Cursor: Settings › MCP</li>
+                </ul>
               </div>
-              <p class="gw-client-card__backup gw-text-small gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="archive"></i>Backup: <code class="gw-code">~/.cursor/mcp.json.bak-2026-10-22</code></p>
-              <p class="gw-text-small gw-fg-muted">Permissions change from rw-r--r-- to rw------- because it now holds a token</p>
-              <ul class="gw-stack gw-stack--sm" aria-label="Notes">
-                <li class="gw-text-small gw-fg-secondary">Token cursor-laptop · expires in 7 days · written in plain text to ~/.cursor/mcp.json · Revoke it on the Tokens tab of the endpoint</li>
-                <li class="gw-text-small gw-fg-secondary">Turn the server on in Cursor: Settings › MCP</li>
-              </ul>
             </div>
 
             <div class="gw-alert gw-alert--warning gw-alert--compact">
@@ -628,34 +632,38 @@
           </div>
 
           <div class="gw-client-card__step">
-            <h4 class="gw-text-h3">What will change</h4>
-            <div class="gw-diff gw-diff--wrap">
-              <div class="gw-diff__header">
-                <span class="gw-diff__filename">~/.codex/config.toml</span>
-                <span class="gw-diff__summary">9 additions</span>
+            <h4 class="gw-text-h3">
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="flow-cx-changes"><i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i>What will change</button>
+            </h4>
+            <div class="gw-stack gw-stack--sm" id="flow-cx-changes" hidden>
+              <div class="gw-diff gw-diff--wrap">
+                <div class="gw-diff__header">
+                  <span class="gw-diff__filename">~/.codex/config.toml</span>
+                  <span class="gw-diff__summary">9 additions</span>
+                </div>
+                <div class="gw-diff__body" tabindex="0" role="region" aria-label="Changes to ~/.codex/config.toml">
+                  <div class="gw-diff__line gw-diff__line--hunk"><span class="gw-diff__text">@@ -4,3 +4,12 @@</span></div>
+                  <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">4</span><span class="gw-diff__gutter" aria-hidden="true">4</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">[mcp_servers.github]</span></div>
+                  <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">5</span><span class="gw-diff__gutter" aria-hidden="true">5</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">command = "npx"</span></div>
+                  <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">6</span><span class="gw-diff__gutter" aria-hidden="true">6</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">args = ["-y", "@modelcontextprotocol/server-github"]</span></div>
+                  <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">7</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text"></span></div>
+                  <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">8</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text"># &gt;&gt;&gt; GateRook · gateway-dev · managed entry: Disconnect in GateRook removes it</span></div>
+                  <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">9</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">[mcp_servers.gateway-dev]</span></div>
+                  <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">10</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">url = "http://127.0.0.1:7465/mcp/dev"</span></div>
+                  <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">11</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">http_headers_helper = "~/.gaterook/bin/gw-bridge headers --endpoint dev --grant gr_Cx7q2LmA"</span></div>
+                  <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">12</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">default_tools_approval_mode = "writes"</span></div>
+                  <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">13</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">startup_timeout_sec = 20</span></div>
+                  <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">14</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">tool_timeout_sec = 60</span></div>
+                  <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">15</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text"># &lt;&lt;&lt; GateRook · gateway-dev</span></div>
+                </div>
               </div>
-              <div class="gw-diff__body" tabindex="0" role="region" aria-label="Changes to ~/.codex/config.toml">
-                <div class="gw-diff__line gw-diff__line--hunk"><span class="gw-diff__text">@@ -4,3 +4,12 @@</span></div>
-                <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">4</span><span class="gw-diff__gutter" aria-hidden="true">4</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">[mcp_servers.github]</span></div>
-                <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">5</span><span class="gw-diff__gutter" aria-hidden="true">5</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">command = "npx"</span></div>
-                <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">6</span><span class="gw-diff__gutter" aria-hidden="true">6</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">args = ["-y", "@modelcontextprotocol/server-github"]</span></div>
-                <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">7</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text"></span></div>
-                <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">8</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text"># &gt;&gt;&gt; GateRook · gateway-dev · managed entry: Disconnect in GateRook removes it</span></div>
-                <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">9</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">[mcp_servers.gateway-dev]</span></div>
-                <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">10</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">url = "http://127.0.0.1:7465/mcp/dev"</span></div>
-                <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">11</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">http_headers_helper = "~/.gaterook/bin/gw-bridge headers --endpoint dev --grant gr_Cx7q2LmA"</span></div>
-                <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">12</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">default_tools_approval_mode = "writes"</span></div>
-                <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">13</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">startup_timeout_sec = 20</span></div>
-                <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">14</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">tool_timeout_sec = 60</span></div>
-                <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">15</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text"># &lt;&lt;&lt; GateRook · gateway-dev</span></div>
-              </div>
+              <p class="gw-client-card__backup gw-text-small gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="archive"></i>Backup: <code class="gw-code">~/.codex/config.toml.bak-2026-10-22</code></p>
+              <ul class="gw-stack gw-stack--sm" aria-label="Notes">
+                <li class="gw-text-small gw-fg-secondary">Codex asks before write tools too. No token is written; the helper gets a 15-minute token from this app.</li>
+                <li class="gw-text-small gw-fg-secondary">Restart Codex: Settings › MCP servers › Restart</li>
+              </ul>
+              <p class="gw-text-caption gw-fg-muted">Codex asks before write tools too: <code class="gw-code">default_tools_approval_mode = "writes"</code>. <span class="gw-mono">sql_execute</span> then also waits for your approval in GateRook.</p>
             </div>
-            <p class="gw-client-card__backup gw-text-small gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="archive"></i>Backup: <code class="gw-code">~/.codex/config.toml.bak-2026-10-22</code></p>
-            <ul class="gw-stack gw-stack--sm" aria-label="Notes">
-              <li class="gw-text-small gw-fg-secondary">Codex asks before write tools too. No token is written; the helper gets a 15-minute token from this app.</li>
-              <li class="gw-text-small gw-fg-secondary">Restart Codex: Settings › MCP servers › Restart</li>
-            </ul>
-            <p class="gw-text-caption gw-fg-muted">Codex asks before write tools too: <code class="gw-code">default_tools_approval_mode = "writes"</code>. <span class="gw-mono">sql_execute</span> then also waits for your approval in GateRook.</p>
           </div>
 
           <div class="gw-alert gw-alert--info gw-alert--compact">
@@ -752,34 +760,38 @@
           </div>
 
           <div class="gw-client-card__step">
-            <h4 class="gw-text-h3">What will change</h4>
-            <div class="gw-diff gw-diff--wrap">
-              <div class="gw-diff__header">
-                <span class="gw-diff__filename">~/.cursor/mcp.json</span>
-                <span class="gw-diff__summary">6 additions, 1 deletion</span>
+            <h4 class="gw-text-h3">
+              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="pp-cu-changes"><i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i>What will change</button>
+            </h4>
+            <div class="gw-stack gw-stack--sm" id="pp-cu-changes" hidden>
+              <div class="gw-diff gw-diff--wrap">
+                <div class="gw-diff__header">
+                  <span class="gw-diff__filename">~/.cursor/mcp.json</span>
+                  <span class="gw-diff__summary">6 additions, 1 deletion</span>
+                </div>
+                <div class="gw-diff__body" tabindex="0" role="region" aria-label="Changes to ~/.cursor/mcp.json for endpoint incident-prod">
+                  <div class="gw-diff__line gw-diff__line--hunk"><span class="gw-diff__text">@@ -1,8 +1,13 @@</span></div>
+                  <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">1</span><span class="gw-diff__gutter" aria-hidden="true">1</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">{</span></div>
+                  <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">2</span><span class="gw-diff__gutter" aria-hidden="true">2</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">  "mcpServers": {</span></div>
+                  <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">3</span><span class="gw-diff__gutter" aria-hidden="true">3</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">    "github": {</span></div>
+                  <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">4</span><span class="gw-diff__gutter" aria-hidden="true">4</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">      "command": "npx",</span></div>
+                  <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">5</span><span class="gw-diff__gutter" aria-hidden="true">5</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">      "args": ["-y", "@modelcontextprotocol/server-github"]</span></div>
+                  <div class="gw-diff__line gw-diff__line--del"><span class="gw-diff__gutter" aria-hidden="true">6</span><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__marker" aria-hidden="true">−</span><span class="gw-sr-only">Removed: </span><span class="gw-diff__text">    }</span></div>
+                  <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">6</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">    },</span></div>
+                  <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">7</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">    "gateway-incident-prod": {</span></div>
+                  <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">8</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">      "type": "stdio",</span></div>
+                  <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">9</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">      "command": "/Users/me/.gaterook/bin/gw-bridge",</span></div>
+                  <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">10</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">      "args": ["stdio", "--endpoint", "incident-prod", "--grant", "gr_Cu2mV8xR", "--client", "cursor"]</span></div>
+                  <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">11</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">    }</span></div>
+                  <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">7</span><span class="gw-diff__gutter" aria-hidden="true">12</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">  }</span></div>
+                  <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">8</span><span class="gw-diff__gutter" aria-hidden="true">13</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">}</span></div>
+                </div>
               </div>
-              <div class="gw-diff__body" tabindex="0" role="region" aria-label="Changes to ~/.cursor/mcp.json for endpoint incident-prod">
-                <div class="gw-diff__line gw-diff__line--hunk"><span class="gw-diff__text">@@ -1,8 +1,13 @@</span></div>
-                <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">1</span><span class="gw-diff__gutter" aria-hidden="true">1</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">{</span></div>
-                <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">2</span><span class="gw-diff__gutter" aria-hidden="true">2</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">  "mcpServers": {</span></div>
-                <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">3</span><span class="gw-diff__gutter" aria-hidden="true">3</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">    "github": {</span></div>
-                <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">4</span><span class="gw-diff__gutter" aria-hidden="true">4</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">      "command": "npx",</span></div>
-                <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">5</span><span class="gw-diff__gutter" aria-hidden="true">5</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">      "args": ["-y", "@modelcontextprotocol/server-github"]</span></div>
-                <div class="gw-diff__line gw-diff__line--del"><span class="gw-diff__gutter" aria-hidden="true">6</span><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__marker" aria-hidden="true">−</span><span class="gw-sr-only">Removed: </span><span class="gw-diff__text">    }</span></div>
-                <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">6</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">    },</span></div>
-                <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">7</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">    "gateway-incident-prod": {</span></div>
-                <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">8</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">      "type": "stdio",</span></div>
-                <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">9</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">      "command": "/Users/me/.gaterook/bin/gw-bridge",</span></div>
-                <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">10</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">      "args": ["stdio", "--endpoint", "incident-prod", "--grant", "gr_Cu2mV8xR", "--client", "cursor"]</span></div>
-                <div class="gw-diff__line gw-diff__line--add"><span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">11</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span><span class="gw-diff__text">    }</span></div>
-                <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">7</span><span class="gw-diff__gutter" aria-hidden="true">12</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">  }</span></div>
-                <div class="gw-diff__line gw-diff__line--context"><span class="gw-diff__gutter" aria-hidden="true">8</span><span class="gw-diff__gutter" aria-hidden="true">13</span><span class="gw-diff__marker" aria-hidden="true"></span><span class="gw-diff__text">}</span></div>
-              </div>
+              <p class="gw-client-card__backup gw-text-small gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="archive"></i>Backup: <code class="gw-code">~/.cursor/mcp.json.bak-2026-10-22</code></p>
+              <ul class="gw-stack gw-stack--sm" aria-label="Notes">
+                <li class="gw-text-small gw-fg-secondary">Turn the server on in Cursor: Settings › MCP</li>
+              </ul>
             </div>
-            <p class="gw-client-card__backup gw-text-small gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="archive"></i>Backup: <code class="gw-code">~/.cursor/mcp.json.bak-2026-10-22</code></p>
-            <ul class="gw-stack gw-stack--sm" aria-label="Notes">
-              <li class="gw-text-small gw-fg-secondary">Turn the server on in Cursor: Settings › MCP</li>
-            </ul>
           </div>
         </div>
       </div>
@@ -838,7 +850,7 @@
   <section class="gw-section" aria-labelledby="s-inline">
     <header class="gw-section__header">
       <h2 class="gw-section__title" id="s-inline">Inline review, one endpoint</h2>
-      <p class="gw-section__description">How clients.html?state=setup shows the app Overview's guide named: one full-width card with the review in it. With one endpoint there is no select: What &lt;app&gt; can use says it in words. Claude Desktop's .mcpb bridge writes no file, so What will change is a list, and the config-file fallback waits behind a disclosure. After Connect the card stays and ends with Check that it works. Cursor's browser sign-in has its entry written and waits for the sign-in, with no primary.</p>
+      <p class="gw-section__description">How clients.html?state=setup shows the app Overview's guide named: one full-width card with the review in it. With one endpoint there is no select: What &lt;app&gt; can use says it in words. What will change starts collapsed. Claude Desktop's .mcpb bridge writes no file, so expanding it shows a list, and the config-file fallback waits behind its own disclosure. After Connect the card stays and ends with Check that it works. Cursor's browser sign-in has its entry written and waits for the sign-in, with no primary.</p>
     </header>
 <article class="gw-card gw-client-card" id="cc7-cd-s" aria-labelledby="cc7-cd-s-t">
               <header class="gw-card__header gw-client-card__header">
@@ -869,13 +881,17 @@
                     <p class="gw-text-caption gw-fg-muted"><span class="gw-mono">dev-db</span> is on endpoint <span class="gw-mono">dev</span>, your only endpoint. Anything you add to <span class="gw-mono">dev</span> later reaches Claude Desktop too.</p>
                   </div>
                   <div class="gw-client-card__step">
-                    <h4 class="gw-text-h3">What will change</h4>
-                    <dl class="gw-kv gw-kv--dense">
-                      <div class="gw-kv__row"><dt class="gw-kv__key">Installs</dt><dd class="gw-kv__value">The GateRook extension, <span class="gw-mono">gaterook.mcpb</span> (GateRook 0.4.0), in Claude Desktop</dd></div>
-                      <div class="gw-kv__row"><dt class="gw-kv__key">Runs</dt><dd class="gw-kv__value"><code class="gw-code">gw-bridge stdio --endpoint dev</code>, which talks only to <span class="gw-mono">127.0.0.1:7465</span> on this computer</dd></div>
-                      <div class="gw-kv__row"><dt class="gw-kv__key">Config files</dt><dd class="gw-kv__value">None. <span class="gw-mono">claude_desktop_config.json</span> stays as it is</dd></div>
-                      <div class="gw-kv__row"><dt class="gw-kv__key">Token</dt><dd class="gw-kv__value">None stored. The extension asks GateRook for a 15-minute token when it needs one, so keep GateRook running</dd></div>
-                    </dl>
+                    <h4 class="gw-text-h3">
+                      <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="cc7-cd-s-changes"><i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i>What will change</button>
+                    </h4>
+                    <div class="gw-stack gw-stack--sm" id="cc7-cd-s-changes" hidden>
+                      <dl class="gw-kv gw-kv--dense">
+                        <div class="gw-kv__row"><dt class="gw-kv__key">Installs</dt><dd class="gw-kv__value">The GateRook extension, <span class="gw-mono">gaterook.mcpb</span> (GateRook 0.4.0), in Claude Desktop</dd></div>
+                        <div class="gw-kv__row"><dt class="gw-kv__key">Runs</dt><dd class="gw-kv__value"><code class="gw-code">gw-bridge stdio --endpoint dev</code>, which talks only to <span class="gw-mono">127.0.0.1:7465</span> on this computer</dd></div>
+                        <div class="gw-kv__row"><dt class="gw-kv__key">Config files</dt><dd class="gw-kv__value">None. <span class="gw-mono">claude_desktop_config.json</span> stays as it is</dd></div>
+                        <div class="gw-kv__row"><dt class="gw-kv__key">Token</dt><dd class="gw-kv__value">None stored. The extension asks GateRook for a 15-minute token when it needs one, so keep GateRook running</dd></div>
+                      </dl>
+                    </div>
                   </div>
                   <div class="gw-alert gw-alert--info gw-alert--compact">
                     <i class="gw-icon gw-alert__icon" data-lucide="app-window"></i>
