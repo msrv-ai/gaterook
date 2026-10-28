@@ -193,7 +193,7 @@ describe('Secrets page: what it shows', () => {
     const backup = $('time', $$('.gw-kv__row', mk).find((r) => text(r).startsWith('Last backup')))!;
     expect(text(backup)).toBe('12 days ago');
     expect(backup.closest('.gw-status')!.classList).toContain('gw-status--warning');
-    expect(text(mk)).toContain('Protects against other users and copied files, not against programs you run');
+    expect($$('.gw-card__body > .gw-stack > .gw-alert', mk)).toHaveLength(0);
 
     expect($$('#secrets-table tbody tr', el)).toHaveLength(11);
     expect(text($('#secret-count', el))).toBe('11 secrets');

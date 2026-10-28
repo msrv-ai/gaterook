@@ -438,9 +438,8 @@ export interface KeyAlert {
 }
 
 /**
- * What is wrong with the key, in the kit's words (the "problem states" the kit keeps under "Show problem states"),
- * above the healthy card's notes. `backup-needed` isn't one: it tones Last backup, and the card always says to keep
- * a current copy away from this computer.
+ * What is wrong with the key, in the kit's words (the "problem states" the kit keeps under "Show problem states").
+ * `backup-needed` tones Last backup instead of adding an alert.
  */
 export function keyAlerts(s: MasterKeyStatus): KeyAlert[] {
   const out: KeyAlert[] = [];
@@ -497,12 +496,6 @@ export function keyAlerts(s: MasterKeyStatus): KeyAlert[] {
     });
   }
   return out;
-}
-
-/** The folder of the key file (`~/.gaterook/` in the kit), for the folder-backup note. */
-export function keyFolder(path: string): string {
-  const i = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
-  return i > 0 ? path.slice(0, i + 1) : path;
 }
 
 export function keyFileName(path: string): string {
