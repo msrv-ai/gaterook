@@ -139,6 +139,20 @@ export function setup(): Overview {
   });
 }
 
+/** Browser OAuth completed without a named token, managed config, or first tool call. */
+export function browserSignedIn(): Overview {
+  const o = setup();
+  return {
+    ...o,
+    gettingStarted: {
+      ...o.gettingStarted,
+      done: o.gettingStarted.done + 1,
+      steps: o.gettingStarted.steps.map((s) => s.id === 'client' ? { ...s, state: 'done', detail: { status: 'Cursor' } } : s),
+    },
+    setupMap: { nodes: [...o.setupMap.nodes, { id: 'clients', count: 1, state: 'done', status: '1 connected' }] },
+  };
+}
+
 function link(client: ClientLink['client'], endpoint: string, env: Env, over: Partial<ClientLink> = {}): ClientLink {
   return {
     id: `cl_${client}_${endpoint}`,
@@ -204,6 +218,14 @@ export function clientsFound(): ClientsView {
       card('antigravity', 'Antigravity', 'not-installed'),
     ],
   };
+}
+
+export function clientsBrowserSignedIn(): ClientsView {
+  const found = clientsFound();
+  const observed = link('cursor', 'dev', 'dev', {
+    id: 'og_cursor', method: 'oauth', entryName: null, lastCallAt: null, revision: null,
+  });
+  return { ...found, clients: found.clients.map((c) => c.client === 'cursor' ? card('cursor', 'Cursor', 'connected', [observed]) : c) };
 }
 
 export function row(name: string, env: Env, usedBy: string[]): ConnectionRow {
