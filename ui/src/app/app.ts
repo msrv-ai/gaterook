@@ -11,6 +11,7 @@ import { ApprovalsStore } from './core/stores/approvals.store';
 import { ConsentStore } from './core/stores/consent.store';
 import { CoreStore } from './core/stores/core.store';
 import { SettingsStore } from './core/stores/settings.store';
+import { UpdatesStore } from './core/stores/updates.store';
 import { ActivationGuard } from './kit/activation-guard';
 import { GwOAuthConsent } from './kit/elements/client-card/oauth-consent';
 import { GwCommandPalette } from './kit/elements/command-palette/command-palette';
@@ -139,6 +140,7 @@ export class App {
   protected readonly approvals = inject(ApprovalsStore);
   protected readonly desktop = inject(DesktopBridge);
   protected readonly history = inject(NavigationHistory);
+  protected readonly updates = inject(UpdatesStore);
 
   protected readonly nav = NAV;
   protected readonly mac = this.desktop.platform === 'darwin';

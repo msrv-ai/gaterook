@@ -118,11 +118,12 @@ Navigation column (bg.sidebar, end border): logo and collapse toggle, the scroll
 
 [SCSS](scss/components/_shell.scss)
 
-**Parts:** __header; __toggle; __body; __footer; __meta.
+**Parts:** __header; __toggle; __body; __footer; __meta; __update; __update-label; __update-message.
 
 **States and behavior:**
 
 - collapsed (.gw-shell[data-collapsed] or below md): the header stacks; the logo name, footer status labels and __meta become sr-only; status dots stay; __toggle is hidden below md
+- When an update is available, place a primary small block `gw-btn` with `__update` below the version. Activation downloads the update and restarts the app. Loading uses `aria-disabled`, `aria-busy`, a spinner and retained text; errors show Retry update and a linked explanation. `__update-label` and `__update-message` become visually hidden when collapsed, preserving the button name and description while its icon stays visible.
 
 **Accessibility:** A plain <div>, not <aside>, because primary navigation is not complementary. The toggle is a button with data-gw-sidebar-toggle, aria-controls pointing at the sidebar id and aria-expanded kept in sync by kit.js. While expanded, the footer uses gw-status with words, never a dot alone. It is never gw-status--live: an endless pulse on every screen fails WCAG 2.2.2.
 

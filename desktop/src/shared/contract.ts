@@ -63,11 +63,12 @@ export type DesktopCoreState =
 
 export type UpdateState =
   | {
-      readonly state: 'checking' | 'available' | 'downloaded' | 'up-to-date';
+      readonly state: 'checking' | 'available' | 'downloaded' | 'installing' | 'up-to-date';
       readonly version?: string;
       readonly lastCheckedAt?: string;
     }
-  | { readonly state: 'error'; readonly message: string; readonly lastCheckedAt?: string };
+  | { readonly state: 'downloading'; readonly version?: string; readonly percent?: number; readonly lastCheckedAt?: string }
+  | { readonly state: 'error'; readonly message: string; readonly version?: string; readonly lastCheckedAt?: string };
 
 /** One server-sent event of the core, relayed to the renderer when it asked for the IPC fallback. */
 export interface RelayedEvent {
@@ -106,6 +107,7 @@ export const IPC = {
   usePort: 'gw:use-port',
   findFreePort: 'gw:find-free-port',
   checkForUpdates: 'gw:check-for-updates',
+  installUpdate: 'gw:install-update',
   // send
   setNativeTheme: 'gw:set-native-theme',
   quit: 'gw:quit',

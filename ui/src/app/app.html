@@ -94,6 +94,19 @@
           @if (core.version(); as version) {
             <span class="gw-sidebar__meta">v{{ version }}</span>
           }
+          @if (updates.actionVisible()) {
+            <button class="gw-btn gw-btn--primary gw-btn--sm gw-btn--block gw-sidebar__update" type="button"
+              [attr.aria-disabled]="updates.busy() ? 'true' : null" [attr.aria-busy]="updates.busy() ? 'true' : null"
+              aria-describedby="gw-update-status" [title]="updates.description()" (click)="updates.install()">
+              @if (updates.busy()) {
+                <span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>
+              } @else {
+                <svg [lucideIcon]="updates.error() ? 'refresh-cw' : 'download'" class="gw-icon gw-icon--sm"></svg>
+              }
+              <span class="gw-sidebar__update-label">{{ updates.label() }}</span>
+            </button>
+            <p class="gw-sidebar__update-message gw-text-caption" [class.gw-fg-danger]="updates.error()" [class.gw-sr-only]="!updates.error()" id="gw-update-status" role="status">{{ updates.error() ?? (updates.label() + '. ' + updates.description()) }}</p>
+          }
         </div>
       </div>
     }

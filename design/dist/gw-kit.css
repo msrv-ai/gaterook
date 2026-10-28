@@ -1822,6 +1822,9 @@ table {
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
+.gw-sidebar__update-message {
+  overflow-wrap: anywhere;
+}
 
 .gw-nav {
   display: flex;
@@ -1935,6 +1938,8 @@ table {
 .gw-shell[data-collapsed] .gw-sidebar .gw-nav__group-label,
 .gw-shell[data-collapsed] .gw-sidebar .gw-nav__label,
 .gw-shell[data-collapsed] .gw-sidebar__footer .gw-status__label,
+.gw-shell[data-collapsed] .gw-sidebar__update-label,
+.gw-shell[data-collapsed] .gw-sidebar__update-message,
 .gw-shell[data-collapsed] .gw-sidebar__meta {
   position: absolute;
   width: 1px;
@@ -2040,6 +2045,10 @@ table {
   align-items: center;
   padding-inline: var(--gw-space-2);
 }
+.gw-shell[data-collapsed] .gw-sidebar__update {
+  width: var(--gw-size-control-sm);
+  padding-inline: 0;
+}
 
 @media (max-width: calc(960px - 0.02px)) {
   .gw-shell {
@@ -2053,6 +2062,8 @@ table {
   .gw-shell .gw-sidebar .gw-nav__group-label,
   .gw-shell .gw-sidebar .gw-nav__label,
   .gw-shell .gw-sidebar__footer .gw-status__label,
+  .gw-shell .gw-sidebar__update-label,
+  .gw-shell .gw-sidebar__update-message,
   .gw-shell .gw-sidebar__meta {
     position: absolute;
     width: 1px;
@@ -2157,6 +2168,10 @@ table {
   .gw-shell .gw-sidebar__footer {
     align-items: center;
     padding-inline: var(--gw-space-2);
+  }
+  .gw-shell .gw-sidebar__update {
+    width: var(--gw-size-control-sm);
+    padding-inline: 0;
   }
   .gw-sidebar__toggle {
     display: none;

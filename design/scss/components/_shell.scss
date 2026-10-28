@@ -75,6 +75,8 @@
 //   __footer      core and tunnel gw-status (static: never gw-status--live here, a dot
 //                 that pulses on every screen forever fails WCAG 2.2.2); __meta is the
 //                 compact mono address below core status and version last, above the bottom padding
+//   __update      optional existing gw-btn below the version: download and restart on request
+//   __update-label / __update-message   button text and status/error; visually hidden when collapsed
 // gw-nav          the app's information architecture (BLUEPRINT §2).
 //   __group       a block of links; labelled groups are role="group" + aria-labelledby
 //                 pointing at their __group-label. --end pins the group to the bottom
@@ -287,6 +289,10 @@
     @include gw-tabular;
     overflow-wrap: anywhere;
   }
+
+  &__update-message {
+    overflow-wrap: anywhere;
+  }
 }
 
 // ─────────────────── Navigation ───────────────────
@@ -401,6 +407,8 @@
   .gw-sidebar .gw-nav__group-label,
   .gw-sidebar .gw-nav__label,
   .gw-sidebar__footer .gw-status__label,
+  .gw-sidebar__update-label,
+  .gw-sidebar__update-message,
   .gw-sidebar__meta {
     @include gw-sr-only;
   }
@@ -496,6 +504,11 @@
   .gw-sidebar__footer {
     align-items: center;
     padding-inline: var(--gw-space-2);
+  }
+
+  .gw-sidebar__update {
+    width: var(--gw-size-control-sm);
+    padding-inline: 0;
   }
 }
 

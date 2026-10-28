@@ -30,6 +30,7 @@ import { createLogger, type Logger } from './log.ts';
 import { DesktopNotifications } from './notifications.ts';
 import { canBind, findFreePort } from './ports.ts';
 import { mayUnlock, proxyToCore } from './proxy.ts';
+import { ShutdownSequence } from './shutdown.ts';
 import { findDangerousSwitches } from './switches.ts';
 import { AppTray, markImage, setBadge } from './tray.ts';
 import { Updates } from './updater.ts';
@@ -128,6 +129,7 @@ export class Desktop {
   private consentRevision = 0;
   private quitting = false;
   private stopped = false;
+  private shutdown: ShutdownSequence | null = null;
   private resetting = false;
   /** A development smoke run (smoke.ts): no focus stealing, no notifications on screen. */
   private readonly smoke: boolean;
@@ -273,6 +275,19 @@ export class Desktop {
         const general = await this.generalSettings();
         if (general) this.rememberAutoUpdate(general.autoUpdate);
         return autoUpdateWanted(general?.autoUpdate, this.config.autoUpdate);
+      },
+      prepareInstall: async () => {
+        if (this.resetting || this.quitting) throw new Error('GateRook is closing.');
+        // Squirrel closes windows before before-quit; let our close handler release them.
+        this.quitting = true;
+        await this.stopForQuit();
+      },
+      installFailed: (message) => {
+        this.log(`update install failed: ${message}`);
+        dialog.showErrorBox('GateRook could not install the update',
+          `${message}\n\nGateRook will reopen. Check for updates and try again.`);
+        app.relaunch();
+        app.quit();
       },
     });
     this.updates.schedule();
@@ -704,6 +719,9 @@ export class Desktop {
     handle(IPC.checkForUpdates, async () => {
       await this.updates?.check();
     });
+    handle(IPC.installUpdate, async () => {
+      await this.updates?.install();
+    });
     on(IPC.setNativeTheme, (theme) => {
       if (theme === 'system' || theme === 'light' || theme === 'dark') nativeTheme.themeSource = theme;
     });
@@ -774,24 +792,30 @@ export class Desktop {
   beforeQuit(event: { preventDefault(): void }): void {
     if (this.resetting) { event.preventDefault(); return; }
     this.quitting = true;
-    if (this.stopped) return;
+    if (this.stopped || this.shutdown?.completed) return;
     event.preventDefault();
-    this.stopped = true;
-    this.updates?.stop();
-    this.events.stop();
-    this.fileKeyUnlock.close();
-    this.nativeUnlock.close();
-    void (async () => {
-      try {
-        await this.supervisor.stop();
-        await this.broker?.close();
-      } catch (e) {
-        this.log(`quit: ${(e as Error).message}`);
-      }
-      this.tray?.destroy();
-      this.log('quit');
-      app.quit();
-    })();
+    // Repeated quit events must not bypass an in-flight shutdown, including an update's shutdown.
+    if (this.shutdown) return;
+    // A cleanup failure aborts an update, but must not trap an ordinary quit after all resources were attempted.
+    void this.stopForQuit().then(() => app.quit(), () => app.quit());
+  }
+
+  private stopForQuit(): Promise<void> {
+    this.shutdown ??= new ShutdownSequence([
+      { name: 'updates', run: () => this.updates?.stop() },
+      { name: 'events', run: () => this.events.stop() },
+      { name: 'unlock', run: () => this.fileKeyUnlock.close() },
+      { name: 'native unlock', run: () => this.nativeUnlock.close() },
+      { name: 'core', run: () => this.supervisor.stop() },
+      { name: 'broker', run: async () => {
+        try { await this.broker?.close(); } finally { this.broker = null; }
+      } },
+      { name: 'tray', run: () => {
+        try { this.tray?.destroy(); } finally { this.tray = null; }
+      } },
+      { name: 'complete', run: () => { this.stopped = true; this.log('quit'); } },
+    ], (step, error) => this.log(`quit ${step}: ${error.message}`));
+    return this.shutdown.run();
   }
 
   /** What the development smoke may reach (smoke.ts). */
