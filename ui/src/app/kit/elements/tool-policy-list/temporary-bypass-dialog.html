@@ -1,0 +1,45 @@
+<dialog class="gw-dialog gw-dialog--md gw-dialog--warning" gwDialog #dialog="gwDialog" gwDialogStatic [attr.aria-labelledby]="uid + '-title'" [attr.aria-describedby]="uid + '-description'" (closed)="onClosed()" (cancel)="preventBusyClose($event)">
+  <header class="gw-dialog__header">
+    <span class="gw-icon-tile"><svg lucideIcon="shield-off" class="gw-icon"></svg></span>
+    <h2 class="gw-dialog__title" [id]="uid + '-title'">Temporary bypass</h2>
+    <p class="gw-dialog__description" [id]="uid + '-description'">Calls to this tool run without approval for the selected duration, including changes to data. Policy denials and limits still apply.</p>
+    <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose [disabled]="busy()"><svg lucideIcon="x" class="gw-icon"></svg></button>
+  </header>
+  <div class="gw-dialog__body">
+    <div class="gw-stack">
+      @if (target(); as target) {
+        <dl class="gw-kv gw-kv--dense">
+          <div class="gw-kv__row"><dt class="gw-kv__key">Tool</dt><dd class="gw-kv__value"><code class="gw-code">{{ row()?.name ?? target.toolName ?? target.toolKey }}</code></dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key">Connection</dt><dd class="gw-kv__value"><code class="gw-code">{{ target.connection }}</code> @if (group()?.env; as env) {<span [class]="'gw-env gw-env--sm gw-env--' + env">{{ env }}</span>}</dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><code class="gw-code">{{ target.slug }}</code> · all AI apps using this endpoint</dd></div>
+          @if (row()) {<div class="gw-kv__row"><dt class="gw-kv__key">After expiry</dt><dd class="gw-kv__value">{{ savedMode() }}</dd></div>}
+        </dl>
+      }
+      <p class="gw-text-small gw-fg-secondary">Only this tool and connection on this endpoint are affected. Existing pending requests still need their own approval or denial. Changes to the tool, connection, or endpoint settings may end bypass early.</p>
+      @if (loading()) {<p class="gw-text-small" role="status"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> Checking current tool access…</p>}
+      @if (error(); as error) {
+        <div class="gw-alert gw-alert--danger" role="alert"><svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg><div class="gw-alert__content"><p class="gw-alert__title">Bypass was not changed</p><p class="gw-alert__body">{{ error }}</p><div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" [disabled]="busy() || loading()" (click)="reload()">Reload tool</button></div></div></div>
+      }
+      @if (refusal(); as reason) {<div class="gw-alert gw-alert--neutral"><svg lucideIcon="lock" class="gw-icon gw-alert__icon"></svg><div class="gw-alert__content"><p class="gw-alert__body">{{ reason }}</p></div></div>}
+      @if (notice(); as notice) {<p class="gw-text-small" role="status">{{ notice }}</p>}
+      @if (activeUntil(); as until) {
+        <div class="gw-alert gw-alert--warning"><svg lucideIcon="clock" class="gw-icon gw-alert__icon"></svg><div class="gw-alert__content"><p class="gw-alert__title">Bypass until <time [attr.datetime]="until">{{ time.absolute(until) }}</time></p><p class="gw-alert__body">{{ savedMode() }} resumes automatically. You can end bypass early.</p></div></div>
+      } @else if (row()?.bypassUntil) {<p class="gw-text-small" role="status">Temporary bypass has expired. {{ savedMode() }} applies again.</p>}
+      @if (allowed()) {
+        <div class="gw-field">
+          <label class="gw-field__label" [for]="uid + '-duration'">Bypass duration</label>
+          <select class="gw-select" [id]="uid + '-duration'" [value]="duration()" [disabled]="busy()" [attr.aria-describedby]="uid + '-duration-hint'" (change)="pickDuration($event)">
+            @for (duration of durations; track duration.minutes) {<option [value]="duration.minutes">{{ duration.label }}</option>}
+          </select>
+          <p class="gw-field__hint" [id]="uid + '-duration-hint'">Starts when you confirm. Available only for DEV and STAGE.</p>
+        </div>
+      }
+      @if (busy()) {<p class="gw-text-small" role="status" [id]="uid + '-busy'">Saving bypass settings…</p>}
+    </div>
+  </div>
+  <footer class="gw-dialog__footer">
+    <button class="gw-btn" type="button" gwDialogClose autofocus [disabled]="busy()">{{ notice() ? 'Close' : 'Cancel' }}</button>
+    @if (activeUntil()) {<button class="gw-btn" type="button" [attr.aria-busy]="busy() ? 'true' : null" [attr.aria-disabled]="busy() ? 'true' : null" [attr.aria-describedby]="busy() ? uid + '-busy' : null" (click)="save(true)">End bypass now</button>}
+    @if (allowed()) {<button class="gw-btn gw-btn--primary" type="button" [attr.aria-busy]="busy() ? 'true' : null" [attr.aria-disabled]="busy() || loading() ? 'true' : null" [attr.aria-describedby]="busy() ? uid + '-busy' : uid + '-description'" (click)="save()">{{ activeUntil() ? 'Renew bypass' : 'Enable bypass' }}</button>}
+  </footer>
+</dialog>

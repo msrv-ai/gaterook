@@ -107,6 +107,10 @@ export interface ToolRow {
   readonly definitionHash: string | null;
   readonly overrides: JsonObject | null;
   readonly version: number;
+  /** Active temporary bypass deadline. Absent on older cores. The saved mode remains in storedMode. */
+  readonly bypassUntil?: Iso | null;
+  readonly temporaryBypassAllowed?: boolean;
+  readonly temporaryBypassReason?: string | null;
 }
 
 export interface ToolGroup {
@@ -220,6 +224,20 @@ export class EndpointsApi {
     request: { readonly toolKey: string; readonly connection: string | null; readonly mode: ToolMode; readonly overrides?: JsonObject | null; readonly version: number } & WithReason,
   ): Promise<ToolGroup[]> {
     return this.api.put(ApiClient.path`/api/endpoints/${slug}/tools`, request);
+  }
+
+  temporaryBypass(
+    slug: string,
+    request: { readonly toolKey: string; readonly connection: string; readonly durationMinutes: number; readonly version: number } & WithReason,
+  ): Promise<ToolGroup[]> {
+    return this.api.post(ApiClient.path`/api/endpoints/${slug}/tools/temporary-bypass`, request);
+  }
+
+  revokeTemporaryBypass(
+    slug: string,
+    request: { readonly toolKey: string; readonly connection: string; readonly version: number } & WithReason,
+  ): Promise<ToolGroup[]> {
+    return this.api.delete(ApiClient.path`/api/endpoints/${slug}/tools/temporary-bypass`, request);
   }
 
   /** Answers with every group again, like {@link setMode}. */

@@ -7,6 +7,7 @@ import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.core.policy.PairView;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import tools.jackson.databind.JsonNode;
@@ -52,7 +53,7 @@ public record EndpointSnapshot(String id, String slug, String description, Env e
   public record Pair(String rowId, long rowVersion, String toolKey, ToolDefinition tool, ConnectorManifest manifest,
       ConnectionConfig config, Mode mode, Mode storedMode, JsonNode overrides, String declaredBy,
       boolean readOnlyConfirmed, String provenanceVersion, ToolCall.TemplateBinding template, PairView view,
-      List<JsonNode> contributions) {
+      List<JsonNode> contributions, Instant bypassUntil) {
 
     public String connectionName() {
       return config.name();

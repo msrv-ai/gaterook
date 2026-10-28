@@ -158,7 +158,7 @@
             <p class="gw-section__description">A mode for each tool on each connection. Tools that change data wait for approval by default. Bypass runs calls without approval; policy denials and limits still apply.</p>
           </header>
           @if (data.groups()) {
-            <div gwToolPolicyList [groups]="policyGroups()" [slug]="s.slug" [endpointEnv]="s.env" [readOnly]="s.access === 'read-only'" [descriptions]="data.descriptions()" [policies]="policies()" (modeChange)="setMode($event)" (bulk)="bulk($event)" (overridesChange)="setOverrides($event)" (confirmReadOnly)="confirmReadOnly($event)"></div>
+            <div gwToolPolicyList [groups]="policyGroups()" [slug]="s.slug" [endpointEnv]="s.env" [readOnly]="s.access === 'read-only'" [descriptions]="data.descriptions()" [policies]="policies()" (modeChange)="setMode($event)" (bulk)="bulk($event)" (overridesChange)="setOverrides($event)" (confirmReadOnly)="confirmReadOnly($event)" (temporaryBypass)="openTemporaryBypass($event)"></div>
           }
           <p class="gw-text-caption gw-fg-muted"><svg lucideIcon="info" class="gw-icon gw-icon--xs"></svg> <code class="gw-code">approval_status</code> is always available and isn't counted: agents use it to check a request that waits for approval.</p>
         </section>
@@ -527,3 +527,5 @@
     <button class="gw-btn gw-btn--primary" type="button" (click)="confirmKeep()" [attr.aria-busy]="keepBusy() ? 'true' : null" [attr.aria-disabled]="keepBusy() ? 'true' : null">@if (keepBusy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Keep {{ slug }}</button>
   </footer>
 </dialog>
+
+@if (temporaryBypassMounted()) {<gw-temporary-bypass-dialog #temporaryBypassDialog (changed)="temporaryBypassChanged($event)" />}

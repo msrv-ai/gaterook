@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { DEMO_TOOL_GROUPS } from '../../../dev/fixtures-tools';
 import { provideKitIcons } from '../../icons';
-import { GwToolPolicyList, ToolModeChange } from './tool-policy-list';
+import { GwToolPolicyList, TemporaryBypassOpen, ToolModeChange } from './tool-policy-list';
 
 describe('tool-policy-list bypass mode', () => {
   async function render(readOnly = false) {
@@ -40,5 +40,20 @@ describe('tool-policy-list bypass mode', () => {
       bypass.click();
     }
     expect(changes).toEqual([]);
+  });
+
+  it('offers temporary bypass for an eligible DEV pair and passes its exact scope', async () => {
+    const { fixture, writer } = await render();
+    const group = DEMO_TOOL_GROUPS[0];
+    fixture.componentRef.setInput('groups', [{ ...group, group: { ...group.group, tools: group.group.tools.map((tool) => ({ ...tool, temporaryBypassAllowed: tool.name === 'sql_execute' })) } }]);
+    const changes: TemporaryBypassOpen[] = [];
+    fixture.componentInstance.temporaryBypass.subscribe((change) => changes.push(change));
+    await fixture.whenStable();
+    const button = [...writer.querySelectorAll<HTMLButtonElement>('button')].find((button) => button.textContent?.includes('Temporary bypass'))!;
+    button.click();
+    expect(changes).toEqual([{ toolKey: 'sql_execute', connection: 'dev-db', toolName: 'sql_execute', opener: button }]);
+    fixture.componentRef.setInput('endpointEnv', 'prod');
+    await fixture.whenStable();
+    expect(writer.textContent).not.toContain('Temporary bypass…');
   });
 });

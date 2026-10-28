@@ -66,6 +66,10 @@ class EndpointsController {
   /** {@code mode}: {@code OFF}, {@code READ_ONLY}, {@code APPROVAL} or {@code BYPASS}; {@code connection} null for a core tool. */
   record SetMode(String toolKey, String connection, String mode, JsonNode overrides, Long version, String reason) {}
 
+  record TemporaryBypass(String toolKey, String connection, JsonNode durationMinutes, Long version, String reason) {}
+
+  record RevokeTemporaryBypass(String toolKey, String connection, Long version, String reason) {}
+
   record ConfirmReadOnly(String toolKey, String connection, String definitionHash, String reason) {}
 
   /** {@code group}: a connection's name, or null for every tool; {@code mode} also {@code DEFAULT}. */
@@ -120,7 +124,8 @@ class EndpointsController {
    */
   record ToolRow(String toolKey, String name, ToolDefinition.Annotations annotations, String declaredBy, String mode,
       String storedMode, boolean readOnlyAllowed, String reason, boolean readOnlyConfirmed, String definitionHash,
-      JsonNode overrides, long version) {}
+      JsonNode overrides, long version, Instant bypassUntil, boolean temporaryBypassAllowed,
+      String temporaryBypassReason) {}
 
   record Group(String group, String connection, String env, List<ToolRow> tools) {}
 
@@ -314,7 +319,35 @@ class EndpointsController {
     return tools.list(slug).stream().map(g -> new Group(g.group(), g.connection(), g.env(), g.tools().stream()
         .map(t -> new ToolRow(t.toolKey(), t.name(), t.annotations(), t.declaredBy(), Modes.id(t.mode()),
             Modes.id(t.storedMode()), t.readOnlyAllowed(), t.reason(), t.readOnlyConfirmed(), t.definitionHash(),
-            t.overrides(), t.version())).toList())).toList();
+            t.overrides(), t.version(), t.bypassUntil(), t.temporaryBypassAllowed(),
+            t.temporaryBypassReason())).toList())).toList();
+  }
+
+  @PostMapping("/api/endpoints/{slug}/tools/temporary-bypass")
+  List<Group> temporaryBypass(@PathVariable String slug, @RequestBody TemporaryBypass request) {
+    if (request.version() == null) {
+      throw ApiRequestException.unprocessable("Version missing", "Send the version of the tool you changed.",
+          "/version");
+    }
+    if (request.durationMinutes() == null || !request.durationMinutes().isIntegralNumber()
+        || !request.durationMinutes().canConvertToInt()) {
+      throw ApiRequestException.unprocessable("Invalid duration", "Choose a whole number of minutes.",
+          "/durationMinutes");
+    }
+    tools.setTemporaryBypass(slug, request.toolKey(), request.connection(), request.durationMinutes().intValue(),
+        request.version(), Reasons.check(request.reason()));
+    return tools(slug);
+  }
+
+  @DeleteMapping("/api/endpoints/{slug}/tools/temporary-bypass")
+  List<Group> revokeTemporaryBypass(@PathVariable String slug, @RequestBody RevokeTemporaryBypass request) {
+    if (request.version() == null) {
+      throw ApiRequestException.unprocessable("Version missing", "Send the version of the tool you changed.",
+          "/version");
+    }
+    tools.revokeTemporaryBypass(slug, request.toolKey(), request.connection(), request.version(),
+        Reasons.check(request.reason()));
+    return tools(slug);
   }
 
   @PutMapping("/api/endpoints/{slug}/tools")

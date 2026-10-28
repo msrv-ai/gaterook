@@ -3,6 +3,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
+  Injector,
   afterNextRender,
   computed,
   effect,
@@ -11,11 +12,13 @@ import {
   linkedSignal,
   numberAttribute,
   output,
+  signal,
   untracked,
   viewChild,
 } from '@angular/core';
 import { RouterLink, UrlTree } from '@angular/router';
 import { ApprovalDecision, ApprovalDetail } from '../../../core/api/approvals.api';
+import { ToolGroup } from '../../../core/api/endpoints.api';
 import { Env } from '../../../core/api/types';
 import { duration } from '../../../core/time/time-format';
 import { TimeService } from '../../../core/time/time.service';
@@ -26,7 +29,9 @@ import { Announcer } from '../../announcer';
 import { GwToggle } from '../../disclosure';
 import { GwIcon } from '../../icons';
 import { GwClientMark } from '../shared/client-mark';
+import { MODES } from '../shared/dictionaries';
 import { TextPart, literalParts, literalWords } from '../shared/literals';
+import { GwTemporaryBypassDialog } from '../tool-policy-list/temporary-bypass-dialog';
 import { GwApprovalCountdown } from './approval-countdown';
 import {
   RequestState,
@@ -74,7 +79,7 @@ interface Fact {
  */
 @Component({
   selector: 'article[gwApprovalRequest]',
-  imports: [NgTemplateOutlet, RouterLink, GwIcon, GwClientMark, GwCodeBlock, GwDiff, GwToggle, GwApprovalCountdown],
+  imports: [NgTemplateOutlet, RouterLink, GwIcon, GwClientMark, GwCodeBlock, GwDiff, GwToggle, GwApprovalCountdown, GwTemporaryBypassDialog],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     class: 'gw-card gw-approval-request',
@@ -86,6 +91,7 @@ interface Fact {
 export class GwApprovalRequest {
   private readonly time = inject(TimeService);
   private readonly announcer = inject(Announcer);
+  private readonly injector = inject(Injector);
   /** The 700 ms activation delay of the decision buttons. */
   private readonly arm = inject(ActivationGuard).arm();
 
@@ -123,6 +129,13 @@ export class GwApprovalRequest {
   /** Expired in front of the person, before the core's own answer arrives. */
   private readonly expiredHere = linkedSignal({ source: () => this.request().id, computation: () => false });
   private readonly titleEl = viewChild<ElementRef<HTMLElement>>('title');
+  private readonly bypassDialog = viewChild(GwTemporaryBypassDialog);
+  private bypassContext: { readonly requestId: string; readonly endpoint: string } | null = null;
+  protected readonly bypassDialogCreated = signal(false);
+  protected readonly bypassUpdate = linkedSignal<string, { until: string | null; mode: string } | null>({
+    source: () => this.request().id,
+    computation: () => null,
+  });
 
   protected readonly r = computed(() => this.request());
   protected readonly state = computed<RequestState>(() => {
@@ -138,6 +151,13 @@ export class GwApprovalRequest {
   protected readonly traceShort = computed(() => this.traceId()?.slice(0, 6).toLowerCase() || null);
   protected readonly what = computed(() => `${this.r().tool} on ${this.target()}`);
   protected readonly prod = computed(() => this.r().env === 'prod');
+  protected readonly canManageBypass = computed(() =>
+    !!this.r().connection && (this.r().env === 'dev' || this.r().env === 'stage') && this.endpointEnv() !== 'prod',
+  );
+  protected readonly bypassActive = computed(() => {
+    const until = this.bypassUpdate()?.until;
+    return !!until && this.time.secondsUntil(until) > 0;
+  });
   protected readonly envMismatch = computed(() => {
     const ep = this.endpointEnv();
     return !!ep && ep !== 'prod' && this.prod();
@@ -244,6 +264,24 @@ export class GwApprovalRequest {
 
   protected onComment(e: Event): void {
     this.comment.set((e.target as HTMLTextAreaElement).value);
+  }
+
+  protected openTemporaryBypass(opener: HTMLElement): void {
+    if (!this.canManageBypass() || this.busy() || !this.arm.ready()) return;
+    const r = this.r();
+    const target = { slug: r.endpoint, toolKey: r.toolKey, connection: r.connection!, toolName: r.tool };
+    this.bypassContext = { requestId: r.id, endpoint: r.endpoint };
+    this.bypassDialogCreated.set(true);
+    afterNextRender(() => {
+      if (this.r().id === r.id) this.bypassDialog()?.open(target, opener);
+    }, { injector: this.injector });
+  }
+
+  protected onBypassChanged(groups: ToolGroup[]): void {
+    const r = this.r();
+    if (this.bypassContext?.requestId !== r.id || this.bypassContext.endpoint !== r.endpoint) return;
+    const row = groups.find((g) => g.connection === r.connection)?.tools.find((t) => t.toolKey === r.toolKey);
+    if (row) this.bypassUpdate.set({ until: row.bypassUntil ?? null, mode: MODES[row.storedMode].text });
   }
 
   protected send(decision: 'approve' | 'deny'): void {

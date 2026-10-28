@@ -104,6 +104,25 @@
     }
   </div>
 
+  @if (canManageBypass()) {
+    <section class="gw-approval-request__section" [attr.aria-labelledby]="uid + '-bypass-title'">
+      <ng-container [ngTemplateOutlet]="heading" [ngTemplateOutletContext]="{ $implicit: 'Temporary bypass', id: uid + '-bypass-title' }" />
+      <p class="gw-text-caption gw-fg-muted" [id]="uid + '-bypass-hint'">Skip approval for future calls to this method on this connection and endpoint for a limited time. Available on dev and stage. Pending requests still need a separate decision.</p>
+      @if (bypassUpdate(); as update) {
+        <p class="gw-text-caption" role="status">
+          @if (bypassActive() && update.until) {
+            Bypass enabled until <time [attr.datetime]="iso(update.until)" [title]="absolute(update.until)">{{ absolute(update.until) }}</time>.
+          } @else {
+            Temporary bypass is off. The tool returns to {{ update.mode }}.
+          }
+        </p>
+      }
+      <div>
+        <button #bypassButton class="gw-btn gw-btn--sm" type="button" aria-haspopup="dialog" [attr.aria-describedby]="uid + '-bypass-hint'" [attr.aria-disabled]="busy() ? 'true' : null" (click)="openTemporaryBypass(bypassButton)"><svg lucideIcon="clock" class="gw-icon gw-icon--sm"></svg>{{ bypassActive() ? 'Manage temporary bypass' : 'Temporary bypass…' }}<span class="gw-sr-only"> for {{ what() }}</span></button>
+      </div>
+    </section>
+  }
+
   @if (r().agentNote) {
     <section class="gw-approval-request__section" [attr.aria-labelledby]="uid + '-note'">
       <div class="gw-approval-request__section-header">
@@ -231,6 +250,10 @@
     </div>
   }
 </footer>
+
+@if (bypassDialogCreated()) {
+  <gw-temporary-bypass-dialog (changed)="onBypassChanged($event)" />
+}
 
 <ng-template #titleContent><code class="gw-code">{{ r().tool }}</code> on <span class="gw-approval-request__target"><code class="gw-code">{{ target() }}</code>
   <span class="gw-sr-only">environment</span> <span [class]="'gw-env gw-env--' + r().env">{{ r().env }}</span></span></ng-template>

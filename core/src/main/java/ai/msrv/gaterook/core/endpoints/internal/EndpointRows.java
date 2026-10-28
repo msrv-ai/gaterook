@@ -148,6 +148,10 @@ public class EndpointRows {
     f.put("mode", row.getMode().name());
     f.set("overrides", rowMac.tree(row.getOverrides()));
     f.set("roConfirmation", rowMac.tree(row.getRoConfirmation()));
+    // Omit absent grants so existing rows keep their pre-migration MAC contract.
+    if (row.getTemporaryBypass() != null) {
+      f.set("temporaryBypass", rowMac.tree(row.getTemporaryBypass()));
+    }
     return f;
   }
 

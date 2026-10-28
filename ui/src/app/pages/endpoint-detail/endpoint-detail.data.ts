@@ -336,6 +336,12 @@ export class EndpointDetailData {
 
   // ── Tools ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
+  /** The shared bypass dialog already wrote the change and returned the current tool groups. */
+  async applyTemporaryBypass(groups: ToolGroup[]): Promise<void> {
+    this.groupsSignal.set(groups);
+    await this.reloadDetail();
+  }
+
   /** One pair's mode or limits; the core answers with every group (a change can move other pairs' locks). */
   async setMode(change: { readonly toolKey: string; readonly connection: string | null; readonly mode: ToolMode; readonly overrides?: JsonObject | null; readonly version: number }): Promise<void> {
     const slug = this.requireSlug();

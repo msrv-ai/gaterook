@@ -95,6 +95,12 @@
                           <button class="gw-btn gw-btn--link gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askConfirm(g, r, $any($event.currentTarget))">Confirm read only<span class="gw-sr-only"> for {{ r.tool.name }}</span></button>
                         }
                       }
+                      @if (r.tool.bypassUntil) {
+                        <p class="gw-tool-policy-list__mode-note gw-text-caption gw-fg-muted"><svg lucideIcon="clock" class="gw-icon gw-icon--xs"></svg>Temporary bypass until <time [attr.datetime]="r.tool.bypassUntil">{{ absoluteTime(r.tool.bypassUntil) }}</time></p>
+                      }
+                      @if (canManageTemporaryBypass(g, r)) {
+                        <button class="gw-btn gw-btn--link gw-btn--sm" type="button" aria-haspopup="dialog" (click)="openTemporaryBypass(g, r, $any($event.currentTarget))">{{ r.tool.bypassUntil ? 'Manage temporary bypass' : 'Temporary bypass…' }}<span class="gw-sr-only"> for {{ r.tool.name }} on {{ g.connection }}</span></button>
+                      }
                     </div>
                   }
                 </td>

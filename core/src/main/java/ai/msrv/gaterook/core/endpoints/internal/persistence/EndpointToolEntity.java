@@ -55,6 +55,11 @@ public class EndpointToolEntity {
   @Column(name = "ro_confirmation")
   private Map<String, Object> roConfirmation;
 
+  /** A signed, expiring authorization; the stored mode remains the mode to restore. */
+  @JdbcTypeCode(SqlTypes.JSON)
+  @Column(name = "temporary_bypass")
+  private Map<String, Object> temporaryBypass;
+
   @Column(name = "updated_at", nullable = false)
   private Instant updatedAt;
 
@@ -104,6 +109,7 @@ public class EndpointToolEntity {
 
   public void setMode(ToolDefinition.Mode mode, Instant now) {
     this.mode = Objects.requireNonNull(mode, "mode");
+    this.temporaryBypass = null;
     this.updatedAt = Objects.requireNonNull(now, "now");
   }
 
@@ -127,6 +133,15 @@ public class EndpointToolEntity {
 
   public Instant getUpdatedAt() {
     return updatedAt;
+  }
+
+  public Map<String, Object> getTemporaryBypass() {
+    return temporaryBypass;
+  }
+
+  public void setTemporaryBypass(Map<String, Object> temporaryBypass, Instant now) {
+    this.temporaryBypass = temporaryBypass;
+    this.updatedAt = Objects.requireNonNull(now, "now");
   }
 
   public byte[] getMac() {

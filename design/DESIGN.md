@@ -118,6 +118,8 @@ Prefer direct messages to linked approvers. Choosing a channel requires disclosu
 
 The modes are **Off**, **Read only**, **Approval**, and **Bypass**. Bypass runs calls without approval, including mutations, while policy denials, limits, endpoint scope and secret protections still apply. It must be selected explicitly and is unavailable on read-only endpoints. A mutating tool cannot select Read only. Display MCP hints near its name.
 
+**Temporary bypass** is available from an approval's exact-action review and the endpoint's tool list for dev and stage connections on dev and stage endpoints. Choose 15 minutes, 30 minutes, 1 hour, 3 hours, 12 hours, or 24 hours in a native select inside a warning dialog. Name the method, connection, endpoint, and original mode; focus Cancel initially. It applies to future calls by all clients of that endpoint. Existing pending requests still need a separate decision. Show the expiration time and allow early cancellation; expiration restores the original mode automatically. Off tools, permanent Bypass, read-only endpoints, core tools, and production do not offer this temporary exception.
+
 External MCP/plugin hints are labeled **Declared by <server>, not verified**. A newly exposed external tool starts in Approval. Read only requires an explicit declaration and an individual confirmation; it cannot be enabled in bulk. An undeclared tool offers Approval, Bypass or Off, with native-disabled Read only and a visible explanation.
 
 ### Environments
