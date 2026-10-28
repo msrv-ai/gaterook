@@ -21,6 +21,7 @@ import { provideKitIcons } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
 import { connected, kitClients, previewFor } from '../clients/clients.fixtures';
 import { EndpointDetailPage, SKELETON_DELAY_MS } from './endpoint-detail.page';
+import { EndpointDetailData } from './endpoint-detail.data';
 import { NOW, clientsView, connectionRow, connectionRows, detail, groups, policies, preview, settings, summary, tokens, wired } from './endpoint-detail.fixtures';
 
 /** The page against fake admin API services: what it shows for each answer, and what it asks the core to do. */
@@ -225,6 +226,35 @@ async function cursorConnection(method: 'oauth' | 'token' = 'oauth') {
 }
 
 describe('Endpoint detail page', () => {
+  it('retries a slightly early bypass expiry read with backoff and stops after the core confirms expiry', async () => {
+    setup();
+    const { fixture } = await render();
+    const data = fixture.debugElement.injector.get(EndpointDetailData);
+    const reload = vi.spyOn(data, 'reloadTools').mockResolvedValue(undefined);
+    const before = now();
+    const until = new Date(before).toISOString();
+    const expired = groups().map((group, index) => index === 0
+      ? { ...group, tools: group.tools.map((tool, toolIndex) => toolIndex === 0 ? { ...tool, bypassUntil: until, mode: 'BYPASS' as const } : tool) }
+      : group);
+    try {
+      await data.applyTemporaryBypass(expired);
+      await settle(fixture);
+      expect(reload).toHaveBeenCalledTimes(1);
+      now.set(before + 1000);
+      await settle(fixture);
+      expect(reload).toHaveBeenCalledTimes(1);
+      now.set(before + 3000);
+      await settle(fixture);
+      expect(reload).toHaveBeenCalledTimes(2);
+      await data.applyTemporaryBypass(groups());
+      now.set(before + 30_000);
+      await settle(fixture);
+      expect(reload).toHaveBeenCalledTimes(2);
+    } finally {
+      now.set(before);
+    }
+  });
+
   it('manages an observed OAuth connection through its sign-in without requesting a config disconnect', async () => {
     const link = { ...connected('cursor', { endpoint: 'dev', method: 'oauth' }).link, id: 'og_cursor', configPath: null, configDisplay: null, entryName: null, lastCallAt: null };
     const cursor = kitClients().clients.find((c) => c.client === 'cursor')!;

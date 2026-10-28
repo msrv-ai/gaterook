@@ -1,11 +1,14 @@
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { ActionSegment, ApprovalDetail, ApprovalStatus } from '../../../core/api/approvals.api';
+import { EndpointDetail, EndpointsApi, ToolGroup, ToolRow } from '../../../core/api/endpoints.api';
 import { TimeService } from '../../../core/time/time.service';
 import { DEMO_APPROVALS } from '../../../dev/fixtures-approvals';
 import { ActivationGuard } from '../../activation-guard';
 import { provideKitIcons } from '../../icons';
+import { GwTemporaryBypassDialog } from '../tool-policy-list/temporary-bypass-dialog';
 import { GwApprovalRequest } from './approval-request';
 
 const now = signal(Date.parse('2026-10-22T14:30:00+02:00'));
@@ -136,5 +139,114 @@ describe('approval JSON request views', () => {
 
     expect(decision).toHaveBeenCalledExactlyOnceWith({ decision: 'approve', comment: null, digest: detail.digest });
     expect(JSON.stringify(detail)).toBe(before);
+  });
+});
+
+describe('temporary bypass from approval review', () => {
+  it('opens the shared review and enables 30 minutes for the exact pair without approving the request', async () => {
+    const detail = { ...request(), env: 'dev' as const };
+    const until = new Date(now() + 30 * 60_000).toISOString();
+    const row: ToolRow = {
+      toolKey: detail.toolKey, name: detail.tool, mode: 'APPROVAL', storedMode: 'APPROVAL',
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+      declaredBy: null, readOnlyAllowed: false, reason: null, readOnlyConfirmed: false, definitionHash: null,
+      overrides: null, version: 7, bypassUntil: null, temporaryBypassAllowed: true, temporaryBypassReason: null,
+    };
+    const groups: ToolGroup[] = [{ group: 'MongoDB', connection: detail.connection, env: 'dev', tools: [row] }];
+    const temporaryBypass = vi.fn(async () => [{ ...groups[0], tools: [{ ...row, mode: 'BYPASS' as const, bypassUntil: until, version: 8 }] }]);
+    TestBed.configureTestingModule({ providers: [{ provide: EndpointsApi, useValue: {
+      get: vi.fn(async () => ({ endpoint: { env: 'dev', access: 'standard' } }) as EndpointDetail),
+      tools: vi.fn(async () => groups), temporaryBypass,
+    } }] });
+    const fixture = await render(detail);
+    const decision = vi.fn();
+    fixture.componentInstance.decide.subscribe(decision);
+    const settle = async () => {
+      for (let i = 0; i < 4; i++) {
+        await Promise.resolve();
+        await fixture.whenStable();
+      }
+    };
+    const opener = fixture.nativeElement.querySelector('button[aria-haspopup="dialog"]') as HTMLButtonElement;
+    opener.focus();
+    opener.click();
+    await settle();
+    const dialog = fixture.nativeElement.querySelector('dialog[open]') as HTMLDialogElement;
+    expect(dialog).not.toBeNull();
+    expect(document.activeElement?.textContent).toBe('Cancel');
+    const duration = dialog.querySelector('select')!;
+    duration.value = '30';
+    duration.dispatchEvent(new Event('change'));
+    (dialog.querySelector('.gw-btn--primary') as HTMLButtonElement).click();
+    await settle();
+    expect(temporaryBypass).toHaveBeenCalledExactlyOnceWith(detail.endpoint, {
+      toolKey: detail.toolKey, connection: detail.connection, durationMinutes: 30, version: 7,
+    });
+    expect(fixture.nativeElement.textContent).toContain(`Bypass enabled until ${until}`);
+    expect(decision).not.toHaveBeenCalled();
+    expect(detail.status).toBe('pending');
+    dialog.close();
+    expect(document.activeElement).toBe(opener);
+
+    // A delayed update from this dialog must not label a newly selected request on another endpoint.
+    fixture.componentRef.setInput('request', { ...detail, id: 'another-request', endpoint: 'stage' });
+    await settle();
+    const shared = fixture.debugElement.query(By.directive(GwTemporaryBypassDialog)).componentInstance as GwTemporaryBypassDialog;
+    shared.changed.emit([{ ...groups[0], tools: [{ ...row, mode: 'BYPASS', bypassUntil: until }] }]);
+    await settle();
+    expect(fixture.nativeElement.textContent).not.toContain('Bypass enabled until');
+  });
+
+  it.each(['dev', 'stage'] as const)('offers temporary bypass on %s without changing the pending decision', async (env) => {
+    const fixture = await render({ ...request(), env });
+    const decision = vi.fn();
+    fixture.componentInstance.decide.subscribe(decision);
+    const action = fixture.nativeElement.querySelector('button[aria-haspopup="dialog"]');
+
+    expect(action?.textContent).toContain('Temporary bypass');
+    expect(fixture.nativeElement.textContent).toContain('Pending requests still need a separate decision');
+    expect(fixture.nativeElement.querySelector('.gw-btn--approve')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('gw-temporary-bypass-dialog')).toBeNull();
+    expect(decision).not.toHaveBeenCalled();
+  });
+
+  it('also offers bypass from a completed request', async () => {
+    const fixture = await render({ ...request('completed'), env: 'dev' });
+    expect(fixture.nativeElement.querySelector('button[aria-haspopup="dialog"]')?.textContent).toContain('Temporary bypass');
+    expect(fixture.nativeElement.querySelector('.gw-btn--approve')).toBeNull();
+  });
+
+  it('does not offer bypass on production, core tools, or a known production endpoint', async () => {
+    const fixture = await render({ ...request(), env: 'prod' });
+    const action = () => fixture.nativeElement.querySelector('button[aria-haspopup="dialog"]');
+    expect(action()).toBeNull();
+
+    fixture.componentRef.setInput('request', { ...request(), env: 'dev', connection: null });
+    fixture.detectChanges();
+    expect(action()).toBeNull();
+
+    fixture.componentRef.setInput('request', { ...request(), env: 'dev' });
+    fixture.componentRef.setInput('endpointEnv', 'prod');
+    fixture.detectChanges();
+    expect(action()).toBeNull();
+  });
+
+  it('ignores bypass activation while a decision is being sent', async () => {
+    const fixture = await render({ ...request(), env: 'dev' });
+    fixture.componentRef.setInput('busy', 'approve');
+    fixture.detectChanges();
+    const action = fixture.nativeElement.querySelector('button[aria-haspopup="dialog"]') as HTMLButtonElement;
+    expect(action.getAttribute('aria-disabled')).toBe('true');
+    action.click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('gw-temporary-bypass-dialog')).toBeNull();
+  });
+
+  it('honors the activation delay before opening bypass settings', async () => {
+    TestBed.overrideProvider(ActivationGuard, { useValue: { arm: () => ({ reset: () => undefined, ready: () => false }) } });
+    const fixture = await render({ ...request(), env: 'dev' });
+    (fixture.nativeElement.querySelector('button[aria-haspopup="dialog"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('gw-temporary-bypass-dialog')).toBeNull();
   });
 });

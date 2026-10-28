@@ -1161,6 +1161,7 @@ The decision UI for one mutation an agent asked for. It shows the exact action v
 - expiring (at 0:00, kit.js, no app round trip): data-state=expired, badge neutral 'Expired', timer 'Expired, denied automatically' (bar hidden), caption says nothing ran, Deny and Approve and run aria-disabled (described by the caption), comment read-only, gw-countdown-end bubbles, one announcement
 - partial (SERVER MODE ONLY; desktop has one approver): badge warning user-check 'Approved by 1 of 2' + countdown; 'Approvals so far' history above the decision; 'Approve (2 of 2) and run' for the last approver; a person who already approved sees no buttons
 - env mismatch: gw-alert--danger 'Prod connection on a dev endpoint' first in the body
+- temporary bypass: dev/stage connection requests offer a separate secondary action for future calls to the same method, connection, and endpoint. The warning dialog uses `gw-select` for 15/30 minutes or 1/3/12/24 hours, focuses Cancel, and checks current eligibility before enabling. Pending requests retain their separate decision controls. Show the resulting expiry and offer management from the same action.
 
 **Reference screens:**
 
@@ -1262,6 +1263,7 @@ What agents may call on one endpoint and how. Every tool is grouped by its conne
 - no match: summary '0 of 14 tools match' + gw-empty--compact in a flush card with Clear search
 - picker (Playground): gw-table--interactive, __row-link names, gw-mode, env markers, selected tool tr[aria-selected] + aria-current
 - tool of an external MCP server or plugin: 'Declared by <server>, not verified' (gw-text-caption gw-fg-muted) after the annotation badges; starts as Approval when added to an endpoint; Read only only for a tool the server declared read only and only after an explicit per-tool confirmation (jira_search_requests: option aria-disabled + 'Read only needs your confirmation for this tool', 'Confirm read only' → gw-dialog--sm --warning 'Let jira_search_requests run without approval?'); a tool not declared read only is approval, bypass or off (Read only natively disabled, 'Not declared read only: approval, bypass or off'): all 26 tools of github-mcp, which declares no annotations; 'Set all to… Read only' skips them and says so
+- temporary bypass: an eligible dev/stage method offers a secondary action opening the same warning dialog as approval review. Display its expiry and original mode while active, with early cancellation. Production, core tools, read-only endpoints, Off tools, and permanent Bypass do not offer a grant. The original mode picker continues to edit the base mode and clears any temporary bypass when saved.
 
 **Reference screens:**
 

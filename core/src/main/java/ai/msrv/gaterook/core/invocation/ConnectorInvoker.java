@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.BooleanSupplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -54,7 +55,12 @@ public class ConnectorInvoker {
 
   /** One call. */
   public record Request(String callId, ConnectionConfig cfg, ToolCall call, Limits limits, MaskPolicy mask,
-      String traceId, String traceparent) {
+      String traceId, String traceparent, BooleanSupplier executionAllowed) {
+
+    public Request(String callId, ConnectionConfig cfg, ToolCall call, Limits limits, MaskPolicy mask,
+        String traceId, String traceparent) {
+      this(callId, cfg, call, limits, mask, traceId, traceparent, null);
+    }
 
     public Request {
       Objects.requireNonNull(callId, "callId");
@@ -192,6 +198,11 @@ public class ConnectorInvoker {
     ResourceTimer resource = new ResourceTimer();
     try (var resolver = secrets.resolver(r.cfg(), taint)) {
       ToolResult raw = guard.run(r.cfg().id(), r.cfg().name(), connector.maxConcurrency(), timeout, call, () -> {
+        // Check after waiting for connector capacity, immediately before any resource operation.
+        if (r.executionAllowed() != null && !r.executionAllowed().getAsBoolean()) {
+          throw ConnectorException.denied("Temporary bypass expired or its configuration changed. Nothing ran. "
+              + "Retry the call to use the current approval policy.");
+        }
         resource.start();
         try {
           return invoke(connector, kind, argument, r, resolver, ctx);

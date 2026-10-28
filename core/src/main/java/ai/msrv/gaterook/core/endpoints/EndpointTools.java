@@ -1,5 +1,6 @@
 package ai.msrv.gaterook.core.endpoints;
 
+import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.core.endpoints.internal.EndpointRows;
@@ -13,6 +14,8 @@ import ai.msrv.gaterook.core.platform.SetupChangeRecorder;
 import ai.msrv.gaterook.core.platform.SetupChangeRecorder.SetupChange;
 import ai.msrv.gaterook.core.policy.PolicyService;
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -38,7 +41,8 @@ public class EndpointTools {
   /** One row of the tool list. */
   public record ToolRow(String toolKey, String name, ToolDefinition.Annotations annotations, String declaredBy,
       String mode, String storedMode, boolean readOnlyAllowed, String reason, boolean readOnlyConfirmed,
-      String definitionHash, JsonNode overrides, String rowId, long version) {}
+      String definitionHash, JsonNode overrides, String rowId, long version, Instant bypassUntil,
+      boolean temporaryBypassAllowed, String temporaryBypassReason) {}
 
   /**
    * One group: a connection's tools, or the endpoint-wide core tools ({@code connection == null}); a read-only
@@ -82,10 +86,11 @@ public class EndpointTools {
     Map<String, List<ToolRow>> byConnection = new LinkedHashMap<>();
     for (EndpointSnapshot.Pair p : s.pairs()) {
       Optional<String> why = readOnlyRefusal(s, p);
+      String bypassRefusal = temporaryBypassRefusal(s, p);
       byConnection.computeIfAbsent(p.connectionName(), k -> new ArrayList<>()).add(new ToolRow(p.toolKey(),
           p.tool().name(), p.tool().annotations(), p.declaredBy(), label(p.mode()), label(p.storedMode()),
           why.isEmpty(), why.orElse(null), p.readOnlyConfirmed(), ToolPairs.definitionHash(p.tool()), p.overrides(),
-          p.rowId(), p.rowVersion()));
+          p.rowId(), p.rowVersion(), p.bypassUntil(), bypassRefusal == null, bypassRefusal));
     }
     List<Group> out = new ArrayList<>();
     for (EndpointSnapshot.Wired w : s.connections()) {
@@ -96,10 +101,91 @@ public class EndpointTools {
     for (EndpointSnapshot.CorePair c : s.coreTools()) {
       ToolDefinition d = CoreTools.withMode(c.tool());
       core.add(new ToolRow(c.tool(), c.tool(), d.annotations(), null, label(c.mode()), label(c.storedMode()), true,
-          null, true, ToolPairs.definitionHash(d), null, c.rowId(), c.rowVersion()));
+          null, true, ToolPairs.definitionHash(d), null, c.rowId(), c.rowVersion(), null, false,
+          "Temporary bypass is available only for a connection's tools."));
     }
     out.add(new Group("Core", null, null, core));
     return out;
+  }
+
+  /** Temporarily skips approval for exactly one tool on one connection; the base mode is preserved. */
+  public void setTemporaryBypass(String slug, String toolKey, String connection, int durationMinutes,
+      long version, String reason) {
+    if (!List.of(15, 30, 60, 180, 720, 1440).contains(durationMinutes)) {
+      throw ProblemException.unprocessable("Invalid bypass duration",
+          "Choose 15 or 30 minutes, or 1, 3, 12 or 24 hours.", "/durationMinutes");
+    }
+    snapshot(slug);
+    writeTx.executeWithoutResult(st -> {
+      EndpointEntity e = requireEndpoint(slug);
+      EndpointSnapshot s = fresh(e);
+      EndpointSnapshot.Pair p = pair(s, toolKey, connection);
+      String refusal = temporaryBypassRefusal(s, p);
+      if (refusal != null) {
+        throw ProblemException.unprocessable("Temporary bypass unavailable", refusal, "/toolKey");
+      }
+      EndpointToolEntity row = tools.findById(p.rowId()).orElseThrow();
+      checkVersion(row, version);
+      Instant now = clock.instant();
+      Instant until = now.plus(Duration.ofMinutes(durationMinutes));
+      Map<String, Object> grant = new LinkedHashMap<>();
+      grant.put("until", until.toString());
+      grant.put("definitionHash", ToolPairs.definitionHash(p.tool()));
+      grant.put("provenanceVersion", p.provenanceVersion());
+      // Keep JSON values stable across Hibernate's deep copies before the row's version is signed.
+      grant.put("connectionVersion", Long.toString(p.config().version()));
+      grant.put("endpointVersion", Long.toString(s.version()));
+      row.setTemporaryBypass(grant, now);
+      rows.save(row);
+      recordBypass(e, p, p.bypassUntil(), until, reason);
+      publisher.publishEvent(new EndpointChanged(e.getId(), slug));
+    });
+  }
+
+  /** Revokes a timed grant without changing the underlying tool mode. */
+  public void revokeTemporaryBypass(String slug, String toolKey, String connection, long version, String reason) {
+    snapshot(slug);
+    writeTx.executeWithoutResult(st -> {
+      EndpointEntity e = requireEndpoint(slug);
+      EndpointSnapshot.Pair p = pair(fresh(e), toolKey, connection);
+      if (p.rowId() == null) {
+        throw ProblemException.notFound("Tool not found", "This tool has no stored mode.");
+      }
+      EndpointToolEntity row = tools.findById(p.rowId()).orElseThrow();
+      checkVersion(row, version);
+      if (row.getTemporaryBypass() == null) {
+        return;
+      }
+      row.setTemporaryBypass(null, clock.instant());
+      rows.save(row);
+      recordBypass(e, p, p.bypassUntil(), null, reason);
+      publisher.publishEvent(new EndpointChanged(e.getId(), slug));
+    });
+  }
+
+  private void recordBypass(EndpointEntity e, EndpointSnapshot.Pair p, Instant before, Instant after,
+      String reason) {
+    setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.MODE,
+        p.tool().name() + " on " + p.connectionName() + ", endpoint " + e.getSlug(),
+        before == null ? label(p.storedMode()) : "Temporary bypass until " + before,
+        after == null ? label(p.storedMode()) : "Temporary bypass until " + after,
+        reason, e.getEnv(), e.getSlug(), p.connectionName(), null));
+  }
+
+  private static String temporaryBypassRefusal(EndpointSnapshot s, EndpointSnapshot.Pair p) {
+    if (s.env() == Env.PROD || p.config().env() == Env.PROD) {
+      return "Temporary bypass is available only for DEV and STAGE endpoints and connections.";
+    }
+    if (s.readOnly()) {
+      return "Temporary bypass is unavailable on read-only endpoints.";
+    }
+    if (!s.enabled() || !p.on() || p.rowId() == null) {
+      return "Enable the endpoint, connection and tool before using temporary bypass.";
+    }
+    if (p.storedMode() == Mode.BYPASS) {
+      return "This tool already uses permanent Bypass. Choose Approval before setting a duration.";
+    }
+    return null;
   }
 
   /**
@@ -180,12 +266,13 @@ public class EndpointTools {
               ? p.tool().name() + " stays as it is: it changes data" : refusal.get()));
           continue;
         }
-        if (target == p.storedMode()) {
+        EndpointToolEntity existing = p.rowId() == null ? null : tools.findById(p.rowId()).orElseThrow();
+        if (target == p.storedMode() && (existing == null || existing.getTemporaryBypass() == null)) {
           continue;
         }
         EndpointToolEntity row = p.rowId() == null
             ? rows.save(new EndpointToolEntity(e, p.config().id(), p.toolKey(), Mode.OFF, clock.instant()))
-            : tools.findById(p.rowId()).orElseThrow();
+            : existing;
         apply(e, row, p.tool().name(), p.connectionName(), target, null, reason);
         changed.add(p.toolKey());
       }
@@ -244,10 +331,12 @@ public class EndpointTools {
       JsonNode overrides, String reason) {
     Mode before = row.getMode();
     boolean overridesChanged = overrides != null && !overrides.equals(rows.tree(row.getOverrides()));
-    if (before == mode && !overridesChanged) {
+    boolean hadBypass = row.getTemporaryBypass() != null;
+    String beforeBypass = hadBypass ? "Temporary bypass until " + row.getTemporaryBypass().get("until") : null;
+    if (before == mode && !overridesChanged && !hadBypass) {
       return;
     }
-    if (before != mode) {
+    if (before != mode || hadBypass) {
       row.setMode(mode, clock.instant());
     }
     if (overridesChanged) {
@@ -255,8 +344,9 @@ public class EndpointTools {
     }
     rows.save(row);
     String subject = tool + (connection == null ? "" : " on " + connection) + ", endpoint " + e.getSlug();
-    if (before != mode) {
-      setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.MODE, subject, ToolPairs.label(before),
+    if (before != mode || hadBypass) {
+      setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.MODE, subject,
+          hadBypass ? beforeBypass : ToolPairs.label(before),
           ToolPairs.label(mode), reason, e.getEnv(), e.getSlug(), connection, null));
     }
     if (overridesChanged) {

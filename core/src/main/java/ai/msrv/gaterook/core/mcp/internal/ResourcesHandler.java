@@ -184,7 +184,9 @@ public class ResourcesHandler {
         continue;
       }
       Optional<EndpointSnapshot.Pair> readOnly = s.pairs().stream()
-          .filter(p -> p.config().id().equals(w.config().id()) && (p.mode() == Mode.READ_ONLY || p.mode() == Mode.BYPASS)).findFirst();
+          .filter(p -> p.config().id().equals(w.config().id()) && (p.mode() == Mode.READ_ONLY
+              || (p.mode() == Mode.BYPASS && (p.bypassUntil() == null || p.storedMode() == Mode.READ_ONLY))))
+          .findFirst();
       if (readOnly.isEmpty()) {
         continue;
       }
