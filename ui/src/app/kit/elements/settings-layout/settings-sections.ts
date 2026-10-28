@@ -48,4 +48,10 @@ export const SETTINGS_GROUPS: readonly SettingsNavGroup[] = [
       { id: 'backup', label: 'Backup', icon: 'archive' },
     ],
   },
+  {
+    label: 'Project',
+    items: [
+      { id: 'about', label: 'About', icon: 'info' },
+    ],
+  },
 ];
