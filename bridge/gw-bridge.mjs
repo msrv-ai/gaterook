@@ -117,6 +117,119 @@ export function createBridge({ endpoint, grant, client, env = process.env, write
   let token = null;
   let negotiated = null;
   let fetching = null;
+  let listChanged = false;
+  let closed = false;
+  let listening = false;
+  let stream = null;
+  let reconnect = null;
+  let reconnectDelay = 1000;
+
+  function close() {
+    closed = true;
+    clearTimeout(reconnect);
+    stream?.destroy();
+  }
+
+  /** One authenticated GET stream per stdio client, kept separate from its concurrent POST requests. */
+  function listen() {
+    if (closed || listening || !listChanged || !negotiated) return;
+    listening = true;
+    void receiveNotifications().catch(() => {
+      // A disconnected stream must not invent a JSON-RPC response or interrupt calls in flight.
+    }).finally(() => {
+      listening = false;
+      stream = null;
+      if (!closed && listChanged) {
+        reconnect = setTimeout(listen, reconnectDelay);
+        reconnectDelay = Math.min(reconnectDelay * 2, 30_000);
+      }
+    });
+  }
+
+  async function receiveNotifications() {
+    let t = await tokenFor(false);
+    for (let attempt = 0; attempt < 2 && !closed; attempt++) {
+      const status = await new Promise((resolve, reject) => {
+        const req = http.request({
+          host: '127.0.0.1', port: Number(t.url.port), path: t.url.pathname, method: 'GET', agent: false,
+          headers: { Accept: 'text/event-stream', Authorization: `Bearer ${t.value}`,
+            'MCP-Protocol-Version': negotiated },
+          timeout: REQUEST_WAIT_MS,
+        }, async (res) => {
+          if (closed || res.statusCode !== 200
+            || !String(res.headers['content-type'] || '').startsWith('text/event-stream')) {
+            res.destroy();
+            resolve(res.statusCode);
+            return;
+          }
+          const answeredBy = res.headers[INSTANCE_HEADER];
+          if (t.instance && answeredBy !== t.instance) {
+            // Verify the new core instance before consuming any of its stream.
+            res.pause();
+            let current;
+            try { current = await tokenFor(true, t); } catch { /* The broker is unavailable. */ }
+            if (!current?.instance || current.instance !== answeredBy) {
+              if (token === current || token === t) token = null;
+              res.destroy();
+              reject(new Error(NOT_RUNNING));
+              return;
+            }
+          }
+          if (closed) {
+            res.destroy();
+            resolve(res.statusCode);
+            return;
+          }
+          reconnectDelay = 1000;
+          let buffer = '';
+          let data = [];
+          let eventSize = 0;
+          res.setEncoding('utf8');
+          res.on('data', (chunk) => {
+            buffer += chunk;
+            if (buffer.length + eventSize > 1024 * 1024) {
+              req.destroy(new Error('The notification is larger than 1 MiB.'));
+              return;
+            }
+            let end;
+            while ((end = buffer.indexOf('\n')) !== -1) {
+              const line = buffer.slice(0, end).replace(/\r$/, '');
+              buffer = buffer.slice(end + 1);
+              if (!line) {
+                if (data.length && !closed) {
+                  try {
+                    const message = JSON.parse(data.join('\n'));
+                    if (message?.jsonrpc === '2.0' && typeof message.method === 'string' && message.id === undefined) {
+                      write(JSON.stringify(message));
+                    }
+                  } catch { /* Invalid events are never written to the client's JSON-RPC stream. */ }
+                }
+                data = [];
+                eventSize = 0;
+              } else if (line.startsWith('data:')) {
+                const value = line.slice(5).replace(/^ /, '');
+                data.push(value);
+                eventSize += value.length;
+              }
+            }
+          });
+          res.on('end', () => resolve(200));
+          res.on('error', reject);
+          res.resume();
+        });
+        stream = req;
+        req.on('timeout', () => req.destroy(new Error('The notification stream stopped responding.')));
+        req.on('error', (error) => {
+          if (error.code === 'ECONNREFUSED' && token === t) token = null;
+          reject(error);
+        });
+        req.end();
+      });
+      if (status === 405) listChanged = false;
+      if (status !== 401 || attempt > 0 || closed) return;
+      t = await tokenFor(true, t);
+    }
+  }
 
   /**
    * The token to send with. `force` asks the broker for a new one — unless another message already replaced `stale`,
@@ -263,7 +376,10 @@ export function createBridge({ endpoint, grant, client, env = process.env, write
           return;
         }
       }
-      if (r.status === 202) return;
+      if (r.status === 202) {
+        if (msg?.method === 'notifications/initialized') listen();
+        return;
+      }
       if (r.type.startsWith('text/event-stream')) {
         for (const data of sseData(r.body)) write(data.trim());
         return;
@@ -271,7 +387,9 @@ export function createBridge({ endpoint, grant, client, env = process.env, write
       if (r.type.startsWith('application/json') && r.body.trim()) {
         if (msg.method === 'initialize') {
           try {
-            negotiated = JSON.parse(r.body).result?.protocolVersion ?? negotiated;
+            const result = JSON.parse(r.body).result;
+            negotiated = result?.protocolVersion ?? negotiated;
+            listChanged = result?.capabilities?.tools?.listChanged === true;
           } catch {
             // The answer goes through as it is.
           }
@@ -286,7 +404,7 @@ export function createBridge({ endpoint, grant, client, env = process.env, write
     }
   }
 
-  return { handle, tokenFor, state: () => ({ negotiated, hasToken: token !== null }) };
+  return { handle, tokenFor, close, state: () => ({ negotiated, hasToken: token !== null }) };
 }
 
 async function main() {
@@ -317,6 +435,7 @@ async function main() {
     pending.add(p);
   });
   lines.on('close', async () => {
+    bridge.close();
     await Promise.allSettled([...pending]);
   });
 }

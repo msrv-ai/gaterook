@@ -29,10 +29,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.event.TransactionalEventListener;
+import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.JsonNode;
@@ -53,13 +55,15 @@ public class EndpointSnapshotService {
   private final ConnectorRegistry registry;
   private final ToolPairs pairs;
   private final IntegrityAlerts alerts;
+  private final ApplicationEventPublisher publisher;
   private final TransactionTemplate readTx;
   private final Map<String, EndpointSnapshot> cache = new ConcurrentHashMap<>();
   private final java.util.concurrent.atomic.AtomicLong generation = new java.util.concurrent.atomic.AtomicLong();
 
   public EndpointSnapshotService(EndpointRepository endpoints, EndpointConnectionRepository wiring,
       EndpointToolRepository tools, EndpointRows rows, ConnectionConfigs connections, ConnectorRegistry registry,
-      ToolPairs pairs, IntegrityAlerts alerts, PlatformTransactionManager transactions) {
+      ToolPairs pairs, IntegrityAlerts alerts, ApplicationEventPublisher publisher,
+      PlatformTransactionManager transactions) {
     this.endpoints = endpoints;
     this.wiring = wiring;
     this.tools = tools;
@@ -68,6 +72,7 @@ public class EndpointSnapshotService {
     this.registry = registry;
     this.pairs = pairs;
     this.alerts = alerts;
+    this.publisher = publisher;
     this.readTx = new TransactionTemplate(transactions);
     this.readTx.setReadOnly(true);
   }
@@ -121,46 +126,68 @@ public class EndpointSnapshotService {
   @TransactionalEventListener
   public void onEndpointChanged(EndpointChanged e) {
     evict(e.endpointId());
+    publisher.publishEvent(new EndpointCatalogInvalidated(e.endpointId()));
   }
 
   @TransactionalEventListener
   public void onEndpointRemoved(EndpointRemoved e) {
     evict(e.endpointId());
+    publisher.publishEvent(new EndpointCatalogInvalidated(e.endpointId()));
   }
 
   @TransactionalEventListener
   public void onConnectionChanged(ConnectionChanged e) {
     evictAll();
+    publisher.publishEvent(new EndpointCatalogInvalidated(null));
   }
 
   @TransactionalEventListener
   public void onConnectionRemoved(ConnectionRemoved e) {
     evictAll();
+    publisher.publishEvent(new EndpointCatalogInvalidated(null));
   }
 
   @TransactionalEventListener
   public void onPolicyChanged(PolicyChanged e) {
     evictAll();
+    publisher.publishEvent(new EndpointCatalogInvalidated(null));
   }
 
   @TransactionalEventListener
   public void onTemplateChanged(TemplateChanged e) {
     evictAll();
+    publisher.publishEvent(new EndpointCatalogInvalidated(null));
   }
 
   @TransactionalEventListener
   public void onConnectorTypeChanged(ConnectorTypeChanged e) {
     evictAll();
+    publisher.publishEvent(new EndpointCatalogInvalidated(null));
   }
 
   /** New derived keys: every MAC must be checked again. */
   @EventListener
   public void onMasterKeyChanged(MasterKeyChanged e) {
-    evictAll();
+    invalidateAll();
   }
 
   public void invalidateAll() {
     evictAll();
+    // Key changes also arrive before commit. Preserve immediate MAC-cache invalidation, but never tell clients
+    // about an uncommitted change or a transaction that later rolls back.
+    if (TransactionSynchronizationManager.isActualTransactionActive()
+        && TransactionSynchronizationManager.isSynchronizationActive()) {
+      TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+        @Override
+        public void afterCommit() {
+          // A concurrent reader could have cached the old committed state after the initial eviction.
+          evictAll();
+          publisher.publishEvent(new EndpointCatalogInvalidated(null));
+        }
+      });
+    } else {
+      publisher.publishEvent(new EndpointCatalogInvalidated(null));
+    }
   }
 
   private void evict(String endpointId) {

@@ -186,8 +186,7 @@ public class McpDispatcher {
     ObjectNode c = JsonNodeFactory.instance.objectNode();
     ObjectNode tools = c.putObject("tools");
     if (legacy) {
-      // No subscriptions/listen and no GET stream: a changed list shows after its ttl or a reconnect.
-      tools.put("listChanged", false);
+      tools.put("listChanged", true);
     }
     c.putObject("resources");
     c.putObject("prompts");

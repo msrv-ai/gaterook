@@ -30,8 +30,8 @@ server:
   - completion-complete
   - resources-subscribe
   - resources-unsubscribe
-  # A WARNING, "Server did not provide session ID": the gateway keeps no MCP sessions and offers no GET stream
-  # (report 01 §3.1), so there are no streams to multiply.
+  # A WARNING, "Server did not provide session ID": the gateway's GET notification streams do not issue MCP
+  # session IDs, which this scenario requires before testing multiple streams.
   - server-sse-multiple-streams
   # The rebinding check passes (evil Host → 421). Its second check sends a localhost Origin and wants 2xx; the core
   # takes no browser Origin on /mcp at all (ARCHITECTURE.md §7.3: none allowed by default, 403), on purpose.
