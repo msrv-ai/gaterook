@@ -15,7 +15,7 @@ export interface CoreClient {
   request(path: '/internal/bridge/tokens' | '/internal/bridge/confirm', body: object): Promise<any>;
 }
 
-/** The person is asked: may this client use a prod endpoint in this session? */
+/** The person is asked: may this client use a prod endpoint? Allow is remembered for this grant across restarts. */
 export interface ConfirmRequest {
   client: 'claude-desktop' | 'codex' | 'cursor' | 'antigravity' | string;
   endpoint: string;
@@ -27,9 +27,9 @@ export interface BrokerOptions {
   /** The gateway home, e.g. ~/.gaterook. */
   home: string;
   core: CoreClient;
-  /** Resolve true to allow, false to deny; without it bridges get "confirmation_required". */
-  confirm?: (ask: ConfirmRequest) => Promise<boolean>;
-  /** Default 55,000 ms. */
+  /** Resolve true to allow, false to deny, null for no decision; absent means "confirmation_required". */
+  confirm?: (ask: ConfirmRequest) => Promise<boolean | null>;
+  /** Each bridge waits at most this long; the shared dialog and its later answer remain valid. Default 55,000 ms. */
   confirmTimeoutMs?: number;
   /** Time a connection has to send its request line, default 3,000 ms. */
   requestTimeoutMs?: number;

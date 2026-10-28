@@ -1,7 +1,7 @@
 // The token broker in main (ARCHITECTURE.md A7, §7.2; bridge/README.md): bridges of Claude Desktop and Codex ask it
 // for a 15-minute token by grant; it asks the core (`/internal/bridge/tokens`, signed) and, when the core wants a
-// person to allow the first token of a prod grant in this session, shows "Codex wants to use incident-prod". It lives
-// as long as the app: when the core restarts, the broker talks to the new one.
+// person to allow the first token of a prod grant, shows "Codex wants to use incident-prod". The core remembers
+// Allow across restarts until access is revoked. The broker lives as long as the app and follows core restarts.
 import { app, dialog } from 'electron';
 import { createCoreClient, startBroker, type Broker } from '@gaterook/broker';
 import { answeredByAPerson } from './activation-gate.ts';
@@ -50,7 +50,7 @@ export async function startTokenBroker(o: BrokerOptions): Promise<Broker | null>
 }
 
 /**
- * "Codex wants to use incident-prod": allow the first token of a prod grant in this session, or not. Deny is the
+ * "Codex wants to use incident-prod": remember permission for this prod grant, or deny it. Deny is the
  * default and the answer to Esc; an Allow given faster than a person can read (700 ms) is not taken — the dialog
  * comes back, three times at most, then it is a Deny.
  */
@@ -63,7 +63,8 @@ export async function askProdUse(client: string, endpoint: string, message: stri
       title: 'GateRook',
       message: `${client} wants to use ${endpoint}`,
       detail: `${message ? `${message}\n\n` : ''}${endpoint} works on production. Allow it only if you started ${client} `
-        + 'yourself just now. Each change it asks for still waits for your approval.',
+        + 'yourself just now. GateRook remembers this permission after reconnects and restarts. '
+        + 'Disconnect the app in GateRook to revoke access. Tool approval rules still apply.',
       buttons: ['Deny', 'Allow'],
       defaultId: 0,
       cancelId: 0,

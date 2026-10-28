@@ -55,8 +55,9 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>A token is issued only for a grant that verifies, isn't revoked and was made for exactly the endpoint and client
  * that ask ({@code grant_mismatch} otherwise), on an enabled endpoint. A grant's id is readable by every process of the
- * account (it sits in plain config files), so the first token of a grant to a prod endpoint in each run of the core
- * waits until the person allows it on the desktop ({@code /internal/bridge/confirm}). A grant has at most
+ * account (it sits in plain config files), so the first token of a grant to a prod endpoint
+ * waits until the person allows it on the desktop ({@code /internal/bridge/confirm}). That approval is signed and
+ * saved with the grant, surviving token renewal and core restarts until access is revoked. A grant has at most
  * {@value #MAX_LIVE_TOKENS} live tokens (a fifth replaces the oldest) and gets at most {@value #TOKENS_PER_MINUTE} a
  * minute. Logs and messages carry the grant's prefix only.
  */
@@ -95,7 +96,7 @@ public class ClientGrants implements DisposableBean {
    * @param verified the row is as the core wrote it; a grant that isn't gets no tokens
    */
   public record Grant(String id, String client, String endpointId, String endpointSlug, Env env, String label,
-      Instant createdAt, Instant revokedAt, Instant lastTokenAt, Long lastPid, boolean verified) {
+      Instant createdAt, Instant revokedAt, Instant lastTokenAt, Long lastPid, Instant confirmedAt, boolean verified) {
 
     /** Not revoked and as the core wrote it. */
     public boolean active() {
@@ -146,8 +147,7 @@ public class ClientGrants implements DisposableBean {
   private final TransactionTemplate readTx;
   private final Duration bridgeTtl;
   private final String instance;
-  /** Prod grants the person allowed in this run of the core; cleared by a restart, like the app's session. */
-  private final Set<String> confirmed = ConcurrentHashMap.newKeySet();
+  /** Denials suppress repeated prompts for the current core session; approvals are stored on signed grant rows. */
   private final Set<String> denied = ConcurrentHashMap.newKeySet();
   private final Map<String, Instant> confirmAsked = new ConcurrentHashMap<>();
   private final Map<String, Deque<Instant>> issuedRecently = new ConcurrentHashMap<>();
@@ -239,7 +239,6 @@ public class ClientGrants implements DisposableBean {
    * @return how many pending approval requests were rejected
    */
   public int revoke(String grantId, String reason) {
-    confirmed.remove(grantId);
     denied.remove(grantId);
     issuedRecently.remove(grantId);
     return tokenService.revokeGrant(grantId, reason);
@@ -289,7 +288,7 @@ public class ClientGrants implements DisposableBean {
     if (!e.isEnabled()) {
       return TokenAnswer.refused(ENDPOINT_OFF, "Endpoint " + e.getSlug() + " is disabled in GateRook.");
     }
-    if (e.getEnv() == Env.PROD && !confirmed.contains(g.getId())) {
+    if (e.getEnv() == Env.PROD && g.getConfirmedAt() == null) {
       if (denied.contains(g.getId())) {
         return TokenAnswer.refused(CONFIRMATION_DENIED, "You didn't allow " + who + " to use " + e.getSlug()
             + " in this session of GateRook.");
@@ -360,24 +359,32 @@ public class ClientGrants implements DisposableBean {
   }
 
   /**
-   * {@code POST /internal/bridge/confirm}: the person's answer to "Codex wants to use incident-prod", valid until the
-   * core stops. Only Electron's main process can call it (the launch secret signs {@code /internal/**}).
+   * {@code POST /internal/bridge/confirm}: the person's answer to "Codex wants to use incident-prod". Allow persists
+   * with the signed grant; Deny clears that approval and suppresses prompts until the core stops. Only Electron's
+   * main process can call it (the launch secret signs {@code /internal/**}).
    *
    * @return the grant, for the answer
    */
   public Grant confirm(String grantId, boolean allow) {
-    Grant g = find(grantId).orElseThrow(() -> ProblemException.notFound("Access not found", "There is no access "
-        + prefix(grantId) + "."));
-    if (!g.active()) {
-      throw ProblemException.conflict("Access is not active", "The access " + g.prefix() + " is revoked or was "
-          + "changed outside GateRook.");
-    }
+    Grant g = writeTx.execute(s -> {
+      ClientGrantEntity row = (grantId == null ? Optional.<ClientGrantEntity>empty() : grants.findById(grantId))
+          .orElseThrow(() -> ProblemException.notFound("Access not found", "There is no access "
+              + prefix(grantId) + "."));
+      if (!rows.verify(row) || row.isRevoked()) {
+        throw ProblemException.conflict("Access is not active", "The access " + prefix(grantId)
+            + " is revoked or was changed outside GateRook.");
+      }
+      if (allow) {
+        row.confirm(clock.instant());
+      } else {
+        row.clearConfirmation();
+      }
+      return view(rows.saveSigned(row), true);
+    });
     confirmAsked.remove(grantId);
     if (allow) {
       denied.remove(grantId);
-      confirmed.add(grantId);
     } else {
-      confirmed.remove(grantId);
       denied.add(grantId);
     }
     return g;
@@ -385,7 +392,7 @@ public class ClientGrants implements DisposableBean {
 
   /** Whether the next token of this grant waits for the person ({@code /api/clients/links/{id}/check}). */
   public boolean awaitsConfirmation(Grant g) {
-    return g.env() == Env.PROD && !confirmed.contains(g.id());
+    return g.env() == Env.PROD && g.confirmedAt() == null;
   }
 
   /** {@code Claude Desktop} for {@code claude-desktop}. */
@@ -434,6 +441,6 @@ public class ClientGrants implements DisposableBean {
   private static Grant view(ClientGrantEntity g, boolean verified) {
     EndpointEntity e = g.getEndpoint();
     return new Grant(g.getId(), g.getClient(), e.getId(), e.getSlug(), e.getEnv(), g.getLabel(), g.getCreatedAt(),
-        g.getRevokedAt(), g.getLastTokenAt(), g.getLastPid(), verified);
+        g.getRevokedAt(), g.getLastTokenAt(), g.getLastPid(), g.getConfirmedAt(), verified);
   }
 }

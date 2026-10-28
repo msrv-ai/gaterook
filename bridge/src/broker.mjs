@@ -96,10 +96,10 @@ function tokenRequest(req) {
  * @param {object} options
  * @param {string} options.home  the gateway home (~/.gaterook)
  * @param {{request(path: string, body: object): Promise<object>}} options.core  e.g. createCoreClient(…)
- * @param {(ask: {client: string, endpoint: string, grant: string, message: string}) => Promise<boolean>} [options.confirm]
- *        asks the person whether a client may use a prod endpoint ("Codex wants to use incident-prod"); without it a
- *        bridge gets the core's "confirmation_required" and tries again later
- * @param {number} [options.confirmTimeoutMs]  how long a bridge waits for the person, default 55 s
+ * @param {(ask: {client: string, endpoint: string, grant: string, message: string}) => Promise<boolean | null>} [options.confirm]
+ *        asks the person whether a client may use a prod endpoint ("Codex wants to use incident-prod"); the core
+ *        remembers Allow for that grant. Without it a bridge gets "confirmation_required" and tries again later
+ * @param {number} [options.confirmTimeoutMs]  how long each bridge waits, default 55 s; the dialog stays pending
  * @param {number} [options.requestTimeoutMs]  how long a connection may take to send its request line, default 3 s
  * @param {number} [options.maxConnections]    default 32
  * @param {(line: string) => void} [options.log]  one line per refusal and error, never a token
@@ -140,20 +140,32 @@ export async function startBroker({
     }
   }
   const asking = new Map();
+  let closed = false;
 
   async function askOnce(answer, req) {
     if (!confirm) return null;
     let pending = asking.get(req.grant);
     if (!pending) {
-      pending = Promise.race([
-        Promise.resolve().then(() => confirm({
-          client: req.client, endpoint: req.endpoint, grant: req.grant, message: answer.message,
-        })).then((v) => v === true, () => false),
-        new Promise((resolve) => setTimeout(() => resolve(null), confirmTimeoutMs).unref()),
-      ]).finally(() => asking.delete(req.grant));
+      // A bridge timing out must not discard an open dialog or its later answer. Record the decision once,
+      // even if every bridge that requested it has disconnected; later requests share the same dialog.
+      pending = Promise.resolve().then(() => confirm({
+        client: req.client, endpoint: req.endpoint, grant: req.grant, message: answer.message,
+      })).then((v) => v === null ? null : v === true, () => false).then(async (allowed) => {
+        if (closed || allowed === null) return null;
+        await core.request('/internal/bridge/confirm', { grant: req.grant, decision: allowed ? 'allow' : 'deny' });
+        return allowed;
+      }).finally(() => asking.delete(req.grant));
       asking.set(req.grant, pending);
     }
-    return pending;
+    let timeout;
+    try {
+      return await Promise.race([
+        pending,
+        new Promise((resolve) => { timeout = setTimeout(() => resolve(null), confirmTimeoutMs).unref(); }),
+      ]);
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   async function token(req) {
@@ -165,10 +177,9 @@ export async function startBroker({
       return refusal('core_unavailable', NOT_RUNNING);
     }
     if (answer && answer.ok === false && answer.error === 'confirmation_required') {
-      const allowed = await askOnce(answer, req);
-      if (allowed === null) return answer;
       try {
-        await core.request('/internal/bridge/confirm', { grant: req.grant, decision: allowed ? 'allow' : 'deny' });
+        const allowed = await askOnce(answer, req);
+        if (allowed === null) return answer;
         answer = await core.request('/internal/bridge/tokens', req);
       } catch (e) {
         log(`confirmation for ${req.client} on ${req.endpoint}: the core is unavailable (${e.message})`);
@@ -241,9 +252,10 @@ export async function startBroker({
     path: address,
     infoPath,
     async close() {
-      const closed = new Promise((resolve) => server.close(() => resolve()));
+      closed = true;
+      const stopped = new Promise((resolve) => server.close(() => resolve()));
       for (const s of sockets) s.destroy();
-      await closed;
+      await stopped;
       const info = readBrokerInfo(home);
       if (info && info.path === address) fs.rmSync(infoPath, { force: true });
       if (platform !== 'win32') fs.rmSync(address, { force: true });

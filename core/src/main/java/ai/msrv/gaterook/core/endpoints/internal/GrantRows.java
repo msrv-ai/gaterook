@@ -56,6 +56,11 @@ public class GrantRows {
     f.put("label", row.getLabel());
     f.put("createdAt", row.getCreatedAt().toEpochMilli());
     f.put("revokedAt", row.getRevokedAt() == null ? null : row.getRevokedAt().toEpochMilli());
+    // An unconfirmed grant keeps its pre-confirmation MAC shape, including rows from before this field existed.
+    // A stored approval must be signed: adding, changing or removing it outside the core invalidates the row.
+    if (row.getConfirmedAt() != null) {
+      f.put("confirmedAt", row.getConfirmedAt().toEpochMilli());
+    }
     return f;
   }
 }

@@ -44,6 +44,10 @@ public class ClientGrantEntity {
   @Column(name = "revoked_at")
   private Instant revokedAt;
 
+  /** The person's production access approval, retained across token renewal and core restarts. */
+  @Column(name = "confirmed_at")
+  private Instant confirmedAt;
+
   @Column(name = "last_token_at")
   private Instant lastTokenAt;
 
@@ -119,6 +123,20 @@ public class ClientGrantEntity {
 
   public Instant getLastTokenAt() {
     return lastTokenAt;
+  }
+
+  public Instant getConfirmedAt() {
+    return confirmedAt;
+  }
+
+  public void confirm(Instant now) {
+    if (confirmedAt == null) {
+      confirmedAt = Objects.requireNonNull(now, "now");
+    }
+  }
+
+  public void clearConfirmation() {
+    confirmedAt = null;
   }
 
   public Long getLastPid() {

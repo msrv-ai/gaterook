@@ -885,7 +885,7 @@ public class ClientService {
       } else {
         awaitsPerson = grants.awaitsConfirmation(g.get());
         String text = "Access " + g.get().label() + " (" + g.get().prefix() + ") is active"
-            + (awaitsPerson ? "; its first token in this session waits for you to allow it" : "");
+            + (awaitsPerson ? "; its first production token waits for you to allow it" : "");
         steps.add(step("grant", "Access", "ok", text, t0));
       }
     } else if (l.getTokenId() != null) {
@@ -899,7 +899,7 @@ public class ClientService {
     // 3. The bridge itself, run exactly as the config says — when the config says what GateRook wrote. A command
     // changed outside the app is never run, and the helper's token goes to this core only, not to the entry's url.
     // A prod access whose first token waits for the person isn't run either: its broker would ask "Codex wants to use
-    // incident-prod" for what is this Check, and an Allow given to it would hold for the client all session.
+    // incident-prod" for what is this Check, and an Allow given to it would persist for this client grant.
     t0 = System.nanoTime();
     String ourUrl = listener.origin() + "/mcp/" + slug;
     boolean runs = l.getMethod() == LinkMethod.HELPER || l.getMethod() == LinkMethod.CONFIG_BRIDGE;

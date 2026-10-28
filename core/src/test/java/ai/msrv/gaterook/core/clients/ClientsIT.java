@@ -475,7 +475,7 @@ class ClientsIT {
     JsonNode ok = bridgeToken("claude-desktop", "incident-prod", grant);
     assertThat(ok.path("ok").asBoolean()).as(ok.toString()).isTrue();
     assertThat(initialize("incident-prod", ok.path("token").asString()).statusCode()).isEqualTo(200);
-    // Allowed for this run of the core: the next token doesn't ask again.
+    // Allowed for this grant: the next token doesn't ask again.
     assertThat(bridgeToken("claude-desktop", "incident-prod", grant).path("ok").asBoolean()).isTrue();
     assertThat(linkOf("claude-desktop", claudeProdLink).path("status").asString()).isEqualTo("connected");
   }
@@ -546,7 +546,7 @@ class ClientsIT {
   @Order(33)
   void checkDoesntAskForTheFirstProdTokenInTheClientsPlace() throws Exception {
     // Its broker would show "Cursor wants to use incident-prod" for what is a Check, and an Allow would hold for any
-    // program with the grant's id for the rest of the session (review K1-15).
+    // program with the grant's id until that access is revoked (review K1-15).
     JsonNode preview = api.expect(200, HttpMethod.POST, "/api/clients/cursor/connect/preview", """
         {"endpoint":"incident-prod","method":"config-bridge","grantLabel":"cursor-incident"}""");
     String id = api.expect(200, HttpMethod.POST, "/api/clients/cursor/connect",
