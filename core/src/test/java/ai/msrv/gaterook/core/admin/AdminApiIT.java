@@ -368,6 +368,29 @@ class AdminApiIT {
     JsonNode core = tools.get(tools.size() - 1);
     assertThat(core.path("group").asString()).isEqualTo("Core");
     assertThat(core.path("tools").findValuesAsString("name")).contains("list_connections", "describe_connection");
+
+    assertThat(execute.path("temporaryBypassAllowed").asBoolean()).isTrue();
+    assertThat(execute.path("bypassUntil").isNull()).isTrue();
+    api.expect(422, HttpMethod.POST, "/api/endpoints/dev/tools/temporary-bypass", """
+        {"toolKey":"sql_execute","connection":"dev-db","durationMinutes":15}""");
+    api.expect(422, HttpMethod.POST, "/api/endpoints/dev/tools/temporary-bypass", """
+        {"toolKey":"sql_execute","connection":"dev-db","durationMinutes":45,"version":%d}"""
+        .formatted(execute.path("version").asLong()));
+    api.expect(422, HttpMethod.POST, "/api/endpoints/dev/tools/temporary-bypass", """
+        {"toolKey":"sql_execute","connection":"dev-db","durationMinutes":15.5,"version":%d}"""
+        .formatted(execute.path("version").asLong()));
+    JsonNode granted = api.expect(200, HttpMethod.POST, "/api/endpoints/dev/tools/temporary-bypass", """
+        {"toolKey":"sql_execute","connection":"dev-db","durationMinutes":15,"version":%d,
+         "reason":"Development session"}""".formatted(execute.path("version").asLong()));
+    JsonNode timed = tool(granted.get(0), "sql_execute");
+    assertThat(timed.path("mode").asString()).isEqualTo("BYPASS");
+    assertThat(timed.path("storedMode").asString()).isEqualTo("APPROVAL");
+    assertThat(Instant.parse(timed.path("bypassUntil").asString())).isAfter(Instant.now());
+    JsonNode revoked = api.expect(200, HttpMethod.DELETE, "/api/endpoints/dev/tools/temporary-bypass", """
+        {"toolKey":"sql_execute","connection":"dev-db","version":%d,"reason":"Session ended"}"""
+        .formatted(timed.path("version").asLong()));
+    assertThat(tool(revoked.get(0), "sql_execute").path("mode").asString()).isEqualTo("APPROVAL");
+    assertThat(tool(revoked.get(0), "sql_execute").path("bypassUntil").isNull()).isTrue();
   }
 
   @Test

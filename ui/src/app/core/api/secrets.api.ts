@@ -94,6 +94,13 @@ export interface VaultBrowse {
   readonly unsupportedEntries?: number;
 }
 
+/** Readable KV path/key references; the core never returns the corresponding values. */
+export interface VaultReferences {
+  readonly references: readonly string[];
+  readonly complete: boolean;
+  readonly issues: readonly { readonly path: string; readonly reason: string; readonly message: string }[];
+}
+
 /** A secret that points into a store: a reference or Vault dynamic credentials (`kind`). */
 export interface SecretStoreReference {
   readonly secretId: string;
@@ -247,6 +254,10 @@ export class SecretsApi {
 
   browseVault(store: string, path: string): Promise<VaultBrowse> {
     return this.api.post(ApiClient.path`/api/secret-stores/${store}/vault/browse`, { path });
+  }
+
+  vaultReferences(store: string): Promise<VaultReferences> {
+    return this.api.post(ApiClient.path`/api/secret-stores/${store}/vault/references`);
   }
 
   /** Connects a store; references of its kind without a store are bound to it (S1). */

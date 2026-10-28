@@ -81,12 +81,13 @@ class VaultStoreTest {
         new SecretStores.VaultEntry("db", "kv/stage/db", false));
     assertThat(store.browse("kv1", call()).entries()).containsExactly(
         new SecretStores.VaultEntry("app", "kv1/app", false));
-    assertThat(vault.to("kv/metadata/")).extracting(RecordedRequest::getMethod).containsOnly("LIST");
-    assertThat(vault.to("kv1/")).extracting(RecordedRequest::getMethod).containsExactly("LIST");
+    assertThat(vault.to("kv/metadata")).extracting(RecordedRequest::getMethod).containsOnly("LIST");
+    assertThat(vault.to("kv/metadata").getFirst().getUrl().encodedPath()).isEqualTo("/v1/kv/metadata");
+    assertThat(vault.to("kv1")).extracting(RecordedRequest::getMethod).containsExactly("LIST");
     assertThat(vault.to("kv/data/")).isEmpty();
     assertThat(vault.issued.get()).isZero();
     assertThat(folder.toString()).doesNotContain(FakeVault.DB_PASSWORD, FakeVault.SECRET_ID, vault.token(1));
-    assertThat(vault.to("kv/metadata/").getFirst().getHeaders().get("X-Vault-Token")).isEqualTo(vault.token(1));
+    assertThat(vault.to("kv/metadata").getFirst().getHeaders().get("X-Vault-Token")).isEqualTo(vault.token(1));
   }
 
   @Test
@@ -147,6 +148,108 @@ class VaultStoreTest {
         .hasMessageContainingAll("more than 1000 entries", "narrower folder");
     assertThatThrownBy(() -> store.browse("", call()))
         .hasMessageContainingAll("more than 1000 entries", "narrower folder");
+  }
+
+  @Test
+  void discoversAllKvPathsAndKeysWithoutReturningValuesOrIssuingCredentials() {
+    vault.listings.put("kv/metadata/stage/db", "[\"nested\"]");
+    vault.responses.put("kv/data/stage/db/nested", "{\"data\":{\"data\":{\"token\":\"cnry-nested-token\"},"
+        + "\"metadata\":{\"version\":1}}}");
+    SecretStores.VaultReferences found = store.references(call());
+    assertThat(found.complete()).isTrue();
+    assertThat(found.issues()).isEmpty();
+    assertThat(found.references()).containsExactly("vault://kv/stage/db#password", "vault://kv/stage/db#user",
+        "vault://kv/stage/db/nested#token", "vault://kv1/app#api_key");
+    assertThat(found.toString()).doesNotContain(FakeVault.DB_PASSWORD, FakeVault.SECRET_ID, vault.token(1),
+        "cnry-nested-token", "cnry-kv1-api-key");
+    assertThat(vault.issued.get()).isZero();
+    assertThat(vault.requests).extracting(RecordedRequest::getMethod).containsOnly("GET", "LIST", "POST");
+    assertThat(vault.requests.stream().filter(r -> r.getMethod().equals("POST")))
+        .allSatisfy(r -> assertThat(r.getUrl().encodedPath()).isEqualTo("/v1/auth/approle/login"));
+    int reads = vault.to("kv/data/").size();
+    store.references(call());
+    assertThat(vault.to("kv/data/")).hasSize(reads * 2);
+  }
+
+  @Test
+  void discoveryKeepsAllowedReferencesWhenOtherPathsDenyListingOrReading() {
+    vault.listings.put("kv/metadata", "[\"forbidden/\",\"forbidden\",\"stage/\"]");
+    SecretStores.VaultReferences found = store.references(call());
+    assertThat(found.complete()).isFalse();
+    assertThat(found.references()).containsExactly("vault://kv/stage/db#password", "vault://kv/stage/db#user",
+        "vault://kv1/app#api_key");
+    assertThat(found.issues()).hasSize(2).allSatisfy(issue -> assertThat(issue.reason()).isEqualTo("denied"));
+    assertThat(found.issues()).extracting(SecretStores.VaultDiscoveryIssue::message)
+        .anySatisfy(message -> assertThat(message).contains("list kv/metadata/forbidden", "list permission"))
+        .anySatisfy(message -> assertThat(message).contains("read kv/data/forbidden"));
+    assertThat(vault.issued.get()).isZero();
+  }
+
+  @Test
+  void discoveryReportsRootDenialAndExpiredDeadlineInsteadOfAnEmptyCompleteList() {
+    vault.deniedPaths.add("sys/internal/ui/mounts");
+    SecretStores.VaultReferences denied = store.references(call());
+    assertThat(denied.complete()).isFalse();
+    assertThat(denied.references()).isEmpty();
+    assertThat(denied.issues()).singleElement().satisfies(issue -> {
+      assertThat(issue.path()).isEmpty();
+      assertThat(issue.reason()).isEqualTo("denied");
+      assertThat(issue.message()).contains("list Vault secrets engines");
+    });
+    StoreCall expired = call();
+    clock.advance(Duration.ofSeconds(11));
+    int requests = vault.requests.size();
+    SecretStores.VaultReferences timedOut = store.references(expired);
+    assertThat(timedOut.complete()).isFalse();
+    assertThat(timedOut.issues()).singleElement().satisfies(issue -> {
+      assertThat(issue.reason()).isEqualTo("unavailable");
+      assertThat(issue.message()).contains("ran out of time");
+    });
+    assertThat(vault.requests).hasSize(requests);
+  }
+
+  @Test
+  void discoveryOmitsUnsupportedNamesAndDoesNotInterpretAKeyAsAQuery() {
+    vault.listings.put("kv/metadata/stage", "[\"db\",\"unsupported name\"]");
+    vault.responses.put("kv/data/stage/db", "{\"data\":{\"data\":{\"password\":\"cnry-value\","
+        + "\"password?version=1\":\"cnry-other\",\"nested/key\":\"cnry-nested\"},\"metadata\":{\"version\":4}}}");
+    SecretStores.VaultReferences found = store.references(call());
+    assertThat(found.complete()).isFalse();
+    assertThat(found.references()).containsExactly("vault://kv/stage/db#password", "vault://kv1/app#api_key");
+    assertThat(found.issues()).hasSize(2).allSatisfy(issue -> assertThat(issue.reason()).isEqualTo("unsupported"));
+    assertThat(found.toString()).doesNotContain("cnry-value", "cnry-other", "cnry-nested", "?version=1");
+  }
+
+  @Test
+  void discoveryBoundsReferenceCountAndFolderDepth() {
+    var json = JsonMapper.builder().build();
+    var payload = json.createObjectNode();
+    var data = payload.putObject("data").putObject("data");
+    for (int i = 0; i < 5001; i++) {
+      data.put("key-" + i, "cnry-large-value");
+    }
+    vault.responses.put("kv/data/stage/db", payload.toString());
+    SecretStores.VaultReferences limited = store.references(call());
+    assertThat(limited.complete()).isFalse();
+    assertThat(limited.references()).hasSize(5000);
+    assertThat(limited.issues()).anySatisfy(issue -> {
+      assertThat(issue.reason()).isEqualTo("limit");
+      assertThat(issue.message()).contains("5000 selectable keys");
+    });
+    vault.responses.clear();
+    vault.listings.put("kv/metadata", "[\"deep/\"]");
+    String path = "kv/metadata/deep";
+    for (int i = 0; i < 70; i++) {
+      vault.listings.put(path, "[\"d/\"]");
+      path += "/d";
+    }
+    SecretStores.VaultReferences deep = store.references(call());
+    assertThat(deep.complete()).isFalse();
+    assertThat(deep.references()).containsExactly("vault://kv1/app#api_key");
+    assertThat(deep.issues()).anySatisfy(issue -> {
+      assertThat(issue.reason()).isEqualTo("limit");
+      assertThat(issue.message()).contains("64 folder levels");
+    });
   }
 
   @Test

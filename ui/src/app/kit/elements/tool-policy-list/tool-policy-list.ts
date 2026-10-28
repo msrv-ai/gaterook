@@ -17,6 +17,7 @@ import {
 import { RouterLink } from '@angular/router';
 import { ToolRow } from '../../../core/api/endpoints.api';
 import { Env, JsonObject, ToolMode } from '../../../core/api/types';
+import { absoluteTime } from '../../../core/time/time-format';
 import { GwDialog, GwDialogClose } from '../../dialog';
 import { GwToggle } from '../../disclosure';
 import { GwIcon } from '../../icons';
@@ -59,6 +60,13 @@ export interface ToolOverridesChange {
   /** The pair's stricter limits; null resets it to the environment policy. */
   readonly overrides: JsonObject | null;
   readonly version: number;
+}
+
+export interface TemporaryBypassOpen {
+  readonly toolKey: string;
+  readonly connection: string;
+  readonly toolName: string;
+  readonly opener: HTMLElement;
 }
 
 /** A tool row as drawn: the API row, its sentence, mode note, limit fields and the policy it inherits. */
@@ -150,6 +158,7 @@ export class GwToolPolicyList {
   readonly bulk = output<{ readonly connection: string | null; readonly mode: ToolMode }>();
   readonly overridesChange = output<ToolOverridesChange>();
   readonly confirmReadOnly = output<{ readonly toolKey: string; readonly connection: string | null; readonly definitionHash: string }>();
+  readonly temporaryBypass = output<TemporaryBypassOpen>();
   /** Picker: a row's link was activated (before the router follows it): the tool and the connection of its group. */
   readonly picked = output<{ readonly tool: string; readonly connection: string | null }>();
 
@@ -157,6 +166,7 @@ export class GwToolPolicyList {
   protected readonly filters = MODE_FILTERS;
   protected readonly modes = MODES;
   protected readonly modeValue = MODE_VALUE;
+  protected readonly absoluteTime = absoluteTime;
   /** Modes picked here and not yet answered by new groups from the page. */
   private readonly localModes = signal<Readonly<Record<string, ToolMode>>>({});
   /** A limit value that would loosen the policy: shown at its field, not sent. */
@@ -291,6 +301,16 @@ export class GwToolPolicyList {
     if (!mode || mode === r.tool.mode || r.note?.locked || (mode === 'BYPASS' && this.readOnly())) return;
     this.localModes.update((m) => ({ ...m, [r.key]: mode }));
     this.modeChange.emit({ toolKey: r.tool.toolKey, connection: g.connection, mode, version: r.tool.version });
+  }
+
+  protected canManageTemporaryBypass(g: GroupView, r: RowView): boolean {
+    return !!g.connection && this.endpointEnv() !== 'prod' && (g.source.group.env === 'dev' || g.source.group.env === 'stage')
+      && !this.readOnly() && (!!r.tool.temporaryBypassAllowed || !!r.tool.bypassUntil);
+  }
+
+  protected openTemporaryBypass(g: GroupView, r: RowView, opener: HTMLElement): void {
+    if (!g.connection || !this.canManageTemporaryBypass(g, r)) return;
+    this.temporaryBypass.emit({ toolKey: r.tool.toolKey, connection: g.connection, toolName: r.tool.name, opener });
   }
 
   protected onBulk(g: GroupView, pick: MenuPick): void {

@@ -139,7 +139,7 @@ public class EndpointConnections {
         if (mode != Mode.OFF) {
           after.add(new EndpointSnapshot.Pair(null, 0, offered.toolKey(), offered.definition(), type.manifest(),
               c.config(), mode, mode, null, offered.declaredBy(), false, offered.provenanceVersion(), null, null,
-              pairs.contributions(c.id())));
+              pairs.contributions(c.id()), null));
         }
       }
       if ("present".equals(risks.analyze(after, snapshot.published(), null).underlying())) {

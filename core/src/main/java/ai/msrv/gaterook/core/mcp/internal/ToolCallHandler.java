@@ -17,6 +17,7 @@ import ai.msrv.gaterook.core.audit.AuditWriter;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.endpoints.CoreTools;
 import ai.msrv.gaterook.core.endpoints.EndpointSnapshot;
+import ai.msrv.gaterook.core.endpoints.EndpointSnapshotService;
 import ai.msrv.gaterook.core.endpoints.ToolCatalog;
 import ai.msrv.gaterook.core.invocation.ConnectorInvoker;
 import ai.msrv.gaterook.core.invocation.ToolGuard;
@@ -68,11 +69,13 @@ public class ToolCallHandler {
   private final CoreToolsHandler coreTools;
   private final Calls calls;
   private final ApprovalCards approvalCards;
+  private final EndpointSnapshotService snapshots;
 
   public ToolCallHandler(ToolCatalog catalogs, SchemaValidator validator, ConnectorRegistry registry,
       PolicyEngine engine, PolicyService policies, ToolGuard guard, AuditWriter audit, ConnectorInvoker invoker,
       ApprovalService approvals, ApprovalAnswers answers, ApprovalStatusTool statusTool, ApprovalDelivery delivery,
-      RequestStateCodec states, CoreToolsHandler coreTools, Calls calls, ApprovalCards approvalCards) {
+      RequestStateCodec states, CoreToolsHandler coreTools, Calls calls, ApprovalCards approvalCards,
+      EndpointSnapshotService snapshots) {
     this.catalogs = catalogs;
     this.validator = validator;
     this.registry = registry;
@@ -89,6 +92,7 @@ public class ToolCallHandler {
     this.coreTools = coreTools;
     this.calls = calls;
     this.approvalCards = approvalCards;
+    this.snapshots = snapshots;
   }
 
   public ObjectNode call(McpRequest r) {
@@ -189,15 +193,15 @@ public class ToolCallHandler {
       case ALLOW -> {
         if (pair.mode() == Mode.BYPASS && (kind == Classification.Kind.MUTATION
             || pair.tool().nature() != ToolDefinition.Nature.READ)) {
-          return approval(r, pair, call, decision, kind, auditCall, args, argumentsDigest,
+          return approval(r, pair, call, decision, classification, kind, auditCall, args, argumentsDigest,
               published.outputSchema());
         }
         received(auditCall, AuditWriter.Received.of(AuditWriter.Verdict.ALLOWED, kind, decision.ruleId()));
-        return run(r, auditCall, new ConnectorInvoker.Request(callId, cfg, call, decision.limits(),
-            policies.maskPolicy(cfg.env()), r.span().traceId(), r.span().traceparent()), null);
+        return run(r, auditCall, request(r, pair, call, decision, classification), null);
       }
       default -> {
-        return approval(r, pair, call, decision, kind, auditCall, args, argumentsDigest, published.outputSchema());
+        return approval(r, pair, call, decision, classification, kind, auditCall, args, argumentsDigest,
+            published.outputSchema());
       }
     }
   }
@@ -227,12 +231,11 @@ public class ToolCallHandler {
    * @param outputSchema what the published tool promises its results look like, or {@code null}
    */
   private ObjectNode approval(McpRequest r, EndpointSnapshot.Pair pair, ToolCall call, Decision decision,
-      Classification.Kind kind, AuditWriter.Call auditCall, ObjectNode args, String argumentsDigest,
+      Classification classification, Classification.Kind kind, AuditWriter.Call auditCall, ObjectNode args, String argumentsDigest,
       JsonNode outputSchema) {
     Envelope env = r.env();
     ConnectionConfig cfg = pair.config();
-    ConnectorInvoker.Request request = new ConnectorInvoker.Request(call.callId(), cfg, call, decision.limits(),
-        policies.maskPolicy(cfg.env()), r.span().traceId(), r.span().traceparent());
+    ConnectorInvoker.Request request = request(r, pair, call, decision, classification);
     ConnectorInvoker.Prepared prepared = invoker.prepare(request);
     if (!prepared.ok()) {
       received(auditCall, new AuditWriter.Received(AuditWriter.Verdict.ERROR, kind, decision.ruleId(), null, null,
@@ -296,6 +299,25 @@ public class ToolCallHandler {
     }
     return ResultWriter.callToolResult(r.env(), result, callId, r.span().traceId(),
         result.meta() instanceof ObjectNode meta ? meta : null);
+  }
+
+  private ConnectorInvoker.Request request(McpRequest r, EndpointSnapshot.Pair pair, ToolCall call,
+      Decision decision, Classification classification) {
+    return new ConnectorInvoker.Request(call.callId(), pair.config(), call, decision.limits(),
+        policies.maskPolicy(pair.config().env()), r.span().traceId(), r.span().traceparent(),
+        pair.bypassUntil() == null ? null : () -> temporaryBypassStillAllowed(r, pair, decision, classification));
+  }
+
+  private boolean temporaryBypassStillAllowed(McpRequest r, EndpointSnapshot.Pair original, Decision decision,
+      Classification classification) {
+    return snapshots.get(r.snapshot().id()).filter(s -> s.enabled() && !s.blocked())
+        .flatMap(s -> s.pairs().stream().filter(p -> p.toolKey().equals(original.toolKey())
+            && p.config().id().equals(original.config().id())).findFirst())
+        .filter(p -> p.mode() == Mode.BYPASS && p.rowVersion() == original.rowVersion()
+            && java.util.Objects.equals(p.bypassUntil(), original.bypassUntil())
+            && p.config().equals(original.config()) && p.tool().equals(original.tool())
+            && java.util.Objects.equals(p.template(), original.template()))
+        .map(p -> engine.decide(p.view(), p.config(), classification).equals(decision)).orElse(false);
   }
 
   private ObjectNode approvalStatus(McpRequest r, ObjectNode args) {

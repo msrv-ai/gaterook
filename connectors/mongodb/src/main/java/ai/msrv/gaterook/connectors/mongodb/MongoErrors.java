@@ -174,7 +174,7 @@ final class MongoErrors {
     }
     if (all.contains("unrecognized ssl message") || all.contains("plaintext") || all.contains("terminated the "
         + "handshake") || all.contains("ssl peer shut down")) {
-      return "the server doesn't speak TLS on that port. Turn Use TLS off, or use its TLS port.";
+      return "the server doesn't speak TLS on that port. Select Without TLS in Connection type, or use its TLS port.";
     }
     return firstLine(t.getMessage()) + ".";
   }

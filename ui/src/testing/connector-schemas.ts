@@ -381,28 +381,39 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         "type": "object",
         "title": "Connection",
         "additionalProperties": false,
-        "required": [
-          "uri"
-        ],
         "properties": {
-          "uri": {
+          "mode": {
             "type": "string",
-            "title": "Connection string",
-            "maxLength": 4000,
-            "pattern": "^mongodb(\\+srv)?://",
-            "examples": [
-              "mongodb://mongo.dev.internal:27017/orders"
+            "title": "Connect using",
+            "enum": [
+              "host",
+              "uri"
             ],
-            "description": "Without a user name or password: they go into Credentials. mongodb+srv:// turns TLS on."
+            "x-enumTitles": [
+              "Host and port",
+              "Connection string"
+            ],
+            "default": "host"
           },
+          "host": true,
+          "port": true,
+          "uri": true,
           "tls": {
             "type": "boolean",
-            "title": "Use TLS",
+            "title": "Connection type",
             "default": false,
             "x-env-default": {
               "prod": true
             },
-            "x-section": "/advanced"
+            "enum": [
+              false,
+              true
+            ],
+            "x-enumTitles": [
+              "Without TLS",
+              "TLS"
+            ],
+            "description": "TLS verifies the server certificate and host name. In connection string mode, TLS settings in the string also apply."
           },
           "caCertificate": {
             "type": "string",
@@ -451,6 +462,69 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             },
             "description": "Only these databases are available to agents. Existing collection restrictions still apply."
           }
+        },
+        "if": {
+          "properties": {
+            "mode": {
+              "const": "uri"
+            }
+          },
+          "anyOf": [
+            {
+              "required": [
+                "mode"
+              ]
+            },
+            {
+              "required": [
+                "uri"
+              ]
+            }
+          ]
+        },
+        "then": {
+          "required": [
+            "uri"
+          ],
+          "properties": {
+            "uri": {
+              "type": "string",
+              "title": "Connection string",
+              "maxLength": 4000,
+              "pattern": "^mongodb(\\+srv)?://",
+              "examples": [
+                "mongodb://mongo.dev.internal:27017/orders"
+              ],
+              "description": "Without a user name or password: enter them in Credentials. Supports mongodb:// and mongodb+srv://; SRV enables TLS unless the string explicitly sets tls=false.",
+              "minLength": 1
+            },
+            "host": false,
+            "port": false
+          }
+        },
+        "else": {
+          "required": [
+            "host"
+          ],
+          "properties": {
+            "host": {
+              "type": "string",
+              "title": "Host",
+              "minLength": 1,
+              "maxLength": 253,
+              "examples": [
+                "mongo.example.test"
+              ]
+            },
+            "port": {
+              "type": "integer",
+              "title": "Port",
+              "minimum": 1,
+              "maximum": 65535,
+              "default": 27017
+            },
+            "uri": false
+          }
         }
       },
       "credentials": {
@@ -475,7 +549,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "type": "string",
             "title": "Auth database",
             "default": "admin",
-            "maxLength": 64
+            "maxLength": 64,
+            "x-section": "/advanced"
           },
           "mechanism": {
             "type": "string",
@@ -486,7 +561,8 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
               "SCRAM-SHA-1",
               "none"
             ],
-            "default": "auto"
+            "default": "auto",
+            "x-section": "/advanced"
           }
         }
       },
@@ -4632,7 +4708,19 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
     "rows": {
       "/connection": [
         [
+          "/connection/mode"
+        ],
+        [
           "/connection/uri"
+        ],
+        [
+          "/connection/host"
+        ],
+        [
+          "/connection/port"
+        ],
+        [
+          "/connection/tls"
         ],
         [
           "/connection/databases"
@@ -4644,18 +4732,9 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         ],
         [
           "/credentials/password"
-        ],
-        [
-          "/credentials/authSource"
-        ],
-        [
-          "/credentials/mechanism"
         ]
       ],
       "/advanced": [
-        [
-          "/connection/tls"
-        ],
         [
           "/connection/caCertificate"
         ],
@@ -4664,6 +4743,12 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         ],
         [
           "/connection/readPreference"
+        ],
+        [
+          "/credentials/authSource"
+        ],
+        [
+          "/credentials/mechanism"
         ],
         [
           "/advanced/namespaceAllowlist"
@@ -4693,6 +4778,25 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "confirm": null
       },
       {
+        "pointer": "/connection/mode",
+        "kind": "select",
+        "title": "Connect using",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "host",
+          "uri"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
         "pointer": "/connection/uri",
         "kind": "text",
         "title": "Connection string",
@@ -4701,9 +4805,68 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "mono": true,
         "unit": null,
         "options": [],
-        "when": [],
+        "when": [
+          "connection.mode in [\"uri\"]"
+        ],
         "multiline": false,
         "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/host",
+        "kind": "text",
+        "title": "Host",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "not connection.mode in [\"uri\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/port",
+        "kind": "number",
+        "title": "Port",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "not connection.mode in [\"uri\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/tls",
+        "kind": "select",
+        "title": "Connection type",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          false,
+          true
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {
+          "prod": true
+        },
         "prodForbidden": null,
         "optionsFrom": null,
         "confirm": null
@@ -4773,43 +4936,6 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "confirm": null
       },
       {
-        "pointer": "/credentials/authSource",
-        "kind": "text",
-        "title": "Auth database",
-        "required": false,
-        "secret": null,
-        "mono": true,
-        "unit": null,
-        "options": [],
-        "when": [],
-        "multiline": false,
-        "envDefault": {},
-        "prodForbidden": null,
-        "optionsFrom": null,
-        "confirm": null
-      },
-      {
-        "pointer": "/credentials/mechanism",
-        "kind": "select",
-        "title": "Mechanism",
-        "required": false,
-        "secret": null,
-        "mono": false,
-        "unit": null,
-        "options": [
-          "auto",
-          "SCRAM-SHA-256",
-          "SCRAM-SHA-1",
-          "none"
-        ],
-        "when": [],
-        "multiline": false,
-        "envDefault": {},
-        "prodForbidden": null,
-        "optionsFrom": null,
-        "confirm": null
-      },
-      {
         "pointer": "/advanced",
         "kind": "object",
         "title": "Advanced",
@@ -4821,24 +4947,6 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "when": [],
         "multiline": false,
         "envDefault": {},
-        "prodForbidden": null,
-        "optionsFrom": null,
-        "confirm": null
-      },
-      {
-        "pointer": "/connection/tls",
-        "kind": "checkbox",
-        "title": "Use TLS",
-        "required": false,
-        "secret": null,
-        "mono": false,
-        "unit": null,
-        "options": [],
-        "when": [],
-        "multiline": false,
-        "envDefault": {
-          "prod": true
-        },
         "prodForbidden": null,
         "optionsFrom": null,
         "confirm": null
@@ -4895,6 +5003,43 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "envDefault": {
           "prod": "secondaryPreferred"
         },
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/authSource",
+        "kind": "text",
+        "title": "Auth database",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/mechanism",
+        "kind": "select",
+        "title": "Mechanism",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "auto",
+          "SCRAM-SHA-256",
+          "SCRAM-SHA-1",
+          "none"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
         "prodForbidden": null,
         "optionsFrom": null,
         "confirm": null
@@ -4966,6 +5111,8 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
     ],
     "defaults": {
       "connection": {
+        "mode": "host",
+        "port": 27017,
         "tls": false,
         "allowInvalidHostnames": false,
         "readPreference": "primary"
@@ -4981,6 +5128,8 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
     },
     "prodDefaults": {
       "connection": {
+        "mode": "host",
+        "port": 27017,
         "tls": true,
         "allowInvalidHostnames": false,
         "readPreference": "secondaryPreferred"

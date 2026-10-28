@@ -355,6 +355,111 @@ describe('connection form: database discovery', () => {
   });
 });
 
+describe('connection form: MongoDB connection settings', () => {
+  it('starts with host, port and a TLS select, while authentication options stay in collapsed Advanced', async () => {
+    const { el, host, settle, load } = await databaseForm('mongodb');
+    const mode = el.querySelector<HTMLSelectElement>('#cf-connection-mode')!;
+    const tls = el.querySelector<HTMLSelectElement>('#cf-connection-tls')!;
+    const advanced = el.querySelector<HTMLElement>('#cf-advanced-body')!;
+
+    expect(mode.value).toBe('host');
+    expect([...mode.options].map((option) => option.value)).toEqual(['host', 'uri']);
+    expect(el.querySelector<HTMLInputElement>('#cf-connection-host')!.value).toBe('127.0.0.1');
+    expect(el.querySelector<HTMLInputElement>('#cf-connection-port')!.value).toBe('27017');
+    expect(el.querySelector('#cf-connection-uri')).toBeNull();
+    expect(el.querySelector<HTMLInputElement>('#cf-credentials-password')!.type).toBe('password');
+    expect(tls.value).toBe('false');
+    expect([...tls.options].map((option) => option.value)).toEqual(['false', 'true']);
+    expect(tls.closest('[hidden]')).toBeNull();
+    expect(advanced.hidden).toBe(true);
+    for (const id of ['cf-credentials-authSource', 'cf-credentials-mechanism']) {
+      expect(advanced.contains(el.querySelector(`#${id}`))).toBe(true);
+      expect(el.querySelectorAll(`#${id}`)).toHaveLength(1);
+    }
+    expect(el.querySelector('#cf-credentials-user')!.closest('[hidden]')).toBeNull();
+
+    tls.value = 'true';
+    tls.dispatchEvent(new Event('change', { bubbles: true }));
+    await settle();
+    const request = await load();
+    expect(request.value.config['connection']).toMatchObject({ host: '127.0.0.1', port: 27017, mode: 'host', tls: true });
+    expect(request.value.config['connection']).not.toHaveProperty('uri');
+    expect(request.value.config['credentials']).toEqual({ user: 'pp_user', authSource: 'admin', mechanism: 'auto' });
+    expect(request.value.secrets).toEqual({ '/credentials/password': { source: 'local', value: 'local-password' } });
+
+    el.querySelector<HTMLButtonElement>('[aria-controls="cf-advanced-body"]')!.click();
+    await settle();
+    expect(advanced.hidden).toBe(false);
+  });
+
+  it('switches between host and URI inputs without sending settings from the hidden mode', async () => {
+    const { el, host, settle } = await databaseForm('mongodb');
+    const mode = el.querySelector<HTMLSelectElement>('#cf-connection-mode')!;
+    mode.value = 'uri';
+    mode.dispatchEvent(new Event('change', { bubbles: true }));
+    await settle();
+    expect(el.querySelector('#cf-connection-host')).toBeNull();
+    expect(el.querySelector('#cf-connection-port')).toBeNull();
+    const uri = el.querySelector<HTMLInputElement>('#cf-connection-uri')!;
+    uri.value = 'mongodb://mongo-a.example.test:27018,mongo-b.example.test:27018/orders?replicaSet=rs0';
+    uri.dispatchEvent(new Event('input', { bubbles: true }));
+    await settle();
+    expect(host.form().value().config['connection']).toMatchObject({ mode: 'uri', uri: uri.value });
+    expect(host.form().value().config['connection']).not.toHaveProperty('host');
+    expect(host.form().value().config['connection']).not.toHaveProperty('port');
+
+    mode.value = 'host';
+    mode.dispatchEvent(new Event('change', { bubbles: true }));
+    await settle();
+    expect(el.querySelector('#cf-connection-uri')).toBeNull();
+    expect(host.form().value().config['connection']).toMatchObject({ mode: 'host', host: '127.0.0.1', port: 27017 });
+    expect(host.form().value().config['connection']).not.toHaveProperty('uri');
+
+    mode.value = 'uri';
+    mode.dispatchEvent(new Event('change', { bubbles: true }));
+    await settle();
+    expect(el.querySelector<HTMLInputElement>('#cf-connection-uri')!.value).toBe(uri.value);
+  });
+
+  for (const mode of ['edit', 'create'] as const) {
+    it(`preserves a legacy URI and its options when opened for ${mode === 'edit' ? 'editing' : 'duplication'} and reset`, async () => {
+      const { el, host, settle } = await render();
+      const uri = 'mongodb+srv://cluster.example.test/orders?replicaSet=rs0&retryWrites=false';
+      const config = { connection: { uri, databases: ['orders'] }, credentials: { user: 'reader', authSource: 'users' } };
+      host.spec.set(spec('mongodb'));
+      host.mode.set(mode);
+      host.config.set(config);
+      await settle();
+      const selector = el.querySelector<HTMLSelectElement>('#cf-connection-mode')!;
+      expect(selector.value).toBe('uri');
+      expect(el.querySelector<HTMLInputElement>('#cf-connection-uri')!.value).toBe(uri);
+      expect(el.querySelector('#cf-connection-host')).toBeNull();
+      expect(host.form().value().config['connection']).toMatchObject({ mode: 'uri', uri, databases: ['orders'], tls: true });
+      expect(host.form().value().config['connection']).not.toHaveProperty('port');
+      expect(config.connection).not.toHaveProperty('mode');
+
+      selector.value = 'host';
+      selector.dispatchEvent(new Event('change', { bubbles: true }));
+      await settle();
+      host.form().reset();
+      await settle();
+      expect(selector.value).toBe('uri');
+      expect(el.querySelector<HTMLInputElement>('#cf-connection-uri')!.value).toBe(uri);
+      expect(host.form().value().config['connection']).not.toHaveProperty('host');
+      expect(host.form().value().config['connection']).not.toHaveProperty('port');
+    });
+  }
+
+  it('starts new production connections with TLS selected', async () => {
+    const { el, host, settle } = await render();
+    host.spec.set(spec('mongodb'));
+    host.env.set('prod');
+    await settle();
+    expect(el.querySelector<HTMLSelectElement>('#cf-connection-tls')!.value).toBe('true');
+    expect(host.form().value().config['connection']).toMatchObject({ mode: 'host', port: 27017, tls: true });
+  });
+});
+
 describe('connection form: MySQL transport defaults', () => {
   it('selects Auto and enables public key retrieval for a new connection', async () => {
     const { el, host, settle } = await render();

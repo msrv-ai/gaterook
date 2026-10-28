@@ -1161,6 +1161,7 @@ The decision UI for one mutation an agent asked for. It shows the exact action v
 - expiring (at 0:00, kit.js, no app round trip): data-state=expired, badge neutral 'Expired', timer 'Expired, denied automatically' (bar hidden), caption says nothing ran, Deny and Approve and run aria-disabled (described by the caption), comment read-only, gw-countdown-end bubbles, one announcement
 - partial (SERVER MODE ONLY; desktop has one approver): badge warning user-check 'Approved by 1 of 2' + countdown; 'Approvals so far' history above the decision; 'Approve (2 of 2) and run' for the last approver; a person who already approved sees no buttons
 - env mismatch: gw-alert--danger 'Prod connection on a dev endpoint' first in the body
+- temporary bypass: dev/stage connection requests offer a separate secondary action for future calls to the same method, connection, and endpoint. The warning dialog uses `gw-select` for 15/30 minutes or 1/3/12/24 hours, focuses Cancel, and checks current eligibility before enabling. Pending requests retain their separate decision controls. Show the resulting expiry and offer management from the same action.
 
 **Reference screens:**
 
@@ -1262,6 +1263,7 @@ What agents may call on one endpoint and how. Every tool is grouped by its conne
 - no match: summary '0 of 14 tools match' + gw-empty--compact in a flush card with Clear search
 - picker (Playground): gw-table--interactive, __row-link names, gw-mode, env markers, selected tool tr[aria-selected] + aria-current
 - tool of an external MCP server or plugin: 'Declared by <server>, not verified' (gw-text-caption gw-fg-muted) after the annotation badges; starts as Approval when added to an endpoint; Read only only for a tool the server declared read only and only after an explicit per-tool confirmation (jira_search_requests: option aria-disabled + 'Read only needs your confirmation for this tool', 'Confirm read only' → gw-dialog--sm --warning 'Let jira_search_requests run without approval?'); a tool not declared read only is approval, bypass or off (Read only natively disabled, 'Not declared read only: approval, bypass or off'): all 26 tools of github-mcp, which declares no annotations; 'Set all to… Read only' skips them and says so
+- temporary bypass: an eligible dev/stage method offers a secondary action opening the same warning dialog as approval review. Display its expiry and original mode while active, with early cancellation. Production, core tools, read-only endpoints, Off tools, and permanent Bypass do not offer a grant. The original mode picker continues to edit the base mode and clears any temporary bypass when saved.
 
 **Reference screens:**
 
@@ -1423,6 +1425,8 @@ Cursor browser sign-in enables OAuth for the selected local endpoint and opens i
 
 The schema-driven Configure step of Add connection (PostgreSQL demo), also the form of connection-new ?duplicate=<name> (settings copied, credentials never) and ?edit=<name> (secret stored: Replace / Rotate, or a reference). It has four gw-form sections: Connection (name slug, host, port, database, SSL mode); Credentials (User, plus a secret source picker of four gw-choice-cards that switches the gw-secret control: Encrypted here, Vault or OpenBao, GCP SM, AWS SM); Environment and safety (dev / stage / prod cards with gw-env, where prod shows the stricter defaults: read-only transactions, row limit 100, statement timeout 3 s, no DDL, approval timeout 10 min, a comment required to approve); and Advanced (a disclosure with an optional statement timeout — empty means the environment's one policy value —, pool size and a schema allowlist as tags). A Test connection panel follows with idle, testing, success (detected permissions, write grant flagged) and failure states.
 
+MongoDB starts with Host and port (27017 by default). Connect using offers Connection string as an alternative, including SRV and multiple hosts; existing URI connections open in that mode. Connection type is a native select for Without TLS or TLS, with URI TLS settings still applying in connection string mode. User and Password stay in Credentials. Auth database and Mechanism belong to the initially collapsed Advanced section, alongside certificate, read preference and query settings. Switching address modes preserves entered values while submitting only the active mode's fields.
+
 [SCSS](elements/_connection-form.scss) · [Interactive demo](elements/connection-form.html)
 
 **Composes:**
@@ -1432,6 +1436,7 @@ The schema-driven Configure step of Add connection (PostgreSQL demo), also the f
 - gw-input
 - gw-select
 - gw-input-group
+- gw-menu-host / gw-menu
 - gw-secret
 - gw-choice-card
 - gw-env
@@ -1452,7 +1457,7 @@ The schema-driven Configure step of Add connection (PostgreSQL demo), also the f
 **States and behavior:**
 
 - new connection, Encrypted here (gw-secret empty, reveal only while typing a new value)
-- reference source, new (mono reference input + Test reference); Vault also offers Browse Vault, an editable Folder with Load secrets and a native Secret or folder select, plus Load keys and a native Key in Vault select. The list contains names only; choosing a key updates the reference fragment while preserving a pinned version. Editing the path clears the list, and loading, empty, and permission errors stay beside the picker.
+- reference source, new (mono reference input + Test reference); Vault loads accessible paths and key names automatically into one autocomplete. Typing filters complete path#key suggestions, and choosing one inserts the reference. Click or ArrowDown opens suggestions; arrow keys move, Enter chooses, and Escape or Tab closes while focus stays in the input. Loading, empty, and partial-permission states stay beside the field; Refresh list retries discovery. Values are never shown and manual references remain available.
 - secret reference, tested (gw-secret reference well, Vault KV, stage-db)
 - stored password in the edit view (gw-secret stored: Encrypted · version 3, Replace / Rotate, no reveal)
 - Rotate unavailable (a connector that can't set a value at the source, cache-redis): aria-disabled with the reason under the field

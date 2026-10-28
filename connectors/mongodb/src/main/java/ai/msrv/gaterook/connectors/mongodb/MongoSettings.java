@@ -3,6 +3,7 @@ package ai.msrv.gaterook.connectors.mongodb;
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connectors.support.Pem;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -16,7 +17,7 @@ import tools.jackson.databind.JsonNode;
  * ({@code x-env-default}: TLS on, {@code secondaryPreferred}). A config with {@link #problems()} is never used to
  * connect: Test connection names the field, and every call is denied.
  *
- * @param uri              the connection string as stored
+ * @param uri              a credential-free connection string, assembled from Host and Port or stored directly
  * @param parsed           its parts, {@code null} when it doesn't parse
  * @param tls              TLS for every connection: the form's setting (on by default on prod), the connection
  *                         string's {@code tls=true}, or {@code mongodb+srv://} without {@code tls=false}
@@ -47,8 +48,8 @@ record MongoSettings(Env env, String uri, MongoUri parsed, boolean tls, String c
       Map.entry("tlscafile", "paste the CA certificate into CA certificate instead"),
       Map.entry("tlscertificatekeyfile", "client certificates aren't supported yet"),
       Map.entry("tlscertificatekeyfilepassword", "client certificates aren't supported yet"),
-      Map.entry("authmechanism", "choose it in Credentials › Mechanism instead"),
-      Map.entry("authmechanismproperties", "choose the mechanism in Credentials instead"),
+      Map.entry("authmechanism", "choose it in Advanced › Mechanism instead"),
+      Map.entry("authmechanismproperties", "choose the mechanism in Advanced instead"),
       Map.entry("proxyusername", "credentials don't belong in the connection string"),
       Map.entry("proxypassword", "credentials don't belong in the connection string"),
       Map.entry("timeoutms", "the environment policy sets the time limits"));
@@ -60,11 +61,33 @@ record MongoSettings(Env env, String uri, MongoUri parsed, boolean tls, String c
     Env env = cfg.env();
     List<Problem> problems = new ArrayList<>();
     String uri = cfg.string("/connection/uri");
+    boolean hasUri = uri != null && !uri.isBlank();
+    String mode = cfg.string("/connection/mode");
+    if (mode == null) {
+      mode = hasUri ? "uri" : "host";
+    }
+    if (!Set.of("host", "uri").contains(mode)) {
+      problems.add(new Problem("/connection/mode", "Choose Host and port or Connection string."));
+    }
+    boolean uriMode = "uri".equals(mode);
+    JsonNode host = cfg.config().at("/connection/host");
+    if (uriMode) {
+      if (!host.isMissingNode() && !host.isNull() && (!host.isString() || !host.asString().isBlank())) {
+        problems.add(new Problem("/connection/host", "Clear Host when using a connection string."));
+      }
+    } else {
+      if (hasUri) {
+        problems.add(new Problem("/connection/uri", "Clear Connection string when using Host and Port."));
+      }
+      uri = hostUri(cfg, host, problems);
+    }
     MongoUri parsed = null;
-    try {
-      parsed = MongoUri.parse(uri);
-    } catch (IllegalArgumentException e) {
-      problems.add(new Problem("/connection/uri", e.getMessage()));
+    if (uriMode || uri != null) {
+      try {
+        parsed = MongoUri.parse(uri);
+      } catch (IllegalArgumentException e) {
+        problems.add(new Problem(uriMode ? "/connection/uri" : "/connection/host", e.getMessage()));
+      }
     }
     boolean formTls = cfg.bool("/connection/tls", env == Env.PROD);
     boolean tls = formTls;
@@ -104,7 +127,7 @@ record MongoSettings(Env env, String uri, MongoUri parsed, boolean tls, String c
       }
       String uriTls = parsed.option("tls") != null ? parsed.option("tls") : parsed.option("ssl");
       if ("false".equalsIgnoreCase(uriTls) && formTls) {
-        problems.add(new Problem("/connection/tls", "The connection string says tls=false and Use TLS is on: "
+        problems.add(new Problem("/connection/tls", "The connection string says tls=false and Connection type is TLS: "
             + "make them the same."));
       }
       if ("true".equalsIgnoreCase(uriTls) || (parsed.srv() && uriTls == null)) {
@@ -173,6 +196,47 @@ record MongoSettings(Env env, String uri, MongoUri parsed, boolean tls, String c
     return new MongoSettings(env, uri, parsed, tls, ca, allowInvalidHostnames, readPreference, user, authSource,
         mechanism, List.copyOf(allowlist), List.copyOf(databases), maxTimeMs, poolSize, serverSelection,
         List.copyOf(problems));
+  }
+
+  /** Builds the driver's address without giving host input access to credentials, databases or URI options. */
+  private static String hostUri(ConnectionConfig cfg, JsonNode hostNode, List<Problem> problems) {
+    String host = hostNode.isString() ? hostNode.asString().trim() : "";
+    String address = null;
+    if (host.isEmpty()) {
+      problems.add(new Problem("/connection/host", "Enter the MongoDB host name or IP address."));
+    } else {
+      String literal = host.startsWith("[") && host.endsWith("]") ? host.substring(1, host.length() - 1) : host;
+      if (literal.contains(":")) {
+        try {
+          // ofLiteral never resolves DNS. Reject scopes and escapes so the resulting URI stays unambiguous.
+          if (literal.contains("%") || literal.contains("[") || literal.contains("]")) {
+            throw new IllegalArgumentException();
+          }
+          InetAddress.ofLiteral(literal);
+          address = "[" + literal + "]";
+        } catch (IllegalArgumentException ignored) {
+          problems.add(new Problem("/connection/host", "Enter a valid host name or IP address without a port."
+              + " Put the port in Port."));
+        }
+      } else if (host.length() <= 253 && host.matches(
+          "(?i)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*\\.?")) {
+        address = host;
+      } else {
+        problems.add(new Problem("/connection/host", "Enter one host name or IP address, without a connection"
+            + " string, port, credentials or options."));
+      }
+    }
+    JsonNode portNode = cfg.config().at("/connection/port");
+    int port = 27017;
+    if (!portNode.isMissingNode()) {
+      if (!portNode.isIntegralNumber() || !portNode.canConvertToInt() || portNode.asInt() < 1
+          || portNode.asInt() > 65535) {
+        problems.add(new Problem("/connection/port", "Enter a whole-number port between 1 and 65535."));
+        return null;
+      }
+      port = portNode.asInt();
+    }
+    return address == null ? null : MongoUri.PREFIX + address + ":" + port + "/";
   }
 
   boolean usable() {

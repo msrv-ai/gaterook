@@ -16,7 +16,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { FormField, form, maxLength, validate } from '@angular/forms/signals';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { isApiError } from '../../core/api/api-error';
-import { ConnectionPreview, IssuedToken, SplitPreview, TokenRow, WiredConnection } from '../../core/api/endpoints.api';
+import { ConnectionPreview, IssuedToken, SplitPreview, TokenRow, ToolGroup, WiredConnection } from '../../core/api/endpoints.api';
 import { ToolMode } from '../../core/api/types';
 import { CoreStore } from '../../core/stores/core.store';
 import { EndpointsStore } from '../../core/stores/endpoints.store';
@@ -32,7 +32,8 @@ import { GwSplitDialog, SplitRequest } from '../../kit/elements/risk-callout/spl
 import { GwSetupWiring, SetupWiring } from '../../kit/elements/setup-map/setup-map';
 import { connectorIcon } from '../../kit/elements/shared/connector-icons';
 import { GwTokenIssueDialog, GwTokens } from '../../kit/elements/token-issue/token-issue';
-import { GwToolPolicyList, ToolModeChange, ToolOverridesChange } from '../../kit/elements/tool-policy-list/tool-policy-list';
+import { GwToolPolicyList, TemporaryBypassOpen, ToolModeChange, ToolOverridesChange } from '../../kit/elements/tool-policy-list/tool-policy-list';
+import { GwTemporaryBypassDialog } from '../../kit/elements/tool-policy-list/temporary-bypass-dialog';
 import { toolPolicyGroups } from '../../kit/elements/tool-policy-list/tool-policy-view';
 import { GwIcon } from '../../kit/icons';
 import { GwMenu, GwMenuTrigger } from '../../kit/menu';
@@ -125,6 +126,7 @@ export const SPLIT_FRAGMENT = 'ep-dlg-split';
     GwSplitDialog,
     GwSetupWiring,
     GwToolPolicyList,
+    GwTemporaryBypassDialog,
     GwTokens,
     GwTokenIssueDialog,
     GwEndpointSettings,
@@ -162,6 +164,13 @@ export class EndpointDetailPage {
   private readonly removeDialog = viewChild<GwDialog>('removeDialog');
   private readonly keepDialog = viewChild<GwDialog>('keepDialog');
   private readonly tokenDialog = viewChild<GwTokenIssueDialog>('tokenDialog');
+  private readonly temporaryBypassDialog = viewChild<GwTemporaryBypassDialog>('temporaryBypassDialog');
+  protected readonly temporaryBypassMounted = signal(false);
+  private temporaryBypassEndpoint: string | null = null;
+  private lastExpiredBypass = '';
+  private bypassRefreshInFlight = false;
+  private nextBypassRefreshAt = 0;
+  private bypassRetryDelayMs = 3_000;
 
   protected readonly envs = ENVS;
   protected readonly connectorIcon = connectorIcon;
@@ -316,6 +325,26 @@ export class EndpointDetailPage {
   protected readonly toggling = signal(false);
 
   constructor() {
+    effect(() => {
+      const now = this.time.now();
+      const expired = (this.data.groups() ?? []).flatMap((group) => group.tools
+        .filter((tool) => tool.bypassUntil && Date.parse(tool.bypassUntil) <= now)
+        .map((tool) => `${this.ep()}:${group.connection}:${tool.toolKey}:${tool.bypassUntil}`)).sort().join('|');
+      if (expired !== this.lastExpiredBypass) {
+        this.lastExpiredBypass = expired;
+        this.nextBypassRefreshAt = 0;
+        this.bypassRetryDelayMs = 3_000;
+      }
+      if (!expired || this.bypassRefreshInFlight || now < this.nextBypassRefreshAt) return;
+      // Date-header clock skew can make the first read slightly early. Retry only these two resources, with
+      // backoff, until the core confirms expiry; never overlap requests or repeatedly reload the entire page.
+      this.bypassRefreshInFlight = true;
+      this.nextBypassRefreshAt = now + this.bypassRetryDelayMs;
+      this.bypassRetryDelayMs = Math.min(this.bypassRetryDelayMs * 2, 30_000);
+      untracked(() => void Promise.all([this.data.reloadTools(), this.data.reloadDetail()]).finally(() => {
+        this.bypassRefreshInFlight = false;
+      }));
+    });
     const timer = setTimeout(() => this.slow.set(true), SKELETON_DELAY_MS);
     effect((onCleanup) => {
       if (!this.loading()) clearTimeout(timer);
@@ -390,6 +419,22 @@ export class EndpointDetailPage {
     } catch (e) {
       this.toast({ tone: 'danger', title: "The mode wasn't changed", body: this.errorText(e) });
     }
+  }
+
+  protected openTemporaryBypass(request: TemporaryBypassOpen): void {
+    const slug = this.ep();
+    this.temporaryBypassEndpoint = slug;
+    this.temporaryBypassMounted.set(true);
+    afterNextRender(() => {
+      if (this.ep() === slug) this.temporaryBypassDialog()?.open({
+        slug, toolKey: request.toolKey, connection: request.connection, toolName: request.toolName,
+      }, request.opener);
+    }, { injector: this.injector });
+  }
+
+  protected async temporaryBypassChanged(groups: ToolGroup[]): Promise<void> {
+    if (this.temporaryBypassEndpoint !== this.ep()) return;
+    await this.data.applyTemporaryBypass(groups);
   }
 
   protected async setOverrides(c: ToolOverridesChange): Promise<void> {

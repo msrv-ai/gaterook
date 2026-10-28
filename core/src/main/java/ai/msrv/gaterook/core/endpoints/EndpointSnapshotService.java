@@ -10,6 +10,7 @@ import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.connectors.ConnectorType;
 import ai.msrv.gaterook.core.connectors.ConnectorTypeChanged;
 import ai.msrv.gaterook.core.endpoints.internal.EndpointRows;
+import ai.msrv.gaterook.core.endpoints.internal.TemporaryBypass;
 import ai.msrv.gaterook.core.endpoints.internal.ToolPairs;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.EndpointAccess;
 import ai.msrv.gaterook.core.endpoints.internal.persistence.EndpointConnectionEntity;
@@ -23,6 +24,8 @@ import ai.msrv.gaterook.core.platform.MasterKeyChanged;
 import ai.msrv.gaterook.core.policy.PairView;
 import ai.msrv.gaterook.core.policy.PolicyChanged;
 import ai.msrv.gaterook.core.templates.TemplateChanged;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -57,13 +60,14 @@ public class EndpointSnapshotService {
   private final IntegrityAlerts alerts;
   private final ApplicationEventPublisher publisher;
   private final TransactionTemplate readTx;
+  private final Clock clock;
   private final Map<String, EndpointSnapshot> cache = new ConcurrentHashMap<>();
   private final java.util.concurrent.atomic.AtomicLong generation = new java.util.concurrent.atomic.AtomicLong();
 
   public EndpointSnapshotService(EndpointRepository endpoints, EndpointConnectionRepository wiring,
       EndpointToolRepository tools, EndpointRows rows, ConnectionConfigs connections, ConnectorRegistry registry,
       ToolPairs pairs, IntegrityAlerts alerts, ApplicationEventPublisher publisher,
-      PlatformTransactionManager transactions) {
+      PlatformTransactionManager transactions, Clock clock) {
     this.endpoints = endpoints;
     this.wiring = wiring;
     this.tools = tools;
@@ -73,14 +77,19 @@ public class EndpointSnapshotService {
     this.pairs = pairs;
     this.alerts = alerts;
     this.publisher = publisher;
+    this.clock = clock;
     this.readTx = new TransactionTemplate(transactions);
     this.readTx.setReadOnly(true);
   }
 
   public Optional<EndpointSnapshot> get(String endpointId) {
     EndpointSnapshot cached = cache.get(endpointId);
-    if (cached != null) {
+    if (cached != null && !expired(cached)) {
       return Optional.of(cached);
+    }
+    if (cached != null) {
+      evict(endpointId);
+      publisher.publishEvent(new EndpointCatalogInvalidated(endpointId));
     }
     // Inside a caller's transaction the rows may hold what it hasn't committed (and may roll back), or a database
     // snapshot older than a change whose eviction already ran (SQLite fixes a read transaction's view at its first
@@ -115,10 +124,15 @@ public class EndpointSnapshotService {
         && !TransactionSynchronizationManager.isCurrentTransactionReadOnly();
     for (EndpointSnapshot s : inWrite ? java.util.List.<EndpointSnapshot>of() : cache.values()) {
       if (s.slug().equals(slug)) {
-        return Optional.of(s);
+        return get(s.id());
       }
     }
     return readTx.execute(st -> endpoints.findBySlug(slug).map(e -> e.getId())).flatMap(this::get);
+  }
+
+  private boolean expired(EndpointSnapshot snapshot) {
+    Instant now = clock.instant();
+    return snapshot.pairs().stream().anyMatch(p -> p.bypassUntil() != null && !now.isBefore(p.bypassUntil()));
   }
 
   // ── Invalidation ────────────────────────────────────────────────────────────────────────────────────────────
@@ -261,6 +275,11 @@ public class EndpointSnapshotService {
         Mode storedMode = row == null ? Mode.OFF : row.getMode();
         boolean confirmed = row != null && confirmed(row.getRoConfirmation(), offered);
         Mode mode = storedMode;
+        Instant bypassUntil = problem == null
+            ? TemporaryBypass.activeUntil(row, e, w.config(), offered, readOnly, clock.instant()) : null;
+        if (bypassUntil != null) {
+          mode = Mode.BYPASS;
+        }
         if (mode == Mode.READ_ONLY && offered.needsReadOnlyConfirmation() && !confirmed) {
           mode = Mode.APPROVAL;
         }
@@ -282,7 +301,7 @@ public class EndpointSnapshotService {
             rows.tree(e.getSettings()).path("limits"), overrides);
         out.add(new EndpointSnapshot.Pair(row == null ? null : row.getId(), row == null ? 0 : row.getVersion(),
             offered.toolKey(), offered.definition(), manifest, w.config(), mode, storedMode, overrides,
-            offered.declaredBy(), confirmed, offered.provenanceVersion(), binding, view, contributions));
+            offered.declaredBy(), confirmed, offered.provenanceVersion(), binding, view, contributions, bypassUntil));
       }
     }
     if (blocked != null) {

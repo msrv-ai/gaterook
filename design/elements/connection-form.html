@@ -127,28 +127,18 @@
           </div>
           <div class="gw-field gw-connection-form__secret" data-source="vault">
             <label class="gw-field__label" for="f1-ref-vault">Secret reference</label>
-            <div class="gw-secret" data-state="empty">
-              <input class="gw-input gw-input--mono" type="text" id="f1-ref-vault" data-vault-reference name="secretRef" placeholder="vault://kv/dev/db#password" autocomplete="off" spellcheck="false" aria-describedby="f1-ref-vault-hint">
-              <span class="gw-secret__actions"><button class="gw-btn" type="button" data-gw-toggle aria-expanded="false" aria-controls="f1-vault-browser">Browse Vault</button><button class="gw-btn" type="button" data-vault-keys-load aria-controls="f1-vault-keys" aria-describedby="f1-vault-keys-status"><span class="gw-spinner gw-spinner--sm" data-vault-keys-spinner aria-hidden="true" hidden></span>Load keys</button><button class="gw-btn" type="button">Test reference</button></span>
-            </div>
-            <p class="gw-field__hint" id="f1-ref-vault-hint">Path and key in Vault or OpenBao, resolved at call time with the core's Vault token.</p>
-            <div class="gw-field" id="f1-vault-browser" hidden>
-              <label class="gw-field__label" for="f1-vault-folder">Folder</label>
-              <div class="gw-secret" data-state="empty">
-                <input class="gw-input gw-input--mono" id="f1-vault-folder" data-vault-folder placeholder="All KV mounts" autocomplete="off" spellcheck="false" aria-describedby="f1-vault-folder-hint">
-                <span class="gw-secret__actions"><button class="gw-btn" type="button" data-vault-secrets-load aria-describedby="f1-vault-browser-status">Load secrets</button></span>
+            <div class="gw-secret gw-menu-host" data-state="empty">
+              <div class="gw-input-group">
+                <span class="gw-input-group__affix gw-mono" id="f1-ref-vault-prefix">vault://</span>
+                <input class="gw-input gw-input--mono" type="text" id="f1-ref-vault" data-vault-reference name="secretRef" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="f1-vault-suggestions" placeholder="Search Vault paths or keys" autocomplete="off" spellcheck="false" aria-describedby="f1-ref-vault-prefix f1-ref-vault-hint f1-vault-status">
               </div>
-              <p class="gw-field__hint" id="f1-vault-folder-hint">Leave empty to list KV mounts, or enter a folder such as kv/dev. Listing needs Vault list permission; you can also enter a secret reference manually.</p>
-              <label class="gw-field__label" for="f1-vault-secret">Secret or folder</label>
-              <select class="gw-select gw-mono" id="f1-vault-secret" data-vault-secret-select disabled aria-describedby="f1-vault-browser-status"><option value="">Load secrets to choose a path</option></select>
-              <p class="gw-field__hint" id="f1-vault-browser-status" data-vault-browser-status role="status">Choose a folder to open it, or a secret to load its keys.</p>
+              <span class="gw-secret__actions"><button class="gw-btn" type="button">Test reference</button></span>
+              <div class="gw-menu gw-menu--wide" id="f1-vault-suggestions" data-vault-suggestions role="listbox" aria-label="Vault secret references" hidden></div>
             </div>
-            <div class="gw-field" data-vault-keys>
-              <label class="gw-field__label" for="f1-vault-keys">Key in Vault</label>
-              <select class="gw-select gw-mono" id="f1-vault-keys" data-vault-key-select disabled aria-describedby="f1-vault-keys-status">
-                <option value="">Load keys to choose a key</option>
-              </select>
-              <p class="gw-field__hint" id="f1-vault-keys-status" data-vault-keys-status role="status">Enter a Vault secret path, then load its keys. Only key names are shown.</p>
+            <p class="gw-field__hint" id="f1-ref-vault-hint">Choose a path and key from Vault or OpenBao, or enter a reference manually.</p>
+            <div class="gw-toolbar" data-vault-feedback>
+              <div class="gw-toolbar__start"><p class="gw-field__hint" id="f1-vault-status" data-vault-status role="status">Available paths and keys load automatically. Secret values are never shown.</p></div>
+              <div class="gw-toolbar__end"><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-vault-refresh aria-describedby="f1-vault-status"><span class="gw-spinner gw-spinner--sm" data-vault-spinner aria-hidden="true" hidden></span>Refresh list</button></div>
             </div>
           </div>
           <div class="gw-field gw-connection-form__secret" data-source="gcp">
@@ -339,28 +329,18 @@
           </div>
           <div class="gw-field gw-connection-form__secret" data-source="vault">
             <label class="gw-field__label" for="f7-ref-vault">Secret reference</label>
-            <div class="gw-secret" data-state="empty">
-              <input class="gw-input gw-input--mono" type="text" id="f7-ref-vault" data-vault-reference name="secretRef" placeholder="vault://kv/dev/db#password" autocomplete="off" spellcheck="false" aria-describedby="f7-ref-vault-hint">
-              <span class="gw-secret__actions"><button class="gw-btn" type="button" data-gw-toggle aria-expanded="false" aria-controls="f7-vault-browser">Browse Vault</button><button class="gw-btn" type="button" data-vault-keys-load aria-controls="f7-vault-keys" aria-describedby="f7-vault-keys-status"><span class="gw-spinner gw-spinner--sm" data-vault-keys-spinner aria-hidden="true" hidden></span>Load keys</button><button class="gw-btn" type="button">Test reference</button></span>
-            </div>
-            <p class="gw-field__hint" id="f7-ref-vault-hint">Path and key in Vault or OpenBao, resolved at call time with the core's Vault token.</p>
-            <div class="gw-field" id="f7-vault-browser" hidden>
-              <label class="gw-field__label" for="f7-vault-folder">Folder</label>
-              <div class="gw-secret" data-state="empty">
-                <input class="gw-input gw-input--mono" id="f7-vault-folder" data-vault-folder placeholder="All KV mounts" autocomplete="off" spellcheck="false" aria-describedby="f7-vault-folder-hint">
-                <span class="gw-secret__actions"><button class="gw-btn" type="button" data-vault-secrets-load aria-describedby="f7-vault-browser-status">Load secrets</button></span>
+            <div class="gw-secret gw-menu-host" data-state="empty">
+              <div class="gw-input-group">
+                <span class="gw-input-group__affix gw-mono" id="f7-ref-vault-prefix">vault://</span>
+                <input class="gw-input gw-input--mono" type="text" id="f7-ref-vault" data-vault-reference name="secretRef" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="f7-vault-suggestions" placeholder="Search Vault paths or keys" autocomplete="off" spellcheck="false" aria-describedby="f7-ref-vault-prefix f7-ref-vault-hint f7-vault-status">
               </div>
-              <p class="gw-field__hint" id="f7-vault-folder-hint">Leave empty to list KV mounts, or enter a folder such as kv/dev. Listing needs Vault list permission; you can also enter a secret reference manually.</p>
-              <label class="gw-field__label" for="f7-vault-secret">Secret or folder</label>
-              <select class="gw-select gw-mono" id="f7-vault-secret" data-vault-secret-select disabled aria-describedby="f7-vault-browser-status"><option value="">Load secrets to choose a path</option></select>
-              <p class="gw-field__hint" id="f7-vault-browser-status" data-vault-browser-status role="status">Choose a folder to open it, or a secret to load its keys.</p>
+              <span class="gw-secret__actions"><button class="gw-btn" type="button">Test reference</button></span>
+              <div class="gw-menu gw-menu--wide" id="f7-vault-suggestions" data-vault-suggestions role="listbox" aria-label="Vault secret references" hidden></div>
             </div>
-            <div class="gw-field" data-vault-keys>
-              <label class="gw-field__label" for="f7-vault-keys">Key in Vault</label>
-              <select class="gw-select gw-mono" id="f7-vault-keys" data-vault-key-select disabled aria-describedby="f7-vault-keys-status">
-                <option value="">Load keys to choose a key</option>
-              </select>
-              <p class="gw-field__hint" id="f7-vault-keys-status" data-vault-keys-status role="status">Enter a Vault secret path, then load its keys. Only key names are shown.</p>
+            <p class="gw-field__hint" id="f7-ref-vault-hint">Choose a path and key from Vault or OpenBao, or enter a reference manually.</p>
+            <div class="gw-toolbar" data-vault-feedback>
+              <div class="gw-toolbar__start"><p class="gw-field__hint" id="f7-vault-status" data-vault-status role="status">Available paths and keys load automatically. Secret values are never shown.</p></div>
+              <div class="gw-toolbar__end"><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-vault-refresh aria-describedby="f7-vault-status"><span class="gw-spinner gw-spinner--sm" data-vault-spinner aria-hidden="true" hidden></span>Refresh list</button></div>
             </div>
           </div>
           <div class="gw-field gw-connection-form__secret" data-source="gcp">

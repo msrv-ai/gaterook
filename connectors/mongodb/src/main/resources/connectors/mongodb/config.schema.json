@@ -10,28 +10,39 @@
       "type": "object",
       "title": "Connection",
       "additionalProperties": false,
-      "required": [
-        "uri"
-      ],
       "properties": {
-        "uri": {
+        "mode": {
           "type": "string",
-          "title": "Connection string",
-          "maxLength": 4000,
-          "pattern": "^mongodb(\\+srv)?://",
-          "examples": [
-            "mongodb://mongo.dev.internal:27017/orders"
+          "title": "Connect using",
+          "enum": [
+            "host",
+            "uri"
           ],
-          "description": "Without a user name or password: they go into Credentials. mongodb+srv:// turns TLS on."
+          "x-enumTitles": [
+            "Host and port",
+            "Connection string"
+          ],
+          "default": "host"
         },
+        "host": true,
+        "port": true,
+        "uri": true,
         "tls": {
           "type": "boolean",
-          "title": "Use TLS",
+          "title": "Connection type",
           "default": false,
           "x-env-default": {
             "prod": true
           },
-          "x-section": "/advanced"
+          "enum": [
+            false,
+            true
+          ],
+          "x-enumTitles": [
+            "Without TLS",
+            "TLS"
+          ],
+          "description": "TLS verifies the server certificate and host name. In connection string mode, TLS settings in the string also apply."
         },
         "caCertificate": {
           "type": "string",
@@ -80,6 +91,69 @@
           },
           "description": "Only these databases are available to agents. Existing collection restrictions still apply."
         }
+      },
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "uri"
+          }
+        },
+        "anyOf": [
+          {
+            "required": [
+              "mode"
+            ]
+          },
+          {
+            "required": [
+              "uri"
+            ]
+          }
+        ]
+      },
+      "then": {
+        "required": [
+          "uri"
+        ],
+        "properties": {
+          "uri": {
+            "type": "string",
+            "title": "Connection string",
+            "maxLength": 4000,
+            "pattern": "^mongodb(\\+srv)?://",
+            "examples": [
+              "mongodb://mongo.dev.internal:27017/orders"
+            ],
+            "description": "Without a user name or password: enter them in Credentials. Supports mongodb:// and mongodb+srv://; SRV enables TLS unless the string explicitly sets tls=false.",
+            "minLength": 1
+          },
+          "host": false,
+          "port": false
+        }
+      },
+      "else": {
+        "required": [
+          "host"
+        ],
+        "properties": {
+          "host": {
+            "type": "string",
+            "title": "Host",
+            "minLength": 1,
+            "maxLength": 253,
+            "examples": [
+              "mongo.example.test"
+            ]
+          },
+          "port": {
+            "type": "integer",
+            "title": "Port",
+            "minimum": 1,
+            "maximum": 65535,
+            "default": 27017
+          },
+          "uri": false
+        }
       }
     },
     "credentials": {
@@ -104,7 +178,8 @@
           "type": "string",
           "title": "Auth database",
           "default": "admin",
-          "maxLength": 64
+          "maxLength": 64,
+          "x-section": "/advanced"
         },
         "mechanism": {
           "type": "string",
@@ -115,7 +190,8 @@
             "SCRAM-SHA-1",
             "none"
           ],
-          "default": "auto"
+          "default": "auto",
+          "x-section": "/advanced"
         }
       }
     },

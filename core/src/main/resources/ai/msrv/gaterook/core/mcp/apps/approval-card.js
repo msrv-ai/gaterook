@@ -163,7 +163,6 @@ export function mountApprovalCard(win) {
     byId('request-language').textContent = card.request.language === 'arguments' ? 'JSON' : card.request.language.toUpperCase();
     byId('request-text').textContent = card.request.text;
     byId('request-truncated').hidden = !card.request.truncated;
-    byId('comment-required').hidden = !card.commentRequired;
     byId('request-content').hidden = false;
     error(serverTools ? '' : 'This chat cannot use card actions. Open GateRook to review the request.');
     clearTimers();
