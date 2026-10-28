@@ -97,19 +97,20 @@ Window frame of every app page: a CSS grid with the titlebar across the top, the
 
 ### `gw-titlebar`
 
-Electron frameless titlebar (bg canvas, subtle bottom rule, --gw-layout-titlebar-height): current section name, a drag spacer and actions (search with ⌘K, approvals bell with an attention counter, appearance popover). The whole bar is a drag region; links, buttons, inputs, labels, [tabindex], menus and popovers inside opt out (no-drag) automatically.
+Electron frameless titlebar (bg canvas, subtle bottom rule, --gw-layout-titlebar-height): a centered, truncating section name, a leading drag area with Back, and trailing actions (search with ⌘K, approvals bell with an attention counter, appearance popover). The whole bar is a drag region; links, buttons, inputs, labels, [tabindex], menus and popovers inside opt out (no-drag) automatically.
 
 [SCSS](scss/components/_shell.scss)
 
-**Variants:** --mac (start padding --gw-layout-titlebar-inset-mac for the traffic lights); Windows/Linux: end padding from env(titlebar-area-x/width); the fallbacks cancel out without Window Controls Overlay.
+**Variants:** --mac (leading drag area reserves --gw-layout-titlebar-inset-mac plus --gw-space-2 for the traffic lights); Windows/Linux: end padding from env(titlebar-area-x/width); the fallbacks cancel out without Window Controls Overlay.
 
-**Parts:** __title; __drag; __actions.
+**Parts:** __drag (leading slot, optional Back button); __title (centered across the window, truncates); __actions (trailing controls).
 
 **States and behavior:**
 
+- Back is a native-disabled icon button until a previous application page exists; the renderer owns navigation history. Reference pages show the initial disabled state.
 - a gw-counter inside an icon button in __actions is pinned as a corner badge ringed in the canvas colour
 
-**Accessibility:** The <header> is the banner landmark. Icon buttons carry aria-label ("Approvals, 3 waiting" with an aria-hidden counter; "Appearance"). The Search button's name starts with its visible text ("Search and commands") and its ⌘K kbd is aria-hidden. Overlays at the window edge use gw-menu--right / gw-popover--right. Popover titles are <p>, not headings, because they precede the page h1.
+**Accessibility:** The <header> is the banner landmark. Back carries aria-label="Go back" and a title explaining its disabled state. Icon buttons carry aria-label ("Approvals, 3 waiting" with an aria-hidden counter; "Appearance"). The Search button's name starts with its visible text ("Search and commands") and its ⌘K kbd is aria-hidden. Overlays at the window edge use gw-menu--right / gw-popover--right. Popover titles are <p>, not headings, because they precede the page h1.
 
 ### `gw-sidebar`
 
@@ -1782,8 +1783,10 @@ These examples retain the original component and composition structures. Ellipse
 <a class="gw-skip-link" href="#main">Skip to content</a>
 <div class="gw-shell">
   <header class="gw-titlebar">
+    <div class="gw-titlebar__drag">
+      <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Go back" title="No previous page" disabled><i class="gw-icon" data-lucide="arrow-left"></i></button>
+    </div>
     <span class="gw-titlebar__title">Overview</span>
-    <div class="gw-titlebar__drag"></div>
     <div class="gw-titlebar__actions">…Search ⌘K, approvals bell, appearance popover…</div>
   </header>
   <div class="gw-sidebar" id="gw-sidebar">

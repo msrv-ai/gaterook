@@ -197,9 +197,9 @@
     {
       "name": "gw-titlebar",
       "scss": "scss/components/_shell.scss",
-      "purpose": "Electron frameless titlebar (bg canvas, subtle bottom rule, --gw-layout-titlebar-height): current section name, a drag spacer and actions (search with ⌘K, approvals bell with an attention counter, appearance popover). The whole bar is a drag region; links, buttons, inputs, labels, [tabindex], menus and popovers inside opt out (no-drag) automatically.",
+      "purpose": "Electron frameless titlebar (bg canvas, subtle bottom rule, --gw-layout-titlebar-height): a centered, truncating section name, a leading drag area with Back, and trailing actions (search with ⌘K, approvals bell with an attention counter, appearance popover). The whole bar is a drag region; links, buttons, inputs, labels, [tabindex], menus and popovers inside opt out (no-drag) automatically.",
       "variants": [
-        "--mac (start padding --gw-layout-titlebar-inset-mac for the traffic lights)",
+        "--mac (leading drag area reserves --gw-layout-titlebar-inset-mac plus --gw-space-2 for the traffic lights)",
         "Windows/Linux: end padding from env(titlebar-area-x/width); the fallbacks cancel out without Window Controls Overlay"
       ],
       "subparts": [
@@ -208,9 +208,10 @@
         "__actions"
       ],
       "states": [
+        "Back is a native-disabled icon button until a previous application page exists; the renderer owns navigation history. Reference pages show the initial disabled state.",
         "a gw-counter inside an icon button in __actions is pinned as a corner badge ringed in the canvas colour"
       ],
-      "a11y": "The <header> is the banner landmark. Icon buttons carry aria-label (\"Approvals, 3 waiting\" with an aria-hidden counter; \"Appearance\"). The Search button's name starts with its visible text (\"Search and commands\") and its ⌘K kbd is aria-hidden. Overlays at the window edge use gw-menu--right / gw-popover--right. Popover titles are <p>, not headings, because they precede the page h1."
+      "a11y": "The <header> is the banner landmark. Back carries aria-label=\"Go back\" and a title explaining its disabled state. Icon buttons carry aria-label (\"Approvals, 3 waiting\" with an aria-hidden counter; \"Appearance\"). The Search button's name starts with its visible text (\"Search and commands\") and its ⌘K kbd is aria-hidden. Overlays at the window edge use gw-menu--right / gw-popover--right. Popover titles are <p>, not headings, because they precede the page h1."
     },
     {
       "name": "gw-sidebar",
