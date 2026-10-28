@@ -33,6 +33,7 @@ import { fileSelection, withoutFileFields } from './file-selection';
 import { FileBrowseRequest, FileBrowseTrust, GwRemoteFiles } from './remote-files';
 import { DatabaseName, databaseConfig, databaseNames, databaseSelection, initialDatabases, removeConfigPath, withoutDatabaseFields } from './database-selection';
 import { GwCloudProjects, ProjectDiscoveryRequest } from './cloud-projects';
+import { mongodbFormConfig } from './mongodb-configuration';
 
 /** What Save (and Test) hand to the page: the request members of `POST /api/connections` / `/test`. */
 export interface ConnectionFormValue {
@@ -258,7 +259,7 @@ export class GwConnectionForm {
     return untracked(() => {
       const state = createSchemaForm(spec.schema, {
         idPrefix,
-        current,
+        current: mongodbFormConfig(spec.type, current, this.common().env),
         stored,
         replacing,
         expanded,
@@ -709,7 +710,8 @@ export class GwConnectionForm {
 
   /** Discard: back to the values the form was given (config, name, env), nothing typed kept, no messages. */
   reset(): void {
-    this.state().reset(databaseConfig(this.config(), this.databaseSelection()), this.spec().schema);
+    this.state().reset(mongodbFormConfig(this.spec().type, databaseConfig(this.config(), this.databaseSelection()),
+      this.env() ?? this.spec().env ?? 'dev'), this.spec().schema);
     this.databaseDiscovery.set(null);
     this.files()?.reset();
     this.projects()?.reset();

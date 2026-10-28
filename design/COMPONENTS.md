@@ -1425,6 +1425,8 @@ Cursor browser sign-in enables OAuth for the selected local endpoint and opens i
 
 The schema-driven Configure step of Add connection (PostgreSQL demo), also the form of connection-new ?duplicate=<name> (settings copied, credentials never) and ?edit=<name> (secret stored: Replace / Rotate, or a reference). It has four gw-form sections: Connection (name slug, host, port, database, SSL mode); Credentials (User, plus a secret source picker of four gw-choice-cards that switches the gw-secret control: Encrypted here, Vault or OpenBao, GCP SM, AWS SM); Environment and safety (dev / stage / prod cards with gw-env, where prod shows the stricter defaults: read-only transactions, row limit 100, statement timeout 3 s, no DDL, approval timeout 10 min, a comment required to approve); and Advanced (a disclosure with an optional statement timeout — empty means the environment's one policy value —, pool size and a schema allowlist as tags). A Test connection panel follows with idle, testing, success (detected permissions, write grant flagged) and failure states.
 
+MongoDB starts with Host and port (27017 by default). Connect using offers Connection string as an alternative, including SRV and multiple hosts; existing URI connections open in that mode. Connection type is a native select for Without TLS or TLS, with URI TLS settings still applying in connection string mode. User and Password stay in Credentials. Auth database and Mechanism belong to the initially collapsed Advanced section, alongside certificate, read preference and query settings. Switching address modes preserves entered values while submitting only the active mode's fields.
+
 [SCSS](elements/_connection-form.scss) · [Interactive demo](elements/connection-form.html)
 
 **Composes:**
