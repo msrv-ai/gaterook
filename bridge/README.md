@@ -7,7 +7,7 @@ Client → gw-bridge (headers or stdio) → local socket/pipe → Electron broke
   → signed POST /internal/bridge/tokens → core → short-lived gwb_ token
 ```
 
-The core decides whether a `gr_` grant may obtain a token. The broker signs the request with the launch secret and asks the person through `confirm` when the core returns `confirmation_required`, such as the first production-grant token in a core session.
+The core decides whether a `gr_` grant may obtain a token. The broker signs the request with the launch secret and asks the person through `confirm` when the core returns `confirmation_required`, before the first production-grant token. Allow is saved for that grant and survives client reconnects, token refreshes, and GateRook restarts. Disconnecting the client revokes its grant; a new grant needs its own permission. Tool approval rules still apply.
 
 ## Electron API
 
@@ -40,7 +40,7 @@ app.on('will-quit', () => broker.close());
 | `readBrokerInfo(home)`, `brokerInfoPath(home)`, `randomBrokerPath(home, platform?)` | Broker discovery and path helpers. |
 | `PROTOCOL_VERSION`, `BROKER_VERSION`, `MAX_REQUEST_BYTES` | Protocol constants: version 1 and a 4096-byte request limit. |
 
-Options include `confirmTimeoutMs` (55,000), `requestTimeoutMs` (3,000 per request line), `maxConnections` (32), and a platform override for tests. Concurrent requests for the same grant share one confirmation. See `index.d.ts` for types.
+Options include `confirmTimeoutMs` (55,000), `requestTimeoutMs` (3,000 per request line), `maxConnections` (32), and a platform override for tests. Concurrent requests for the same grant share one confirmation. A bridge timeout leaves the dialog pending, and its later answer is sent to the core once, even if the waiting bridge has disconnected. A retry shares the pending dialog. Closing the broker discards unanswered dialogs' later decisions. See `index.d.ts` for types.
 
 The core also emits `bridge.confirm` on `/api/events`. Main can submit a signed `POST /internal/bridge/confirm` with `{grant, decision: "allow" | "deny"}` after a UI decision.
 

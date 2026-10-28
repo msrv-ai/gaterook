@@ -190,8 +190,145 @@ describe('broker confirmation of prod grants', () => {
       assert.equal(JSON.parse(a).ok, true);
       assert.equal(JSON.parse(b).ok, true);
       assert.equal(asked, 1, 'one dialog for both bridges');
-      assert.deepEqual(decisions.map((d) => d.decision), ['allow', 'allow']);
+      assert.deepEqual(decisions.map((d) => d.decision), ['allow']);
       assert.equal(decisions[0].grant, 'gr_abcdefghijkl');
+    } finally {
+      await broker?.close();
+      await core.close();
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  for (const allowed of [true, false]) {
+    it(`records a late ${allowed ? 'Allow' : 'Deny'} once after bridge timeouts and keeps one dialog`, async () => {
+      const decisions = [];
+      let choose;
+      const choice = new Promise((resolve) => { choose = resolve; });
+      let recorded;
+      const recording = new Promise((resolve) => { recorded = resolve; });
+      const grant = 'gr_abcdefghijkl';
+      const core = await fakeCore({
+        tokens: async (r) => {
+          const decision = decisions.find((d) => d.grant === r.grant);
+          if (decision?.decision === 'allow') return issued(core.port, r.endpoint);
+          return { v: 1, ok: false, error: decision ? 'confirmation_denied' : 'confirmation_required',
+            message: 'Permission for Cursor to use incident-prod.' };
+        },
+        confirm: (body) => { decisions.push(body); recorded(); },
+      });
+      const home = tempHome('broker-late');
+      let asked = 0;
+      let broker;
+      try {
+        broker = await startBroker({ home, core: createCoreClient({ origin: core.origin, launchSecret: SECRET }),
+          confirmTimeoutMs: 25,
+          confirm: async (ask) => {
+            asked++;
+            assert.equal(ask.client, 'cursor');
+            assert.equal(ask.endpoint, 'incident-prod');
+            assert.equal(ask.grant, grant);
+            return choice;
+          } });
+        const request = req({ client: 'cursor', endpoint: 'incident-prod', grant });
+        assert.equal(JSON.parse(await exchange(broker.path, request)).error, 'confirmation_required');
+        assert.equal(JSON.parse(await exchange(broker.path, request)).error, 'confirmation_required');
+        assert.equal(asked, 1, 'retries share the dialog after the previous bridge stopped waiting');
+        assert.deepEqual(decisions, [], 'a timeout is not a decision');
+        choose(allowed);
+        await recording;
+        const answer = JSON.parse(await exchange(broker.path, request));
+        assert.equal(answer.ok, allowed);
+        if (!allowed) assert.equal(answer.error, 'confirmation_denied');
+        assert.equal(asked, 1, 'the recorded decision needs no further dialog');
+        assert.deepEqual(decisions, [{ grant, decision: allowed ? 'allow' : 'deny' }]);
+      } finally {
+        await broker?.close();
+        await core.close();
+        fs.rmSync(home, { recursive: true, force: true });
+      }
+    });
+  }
+
+  it('keeps a late permission scoped to its grant while another grant is still waiting', async () => {
+    const decisions = [];
+    const firstGrant = 'gr_abcdefghijkl';
+    const secondGrant = 'gr_mnopqrstuvwx';
+    const asked = [];
+    let choose;
+    const choice = new Promise((resolve) => { choose = resolve; });
+    let recorded;
+    const recording = new Promise((resolve) => { recorded = resolve; });
+    const core = await fakeCore({
+      tokens: async (r) => decisions.some((d) => d.grant === r.grant && d.decision === 'allow')
+        ? issued(core.port, r.endpoint)
+        : { v: 1, ok: false, error: 'confirmation_required', message: 'Allow Cursor…' },
+      confirm: (body) => { decisions.push(body); recorded(); },
+    });
+    const home = tempHome('broker-scoped');
+    let broker;
+    try {
+      broker = await startBroker({ home, core: createCoreClient({ origin: core.origin, launchSecret: SECRET }),
+        confirmTimeoutMs: 25,
+        confirm: (ask) => {
+          asked.push(ask.grant);
+          return ask.grant === firstGrant ? choice : new Promise(() => {});
+        } });
+      const request = (grant) => req({ client: 'cursor', endpoint: 'incident-prod', grant });
+      const answers = await Promise.all([exchange(broker.path, request(firstGrant)),
+        exchange(broker.path, request(secondGrant))]);
+      assert.ok(answers.every((answer) => JSON.parse(answer).error === 'confirmation_required'));
+      choose(true);
+      await recording;
+      assert.equal(JSON.parse(await exchange(broker.path, request(firstGrant))).ok, true);
+      assert.equal(JSON.parse(await exchange(broker.path, request(secondGrant))).error, 'confirmation_required');
+      assert.deepEqual(asked.sort(), [firstGrant, secondGrant]);
+      assert.deepEqual(decisions, [{ grant: firstGrant, decision: 'allow' }]);
+    } finally {
+      await broker?.close();
+      await core.close();
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  it('discards a late dialog answer after the broker closes', async () => {
+    const decisions = [];
+    let choose;
+    const choice = new Promise((resolve) => { choose = resolve; });
+    const core = await fakeCore({
+      tokens: async () => ({ v: 1, ok: false, error: 'confirmation_required', message: 'Allow Cursor…' }),
+      confirm: (body) => decisions.push(body),
+    });
+    const home = tempHome('broker-closed');
+    let broker;
+    try {
+      broker = await startBroker({ home, core: createCoreClient({ origin: core.origin, launchSecret: SECRET }),
+        confirmTimeoutMs: 25, confirm: async () => choice });
+      assert.equal(JSON.parse(await exchange(broker.path, req({ client: 'cursor' }))).error, 'confirmation_required');
+      await broker.close();
+      broker = null;
+      choose(true);
+      await sleep(25);
+      assert.deepEqual(decisions, []);
+    } finally {
+      await broker?.close();
+      await core.close();
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  it('leaves confirmation required when the dialog returns no decision', async () => {
+    const decisions = [];
+    const core = await fakeCore({
+      tokens: async () => ({ v: 1, ok: false, error: 'confirmation_required', message: 'Allow Cursor…' }),
+      confirm: (body) => decisions.push(body),
+    });
+    const home = tempHome('broker-undecided');
+    let broker;
+    try {
+      broker = await startBroker({ home, core: createCoreClient({ origin: core.origin, launchSecret: SECRET }),
+        confirm: async () => null });
+      assert.equal(JSON.parse(await exchange(broker.path, req({ client: 'cursor' }))).error, 'confirmation_required');
+      assert.deepEqual(decisions, []);
     } finally {
       await broker?.close();
       await core.close();
