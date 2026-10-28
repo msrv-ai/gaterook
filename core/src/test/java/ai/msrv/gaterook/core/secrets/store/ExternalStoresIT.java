@@ -189,6 +189,38 @@ class ExternalStoresIT {
   @Test
   @Order(4)
   void testReferenceSaysWhatIsThereWithoutTheValue() {
+    int readsBefore = vault.to("kv/data/").size();
+    JsonNode mounts = api.expect(200, HttpMethod.POST, "/api/secret-stores/" + storeId + "/vault/browse",
+        "{\"path\":\"\"}");
+    assertThat(mounts.path("path").asString()).isEmpty();
+    assertThat(mounts.path("entries")).hasSize(2);
+    JsonNode folder = api.expect(200, HttpMethod.POST, "/api/secret-stores/" + storeId + "/vault/browse",
+        "{\"path\":\"kv/stage\"}");
+    assertThat(folder.path("entries")).hasSize(2);
+    assertThat(folder.path("entries").get(1).path("path").asString()).isEqualTo("kv/stage/db");
+    assertThat(folder.path("entries").get(1).path("directory").asBoolean()).isFalse();
+    assertThat(folder.path("unsupportedEntries").asInt()).isZero();
+    vault.listings.put("kv/metadata/mixed", "[\"db\",\"unsupported name\"]");
+    JsonNode mixed = api.expect(200, HttpMethod.POST, "/api/secret-stores/" + storeId + "/vault/browse",
+        "{\"path\":\"kv/mixed\"}");
+    assertThat(mixed.path("unsupportedEntries").asInt()).isEqualTo(1);
+    assertThat(mixed.path("entries")).hasSize(1);
+    assertThat(mixed.path("entries").get(0).path("name").asString()).isEqualTo("db");
+    assertThat(vault.to("kv/data/")).hasSize(readsBefore);
+    assertThat(api.post("/api/secret-stores/" + storeId + "/vault/browse", "{\"path\":\"kv/../db\"}").status())
+        .isEqualTo(422);
+    JsonNode browseDenied = api.expect(422, HttpMethod.POST, "/api/secret-stores/" + storeId + "/vault/browse",
+        "{\"path\":\"kv/forbidden\"}");
+    assertThat(browseDenied.path("detail").asString()).contains("list permission", "kv/metadata/forbidden");
+
+    JsonNode keys = api.expect(200, HttpMethod.POST, "/api/secret-refs/test", "{\"uri\":\"vault://kv/stage/db\","
+        + "\"store\":\"" + storeId + "\"}");
+    assertThat(keys.path("found").asBoolean()).isTrue();
+    assertThat(keys.path("type").asString()).isEqualTo("json");
+    assertThat(StreamSupport.stream(keys.path("keys").spliterator(), false).map(JsonNode::asString))
+        .containsExactlyInAnyOrder("password", "user");
+    assertThat(keys.toString()).doesNotContain(FakeVault.DB_PASSWORD, FakeVault.SECRET_ID, vault.token(1));
+
     JsonNode found = api.expect(200, HttpMethod.POST, "/api/secret-refs/test", "{\"uri\":\"vault://kv/stage/db"
         + "#password\"}");
     assertThat(found.path("found").asBoolean()).isTrue();
@@ -329,6 +361,11 @@ class ExternalStoresIT {
     JsonNode test = api.expect(200, HttpMethod.POST, "/api/secret-stores/" + storeId + "/test", null);
     assertThat(test.path("ok").asBoolean()).as(test.toString()).isFalse();
     assertThat(test.path("error").asString()).contains("was changed outside GateRook");
+    int requestsBeforeBrowse = vault.requests.size();
+    JsonNode browse = api.expect(422, HttpMethod.POST, "/api/secret-stores/" + storeId + "/vault/browse",
+        "{\"path\":\"kv/stage\"}");
+    assertThat(browse.path("detail").asString()).contains("was changed outside GateRook");
+    assertThat(vault.requests).hasSize(requestsBeforeBrowse);
     assertThat(api.ok("/api/secret-stores/" + storeId).path("verified").asBoolean()).isFalse();
     assertThat(core.bean(ai.msrv.gaterook.core.platform.IntegrityAlerts.class).has("secret-store", storeId)).isTrue();
 

@@ -56,6 +56,12 @@ public class SecretStores {
   public record RefTest(boolean found, String uri, String store, String resolvedVersion, Instant created, String type,
       List<String> keys, long latencyMs, String error, String reason, List<Hint> hints) {}
 
+  /** One Vault mount, folder or secret path; no secret values are read to list these entries. */
+  public record VaultEntry(String name, String path, boolean directory) {}
+
+  /** Immediate children of a Vault folder, with a count of names omitted by the reference grammar. */
+  public record VaultBrowse(String path, List<VaultEntry> entries, int unsupportedEntries) {}
+
   /** What disconnecting a store left behind. */
   public record Disconnected(List<String> referencesNotConnected, int leasesRevoked, List<String> secretsDestroyed) {}
 
@@ -122,6 +128,10 @@ public class SecretStores {
   /** Test reference: resolves {@code uri} now, keeps nothing. */
   public RefTest testReference(String uri, String store) {
     return admin.testReference(uri, store);
+  }
+
+  public VaultBrowse browseVault(String idOrName, String path) {
+    return admin.browseVault(idOrName, path);
   }
 
   /** Replace reference of a stored reference (after its test). */

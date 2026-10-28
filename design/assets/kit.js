@@ -1042,6 +1042,100 @@
     });
   }
 
+  // ───────────────────────── Vault reference demo ─────────────────────────
+  // These fixtures contain names only. The application loads names through the core's Vault connection.
+  function initVaultPickers() {
+    doc.querySelectorAll('[data-source="vault"]').forEach(function (root) {
+      var ref = root.querySelector("[data-vault-reference]");
+      if (!ref) return;
+      var keys = root.querySelector("[data-vault-key-select]");
+      var load = root.querySelector("[data-vault-keys-load]");
+      var status = root.querySelector("[data-vault-keys-status]");
+      var spinner = root.querySelector("[data-vault-keys-spinner]");
+      var folder = root.querySelector("[data-vault-folder]");
+      var secrets = root.querySelector("[data-vault-secret-select]");
+      var browserStatus = root.querySelector("[data-vault-browser-status]");
+      var request = 0;
+      function parts() {
+        var text = ref.value.trim();
+        var hash = text.indexOf("#");
+        var query = text.indexOf("?");
+        var key = hash < 0 ? "" : text.slice(hash + 1, query > hash ? query : undefined);
+        var base = hash < 0 ? text : text.slice(0, hash) + (query > hash ? text.slice(query) : "");
+        return { base: base, key: key };
+      }
+      function options(select, prompt, names) {
+        select.replaceChildren(new Option(prompt, ""));
+        names.forEach(function (name) { select.add(new Option(name, name)); });
+        select.disabled = names.length === 0;
+      }
+      function reset() {
+        request++;
+        spinner.hidden = true;
+        load.removeAttribute("aria-busy");
+        load.removeAttribute("aria-disabled");
+        options(keys, "Load keys to choose a key", []);
+        status.textContent = "Enter a Vault secret path, then load its keys. Only key names are shown.";
+      }
+      function loadKeys() {
+        var value = parts();
+        if (!/^(vault:\/\/)?[^\s?#]+\/[^\s?#]+(?:\?version=[1-9][0-9]*)?$/.test(value.base)) {
+          reset();
+          status.textContent = "Enter a Vault secret path, such as vault://kv/dev/db, then load its keys.";
+          return;
+        }
+        var current = ++request;
+        options(keys, "Loading keys…", []);
+        spinner.hidden = false;
+        load.setAttribute("aria-busy", "true");
+        load.setAttribute("aria-disabled", "true");
+        status.textContent = "Loading key names from Vault…";
+        window.setTimeout(function () {
+          if (current !== request || parts().base !== value.base) return;
+          spinner.hidden = true;
+          load.removeAttribute("aria-busy");
+          load.removeAttribute("aria-disabled");
+          options(keys, "Choose a key", ["password", "username"]);
+          keys.value = value.key === "password" || value.key === "username" ? value.key : "";
+          status.textContent = "2 demo key names loaded. No secret values are shown.";
+        }, 250);
+      }
+      function loadSecrets() {
+        var path = folder.value.trim().replace(/^vault:\/\//, "").replace(/\/+$/, "");
+        folder.value = path;
+        var entries = { "": ["kv/"], "kv": ["dev/", "stage/"], "kv/dev": ["db"], "kv/stage": ["db"] };
+        var names = entries[path] || [];
+        options(secrets, names.length ? "Choose a secret or folder" : "No secrets found", names);
+        browserStatus.textContent = names.length ? "Demo paths loaded. Choose a secret to load its key names." : "No demo secrets in this folder. Leave the folder empty to list mounts, or try kv, kv/dev or kv/stage.";
+      }
+      ref.addEventListener("input", reset);
+      load.addEventListener("click", loadKeys);
+      keys.addEventListener("change", function () {
+        if (!keys.value) return;
+        ref.value = parts().base + "#" + keys.value;
+        ref.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+      folder.addEventListener("input", function () {
+        options(secrets, "Load secrets to choose a path", []);
+        browserStatus.textContent = "Choose a folder to open it, or a secret to load its keys.";
+      });
+      root.querySelector("[data-vault-secrets-load]").addEventListener("click", loadSecrets);
+      secrets.addEventListener("change", function () {
+        if (!secrets.value) return;
+        var path = (folder.value ? folder.value + "/" : "") + secrets.value;
+        if (secrets.value.endsWith("/")) {
+          folder.value = path.slice(0, -1);
+          loadSecrets();
+        } else {
+          reset();
+          ref.value = "vault://" + path;
+          ref.dispatchEvent(new Event("change", { bubbles: true }));
+          loadKeys();
+        }
+      });
+    });
+  }
+
   // ───────────────────────── boot ─────────────────────────
   function boot() {
     doc.body.appendChild(live);
@@ -1056,6 +1150,7 @@
     syncEnableWhen();
     doc.querySelectorAll(".gw-command-palette").forEach(initPalette);
     initSingleKeys();
+    initVaultPickers();
     tabFromHash();
   }
   if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", boot); else boot();

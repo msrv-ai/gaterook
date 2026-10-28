@@ -195,6 +195,8 @@ Controllers under [core/admin](../core/src/main/java/ai/msrv/gaterook/core/admin
 
 Vault/OpenBao stores recommend HTTPS. Creating an HTTP store in the UI requires a warning confirmation naming the address and explaining that credentials and secrets travel unencrypted; cancellation sends no create or test request. Confirmation persists `config.allowPlainHttp: true` on that store. The core rejects non-loopback HTTP without this opt-in, while retaining compatibility with existing local HTTP stores. The opt-in does not relax address restrictions or enable redirects.
 
+The connection form can browse Vault KV mounts and immediate child paths through `POST /api/secret-stores/{id}/vault/browse`, using the selected store's verified settings and credentials. Listing returns names only and requires Vault list permission; manual references remain available for tokens with read access only. After a secret is selected, `POST /api/secret-refs/test` returns its key names without values. Choosing a key preserves any pinned version and saves the reference with its selected store.
+
 | API area | Responsibility |
 | --- | --- |
 | `/api/connections`, `/api/connector-types` | List/create/edit/test connections, forms, health, variants, and usage |

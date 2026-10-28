@@ -105,6 +105,21 @@ export function completeReference(source: string, value: string): string {
   return !ref || !scheme || ref.includes('://') ? ref : `${scheme}${ref}`;
 }
 
+/** Both accepted query/fragment orders become a key-free URI plus the selected key. */
+export function vaultReferenceParts(reference: string): { uri: string; key: string } {
+  const ref = reference.trim();
+  const hash = ref.indexOf('#');
+  if (hash < 0) return { uri: ref, key: '' };
+  const query = ref.indexOf('?', hash);
+  return { uri: ref.slice(0, hash) + (query < 0 ? '' : ref.slice(query)),
+    key: ref.slice(hash + 1, query < 0 ? undefined : query) };
+}
+
+/** Match the core's reference grammar; Vault may return names that cannot be represented in a reference. */
+export function selectableVaultKey(uri: string, key: string): boolean {
+  return /^[!-~]{1,256}$/.test(key) && !/[%?#/\\]/.test(key) && uri.length + key.length + 1 <= 1024;
+}
+
 /** An example reference for the placeholder, shaped by the connection: `vault://kv/dev/dev-db#password`. */
 export function referencePlaceholder(source: string, env: string, name: string, key: string): string {
   const n = name || `${env}-db`;
