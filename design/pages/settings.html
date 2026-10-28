@@ -198,6 +198,12 @@
               <li><a class="gw-nav__item" href="#settings-backup"><i class="gw-icon gw-nav__icon" data-lucide="archive"></i><span class="gw-nav__label">Backup</span></a></li>
             </ul>
           </div>
+          <div class="gw-nav__group" role="group" aria-labelledby="st-g-project">
+            <p class="gw-nav__group-label" id="st-g-project">Project</p>
+            <ul class="gw-nav__list">
+              <li><a class="gw-nav__item" href="#settings-about"><i class="gw-icon gw-nav__icon" data-lucide="info"></i><span class="gw-nav__label">About</span></a></li>
+            </ul>
+          </div>
         </nav>
 
         <nav class="gw-settings-layout__jump" aria-label="Settings">
@@ -223,6 +229,9 @@
               <optgroup label="Data">
                 <option value="#settings-audit">Audit &amp; retention</option>
                 <option value="#settings-backup">Backup</option>
+              </optgroup>
+              <optgroup label="Project">
+                <option value="#settings-about">About</option>
               </optgroup>
             </select>
           </div>
@@ -1315,6 +1324,29 @@
                     <a class="gw-btn gw-btn--ghost" href="secrets.html#master-key"><i class="gw-icon" data-lucide="key-round"></i> Manage master key in Secrets</a>
                   </div>
                 </div>
+              </section>
+            </div>
+          </section>
+
+          <!-- ═════════════ Project · About ═════════════ -->
+          <section class="gw-settings-layout__section" id="settings-about" aria-labelledby="st-about-t">
+            <header class="gw-section__header">
+              <h2 class="gw-section__title" id="st-about-t">About</h2>
+              <p class="gw-section__description">Project author and license.</p>
+            </header>
+            <hr class="gw-divider">
+            <div class="gw-stack">
+              <section class="gw-section" aria-labelledby="st-about-author-t">
+                <header class="gw-section__header">
+                  <h3 class="gw-section__title" id="st-about-author-t">Author</h3>
+                </header>
+                <p class="gw-text-body-read">GateRook was created by <strong><a class="gw-link" href="https://www.linkedin.com/in/dobroskok/" target="_blank" rel="noopener noreferrer">Vadym Dobroskok<span class="gw-sr-only"> on LinkedIn (opens in your browser)</span></a></strong>, Tech Lead at <strong><a class="gw-link" href="https://provenbase.com/" target="_blank" rel="noopener noreferrer">ProvenBase Inc.<span class="gw-sr-only"> (opens in your browser)</span></a></strong></p>
+              </section>
+              <section class="gw-section" aria-labelledby="st-about-license-t">
+                <header class="gw-section__header">
+                  <h3 class="gw-section__title" id="st-about-license-t">License</h3>
+                </header>
+                <p class="gw-text-body-read">GateRook is licensed under the <a class="gw-link" href="https://github.com/msrv-ai/gaterook/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">Apache License, Version 2.0<span class="gw-sr-only"> (opens in your browser)</span></a>. Bundled third-party components retain their respective licenses and notices.</p>
               </section>
             </div>
           </section>

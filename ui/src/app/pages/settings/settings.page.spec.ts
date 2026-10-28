@@ -343,6 +343,7 @@ describe('Settings page: loading, failure, the layout', () => {
       'settings-local-api',
       'settings-audit',
       'settings-backup',
+      'settings-about',
     ]);
     expect($$('.gw-settings-layout__nav .gw-nav__item', el).map((a) => a.getAttribute('href'))).toContain('/settings/approval-rules');
   });

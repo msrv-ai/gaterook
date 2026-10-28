@@ -1612,7 +1612,7 @@ The query and filter zone above the Activity events table, reused as the Insight
 
 ### `settings-layout`
 
-Grouped settings. On the left, a sticky settings nav: gw-nav with groups Workspace, Security, Approvals, Network and Data (role=group + aria-labelledby), aria-current on the item in view. On the right, one section per item (h2 + description, a divider, then a gw-form of topics). Topics that apply at once sit outside any form and confirm with a toast. Topics with values to save are <form class=gw-form__section id> that own the item's sticky Save bar via form="id", shown only while unsaved. Below lg the nav becomes a native 'Jump to section' select with an optgroup per group.
+Grouped settings. On the left, a sticky settings nav: gw-nav with groups Workspace, Security, Approvals, Network, Data and Project (role=group + aria-labelledby), aria-current on the item in view. On the right, one section per item (h2 + description, a divider, then a gw-form of topics or read-only project information). Topics that apply at once sit outside any form and confirm with a toast. Topics with values to save are <form class=gw-form__section id> that own the item's sticky Save bar via form="id", shown only while unsaved. Below lg the nav becomes a native 'Jump to section' select with an optgroup per group.
 
 [SCSS](elements/_settings-layout.scss) · [Interactive demo](elements/settings-layout.html)
 
@@ -1621,6 +1621,7 @@ Grouped settings. On the left, a sticky settings nav: gw-nav with groups Workspa
 - gw-nav
 - gw-section
 - gw-divider
+- gw-stack
 - gw-form
 - gw-field
 - gw-select
@@ -1645,9 +1646,10 @@ Grouped settings. On the left, a sticky settings nav: gw-nav with groups Workspa
 - current item: aria-current="page" on the nav link of the section in view (scroll-spy, /settings/<item> in the URL); the jump select shows the same item
 - unsaved: gw-form__actions visible with 'Unsaved changes' (role=status), Discard (type=reset) + Save <object> (type=submit) via form="<id>"; Discard restores the saved values; hidden otherwise
 - applies at once: switch / select / theme topics outside any <form>, no Save bar, confirmed by a success toast naming the setting and its value
+- read-only: About ends Settings with the project author, license link and third-party notice; no Save bar
 - unavailable: server-mode-only topic (Users & roles, UI sign-in, token IP allowlist) with aria-disabled controls + aria-describedby to a gw-alert--neutral --compact (circle-help) that says why and what would enable it
 - narrow (< lg / 1280px): nav hidden, 'Jump to section' select (optgroups per group, max 320 wide) above the sections; changing it scrolls, focus stays on the select
-- anchors #settings-<section>: general, appearance, authorization, users, notifications, approval-rules, tunnel, tunnel-callers, local-api, audit, backup
+- anchors #settings-<section>: general, appearance, authorization, users, notifications, approval-rules, tunnel, tunnel-callers, local-api, audit, backup, about
 - demo values (BLUEPRINT §9): default token lifetime 6 months (select 1 / 7 / 30 / 90 / 184 days); issuer 'None yet' while the quick tunnel is off; Notifications — desktop on, Slack connected (workspace acme, DMs recommended, #deploy-approvals selected, last delivery 14:02:30), Telegram not set up; Slack and Telegram never offer Approve for prod; Approval rules — 'Require a comment on prod' on; Tunnel › Callers — the one Anthropic IP allowlist switch (on); Audit — retention 1 / 2 / 3 / 5 years, default 1 year
 
 **Reference screens:**

@@ -16,7 +16,7 @@
     <div class="gw-page-header__row">
       <div class="gw-page-header__heading">
         <h1 class="gw-page-header__title">Settings layout</h1>
-        <p class="gw-page-header__description">Settings split into the groups people look for: Workspace, Security, Approvals, Network and Data. A settings nav on the left stays in view and marks where you are; each item is one section of topics on the right, with its own Save bar only where values need saving. Used on Settings and on the Settings tab of an endpoint.</p>
+        <p class="gw-page-header__description">Settings split into the groups people look for: Workspace, Security, Approvals, Network, Data and Project. A settings nav on the left stays in view and marks where you are; each item is one section of topics on the right, with its own Save bar only where values need saving. Used on Settings and on the Settings tab of an endpoint.</p>
       </div>
       <div class="gw-page-header__actions">
         <fieldset class="gw-segmented gw-segmented--sm">
@@ -74,6 +74,12 @@
             <li><a class="gw-nav__item" href="../pages/settings.html#settings-backup"><i class="gw-icon gw-nav__icon" data-lucide="archive"></i><span class="gw-nav__label">Backup</span></a></li>
           </ul>
         </div>
+        <div class="gw-nav__group" role="group" aria-labelledby="st-g-project">
+          <p class="gw-nav__group-label" id="st-g-project">Project</p>
+          <ul class="gw-nav__list">
+            <li><a class="gw-nav__item" href="../pages/settings.html#settings-about"><i class="gw-icon gw-nav__icon" data-lucide="info"></i><span class="gw-nav__label">About</span></a></li>
+          </ul>
+        </div>
       </nav>
 
       <nav class="gw-settings-layout__jump" aria-label="Settings">
@@ -99,6 +105,9 @@
             <optgroup label="Data">
               <option value="../pages/settings.html#settings-audit">Audit &amp; retention</option>
               <option value="../pages/settings.html#settings-backup">Backup</option>
+            </optgroup>
+            <optgroup label="Project">
+              <option value="../pages/settings.html#settings-about">About</option>
             </optgroup>
           </select>
         </div>
