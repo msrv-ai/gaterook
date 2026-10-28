@@ -30,7 +30,7 @@ public final class TomlBlockEditor {
 
   private TomlBlockEditor() {}
 
-  /** {@code # >>> GateRook · gateway-dev · managed entry: Disconnect in GateRook removes it}. */
+  /** {@code # >>> GateRook · gaterook-dev · managed entry: Disconnect in GateRook removes it}. */
   public static String startMarker(String name) {
     return "# >>> GateRook · " + name + " · managed entry: Disconnect in GateRook removes it";
   }

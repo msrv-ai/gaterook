@@ -57,7 +57,7 @@ class DemoClientsIT {
         assertThat(l.grantLabel()).isEqualTo("codex-laptop");
       });
       assertThat(Files.readString(demoHome.resolve(".codex/config.toml"))).contains("[mcp_servers.github]")
-          .contains("[mcp_servers.gateway-dev]").contains("headers --endpoint dev --grant gr_");
+          .contains("[mcp_servers.gaterook-dev]").contains("headers --endpoint dev --grant gr_");
       ClientViews.Card cursor = card(cards, "cursor");
       assertThat(cursor.status()).isEqualTo("detected");
       assertThat(cursor.links()).isEmpty();

@@ -158,7 +158,7 @@ class ClientsProcessIT {
     codexLink = connected.path("link").path("id").asString();
     String config = read(userHome.resolve(".codex/config.toml"));
     assertThat(config).startsWith(CODEX_BEFORE).doesNotContain("gwb_");
-    JsonNode entry = new TomlMapper().readTree(config).path("mcp_servers").path("gateway-dev");
+    JsonNode entry = new TomlMapper().readTree(config).path("mcp_servers").path("gaterook-dev");
     assertThat(entry.path("url").asString()).isEqualTo("http://127.0.0.1:" + core.port + "/mcp/dev");
     assertThat(entry.path("default_tools_approval_mode").asString()).isEqualTo("writes");
     codexHelper = entry.path("http_headers_helper").asString();
@@ -191,7 +191,7 @@ class ClientsProcessIT {
         + "\"}");
     Path file = userHome.resolve(".cursor/mcp.json");
     assertThat(PosixFilePermissions.toString(Files.getPosixFilePermissions(file))).isEqualTo("rw-------");
-    JsonNode entry = CoreProcess.JSON.readTree(read(file)).path("mcpServers").path("gateway-dev");
+    JsonNode entry = CoreProcess.JSON.readTree(read(file)).path("mcpServers").path("gaterook-dev");
     String authorization = entry.path("headers").path("Authorization").asString();
     assertThat(authorization).matches("Bearer " + NAMED.pattern());
     assertThat(mcp(authorization, initialize("cursor")).statusCode()).isEqualTo(200);
@@ -205,7 +205,7 @@ class ClientsProcessIT {
     admin(200, "POST", "/api/clients/antigravity/connect", "{\"previewId\":\"" + preview.path("previewId").asString()
         + "\"}");
     JsonNode entry = CoreProcess.JSON.readTree(read(userHome.resolve(".gemini/config/mcp_config.json")))
-        .path("mcpServers").path("gateway-dev");
+        .path("mcpServers").path("gaterook-dev");
     List<String> argv = new ArrayList<>(List.of(entry.path("command").asString()));
     entry.path("args").forEach(a -> argv.add(a.asString()));
     assertThat(argv.getFirst()).isEqualTo(home.resolve("bin/gw-bridge").toString());

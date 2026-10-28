@@ -343,7 +343,7 @@ export interface SnippetTab {
  */
 export function snippetTabs(manual: ManualSetup): SnippetTab[] {
   const of = (langs: string[]) => manual.snippets.filter((s) => langs.includes(s.language));
-  const entry = `gateway-${manual.endpoint}`;
+  const entry = `gaterook-${manual.endpoint}`;
   const json = of(['json']);
   const tabs: SnippetTab[] = [
     {

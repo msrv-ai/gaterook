@@ -37,7 +37,7 @@ public class ClientLinkEntity {
   @Column(name = "config_path", length = 1024)
   private String configPath;
 
-  @Column(name = "entry_name", length = 48)
+  @Column(name = "entry_name", length = 49)
   private String entryName;
 
   @Column(name = "grant_id", length = 40)

@@ -120,7 +120,7 @@ describe('client-card', () => {
     expect(go.getAttribute('aria-disabled')).toBe('true');
     host.leaving.set(DEMO_DISCONNECT_CODEX);
     fixture.detectChanges();
-    expect(text(dialog)).toContain('[mcp_servers.gateway-dev] from ~/.codex/config.toml');
+    expect(text(dialog)).toContain('[mcp_servers.gaterook-dev] from ~/.codex/config.toml');
     button(dialog, 'Disconnect Codex').click();
     expect(host.gone).toEqual(['pv_codex_dev_out']);
   });

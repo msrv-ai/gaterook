@@ -2423,7 +2423,7 @@ The password stays in the gateway: <code class="gw-code gw-code--secret">‹mask
     </div>
     <div class="gw-diff__line gw-diff__line--add">
       <span class="gw-diff__gutter" aria-hidden="true"></span><span class="gw-diff__gutter" aria-hidden="true">8</span><span class="gw-diff__marker" aria-hidden="true">+</span><span class="gw-sr-only">Added: </span>
-      <span class="gw-diff__text">[mcp_servers.gateway-dev]</span>
+      <span class="gw-diff__text">[mcp_servers.gaterook-dev]</span>
     </div>
   </div>
 </div>

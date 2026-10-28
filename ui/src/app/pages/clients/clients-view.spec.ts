@@ -144,11 +144,11 @@ describe('Clients view: Connect failed', () => {
   });
 
   it('a config it won’t touch: what it is, and the entry to add by hand when the core gives one', () => {
-    const e = problem(422, { title: 'Config file not editable', status: 422, detail: 'Codex keeps its servers in an inline table. Add the entry by hand.', reason: 'inline-table', line: 3, column: 1, fragment: '[mcp_servers.gateway-dev]\nurl = "http://127.0.0.1:7465/mcp/dev"' });
+    const e = problem(422, { title: 'Config file not editable', status: 422, detail: 'Codex keeps its servers in an inline table. Add the entry by hand.', reason: 'inline-table', line: 3, column: 1, fragment: '[mcp_servers.gaterook-dev]\nurl = "http://127.0.0.1:7465/mcp/dev"' });
     const f = connectFailure(e, codex, NOW);
     expect(words(f.title)).toBe("Can't connect Codex: ~/.codex/config.toml keeps its servers in an inline table");
     expect(words(f.body)).toBe('Codex keeps its servers in an inline table. Add the entry by hand.');
-    expect(f.fix).toEqual({ title: 'Add by hand', label: 'entry', language: 'toml', text: '[mcp_servers.gateway-dev]\nurl = "http://127.0.0.1:7465/mcp/dev"' });
+    expect(f.fix).toEqual({ title: 'Add by hand', label: 'entry', language: 'toml', text: '[mcp_servers.gaterook-dev]\nurl = "http://127.0.0.1:7465/mcp/dev"' });
   });
 
   it('the file changed since the preview (409), and no answer at all', () => {
@@ -168,9 +168,9 @@ describe('Clients view: Codex’s entry', () => {
     expect(entry.file).toBe('~/.codex/config.toml');
     expect(entry.language).toBe('toml');
     const lines = entry.text.split('\n');
-    expect(lines[0]).toBe('# >>> GateRook · gateway-dev · managed entry: Disconnect in GateRook removes it');
+    expect(lines[0]).toBe('# >>> GateRook · gaterook-dev · managed entry: Disconnect in GateRook removes it');
     expect(lines).toContain('default_tools_approval_mode = "writes"');
-    expect(lines.at(-1)).toBe('# <<< GateRook · gateway-dev');
+    expect(lines.at(-1)).toBe('# <<< GateRook · gaterook-dev');
     // The bridge extension has no entry in a file.
     expect(entryFromPreview({ ...codexDisconnect(), files: [{ ...codexDisconnect().files[0], kind: 'mcpb', diff: null }] })).toBeNull();
   });
@@ -190,7 +190,7 @@ describe('Clients view: manual setup', () => {
     expect(tabs[0].snippets.map((s) => s.id)).toEqual(['inspector-ui', 'inspector-cli']);
     expect(words(tabs[0].caption)).toBe('Inspector reads the token from gw-inspector.json on the JSON tab: paste your token there, never into the command line.');
     expect(tabs[0].snippets.every((s) => !/Bearer|‹token›/.test(s.text))).toBe(true);
-    expect(words(tabs[1].caption)).toBe('For apps that read an mcpServers file. Add the gateway-dev entry next to the servers you already have.');
+    expect(words(tabs[1].caption)).toBe('For apps that read an mcpServers file. Add the gaterook-dev entry next to the servers you already have.');
     expect(tabs[2].snippets[0].text).toContain('Bearer ‹token›');
     expect(snippetLang('sh')).toBe('Shell');
     expect(otherPaths(kitManual())).toEqual(['/mcp/stage-readonly', '/mcp/incident-prod']);
