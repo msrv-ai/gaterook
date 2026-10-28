@@ -12,7 +12,7 @@ The product name is GateRook. The default home is `~/.gaterook`, the native core
 | --- | --- | --- |
 | A1 | A thin JSON-RPC layer on Spring MVC serves `/mcp/{slug}`. | Endpoint-specific tool catalogs and protocol revisions stay under the gateway's control. The MCP Java SDK is used as an upstream/test client, not as the gateway's entire server stack. |
 | A2 | Support modern `2026-07-28` and legacy `2025-11-25`, `2025-06-18`, and `2025-03-26` request shapes. | Clients migrate at different times. MCP POST replies are JSON; legacy clients can open an authenticated GET SSE stream for tool-list changes. No MCP session IDs are issued. Administrative UI events use a separate SSE stream. |
-| A3 | Persist one approval and execute its stored canonical call after a human decision. | The client never resubmits a mutable command as the approved action. Deliver results through URL elicitation when supported, otherwise a pending handle and `approval_status`. |
+| A3 | Persist one approval and execute its stored canonical call after a human decision. | The client never resubmits a mutable command as the approved action. MCP Apps clients get a review card and pending handle; other capable clients use URL elicitation, with `approval_status` as the common fallback. |
 | A4 | Use opaque 256-bit tokens and store their hashes. | Lookup on each request enables immediate revocation. Named, bridge, OAuth access, and refresh tokens have distinct purposes and lifetimes. |
 | A5 | Provide a small OAuth authorization server with desktop consent. | PKCE S256, resource/audience binding, issuer checking, and client metadata support serve both local and tunnel clients. |
 | A6 | Publish through a child tunnel process and a separate loopback listener. | The public listener is deny-by-default and never exposes administrative routes. Cloudflared is a bundled target; ngrok is downloaded when selected and hash-checked. |
@@ -175,9 +175,17 @@ A read-only endpoint does not allow mutating pairs or Bypass. Bypass is an expli
 
 ### 5.2 Approval delivery
 
-The same persisted approval supports every client. A capable modern client can receive URL elicitation and an authenticated `requestState`; that state binds the principal, endpoint, method, tool, action digest, and expiry. The approval page and deep link navigate to review and do not approve by themselves. Form elicitation is never used as a client-controlled “Approve” answer.
+The same persisted approval supports every client. Clients advertising the MCP Apps HTML MIME type receive a pending handle immediately so they can show the review card described below. Other capable modern clients can receive URL elicitation and an authenticated `requestState`; that state binds the principal, endpoint, method, tool, action digest, and expiry. The approval page and deep link navigate to review and do not approve by themselves. Form elicitation is never used as a client-controlled “Approve” answer.
 
 Otherwise the gateway returns a pending handle. `approval_status(handle, wait_seconds)` is principal/endpoint scoped, with a maximum 25-second long poll. The initial wait is bounded (15 seconds by default). Modern continuation waits also have a bounded total budget and round count, then fall back to a handle. Decline means denial; expiry never grants approval. Masked completed results are retained for 60 minutes.
+
+### 5.3 MCP Apps approval cards
+
+Clients negotiate `io.modelcontextprotocol/ui` with `text/html;profile=mcp-app`. Legacy capabilities are remembered per authenticated principal until reinitialization or bounded cache eviction; modern clients provide them per request. `approval_card(handle)` renders the versioned static `ui://gaterook/approval-card/v1.html` resource once. Its separate `approval_card_action(handle, action)` tool supports `status`, `open`, and `deny`; it carries app-only visibility and no resource URI, so refreshes do not mount another card. Clients without the extension retain the text and handle flow.
+
+Visibility is a host presentation hint, not authorization or proof of a human click. Every card operation checks the original principal and endpoint. Denial uses the existing client-decline transition and audit origin. Both **Details** and **Approve in GateRook** open a server-selected review route; neither accepts a URL, digest, decision origin, nor an approval operation from MCP. Final approval uses the protected desktop review flow, including exact-action inspection, required comments, and digest checks. Repeated open requests are throttled. Rejected, expired, or completed requests cannot be revived through the card.
+
+The card contains only the environment-masked caller-visible request projection, never private preparation summaries, impact/diff data, credentials, or decision capabilities, including in `_meta`. Previews are bounded and suspicious Unicode is made visible. The static resource embeds the canonical design CSS and its script with exact CSP hashes; it permits no external assets, frames, or network connections. The iframe uses the MCP Apps message protocol directly, validates host source/origin and correlated responses, renders untrusted text through `textContent`, and ignores stale updates. It polls only while visible and pending/running. Local expiry disables decisions while the server remains authoritative. Execution results continue through `approval_status`.
 
 ## 6. Administrative API
 
@@ -286,6 +294,8 @@ The [blueprint](../design/BLUEPRINT.md) specifies screens and a coherent demo wo
 ### 8.5 Exact action display
 
 Approval text, structured fields, diff, warnings, and suspicious-character segments come from the core. The renderer must not recompile a runbook or reinterpret the payload that will execute. Keep the agent's unverified explanation separate from the canonical action. A masked preview must never become an alternate source of executable arguments.
+
+JSON action previews default to a Pretty view that changes only structural whitespace. Preserve number and string lexemes, property order, duplicate keys, and suspicious-character segments. The Original view restores the core's displayed segments; Copy follows the active view. Invalid, truncated, oversized, or unsafe-to-format previews stay in their original form. Display formatting never changes execution arguments or the approval digest.
 
 ### 8.6 Application and kit compatibility
 

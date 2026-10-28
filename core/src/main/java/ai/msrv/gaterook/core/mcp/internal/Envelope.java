@@ -30,4 +30,15 @@ public record Envelope(Era era, String version, JsonNode id, String method, Obje
     JsonNode meta = params.path("_meta");
     return meta.isObject() ? meta : JsonNodeFactory.instance.objectNode();
   }
+
+  /** A rendering capability only; it never grants authority to decide an approval. */
+  public boolean supportsUi() {
+    if (clientCapabilities == null) return false;
+    JsonNode types = clientCapabilities.path("extensions").path(McpAppResource.EXTENSION).path("mimeTypes");
+    if (!types.isArray()) return false;
+    for (JsonNode type : types) {
+      if (type.isString() && McpAppResource.MIME_TYPE.equals(type.asString())) return true;
+    }
+    return false;
+  }
 }

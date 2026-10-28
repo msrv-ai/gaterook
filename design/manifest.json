@@ -1184,7 +1184,8 @@
       ],
       "states": [
         "[data-copied] on the copy button (kit.js, 1.6 s) swaps __copy for __copied",
-        "__body:focus-visible (inset ring)"
+        "__body:focus-visible (inset ring)",
+        "JSON actions may compose gw-segmented--sm in __actions for Pretty / Original views. Pretty changes structural whitespace only and preserves literal tokens and safety markers. Copy follows the selected view; hide the switch for unavailable or unchanged formatting."
       ],
       "a11y": "__body is a keyboard-scrollable region: tabindex=0 + role=region + aria-label. The copy button has visible text plus a gw-sr-only object ('Copy SQL query'). The copied face changes the accessible name to 'Copied', and kit.js announces it. Line numbers use content: counter() / \"\", so they are neither read nor copied. With line spans present, the line container becomes a grid, so the copy stays exact. Every token colour is 4.5:1 or more on code.bg in all four modes."
     },

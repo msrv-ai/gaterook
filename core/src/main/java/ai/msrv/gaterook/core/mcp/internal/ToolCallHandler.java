@@ -25,6 +25,7 @@ import ai.msrv.gaterook.core.platform.SchemaValidator;
 import ai.msrv.gaterook.core.policy.Decision;
 import ai.msrv.gaterook.core.policy.PolicyEngine;
 import ai.msrv.gaterook.core.policy.PolicyService;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.TreeSet;
@@ -66,11 +67,12 @@ public class ToolCallHandler {
   private final RequestStateCodec states;
   private final CoreToolsHandler coreTools;
   private final Calls calls;
+  private final ApprovalCards approvalCards;
 
   public ToolCallHandler(ToolCatalog catalogs, SchemaValidator validator, ConnectorRegistry registry,
       PolicyEngine engine, PolicyService policies, ToolGuard guard, AuditWriter audit, ConnectorInvoker invoker,
       ApprovalService approvals, ApprovalAnswers answers, ApprovalStatusTool statusTool, ApprovalDelivery delivery,
-      RequestStateCodec states, CoreToolsHandler coreTools, Calls calls) {
+      RequestStateCodec states, CoreToolsHandler coreTools, Calls calls, ApprovalCards approvalCards) {
     this.catalogs = catalogs;
     this.validator = validator;
     this.registry = registry;
@@ -86,6 +88,7 @@ public class ToolCallHandler {
     this.states = states;
     this.coreTools = coreTools;
     this.calls = calls;
+    this.approvalCards = approvalCards;
   }
 
   public ObjectNode call(McpRequest r) {
@@ -112,6 +115,15 @@ public class ToolCallHandler {
         SchemaValidator.BUDGET);
     if (!violations.isEmpty()) {
       return ResultWriter.toolError(env, invalid(violations), null);
+    }
+    if (CoreTools.APPROVAL_CARD.equals(name) || CoreTools.APPROVAL_CARD_ACTION.equals(name)) {
+      PolicyEngine.Rates rates = engine.rates(r.snapshot().env());
+      ToolGuard.Admission admission = guard.admit(r.caller().principalId(), name, rates.perToken(), rates.perTool());
+      if (!admission.allowed()) {
+        return rateLimited(r, name, admission, "tool".equals(admission.scope()) ? rates.perTool() : rates.perToken());
+      }
+      return ResultWriter.callToolResult(env,
+          approvalCards.call(r, args, CoreTools.APPROVAL_CARD_ACTION.equals(name)), null, r.span().traceId(), null);
     }
     if (published.core()) {
       return coreTools.call(r, published, args);
@@ -274,6 +286,14 @@ public class ToolCallHandler {
       return answer.inputRequired();
     }
     ToolResult result = outputSchema == null ? answer.result() : answers.typed(answer.view(), answer.result());
+    if (r.env().supportsUi() && answer.view().pending()) {
+      List<ToolResult.Content> content = new ArrayList<>(result.content());
+      content.add(ToolResult.Content.text("Show approval_card with handle " + answer.view().id()
+          + " once for interactive review. Final approval happens in GateRook. Keep polling approval_status; "
+          + "do not repeat the operation."));
+      result = new ToolResult(content, result.structuredContent(), result.isError(), result.table(), result.truncated(),
+          result.truncatedReason(), result.maskPaths(), result.maskedCount(), result.resultBytes(), result.meta());
+    }
     return ResultWriter.callToolResult(r.env(), result, callId, r.span().traceId(),
         result.meta() instanceof ObjectNode meta ? meta : null);
   }

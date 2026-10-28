@@ -1,6 +1,7 @@
 package ai.msrv.gaterook.core.mcp.internal;
 
 import ai.msrv.gaterook.core.audit.AuditWriter;
+import ai.msrv.gaterook.core.endpoints.CoreTools;
 import ai.msrv.gaterook.core.endpoints.EndpointSnapshot;
 import ai.msrv.gaterook.core.endpoints.ToolCatalog;
 import ai.msrv.gaterook.core.platform.CallTracing;
@@ -74,10 +75,11 @@ public class McpDispatcher {
     Envelope env = request;
     if (env.era() == Era.LEGACY) {
       if ("initialize".equals(env.method())) {
-        clients.remember(caller.principalId(), env.clientInfo());
-      } else if (env.clientInfo() == null) {
-        env = new Envelope(env.era(), env.version(), env.id(), env.method(), env.params(), env.clientCapabilities(),
-            clients.recall(caller.principalId()), env.traceparent());
+        clients.remember(caller.principalId(), env.clientInfo(), env.clientCapabilities());
+      } else {
+        env = new Envelope(env.era(), env.version(), env.id(), env.method(), env.params(),
+            clients.capabilities(caller.principalId()),
+            env.clientInfo() == null ? clients.recall(caller.principalId()) : env.clientInfo(), env.traceparent());
       }
     }
     if (env.notification()) {
@@ -162,12 +164,12 @@ public class McpDispatcher {
   private ObjectNode initialize(McpRequest r) {
     ObjectNode out = JsonNodeFactory.instance.objectNode();
     out.put("protocolVersion", r.env().version());
-    out.set("capabilities", capabilities(true));
+    out.set("capabilities", capabilities(true, r.env().supportsUi()));
     ObjectNode info = out.putObject("serverInfo");
     info.put("name", ResultWriter.SERVER_NAME);
     info.put("title", "GateRook · " + r.snapshot().slug());
     info.put("version", CoreBuild.VERSION);
-    out.put("instructions", Instructions.of(r.snapshot(), r.catalog()));
+    out.put("instructions", instructions(r));
     return out;
   }
 
@@ -177,12 +179,12 @@ public class McpDispatcher {
     for (String v : revisions(r.snapshot())) {
       versions.add(v);
     }
-    out.set("capabilities", capabilities(false));
-    out.put("instructions", Instructions.of(r.snapshot(), r.catalog()));
+    out.set("capabilities", capabilities(false, r.env().supportsUi()));
+    out.put("instructions", instructions(r));
     return ResultWriter.complete(r.env(), out, 60_000);
   }
 
-  private static ObjectNode capabilities(boolean legacy) {
+  private static ObjectNode capabilities(boolean legacy, boolean ui) {
     ObjectNode c = JsonNodeFactory.instance.objectNode();
     ObjectNode tools = c.putObject("tools");
     if (legacy) {
@@ -190,25 +192,37 @@ public class McpDispatcher {
     }
     c.putObject("resources");
     c.putObject("prompts");
+    if (ui) c.putObject("extensions").putObject(McpAppResource.EXTENSION);
     return c;
+  }
+
+  private static String instructions(McpRequest r) {
+    String base = Instructions.of(r.snapshot(), r.catalog());
+    return !r.env().supportsUi() ? base : base + "\n\nWhen a tool returns an approval handle, show "
+        + "approval_card(handle) once so the user can review it. Keep polling approval_status for the result; "
+        + "never repeat the original operation. The card can decline or open GateRook. Only the person can approve "
+        + "in GateRook; a card interaction is not proof of approval.";
   }
 
   /** {@code tools/list}: pages of 100, the cursor names its offset and the list it belongs to. */
   private ObjectNode toolsList(McpRequest r) {
-    List<ToolCatalog.PublishedTool> all = r.catalog().tools();
-    int offset = cursor(r.env(), r.catalog().listHash());
+    boolean ui = r.env().supportsUi();
+    List<ToolCatalog.PublishedTool> all = r.catalog().tools().stream()
+        .filter(t -> ui || !CoreTools.APPROVAL_CARD_ACTION.equals(t.name())).toList();
+    String listHash = r.catalog().listHash() + (ui ? ":ui" : ":text");
+    int offset = cursor(r.env(), listHash);
     ObjectNode out = JsonNodeFactory.instance.objectNode();
     ArrayNode list = out.putArray("tools");
     for (int i = offset; i < Math.min(all.size(), offset + PAGE); i++) {
-      list.add(tool(all.get(i)));
+      list.add(tool(all.get(i), ui));
     }
     if (offset + PAGE < all.size()) {
-      out.put("nextCursor", encodeCursor(offset + PAGE, r.catalog().listHash()));
+      out.put("nextCursor", encodeCursor(offset + PAGE, listHash));
     }
     return out;
   }
 
-  private static ObjectNode tool(ToolCatalog.PublishedTool t) {
+  private static ObjectNode tool(ToolCatalog.PublishedTool t, boolean ui) {
     ObjectNode n = JsonNodeFactory.instance.objectNode();
     n.put("name", t.name());
     n.put("title", t.title());
@@ -222,6 +236,11 @@ public class McpDispatcher {
     a.put("destructiveHint", Boolean.TRUE.equals(t.annotations().destructiveHint()));
     a.put("idempotentHint", Boolean.TRUE.equals(t.annotations().idempotentHint()));
     a.put("openWorldHint", Boolean.TRUE.equals(t.annotations().openWorldHint()));
+    if (ui && CoreTools.APPROVAL_CARD.equals(t.name())) {
+      n.putObject("_meta").putObject("ui").put("resourceUri", McpAppResource.URI);
+    } else if (ui && CoreTools.APPROVAL_CARD_ACTION.equals(t.name())) {
+      n.putObject("_meta").putObject("ui").putArray("visibility").add("app");
+    }
     return n;
   }
 

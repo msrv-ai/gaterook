@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="{{CSP}}">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GateRook approval</title>
+  <style>{{KIT_CSS}}</style>
+</head>
+<body>
+  <main class="gw-card" aria-labelledby="card-title" id="approval-card">
+    <header class="gw-card__header">
+      <div class="gw-card__heading">
+        <h1 class="gw-card__title" id="card-title">GateRook approval</h1>
+        <p class="gw-card__description" id="status-description" role="status">Connecting to this chat…</p>
+      </div>
+      <span class="gw-badge gw-badge--neutral" id="status-badge">Connecting</span>
+    </header>
+    <div class="gw-card__body gw-stack">
+      <div class="gw-alert gw-alert--danger" id="card-error" role="alert" hidden>
+        <div class="gw-alert__content"><p class="gw-alert__body" id="error-message"></p></div>
+      </div>
+      <div class="gw-stack" id="request-content" hidden>
+        <dl class="gw-kv gw-kv--dense">
+          <div class="gw-kv__row"><dt class="gw-kv__key">Tool</dt><dd class="gw-kv__value"><code class="gw-code" id="request-tool"></code></dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key">Connection</dt><dd class="gw-kv__value"><code class="gw-code" id="request-connection"></code> <span class="gw-env" id="request-environment"></span></dd></div>
+          <div class="gw-kv__row"><dt class="gw-kv__key">Request</dt><dd class="gw-kv__value"><code class="gw-code" id="request-handle"></code></dd></div>
+          <div class="gw-kv__row" id="expiry-row"><dt class="gw-kv__key">Time remaining</dt><dd class="gw-kv__value gw-tabular" id="request-expiry" role="timer" aria-live="off"></dd></div>
+        </dl>
+        <section class="gw-stack gw-stack--sm" aria-labelledby="request-label">
+          <h2 class="gw-text-small" id="request-label">Requested arguments</h2>
+          <div class="gw-code-block gw-code-block--wrap gw-code-block--scroll">
+            <div class="gw-code-block__header"><span class="gw-code-block__lang" id="request-language"></span></div>
+            <div class="gw-code-block__body" tabindex="0" role="region" aria-label="Requested arguments"><pre class="gw-code-block__pre"><code id="request-text"></code></pre></div>
+          </div>
+          <p class="gw-text-small" id="request-truncated" hidden>Preview shortened. Open GateRook to review the complete action.</p>
+        </section>
+        <div class="gw-alert gw-alert--info">
+          <div class="gw-alert__content gw-stack gw-stack--sm">
+            <p class="gw-alert__title">Final approval happens in GateRook</p>
+            <p class="gw-alert__body">This is a masked request preview. Review the exact action in GateRook before approving. Unusual characters appear as visible code points.</p>
+            <p class="gw-alert__body" id="comment-required" hidden>A comment is required when approving in GateRook.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <footer class="gw-card__footer gw-card__actions">
+      <button class="gw-btn gw-btn--ghost" id="refresh-button" type="button" disabled>Refresh</button>
+      <button class="gw-btn gw-btn--secondary" id="details-button" type="button" disabled>Details</button>
+      <button class="gw-btn gw-btn--danger" id="deny-button" type="button" disabled>Deny</button>
+      <button class="gw-btn gw-btn--primary" id="approve-button" type="button" disabled>Approve in GateRook</button>
+    </footer>
+  </main>
+  <script type="module">{{APP_JS}}</script>
+</body>
+</html>

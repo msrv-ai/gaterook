@@ -73,6 +73,8 @@ public class ToolCatalog {
           out.add(coreTool(snapshot, CoreTools.withMode(core)));
         }
       }
+      out.add(coreTool(snapshot, CoreTools.approvalCard()));
+      out.add(coreTool(snapshot, CoreTools.approvalCardAction()));
     }
     out.add(coreTool(snapshot, CoreTools.approvalStatus()));
     out.sort(java.util.Comparator.comparing(PublishedTool::name));
@@ -227,7 +229,7 @@ public class ToolCatalog {
       new TreeSet<>(snapshot.connections().stream().filter(EndpointSnapshot.Wired::usable)
           .map(w -> w.config().name()).toList()).forEach(values::add);
     }
-    return new PublishedTool(t.name(), t.title(), t.description(), input, null, t.annotations(), List.of(), null,
+    return new PublishedTool(t.name(), t.title(), t.description(), input, t.outputSchema(), t.annotations(), List.of(), null,
         true);
   }
 
