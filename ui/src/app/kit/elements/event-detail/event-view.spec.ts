@@ -156,6 +156,34 @@ describe('event-detail view (design/elements/event-detail.html)', () => {
     expect(errorAlert(DEMO_EVENTS.allowed)).toBeNull();
   });
 
+  it('uses the recorded call duration when a legacy timeout has zero resource time', () => {
+    const detail = {
+      ...DEMO_EVENTS.error,
+      event: { ...DEMO_EVENTS.error.event, durationMs: 10005 },
+      rows: DEMO_EVENTS.error.rows.map((r) => (r.phase === 'completed' ? { ...r, resourceMs: 0, durationMs: 10005 } : r)),
+    };
+    expect(words(errorAlert(detail)!.title)).toBe('cache-redis did not answer within 10.0 s');
+    expect(words(errorAlert({ ...detail, rows: [] })!.title)).toBe('cache-redis did not answer within 10.0 s');
+  });
+
+  it('does not invent a zero duration for a timeout without timing data', () => {
+    const detail = {
+      ...DEMO_EVENTS.error,
+      event: { ...DEMO_EVENTS.error.event, durationMs: null },
+      rows: DEMO_EVENTS.error.rows.map((r) => (r.phase === 'completed' ? { ...r, resourceMs: 0, durationMs: null } : r)),
+    };
+    expect(words(errorAlert(detail)!.title)).toBe('cache-redis did not answer before the timeout');
+  });
+
+  it('excludes approval waiting from a legacy timeout duration fallback', () => {
+    const detail = {
+      ...DEMO_EVENTS.error,
+      event: { ...DEMO_EVENTS.error.event, durationMs: 57005 },
+      rows: DEMO_EVENTS.error.rows.map((r) => (r.phase === 'completed' ? { ...r, resourceMs: 0, durationMs: 57005, approvalWaitMs: 47000 } : r)),
+    };
+    expect(words(errorAlert(detail)!.title)).toBe('cache-redis did not answer within 10.0 s');
+  });
+
   it('describes a trace and marks the agent-reported name as unverified', () => {
     expect(traceLine(DEMO_TRACE)).toEqual({ short: '4f2a9c…', calls: '23 calls', span: '18 min', who: 'Codex' });
     expect(titleSource(DEMO_TRACE)).toBe('Task name as reported by Codex, unverified');

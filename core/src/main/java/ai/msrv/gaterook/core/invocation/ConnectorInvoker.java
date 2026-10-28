@@ -189,17 +189,17 @@ public class ConnectorInvoker {
     CallContext call = context(r, taint, timeout);
     ExecContext ctx = approval == null ? call
         : new ApprovedContext(call, approval.approvalId(), approval.preparedState(), approval.payload());
-    long[] resourceNanos = new long[1];
+    ResourceTimer resource = new ResourceTimer();
     try (var resolver = secrets.resolver(r.cfg(), taint)) {
       ToolResult raw = guard.run(r.cfg().id(), r.cfg().name(), connector.maxConcurrency(), timeout, call, () -> {
-        long start = System.nanoTime();
+        resource.start();
         try {
           return invoke(connector, kind, argument, r, resolver, ctx);
         } finally {
-          resourceNanos[0] = System.nanoTime() - start;
+          resource.stop();
         }
       });
-      long resourceMs = resourceNanos[0] / 1_000_000;
+      long resourceMs = resource.elapsedMs();
       if (raw == null) {
         raw = ToolResult.text("No result.");
       }
@@ -211,7 +211,7 @@ public class ConnectorInvoker {
       return new Outcome(accounted, null, null, resourceMs, masked.outcome().fields(), bytes,
           ResultLimiter.sha256(accounted), ResultLimiter.preview(accounted, 4_096), false);
     } catch (ConnectorException e) {
-      long resourceMs = resourceNanos[0] / 1_000_000;
+      long resourceMs = resource.elapsedMs();
       boolean unknown = approval != null && (e.kind() == ConnectorException.Kind.OUTCOME_UNKNOWN
           || e.kind() == ConnectorException.Kind.TIMEOUT || e.kind() == ConnectorException.Kind.INTERNAL);
       if (e.kind() == ConnectorException.Kind.INTERNAL) {
@@ -221,10 +221,33 @@ public class ConnectorInvoker {
       return failure(e.kind(), message(e, connector, r, taint), resourceMs, unknown);
     } catch (RuntimeException e) {
       log.error("{} on {} failed inside the core ({})", kind, r.cfg().name(), r.callId(), e);
-      return failure(ConnectorException.Kind.INTERNAL, internal(connector, r), resourceNanos[0] / 1_000_000,
+      return failure(ConnectorException.Kind.INTERNAL, internal(connector, r), resource.elapsedMs(),
           approval != null);
     } finally {
       taint.clear();
+    }
+  }
+
+  /** The caller can observe elapsed resource time before a cancelled connector has finished unwinding. */
+  private static final class ResourceTimer {
+    private volatile Long startedAt;
+    private volatile Long finishedAt;
+
+    void start() {
+      startedAt = System.nanoTime();
+    }
+
+    void stop() {
+      finishedAt = System.nanoTime();
+    }
+
+    long elapsedMs() {
+      Long start = startedAt;
+      if (start == null) {
+        return 0;
+      }
+      Long end = finishedAt;
+      return ((end == null ? System.nanoTime() : end) - start) / 1_000_000;
     }
   }
 

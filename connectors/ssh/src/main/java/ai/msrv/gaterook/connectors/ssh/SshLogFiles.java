@@ -117,12 +117,12 @@ final class SshLogFiles {
   }
 
   /**
-   * A connection test checks the shared root's ancestry before and after the batch. Check every relative component
-   * before and after opening each file without repeating the same root lstat requests. Canonical comparison alone
-   * is insufficient: some SFTP servers return normalized paths without resolving symbolic parents.
-   * Tool reads keep the full per-component checks in {@link #file}.
+   * The caller checks the shared root's ancestry before and after the batch. Check every relative component without
+   * repeating the same root lstat requests. Connection tests call this before and after opening each file; listings
+   * use the returned metadata without opening files. Canonical comparison alone is insufficient: some SFTP servers
+   * return normalized paths without resolving symbolic parents. Content reads keep the full checks in {@link #file}.
    */
-  static void inspectFile(SftpClient sftp, SshLogSettings settings, String file, ExecContext ctx)
+  static SftpClient.Attributes inspectFile(SftpClient sftp, SshLogSettings settings, String file, ExecContext ctx)
       throws IOException, ConnectorException {
     String path = settings.allowed(file);
     String at = settings.root();
@@ -139,9 +139,14 @@ final class SshLogFiles {
       throw ConnectorException.denied("Symbolic links are not allowed in selected log paths.");
     }
     budget(sftp, ctx);
-    if (!sftp.lstat(path).isRegularFile()) {
+    var attributes = sftp.lstat(path);
+    if (attributes.isSymbolicLink()) {
+      throw ConnectorException.denied("Symbolic links are not allowed in selected log paths.");
+    }
+    if (!attributes.isRegularFile()) {
       throw ConnectorException.denied("Only regular log files can be read.");
     }
+    return attributes;
   }
 
   static ToolResult list(SftpClient sftp, SshLogSettings settings, SshLogFileQuery query, ExecContext ctx)
@@ -154,18 +159,34 @@ final class SshLogFiles {
     if (bytes > byteLimit) {
       throw ConnectorException.badInput("The response limit is too small to list this log folder.");
     }
+    List<String> selected = new ArrayList<>();
+    String truncatedReason = null;
     for (String file : settings.allowedFiles()) {
       if (!query.matches(file)) continue;
-      if (files.size() == max || bytes + file.length() * 6L + 80 > byteLimit) {
-        result.put("truncated", true);
-        return ToolResult.json(result, null).truncated(files.size() == max ? "row_limit" : "size_limit");
+      if (selected.size() == max || bytes + file.length() * 6L + 80 > byteLimit) {
+        truncatedReason = selected.size() == max ? "row_limit" : "size_limit";
+        break;
       }
       bytes += file.length() * 6L + 80;
-      var attributes = file(sftp, settings, file, ctx);
+      selected.add(file);
+    }
+    int rootDepth = settings.root().equals("/") ? 0 : settings.root().substring(1).split("/").length;
+    // Batching saves the root traversal and duplicate leaf stat per file, but adds two complete root checks.
+    // Keep the per-file path when filtering or output limits leave too few files to benefit.
+    boolean batch = selected.size() * (rootDepth + 1) > 2 * (rootDepth + 2);
+    if (batch) {
+      directory(sftp, settings.root(), ctx);
+    }
+    for (String file : selected) {
+      var attributes = batch ? inspectFile(sftp, settings, file, ctx) : file(sftp, settings, file, ctx);
       files.addObject().put("file", file).put("size", attributes.getSize());
     }
-    result.put("truncated", false);
-    return ToolResult.json(result, null);
+    if (batch) {
+      directory(sftp, settings.root(), ctx);
+    }
+    result.put("truncated", truncatedReason != null);
+    ToolResult output = ToolResult.json(result, null);
+    return truncatedReason == null ? output : output.truncated(truncatedReason);
   }
 
 }

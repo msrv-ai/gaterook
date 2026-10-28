@@ -374,13 +374,18 @@ export function rawJson(d: EventDetail): { readonly text: string; readonly size:
 /** The error alert under the summary: what happened and what to do. */
 export function errorAlert(d: EventDetail): { readonly title: TextPart[]; readonly body: string } | null {
   if (d.event.decision !== 'error') return null;
-  const { completed } = callRows(d);
+  const { completed, resolved } = callRows(d);
   const kind = completed?.errorKind ?? d.event.errorKind;
   const message = completed?.errorMessage ?? d.event.errorMessage ?? 'The resource returned an error.';
   const conn = d.event.connection;
   const who = clientLabel(d.event.client);
+  // Older timeout rows may record zero resource time while the cancelled connector is still unwinding.
+  const totalMs = completed?.durationMs ?? d.event.durationMs;
+  const waitMs = completed?.approvalWaitMs ?? resolved?.approvalWaitMs ?? 0;
+  const timeoutMs = [completed?.resourceMs, totalMs == null ? null : totalMs - waitMs].find((ms) => ms != null && ms > 0);
+  const timeoutText = timeoutMs != null ? `within ${precise(timeoutMs)}` : 'before the timeout';
   const title: TextPart[] =
-    kind === 'TIMEOUT' && conn ? [c(conn), t(` did not answer within ${precise(completed?.resourceMs ?? completed?.durationMs ?? 0)}`)] : conn ? [c(conn), t(' returned an error')] : [t('The call failed')];
+    kind === 'TIMEOUT' && conn ? [c(conn), t(` did not answer ${timeoutText}`)] : conn ? [c(conn), t(' returned an error')] : [t('The call failed')];
   return { title, body: `${message.replace(/\.?$/, '.')} ${who} got the error.` };
 }
 

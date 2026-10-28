@@ -222,6 +222,92 @@ class SshLogsConnectorIT {
   }
 
   @Test
+  void listsSelectedFilesWithinTheDeadlineOnALatentSftpConnection() throws Exception {
+    Path selected = Files.createDirectories(root.resolve("selected/logs/services"));
+    String[] files = new String[9];
+    for (int i = 0; i < files.length; i++) {
+      files[i] = "service-" + i + ".log";
+      Files.writeString(selected.resolve(files[i]), "entry\n");
+    }
+    var requests = new AtomicInteger();
+    var factory = new SftpSubsystemFactory.Builder().build();
+    factory.addSftpEventListener(new org.apache.sshd.sftp.server.SftpEventListener() {
+      @Override
+      public void received(org.apache.sshd.server.session.ServerSession session, int type, int id)
+          throws java.io.IOException {
+        requests.incrementAndGet();
+        try {
+          Thread.sleep(80);
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+          throw new java.io.IOException("Test request interrupted", e);
+        }
+      }
+    });
+    sshd.server.setSubsystemFactories(List.of(factory));
+    var settings = (ObjectNode) cfg(true, files).config();
+    ((ObjectNode) settings.path("logs")).put("root", selected.toString());
+    var limits = TestCtx.limits(Duration.ofSeconds(30), Duration.ofSeconds(5), 256 * 1024, 64 * 1024);
+    var result = connector.execute(call("ssh_logs_list", "{}"), config(settings), secrets, TestCtx.of(limits));
+    assertThat(result.structuredContent().path("files")).hasSize(files.length);
+    assertThat(result.structuredContent().path("truncated").asBoolean()).isFalse();
+    assertThat(requests.get()).as("shared root ancestry is checked around the batch, not for every file")
+        .isLessThanOrEqualTo(selected.getNameCount() * 2 + files.length * 2 + 6);
+    requests.set(0);
+    var filtered = connector.execute(call("ssh_logs_list", "{\"query\":\"service-0\"}"), config(settings), secrets,
+        TestCtx.of(limits));
+    assertThat(filtered.structuredContent().path("files")).hasSize(1);
+    assertThat(requests.get()).as("a single matching file keeps its cheaper per-file ancestry checks")
+        .isLessThanOrEqualTo(selected.getNameCount() + 5);
+  }
+
+  @Test
+  void listingsRejectRootReplacementBeforeReturningFullOrTruncatedResults() throws Exception {
+    for (String limit : List.of("none", "row", "size")) {
+      Path selected = Files.createDirectory(root.resolve("selected-" + limit));
+      for (int i = 0; i < 3; i++) {
+        Files.writeString(selected.resolve("app" + i + ".log"), "selected entry\n");
+      }
+      var replaced = new java.util.concurrent.atomic.AtomicBoolean();
+      var factory = new SftpSubsystemFactory.Builder()
+          .withFileSystemAccessor(new org.apache.sshd.sftp.server.SftpFileSystemAccessor() {
+            @Override
+            public java.util.NavigableMap<String, Object> resolveReportedFileAttributes(
+                org.apache.sshd.sftp.server.SftpSubsystemProxy subsystem, Path file, int flags,
+                java.util.NavigableMap<String, Object> attributes, java.nio.file.LinkOption... options)
+                throws java.io.IOException {
+              if (file.equals(selected.resolve("app2.log")) && replaced.compareAndSet(false, true)) {
+                Files.move(selected, root.resolve("original-" + limit));
+                Files.createSymbolicLink(selected, root.resolve("nested"));
+              }
+              return attributes;
+            }
+          }).build();
+      sshd.server.setSubsystemFactories(List.of(factory));
+      var settings = (ObjectNode) cfg(true, limit.equals("none") ? new String[] {"app0.log", "app1.log", "app2.log"}
+          : new String[] {"app0.log", "app1.log", "app2.log", "other.log"}).config();
+      ((ObjectNode) settings.path("logs")).put("root", selected.toString());
+      long bytes = limit.equals("size") ? 2 * (128 + selected.toString().length() * 6L + 3 * (8 * 6 + 80) + 1)
+          : TestCtx.devLimits().maxResponseBytes();
+      var limits = listingLimits(limit.equals("row") ? 3 : 1000, bytes);
+      assertThatThrownBy(() -> connector.execute(call("ssh_logs_list", "{}"), config(settings), secrets,
+          TestCtx.of(limits))).as(limit).isInstanceOf(ConnectorException.class).hasMessageContaining("Symbolic links");
+      assertThat(replaced.get()).as(limit).isTrue();
+    }
+  }
+
+  @Test
+  void listingsRejectSymbolicParentsAndNonRegularFiles() throws Exception {
+    Files.createSymbolicLink(root.resolve("linked"), root.resolve("nested"));
+    Files.createSymbolicLink(root.resolve("link.log"), root.resolve("app.log"));
+    for (String file : List.of("linked/worker.log", "link.log", "nested")) {
+      assertThatThrownBy(() -> connector.execute(call("ssh_logs_list", "{}"),
+          cfg(true, "app.log", "nested/worker.log", file), secrets, TestCtx.read()))
+          .as(file).isInstanceOf(ConnectorException.class);
+    }
+  }
+
+  @Test
   void checksSelectedFilesWithinTheDeadlineOnALatentSftpConnection() throws Exception {
     var requests = new AtomicInteger();
     var opened = new AtomicInteger();
