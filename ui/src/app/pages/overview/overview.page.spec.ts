@@ -248,11 +248,16 @@ describe('Overview page', () => {
       expect(text(cursor.querySelector('.gw-status'))).toBe('Not connected');
       expect(href(byText(cursor, 'a', 'Connect'))).toBe('/clients#cl-cu-t');
       expect(text(byText(cursor, 'a', 'Connect'))).toBe('Connect Cursor');
+      expect(cursor.querySelector('.gw-tag-list')).toBeNull();
 
       const claude = tile(apps, 'Claude Desktop')!;
       expect(href(claude.querySelector('.gw-card__link'))).toBe('/clients#cl-cd-t');
       expect(text(claude.querySelector('.gw-status-tile__main p'))).toBe('Can use 11 connections, 3 of them prod');
+      const endpoints = claude.querySelector('.gw-status-tile__main .gw-tag-list')!;
+      expect(endpoints.getAttribute('aria-label')).toBe('Connected endpoints for Claude Desktop');
+      expect(Array.from(endpoints.querySelectorAll('.gw-badge')).map(text)).toEqual(['dev', 'incident-prod']);
       expect(text(tile(apps, 'Codex')!.querySelector('.gw-status-tile__main p'))).toBe('Can use 8 connections');
+      expect(Array.from(tile(apps, 'Codex')!.querySelectorAll('.gw-badge')).map(text)).toEqual(['dev']);
       expect(tile(apps, 'claude.ai')).toBeNull();
       // Antigravity isn't installed: it stays on AI apps.
       expect(tile(apps, 'Antigravity')).toBeNull();

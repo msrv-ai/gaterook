@@ -1,4 +1,4 @@
-import { HEALTH, ROWS, card, clientsFound, clientsInUse, firstRun, health, overview, setup, tunnelOff } from './overview.fixtures';
+import { HEALTH, ROWS, card, clientsFound, clientsInUse, firstRun, health, link, overview, setup, tunnelOff } from './overview.fixtures';
 import {
   activityLine,
   appAnchor,
@@ -129,6 +129,25 @@ describe('AI apps', () => {
       ['Codex', 'Connected', 'Can use 8 connections', null, true],
       ['claude.ai', 'Tunnel off', 'In the browser · used until 12:10', null, true],
     ]);
+    expect(tiles.map((t) => t.endpoints)).toEqual([[], ['dev', 'incident-prod'], ['dev'], []]);
+  });
+
+  it('shows each configured endpoint once, including links awaiting a restart, and excludes failed access', () => {
+    const app = card('cursor', 'Cursor', 'connected', [
+      link('cursor', 'dev', 'dev', { status: 'revoked' }),
+      link('cursor', 'dev', 'dev', { id: 'og_cursor', method: 'oauth', configPath: null }),
+      link('cursor', 'dev', 'dev'),
+      link('cursor', 'stage-readonly', 'stage', { status: 'needs-restart' }),
+      link('cursor', 'removed', 'dev', { status: 'removed-outside' }),
+      link('cursor', 'changed', 'dev', { status: 'needs-repair' }),
+      link('cursor', 'revoked', 'dev', { status: 'revoked' }),
+      link('cursor', 'failed', 'dev', { status: 'error' }),
+    ]);
+    expect(homeAppTiles([app], ROWS, null)[0].endpoints).toEqual(['dev', 'stage-readonly']);
+    // One broken entry can make the entire card an error; its other access remains visible.
+    expect(guideAppTile({ ...app, status: 'error' }).endpoints).toEqual(['dev', 'stage-readonly']);
+    expect(guideAppTile(card('codex', 'Codex', 'needs-restart', [link('codex', 'dev', 'dev', { status: 'needs-restart' })])).endpoints).toEqual(['dev']);
+    expect(clientsFound().clients.map((c) => guideAppTile(c).endpoints)).toEqual([[], [], [], []]);
   });
 
   it('puts an app that needs a restart or failed before the connected ones, with the core’s words', () => {

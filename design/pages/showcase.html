@@ -1734,6 +1734,21 @@
 &lt;span class=&quot;gw-badge gw-badge--warning&quot;&gt;Expires in 3 days&lt;/span&gt;
 &lt;span class=&quot;gw-badge gw-badge--warning gw-badge--sm&quot;&gt;Expires in 3 days&lt;/span&gt;</code></pre></details>
 
+  <h3>Wrapping endpoint labels</h3>
+  <p class="gw-text-small gw-fg-muted">Use <code class="gw-code">gw-badge--wrap</code> for endpoint slugs that must remain fully readable in a narrow card. The badge grows to fit the complete label.</p>
+  <div class="sc-demo" data-sc-code>
+    <!-- The sidebar-width token gives this demonstration a narrow card-sized area. -->
+    <ul class="gw-tag-list" role="list" aria-label="Endpoint label examples" style="max-width: var(--gw-layout-sidebar-width)">
+      <li class="gw-badge gw-badge--neutral gw-badge--sm gw-badge--wrap"><span class="gw-mono">dev</span></li>
+      <li class="gw-badge gw-badge--neutral gw-badge--sm gw-badge--wrap"><span class="gw-mono">customer-support-production-incident-investigation-readonly</span></li>
+    </ul>
+  </div>
+<details class="sc-code"><summary>Markup</summary><pre><code>&lt;!-- The sidebar-width token gives this demonstration a narrow card-sized area. --&gt;
+&lt;ul class=&quot;gw-tag-list&quot; role=&quot;list&quot; aria-label=&quot;Endpoint label examples&quot; style=&quot;max-width: var(--gw-layout-sidebar-width)&quot;&gt;
+  &lt;li class=&quot;gw-badge gw-badge--neutral gw-badge--sm gw-badge--wrap&quot;&gt;&lt;span class=&quot;gw-mono&quot;&gt;dev&lt;/span&gt;&lt;/li&gt;
+  &lt;li class=&quot;gw-badge gw-badge--neutral gw-badge--sm gw-badge--wrap&quot;&gt;&lt;span class=&quot;gw-mono&quot;&gt;customer-support-production-incident-investigation-readonly&lt;/span&gt;&lt;/li&gt;
+&lt;/ul&gt;</code></pre></details>
+
   <h3>In context: tokens of endpoint dev</h3>
   <div class="sc-demo sc-demo--col" data-sc-code>
     <dl class="gw-kv">

@@ -291,14 +291,15 @@ Badge: a 20px status pill in sentence case with an optional leading icon. It nam
 
 [SCSS](scss/components/_badge.scss)
 
-**Variants:** gw-badge--brand; gw-badge--success; gw-badge--warning; gw-badge--danger; gw-badge--info; gw-badge--neutral (default); gw-badge--dev; gw-badge--stage; gw-badge--prod; gw-badge--solid (env tones keep the tint and get a solid edge); gw-badge--outline (wins over --solid); gw-badge--sm (18px); gw-counter (default: bg.active wash); gw-counter--attention (warning solid, dark text); gw-counter--muted.
+**Variants:** gw-badge--brand; gw-badge--success; gw-badge--warning; gw-badge--danger; gw-badge--info; gw-badge--neutral (default); gw-badge--dev; gw-badge--stage; gw-badge--prod; gw-badge--solid (env tones keep the tint and get a solid edge); gw-badge--outline (wins over --solid); gw-badge--wrap (long labels wrap within the available width); gw-badge--sm (18px); gw-counter (default: bg.active wash); gw-counter--attention (warning solid, dark text); gw-counter--muted.
 
 **Parts:** gw-badge__icon (12px; any direct .gw-icon child is sized the same).
 
 **States and behavior:**
 
 - display only: no interactive states
-- never wraps or truncates: keep the words short
+- never truncates; stays on one line by default, so keep the words short
+- --wrap preserves the complete label across multiple lines, including unbroken endpoint slugs and nested monospaced text
 
 **Accessibility:** Words are always present; the icon is an aria-hidden second cue. Tone fg on tone subtle and on-solid on solid are verified 4.5:1 in all four modes. A counter needs sr-only context ('3 waiting') or a control name that says what is counted. The badge border and the counter's transparent border keep the shape in forced colors.
 
@@ -1747,6 +1748,8 @@ Stands in for the whole window while the gateway core is unavailable: fixed, z s
 
 One compact card that names one thing (a connection, an AI app) and says its state in words, with at most one action (Connect, Test again, How to install). For pages that answer 'what is connected and is it working' at a glance; sets of tiles sit in a gw-grid --3 list (--2 for the fixed set of four AI apps), problems first. The title links to the thing's page; when the action is the tile's only destination the title is plain text and the tile is not interactive.
 
+AI app tiles show their endpoint slugs below the metadata as neutral small badges with monospaced labels in a wrapping `gw-tag-list`. Use `gw-badge--wrap` to keep long slugs fully visible within narrow tiles. Show each connected or restart-pending endpoint once. Exclude failed and revoked links, and omit the list when no endpoints remain. Name the list `Connected endpoints for <app>`; badges are display only and retain the tile's existing navigation.
+
 [SCSS](elements/_status-tile.scss) · [Interactive demo](elements/status-tile.html)
 
 **Composes:**
@@ -1760,6 +1763,8 @@ One compact card that names one thing (a connection, an AI app) and says its sta
 - gw-spinner
 - gw-mono
 - gw-grid
+- gw-badge
+- gw-tag-list
 
 **States and behavior:**
 

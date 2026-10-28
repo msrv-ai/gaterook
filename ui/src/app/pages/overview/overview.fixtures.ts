@@ -153,7 +153,7 @@ export function browserSignedIn(): Overview {
   };
 }
 
-function link(client: ClientLink['client'], endpoint: string, env: Env, over: Partial<ClientLink> = {}): ClientLink {
+export function link(client: ClientLink['client'], endpoint: string, env: Env, over: Partial<ClientLink> = {}): ClientLink {
   return {
     id: `cl_${client}_${endpoint}`,
     client,

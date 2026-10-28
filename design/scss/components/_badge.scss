@@ -23,6 +23,8 @@
 //            --outline  transparent fill, tone border + tone fg text (quiet
 //                       metadata: Built-in, Template, Destructive). Wins over
 //                       --solid if both are set, so text never lands on nothing
+//            --wrap     long labels such as endpoint slugs wrap within the
+//                       available width, including inside unbroken literals
 // Sizes      md 20px (caption line 16 + 2 × space-px padding + 2 × 1px border)
 //            --sm 18px (no block padding, tighter inline padding)
 // Subparts   __icon   12px Lucide icon before the text (decorative: the words
@@ -30,8 +32,8 @@
 //                     .gw-icon child is sized the same way.
 // States     none: a badge is display only. Never put a click handler on it;
 //            a filter chip is .gw-tag, a toggle is .gw-btn[aria-pressed].
-//            A badge never wraps or truncates: keep the words short (the
-//            detail goes in the cell next to it).
+//            A badge never truncates. By default it stays on one line: keep
+//            the words short. Use --wrap when a full label can be long.
 // A11y       Text is always present (colour is never the only cue). Icons are
 //            aria-hidden (kit.js adds it). Tone fg on tone subtle and tone
 //            on-solid on tone solid are verified 4.5:1 in all four modes
@@ -105,6 +107,16 @@
     color: var(--gw-tone-fg);
     background: transparent;
     border-color: var(--gw-tone-border);
+  }
+
+  &--wrap {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    border-radius: var(--gw-radius-sm);
+
+    // A nested label (including .gw-mono) must shrink with the flex item.
+    > :not(.gw-icon) { min-width: 0; }
   }
 
   // ─── Sizes ───

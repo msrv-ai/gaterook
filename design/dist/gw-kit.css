@@ -2837,6 +2837,15 @@ table {
   background: transparent;
   border-color: var(--gw-tone-border);
 }
+.gw-badge--wrap {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  border-radius: var(--gw-radius-sm);
+}
+.gw-badge--wrap > :not(.gw-icon) {
+  min-width: 0;
+}
 .gw-badge--sm {
   padding-block: 0;
   padding-inline: var(--gw-space-1-5);
