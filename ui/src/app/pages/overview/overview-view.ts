@@ -30,7 +30,7 @@ export function connectionCount(o: Overview): number {
 
 /**
  * The state from the core's own facts: its connections, and its getting-started step "client" — done once an AI app
- * is connected through the AI apps page or a named token was issued (`clients.ClientService.progress`).
+ * is connected through the AI apps page, an observed browser sign-in, or a named token was issued.
  */
 export function overviewState(o: Overview): OverviewState {
   if (connectionCount(o) === 0) return 'first-run';
@@ -177,11 +177,18 @@ export interface AppTile {
 
 /** An app the guide or the home screen offers to connect, or one to install (a card's state in the tile's words). */
 export function guideAppTile(card: ClientCard): AppTile {
-  const installed = card.status !== 'not-installed';
-  if (!installed) {
-    return { client: card.client, name: card.name, meta: 'Not found on this computer', state: { tone: 'neutral', label: 'Not installed' }, linked: false, action: 'install' };
+  switch (card.status) {
+    case 'connected':
+      return { client: card.client, name: card.name, meta: canUse(card, null), state: { tone: 'success', label: 'Connected' }, linked: true, action: null };
+    case 'needs-restart':
+      return { client: card.client, name: card.name, meta: card.statusText || 'Restart it to load GateRook', state: { tone: 'warning', label: 'Needs restart' }, linked: true, action: null };
+    case 'error':
+      return { client: card.client, name: card.name, meta: card.statusText || card.warnings[0] || 'Open it to see what failed', state: { tone: 'danger', label: 'Error' }, linked: true, action: null };
+    case 'not-installed':
+      return { client: card.client, name: card.name, meta: 'Not found on this computer', state: { tone: 'neutral', label: 'Not installed' }, linked: false, action: 'install' };
+    default:
+      return { client: card.client, name: card.name, meta: 'Found on this computer', state: { tone: 'info', label: 'Not connected' }, linked: false, action: 'connect' };
   }
-  return { client: card.client, name: card.name, meta: 'Found on this computer', state: { tone: 'info', label: 'Not connected' }, linked: false, action: 'connect' };
 }
 
 /**
@@ -222,18 +229,7 @@ export function homeAppTiles(
     .filter((c) => c.status !== 'not-installed')
     .map((c, i) => ({ c, i }))
     .sort((a, b) => rank(a.c) - rank(b.c) || a.i - b.i)
-    .map(({ c }): AppTile => {
-      switch (c.status) {
-        case 'detected':
-          return guideAppTile(c);
-        case 'needs-restart':
-          return { client: c.client, name: c.name, meta: c.statusText || 'Restart it to load GateRook', state: { tone: 'warning', label: 'Needs restart' }, linked: true, action: null };
-        case 'error':
-          return { client: c.client, name: c.name, meta: c.statusText || c.warnings[0] || 'Open it to see what failed', state: { tone: 'danger', label: 'Error' }, linked: true, action: null };
-        default:
-          return { client: c.client, name: c.name, meta: canUse(c, connections), state: { tone: 'success', label: 'Connected' }, linked: true, action: null };
-      }
-    });
+    .map(({ c }): AppTile => c.status === 'connected' ? { ...guideAppTile(c), meta: canUse(c, connections) } : guideAppTile(c));
   return claudeAi ? [...tiles, claudeAi] : tiles;
 }
 

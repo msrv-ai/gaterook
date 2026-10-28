@@ -14,7 +14,7 @@ import { TimeService } from '../../core/time/time.service';
 import { AriaDisabledGuard } from '../../kit/aria-disabled';
 import { provideKitIcons } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
-import { NOW, ROWS, clientsFound, clientsInUse, devDb, firstRun, overview, setup, tunnelOff } from './overview.fixtures';
+import { NOW, ROWS, browserSignedIn, clientsBrowserSignedIn, clientsFound, clientsInUse, devDb, firstRun, overview, setup, tunnelOff } from './overview.fixtures';
 import { OverviewPage, SKELETON_DELAY_MS } from './overview.page';
 
 /** The page against fake admin API services: what it shows in each state, and what it asks the core to do. */
@@ -422,6 +422,33 @@ describe('Overview page', () => {
       const content = el.querySelector('ol.gw-stepper--guide > li .gw-stepper__content')!;
       expect(text(content)).toBe('The password is encrypted with a key kept on this computer. Back up the key so you can restore it. · Add another connection');
       expect(href(byText(content, 'a', 'Back up the key'))).toBe('/secrets#master-key');
+    });
+
+    it('shows an observed browser sign-in as connected while setup progress catches up', async () => {
+      setupPage(() => Promise.resolve(setup()), () => Promise.resolve(clientsBrowserSignedIn()));
+      const { el } = await render();
+      const cursor = tile(el, 'Cursor')!;
+      expect(text(cursor.querySelector('.gw-status__label'))).toBe('Connected');
+      expect(byText(cursor, 'a', 'Connect')).toBeNull();
+      expect(href(cursor.querySelector('.gw-card__link'))).toBe('/clients#cl-cu-t');
+      expect(text(el)).toContain('Waiting for the first request');
+    });
+
+    it('leaves setup on OAuth authentication alone and keeps the first request unrecorded', async () => {
+      setupPage(() => Promise.resolve(setup()), () => Promise.resolve(clientsFound()));
+      const { fixture, el } = await render();
+      expect(el.querySelector('#ov-setup-title')).not.toBeNull();
+      overviewAnswers = [() => Promise.resolve(browserSignedIn())];
+      clientsAnswer = () => Promise.resolve(clientsBrowserSignedIn());
+      calls = [];
+      events.emit('oauth.grant.changed', { id: 'og_cursor', endpoint: 'dev' });
+      await sleep(1_050);
+      await settle(fixture);
+      expect(calls).toEqual(['GET /api/overview']);
+      expect(el.querySelector('#ov-setup-title')).toBeNull();
+      expect(text(tile(el, 'Cursor')?.querySelector('.gw-status__label'))).toBe('Connected');
+      expect(byText(tile(el, 'Cursor')!, 'a', 'Connect')).toBeNull();
+      expect(text(el)).toContain('No calls from your AI apps in the last 24 hours');
     });
 
     it('becomes the home screen once the core says an AI app is connected', async () => {

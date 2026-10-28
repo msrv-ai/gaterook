@@ -4,8 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.core.admin.AdminMvc;
-import ai.msrv.gaterook.core.admin.clients.ClientCalls;
-import ai.msrv.gaterook.core.clients.ClientService;
 import ai.msrv.gaterook.core.endpoints.EndpointService;
 import ai.msrv.gaterook.core.tunnel.TunnelWorld;
 import java.io.IOException;
@@ -65,10 +63,12 @@ class OAuthClientStatusIT {
 
   @Test
   void aBrowserInstalledCursorConnectsAfterExchangeAndDiscoveryWithoutAConfigWrite() throws IOException {
+    assertOverviewConnection(false);
     Authorized approved = approveCursor();
     assertThat(cursor().path("status").asString()).as("consent alone does not prove a connection")
         .isEqualTo("detected");
     assertThat(cursor().path("links")).isEmpty();
+    assertOverviewConnection(false);
 
     String access = exchange(approved);
     JsonNode connected = cursor();
@@ -83,7 +83,7 @@ class OAuthClientStatusIT {
     }
     assertThat(link.path("usedAt").isNull()).isFalse();
     assertThat(link.path("status").asString()).isEqualTo("connected");
-    assertThat(overviewStatus()).isEqualTo("connected");
+    assertOverviewConnection(true);
 
     discoverTools(access);
     assertThat(cursor().path("status").asString()).isEqualTo("connected");
@@ -91,11 +91,12 @@ class OAuthClientStatusIT {
     assertThat(jdbc.queryForObject("select count(*) from tool_call", Integer.class)).isZero();
     assertThat(jdbc.queryForObject("select count(*) from client_link", Integer.class)).isZero();
     assertThat(Files.readString(config)).isEqualTo(ORIGINAL_CONFIG);
+    assertOverviewConnection(true);
 
     api.expect(204, HttpMethod.DELETE, "/api/oauth/grants/" + approved.grantId(), null);
     assertThat(cursor().path("links")).isEmpty();
     assertThat(cursor().path("status").asString()).isEqualTo("detected");
-    assertThat(overviewStatus()).isEqualTo("detected");
+    assertOverviewConnection(false);
     assertThat(local.mcp("dev", access, "tools/list").status()).isEqualTo(401);
     assertThat(jdbc.queryForObject("select count(*) from client_link", Integer.class)).isZero();
     assertThat(Files.readString(config)).isEqualTo(ORIGINAL_CONFIG);
@@ -118,7 +119,7 @@ class OAuthClientStatusIT {
 
     JsonNode connected = cursor();
     assertThat(connected.path("status").asString()).isEqualTo("connected");
-    assertThat(overviewStatus()).isEqualTo("connected");
+    assertOverviewConnection(true);
     assertThat(connected.path("links")).hasSize(2);
     JsonNode observed = connected.path("links").get(0);
     assertThat(observed.path("id").asString()).isEqualTo(approved.grantId());
@@ -155,7 +156,7 @@ class OAuthClientStatusIT {
     assertThat(link.path("status").asString()).isEqualTo("connected");
     assertThat(link.path("usedAt").isNull()).isFalse();
     assertThat(link.path("lastCallAt").isNull()).isTrue();
-    assertThat(overviewStatus()).isEqualTo("connected");
+    assertOverviewConnection(true);
     assertThat(jdbc.queryForObject("select count(*) from tool_call", Integer.class)).isZero();
     assertThat(jdbc.queryForObject("select count(*) from client_link", Integer.class)).isEqualTo(1);
     assertThat(Files.readString(config)).isEqualTo(managedConfig);
@@ -209,8 +210,29 @@ class OAuthClientStatusIT {
         .filter(c -> c.path("client").asString().equals("cursor")).findFirst().orElseThrow();
   }
 
-  private String overviewStatus() {
-    return world.bean(ClientCalls.class).withLastCalls(world.bean(ClientService.class).clients().clients()).stream()
-        .filter(c -> c.client().equals("cursor")).findFirst().orElseThrow().status();
+  private void assertOverviewConnection(boolean connected) {
+    for (String path : new String[] {"/api/overview", "/api/onboarding"}) {
+      JsonNode overview = api.ok(path);
+      JsonNode clientStep = byId(overview.path("gettingStarted").path("steps"), "client");
+      assertThat(clientStep.path("state").asString().equals("done")).as(path + " client setup step")
+          .isEqualTo(connected);
+      if (connected) {
+        assertThat(clientStep.path("detail").path("status").asString()).isEqualTo("Cursor");
+      }
+      JsonNode clientsNode = byId(overview.path("setupMap").path("nodes"), "clients");
+      assertThat(clientsNode.path("state").asString()).as(path + " clients node")
+          .isEqualTo(connected ? "done" : "todo");
+      assertThat(clientsNode.path("count").asInt()).isEqualTo(connected ? 1 : 0);
+      assertThat(byId(overview.path("gettingStarted").path("steps"), "playground").path("state").asString())
+          .as("sign-in and discovery are not a Playground tool call").isNotEqualTo("done");
+      if (path.equals("/api/overview")) {
+        assertThat(overview.path("stats").path("calls24h").asLong()).isZero();
+      }
+    }
+  }
+
+  private static JsonNode byId(JsonNode values, String id) {
+    return StreamSupport.stream(values.spliterator(), false).filter(value -> value.path("id").asString().equals(id))
+        .findFirst().orElseThrow();
   }
 }

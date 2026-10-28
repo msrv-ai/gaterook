@@ -243,8 +243,8 @@ class OverviewController {
         .toList();
     List<ClientViews.Card> cards;
     try {
-      // As the Clients page shows them: a call after Connect proves a client restarted. Overview refreshes on every
-      // call, so it reads only each link's last call, not the protocol revisions of the page.
+      // As the Clients page shows them: actual calls and current OAuth sign-ins establish connectivity. Overview
+      // reads only each link's last call, not the protocol revisions of the page.
       cards = clientCalls.withLastCalls(clientService.clients().clients());
     } catch (RuntimeException e) {
       cards = List.of();
@@ -266,10 +266,13 @@ class OverviewController {
     Optional<EndpointService.Summary> firstEndpoint = w.endpoints().stream().findFirst();
     add(steps, "endpoint", firstEndpoint.isPresent(), firstEndpoint.map(e -> detail("name", e.slug(), "tools",
         e.tools().read() + e.tools().approval() + e.tools().bypass())).orElse(Map.of()));
-    boolean clientDone = w.clientProgress().map(SetupProgress.Progress::done)
+    List<String> connectedClients = w.cards().stream().filter(c -> "connected".equals(c.status()))
+        .map(ClientViews.Card::name).toList();
+    boolean clientDone = !connectedClients.isEmpty() || w.clientProgress().map(SetupProgress.Progress::done)
         .orElse(!w.clients().isEmpty() || w.namedTokens() > 0 || audit.any("-client:playground"));
-    add(steps, "client", clientDone, w.clientProgress().map(p -> detail("status", p.status()))
-        .orElse(detail("clients", w.clients())));
+    add(steps, "client", clientDone, connectedClients.isEmpty()
+        ? w.clientProgress().map(p -> detail("status", p.status())).orElse(detail("clients", w.clients()))
+        : detail("status", String.join(", ", connectedClients)));
     add(steps, "playground", audit.any("client:playground"), Map.of());
     boolean notified = w.notifications().map(SetupProgress.Progress::done).orElse(false);
     add(steps, "notifications", notified, w.notifications().map(p -> detail("status", p.status())).orElse(Map.of()));

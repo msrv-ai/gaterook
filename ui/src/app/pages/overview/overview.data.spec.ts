@@ -6,8 +6,7 @@ import { ClientsApi } from '../../core/api/clients.api';
 import { ConnectionsApi } from '../../core/api/connections.api';
 import { Overview, OverviewApi } from '../../core/api/overview.api';
 import { EventStream } from '../../core/events/event-stream';
-import { connected } from '../clients/clients.fixtures';
-import { ROWS, clientsInUse, devDb, firstRun, overview, setup } from './overview.fixtures';
+import { ROWS, browserSignedIn, clientsBrowserSignedIn, clientsFound, clientsInUse, devDb, firstRun, overview, setup } from './overview.fixtures';
 import { OverviewData } from './overview.data';
 
 /** OverviewData: what it loads for each state, how it coalesces refreshes, and what it leaves out when a part fails. */
@@ -80,26 +79,33 @@ function make(): OverviewData {
 }
 
 describe('OverviewData', () => {
-  it('refreshes OAuth connection status without a tool call and stops listening on disposal', async () => {
+  it('refreshes setup progress and observed OAuth status without a tool call, then stops on disposal', async () => {
     const data = make();
-    const link = connected('cursor', { endpoint: 'dev', method: 'oauth' }).link;
-    let status: 'needs-restart' | 'connected' = 'needs-restart';
-    clientsAnswer = () => Promise.resolve({ ...clientsInUse(), clients: clientsInUse().clients.map((c) => c.client === 'cursor' ? { ...c, status, links: [{ ...link, status }] } : c) });
+    clientsAnswer = () => Promise.resolve(clientsFound());
     const first = data.start();
-    gets[0].resolve(overview());
+    gets[0].resolve(setup());
     await first;
-    expect(data.clients()?.clients.find((c) => c.client === 'cursor')?.status).toBe('needs-restart');
+    expect(data.overview()?.gettingStarted.steps.find((s) => s.id === 'client')?.state).toBe('current');
+    expect(data.clients()?.clients.find((c) => c.client === 'cursor')?.status).toBe('detected');
 
     vi.useFakeTimers();
     try {
-      status = 'connected';
+      clientsAnswer = () => Promise.resolve(clientsBrowserSignedIn());
+      calls = [];
       events.emit('oauth.grant.changed', { id: 'og_cursor', endpoint: 'dev' });
       events.emit('oauth.grant.changed', { id: 'og_cursor', endpoint: 'dev' });
       await vi.advanceTimersByTimeAsync(1_000);
       expect(gets).toHaveLength(2);
-      gets[1].resolve(overview());
+      gets[1].resolve(browserSignedIn());
       await vi.advanceTimersByTimeAsync(0);
-      expect(data.clients()?.clients.find((c) => c.client === 'cursor')?.status).toBe('connected');
+      expect(data.overview()?.gettingStarted.steps.find((s) => s.id === 'client')?.state).toBe('done');
+      expect(data.overview()?.gettingStarted.steps.find((s) => s.id === 'playground')?.state).toBe('todo');
+      expect(data.overview()?.stats.calls24h).toBe(0);
+      const cursor = data.clients()?.clients.find((c) => c.client === 'cursor');
+      expect(cursor?.status).toBe('connected');
+      expect(cursor?.links).toEqual([expect.objectContaining({ id: 'og_cursor', method: 'oauth', configPath: null, tokenName: null, lastCallAt: null })]);
+      expect(calls.sort()).toEqual(['clients', 'connections']);
+      expect(data.first()).toBeNull();
       data.stop();
       expect(events.handlers.get('oauth.grant.changed')?.size).toBe(0);
       events.emit('oauth.grant.changed', { id: 'og_cursor', endpoint: 'dev' });
