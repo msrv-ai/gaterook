@@ -1,10 +1,14 @@
 package ai.msrv.gaterook.connectors.mongodb;
 
 import com.mongodb.MongoException;
+import com.mongodb.ReadPreference;
+import com.mongodb.WriteConcern;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
+import com.mongodb.client.model.UpdateOptions;
+import com.mongodb.client.result.UpdateResult;
 import ai.msrv.gaterook.connector.api.ActionPreview;
 import ai.msrv.gaterook.connector.api.Classification;
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
@@ -41,18 +45,19 @@ import org.bson.BsonArray;
 import org.bson.BsonBoolean;
 import org.bson.BsonDocument;
 import org.bson.BsonInt32;
+import org.bson.BsonNull;
 import org.bson.BsonString;
 import org.bson.RawBsonDocument;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The MongoDB connector (report 05): {@code mongo_find} and {@code mongo_aggregate} over the sync driver 5.13.
+ * MongoDB reads and updates over the synchronous driver.
  *
- * <p>Read only by construction: no tool takes a command, {@link #classify} answers READ or DENY and never MUTATION,
- * so "every mutation waits for a person" holds because no path writes. What could write or run code is refused before
- * the network by {@link PipelineValidator} — in {@code classify} and again in {@link #execute} on the very documents
- * the driver sends. The user's roles are the server-side boundary; Test connection shows them
+ * <p>No tool takes an arbitrary command. Find and aggregate remain read-only; updates classify as MUTATION and
+ * default to Approval. {@link PipelineValidator} checks namespaces, update syntax and server-side JavaScript
+ * before the network, in {@code classify}, {@code prepare} and {@code execute}, on the documents the driver sends.
+ * The user's roles are the server-side boundary; Test connection shows them
  * ({@code connectionStatus {showPrivileges: true}}).
  *
  * <p>Calls: one cached client per connection version and login ({@link MongoClientCache}); documents read as
@@ -65,7 +70,8 @@ public final class MongoConnector implements Connector {
 
   public static final String TYPE = "mongodb";
 
-  private static final List<String> TOOLS = List.of(MongoTools.FIND, MongoTools.AGGREGATE);
+  private static final List<String> TOOLS = List.of(MongoTools.FIND, MongoTools.AGGREGATE,
+      MongoTools.UPDATE, MongoTools.UPDATE_MANY);
 
   private final ConnectorManifest manifest;
   private final SrvDns dns;
@@ -88,7 +94,7 @@ public final class MongoConnector implements Connector {
         .name("MongoDB")
         .icon("leaf")
         .group("Databases")
-        .description("Find and aggregate over collections. Read only.")
+        .description("Find, aggregate and update documents. Updates require approval by default.")
         .configSchema(schemas.load("config"))
         .tools(MongoTools.definitions(schemas))
         .build();
@@ -139,7 +145,7 @@ public final class MongoConnector implements Connector {
     try {
       args = MongoArgs.parse(call.tool(), call.arguments(), s.defaultDatabase());
     } catch (BadArgument e) {
-      return Classification.deny(policy.rule("bad-argument"), e.getMessage(), "Filters, projections, sorts and "
+      return Classification.deny(policy.rule("bad-argument"), e.getMessage(), "Filters, updates, projections, sorts and "
           + "stages are Extended JSON: {\"_id\": {\"$oid\": \"…\"}}, {\"at\": {\"$gte\": {\"$date\": "
           + "\"2026-10-22T00:00:00Z\"}}}.");
     }
@@ -147,14 +153,16 @@ public final class MongoConnector implements Connector {
     if (v.isPresent()) {
       return Classification.deny(policy.rule(v.get().rule()), v.get().reason(), v.get().hint());
     }
-    return Classification.read();
+    return args instanceof MongoArgs.Update u
+        ? Classification.mutation("Update " + (u.many() ? "all matching documents" : "one matching document")
+            + " in " + u.database() + "." + u.collection() + ".")
+        : Classification.read();
   }
 
-  // ── approval (a read tool a person set to Approval) ─────────────────────────────────────────────────────────
+  // ── approval ─────────────────────────────────────────────────────────────────────────────────────────────
 
   /**
-   * The command as the server will get it, before the call's limits are known: {@link #prepare} adds them. Only a
-   * read set to Approval on an endpoint ever asks.
+   * The command before the call's limits are known: {@link #prepare} adds them.
    */
   @Override
   public ActionPreview describeAction(ToolCall call, ConnectionConfig cfg) {
@@ -163,7 +171,7 @@ public final class MongoConnector implements Connector {
     return preview(cfg, s, args, args.limit(), s.maxTimeMs() == null ? 0 : s.maxTimeMs());
   }
 
-  /** The exact command with this call's limits; no I/O. */
+  /** The reviewed command with this call's limits; no I/O. */
   @Override
   public PreparedAction prepare(ToolCall call, ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
     MongoSettings s = MongoSettings.of(cfg);
@@ -176,6 +184,11 @@ public final class MongoConnector implements Connector {
     } catch (BadArgument e) {
       return PreparedAction.reject(e.getMessage());
     }
+    Optional<Verdict> verdict = new PipelineValidator(new Namespaces(s.namespaceAllowlist(), s.databases()))
+        .check(call.tool(), args);
+    if (verdict.isPresent()) {
+      return PreparedAction.reject(verdict.get().reason());
+    }
     int n = Math.min(args.limit(), Math.max(1, ctx.limits().maxRows()));
     int maxTime = (int) timeLimit(s, ctx.limits()).toMillis();
     return PreparedAction.approval(preview(cfg, s, args, n, maxTime), null);
@@ -183,6 +196,9 @@ public final class MongoConnector implements Connector {
 
   private static ActionPreview preview(ConnectionConfig cfg, MongoSettings s, MongoArgs args, int n,
       int maxTimeMs) {
+    if (args instanceof MongoArgs.Update u) {
+      return updatePreview(cfg, s, u, maxTimeMs);
+    }
     BsonDocument command = wireCommand(args, n, maxTimeMs);
     String verb = args instanceof MongoArgs.Find ? "find" : "aggregate";
     String ns = args.database() + "." + args.collection();
@@ -202,12 +218,46 @@ public final class MongoConnector implements Connector {
         .withPayload(payload);
   }
 
+  private static ActionPreview updatePreview(ConnectionConfig cfg, MongoSettings s, MongoArgs.Update args,
+      int maxTimeMs) {
+    String verb = args.many() ? "updateMany" : "update";
+    String ns = args.database() + "." + args.collection();
+    ObjectNode payload = args.canonical();
+    payload.put("maxTimeMS", maxTimeMs);
+    String target = (s.parsed() == null ? "?" : String.join(",", s.parsed().hosts()) + "/" + args.database())
+        + " · primary";
+    return ActionPreview.of(ActionPreview.Kind.JSON, "json", Ejson.relaxed(wireCommand(args, 1, maxTimeMs)),
+            cfg.name() + " · " + target, verb + " " + ns + " · " + cfg.name() + " (" + cfg.env().id() + ")")
+        .withFields(List.of(new ActionPreview.Field("Database", args.database()),
+            new ActionPreview.Field("Collection", args.collection()),
+            new ActionPreview.Field("Documents affected", args.many() ? "all matching documents" : "at most one"),
+            new ActionPreview.Field("Upsert", args.upsert() ? "insert if no match" : "disabled"),
+            new ActionPreview.Field("Time limit", maxTimeMs > 0
+                ? MongoTools.seconds(Duration.ofMillis(maxTimeMs)) : "the environment's")))
+        .withFacets(Map.of("mongo.namespace", ns, "mongo.command", verb))
+        .withPayload(payload);
+  }
+
   /**
-   * The command the driver sends for these arguments: the agent's documents, {@code n + 1} documents (one more than
-   * returned says whether more match), {@code maxTimeMS}, no disk use.
+   * The reviewed command: reads fetch {@code n + 1} documents without disk spill; updates carry their exact filter,
+   * changes, cardinality and upsert options. The execution deadline can reduce the displayed {@code maxTimeMS}.
    */
   static BsonDocument wireCommand(MongoArgs args, int n, int maxTimeMs) {
     return switch (args) {
+      case MongoArgs.Update u -> {
+        BsonDocument update = new BsonDocument("q", u.filter()).append("u", u.update())
+            .append("multi", BsonBoolean.valueOf(u.many())).append("upsert", BsonBoolean.valueOf(u.upsert()));
+        if (u.arrayFilters() != null) {
+          update.append("arrayFilters", u.arrayFilters());
+        }
+        BsonDocument c = new BsonDocument("update", new BsonString(u.collection()))
+            .append("updates", new BsonArray(List.of(update))).append("ordered", BsonBoolean.TRUE)
+            .append("writeConcern", new BsonDocument("w", new BsonInt32(1)));
+        if (maxTimeMs > 0) {
+          c.append("maxTimeMS", new BsonInt32(maxTimeMs));
+        }
+        yield c;
+      }
       case MongoArgs.Find f -> {
         BsonDocument c = new BsonDocument("find", new BsonString(f.collection())).append("filter", f.filter());
         if (f.projection() != null) {
@@ -262,6 +312,9 @@ public final class MongoConnector implements Connector {
     if (v.isPresent()) {
       throw ConnectorException.denied(v.get().reason());
     }
+    if (args instanceof MongoArgs.Update && (!ctx.approved() || approved.isEmpty())) {
+      throw ConnectorException.denied("MongoDB updates require a prepared payload authorized by approval or Bypass.");
+    }
     Limits limits = ctx.limits();
     int n = Math.min(args.limit(), Math.max(1, limits.maxRows()));
     long maxTime = timeLimit(s, limits).toMillis();
@@ -298,7 +351,11 @@ public final class MongoConnector implements Connector {
     String comment = "gaterook " + ctx.callId();
     int batch = Math.min(n + 1, 101);
     long start = System.nanoTime();
+    if (args instanceof MongoArgs.Update u) {
+      return update(col, tool, cfg, u, maxTimeMs, comment, start);
+    }
     MongoCursor<RawBsonDocument> cursor = switch (args) {
+      case MongoArgs.Update ignored -> throw new IllegalStateException("Updates do not return a cursor.");
       case MongoArgs.Find f -> {
         var find = col.find(f.filter()).skip(f.skip()).limit(n + 1).batchSize(batch)
             .maxTime(maxTimeMs, TimeUnit.MILLISECONDS).allowDiskUse(false).comment(comment);
@@ -331,6 +388,41 @@ public final class MongoConnector implements Connector {
     }
     return DocReader.result(tool, cfg.name(), args.database(), args.collection(), page, s.readPreference(),
         warnings, n);
+  }
+
+  private static ToolResult update(MongoCollection<RawBsonDocument> collection, String tool, ConnectionConfig cfg,
+      MongoArgs.Update args, int timeoutMs, String comment, long start) {
+    // Writes always target the primary, acknowledge the result and obey the full operation deadline. The client
+    // disables retryWrites so a non-idempotent update is never automatically replayed after an uncertain result.
+    var col = collection.withReadPreference(ReadPreference.primary()).withWriteConcern(WriteConcern.ACKNOWLEDGED)
+        .withTimeout(timeoutMs, TimeUnit.MILLISECONDS);
+    UpdateOptions options = new UpdateOptions().upsert(args.upsert()).comment(comment);
+    if (args.arrayFilters() != null) {
+      options.arrayFilters(args.arrayFilters().getValues().stream().map(v -> v.asDocument()).toList());
+    }
+    UpdateResult result;
+    if (args.update() instanceof BsonArray pipeline) {
+      List<BsonDocument> stages = pipeline.getValues().stream().map(v -> v.asDocument()).toList();
+      result = args.many() ? col.updateMany(args.filter(), stages, options)
+          : col.updateOne(args.filter(), stages, options);
+    } else {
+      result = args.many() ? col.updateMany(args.filter(), args.update().asDocument(), options)
+          : col.updateOne(args.filter(), args.update().asDocument(), options);
+    }
+    ObjectNode out = Ejson.JSON.createObjectNode();
+    out.put("tool", tool);
+    out.put("connection", cfg.name());
+    out.put("database", args.database());
+    out.put("collection", args.collection());
+    out.put("acknowledged", result.wasAcknowledged());
+    out.put("matchedCount", result.getMatchedCount());
+    out.put("modifiedCount", result.getModifiedCount());
+    out.set("upsertedId", Ejson.tree(new BsonDocument("id",
+        result.getUpsertedId() == null ? BsonNull.VALUE : result.getUpsertedId())).get("id"));
+    out.put("elapsedMs", Duration.ofNanos(System.nanoTime() - start).toMillis());
+    return ToolResult.json(out, "Matched " + result.getMatchedCount() + " and modified " + result.getModifiedCount()
+        + " documents in " + args.database() + "." + args.collection() + " on " + cfg.name()
+        + (result.getUpsertedId() == null ? "." : "; inserted one document (upsert)."));
   }
 
   /** MongoDB answers no documents for a collection that isn't there: one {@code listCollections} tells them apart. */

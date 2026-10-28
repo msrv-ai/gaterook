@@ -13,13 +13,15 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * The two read tools of MongoDB (report 05 §3, kit endpoint-detail). Both are pure READ, so both publish an
- * outputSchema. On an endpoint their descriptions carry the effective limits ("Max 1,000 documents, 5 s.").
+ * MongoDB read and update tools. Only reads publish an outputSchema; updates may return an approval request.
+ * Endpoint descriptions distinguish returned-document limits from update execution timeouts.
  */
 final class MongoTools {
 
   static final String FIND = "mongo_find";
   static final String AGGREGATE = "mongo_aggregate";
+  static final String UPDATE = "mongo_update";
+  static final String UPDATE_MANY = "mongo_update_many";
 
   private MongoTools() {}
 
@@ -44,7 +46,22 @@ final class MongoTools {
             .nature(Nature.READ)
             .defaultMode(Mode.READ_ONLY, Mode.READ_ONLY)
             .resultShape(ResultShape.JSON)
-            .build());
+            .build(),
+        update(schemas, UPDATE, "Update one document", "Update the first document matching a filter."),
+        update(schemas, UPDATE_MANY, "Update matching documents",
+            "Update all documents matching a filter. The read document limit does not cap updates."));
+  }
+
+  private static ToolDefinition update(SchemaResources schemas, String name, String title, String description) {
+    return ToolDefinition.builder(name)
+        .title(title)
+        .description(description + " Supports update operators or an update pipeline; upsert is optional.")
+        .inputSchema(schemas.load("mongo_update.input"))
+        .annotations(Annotations.write(true))
+        .nature(Nature.MUTATION)
+        .defaultMode(Mode.APPROVAL, Mode.APPROVAL)
+        .resultShape(ResultShape.JSON)
+        .build();
   }
 
   /** The same tools with the limits of an endpoint's connections in their descriptions. */
@@ -53,7 +70,8 @@ final class MongoTools {
         + seconds(timeLimit) + ".";
     List<ToolDefinition> out = new ArrayList<>();
     for (ToolDefinition t : tools) {
-      out.add(new ToolDefinition(t.name(), t.title(), t.description() + limits, t.inputSchema(), t.outputSchema(),
+      String suffix = t.mutating() ? " Time limit " + seconds(timeLimit) + "." : limits;
+      out.add(new ToolDefinition(t.name(), t.title(), t.description() + suffix, t.inputSchema(), t.outputSchema(),
           t.annotations(), t.nature(), t.defaultMode(), t.prodDefaultMode(), t.resultShape(), t.risk()));
     }
     return List.copyOf(out);

@@ -8,9 +8,9 @@ import org.bson.BsonDocument;
 import org.bson.BsonValue;
 
 /**
- * Whether a call stays a read (report 05 §3.3): MongoDB has no read-only session, and a user with {@code readWrite}
- * really writes through {@code $out} — even from {@code .first()} — so the gateway refuses before the network what
- * could write or run code, on the very documents the driver will send:
+ * Read-query and update validation: MongoDB has no read-only session, and a user with {@code readWrite}
+ * really writes through {@code $out} — even from {@code .first()} — so the gateway refuses collection-output
+ * stages and server-side code before the network, on the very documents the driver will send:
  * <ol>
  *   <li>a key {@code $out} or {@code $merge} at any depth of any argument (inside {@code $facet}, a {@code $lookup}
  *       or {@code $unionWith} pipeline, a {@code $literal}…) → {@code write-stage};</li>
@@ -19,9 +19,11 @@ import org.bson.BsonValue;
  *   <li>the collection, and every collection a stage reads ({@code $lookup}/{@code $graphLookup} {@code from},
  *       {@code $unionWith}), must be allowed by {@link Namespaces}; a {@code from} naming another database →
  *       {@code namespace-not-allowed};</li>
- *   <li>every stage of the pipeline and of every sub-pipeline is one object with one key from {@link #ALLOWED} (36
+ *   <li>every stage of a read pipeline and of every sub-pipeline is one object with one key from {@link #ALLOWED} (36
  *       of the 49 stages of MongoDB 9.0) → else {@code bad-stage} / {@code stage-not-allowed}. An unknown stage is
- *       refused: the list is fail-closed and follows the releases.</li>
+ *       refused: the list is fail-closed and follows the releases;</li>
+ *   <li>update documents use only {@link #UPDATE_OPERATORS}, and update pipelines use only
+ *       {@link #UPDATE_STAGES}; their valid calls are classified as mutations.</li>
  * </ol>
  * Pure and without I/O: {@code classify} runs it (≤ 1 ms), and {@code execute} runs it again before the network.
  */
@@ -53,6 +55,14 @@ final class PipelineValidator {
   static final Set<String> WRITE_KEYS = Set.of("$out", "$merge");
   static final Set<String> SERVER_JS_KEYS = Set.of("$where", "$function", "$accumulator");
 
+  /** Explicit update operators; replacement documents and arbitrary commands are not accepted. */
+  static final Set<String> UPDATE_OPERATORS = Set.of("$currentDate", "$inc", "$min", "$max", "$mul", "$rename",
+      "$set", "$setOnInsert", "$unset", "$addToSet", "$pop", "$pull", "$push", "$pullAll", "$bit");
+
+  /** MongoDB's stages allowed in an update pipeline. */
+  static final Set<String> UPDATE_STAGES = Set.of("$addFields", "$set", "$project", "$unset", "$replaceRoot",
+      "$replaceWith");
+
   /** Why a call is refused: the rule's last segment ({@code <env>.mongodb.<rule>}), a text for the agent, a hint. */
   record Verdict(String rule, String reason, String hint) {}
 
@@ -68,6 +78,9 @@ final class PipelineValidator {
           .or(() -> f.projection() == null ? Optional.empty() : scan(f.projection(), tool))
           .or(() -> f.sort() == null ? Optional.empty() : scan(f.sort(), tool));
       case MongoArgs.Aggregate a -> scan(a.pipeline(), tool);
+      case MongoArgs.Update u -> scan(u.filter(), tool)
+          .or(() -> scan(u.update(), tool))
+          .or(() -> u.arrayFilters() == null ? Optional.empty() : scan(u.arrayFilters(), tool));
     };
     if (v.isPresent()) {
       return v;
@@ -78,6 +91,38 @@ final class PipelineValidator {
     if (args instanceof MongoArgs.Aggregate a) {
       return pipeline(a.pipeline(), args.database(), "pipeline", 0);
     }
+    if (args instanceof MongoArgs.Update u) {
+      return update(u.update());
+    }
+    return Optional.empty();
+  }
+
+  private static Optional<Verdict> update(BsonValue update) {
+    if (update instanceof BsonDocument document) {
+      for (Map.Entry<String, BsonValue> e : document.entrySet()) {
+        if (!UPDATE_OPERATORS.contains(e.getKey())) {
+          return Optional.of(new Verdict("update-operator-not-allowed", "Update operator " + e.getKey()
+              + " isn't allowed. Replacement documents aren't supported; use update operators such as $set.", null));
+        }
+        if (!e.getValue().isDocument()) {
+          return Optional.of(new Verdict("bad-update", "Update operator " + e.getKey() + " must contain an object.",
+              null));
+        }
+      }
+      return Optional.empty();
+    }
+    BsonArray stages = update.asArray();
+    for (int i = 0; i < stages.size(); i++) {
+      if (!(stages.get(i) instanceof BsonDocument stage) || stage.size() != 1) {
+        return Optional.of(new Verdict("bad-stage", "Update pipeline stage " + (i + 1)
+            + " must be an object with one key.", null));
+      }
+      String name = stage.getFirstKey();
+      if (!UPDATE_STAGES.contains(name)) {
+        return Optional.of(new Verdict("stage-not-allowed", "Stage " + name + " isn't allowed in an update pipeline.",
+            "Use $addFields, $set, $project, $unset, $replaceRoot or $replaceWith."));
+      }
+    }
     return Optional.empty();
   }
 
@@ -87,7 +132,9 @@ final class PipelineValidator {
       for (Map.Entry<String, BsonValue> e : d.entrySet()) {
         String key = e.getKey();
         if (WRITE_KEYS.contains(key)) {
-          return Optional.of(new Verdict("write-stage", key + " writes to a collection. " + tool + " is read-only.",
+          boolean updating = MongoTools.UPDATE.equals(tool) || MongoTools.UPDATE_MANY.equals(tool);
+          return Optional.of(new Verdict("write-stage", key + " writes to a collection. "
+              + (updating ? "Update tools don't allow $out or $merge." : tool + " is read-only."),
               "Return the documents instead; a person can write them where they belong."));
         }
         if (SERVER_JS_KEYS.contains(key)) {

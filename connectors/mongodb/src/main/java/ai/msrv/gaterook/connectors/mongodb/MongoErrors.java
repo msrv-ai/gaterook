@@ -5,6 +5,7 @@ import com.mongodb.MongoException;
 import com.mongodb.MongoExecutionTimeoutException;
 import com.mongodb.MongoIncompatibleDriverException;
 import com.mongodb.MongoInterruptedException;
+import com.mongodb.MongoOperationTimeoutException;
 import com.mongodb.MongoSecurityException;
 import com.mongodb.MongoServerException;
 import com.mongodb.MongoSocketException;
@@ -86,6 +87,10 @@ final class MongoErrors {
 
   /** A failed call, for the agent. */
   static ConnectorException call(MongoException e, String connection, MongoSettings s, MongoClient client) {
+    if (e instanceof MongoOperationTimeoutException) {
+      return ConnectorException.timeout("The operation exceeded its time limit on " + connection
+          + ". An update may have applied changes before the timeout; check the documents before retrying.");
+    }
     if (e instanceof MongoExecutionTimeoutException) {
       return ConnectorException.timeout("The query ran longer than its time limit (maxTimeMS) on " + connection
           + " and the server stopped it. Narrow the filter, put $match first, or ask for fewer documents.");
@@ -99,7 +104,7 @@ final class MongoErrors {
       String msg = errorMessage(server);
       if (code == 13) {
         return ConnectorException.resourceError("MongoDB refused it on " + connection + ": " + msg + ". The user "
-            + "may only read what its roles allow.", null);
+            + "may only perform operations allowed by its roles.", null);
       }
       if (code == 292 || code == 146) {
         return ConnectorException.resourceError("MongoDB stopped it on " + connection + ": " + msg + ". Add $match "

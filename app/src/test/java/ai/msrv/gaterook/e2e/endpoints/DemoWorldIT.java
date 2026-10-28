@@ -169,11 +169,11 @@ class DemoWorldIT {
 
   @Test
   @Order(1)
-  void devHasTheKitsTwentyTwoTools() {
+  void devHasTwentyFourToolsWithTheCurrentDefaults() {
     EndpointService.Summary dev = endpoints.get("dev");
     assertThat(dev.url()).endsWith("/mcp/dev");
     assertThat(dev.connections()).isEqualTo(8);
-    assertThat(dev.tools()).as("14 read only · 3 approval · 5 off").isEqualTo(new EndpointService.ToolCounts(14, 3,
+    assertThat(dev.tools()).as("14 read only · 5 approval · 5 off").isEqualTo(new EndpointService.ToolCounts(14, 5,
         5));
     assertThat(dev.tokensActive()).isEqualTo(2);
     Map<String, Mode> modes = snapshots.bySlug("dev").orElseThrow().pairs().stream()
@@ -183,6 +183,8 @@ class DemoWorldIT {
         Map.entry("dev-db sql_query", Mode.READ_ONLY), Map.entry("dev-db sql_execute", Mode.APPROVAL),
         Map.entry("orders-mongo mongo_find", Mode.READ_ONLY), Map.entry("orders-mongo mongo_aggregate",
             Mode.READ_ONLY),
+        Map.entry("orders-mongo mongo_update", Mode.APPROVAL),
+        Map.entry("orders-mongo mongo_update_many", Mode.APPROVAL),
         Map.entry("cache-redis redis_get", Mode.READ_ONLY), Map.entry("cache-redis redis_scan", Mode.READ_ONLY),
         Map.entry("dev-vm ssh_run", Mode.READ_ONLY), Map.entry("dev-vm ssh_exec", Mode.OFF),
         Map.entry("app-logs logs_search", Mode.READ_ONLY), Map.entry("app-logs logs_tail", Mode.OFF),
@@ -384,7 +386,7 @@ class DemoWorldIT {
     EndpointService.Summary dev = endpoints.get("dev");
     assertThat(dev.connections()).isEqualTo(7);
     assertThat(dev.tools()).as("dev-db's 3 read only and 1 approval are gone").isEqualTo(
-        new EndpointService.ToolCounts(11, 2, 5));
+        new EndpointService.ToolCounts(11, 4, 5));
     assertThat(endpoints.get("sql-mix").connections()).isEqualTo(1);
   }
 

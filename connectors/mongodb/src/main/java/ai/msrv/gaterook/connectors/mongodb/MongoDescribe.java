@@ -57,6 +57,8 @@ final class MongoDescribe {
     ArrayNode allow = out.putArray("namespaceAllowlist");
     s.namespaceAllowlist().forEach(allow::add);
     out.put("readsOnly", "mongo_find and mongo_aggregate read; $out, $merge and server-side JavaScript are refused.");
+    out.put("updates", "mongo_update changes one matching document; mongo_update_many changes all matching "
+        + "documents. Both require approval by default and database write privileges.");
     boolean truncated = false;
     if (object != null && !object.isBlank()) {
       // database.collection when the first part is the default or a database the user sees; otherwise a

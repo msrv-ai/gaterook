@@ -1,8 +1,10 @@
 package ai.msrv.gaterook.connectors.mongodb;
 
 import ai.msrv.gaterook.connectors.mongodb.Ejson.BadArgument;
+import java.util.List;
 import org.bson.BsonArray;
 import org.bson.BsonDocument;
+import org.bson.BsonValue;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
@@ -63,11 +65,44 @@ sealed interface MongoArgs {
     }
   }
 
+  /** A single-document or multi-document update; {@code many} is bound to the tool in approved payloads. */
+  record Update(String database, String collection, BsonDocument filter, BsonValue update, boolean many,
+      boolean upsert, BsonArray arrayFilters) implements MongoArgs {
+
+    /** Read pagination does not apply to updates. */
+    @Override
+    public int limit() {
+      return 1;
+    }
+
+    @Override
+    public ObjectNode canonical() {
+      ObjectNode n = JsonNodeFactory.instance.objectNode();
+      n.put("database", database);
+      n.put("collection", collection);
+      n.put("filter", Ejson.canonical(filter));
+      if (update.isArray()) {
+        n.set("update", Ejson.JSON.readTree(Ejson.canonical(update)));
+      } else {
+        n.put("update", Ejson.canonical(update));
+      }
+      n.put("many", many);
+      n.put("upsert", upsert);
+      if (arrayFilters != null) {
+        n.set("arrayFilters", Ejson.JSON.readTree(Ejson.canonical(arrayFilters)));
+      }
+      return n;
+    }
+  }
+
   /**
    * Parses the arguments of {@code tool}. {@code defaultDatabase} is the connection string's; without one the
    * argument is required.
    */
   static MongoArgs parse(String tool, JsonNode args, String defaultDatabase) {
+    if (args == null || !args.isObject()) {
+      throw new BadArgument("arguments", "Arguments must be an object.");
+    }
     String database = text(args, "database");
     if (database == null || database.isBlank()) {
       database = defaultDatabase;
@@ -81,9 +116,9 @@ sealed interface MongoArgs {
       throw new BadArgument("collection", "Name the collection.");
     }
     checkCollection(collection);
-    int limit = integer(args, "limit", 50, 1, MAX_LIMIT);
     return switch (tool) {
       case MongoTools.FIND -> {
+        int limit = integer(args, "limit", 50, 1, MAX_LIMIT);
         BsonDocument filter = Ejson.document(args.get("filter"), "filter");
         BsonDocument projection = args.hasNonNull("projection") ? Ejson.document(args.get("projection"),
             "projection") : null;
@@ -92,14 +127,73 @@ sealed interface MongoArgs {
         yield new Find(database, collection, filter, projection, sort, limit, skip);
       }
       case MongoTools.AGGREGATE -> {
+        int limit = integer(args, "limit", 50, 1, MAX_LIMIT);
         BsonArray pipeline = Ejson.array(args.get("pipeline"), "pipeline");
         if (pipeline.isEmpty() || pipeline.size() > MAX_PIPELINE) {
           throw new BadArgument("pipeline", "A pipeline has 1 to " + MAX_PIPELINE + " stages.");
         }
         yield new Aggregate(database, collection, pipeline, limit);
       }
+      case MongoTools.UPDATE, MongoTools.UPDATE_MANY -> {
+        for (String field : List.of("limit", "skip", "projection", "sort")) {
+          if (args.has(field)) {
+            throw new BadArgument(field, field + " isn't supported by updates. "
+                + "mongo_update changes at most one document; mongo_update_many changes every matching document.");
+          }
+        }
+        if (!args.hasNonNull("filter")) {
+          throw new BadArgument("filter", "Provide a filter explicitly. Use {} to match every document.");
+        }
+        if (!args.hasNonNull("update")) {
+          throw new BadArgument("update", "Provide an update document or an update pipeline.");
+        }
+        BsonDocument filter = Ejson.document(args.get("filter"), "filter");
+        BsonValue update;
+        if (args.get("update").isArray()) {
+          BsonArray stages = Ejson.array(args.get("update"), "update");
+          if (stages.isEmpty() || stages.size() > MAX_PIPELINE) {
+            throw new BadArgument("update", "An update pipeline has 1 to " + MAX_PIPELINE + " stages.");
+          }
+          update = stages;
+        } else {
+          BsonDocument document = Ejson.document(args.get("update"), "update");
+          if (document.isEmpty()) {
+            throw new BadArgument("update", "An update document must contain at least one update operator.");
+          }
+          update = document;
+        }
+        boolean many = MongoTools.UPDATE_MANY.equals(tool);
+        if (args.has("many") && bool(args, "many", many) != many) {
+          throw new BadArgument("many", "The approved update operation doesn't match " + tool + ".");
+        }
+        boolean upsert = bool(args, "upsert", false);
+        BsonArray arrayFilters = null;
+        if (args.has("arrayFilters")) {
+          arrayFilters = Ejson.array(args.get("arrayFilters"), "arrayFilters");
+          if (update.isArray()) {
+            throw new BadArgument("arrayFilters", "arrayFilters can't be used with an update pipeline.");
+          }
+          for (BsonValue filterValue : arrayFilters) {
+            if (!filterValue.isDocument()) {
+              throw new BadArgument("arrayFilters", "Each array filter must be an object.");
+            }
+          }
+        }
+        yield new Update(database, collection, filter, update, many, upsert, arrayFilters);
+      }
       default -> throw new BadArgument("tool", "Unknown tool " + tool + ".");
     };
+  }
+
+  private static boolean bool(JsonNode args, String field, boolean dflt) {
+    JsonNode n = args.get(field);
+    if (n == null) {
+      return dflt;
+    }
+    if (!n.isBoolean()) {
+      throw new BadArgument(field, field + " must be a boolean.");
+    }
+    return n.asBoolean();
   }
 
   private static String text(JsonNode args, String field) {
