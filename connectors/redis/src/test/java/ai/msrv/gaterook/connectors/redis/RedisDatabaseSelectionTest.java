@@ -7,10 +7,54 @@ import ai.msrv.gaterook.connector.api.Classification;
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.Env;
+import ai.msrv.gaterook.connectors.support.SchemaResources;
+import com.networknt.schema.SchemaRegistry;
+import com.networknt.schema.SpecificationVersion;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 
 class RedisDatabaseSelectionTest {
+
+  @Test
+  void savedConfigurationCanOmitThePortAndBothDatabaseFields() throws Exception {
+    var schema = SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12)
+        .getSchema(SchemaResources.of(RedisConnector.class, "redis").load("config"));
+    Configs.Cfg draft = Configs.redis("cache.example.test", 6379);
+    draft.root.withObjectProperty("connection").remove("port");
+    assertThat(schema.validate(draft.root)).isEmpty();
+    RedisSettings settings = RedisSettings.parse(draft.build());
+    assertThat(settings.port()).isEqualTo(6379);
+    assertThat(settings.database()).isZero();
+    assertThat(settings.databases()).isEmpty();
+
+    assertThat(schema.validate(Configs.redis("cache.example.test", 6379).database(4).build().config())).isEmpty();
+    assertThat(schema.validate(Configs.redis("cache.example.test", 6379).databases(0, 2).build().config())).isEmpty();
+    for (int[] databases : new int[][] {{}, {2, 2}, {-1}, {1024}}) {
+      assertThat(schema.validate(Configs.redis("cache.example.test", 6379).databases(databases).build().config()))
+          .as("An explicitly configured allowlist must contain valid, unique database indexes").isNotEmpty();
+    }
+  }
+
+  @Test
+  void theDefaultDatabaseNeedsNoSelectionAndCannotReachAnotherDatabase() throws Exception {
+    ConnectionConfig cfg = Configs.redis("127.0.0.1", 1).build();
+    RedisSettings settings = RedisSettings.parse(cfg);
+    try (RedisConnector connector = new RedisConnector()) {
+      for (String tool : new String[] {"redis_get", "redis_scan"}) {
+        var call = Configs.call(tool, "{\"key\":\"a\"}");
+        assertThat(connector.classify(call, cfg, Configs.policy(Env.DEV)).kind()).isEqualTo(Classification.Kind.READ);
+        RedisRequest request = RedisRequest.of(tool, call.arguments(), cfg, settings);
+        assertThat(request.database()).isZero();
+        assertThat(request.payload().path("database").asInt(-1)).isZero();
+        var denied = Configs.call(tool, "{\"key\":\"a\",\"database\":1}");
+        assertThat(connector.classify(denied, cfg, Configs.policy(Env.DEV)).ruleId())
+            .isEqualTo("dev.redis.database-not-allowed");
+        assertThatThrownBy(() -> connector.execute(denied, cfg, new TestSecrets(), TestCtx.of()))
+            .isInstanceOf(ConnectorException.class).hasMessageContaining("isn't selected");
+      }
+      assertThat(connector.clients().pools()).isEmpty();
+    }
+  }
 
   @Test
   void multipleSelectionsRequireAnExplicitDatabaseAndRejectUnselectedOnesBeforeIo() throws Exception {

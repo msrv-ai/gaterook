@@ -1,0 +1,36 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["connection", "collection", "filter", "update"],
+  "properties": {
+    "connection": {"type": "string"},
+    "database": {
+      "type": "string",
+      "maxLength": 64,
+      "description": "Required when several databases are selected. Defaults to the sole selected database, or the database in a legacy connection string."
+    },
+    "collection": {"type": "string", "minLength": 1, "maxLength": 255},
+    "filter": {
+      "type": ["object", "string"],
+      "description": "Required query filter in Extended JSON. An explicit empty object matches every document. Strings may use mongosh literals such as ObjectId and ISODate."
+    },
+    "update": {
+      "oneOf": [
+        {"type": "object", "minProperties": 1},
+        {"type": "string", "minLength": 1},
+        {"type": "array", "minItems": 1, "maxItems": 50, "items": {"type": "object", "minProperties": 1, "maxProperties": 1}}
+      ],
+      "description": "An update operator document, such as {\"$set\":{\"status\":\"shipped\"}}, or its Extended JSON string. Alternatively, an update pipeline using $set, $addFields, $project, $unset, $replaceRoot or $replaceWith. Replacement documents and server-side JavaScript are refused."
+    },
+    "upsert": {
+      "type": "boolean",
+      "default": false,
+      "description": "Insert a document if no document matches the filter."
+    },
+    "arrayFilters": {
+      "type": "array",
+      "items": {"type": "object"},
+      "description": "Filters for positional array updates using $[identifier]. Available only with an update operator document."
+    }
+  }
+}

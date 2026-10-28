@@ -64,12 +64,8 @@
       }
     },
     "credentials": {
-      "type": "object",
+      "$ref": "#/$defs/credentialFields",
       "title": "Credentials",
-      "additionalProperties": false,
-      "required": [
-        "method"
-      ],
       "properties": {
         "method": {
           "enum": [
@@ -83,7 +79,146 @@
             "Private key",
             "Password"
           ]
+        }
+      }
+    },
+    "runbooksOnly": {
+      "type": "boolean",
+      "title": "Runbooks only",
+      "default": false,
+      "x-env-default": {
+        "prod": true
+      },
+      "description": "Agents run only saved runbooks here: ssh_exec is refused whatever the policy allows.",
+      "x-badge": "Runbooks only"
+    },
+    "jump": {
+      "type": "object",
+      "title": "Bastion",
+      "x-collapsed": true,
+      "additionalProperties": false,
+      "description": "Optional jump host. It needs AllowTcpForwarding; a Vault certificate for it gets permit-port-forwarding.",
+      "properties": {
+        "host": {
+          "type": "string",
+          "maxLength": 253
+        }
+      },
+      "patternProperties": {
+        "^(port|username|credentials|hostKeys)$": {}
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "host"
+            ],
+            "properties": {
+              "host": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "port": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535,
+                "default": 22
+              },
+              "username": {
+                "type": "string",
+                "pattern": "^[a-z_][a-z0-9_.-]{0,31}$",
+                "description": "Empty: use the connection user."
+              },
+              "credentials": {
+                "$ref": "#/$defs/credentialFields",
+                "title": "Jump host credentials",
+                "properties": {
+                  "method": {
+                    "enum": [
+                      "inherit",
+                      "vaultSshCa",
+                      "privateKey",
+                      "password"
+                    ],
+                    "default": "inherit",
+                    "x-enumTitles": [
+                      "Use connection credentials",
+                      "Vault SSH CA: a fresh certificate per call",
+                      "Private key",
+                      "Password"
+                    ]
+                  }
+                }
+              },
+              "hostKeys": {
+                "$ref": "#/properties/hostKeys"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "advanced": {
+      "type": "object",
+      "title": "Advanced",
+      "x-collapsed": true,
+      "additionalProperties": false,
+      "properties": {
+        "connectTimeoutSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60,
+          "default": 10,
+          "x-unit": "s"
         },
+        "keepaliveSeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 300,
+          "default": 15,
+          "x-unit": "s"
+        },
+        "reuseSessions": {
+          "type": "boolean",
+          "default": true
+        },
+        "maxChannelsPerSession": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 8
+        },
+        "remoteDeadline": {
+          "type": "boolean",
+          "default": false,
+          "description": "Wrap commands in timeout -k 5 <limit> sh -c '…' so they stop even if this computer goes offline. Approvers see the wrapped text."
+        },
+        "legacyAlgorithms": {
+          "type": "boolean",
+          "default": false,
+          "description": "Allow ssh-rsa (SHA-1), CBC ciphers and hmac-sha1 for old servers."
+        },
+        "probeSudo": {
+          "type": "boolean",
+          "default": true,
+          "description": "Test connection runs sudo -n true; some hosts log it as a failed sudo."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "credentialFields": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method"
+      ],
+      "properties": {
+        "method": true,
         "vault": true,
         "privateKey": true,
         "passphrase": true,
@@ -200,92 +335,6 @@
         }
       ],
       "$comment": "Each method declares its own fields in its then branch (the form shows them only for that method); the properties above name them with true, so additionalProperties still refuses other keys."
-    },
-    "runbooksOnly": {
-      "type": "boolean",
-      "title": "Runbooks only",
-      "default": false,
-      "x-env-default": {
-        "prod": true
-      },
-      "description": "Agents run only saved runbooks here: ssh_exec is refused whatever the policy allows.",
-      "x-badge": "Runbooks only"
-    },
-    "jump": {
-      "type": "object",
-      "title": "Bastion",
-      "x-collapsed": true,
-      "additionalProperties": false,
-      "description": "Optional jump host. It needs AllowTcpForwarding; a Vault certificate for it gets permit-port-forwarding.",
-      "properties": {
-        "host": {
-          "type": "string",
-          "maxLength": 253
-        },
-        "port": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 65535,
-          "default": 22
-        },
-        "username": {
-          "type": "string",
-          "pattern": "^[a-z_][a-z0-9_.-]{0,31}$"
-        },
-        "credentials": {
-          "$ref": "#/properties/credentials"
-        },
-        "hostKeys": {
-          "$ref": "#/properties/hostKeys"
-        }
-      }
-    },
-    "advanced": {
-      "type": "object",
-      "title": "Advanced",
-      "x-collapsed": true,
-      "additionalProperties": false,
-      "properties": {
-        "connectTimeoutSeconds": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 60,
-          "default": 10,
-          "x-unit": "s"
-        },
-        "keepaliveSeconds": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 300,
-          "default": 15,
-          "x-unit": "s"
-        },
-        "reuseSessions": {
-          "type": "boolean",
-          "default": true
-        },
-        "maxChannelsPerSession": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 10,
-          "default": 8
-        },
-        "remoteDeadline": {
-          "type": "boolean",
-          "default": false,
-          "description": "Wrap commands in timeout -k 5 <limit> sh -c '…' so they stop even if this computer goes offline. Approvers see the wrapped text."
-        },
-        "legacyAlgorithms": {
-          "type": "boolean",
-          "default": false,
-          "description": "Allow ssh-rsa (SHA-1), CBC ciphers and hmac-sha1 for old servers."
-        },
-        "probeSudo": {
-          "type": "boolean",
-          "default": true,
-          "description": "Test connection runs sudo -n true; some hosts log it as a failed sudo."
-        }
-      }
     }
   }
 }

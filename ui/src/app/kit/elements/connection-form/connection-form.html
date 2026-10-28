@@ -59,7 +59,7 @@
               type="radio"
               [name]="p + '-src'"
               [value]="copy.kit"
-              [checked]="s.source() === src.id"
+              [checked]="s.source() === sourceId(src.id)"
               [attr.aria-disabled]="src.available ? null : 'true'"
               [attr.aria-labelledby]="base + '-t'"
               [attr.aria-describedby]="base + '-d' + (src.available ? '' : ' ' + base + '-r')"
@@ -90,6 +90,16 @@
 
 <!-- What the page puts first inside the form (a duplicate's "Copied from dev-db" alert). -->
 <ng-content select="[gwFormLead]" />
+
+@if (validationSummary(); as message) {
+  <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+    <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+    <div class="gw-alert__content">
+      <p class="gw-alert__title">Check the connection settings</p>
+      <p class="gw-alert__body">{{ message }}</p>
+    </div>
+  </div>
+}
 
 @for (section of sectionsBefore(); track section; let first = $first) {
   @let part = partOf(section);

@@ -22,10 +22,10 @@ import { SecretInputs, StoredSecret, TestOutcome } from '../../../core/api/conne
 import { Env, JsonObject, JsonValue } from '../../../core/api/types';
 import { SchemaNode, getAt, rootSection } from '../../../schema-form/compile';
 import { GwSchemaSection } from '../../../schema-form/section';
-import { ConfirmChange, REFERENCE_SOURCES, SchemaForm, SecretAction, createSchemaForm } from '../../../schema-form/schema-form';
+import { ConfirmChange, REFERENCE_SOURCES, SchemaForm, SecretAction, createSchemaForm, storedReference } from '../../../schema-form/schema-form';
 import { GwDialog, GwDialogClose } from '../../dialog';
 import { GwToggle } from '../../disclosure';
-import { sourceCopy } from '../../../schema-form/secret-sources';
+import { secretSourceId, sourceCopy } from '../../../schema-form/secret-sources';
 import { GwIcon } from '../../icons';
 import { literalParts } from '../shared/literals';
 import { GwConnectionTest, TestState, TestTarget } from './connection-test';
@@ -281,6 +281,7 @@ export class GwConnectionForm {
 
   protected readonly placeholderName = '<name>';
   protected readonly sourceCopy = sourceCopy;
+  protected readonly sourceId = secretSourceId;
   protected readonly literalParts = literalParts;
 
   /** Options belong to the exact server, authentication and TLS settings that discovered them. */
@@ -453,7 +454,12 @@ export class GwConnectionForm {
     return cut < 0 ? [] : all.slice(cut);
   });
 
-  private readonly displaySections = computed(() => withoutDatabaseFields(this.state().compiled.sections, this.databaseSelection()));
+  private readonly databaseSections = computed(() => withoutDatabaseFields(this.state().compiled.sections, this.databaseSelection()));
+
+  private readonly displaySections = computed(() => {
+    const state = this.state();
+    return this.databaseSections().filter((node) => state.visible(node));
+  });
 
   protected partOf(section: SchemaNode): ConnectionFormPart {
     if (section === this.secretSection()) return 'credentials';
@@ -465,7 +471,7 @@ export class GwConnectionForm {
   protected readonly showSources = computed(() => {
     if (this.spec().secretSources.length < 2) return false;
     if (this.mode() !== 'edit') return true;
-    return [...this.state().stored.values()].some((s) => s.state === 'reference');
+    return [...this.state().stored.values()].some(storedReference);
   });
 
   protected readonly credentialsText = computed(() => {
@@ -494,7 +500,7 @@ export class GwConnectionForm {
       (event.target as HTMLInputElement).checked = false;
       return;
     }
-    this.state().source.set(id);
+    this.state().source.set(secretSourceId(id));
   }
 
   // ─── Name ───
@@ -568,6 +574,12 @@ export class GwConnectionForm {
   }
 
   // ─── Submit ───
+
+  protected readonly validationSummary = computed(() => {
+    if (!this.submitted()) return null;
+    return this.nameError() ?? this.state().invalidNodes().map((node) => this.state().error(node))[0]
+      ?? this.databaseProblem();
+  });
 
   value(): ConnectionFormValue {
     const s = this.state();

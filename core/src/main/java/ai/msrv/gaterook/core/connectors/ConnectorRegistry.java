@@ -45,6 +45,8 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.event.TransactionalEventListener;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -430,13 +432,13 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
    */
   public synchronized void setEnabled(String typeId, boolean enabled, String reason) {
     ConnectorManifest m = known(typeId);
-    boolean changed = Boolean.TRUE.equals(writeTx.execute(s -> {
+    writeTx.executeWithoutResult(s -> {
       ConnectorTypeEntity row = repository.findById(typeId).orElseThrow(() -> ProblemException.conflict(
           "Not synchronized yet", m.name() + " isn't recorded yet: the core synchronizes connector types once the "
               + "master key is available."));
       requireVerified(row, m);
       if (row.isEnabled() == enabled) {
-        return false;
+        return;
       }
       row.setEnabled(enabled, clock.instant());
       row = repository.saveAndFlush(row);
@@ -445,13 +447,9 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
           m.kind() == ConnectorManifest.Kind.PLUGIN ? SetupChangeRecorder.What.PLUGIN : SetupChangeRecorder.What.SETTINGS,
           "Connector type " + m.name(), enabled ? "Off" : "On", enabled ? "On" : "Off", reason, null, null, null,
           null));
+      storeAfterCommit(typeId, enabled);
       publisher.publishEvent(new ConnectorTypeChanged(typeId));
-      return true;
-    }));
-    if (changed) {
-      // After the commit: a switch that didn't commit never shows.
-      stored.put(typeId, new Stored(enabled, true));
-    }
+    });
   }
 
   /**
@@ -471,11 +469,11 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
       setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.SETTINGS,
           "Connector type " + m.name() + " changed outside GateRook", "Unverified",
           row.isEnabled() ? "Kept: on" : "Kept: off", reason, null, null, null, null));
+      storeAfterCommit(typeId, row.isEnabled());
       publisher.publishEvent(new ConnectorTypeChanged(typeId));
       return row.isEnabled();
     });
     if (kept != null) {
-      stored.put(typeId, new Stored(kept, true));
       alerts.resolve("connector-type", typeId);
     }
     // The manifest may be older than the code: bring it up to date now that the row is trusted again.
@@ -483,6 +481,16 @@ public class ConnectorRegistry implements SmartInitializingSingleton {
   }
 
   // ── Internals ───────────────────────────────────────────────────────────────────────────────────────────────
+
+  /** Install committed switches before AFTER_COMMIT event listeners wake readers of endpoint catalogs. */
+  private void storeAfterCommit(String typeId, boolean enabled) {
+    TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+      @Override
+      public void afterCommit() {
+        stored.put(typeId, new Stored(enabled, true));
+      }
+    });
+  }
 
   private ConnectorType typeOf(ConnectorManifest m) {
     Stored s = stored.get(m.id());

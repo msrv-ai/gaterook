@@ -11,7 +11,7 @@ The product name is GateRook. The default home is `~/.gaterook`, the native core
 | ID | Choice | Rationale and boundary |
 | --- | --- | --- |
 | A1 | A thin JSON-RPC layer on Spring MVC serves `/mcp/{slug}`. | Endpoint-specific tool catalogs and protocol revisions stay under the gateway's control. The MCP Java SDK is used as an upstream/test client, not as the gateway's entire server stack. |
-| A2 | Support modern `2026-07-28` and legacy `2025-11-25`, `2025-06-18`, and `2025-03-26` request shapes. | Clients migrate at different times. MCP replies are JSON; there is no MCP SSE session. Administrative UI events use a separate SSE stream. |
+| A2 | Support modern `2026-07-28` and legacy `2025-11-25`, `2025-06-18`, and `2025-03-26` request shapes. | Clients migrate at different times. MCP POST replies are JSON; legacy clients can open an authenticated GET SSE stream for tool-list changes. No MCP session IDs are issued. Administrative UI events use a separate SSE stream. |
 | A3 | Persist one approval and execute its stored canonical call after a human decision. | The client never resubmits a mutable command as the approved action. Deliver results through URL elicitation when supported, otherwise a pending handle and `approval_status`. |
 | A4 | Use opaque 256-bit tokens and store their hashes. | Lookup on each request enables immediate revocation. Named, bridge, OAuth access, and refresh tokens have distinct purposes and lifetimes. |
 | A5 | Provide a small OAuth authorization server with desktop consent. | PKCE S256, resource/audience binding, issuer checking, and client metadata support serve both local and tunnel clients. |
@@ -149,6 +149,17 @@ Use short transactions around state changes. Do not hold a database transaction 
 11. **Execute the authorized payload once.** The gateway runs the stored approved payload or freshly prepared Bypass payload itself. A failure or timeout is not retried automatically; uncertain external outcomes are reported explicitly. Approved calls retain their masked results for subsequent status retrieval.
 12. **Correlate the trace.** Link MCP activity, the approval, and execution with trace IDs; propagate a valid parent trace when supplied. Telemetry export remains opt-in.
 
+Legacy `initialize` advertises `capabilities.tools.listChanged: true`. Clients listen on `GET /mcp/{slug}` with the
+same bearer token, the negotiated `MCP-Protocol-Version`, and `Accept: text/event-stream`. Opening a stream sends
+one `notifications/tools/list_changed` to refresh any cached list from before connection or reconnection. After committed changes
+invalidate the endpoint snapshot, each stream compares the published catalog hash and sends
+`notifications/tools/list_changed` when tool definitions change, including connection enums. Changes that leave
+the catalog unchanged do not send further notifications. Authentication and endpoint availability are checked before each
+notification and heartbeat; disconnected streams are released, and shutdown closes subscriptions before waiting
+for HTTP requests. The stream has no replay IDs; its initial notification refreshes changes missed while disconnected.
+Both stdio bridges forward these notifications. Modern requests retain their existing
+TTL-based discovery; `subscriptions/listen` is not implemented.
+
 ### 5.1 Policy truth table
 
 | Classification / mode | Outcome |
@@ -254,11 +265,15 @@ Kit behavior is represented by Angular directives/components with parity tests. 
 
 The schema-form layer renders bounded JSON Schema plus supported `x-*` extensions. CodeMirror is lazy and used for editing; approval display uses server-inspected segments and diffs. The action inspector exposes bidi, zero-width, confusable, whitespace, and dialect-sensitive ambiguities rather than rendering them invisibly. Client copy cannot replace the server's canonical action.
 
-A field directly inside a section can use `x-section` with an existing top-level section's JSON Pointer to change its display placement while retaining its configuration path. Validation errors expand the section that displays the field.
+A root field or a field directly inside a section can use `x-section` with an existing top-level section's JSON Pointer to change its display placement while retaining its configuration path. An empty object used only to group such fields is omitted from the saved configuration. Validation errors expand the section that displays the field.
+
+Conditional authentication fields are displayed and validated only for the selected method. An optional secret remains optional when its source is an external store. A required string condition with `minLength` can activate dependent fields, such as bastion settings after a host is entered.
 
 Database schemas declare `x-database-selection` with the selection array's `path` and an optional `legacyPath`. The connection wizard collects server settings and credentials first, loads accessible databases through `POST /api/connections/databases`, then saves the chosen databases as one connection. Discovery does not save credentials or create a connection. It shares draft testing's validation, masking, timeout, and confirmation before sending stored credentials to another host. Changing connection settings invalidates the loaded list. A `required` marker requires a nonempty selection or a legacy database outside discovery; selection arrays reject empty values.
 
 MySQL, PostgreSQL, MongoDB, Redis, and ClickHouse retain existing connection formats when no selection array is present. A new selection intersects existing schema, collection, or key restrictions. Calls that need a database select one explicitly when several are configured; a single selection supplies the default. Database identity participates in SQL/Redis pool routing, SQL approval payloads, and Redis cursors. PostgreSQL discovery uses a configurable bootstrap database; Redis reports an incomplete list when the account cannot read the configured database count.
+
+Redis setup does not require database discovery or selection. It defaults to logical database 0; an optional database number or allowlist can be configured in Advanced without changing saved connection scopes.
 
 ### 8.4 Screens and data
 

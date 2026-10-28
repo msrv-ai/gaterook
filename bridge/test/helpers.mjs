@@ -63,6 +63,7 @@ export async function fakeCore({ tokens, confirm, mcp, instance = INSTANCE, brid
         }
         if (out.type) headers['Content-Type'] = out.type;
         res.writeHead(out.status, headers);
+        if (out.stream) return out.stream(res);
         return res.end(out.body || '');
       }
       res.writeHead(404, { 'Content-Length': 0 });

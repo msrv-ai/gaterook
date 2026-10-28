@@ -74,38 +74,124 @@
             ]
           },
           "x-agent-visible": true
-        },
-        "token": {
-          "type": "string",
-          "writeOnly": true,
-          "x-gateway-secret": "value"
-        },
-        "headerName": {
-          "type": "string",
-          "default": "X-API-Key",
-          "pattern": "^[A-Za-z0-9-]{1,64}$"
-        },
-        "queryName": {
-          "type": "string",
-          "default": "api_key",
-          "maxLength": 64
-        },
-        "apiKey": {
-          "type": "string",
-          "writeOnly": true,
-          "x-gateway-secret": "value"
-        },
-        "username": {
-          "type": "string",
-          "maxLength": 256
-        },
-        "password": {
-          "type": "string",
-          "writeOnly": true,
-          "x-gateway-secret": "value",
-          "format": "password"
         }
-      }
+      },
+      "patternProperties": {
+        "^(token|headerName|queryName|apiKey|username|password)$": {}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "bearer"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "token": {
+                "type": "string",
+                "writeOnly": true,
+                "x-gateway-secret": "value"
+              }
+            },
+            "required": [
+              "token"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "apiKeyHeader"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "headerName": {
+                "type": "string",
+                "default": "X-API-Key",
+                "pattern": "^[A-Za-z0-9-]{1,64}$"
+              },
+              "apiKey": {
+                "type": "string",
+                "writeOnly": true,
+                "x-gateway-secret": "value"
+              }
+            },
+            "required": [
+              "apiKey"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "apiKeyQuery"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "queryName": {
+                "type": "string",
+                "default": "api_key",
+                "maxLength": 64
+              },
+              "apiKey": {
+                "type": "string",
+                "writeOnly": true,
+                "x-gateway-secret": "value"
+              }
+            },
+            "required": [
+              "apiKey"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "basic"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "username": {
+                "type": "string",
+                "maxLength": 256
+              },
+              "password": {
+                "type": "string",
+                "writeOnly": true,
+                "x-gateway-secret": "value",
+                "format": "password"
+              }
+            },
+            "required": [
+              "password"
+            ]
+          }
+        }
+      ]
     },
     "secretHeaders": {
       "type": "array",

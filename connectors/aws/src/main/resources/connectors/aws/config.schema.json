@@ -51,21 +51,6 @@
           ],
           "default": "accessKey"
         },
-        "accessKeyId": {
-          "type": "string",
-          "pattern": "^AKIA[A-Z0-9]{16}$",
-          "x-not-secret": true
-        },
-        "secretAccessKey": {
-          "type": "string",
-          "writeOnly": true,
-          "x-gateway-secret": "value",
-          "format": "password"
-        },
-        "profile": {
-          "type": "string",
-          "maxLength": 128
-        },
         "roleArn": {
           "type": "string",
           "pattern": "^arn:aws(-cn|-us-gov)?:iam::\\d{12}:role/[\\w+=,.@/-]{1,512}$",
@@ -102,7 +87,67 @@
             "The role's permissions as they are"
           ]
         }
-      }
+      },
+      "patternProperties": {
+        "^(accessKeyId|secretAccessKey|profile)$": {}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "source": {
+                "const": "accessKey"
+              }
+            },
+            "required": [
+              "source"
+            ]
+          },
+          "then": {
+            "properties": {
+              "accessKeyId": {
+                "type": "string",
+                "pattern": "^AKIA[A-Z0-9]{16}$",
+                "x-not-secret": true
+              },
+              "secretAccessKey": {
+                "type": "string",
+                "writeOnly": true,
+                "x-gateway-secret": "value",
+                "format": "password"
+              }
+            },
+            "required": [
+              "accessKeyId",
+              "secretAccessKey"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "source": {
+                "const": "profile"
+              }
+            },
+            "required": [
+              "source"
+            ]
+          },
+          "then": {
+            "properties": {
+              "profile": {
+                "type": "string",
+                "maxLength": 128,
+                "pattern": "\\S"
+              }
+            },
+            "required": [
+              "profile"
+            ]
+          }
+        }
+      ]
     }
   }
 }

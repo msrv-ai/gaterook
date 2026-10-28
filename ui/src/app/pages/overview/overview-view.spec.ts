@@ -126,10 +126,10 @@ describe('AI apps', () => {
 
   it('puts an app that needs a restart or failed before the connected ones, with the core’s words', () => {
     const restart = { ...card('codex', 'Codex', 'needs-restart'), statusText: 'Restart Codex: Settings › MCP servers › Restart' };
-    const failed = { ...card('cursor', 'Cursor', 'error'), statusText: 'The entry gateway-dev was changed outside the app' };
+    const failed = { ...card('cursor', 'Cursor', 'error'), statusText: 'The entry gaterook-dev was changed outside the app' };
     const tiles = homeAppTiles([card('claude-desktop', 'Claude Desktop', 'connected'), restart, failed], null, null);
     expect(tiles.map((t) => [t.name, t.state.tone, t.state.label, t.meta])).toEqual([
-      ['Cursor', 'danger', 'Error', 'The entry gateway-dev was changed outside the app'],
+      ['Cursor', 'danger', 'Error', 'The entry gaterook-dev was changed outside the app'],
       ['Codex', 'warning', 'Needs restart', 'Restart Codex: Settings › MCP servers › Restart'],
       ['Claude Desktop', 'success', 'Connected', ''],
     ]);

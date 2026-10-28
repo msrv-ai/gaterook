@@ -32,9 +32,9 @@ const TTL_DAYS = [7, 30, 90] as const;
  * `<div gwClientConnectFlow [card]="cursor" [endpoints]="…" [preview]="p" (requestChange)="…">` (client-card.html,
  * "Connect"): the body of Connect, in the connect dialog or inline in a card (`__flow`). Endpoint · for clients with
  * a choice, how it signs in (`gw-choice-card --compact`; methods prod refuses are left out, with the reason) · the
- * token it issues (token in the file) · "What will change": the exact diff of each file and its backup, from the
- * core's preview, before anything is written · the auth note (a token in the file is a warning) · the restart it
- * needs.
+ * token it issues (token in the file) · "What will change": a collapsed disclosure of each file's exact diff and
+ * backup, from the core's preview, before anything is written · the auth note (a token in the file is a warning) ·
+ * the restart it needs.
  *
  * It writes nothing: every change of the selection emits `requestChange` (a `ConnectRequest`) for the page to ask
  * the core for a new preview, and the page passes it back as `preview` (or `failure`).
@@ -91,6 +91,8 @@ export class GwClientConnectFlow {
   private readonly chosen = signal<ClientMethodId | null>(null);
   readonly tokenName = model<string>('');
   readonly ttlDays = model<number>(7);
+  /** Expanded only on request; opening a connect dialog starts a new collapsed review. */
+  readonly changesExpanded = signal(false);
 
   /** The selection changed: ask the core for a new preview. Null while the token name is invalid. */
   readonly requestChange = output<ConnectRequest | null>();

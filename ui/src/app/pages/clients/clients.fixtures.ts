@@ -70,11 +70,11 @@ export function kitManual(): ManualSetup {
         id: 'inspector-config',
         title: 'gw-inspector.json (chmod 600: it holds the token)',
         language: 'json',
-        text: `{\n  "mcpServers": {\n    "gateway-dev": {\n      "type": "streamable-http",\n      "url": "${url}",\n      "headers": {\n        "Authorization": "Bearer ‹token›"\n      }\n    }\n  }\n}\n`,
+        text: `{\n  "mcpServers": {\n    "gaterook-dev": {\n      "type": "streamable-http",\n      "url": "${url}",\n      "headers": {\n        "Authorization": "Bearer ‹token›"\n      }\n    }\n  }\n}\n`,
       },
-      { id: 'inspector-ui', title: 'Start MCP Inspector on dev', language: 'sh', text: 'npx -y @modelcontextprotocol/inspector@2.12.0 --config gw-inspector.json --server gateway-dev' },
-      { id: 'inspector-cli', title: 'List the tools from a terminal', language: 'sh', text: 'npx -y @modelcontextprotocol/inspector@2.12.0 --cli --config gw-inspector.json --server gateway-dev --method tools/list' },
-      { id: 'toml', title: 'An app that reads TOML', language: 'toml', text: `[mcp_servers.gateway-dev]\nurl = "${url}"\nhttp_headers = { Authorization = "Bearer ‹token›" }\n` },
+      { id: 'inspector-ui', title: 'Start MCP Inspector on dev', language: 'sh', text: 'npx -y @modelcontextprotocol/inspector@2.12.0 --config gw-inspector.json --server gaterook-dev' },
+      { id: 'inspector-cli', title: 'List the tools from a terminal', language: 'sh', text: 'npx -y @modelcontextprotocol/inspector@2.12.0 --cli --config gw-inspector.json --server gaterook-dev --method tools/list' },
+      { id: 'toml', title: 'An app that reads TOML', language: 'toml', text: `[mcp_servers.gaterook-dev]\nurl = "${url}"\nhttp_headers = { Authorization = "Bearer ‹token›" }\n` },
     ],
   };
 }
@@ -114,7 +114,7 @@ export function previewFor(client: ClientCard['client'], request: ConnectRequest
         ...base,
         previewId: `pv_${client}_${request.endpoint}_oauth`,
         notes: ['Cursor opens your browser and you allow it in this app. No token in the file.', `Turns on OAuth sign-in for endpoint ${request.endpoint}.`],
-        link: 'cursor://anysphere.cursor-deeplink/mcp/install?name=gateway-dev&config=eyJ1cmwiOiJodHRwOi8vMTI3LjAuMC4xOjc0NjUvbWNwL2RldiJ9',
+        link: 'cursor://anysphere.cursor-deeplink/mcp/install?name=gaterook-dev&config=eyJ1cmwiOiJodHRwOi8vMTI3LjAuMC4xOjc0NjUvbWNwL2RldiJ9',
       };
     case 'mcpb':
       return {
@@ -137,15 +137,15 @@ export function previewFor(client: ClientCard['client'], request: ConnectRequest
 export function codexDisconnect(): ConnectPreview {
   const removed = [
     '',
-    '# >>> GateRook · gateway-dev · managed entry: Disconnect in GateRook removes it',
-    '[mcp_servers.gateway-dev]',
+    '# >>> GateRook · gaterook-dev · managed entry: Disconnect in GateRook removes it',
+    '[mcp_servers.gaterook-dev]',
     'url = "http://127.0.0.1:7465/mcp/dev"',
     // The core's TomlBlockEditor writes the shim of ~/.gaterook/bin as one command string (ARCHITECTURE §7.2, KIT).
     'http_headers_helper = "~/.gaterook/bin/gw-bridge headers --endpoint dev --grant gr_Cx7q"',
     'default_tools_approval_mode = "writes"',
     'startup_timeout_sec = 20',
     'tool_timeout_sec = 60',
-    '# <<< GateRook · gateway-dev',
+    '# <<< GateRook · gaterook-dev',
   ];
   return {
     previewId: 'pv_codex_out',
@@ -207,7 +207,7 @@ export function connected(client: ClientCard['client'], request: ConnectRequest)
       endpoint: request.endpoint,
       env: 'dev',
       method: request.method,
-      entryName: `gateway-${request.endpoint}`,
+      entryName: `gaterook-${request.endpoint}`,
       configPath: null,
       configDisplay: null,
       grantPrefix: null,

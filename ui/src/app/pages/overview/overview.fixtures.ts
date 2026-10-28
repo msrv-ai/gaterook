@@ -146,7 +146,7 @@ function link(client: ClientLink['client'], endpoint: string, env: Env, over: Pa
     endpoint,
     env,
     method: client === 'codex' ? 'helper' : 'mcpb',
-    entryName: `gateway-${endpoint}`,
+    entryName: `gaterook-${endpoint}`,
     configPath: null,
     configDisplay: null,
     grantPrefix: null,

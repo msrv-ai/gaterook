@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, booleanAttribute, forwardRef, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, forwardRef, input } from '@angular/core';
 import { FieldTree, FormField } from '@angular/forms/signals';
 import { LucideDynamicIcon } from '@lucide/angular';
 import { GwCodeEditor } from '../code/code-editor';
@@ -31,9 +31,6 @@ const join = (...ids: (string | null | undefined)[]) => ids.filter(Boolean).join
 export class GwSchemaField {
   readonly form = input.required<SchemaForm>();
   readonly node = input.required<SchemaNode>();
-  /** The field sits in an `x-gateway-secret: login` object: its text field is the user (hidden for short-lived). */
-  readonly login = input(false, { transform: booleanAttribute });
-
   protected readonly join = join;
   protected readonly lowerFirst = lowerFirst;
   protected readonly String = String;
@@ -49,10 +46,7 @@ export class GwSchemaField {
   }
 
   protected hidden(): boolean {
-    const n = this.node();
-    const f = this.form();
-    if (!f.visible(n)) return true;
-    return this.login() && n.kind === 'text' && f.source() === 'dynamic';
+    return !this.form().visible(this.node());
   }
 
   /** The error sentence with the value it names set in mono ("<Dev DB> is not a slug…"). */
@@ -204,11 +198,11 @@ export class GwSchemaField {
       @if (row.length > 1) {
         <div class="gw-form__row">
           @for (child of row; track child.pointer) {
-            <gw-schema-field [form]="form()" [node]="child" [login]="node().secret === 'login'" />
+            <gw-schema-field [form]="form()" [node]="child" />
           }
         </div>
       } @else {
-        <gw-schema-field [form]="form()" [node]="row[0]" [login]="node().secret === 'login'" />
+        <gw-schema-field [form]="form()" [node]="row[0]" />
       }
     }
   `,

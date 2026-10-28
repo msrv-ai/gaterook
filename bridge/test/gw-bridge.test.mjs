@@ -291,4 +291,69 @@ describe('gw-bridge.mjs', () => {
     assert.throws(() => parseArgs(['stdio', '--endpoint']), /needs a value/);
     assert.deepEqual(sseData('data: a\ndata: b\n\nevent: x\ndata: c\n\n'), ['a\nb', 'c']);
   });
+
+  it('forwards live tool notifications, refreshes auth, reconnects, and closes the stream with stdin', async () => {
+    const notification = { jsonrpc: '2.0', method: 'notifications/tools/list_changed' };
+    const streams = [];
+    let tokens = 0;
+    const streaming = await fakeCore({
+      tokens: (r) => issued(streaming.port, r.endpoint, ++tokens),
+      mcp: (entry) => {
+        if (entry.method === 'GET') {
+          if (entry.headers.authorization === 'Bearer gwb_test_token_1') return { status: 401 };
+          if (entry.headers.authorization === 'Bearer gwb_test_token_2') return {
+            status: 200, type: 'text/event-stream', headers: { 'X-Gateway-Bridge-Instance': 'other' },
+            body: 'data: {"jsonrpc":"2.0","method":"notifications/untrusted"}\n\n',
+          };
+          return { status: 200, type: 'text/event-stream', stream: (res) => {
+            streams.push(res);
+            res.write(': connected\r\n\r\n');
+            if (streams.length === 1) {
+              res.write('data: invalid\n\ndata: {"jsonrpc":"2.0","id":99,"result":{}}\n\n');
+              res.write('event: message\r\ndata: {"jsonrpc":"2.0",\r\ndata: "method":"notifications/');
+              setImmediate(() => res.write('tools/list_changed"}\r\n\r\n'));
+            } else {
+              res.write(`data: ${JSON.stringify(notification)}\n\n`);
+            }
+          } };
+        }
+        if (entry.body.method === 'initialize') return { status: 200, type: 'application/json',
+          body: JSON.stringify({ jsonrpc: '2.0', id: entry.body.id,
+            result: { protocolVersion: '2025-11-25', capabilities: { tools: { listChanged: true } } } }) };
+        if (entry.body.id !== undefined) return { status: 200, type: 'application/json',
+          body: JSON.stringify({ jsonrpc: '2.0', id: entry.body.id, result: { tools: [] } }) };
+        return { status: 202 };
+      },
+    });
+    const streamingHome = tempHome('bridge-stream');
+    const streamingBroker = await startBroker({ home: streamingHome,
+      core: createCoreClient({ origin: streaming.origin, launchSecret: SECRET }) });
+    const b = startBridge(streamingHome);
+    try {
+      await b.call({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+      assert.equal(streams.length, 0, 'wait for the client to finish initialization');
+      b.send({ jsonrpc: '2.0', method: 'notifications/initialized' });
+      assert.deepEqual(await b.next(), notification, 'deliver complete events while GET remains open');
+      assert.equal(tokens, 4, 'refresh after a 401 and reject a stream from an unrelated core instance');
+      streams[0].end();
+      assert.deepEqual(await b.next(), notification, 'forward the server refresh after reconnecting');
+      assert.equal(streams.length, 2);
+      streams[1].write(`data: ${JSON.stringify(notification)}\n\n`);
+      assert.deepEqual(await b.next(), notification);
+      assert.equal((await b.call({ jsonrpc: '2.0', id: 2, method: 'tools/list' })).id, 2,
+        'forward each server notification once, without a duplicate refresh from the bridge');
+      for (const get of streaming.seen.filter((r) => r.method === 'GET')) {
+        assert.equal(get.headers.accept, 'text/event-stream');
+        assert.equal(get.headers['mcp-protocol-version'], '2025-11-25');
+      }
+      const disconnected = new Promise((resolve) => streams[1].on('close', resolve));
+      assert.equal(await b.stop(), 0);
+      await disconnected;
+    } finally {
+      if (b.child.exitCode === null) await b.stop();
+      await streamingBroker.close();
+      await streaming.close();
+      fs.rmSync(streamingHome, { recursive: true, force: true });
+    }
+  });
 });

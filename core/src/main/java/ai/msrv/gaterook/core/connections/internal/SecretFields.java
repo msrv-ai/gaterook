@@ -43,6 +43,28 @@ public final class SecretFields {
     return collect(schema, s -> s.path(NOT_SECRET).asBoolean(false));
   }
 
+  /** A leased login supplies its own user. Only the validation copy gets a stand-in; saved settings never do. */
+  public static void dynamicLoginUsers(JsonNode schema, ObjectNode probe, Set<String> dynamicFields) {
+    if (dynamicFields.isEmpty()) return;
+    List<String> secretTemplates = templates(schema);
+    for (SchemaPointers.Located login : SchemaPointers.collect(schema,
+        node -> "login".equals(node.path("x-gateway-secret").asString("")))) {
+      for (String parent : SchemaPointers.values(probe, login.template()).keySet()) {
+        boolean supplied = dynamicFields.stream().anyMatch(field -> field.startsWith(parent + "/")
+            && field.lastIndexOf('/') == parent.length()
+            && matches(secretTemplates, field));
+        if (!supplied) continue;
+        for (Map.Entry<String, JsonNode> property : login.schema().path("properties").properties()) {
+          if (property.getKey().matches("(?i)user|username|login")
+              && "string".equals(property.getValue().path("type").asString(""))) {
+            set(probe, parent + "/" + escape(property.getKey()),
+                tools.jackson.databind.node.StringNode.valueOf("dynamic-login"));
+          }
+        }
+      }
+    }
+  }
+
   private static List<String> collect(JsonNode schema, java.util.function.Predicate<JsonNode> wanted) {
     Set<String> out = new LinkedHashSet<>();
     SchemaPointers.collect(schema, wanted).forEach(l -> out.add(l.template()));

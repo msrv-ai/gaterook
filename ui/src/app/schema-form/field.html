@@ -228,7 +228,7 @@
     }
 
     @default {
-      <div class="gw-field" [class.gw-connection-form__user]="login() && n.kind === 'text'">
+      <div class="gw-field" [class.gw-connection-form__user]="f.loginUsername(n)">
         @if (n.kind === 'code') {
           <span class="gw-field__label" [id]="id + '-l'"><ng-container [ngTemplateOutlet]="label" /></span>
         } @else {

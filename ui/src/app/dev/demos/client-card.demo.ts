@@ -25,7 +25,7 @@ import {
 function demoPreview(client: ClientId, r: ConnectRequest): ConnectPreview {
   const base = client === 'codex' ? DEMO_PREVIEW_CODEX : DEMO_PREVIEW_CURSOR;
   const env = DEMO_CLIENT_ENDPOINTS.find((e) => e.slug === r.endpoint)?.env ?? 'dev';
-  const swap = (s: string) => s.replaceAll('/mcp/dev', `/mcp/${r.endpoint}`).replaceAll('gateway-dev', `gateway-${r.endpoint}`).replaceAll('"dev"]', `"${r.endpoint}"]`).replace('cursor-laptop', r.token?.name ?? 'cursor-laptop');
+  const swap = (s: string) => s.replaceAll('/mcp/dev', `/mcp/${r.endpoint}`).replaceAll('gaterook-dev', `gaterook-${r.endpoint}`).replaceAll('"dev"]', `"${r.endpoint}"]`).replace('cursor-laptop', r.token?.name ?? 'cursor-laptop');
   const files = base.files.map((f) => {
     const hunks = (f.diff?.hunks ?? []).map((h) => ({
       header: h.header,

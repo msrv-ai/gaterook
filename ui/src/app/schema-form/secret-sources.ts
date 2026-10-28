@@ -68,9 +68,9 @@ export const SECRET_SOURCE_COPY: Readonly<Record<string, SecretSourceCopy>> = {
     title: 'Short-lived (Vault dynamic credentials)',
     icon: 'timer',
     description: 'Vault creates a database user per call. Nothing is stored here.',
-    scheme: null,
+    scheme: 'vault://',
     meta: 'Recommended for prod',
-    label: 'Vault role',
+    label: 'Vault role reference',
     hint: 'Vault creates a database user for each call. No user or password is stored here.',
     test: 'Test role',
   },
@@ -79,7 +79,7 @@ export const SECRET_SOURCE_COPY: Readonly<Record<string, SecretSourceCopy>> = {
 /** Copy for a source the kit doesn't know (a future store): its label from the core, a link icon. */
 export function sourceCopy(id: string, label?: string | null): SecretSourceCopy {
   return (
-    SECRET_SOURCE_COPY[id] ?? {
+    SECRET_SOURCE_COPY[secretSourceId(id)] ?? {
       kit: id,
       title: label ?? id,
       icon: 'link',
@@ -93,6 +93,11 @@ export function sourceCopy(id: string, label?: string | null): SecretSourceCopy 
   );
 }
 
+/** The API and stored-secret metadata use different names for the same short-lived login choice. */
+export function secretSourceId(id: string): string {
+  return id === 'vault-dynamic' || id === 'short-lived' ? 'dynamic' : id;
+}
+
 /** An example reference for the placeholder, shaped by the connection: `vault://kv/dev/dev-db#password`. */
 export function referencePlaceholder(source: string, env: string, name: string, key: string): string {
   const n = name || `${env}-db`;
@@ -104,7 +109,7 @@ export function referencePlaceholder(source: string, env: string, name: string, 
     case 'aws-sm':
       return `aws-sm://<region>/${env}/${n}#${key}`;
     case 'dynamic':
-      return `database/creds/${env}-readonly`;
+      return `vault://database/creds/${env}-readonly`;
     default:
       return '';
   }

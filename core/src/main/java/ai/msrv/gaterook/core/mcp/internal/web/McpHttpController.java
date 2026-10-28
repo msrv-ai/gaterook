@@ -1,21 +1,33 @@
 package ai.msrv.gaterook.core.mcp.internal.web;
 
+import ai.msrv.gaterook.core.endpoints.EndpointSnapshot;
+import ai.msrv.gaterook.core.endpoints.EndpointSnapshotService;
+import ai.msrv.gaterook.core.endpoints.ToolCatalog;
 import ai.msrv.gaterook.core.mcp.McpGateway;
+import ai.msrv.gaterook.core.mcp.internal.Era;
+import ai.msrv.gaterook.core.mcp.internal.EraResolver;
 import ai.msrv.gaterook.core.mcp.internal.JsonRpc;
+import ai.msrv.gaterook.core.mcp.internal.McpToolNotifications;
 import ai.msrv.gaterook.core.platform.Authenticator;
 import ai.msrv.gaterook.core.platform.Bootstrap;
 import ai.msrv.gaterook.core.platform.Caller;
 import ai.msrv.gaterook.core.platform.CallerAuthenticator;
 import ai.msrv.gaterook.core.platform.Ingress;
+import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Locale;
 import java.util.Optional;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,11 +40,11 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * {@code POST /mcp/{slug}} (ARCHITECTURE.md §5 steps 1–2, report 01 §3.1): one JSON-RPC object per request, answered
- * with {@code application/json} — no SSE, no sessions ({@code Mcp-Session-Id} and {@code Last-Event-ID} are ignored
- * and never issued). Before any JSON-RPC: only {@code application/json} (415, which also keeps cross-site forms out),
- * a body of at most 1 MiB (413), a bearer token of this endpoint and ingress (401 with
+ * with {@code application/json}. Legacy clients can open an authenticated GET SSE stream for tool-list changes.
+ * No session IDs or replay IDs are issued. Before any JSON-RPC: only {@code application/json} (415, which also keeps
+ * cross-site forms out), a body of at most 1 MiB (413), a bearer token of this endpoint and ingress (401 with
  * {@code WWW-Authenticate: Bearer realm="gaterook"}), then one object (a batch is {@code -32600}). Other methods
- * are 405 with {@code Allow: POST}. Host and Origin were checked by {@code LocalGuardFilter} already.
+ * are 405 with {@code Allow: GET, POST}. Host and Origin were checked by {@code LocalGuardFilter} already.
  */
 @RestController
 class McpHttpController {
@@ -43,12 +55,22 @@ class McpHttpController {
   private final CallerAuthenticator authenticator;
   private final Bootstrap bootstrap;
   private final JsonMapper json;
+  private final EndpointSnapshotService snapshots;
+  private final ToolCatalog catalogs;
+  private final McpToolNotifications notifications;
+  private final Duration heartbeat;
 
-  McpHttpController(McpGateway gateway, CallerAuthenticator authenticator, Bootstrap bootstrap, JsonMapper json) {
+  McpHttpController(McpGateway gateway, CallerAuthenticator authenticator, Bootstrap bootstrap, JsonMapper json,
+      EndpointSnapshotService snapshots, ToolCatalog catalogs, McpToolNotifications notifications,
+      @Value("${gateway.mcp.heartbeat:15s}") Duration heartbeat) {
     this.gateway = gateway;
     this.authenticator = authenticator;
     this.bootstrap = bootstrap;
     this.json = json;
+    this.snapshots = snapshots;
+    this.catalogs = catalogs;
+    this.notifications = notifications;
+    this.heartbeat = heartbeat;
   }
 
   @PostMapping("/mcp/{slug}")
@@ -100,17 +122,117 @@ class McpHttpController {
   }
 
   /**
-   * SSE streams, sessions and preflights don't exist here. Through the tunnel every method without a valid token is
+   * An independent Streamable HTTP notification stream, written on Tomcat's virtual request thread. Revalidate
+   * access before each notification and heartbeat, so expired credentials and disabled endpoints close the stream.
+   */
+  @GetMapping("/mcp/{slug}")
+  ResponseEntity<byte[]> get(@PathVariable String slug, HttpServletRequest http, HttpServletResponse response)
+      throws IOException {
+    Ingress ingress = ingressOf(http);
+    Optional<Caller> caller = authenticate(ingress, slug, http);
+    if (caller.isEmpty()) {
+      return unauthorized(ingress, slug, http);
+    }
+    String version = Optional.ofNullable(http.getHeader("MCP-Protocol-Version")).orElse("2025-03-26");
+    if (Era.MODERN_VERSION.equals(version)) {
+      return methodNotAllowed();
+    }
+    if (!EraResolver.LEGACY.contains(version)) {
+      return write(400, McpGateway.error(JsonRpc.INVALID_REQUEST, "Unsupported MCP-Protocol-Version " + version));
+    }
+    if (!acceptsEvents(http.getHeader(HttpHeaders.ACCEPT))) {
+      return ResponseEntity.status(HttpStatus.NOT_ACCEPTABLE).build();
+    }
+    Optional<EndpointSnapshot> initial = snapshots.bySlug(slug).filter(EndpointSnapshot::enabled);
+    if (initial.isEmpty()) {
+      return ResponseEntity.notFound().build();
+    }
+    if (!legacyEnabled(initial.get())) {
+      return methodNotAllowed();
+    }
+    // The client may have cached a list before connecting, or missed changes while disconnected. Invalidate that
+    // unknown view once on every new stream, then notify only when the published catalog actually changes.
+    String listHash = null;
+    try (McpToolNotifications.Subscription subscription = notifications.subscribe(initial.get().id())) {
+      response.setStatus(HttpServletResponse.SC_OK);
+      response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
+      response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+      response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
+      response.setHeader("X-Accel-Buffering", "no");
+      ServletOutputStream out = response.getOutputStream();
+      writeFrame(out, ": connected\n\n");
+      while (!subscription.isClosed()) {
+        boolean changed = subscription.awaitChange(heartbeat);
+        if (subscription.isClosed() || authenticate(ingress, slug, http).isEmpty()) {
+          break;
+        }
+        Optional<EndpointSnapshot> current = snapshots.get(initial.get().id())
+            .filter(s -> s.enabled() && s.slug().equals(slug) && legacyEnabled(s));
+        if (current.isEmpty()) {
+          break;
+        }
+        if (changed) {
+          String nextHash = catalogs.forEndpoint(current.get()).listHash();
+          if (!nextHash.equals(listHash)) {
+            writeFrame(out, "event: message\ndata: {\"jsonrpc\":\"2.0\","
+                + "\"method\":\"notifications/tools/list_changed\"}\n\n");
+            listHash = nextHash;
+          }
+        } else {
+          writeFrame(out, ": keepalive\n\n");
+        }
+      }
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    } catch (IOException e) {
+      // A disconnected client ends this subscription without affecting other clients or configuration changes.
+    }
+    return null;
+  }
+
+  private static boolean legacyEnabled(EndpointSnapshot snapshot) {
+    JsonNode revisions = snapshot.settings().path("protocol").path("revisions");
+    if (revisions.isEmpty()) {
+      return true;
+    }
+    for (JsonNode revision : revisions) {
+      if (Era.LEGACY_VERSION.equals(revision.asString())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean acceptsEvents(String accept) {
+    try {
+      return accept != null && MediaType.parseMediaTypes(accept).stream()
+          .anyMatch(t -> t.getQualityValue() > 0 && t.isCompatibleWith(MediaType.TEXT_EVENT_STREAM));
+    } catch (IllegalArgumentException e) {
+      return false;
+    }
+  }
+
+  private static void writeFrame(ServletOutputStream out, String frame) throws IOException {
+    out.write(frame.getBytes(StandardCharsets.UTF_8));
+    out.flush();
+  }
+
+  /**
+   * Sessions and preflights don't exist here. Through the tunnel every method without a valid token is
    * 401 first, so that a client probing with GET or HEAD is sent to sign in as well (report 02 §3).
    */
-  @RequestMapping(value = "/mcp/{slug}", method = {RequestMethod.GET, RequestMethod.DELETE, RequestMethod.OPTIONS,
+  @RequestMapping(value = "/mcp/{slug}", method = {RequestMethod.DELETE, RequestMethod.OPTIONS,
       RequestMethod.PUT, RequestMethod.PATCH, RequestMethod.HEAD})
   ResponseEntity<byte[]> notStreaming(@PathVariable String slug, HttpServletRequest http) {
     Ingress ingress = ingressOf(http);
     if (ingress == Ingress.TUNNEL && authenticate(ingress, slug, http).isEmpty()) {
       return unauthorized(ingress, slug, http);
     }
-    return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).header(HttpHeaders.ALLOW, "POST").build();
+    return methodNotAllowed();
+  }
+
+  private static ResponseEntity<byte[]> methodNotAllowed() {
+    return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).header(HttpHeaders.ALLOW, "GET, POST").build();
   }
 
   private Ingress ingressOf(HttpServletRequest http) {

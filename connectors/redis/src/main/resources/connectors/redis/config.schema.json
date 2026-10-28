@@ -11,8 +11,7 @@
       "title": "Connection",
       "additionalProperties": false,
       "required": [
-        "host",
-        "port"
+        "host"
       ],
       "x-paste-url": "redis(s)://[user@]host:port/db",
       "properties": {
@@ -33,7 +32,9 @@
           "title": "Database",
           "minimum": 0,
           "maximum": 1023,
-          "default": 0
+          "default": 0,
+          "description": "Defaults to database 0. Used when no database allowlist is configured.",
+          "x-section": "/advanced"
         },
         "tls": {
           "type": "boolean",
@@ -72,7 +73,7 @@
         },
         "databases": {
           "type": "array",
-          "title": "Databases",
+          "title": "Database allowlist",
           "minItems": 1,
           "maxItems": 1024,
           "uniqueItems": true,
@@ -81,7 +82,8 @@
             "minimum": 0,
             "maximum": 1023
           },
-          "description": "Only these logical databases are available to agents."
+          "description": "Optional. Only these logical databases are available to agents. Leave empty to use the database above, which defaults to 0.",
+          "x-section": "/advanced"
         }
       }
     },
@@ -180,9 +182,5 @@
         }
       }
     }
-  },
-  "x-database-selection": {
-    "path": "/connection/databases",
-    "legacyPath": "/connection/database"
   }
 }

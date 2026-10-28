@@ -22,16 +22,19 @@ import ai.msrv.gaterook.core.secrets.SecretInfo;
 import ai.msrv.gaterook.core.secrets.SecretOwner;
 import ai.msrv.gaterook.core.secrets.SecretService;
 import ai.msrv.gaterook.core.secrets.SecretVersionChanged;
+import ai.msrv.gaterook.core.secrets.store.SecretRef;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
@@ -171,7 +174,8 @@ public class ConnectionService {
     s.secretIds().forEach((field, id) -> {
       SecretInfo info = byId.get(id);
       fields.add(info == null ? new SecretField(field, id, null, "missing", null, null)
-          : new SecretField(field, id, info.name(), info.state(), info.version(), info.source()));
+          : new SecretField(field, id, info.name(), info.state(), info.version(),
+              dynamicReference(info) ? "vault-dynamic" : info.source()));
     });
     return new Detail(s.id(), s.name(), s.config().type(), s.config().env(), s.config().config().deepCopy(),
         s.config().version(), List.copyOf(fields), s.health(), usage().map(u -> u.usedBy(s.id())).orElse(List.of()),
@@ -209,7 +213,9 @@ public class ConnectionService {
       ObjectNode cleaned = requestConfig(config);
       List<String> templates = SecretFields.templates(manifest.configSchema());
       Map<String, SecretInput> given = checkSecrets(templates, newSecrets);
-      validate(manifest, cleaned, given.keySet(), env);
+      Set<String> dynamic = new LinkedHashSet<>();
+      given.forEach((field, input) -> { if (!input.isLocal() && input.dynamic()) dynamic.add(field); });
+      validate(manifest, cleaned, given.keySet(), dynamic, env, false);
       if (env == Env.PROD && !confirmed(confirm, CONFIRM_DANGER)) {
         // The test gets copies: it zeroes what it is given, and these are about to be stored.
         Map<String, SecretInput> copies = new HashMap<>();
@@ -637,6 +643,33 @@ public class ConnectionService {
 
   void validate(ConnectorManifest manifest, ObjectNode config, java.util.Set<String> newSecretFields, Env env,
       boolean discovery) {
+    validate(manifest, config, newSecretFields, dynamicSecretFields(SecretFields.placeholders(config)), env, discovery);
+  }
+
+  /** Stored references carry the lease type even when their store is disconnected and state says not-connected. */
+  Set<String> dynamicSecretFields(Map<String, String> secretIds) {
+    Set<String> dynamic = new LinkedHashSet<>();
+    secretIds.forEach((field, id) -> {
+      try {
+        if (dynamicReference(secrets.get(id))) dynamic.add(field);
+      } catch (SecretService.NoSuchSecretException ignored) {
+        // Missing references cannot supply a login during validation.
+      }
+    });
+    return Set.copyOf(dynamic);
+  }
+
+  private static boolean dynamicReference(SecretInfo info) {
+    if (info.ref() == null) return false;
+    try {
+      return SecretRef.parse(info.ref()) instanceof SecretRef.Vault vault && vault.credsPath();
+    } catch (IllegalArgumentException ignored) {
+      return false;
+    }
+  }
+
+  void validate(ConnectorManifest manifest, ObjectNode config, Set<String> newSecretFields,
+      Set<String> dynamicSecretFields, Env env, boolean discovery) {
     Objects.requireNonNull(env, "env");
     ObjectNode probe = config.deepCopy();
     for (String field : SecretFields.placeholders(config).keySet()) {
@@ -645,6 +678,7 @@ public class ConnectionService {
     for (String field : newSecretFields) {
       SecretFields.set(probe, field, StringNode.valueOf("‹secret›"));
     }
+    SecretFields.dynamicLoginUsers(manifest.configSchema(), probe, dynamicSecretFields);
     for (SchemaValidator.Violation v : validator.validate(manifest.configSchema(), probe)) {
       throw ProblemException.unprocessable("Check the settings", v.message(), "/config" + v.pointer());
     }

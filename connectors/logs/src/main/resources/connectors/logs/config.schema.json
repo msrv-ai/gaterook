@@ -116,21 +116,80 @@
                 "bearer",
                 "basic"
               ],
-              "default": "bearer"
-            },
-            "username": {
-              "type": "string",
-              "maxLength": 200,
-              "description": "basic only. Grafana Cloud: the numeric user ID"
-            },
-            "secret": {
-              "type": "string",
-              "writeOnly": true,
-              "x-gateway-secret": "value",
-              "format": "password",
-              "title": "Token or password"
+              "default": "bearer",
+              "title": "Authentication",
+              "x-enumTitles": [
+                "No authentication",
+                "Bearer token",
+                "Username and password"
+              ]
             }
-          }
+          },
+          "patternProperties": {
+            "^(username|secret)$": {}
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "mode": {
+                    "const": "bearer"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "secret"
+                ],
+                "properties": {
+                  "secret": {
+                    "type": "string",
+                    "writeOnly": true,
+                    "x-gateway-secret": "value",
+                    "format": "password",
+                    "title": "Bearer token",
+                    "minLength": 1
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "mode": {
+                    "const": "basic"
+                  }
+                },
+                "required": [
+                  "mode"
+                ]
+              },
+              "then": {
+                "required": [
+                  "username",
+                  "secret"
+                ],
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "description": "Grafana Cloud: the numeric user ID.",
+                    "title": "Username",
+                    "minLength": 1,
+                    "pattern": ".*\\S.*"
+                  },
+                  "secret": {
+                    "type": "string",
+                    "writeOnly": true,
+                    "x-gateway-secret": "value",
+                    "format": "password",
+                    "title": "Password",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          ]
         },
         "caCertificate": {
           "type": "string",
@@ -187,13 +246,6 @@
                 "Service account key (JSON)"
               ]
             },
-            "serviceAccountKey": {
-              "type": "string",
-              "writeOnly": true,
-              "x-gateway-secret": "value",
-              "x-widget": "textarea",
-              "maxLength": 10000
-            },
             "impersonate": {
               "type": "string",
               "maxLength": 254,
@@ -209,7 +261,40 @@
                 "type": "string"
               }
             }
-          }
+          },
+          "patternProperties": {
+            "^serviceAccountKey$": {}
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "source": {
+                    "const": "serviceAccountKey"
+                  }
+                },
+                "required": [
+                  "source"
+                ]
+              },
+              "then": {
+                "required": [
+                  "serviceAccountKey"
+                ],
+                "properties": {
+                  "serviceAccountKey": {
+                    "type": "string",
+                    "writeOnly": true,
+                    "x-gateway-secret": "value",
+                    "x-widget": "textarea",
+                    "maxLength": 10000,
+                    "title": "Service account key (JSON)",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          ]
         },
         "scopeFilter": {
           "type": "string",
@@ -259,55 +344,8 @@
           }
         },
         "credentials": {
-          "type": "object",
-          "title": "Credentials",
-          "required": [
-            "source"
-          ],
-          "additionalProperties": false,
-          "properties": {
-            "source": {
-              "enum": [
-                "accessKey",
-                "profile"
-              ],
-              "default": "accessKey"
-            },
-            "accessKeyId": {
-              "type": "string",
-              "pattern": "^(AKIA|ASIA)[A-Z0-9]{16}$",
-              "x-not-secret": true
-            },
-            "secretAccessKey": {
-              "type": "string",
-              "writeOnly": true,
-              "x-gateway-secret": "value",
-              "format": "password"
-            },
-            "profile": {
-              "type": "string",
-              "maxLength": 128,
-              "description": "A profile in ~/.aws/config on this computer"
-            },
-            "roleArn": {
-              "type": "string",
-              "pattern": "^arn:aws[a-z-]*:iam::\\d{12}:role/[\\w+=,.@/-]+$",
-              "examples": [
-                "arn:aws:iam::123456789012:role/gw-readonly"
-              ]
-            },
-            "externalId": {
-              "type": "string",
-              "maxLength": 1224
-            },
-            "sessionSeconds": {
-              "type": "integer",
-              "minimum": 900,
-              "maximum": 3600,
-              "default": 900,
-              "x-unit": "s"
-            }
-          }
+          "$ref": "#/$defs/awsCredentials",
+          "title": "Credentials"
         },
         "searchApi": {
           "enum": [
@@ -326,11 +364,184 @@
       "title": "OpenSearch",
       "required": [
         "backend",
-        "url"
+        "url",
+        "auth"
       ],
       "properties": {
         "backend": {
           "const": "opensearch"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https?://[^/?#]+$",
+          "title": "Server URL",
+          "examples": [
+            "https://search.example.test:9200"
+          ],
+          "description": "OpenSearch host, including http:// or https:// and its port."
+        },
+        "auth": {
+          "type": "object",
+          "title": "Authorization",
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "title": "Authentication",
+              "enum": [
+                "basic",
+                "apiKey",
+                "bearer",
+                "awsSigV4",
+                "none"
+              ],
+              "default": "basic",
+              "x-enumTitles": [
+                "Username and password",
+                "API key",
+                "Bearer token",
+                "AWS request signing",
+                "No authentication"
+              ]
+            }
+          },
+          "patternProperties": {
+            "^(username|secret|awsRegion|awsService|awsCredentials)$": {}
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "mode": {
+                    "const": "basic"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "username",
+                  "secret"
+                ],
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "pattern": ".*\\S.*",
+                    "title": "Username"
+                  },
+                  "secret": {
+                    "type": "string",
+                    "minLength": 1,
+                    "writeOnly": true,
+                    "x-gateway-secret": "value",
+                    "format": "password",
+                    "title": "Password",
+                    "description": "Stored securely by GateRook."
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "mode": {
+                    "const": "apiKey"
+                  }
+                },
+                "required": [
+                  "mode"
+                ]
+              },
+              "then": {
+                "required": [
+                  "secret"
+                ],
+                "properties": {
+                  "secret": {
+                    "type": "string",
+                    "minLength": 1,
+                    "writeOnly": true,
+                    "x-gateway-secret": "value",
+                    "format": "password",
+                    "title": "API key",
+                    "description": "OpenSearch API key, such as os_...; requires server support."
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "mode": {
+                    "const": "bearer"
+                  }
+                },
+                "required": [
+                  "mode"
+                ]
+              },
+              "then": {
+                "required": [
+                  "secret"
+                ],
+                "properties": {
+                  "secret": {
+                    "type": "string",
+                    "minLength": 1,
+                    "writeOnly": true,
+                    "x-gateway-secret": "value",
+                    "format": "password",
+                    "title": "Bearer token",
+                    "description": "Stored securely by GateRook."
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "mode": {
+                    "const": "awsSigV4"
+                  }
+                },
+                "required": [
+                  "mode"
+                ]
+              },
+              "then": {
+                "required": [
+                  "awsRegion",
+                  "awsCredentials"
+                ],
+                "properties": {
+                  "awsRegion": {
+                    "type": "string",
+                    "title": "AWS region",
+                    "pattern": "^[a-z]{2}(-[a-z]+)+-\\d+$",
+                    "examples": [
+                      "eu-central-1"
+                    ]
+                  },
+                  "awsService": {
+                    "title": "AWS service",
+                    "enum": [
+                      "es",
+                      "aoss"
+                    ],
+                    "default": "es",
+                    "x-enumTitles": [
+                      "OpenSearch Service",
+                      "OpenSearch Serverless"
+                    ]
+                  },
+                  "awsCredentials": {
+                    "$ref": "#/$defs/awsCredentials"
+                  }
+                }
+              }
+            }
+          ]
         },
         "apiAccess": {
           "enum": [
@@ -343,24 +554,26 @@
             "Scoped log search",
             "Full OpenSearch REST API"
           ],
-          "description": "Full API access is the default and enables arbitrary queries and server operations using this connection user's OpenSearch permissions. Log index patterns and scopeQuery restrict only logs_search and logs_tail; they do not restrict REST tools. Select Scoped log search to disable the full REST tools."
-        },
-        "url": {
-          "type": "string",
-          "format": "uri",
-          "pattern": "^https?://[^/?#]+$"
+          "description": "Full API access is the default and enables arbitrary queries and server operations using this connection user's OpenSearch permissions. Log index patterns and scopeQuery restrict only logs_search and logs_tail; they do not restrict REST tools. Select Scoped log search to disable the full REST tools.",
+          "x-section": "/advanced"
         },
         "timestampField": {
           "type": "string",
-          "default": "@timestamp"
+          "default": "@timestamp",
+          "x-section": "/advanced",
+          "title": "Timestamp field"
         },
         "messageField": {
           "type": "string",
-          "default": "message"
+          "default": "message",
+          "x-section": "/advanced",
+          "title": "Message field"
         },
         "severityField": {
           "type": "string",
-          "default": "log.level"
+          "default": "log.level",
+          "x-section": "/advanced",
+          "title": "Severity field"
         },
         "labelFields": {
           "type": "array",
@@ -373,60 +586,31 @@
           ],
           "items": {
             "type": "string"
-          }
+          },
+          "x-section": "/advanced",
+          "title": "Label fields"
         },
         "scopeQuery": {
           "type": "string",
           "maxLength": 2000,
           "title": "Always add this query (Lucene)",
-          "description": "Lucene filter always added to logs_search and logs_tail. Does not constrain full OpenSearch REST API tools."
-        },
-        "auth": {
-          "type": "object",
-          "title": "Credentials",
-          "additionalProperties": false,
-          "properties": {
-            "mode": {
-              "enum": [
-                "none",
-                "basic",
-                "apiKey",
-                "bearer",
-                "awsSigV4"
-              ],
-              "default": "basic"
-            },
-            "username": {
-              "type": "string"
-            },
-            "secret": {
-              "type": "string",
-              "writeOnly": true,
-              "x-gateway-secret": "value",
-              "format": "password",
-              "description": "Password, ApiKey (os_\u2026, OpenSearch \u2265 3.7) or bearer token"
-            },
-            "awsRegion": {
-              "type": "string"
-            },
-            "awsService": {
-              "enum": [
-                "es",
-                "aoss"
-              ],
-              "default": "es"
-            },
-            "awsCredentials": {
-              "$ref": "#/oneOf/2/properties/credentials"
-            }
-          }
+          "description": "Lucene filter always added to logs_search and logs_tail. Does not constrain full OpenSearch REST API tools.",
+          "x-section": "/advanced"
         },
         "caCertificate": {
           "type": "string",
           "maxLength": 20000,
           "x-widget": "textarea",
           "title": "CA certificate (PEM)",
-          "description": "Only for a private CA."
+          "description": "Only for a private CA.",
+          "x-section": "/advanced"
+        },
+        "advanced": {
+          "type": "object",
+          "title": "Advanced",
+          "description": "Log field mappings, log scope, API access and private certificate authority.",
+          "properties": {},
+          "x-collapsed": true
         }
       },
       "allOf": [
@@ -482,7 +666,117 @@
         ]
       ],
       "description": "Index patterns for logs_search, logs_tail and log-only index discovery. Required in scoped log mode. Full API mode defaults to * when omitted; REST tools use the server user's permissions instead.",
-      "title": "Log index patterns"
+      "title": "Log index patterns",
+      "x-section": "/advanced"
+    },
+    "awsCredentials": {
+      "type": "object",
+      "title": "AWS credentials",
+      "required": [
+        "source"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "enum": [
+            "accessKey",
+            "profile"
+          ],
+          "default": "accessKey",
+          "title": "Credential source",
+          "x-enumTitles": [
+            "Access key",
+            "AWS profile"
+          ]
+        },
+        "roleArn": {
+          "type": "string",
+          "pattern": "^arn:aws[a-z-]*:iam::\\d{12}:role/[\\w+=,.@/-]+$",
+          "examples": [
+            "arn:aws:iam::123456789012:role/gw-readonly"
+          ],
+          "title": "Assume role ARN"
+        },
+        "externalId": {
+          "type": "string",
+          "maxLength": 1224,
+          "title": "External ID"
+        },
+        "sessionSeconds": {
+          "type": "integer",
+          "minimum": 900,
+          "maximum": 3600,
+          "default": 900,
+          "x-unit": "s",
+          "title": "Session duration"
+        }
+      },
+      "patternProperties": {
+        "^(accessKeyId|secretAccessKey|profile)$": {}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "source": {
+                "const": "accessKey"
+              }
+            },
+            "required": [
+              "source"
+            ]
+          },
+          "then": {
+            "required": [
+              "accessKeyId",
+              "secretAccessKey"
+            ],
+            "properties": {
+              "accessKeyId": {
+                "type": "string",
+                "pattern": "^(AKIA|ASIA)[A-Z0-9]{16}$",
+                "x-not-secret": true,
+                "title": "Access key ID"
+              },
+              "secretAccessKey": {
+                "type": "string",
+                "writeOnly": true,
+                "x-gateway-secret": "value",
+                "format": "password",
+                "title": "Secret access key",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "source": {
+                "const": "profile"
+              }
+            },
+            "required": [
+              "source"
+            ]
+          },
+          "then": {
+            "required": [
+              "profile"
+            ],
+            "properties": {
+              "profile": {
+                "type": "string",
+                "maxLength": 128,
+                "description": "A profile in ~/.aws/config on this computer",
+                "title": "Profile",
+                "minLength": 1,
+                "pattern": ".*\\S.*"
+              }
+            }
+          }
+        }
+      ]
     }
   }
 }

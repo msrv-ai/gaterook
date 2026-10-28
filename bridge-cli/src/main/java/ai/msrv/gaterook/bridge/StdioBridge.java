@@ -30,7 +30,7 @@ import java.util.regex.Pattern;
  * on stdout per answer, written under a lock. A 401 gets one new token and one retry. Errors are answered as JSON-RPC
  * errors with the request's id and the process keeps running, so the client doesn't mark the server as failed.
  */
-final class StdioBridge {
+final class StdioBridge implements AutoCloseable {
 
   static final String NOT_RUNNING = "GateRook is not running. Open GateRook, then try again.";
   private static final Duration BROKER_WAIT = Duration.ofSeconds(60);
@@ -49,6 +49,11 @@ final class StdioBridge {
   private final HttpClient http;
   private volatile Token token;
   private volatile String negotiated;
+  private volatile boolean listChanged;
+  private volatile boolean closed;
+  private final Object streamLock = new Object();
+  private Thread listener;
+  private InputStream notificationStream;
 
   StdioBridge(String endpoint, String grant, String client, BrokerClient broker, PrintStream out) {
     this.endpoint = endpoint;
@@ -71,13 +76,14 @@ final class StdioBridge {
       return 3;
     }
     StdioBridge bridge = new StdioBridge(endpoint, grant, client, BrokerClient.fromEnvironment(env), out);
-    try (ExecutorService pool = Executors.newVirtualThreadPerTaskExecutor();
+    try (bridge; ExecutorService pool = Executors.newVirtualThreadPerTaskExecutor();
         BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
       String line;
       while ((line = reader.readLine()) != null) {
         String message = line;
         pool.submit(() -> bridge.handle(message));
       }
+      bridge.close();
       pool.shutdown();
       pool.awaitTermination(REQUEST_WAIT.toSeconds(), TimeUnit.SECONDS);
     } catch (IOException e) {
@@ -129,6 +135,9 @@ final class StdioBridge {
         return;
       }
       if (r.statusCode() == 202) {
+        if ("notifications/initialized".equals(method)) {
+          listen();
+        }
         return;
       }
       String type = r.headers().firstValue("Content-Type").orElse("");
@@ -145,6 +154,8 @@ final class StdioBridge {
           if (v != null) {
             negotiated = v;
           }
+          listChanged = Boolean.TRUE.equals(Json.get(Json.get(Json.get(result, "capabilities"), "tools"),
+              "listChanged"));
         }
         write(r.body().strip());
         return;
@@ -165,6 +176,128 @@ final class StdioBridge {
       reply(id, "GateRook didn't answer: " + e.getMessage());
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
+    }
+  }
+
+  /** One GET stream per stdio client; POST responses keep their existing independent request lifecycle. */
+  private void listen() {
+    synchronized (streamLock) {
+      if (!closed && listChanged && negotiated != null && listener == null) {
+        listener = Thread.ofVirtual().name("mcp-notifications").start(this::receiveNotifications);
+      }
+    }
+  }
+
+  private void receiveNotifications() {
+    long reconnectDelay = 1000;
+    while (!closed && listChanged) {
+      try {
+        Token t = token(false);
+        for (int attempt = 0; attempt < 2 && !closed; attempt++) {
+          HttpRequest request = HttpRequest.newBuilder(t.url()).timeout(REQUEST_WAIT)
+              .header("Accept", "text/event-stream").header("Authorization", "Bearer " + t.value())
+              .header("MCP-Protocol-Version", negotiated).GET().build();
+          HttpResponse<InputStream> response;
+          try {
+            response = http.send(request, HttpResponse.BodyHandlers.ofInputStream());
+          } catch (ConnectException e) {
+            if (token == t) {
+              token = null;
+            }
+            throw e;
+          }
+          try (InputStream body = response.body()) {
+            if (response.statusCode() == 401 && attempt == 0) {
+              t = replace(t);
+              continue;
+            }
+            if (response.statusCode() == 405) {
+              listChanged = false;
+            }
+            if (response.statusCode() != 200 || !response.headers().firstValue("Content-Type").orElse("")
+                .startsWith("text/event-stream")) {
+              break;
+            }
+            String answeredBy = response.headers().firstValue(INSTANCE_HEADER).orElse(null);
+            if (t.instance() != null && !t.instance().equals(answeredBy) && !fromCurrentRun(t, answeredBy)) {
+              token = null;
+              break;
+            }
+            synchronized (streamLock) {
+              if (closed) {
+                return;
+              }
+              notificationStream = body;
+            }
+            reconnectDelay = 1000;
+            readNotifications(body);
+            break;
+          } finally {
+            synchronized (streamLock) {
+              notificationStream = null;
+            }
+          }
+        }
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        return;
+      } catch (IOException | BrokerClient.Unavailable | Refused | RuntimeException e) {
+        // Reconnect without inventing a JSON-RPC response or interrupting calls in flight.
+      }
+      try {
+        Thread.sleep(reconnectDelay);
+        reconnectDelay = Math.min(reconnectDelay * 2, 30_000);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        return;
+      }
+    }
+  }
+
+  private void readNotifications(InputStream body) throws IOException {
+    BufferedReader reader = new BufferedReader(new InputStreamReader(body, StandardCharsets.UTF_8));
+    StringBuilder data = new StringBuilder();
+    String line;
+    while (!closed && (line = reader.readLine()) != null) {
+      if (data.length() + line.length() > 1024 * 1024) {
+        throw new IOException("The notification is larger than 1 MiB.");
+      }
+      if (line.isEmpty()) {
+        if (!data.isEmpty() && !closed) {
+          try {
+            Object message = Json.parse(data.toString());
+            if (message instanceof Map<?, ?> m && "2.0".equals(m.get("jsonrpc"))
+                && m.get("method") instanceof String && !m.containsKey("id")) {
+              write(Json.write(message));
+            }
+          } catch (IllegalArgumentException e) {
+            // Invalid events are never written to the client's JSON-RPC stream.
+          }
+        }
+        data.setLength(0);
+      } else if (line.startsWith("data:")) {
+        if (!data.isEmpty()) {
+          data.append('\n');
+        }
+        data.append(line.substring(line.startsWith("data: ") ? 6 : 5));
+      }
+    }
+  }
+
+  @Override
+  public void close() {
+    synchronized (streamLock) {
+      closed = true;
+      if (listener != null) {
+        listener.interrupt();
+      }
+      if (notificationStream != null) {
+        try {
+          notificationStream.close();
+        } catch (IOException ignored) {
+          // Closing stdin terminates the subscription even if the peer already disconnected.
+        }
+      }
     }
   }
 

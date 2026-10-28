@@ -117,16 +117,17 @@
 //   focus) · for Cursor the Sign-in choice (gw-choice-card --compact radios:
 //   "Token in the file" / "Sign in through the browser") and, in token mode, a
 //   __step "Token for Cursor" (Name cursor-laptop, Expires 7 days; no IP
-//   allowlist on the desktop) · __step "What will change" (gw-diff --wrap of the
-//   config file + __backup line) · auth note (a gw-alert--warning when the token
+//   allowlist on the desktop) · __step "What will change" (default-collapsed
+//   disclosure: gw-diff --wrap of the config file + __backup line) · visible
+//   auth note (a gw-alert--warning when the token
 //   lands in the file in plain text) · restart note where the client needs one.
 //   Footer: Cancel + "Confirm and connect" (--primary, the only one in the
 //   dialog). After writing, a toast confirms and the card shows "Needs restart"
 //   where the client must restart.
 //   One endpoint only: no select; a __step "What <app> can use" (gw-kv
 //   --dense: Connection + gw-env, Tools with their modes, Endpoint) says it
-//   in words. Claude Desktop (.mcpb) has no file: "What will change" is a
-//   gw-kv (Installs, Runs, Config files none, Token none stored) plus "Claude
+//   in words. Claude Desktop (.mcpb) has no file: "What will change" reveals a
+//   gw-kv (Installs, Runs, Config files none, Token none stored), followed by "Claude
 //   Desktop asks you to confirm"; the claude_desktop_config.json fallback
 //   (diff, backup, restart) sits behind a disclosure.
 //   Waiting for the app: gw-status--checking "Waiting for <app>". Claude

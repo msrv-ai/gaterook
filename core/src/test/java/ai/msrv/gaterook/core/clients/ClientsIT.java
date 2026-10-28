@@ -165,7 +165,7 @@ class ClientsIT {
     assertThat(file.path("modeChange").asString()).contains("rw-r--r--").contains("rw-------");
     assertThat(file.path("backupPath").asString()).isEqualTo("~/.cursor/mcp.json.bak-" + LocalDate.now());
     assertThat(preview.path("link").asString()).startsWith("cursor://anysphere.cursor-deeplink/mcp/install?name="
-        + "gateway-dev&config=");
+        + "gaterook-dev&config=");
     assertThat(preview.path("notes").toString()).contains("cursor-laptop").contains("plain text");
     assertThat(preview.path("repair").asBoolean()).isFalse();
 
@@ -175,7 +175,7 @@ class ClientsIT {
     cursorLink = link.path("id").asString();
     assertThat(link.path("status").asString()).isEqualTo("needs-restart");
     assertThat(link.path("tokenName").asString()).isEqualTo("cursor-laptop");
-    assertThat(link.path("entryName").asString()).isEqualTo("gateway-dev");
+    assertThat(link.path("entryName").asString()).isEqualTo("gaterook-dev");
 
     Path cursor = userHome.resolve(".cursor/mcp.json");
     String after = Files.readString(cursor);
@@ -184,7 +184,7 @@ class ClientsIT {
     cursorToken = m.group();
     assertThat(after).isEqualTo(expectedCursor(cursorToken));
     // Only our entry: taking it out gives the original back byte for byte.
-    assertThat(JsonEntryEditor.remove(after, "mcpServers", "gateway-dev")).isEqualTo(cursorBefore);
+    assertThat(JsonEntryEditor.remove(after, "mcpServers", "gaterook-dev")).isEqualTo(cursorBefore);
     assertThat(mode(cursor)).isEqualTo("rw-------");
     // The copy next to the file keeps the original's permissions; the app's own copies are owner-only.
     Path bak = userHome.resolve(".cursor/mcp.json.bak-" + LocalDate.now());
@@ -209,9 +209,10 @@ class ClientsIT {
     assertThat(setupChanges("client", "Cursor → dev")).contains("Not connected → Connected");
   }
 
-  /** The golden {@code kit.after} with this core's port and the token Connect issued. */
+  /** The legacy editor golden with the current entry name, this core's port, and the token Connect issued. */
   private static String expectedCursor(String token) throws IOException {
-    return golden("json/kit.after").replace("127.0.0.1:7465", "127.0.0.1:" + port).replace("‹new token›", token);
+    return golden("json/kit.after").replace("gateway-dev", "gaterook-dev")
+        .replace("127.0.0.1:7465", "127.0.0.1:" + port).replace("‹new token›", token);
   }
 
   @Test
@@ -245,6 +246,31 @@ class ClientsIT {
     api.expect(422, HttpMethod.POST, "/api/clients/cursor/connect/preview", """
         {"endpoint":"edge","method":"token","token":{"name":"cursor-edge","ttlDays":7}}""");
     core.bean(EndpointService.class).delete("edge", "edge", null);
+  }
+
+  @Test
+  @Order(13)
+  void theLongerPrefixPreservesFortyCharacterEndpointNames() throws Exception {
+    String slug = "long-" + "a".repeat(35);
+    EndpointService endpoints = core.bean(EndpointService.class);
+    endpoints.create(slug, null, EndpointService.StartFrom.EMPTY, null);
+    try {
+      for (String client : List.of("cursor", "codex")) {
+        Path config = userHome.resolve(client.equals("cursor") ? ".cursor/mcp.json" : ".codex/config.toml");
+        String before = Files.readString(config);
+        JsonNode preview = api.expect(200, HttpMethod.POST, "/api/clients/" + client + "/connect/preview",
+            "{\"endpoint\":\"" + slug + "\",\"method\":\"" + (client.equals("cursor") ? "oauth" : "helper") + "\"}");
+        JsonNode connected = api.expect(200, HttpMethod.POST, "/api/clients/" + client + "/connect",
+            "{\"previewId\":\"" + preview.path("previewId").asString() + "\"}");
+        String id = connected.path("link").path("id").asString();
+        assertThat(linkOf(client, id).path("entryName").asString()).isEqualTo("gaterook-" + slug);
+        assertThat(Files.readString(config)).contains("gaterook-" + slug);
+        assertThat(disconnect(id).path("entryRemoved").asBoolean()).isTrue();
+        assertThat(Files.readString(config)).isEqualTo(before);
+      }
+    } finally {
+      endpoints.delete(slug, slug, null);
+    }
   }
 
   // ── Codex: the headers helper and its grant ─────────────────────────────────────────────────────────────────
@@ -285,8 +311,8 @@ class ClientsIT {
     assertThat(connected.path("link").path("method").asString()).isEqualTo("helper");
 
     String after = Files.readString(userHome.resolve(".codex/config.toml"));
-    assertThat(after).startsWith(codexBefore).contains(TomlBlockEditor.startMarker("gateway-dev"))
-        .contains("[mcp_servers.gateway-dev]").contains("url = \"http://127.0.0.1:" + port + "/mcp/dev\"")
+    assertThat(after).startsWith(codexBefore).contains(TomlBlockEditor.startMarker("gaterook-dev"))
+        .contains("[mcp_servers.gaterook-dev]").contains("url = \"http://127.0.0.1:" + port + "/mcp/dev\"")
         .contains("default_tools_approval_mode = \"writes\"").contains("startup_timeout_sec = 20")
         .contains("tool_timeout_sec = 60").doesNotContain("gwb_").doesNotContain("gwt_");
     Matcher helper = Pattern.compile("http_headers_helper = (.+)").matcher(after);
@@ -295,7 +321,7 @@ class ClientsIT {
     Matcher g = GRANT.matcher(helper.group(1));
     assertThat(g.find()).isTrue();
     codexGrant = g.group();
-    assertThat(TomlBlockEditor.remove(after, "gateway-dev")).as("Disconnect gives the file back").isEqualTo(codexBefore);
+    assertThat(TomlBlockEditor.remove(after, "gaterook-dev")).as("Disconnect gives the file back").isEqualTo(codexBefore);
     assertThat(setupChanges("grant", "Grant codex-laptop (codex) for dev")).contains("Active");
   }
 
@@ -460,14 +486,14 @@ class ClientsIT {
     String id = api.expect(200, HttpMethod.POST, "/api/clients/claude-desktop/connect",
         "{\"previewId\":\"" + preview.path("previewId").asString() + "\"}").path("link").path("id").asString();
     Path config = userHome.resolve(".config/Claude/claude_desktop_config.json");
-    JsonNode entry = TestCore.json(Files.readString(config)).path("mcpServers").path("gateway-dev");
+    JsonNode entry = TestCore.json(Files.readString(config)).path("mcpServers").path("gaterook-dev");
     assertThat(entry.path("command").asString()).endsWith("bin/gw-bridge");
     assertThat(entry.path("args").toString()).contains("stdio").contains("--endpoint").contains("dev")
         .contains("--client").contains("claude-desktop");
     assertThat(mode(config)).as("a new file is owner-only").isEqualTo("rw-------");
     JsonNode back = disconnect(id);
     assertThat(back.path("entryRemoved").asBoolean()).isTrue();
-    assertThat(TestCore.json(Files.readString(config)).path("mcpServers").has("gateway-dev")).isFalse();
+    assertThat(TestCore.json(Files.readString(config)).path("mcpServers").has("gaterook-dev")).isFalse();
   }
 
   @Test
@@ -497,7 +523,7 @@ class ClientsIT {
           "{\"previewId\":\"" + preview.path("previewId").asString() + "\"}").path("link").path("id").asString();
       Path claude = userHome.resolve(".config/Claude/claude_desktop_config.json");
       String claudeOurs = Files.readString(claude);
-      String command = TestCore.json(claudeOurs).path("mcpServers").path("gateway-dev").path("command").asString();
+      String command = TestCore.json(claudeOurs).path("mcpServers").path("gaterook-dev").path("command").asString();
       Files.writeString(claude, claudeOurs.replace("\"" + command + "\"", "\"/bin/sh\"").replace("\"stdio\"", "\"-c\"")
           .replace("\"--endpoint\"", "\"touch " + marker + "\""));
       check = api.expect(200, HttpMethod.POST, "/api/clients/links/" + id + "/check", null);
@@ -546,13 +572,13 @@ class ClientsIT {
         "{\"previewId\":\"" + preview.path("previewId").asString() + "\"}").path("link").path("id").asString();
     Path config = userHome.resolve(".gemini/config/mcp_config.json");
     assertThat(mode(config)).isEqualTo("rw-------");
-    JsonNode entry = TestCore.json(Files.readString(config)).path("mcpServers").path("gateway-dev");
+    JsonNode entry = TestCore.json(Files.readString(config)).path("mcpServers").path("gaterook-dev");
     assertThat(entry.path("serverUrl").asString()).isEqualTo("http://127.0.0.1:" + port + "/mcp/dev");
     String token = entry.path("headers").path("Authorization").asString().substring("Bearer ".length());
     assertThat(token).matches(NAMED.pattern());
     disconnect(id);
     assertThat(initialize("dev", token).statusCode()).as("Disconnect revokes the token").isEqualTo(401);
-    assertThat(TestCore.json(Files.readString(config)).path("mcpServers").has("gateway-dev")).isFalse();
+    assertThat(TestCore.json(Files.readString(config)).path("mcpServers").has("gaterook-dev")).isFalse();
   }
 
   @Test
@@ -602,9 +628,11 @@ class ClientsIT {
 
   @Test
   @Order(50)
-  void anEntryChangedOutsideTheAppNeedsRepairAndRepairKeepsItsGrant() throws Exception {
+  void repairKeepsALegacyEntryNameAndItsGrant() throws Exception {
     Path config = userHome.resolve(".codex/config.toml");
-    String ours = Files.readString(config);
+    // Model a link created before the entry prefix changed. Repair and Disconnect must keep using its saved name.
+    String ours = Files.readString(config).replace("gaterook-dev", "gateway-dev");
+    core.jdbc().update("update client_link set entry_name = ? where id = ?", "gateway-dev", codexLink);
     Files.writeString(config, ours.replace("127.0.0.1:" + port + "/", "127.0.0.1:1/"));
     JsonNode link = linkOf("codex", codexLink);
     assertThat(link.path("status").asString()).isEqualTo("needs-repair");
@@ -615,7 +643,8 @@ class ClientsIT {
     JsonNode preview = api.expect(200, HttpMethod.POST, "/api/clients/codex/connect/preview", """
         {"endpoint":"dev","method":"helper"}""");
     assertThat(preview.path("repair").asBoolean()).isTrue();
-    assertThat(preview.toString()).contains(codexGrant);
+    assertThat(preview.toString()).contains(codexGrant).contains("mcp_servers.gateway-dev")
+        .doesNotContain("gaterook-dev");
     api.expect(200, HttpMethod.POST, "/api/clients/codex/connect", "{\"previewId\":\""
         + preview.path("previewId").asString() + "\"}");
     assertThat(Files.readString(config)).isEqualTo(ours);
@@ -742,7 +771,9 @@ class ClientsIT {
     assertThat(manual.path("url").asString()).isEqualTo("http://127.0.0.1:" + port + "/mcp/dev");
     assertThat(manual.path("snippets").findValuesAsString("id")).contains("inspector-config", "inspector-ui",
         "toml");
-    assertThat(manual.toString()).contains("Bearer ‹token›");
+    assertThat(manual.toString()).contains("Bearer ‹token›").doesNotContain("gateway-dev");
+    assertThat(manual.path("snippets")).allSatisfy(snippet ->
+        assertThat(snippet.path("text").asString()).contains("gaterook-dev"));
     assertThat(manual.path("others").findValuesAsString("slug")).contains("incident-prod");
   }
 
