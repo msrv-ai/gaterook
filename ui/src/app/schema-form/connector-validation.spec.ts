@@ -228,16 +228,16 @@ describe('schema-form: minimal active connector configurations', () => {
       });
       form.source.set('dynamic');
       const passwordNode = form.compiled.all.find((node) => node.pointer === '/credentials/password')!;
-      const role = 'vault://database/creds/orders-reader';
+      const role = 'database/creds/orders-reader';
       form.setSecret(passwordNode, role);
       const valid = form.submit();
       expect(valid, form.invalidNodes().map((node) => `${node.pointer}: ${form.error(node)}`).join('\n')).toBe(true);
       expect(getAt(form.value(), ['credentials', 'user'])).toBeNull();
-      expect(form.secretInputs()).toEqual({ '/credentials/password': { source: 'vault-dynamic', ref: role } });
+      expect(form.secretInputs()).toEqual({ '/credentials/password': { source: 'vault-dynamic', ref: `vault://${role}` } });
     });
 
-    for (const role of ['', 'orders-reader']) {
-      it(`${type}: dynamic authentication rejects ${role ? 'a bare role name' : 'an empty role'}`, () => {
+    for (const role of ['', 'gcp-sm://projects/example-dev/secrets/orders-reader']) {
+      it(`${type}: dynamic authentication rejects ${role ? 'a reference to another store' : 'an empty role'}`, () => {
         const form = createSchemaForm(CONNECTOR_FORMS[type], {
           idPrefix: 'dynamic-required', current: { connection: { host: 'db.example.test', databases: ['orders'] } },
           injector: TestBed.inject(Injector),
@@ -312,8 +312,77 @@ describe('schema-form: minimal active connector configurations', () => {
     });
     form.source.set('vault');
     const passwordNode = form.compiled.all.find((node) => node.pointer === '/credentials/password')!;
-    form.setSecret(passwordNode, 'wrong-reference');
+    form.setSecret(passwordNode, 'gcp-sm://projects/example-dev/secrets/api-key');
     expect(form.submit()).toBe(false);
     expect(form.error(passwordNode)).toContain('vault://');
+  });
+});
+
+describe('schema-form: secret references from the selected source', () => {
+  const references = [
+    { source: 'gcp-sm', path: 'projects/example-dev/secrets/api-key',
+      ref: 'gcp-sm://projects/example-dev/secrets/api-key' },
+    { source: 'vault', path: 'kv/dev/orders#password', ref: 'vault://kv/dev/orders#password' },
+    { source: 'aws-sm', path: 'eu-central-1/dev/orders#password', ref: 'aws-sm://eu-central-1/dev/orders#password' },
+    { source: 'aws-sm', path: 'arn:aws:secretsmanager:eu-central-1:123456789012:secret:orders-AbCdEf',
+      ref: 'aws-sm://arn:aws:secretsmanager:eu-central-1:123456789012:secret:orders-AbCdEf' },
+    { source: 'dynamic', path: 'database/creds/orders-reader', ref: 'vault://database/creds/orders-reader' },
+  ];
+
+  for (const sample of references) {
+    for (const input of [sample.path, sample.ref]) {
+      it(`accepts ${sample.source} input ${input} and sends its complete reference`, () => {
+        const form = createSchemaForm(CONNECTOR_FORMS['redis'], {
+          idPrefix: 'reference', current: { connection: { host: 'redis.example.test' } }, injector: TestBed.inject(Injector),
+        });
+        form.source.set(sample.source);
+        const passwordNode = form.compiled.all.find((node) => node.pointer === '/credentials/password')!;
+        form.setSecret(passwordNode, `  ${input}\n`);
+
+        expect(form.submit()).toBe(true);
+        expect(form.secretReference(passwordNode)).toBe(sample.ref);
+        expect(form.secretInputs()).toEqual({ '/credentials/password': {
+          source: sample.source === 'dynamic' ? 'vault-dynamic' : 'reference', ref: sample.ref,
+        } });
+      });
+    }
+  }
+
+  it.each(['vault', 'gcp-sm', 'aws-sm'])('keeps an optional %s reference empty', (source) => {
+    const form = createSchemaForm(CONNECTOR_FORMS['redis'], {
+      idPrefix: 'reference', current: { connection: { host: 'redis.example.test' } }, injector: TestBed.inject(Injector),
+    });
+    form.source.set(source);
+    const passwordNode = form.compiled.all.find((node) => node.pointer === '/credentials/password')!;
+    form.setSecret(passwordNode, ' \n ');
+
+    expect(form.submit()).toBe(true);
+    expect(form.secretReference(passwordNode)).toBe('');
+    expect(form.secretInputs()).toEqual({});
+  });
+
+  it('rejects an explicit reference to another provider without rewriting it', () => {
+    const form = createSchemaForm(CONNECTOR_FORMS['redis'], {
+      idPrefix: 'reference', current: { connection: { host: 'redis.example.test' } }, injector: TestBed.inject(Injector),
+    });
+    form.source.set('gcp-sm');
+    const passwordNode = form.compiled.all.find((node) => node.pointer === '/credentials/password')!;
+    form.setSecret(passwordNode, 'vault://kv/dev/orders#password');
+
+    expect(form.submit()).toBe(false);
+    expect(form.error(passwordNode)).toContain('gcp-sm://');
+    expect(form.secretReference(passwordNode)).toBe('vault://kv/dev/orders#password');
+  });
+
+  it('preserves local secrets exactly, including whitespace and reference-like text', () => {
+    const form = createSchemaForm(CONNECTOR_FORMS['redis'], {
+      idPrefix: 'local', current: { connection: { host: 'redis.example.test' } }, injector: TestBed.inject(Injector),
+    });
+    const passwordNode = form.compiled.all.find((node) => node.pointer === '/credentials/password')!;
+    const value = '  gcp-sm://test-only-password\n';
+    form.setSecret(passwordNode, value);
+
+    expect(form.submit()).toBe(true);
+    expect(form.secretInputs()).toEqual({ '/credentials/password': { source: 'local', value } });
   });
 });

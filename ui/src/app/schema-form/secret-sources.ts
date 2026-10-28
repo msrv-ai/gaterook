@@ -98,6 +98,13 @@ export function secretSourceId(id: string): string {
   return id === 'vault-dynamic' || id === 'short-lived' ? 'dynamic' : id;
 }
 
+/** Add the selected store's scheme to a bare path, preserving explicit URIs for validation. */
+export function completeReference(source: string, value: string): string {
+  const ref = value.trim();
+  const scheme = sourceCopy(source).scheme;
+  return !ref || !scheme || ref.includes('://') ? ref : `${scheme}${ref}`;
+}
+
 /** An example reference for the placeholder, shaped by the connection: `vault://kv/dev/dev-db#password`. */
 export function referencePlaceholder(source: string, env: string, name: string, key: string): string {
   const n = name || `${env}-db`;

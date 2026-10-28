@@ -201,11 +201,35 @@ export class GwSchemaField {
 
   protected referencePlaceholder(): string {
     const f = this.form();
-    return referencePlaceholder(f.source(), f.env(), f.subject(), this.node().key);
+    return referencePlaceholder(f.source(), f.env(), f.subject(), this.node().key).slice(this.referencePrefix()?.length ?? 0);
+  }
+
+  /** A pasted URI for another store stays visible in full so validation can explain the mismatch. */
+  protected referencePrefix(): string | null {
+    const typed = this.secretTyped().trim();
+    const scheme = sourceCopy(this.form().source()).scheme;
+    return scheme && (!typed.includes('://') || typed.startsWith(scheme)) ? scheme : null;
+  }
+
+  protected referenceText(): string {
+    const typed = this.secretTyped();
+    const prefix = this.referencePrefix();
+    return prefix && typed.trim().startsWith(prefix) ? typed.trim().slice(prefix.length) : typed;
+  }
+
+  protected setReference(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const scheme = sourceCopy(this.form().source()).scheme;
+    const typed = input.value.trim();
+    const value = scheme && typed.startsWith(scheme) ? typed.slice(scheme.length) : input.value;
+    this.form().setSecret(this.node(), value);
+    // A paste may normalize to the previous model value, so also update the native control.
+    if (input.value !== value) input.value = value;
   }
 
   protected testReference(): void {
-    this.form().emit({ kind: 'test', node: this.node(), ref: this.secretTyped().trim() || (this.storedSecret()?.name ?? '') });
+    const ref = this.form().secretReference(this.node());
+    this.form().emit({ kind: 'test', node: this.node(), ref: ref || (this.storedSecret()?.name ?? '') });
   }
 
   protected saveSecret(value: string): void {
