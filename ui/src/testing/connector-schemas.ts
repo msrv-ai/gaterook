@@ -2067,6 +2067,10 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "GCP",
     "type": "object",
+    "x-project-selection": {
+      "path": "/scopes",
+      "title": "Projects, folders or organizations"
+    },
     "additionalProperties": false,
     "required": [
       "scopes",
@@ -2108,7 +2112,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
             "acme-stage"
           ]
         },
-        "description": "Project IDs without the projects/ prefix. Leave empty to use the projects listed above."
+        "description": "Project IDs without the projects/ prefix. Leave empty to use the project IDs from the selected resource scopes."
       },
       "credentials": {
         "type": "object",

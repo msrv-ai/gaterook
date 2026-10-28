@@ -124,7 +124,7 @@
 @if (projectNode(); as node) {
   @if (show('connection')) {
     <gw-cloud-projects [form]="s" [node]="node" [value]="value()" [type]="spec().type" [stored]="stored()" [idPrefix]="p"
-      (discover)="discoverProjects.emit($event)" />
+      [title]="projectTitle()" (discover)="discoverProjects.emit($event)" />
   }
 }
 

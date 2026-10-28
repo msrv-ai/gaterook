@@ -9,6 +9,7 @@ import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.connector.api.Limits;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolResult;
@@ -47,6 +48,11 @@ final class CloudLogs implements AutoCloseable {
     return logs.previewTools(preview);
   }
 
+  TestResult discoverProjects(ConnectionConfig cfg, SecretResolver secrets, ExecContext context) {
+    // Discovery authenticates the draft before any resource scope has been selected.
+    return logs.discoverProjects(configuration(cfg, List.of()), secrets, context);
+  }
+
   Classification classify(ToolCall call, ConnectionConfig cfg, Settings settings, GcpPolicy policy,
       PolicyView view) {
     try {
@@ -55,12 +61,12 @@ final class CloudLogs implements AutoCloseable {
       return Classification.deny(view.rule(refused.rule), refused.getMessage(), refused.hint);
     }
     ObjectNode section = JsonNodeFactory.instance.objectNode().put("defaultLimit", policy.maxItems());
-    return logs.classify(call, configuration(cfg, settings), new PolicyView(view.env(), view.rulePrefix(), section,
-        limits(view.limits(), policy)));
+    return logs.classify(call, configuration(cfg, settings.scopes()), new PolicyView(view.env(), view.rulePrefix(),
+        section, limits(view.limits(), policy)));
   }
 
   ActionPreview describeAction(ToolCall call, ConnectionConfig cfg, Settings settings) {
-    return logs.describeAction(call, configuration(cfg, settings));
+    return logs.describeAction(call, configuration(cfg, settings.scopes()));
   }
 
   ToolResult execute(ToolCall call, ConnectionConfig cfg, Settings settings, GcpPolicy policy,
@@ -70,7 +76,7 @@ final class CloudLogs implements AutoCloseable {
     } catch (Refusal refused) {
       throw ConnectorException.denied(refused.forAgent());
     }
-    return logs.execute(call, configuration(cfg, settings), secrets, new LimitedContext(context,
+    return logs.execute(call, configuration(cfg, settings.scopes()), secrets, new LimitedContext(context,
         limits(context.limits(), policy)));
   }
 
@@ -92,9 +98,9 @@ final class CloudLogs implements AutoCloseable {
     }
   }
 
-  private static ConnectionConfig configuration(ConnectionConfig cfg, Settings settings) {
+  private static ConnectionConfig configuration(ConnectionConfig cfg, List<String> scopes) {
     ObjectNode config = JsonNodeFactory.instance.objectNode().put("backend", "gcp-logging");
-    settings.scopes().forEach(config.putArray("resourceNames")::add);
+    scopes.forEach(config.putArray("resourceNames")::add);
     config.set("credentials", cfg.config().path("credentials").deepCopy());
     return new ConnectionConfig(cfg.id(), cfg.name(), LogsConnector.TYPE, cfg.env(), cfg.version(), config,
         cfg.secretFields(), cfg.metadata());

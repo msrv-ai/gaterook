@@ -2,7 +2,7 @@
 @let discovery = result();
 <section class="gw-form__section" [attr.aria-labelledby]="p + '-projects-title'">
   <header class="gw-form__section-header">
-    <h3 class="gw-form__legend" [id]="p + '-projects-title'">Projects and log views</h3>
+    <h3 class="gw-form__legend" [id]="p + '-projects-title'">{{ title() }}</h3>
     <p class="gw-form__description">Load projects using the credentials above, or enter a resource scope manually.</p>
   </header>
   <div class="gw-form__rows">
