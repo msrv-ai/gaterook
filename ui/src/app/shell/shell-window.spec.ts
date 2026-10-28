@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { provideLocationMocks } from '@angular/common/testing';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
@@ -78,6 +79,38 @@ afterEach(() => {
   TestBed.inject(HttpTestingController).match(() => true);
   vi.restoreAllMocks();
   document.body.innerHTML = '';
+});
+
+describe('titlebar navigation', () => {
+  beforeEach(() => {
+    configure([
+      { path: 'overview', component: Page, data: { section: 'Overview' } },
+      { path: 'connections', component: Page, data: { section: 'Connections' } },
+    ]);
+    TestBed.configureTestingModule({ providers: [provideLocationMocks()] });
+  });
+
+  it('enables Back after visiting another page and restores the previous section', async () => {
+    const { fixture, el } = await runningApp();
+    const router = TestBed.inject(Router);
+    router.setUpLocationChangeListener();
+    await router.navigateByUrl('/overview');
+    await fixture.whenStable();
+    const back = el.querySelector<HTMLButtonElement>('.gw-titlebar button[aria-label="Go back"]')!;
+    expect(back.disabled).toBe(true);
+    expect(back.title).toBe('No previous page');
+
+    await router.navigateByUrl('/connections');
+    await fixture.whenStable();
+    expect(text(el.querySelector('.gw-titlebar__title'))).toBe('Connections');
+    expect(back.disabled).toBe(false);
+
+    back.click();
+    await vi.waitFor(() => expect(router.url).toBe('/overview'));
+    await fixture.whenStable();
+    expect(text(el.querySelector('.gw-titlebar__title'))).toBe('Overview');
+    expect(back.disabled).toBe(true);
+  });
 });
 
 describe('the OAuth consent dialog is the window’s, on any page (§7.3)', () => {

@@ -15,8 +15,12 @@
   <a class="gw-skip-link" href="#main" (click)="skipToMain($event)" [attr.inert]="showStatus() ? '' : null">Skip to content</a>
   <div class="gw-shell" [attr.inert]="showStatus() ? '' : null" [attr.aria-hidden]="showStatus() ? 'true' : null">
     <header class="gw-titlebar" [class.gw-titlebar--mac]="mac">
+      <div class="gw-titlebar__drag">
+        @if (frame() === 'app') {
+          <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Go back" [title]="history.canGoBack() ? 'Go back' : 'No previous page'" [disabled]="!history.canGoBack()" (click)="history.back()"><svg lucideIcon="arrow-left" class="gw-icon"></svg></button>
+        }
+      </div>
       <span class="gw-titlebar__title">{{ section() }}</span>
-      <div class="gw-titlebar__drag"></div>
       <div class="gw-titlebar__actions">
         @if (frame() === 'app') {
           <!-- Opens the command palette (#cmdk at the end of main). -->

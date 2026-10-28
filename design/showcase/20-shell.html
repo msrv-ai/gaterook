@@ -9,8 +9,10 @@
       <div class="gw-card gw-card--flush" style="height: 520px; overflow: hidden">
         <div class="gw-shell">
           <header class="gw-titlebar">
+            <div class="gw-titlebar__drag">
+              <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Go back" title="No previous page" disabled><i class="gw-icon" data-lucide="arrow-left"></i></button>
+            </div>
             <span class="gw-titlebar__title">Overview</span>
-            <div class="gw-titlebar__drag"></div>
             <div class="gw-titlebar__actions">
               <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Search and commands"><i class="gw-icon" data-lucide="search"></i> Search <kbd class="gw-btn__kbd" aria-hidden="true">⌘K</kbd></button>
               <a class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" href="#shell" aria-label="Approvals, 3 waiting"><i class="gw-icon" data-lucide="bell"></i><span class="gw-counter gw-counter--attention" aria-hidden="true">3</span></a>
@@ -144,8 +146,10 @@
       <div class="gw-card gw-card--flush" style="height: 520px; overflow: hidden">
         <div class="gw-shell" data-collapsed>
           <header class="gw-titlebar">
+            <div class="gw-titlebar__drag">
+              <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Go back" title="No previous page" disabled><i class="gw-icon" data-lucide="arrow-left"></i></button>
+            </div>
             <span class="gw-titlebar__title">Overview</span>
-            <div class="gw-titlebar__drag"></div>
             <div class="gw-titlebar__actions">
               <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Search and commands"><i class="gw-icon" data-lucide="search"></i> Search <kbd class="gw-btn__kbd" aria-hidden="true">⌘K</kbd></button>
               <a class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" href="#shell" aria-label="Approvals, 3 waiting"><i class="gw-icon" data-lucide="bell"></i><span class="gw-counter gw-counter--attention" aria-hidden="true">3</span></a>
@@ -285,8 +289,8 @@
     <div class="gw-card gw-card--flush" style="height: 280px; overflow: hidden">
       <div class="gw-shell">
         <header class="gw-titlebar">
-          <span class="gw-titlebar__title">Get started</span>
           <div class="gw-titlebar__drag"></div>
+          <span class="gw-titlebar__title">Get started</span>
         </header>
         <div class="gw-shell__main">
           <div class="gw-page gw-page--narrow">
@@ -310,11 +314,13 @@
   </div>
 
   <h3>Titlebar</h3>
-  <p class="sc-lead">The whole bar is an Electron drag region; links, buttons, labels and popovers inside opt out automatically. <code class="gw-code">gw-titlebar--mac</code> (second bar) clears the traffic lights with an 80px start inset; on Windows and Linux the Window Controls Overlay area is reserved through <code class="gw-code">env(titlebar-area-*)</code>. Actions: search with its shortcut, the approvals bell with an attention counter, the appearance popover (theme and contrast). The popover title is not a heading: the titlebar comes before the page <code class="gw-code">h1</code>.</p>
+  <p class="sc-lead">The whole bar is an Electron drag region; links, buttons, labels and popovers inside opt out automatically. <code class="gw-code">gw-titlebar--mac</code> (second bar) reserves the traffic-light inset plus a small gap before Back; on Windows and Linux the Window Controls Overlay area is reserved through <code class="gw-code">env(titlebar-area-*)</code>. The section title stays centered in the window and truncates before the controls. Back is disabled until an earlier application page exists; its enabled and disabled states are shown below. Actions: search with its shortcut, the approvals bell with an attention counter, the appearance popover (theme and contrast). The popover title is not a heading: the titlebar comes before the page <code class="gw-code">h1</code>.</p>
   <div class="sc-demo sc-demo--canvas sc-demo--col" data-sc-code>
     <header class="gw-titlebar">
+      <div class="gw-titlebar__drag">
+        <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Go back" title="No previous page" disabled><i class="gw-icon" data-lucide="arrow-left"></i></button>
+      </div>
       <span class="gw-titlebar__title">Approvals</span>
-      <div class="gw-titlebar__drag"></div>
       <div class="gw-titlebar__actions">
         <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Search and commands"><i class="gw-icon" data-lucide="search"></i> Search <kbd class="gw-btn__kbd" aria-hidden="true">⌘K</kbd></button>
         <a class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" href="#shell" aria-label="Approvals, 3 waiting"><i class="gw-icon" data-lucide="bell"></i><span class="gw-counter gw-counter--attention" aria-hidden="true">3</span></a>
@@ -345,8 +351,10 @@
       </div>
     </header>
     <header class="gw-titlebar gw-titlebar--mac">
+      <div class="gw-titlebar__drag">
+        <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Go back" title="Go back"><i class="gw-icon" data-lucide="arrow-left"></i></button>
+      </div>
       <span class="gw-titlebar__title">Approvals</span>
-      <div class="gw-titlebar__drag"></div>
       <div class="gw-titlebar__actions">
         <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" aria-label="Search and commands"><i class="gw-icon" data-lucide="search"></i> Search <kbd class="gw-btn__kbd" aria-hidden="true">⌘K</kbd></button>
         <a class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" href="#shell" aria-label="Approvals, 3 waiting"><i class="gw-icon" data-lucide="bell"></i><span class="gw-counter gw-counter--attention" aria-hidden="true">3</span></a>

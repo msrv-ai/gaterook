@@ -25,6 +25,7 @@ import { ToastService } from './kit/toast.service';
 import { CoreStartingPage } from './pages/core-starting/core-starting.page';
 import { deepLinkUrl, uiOpenUrl } from './shell/deep-links';
 import { DesktopNoticeToasts } from './shell/desktop-notice-toasts';
+import { NavigationHistory } from './shell/navigation-history';
 import { GwTitleStrategy } from './shell/title.strategy';
 
 /** One link of the sidebar (BLUEPRINT §2, pages/_shell.html): label, route and section icon. */
@@ -90,7 +91,7 @@ const WARNING_ICONS: Record<string, string> = {
 };
 
 /**
- * The window (pages/_shell.html, copied 1:1): skip link, titlebar (section name, Search ⌘K, the approvals bell,
+ * The window (pages/_shell.html, copied 1:1): skip link, titlebar (Back, section name, Search ⌘K, the approvals bell,
  * Appearance), the sidebar with the live approvals counter and the core / tunnel status, and main with the app-wide
  * banners, the page and the command palette. While the core isn't running the status screen is the whole window
  * (core-starting); Welcome uses the no-sidebar variant; the dev gallery has no frame at all.
@@ -139,6 +140,7 @@ export class App {
   protected readonly approvals = inject(ApprovalsStore);
   protected readonly tunnel = inject(TunnelStore);
   protected readonly desktop = inject(DesktopBridge);
+  protected readonly history = inject(NavigationHistory);
 
   protected readonly nav = NAV;
   protected readonly mac = this.desktop.platform === 'darwin';
