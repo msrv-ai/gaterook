@@ -142,10 +142,10 @@ describe('Connections view: credentials', () => {
     });
     // Short-lived credentials the core issued name how; the row alone can't.
     expect(credentialsView(rows['dev-vm'], [], SHORT_LIVED)).toMatchObject({ icon: 'timer', label: 'Short-lived', caption: 'SSH CA certificate', captionTitle: 'vault ssh-client-signer' });
-    expect(credentialsView(rows['prod-replica'], [], SHORT_LIVED)).toMatchObject({ label: 'Short-lived', caption: 'Vault dynamic user' });
+    expect(credentialsView(rows['prod-replica'], [], SHORT_LIVED)).toMatchObject({ label: 'Configured', caption: null, captionTitle: null });
     // A Vault dynamic secret before anything was issued.
     const dynamic = secret('prod-replica', 'prod-replica/password', { source: 'vault', state: 'short-lived', ref: 'vault://database/creds/x' });
-    expect(credentialsView(rows['prod-replica'], [dynamic], [])).toMatchObject({ label: 'Short-lived', caption: 'Vault dynamic credentials' });
+    expect(credentialsView(rows['prod-replica'], [dynamic], [])).toMatchObject({ label: 'Configured', caption: null, captionTitle: null });
     // Nothing stored and nothing issued (impersonation set in the config).
     expect(credentialsView(rows['prod-logs'], [], [])).toMatchObject({ icon: 'circle-dashed', label: 'Nothing stored here', muted: true });
     // Without the secrets table (Secrets didn't answer), the row's source alone.

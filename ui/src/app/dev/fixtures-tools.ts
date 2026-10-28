@@ -77,7 +77,7 @@ export const DEMO_TOOL_GROUPS: ToolPolicyGroup[] = [
 export const DEMO_TOOL_GROUPS_PROD: ToolPolicyGroup[] = [
   {
     type: 'postgres',
-    detail: 'PostgreSQL read replica · Vault dynamic credentials',
+    detail: 'PostgreSQL read replica · Vault reference',
     group: group('PostgreSQL', 'prod-replica', 'prod', [
       tool('sql_describe_table', 'READ_ONLY', READ),
       tool('sql_query', 'READ_ONLY', READ),

@@ -229,8 +229,9 @@ public class SecretService {
           pointer);
     }
     if (!dynamic && creds) {
-      throw ai.msrv.gaterook.core.platform.ProblemException.unprocessable("Dynamic credentials", ref.uri() + " issues "
-          + "short-lived credentials: choose Short-lived (Vault dynamic credentials) for this field.", pointer);
+      throw ai.msrv.gaterook.core.platform.ProblemException.unprocessable("Invalid secret reference", ref.uri()
+          + " cannot be used as a secret reference. Use a Vault KV path and key, such as "
+          + "vault://kv/dev/db#password.", pointer);
     }
     return writeTx.execute(s -> {
       ExternalStoreEntity store = binding.storeFor(ref, storeName, pointer);

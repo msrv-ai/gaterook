@@ -268,7 +268,8 @@ class VaultStoreTest {
 
     // A reference to dynamic credentials isn't read as a value.
     assertThatThrownBy(() -> read("vault://database/creds/prod-replica-readonly"))
-        .hasMessageContaining("issues short-lived credentials");
+        .hasMessageContaining("cannot be used as a secret reference")
+        .hasMessageContaining("Use a Vault KV path and key");
     // Test reference checks the role without creating a database user.
     assertThat(store.probe((SecretRef.Vault) SecretRef.parse("vault://database/creds/prod-replica-readonly"), call()))
         .isEqualTo("database engine database/");

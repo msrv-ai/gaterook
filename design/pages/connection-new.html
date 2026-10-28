@@ -470,13 +470,7 @@
                     <span class="gw-choice-card__description" id="cf-src-aws-d">Resolve <span class="gw-mono">aws-sm://</span> with the core&#39;s AWS profile.</span>
                     <span class="gw-choice-card__meta">Needs GetSecretValue</span>
                   </label>
-                  <label class="gw-choice-card gw-choice-card--compact">
-                    <input class="gw-choice-card__input" type="radio" name="cf-src" value="dynamic" aria-labelledby="cf-src-dynamic-t" aria-describedby="cf-src-dynamic-d">
-                    <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="timer"></i></span>
-                    <span class="gw-choice-card__title" id="cf-src-dynamic-t">Short-lived (Vault dynamic credentials)</span>
-                    <span class="gw-choice-card__description" id="cf-src-dynamic-d">Vault creates a short-lived database user, renewed automatically. Nothing is stored here.</span>
-                    <span class="gw-choice-card__meta">Recommended for prod</span>
-                  </label>
+                  <input type="radio" name="cf-src" value="dynamic" aria-label="Provider-managed credentials" hidden>
                 </div>
               </fieldset>
               <div class="gw-field gw-connection-form__user">
@@ -583,20 +577,20 @@
                 <p class="gw-field__hint" id="cf-ref-aws-hint">Resolved at call time with the core's AWS profile.</p>
               </div>
               <div class="gw-field gw-connection-form__secret" data-source="dynamic">
-                <label class="gw-field__label" for="cf-role" id="cf-role-label" data-slot="role-label">Vault role</label>
+                <span class="gw-field__label" id="cf-role-label" data-slot="role-label">Credential provider</span>
                 <div class="gw-secret" data-state="empty" data-mode-show="add duplicate">
-                  <input class="gw-input gw-input--mono" type="text" id="cf-role" name="vaultRole" placeholder="database/creds/dev-readonly" autocomplete="off" spellcheck="false" aria-describedby="cf-role-hint">
-                  <span class="gw-secret__actions"><button class="gw-btn" type="button">Test role</button></span>
+                  <input class="gw-input gw-input--mono" type="text" id="cf-role" name="credentialIdentity" placeholder="Provider identity" autocomplete="off" spellcheck="false" aria-labelledby="cf-role-label" aria-describedby="cf-role-hint">
+                  <span class="gw-secret__actions"><button class="gw-btn" type="button">Test credentials</button></span>
                 </div>
                 <div class="gw-secret" data-state="reference" role="group" aria-labelledby="cf-role-label" data-mode-show="edit" hidden>
-                  <span class="gw-secret__status"><i class="gw-icon" data-lucide="timer"></i><span data-slot="ref-provider">Vault dynamic</span></span>
-                  <code class="gw-secret__ref" data-slot="ref">vault://database/creds/prod-replica-readonly</code>
+                  <span class="gw-secret__status"><i class="gw-icon" data-lucide="timer"></i><span data-slot="ref-provider">GCP impersonation</span></span>
+                  <code class="gw-secret__ref" data-slot="ref">gw-reader@acme-prod.iam.gserviceaccount.com</code>
                   <span class="gw-secret__actions">
-                    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-ref-test>Test role<span class="gw-sr-only"> of <span data-slot="name">dev-db</span></span></button>
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-ref-test>Test credentials<span class="gw-sr-only"> of <span data-slot="name">dev-db</span></span></button>
                     <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-ref-change>Change<span class="gw-sr-only"> reference of <span data-slot="name">dev-db</span></span></button>
                   </span>
                 </div>
-                <p class="gw-field__hint" id="cf-role-hint">Vault creates a short-lived database user, renewed automatically. No user or password is stored here.</p>
+                <p class="gw-field__hint" id="cf-role-hint">Credentials are issued by the configured provider and are never stored here.</p>
               </div>
               <!-- Edit view: a second credential of the connection that can't be resolved (billing-api's webhook secret) -->
               <div class="gw-alert gw-alert--warning gw-alert--compact" data-cred-warning hidden>
@@ -1409,9 +1403,9 @@ Caused by: java.net.SocketTimeoutException: Connect timed out
       cred: ["dynamic", "gw-reader@acme-prod.iam.gserviceaccount.com", "GCP impersonation", "Service account", "Your Google sign-in borrows this account's read access: a short-lived token, valid 15 min."],
       del: "Nothing is stored here: the gw-reader service account stays in GCP.",
       eps: [["incident-prod", [["gcp_logging_search", R], ["gcp_logging_tail", O]]]] },
-    "prod-replica": { pick: "postgresql", label: "PostgreSQL 16 · read replica", env: "prod", host: "replica.prod.internal:5432/app", health: ["success", "Healthy · 31 ms"], ms: 31,
-      cred: ["dynamic", "vault://database/creds/prod-replica-readonly", "Vault dynamic", "Vault role", "Vault creates a short-lived database user, renews it automatically and revokes it when the connection goes idle."],
-      del: "Nothing is stored here: the Vault role stays.",
+    "prod-replica": { pick: "postgresql", label: "PostgreSQL 16 · read replica", env: "prod", host: "replica.prod.internal:5432/app", health: ["success", "Healthy · 31 ms"], ms: 31, user: "read_only",
+      cred: ["vault", "vault://kv/prod/prod-replica#password"],
+      del: "The Vault reference is removed; the secret itself stays in Vault.",
       eps: [["incident-prod", [["sql_list_schemas", R], ["sql_describe_table", R], ["sql_query", R], ["sql_execute", O]]]] },
     "prod-vm": { pick: "ssh", label: "SSH · runbooks only", env: "prod", host: "10.40.0.21:22", health: ["success", "Healthy · 52 ms"], ms: 52, user: "deploy",
       cred: ["dynamic", "ssh-client-signer/sign/gw-runbooks", "Vault SSH CA", "Certificate signer", "Vault signs a fresh key pair for each call, valid 5 min. No private key is kept anywhere."],

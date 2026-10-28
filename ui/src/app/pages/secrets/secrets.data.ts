@@ -18,6 +18,7 @@ import {
 } from '../../core/api/secrets.api';
 import { Env } from '../../core/api/types';
 import { EventStream } from '../../core/events/event-stream';
+import { isVaultDynamicSecret } from '../../core/secret-visibility';
 
 /**
  * One part of the page as loaded: its value (null until the first answer), why its first load failed, and whether
@@ -64,7 +65,10 @@ export class SecretsData {
   private readonly oldKeySignal = signal<number | null>(null);
 
   readonly masterKey = this.masterKeySignal.asReadonly();
-  readonly rows = this.rowsSignal.asReadonly();
+  readonly rows = computed(() => {
+    const part = this.rowsSignal();
+    return { ...part, value: part.value?.filter((row) => !isVaultDynamicSecret(row)) ?? null };
+  });
   readonly stores = this.storesSignal.asReadonly();
   readonly shortLived = this.shortLivedSignal.asReadonly();
   /** Each connection's env, for the `gw-env` marker after its name (empty when Connections didn't answer). */

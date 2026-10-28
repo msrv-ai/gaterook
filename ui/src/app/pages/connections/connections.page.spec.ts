@@ -190,7 +190,7 @@ describe('Connections page', () => {
     expect(devDb.querySelector('td:nth-child(5) a')?.getAttribute('href')).toBe('/endpoints/dev');
 
     expect(text(rowOf(el, 'prod-replica')!.children[1])).toBe('PostgreSQL Read replica');
-    expect(text(rowOf(el, 'prod-replica')!.children[2])).toBe('Short-lived Vault dynamic user');
+    expect(text(rowOf(el, 'prod-replica')!.children[2])).toBe('Configured');
     expect(text(rowOf(el, 'stage-db')!.children[2])).toBe('Vault reference kv/stage/db#password');
     expect(text(rowOf(el, 'billing-api')!.children[2])).toBe('GCP SM reference Webhook secret unresolved');
     expect(text(rowOf(el, 'cache-redis')!.children[3])).toBe('Slow · 1.8 s Checked rel 12:29:42');

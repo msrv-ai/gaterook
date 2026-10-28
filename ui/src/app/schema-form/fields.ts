@@ -79,6 +79,7 @@ export class GwSchemaField {
 
   protected hidden(): boolean {
     return ('const' in this.node().schema && sameJson(this.value(), this.node().schema['const']))
+      || (this.node().kind === 'secret' && this.form().source() === 'dynamic')
       || !this.form().visible(this.node());
   }
 
@@ -182,9 +183,7 @@ export class GwSchemaField {
         : 'Saving replaces the stored value. There is no way to view either one.';
     }
     if (state === 'reference') {
-      return this.form().source() === 'dynamic'
-        ? 'A new database user for each call. No user or password is stored here.'
-        : 'Resolved at call time.';
+      return 'Resolved at call time.';
     }
     if (this.reference()) return sourceCopy(this.form().source()).hint;
     // A first connection: where the value goes, in a beginner's words (kit connection-new ?state=first-run).

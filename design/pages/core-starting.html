@@ -215,7 +215,7 @@
             <i class="gw-icon gw-alert__icon" data-lucide="circle-alert"></i>
             <div class="gw-alert__content">
               <p class="gw-alert__title">Without the backup, a new key can't read your secrets</p>
-              <p class="gw-alert__body">The 8 secrets encrypted here become unreadable (6 connections, the <span class="gw-mono">github-mcp</span> server token and the Vault sign-in), and you enter each one again. The 3 secret references to Vault, GCP and AWS keep working.</p>
+              <p class="gw-alert__body">The 8 secrets encrypted here become unreadable (6 connections, the <span class="gw-mono">github-mcp</span> server token and the Vault sign-in), and you enter each one again. The 4 secret references to Vault, GCP and AWS keep working.</p>
               <div class="gw-alert__actions">
                 <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" data-gw-dialog-open="core-newkey-dlg">Create a new key</button>
               </div>
@@ -427,7 +427,7 @@
     <div class="gw-dialog__body">
       <dl class="gw-kv gw-kv--dense">
         <div class="gw-kv__row"><dt class="gw-kv__key">Becomes unreadable</dt><dd class="gw-kv__value">8 secrets: 6 connections, including <span class="gw-mono">dev-db</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span> and <span class="gw-mono">orders-mongo</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span>, the <span class="gw-mono">github-mcp</span> server token and the Vault sign-in</dd></div>
-        <div class="gw-kv__row"><dt class="gw-kv__key">Keeps working</dt><dd class="gw-kv__value">3 secret references (Vault, GCP and AWS), short-lived credentials</dd></div>
+        <div class="gw-kv__row"><dt class="gw-kv__key">Keeps working</dt><dd class="gw-kv__value">4 secret references (Vault, GCP and AWS), short-lived credentials</dd></div>
         <div class="gw-kv__row"><dt class="gw-kv__key">New key</dt><dd class="gw-kv__value gw-mono">~/.gaterook/master.keyset</dd></div>
       </dl>
     </div>

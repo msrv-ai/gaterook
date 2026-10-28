@@ -3,6 +3,7 @@ import { ConnectionDetail, ConnectionRow, ConnectionDeleted, TestOutcome } from 
 import { EndpointSummary } from '../../core/api/endpoints.api';
 import { SecretRow, ShortLivedCredential } from '../../core/api/secrets.api';
 import { Env } from '../../core/api/types';
+import { isVaultDynamicCredential, isVaultDynamicSecret } from '../../core/secret-visibility';
 import { duration } from '../../core/time/time-format';
 import { clientName } from '../../kit/elements/shared/client-mark';
 import { CONNECTOR_NAMES, connectorIcon } from '../../kit/elements/shared/connector-icons';
@@ -256,9 +257,9 @@ export function credentialsView(
     }
   });
   const base = { problems, muted: false, caption: null, captionTitle: null, captionCode: false };
-  const issued = shortLived.find((c) => c.connection === row.name);
-  const dynamic = secrets.find((s) => s.state === 'short-lived');
-  if (issued || dynamic || row.secretSource === 'short-lived') {
+  const issued = shortLived.find((c) => c.connection === row.name && !isVaultDynamicCredential(c));
+  const dynamic = secrets.find((s) => s.state === 'short-lived' && !isVaultDynamicSecret(s));
+  if (issued || dynamic) {
     return {
       ...base,
       icon: 'timer',
@@ -266,6 +267,11 @@ export function credentialsView(
       caption: issued?.mechanism ?? (dynamic ? `${storeName(dynamic.source)} dynamic credentials` : null),
       captionTitle: issued?.identity ?? (dynamic?.ref ? dynamic.ref : null),
     };
+  }
+  if (secrets.some(isVaultDynamicSecret)
+      || shortLived.some((c) => c.connection === row.name && isVaultDynamicCredential(c))
+      || ['dynamic', 'vault-dynamic', 'short-lived'].includes(row.secretSource ?? '')) {
+    return { ...base, icon: 'key-round', label: 'Configured' };
   }
   switch (row.secretSource) {
     case 'encrypted':
