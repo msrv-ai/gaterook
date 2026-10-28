@@ -12,16 +12,30 @@ final class SshLogPrefilter {
   /**
    * A POSIX ERE for grep in the C locale, or no prefilter when equivalence cannot be guaranteed. The caller must
    * scan fixed source windows, never expose raw match counts, and apply output limits only after masked matching.
-   * JSON, control characters and non-ASCII bytes always pass because normalization can create new matches. Long
-   * lines also pass so the scanner still counts oversized records, including those that do not match the query.
+   * JSON, control characters and non-ASCII bytes always pass because normalization can create new matches.
+   * Unparsed and oversized record counts are unknown when a prefilter skips noncandidate source records.
    */
   static Optional<String> grepExpression(SshLogQuery query, ExecContext ctx) {
     Optional<String> replacement = ctx.textMaskMarker();
-    if (replacement.isEmpty() || replacement.get().isEmpty() || replacement.get().length() > 64
-        || query.needle() == null || query.timeFiltered()) {
-      // Time queries count unparseable records, including those that do not match the content filter.
+    if (replacement.isEmpty() || replacement.get().isEmpty() || replacement.get().length() > 64) {
       return Optional.empty();
     }
+    Optional<String> content = contentExpression(query, replacement.get());
+    if (content.isEmpty() && !query.levels().isEmpty()) {
+      List<String> levels = query.levels().stream().sorted().flatMap(level -> switch (level) {
+        case "WARN" -> List.of("WARN", "WARNING").stream();
+        case "ERROR" -> List.of("ERROR", "ERR", "SEVERE").stream();
+        case "FATAL" -> List.of("FATAL", "CRITICAL", "CRIT", "ALERT", "EMERGENCY", "EMERG").stream();
+        default -> List.of(level).stream();
+      }).toList();
+      // Severity parsing is case insensitive independently of the content query's caseSensitive option.
+      content = alternativesExpression(levels, false, replacement.get());
+    }
+    return content.map(expression -> "^[[:space:]]*[{]|[^ -~]|(" + expression + ")");
+  }
+
+  private static Optional<String> contentExpression(SshLogQuery query, String marker) {
+    if (query.needle() == null) return Optional.empty();
     List<String> alternatives;
     if (query.expression() == null) {
       alternatives = List.of(query.needle());
@@ -32,19 +46,22 @@ final class SshLogPrefilter {
       }
       alternatives = List.of(expression.split("\\|", -1));
     }
-    String marker = query.caseSensitive() ? replacement.get() : replacement.get().toLowerCase(Locale.ROOT);
+    return alternativesExpression(alternatives, query.caseSensitive(), marker);
+  }
+
+  private static Optional<String> alternativesExpression(List<String> alternatives, boolean caseSensitive,
+      String replacement) {
+    String marker = caseSensitive ? replacement : replacement.toLowerCase(Locale.ROOT);
     for (String term : alternatives) {
       if (term.isEmpty() || !term.chars().allMatch(c -> c >= 0x20 && c <= 0x7e)) {
         return Optional.empty();
       }
-      String compared = query.caseSensitive() ? term : term.toLowerCase(Locale.ROOT);
+      String compared = caseSensitive ? term : term.toLowerCase(Locale.ROOT);
       if (overlapsMarker(compared, marker)) {
         return Optional.empty();
       }
     }
-    String content = String.join("|", alternatives.stream().map(term -> literal(term, query.caseSensitive())).toList());
-    // Two small repetitions stay within POSIX's minimum supported repetition bound of 255.
-    return Optional.of("^[[:space:]]*[{]|[^ -~]|.{128}.{128}|(" + content + ")");
+    return Optional.of(String.join("|", alternatives.stream().map(term -> literal(term, caseSensitive)).toList()));
   }
 
   /** Could a new occurrence overlap the replacement marker, with arbitrary unchanged text on either side? */

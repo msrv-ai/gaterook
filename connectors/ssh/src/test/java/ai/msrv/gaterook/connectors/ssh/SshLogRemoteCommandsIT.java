@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -159,6 +160,32 @@ class SshLogRemoteCommandsIT {
   }
 
   @Test
+  void tailSearchKeepsAnUnterminatedSnapshotRecordWhenTheFileAppendsBeforeGrep() throws Exception {
+    Path file = root.resolve("append-search.log");
+    Files.writeString(file, "INFO before\nERROR original");
+    var commands = sshd.server.getCommandFactory();
+    var appended = new AtomicBoolean();
+    sshd.server.setCommandFactory((channel, command) -> {
+      if (appended.compareAndSet(false, true)) {
+        command += "\ngr_test_status=$?\nprintf %s " + ShellQuote.quote(" suffix\nERROR later\n") + " >> "
+            + ShellQuote.quote(file.toString()) + "\nexit \"$gr_test_status\"";
+      }
+      return commands.createCommand(channel, command);
+    });
+    var result = run("ssh_logs_search", "append-search.log", JsonNodeFactory.instance.objectNode()
+        .put("tail", true).put("maxLines", 5).put("query", "ERROR"),
+        TestCtx.read().withTextMaskMarker("[masked]"));
+
+    assertThat(appended.get()).isTrue();
+    assertThat(Files.readString(file)).endsWith("ERROR original suffix\nERROR later\n");
+    assertThat(sshd.commands).anyMatch(command -> command.contains("grep -a -b -E"));
+    assertThat(result.path("lines")).isEqualTo(TestConfigs.json("[\"ERROR original\"]"));
+    assertThat(result.path("entries").get(0).path("endOffset").asLong()).isEqualTo(26);
+    assertThat(result.path("scanComplete").asBoolean()).isTrue();
+    assertThat(result.path("nextCursor").isNull()).isTrue();
+  }
+
+  @Test
   void continuationsRejectTruncationAndReplacementWithTheSameBytesAndTimestamp() throws Exception {
     for (boolean rotate : List.of(false, true)) {
       String name = rotate ? "rotated.log" : "truncated.log";
@@ -208,6 +235,154 @@ class SshLogRemoteCommandsIT {
     assertThat(result.path("scanComplete").asBoolean()).isTrue();
     assertThat(transferred.get()).isLessThan(16 * 1024);
     assertThat(sshd.commands).anyMatch(command -> command.contains("grep -a -b -E"));
+  }
+
+  @Test
+  void searchesAnEntireLargeLogForLevelsAndTimeWithoutDownloadingNonmatchingRecords() throws Exception {
+    Path file = root.resolve("service.log");
+    String normal = fixedWidthRecord("2026-10-28T10:15:00Z INFO request completed ");
+    byte[] block = normal.repeat(2048).getBytes(StandardCharsets.US_ASCII);
+    try (OutputStream out = Files.newOutputStream(file)) {
+      for (int i = 0; i < 44; i++) out.write(block);
+    }
+    assertThat(Files.size(file)).isEqualTo(44L * 1024 * 1024);
+    AtomicLong transferred = countTransferredBytes();
+    String error = fixedWidthRecord("2026-10-28T10:30:00Z ERROR request failed ");
+    for (boolean containsError : List.of(false, true)) {
+      if (containsError) {
+        try (RandomAccessFile data = new RandomAccessFile(file.toFile(), "rw")) {
+          data.write(error.getBytes(StandardCharsets.US_ASCII));
+        }
+      }
+      int commandsBefore = sshd.commands.size();
+      long bytesBefore = transferred.get();
+      var args = JsonNodeFactory.instance.objectNode().put("tail", true).put("maxLines", 15)
+          .put("from", "2026-10-28T10:00:00Z").put("to", "2026-10-28T11:00:00Z");
+      args.putArray("levels").add("ERROR");
+      var result = run("ssh_logs_search", "service.log", args, TestCtx.read().withTextMaskMarker("[masked]"));
+      assertThat(result.path("scanComplete").asBoolean()).isTrue();
+      assertThat(result.path("nextCursor").isNull()).isTrue();
+      assertThat(result.path("scannedBytes").asLong()).isEqualTo(Files.size(file));
+      assertThat(result.path("lines")).hasSize(containsError ? 1 : 0);
+      if (containsError) {
+        assertThat(result.path("lines").get(0).asString()).isEqualTo(error.stripTrailing());
+        assertThat(result.path("entries").get(0).path("offset").asLong()).isZero();
+      }
+      assertThat(result.path("diagnosticCountsComplete").asBoolean()).isFalse();
+      assertThat(result.path("unparsedLines").isNull()).isTrue();
+      assertThat(result.path("skippedLines").isNull()).isTrue();
+      assertThat(result.path("warnings")).isNotEmpty();
+      assertThat(transferred.get() - bytesBefore).as("command output for a complete 44 MiB scan").isLessThan(16 * 1024);
+      assertThat(sshd.commands.size() - commandsBefore).as("commands per complete scan").isLessThanOrEqualTo(5);
+    }
+    assertThat(sshd.commands).anyMatch(command -> command.contains("grep -a -b -E"));
+  }
+
+  @Test
+  void explicitScanBudgetContinuesAcrossAReverseGrepBoundaryWithoutDroppingOrUnmaskingMatches() throws Exception {
+    int scanBytes = 1024 * 1024;
+    String crossing = "WARN record crossing the source window boundary\n";
+    String prefix = "ERROR oldest\nERROR hidden\n" + "ordinary event\n".repeat(100);
+    int splitAt = 8;
+    int suffixLength = scanBytes - (crossing.length() - splitAt);
+    String ordinary = "ordinary event\n";
+    int remainder = suffixLength % ordinary.length();
+    String suffix = ordinary.repeat(suffixLength / ordinary.length())
+        + (remainder == 0 ? "" : "x".repeat(remainder - 1) + "\n");
+    Files.writeString(root.resolve("boundary.log"), prefix + crossing + suffix);
+    var args = JsonNodeFactory.instance.objectNode().put("tail", true).put("maxLines", 2)
+        .put("scanBytes", scanBytes).put("query", "ERROR|WARN").put("matchMode", "regex");
+    var first = run("ssh_logs_search", "boundary.log", args, maskedSearchContext());
+    assertThat(first.path("lines")).isEmpty();
+    assertThat(first.path("scanComplete").asBoolean()).isFalse();
+    assertThat(first.path("truncationReason").asString()).isEqualTo("scan_limit");
+    assertThat(first.path("scannedBytes").asLong()).isEqualTo(scanBytes);
+    args.put("cursor", first.path("nextCursor").asString());
+    var second = run("ssh_logs_search", "boundary.log", args, maskedSearchContext());
+    assertThat(second.path("lines")).isEqualTo(TestConfigs.json(
+        "[\"ERROR oldest\",\"WARN record crossing the source window boundary\"]"));
+    assertThat(second.path("scanComplete").asBoolean()).isTrue();
+    assertThat(second.path("entries").get(1).path("offset").asLong()).isEqualTo(prefix.length());
+  }
+
+  @Test
+  void denseGrepCandidatesFallBackWithoutLosingTheFirstOrLatestMatchingRecords() throws Exception {
+    List<String> records = new ArrayList<>();
+    for (int i = 0; i < 6000; i++) records.add("ERROR record " + i + " " + "x".repeat(300));
+    Files.writeString(root.resolve("dense.log"), String.join("\n", records) + "\n");
+    for (boolean tail : List.of(false, true)) {
+      var result = run("ssh_logs_search", "dense.log", JsonNodeFactory.instance.objectNode().put("tail", tail)
+          .put("maxLines", 2).put("query", "ERROR"), TestCtx.read().withTextMaskMarker("[masked]"));
+      assertThat(result.path("lines").get(0).asString()).isEqualTo(records.get(tail ? 5998 : 0));
+      assertThat(result.path("lines").get(1).asString()).isEqualTo(records.get(tail ? 5999 : 1));
+      assertThat(result.path("scanComplete").asBoolean()).isFalse();
+      assertThat(result.path("truncationReason").asString()).isEqualTo("line_limit");
+      assertThat(result.path("nextCursor").isString()).isTrue();
+    }
+  }
+
+  @Test
+  void maskedOverflowDoesNotChangeAccountingOrCursorProofAtAVisibleLineLimit() throws Exception {
+    String visible = "visible hiddenA hiddenB\n";
+    Path file = root.resolve("private.log");
+    Files.writeString(file, visible + fixedWidthRecord("hiddenA private ").repeat(4096) + visible);
+    for (boolean tail : List.of(false, true)) {
+      JsonNode sparse = maskedOverflowQuery("private.log", "hiddenB", tail, false);
+      JsonNode dense = maskedOverflowQuery("private.log", "hiddenA", tail, false);
+      assertSamePublicScan(sparse, dense);
+      assertThat(dense.path("lines")).isEqualTo(TestConfigs.json("[\"visible hiddenA hiddenB\"]"));
+      assertThat(dense.path("scannedBytes").asLong()).isEqualTo(Files.size(file));
+      assertThat(dense.path("truncationReason").asString()).isEqualTo("line_limit");
+    }
+  }
+
+  @Test
+  void maskedOverflowDoesNotChangeContinuationInsideAnOversizedBoundaryRecord() throws Exception {
+    String ordinary = fixedWidthRecord("hiddenA private ").repeat(1500);
+    Files.writeString(root.resolve("private.log"), ordinary + "hiddenA private ".repeat(38400) + "\n" + ordinary);
+    for (boolean tail : List.of(false, true)) {
+      JsonNode sparse = maskedOverflowQuery("private.log", "hiddenB", tail, true);
+      JsonNode dense = maskedOverflowQuery("private.log", "hiddenA", tail, true);
+      assertSamePublicScan(sparse, dense);
+      assertThat(dense.path("lines")).isEmpty();
+      assertThat(dense.path("scannedBytes").asLong()).isEqualTo(1024 * 1024);
+      assertThat(dense.path("truncationReason").asString()).isEqualTo("scan_limit");
+      assertThat(dense.path("cursorState").path("discard").asBoolean()).isFalse();
+    }
+  }
+
+  private JsonNode maskedOverflowQuery(String file, String needle, boolean tail, boolean scanLimit) throws Exception {
+    var args = JsonNodeFactory.instance.objectNode().put("query", needle).put("tail", tail).put("maxLines", 1);
+    if (scanLimit) args.put("scanBytes", 1024 * 1024);
+    var ctx = TestCtx.read().withTextMaskMarker("[masked]").withMasker(tree -> tree.isString()
+        && tree.asString().contains("private") ? JsonNodeFactory.instance.textNode("[masked]") : tree);
+    ObjectNode result = (ObjectNode) run("ssh_logs_search", file, args, ctx);
+    JsonNode cursor = ctx.handles().open("ssh-logs.scan", result.path("nextCursor").asString().substring(4)).orElseThrow();
+    var publicCursor = JsonNodeFactory.instance.objectNode();
+    for (String field : List.of("position", "discard", "index")) publicCursor.set(field, cursor.path(field));
+    var snapshot = publicCursor.putObject("snapshot");
+    for (String field : List.of("size", "start", "end", "proofOffset", "proofLength")) {
+      snapshot.set(field, cursor.path("snapshot").path(field));
+    }
+    result.set("cursorState", publicCursor);
+    return result;
+  }
+
+  private static void assertSamePublicScan(JsonNode sparse, JsonNode dense) {
+    for (String field : List.of("lines", "entries", "nextOffset", "bytesRead", "scannedBytes", "scanComplete",
+        "truncated", "truncationReason", "diagnosticCountsComplete", "skippedLines", "unparsedLines", "warnings",
+        "cursorState")) {
+      assertThat(dense.path(field)).as(field).isEqualTo(sparse.path(field));
+    }
+  }
+
+  private static String fixedWidthRecord(String prefix) {
+    return prefix + "x".repeat(511 - prefix.length()) + "\n";
+  }
+
+  private static TestCtx maskedSearchContext() {
+    return TestCtx.read().withTextMaskMarker("[masked]").withMasker(tree -> tree.isString()
+        ? JsonNodeFactory.instance.textNode(tree.asString().replace("ERROR hidden", "[masked]")) : tree);
   }
 
   private AtomicLong countTransferredBytes() {

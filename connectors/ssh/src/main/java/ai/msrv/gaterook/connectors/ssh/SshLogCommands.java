@@ -10,6 +10,7 @@ import org.apache.sshd.client.session.ClientSession;
 /** Fixed, read-only log commands. File names and search expressions are data, never shell programs. */
 final class SshLogCommands {
   private static final long MAX_TRANSFER = 64L * 1024 * 1024;
+  static final int GREP_TRANSFER_BYTES = 1024 * 1024;
   private static final long MAX_POSITION = 9_007_199_254_740_991L;
   private static final int STDERR_BYTES = 4096;
   private static final Duration FINISH_MARGIN = Duration.ofMillis(250);
@@ -18,9 +19,9 @@ final class SshLogCommands {
 
   record Snapshot(String identity, long size, String modified) {}
 
-  /** Byte positions refer to the source window, even when grep returns only candidate records. */
+  /** Byte positions and complete-line bounds refer to the source window, independent of grep candidates. */
   record Result(byte[] data, Snapshot before, Snapshot after, long offset, long endOffset,
-      boolean startsAtLineBoundary, boolean endsAtLineBoundary, long lastCompleteEnd) {}
+      boolean startsAtLineBoundary, boolean endsAtLineBoundary, long lastCompleteEnd, long firstCompleteStart) {}
 
   record Range(Snapshot snapshot, long start, long end) {}
 
@@ -64,8 +65,7 @@ final class SshLogCommands {
   /** The expression must be a conservative candidate filter; masked matching remains authoritative locally. */
   static Result grep(ClientSession session, SshLogSettings settings, String file, long offset, int length,
       String expression, ExecContext ctx) throws ConnectorException {
-    long maxOutput = Math.min(MAX_TRANSFER, length * 12L + 64);
-    return execute(session, settings, file, Kind.GREP, offset, length, maxOutput, expression, ctx);
+    return execute(session, settings, file, Kind.GREP, offset, length, GREP_TRANSFER_BYTES, expression, ctx);
   }
 
   private static Result execute(ClientSession session, SshLogSettings settings, String file, Kind kind, long first,
@@ -87,7 +87,7 @@ final class SshLogCommands {
     if (result.brokenOff()) {
       throw ConnectorException.unavailable("The SSH connection closed before the log command finished.", null);
     }
-    if (result.truncatedReason() != null || result.stdout().length > maxBytes) {
+    if (result.truncatedReason() != null || (kind != Kind.GREP && result.stdout().length > maxBytes)) {
       throw ConnectorException.badInput("The selected log lines exceed the transfer limit. Request fewer lines or a smaller range.");
     }
     if (result.exitStatus() == null || result.exitStatus() != 0) {
@@ -119,7 +119,7 @@ final class SshLogCommands {
       case BOUNDS -> "stat head awk";
       case LINES -> "stat head tail awk";
       case BYTES, HEAD, TAIL -> "stat head tail od wc";
-      case GREP -> "stat head tail od wc grep";
+      case GREP -> "stat head tail od wc grep cat";
     };
     StringBuilder script = new StringBuilder("LC_ALL=C; export LC_ALL; set -f\n")
         .append("for gr_tool in ").append(utilities).append("; do command -v \"$gr_tool\" >/dev/null 2>&1 || exit 43; done\n")
@@ -179,13 +179,17 @@ final class SshLogCommands {
           .append("  if [ \"$gr_last\" != 10 ]; then gr_end_boundary=0; gr_last_bytes=$(gr_window | tail -n 1 | wc -c); gr_complete=$((gr_end - gr_last_bytes)); fi\n")
           .append("fi\n");
     }
-    script.append("printf '").append(WINDOW).append("%s:%s:%s:%s:%s\\n' \"$gr_start\" \"$gr_end\" \"$gr_start_boundary\" \"$gr_end_boundary\" \"$gr_complete\" >&2\n");
+    script.append("gr_first=$gr_start\n")
+        .append("if [ \"$gr_start_boundary\" -eq 0 ]; then gr_first_bytes=$(gr_window | head -n 1 | wc -c); gr_first=$((gr_start + gr_first_bytes)); fi\n")
+        .append("printf '").append(WINDOW).append("%s:%s:%s:%s:%s:%s\\n' \"$gr_start\" \"$gr_end\" \"$gr_start_boundary\" \"$gr_end_boundary\" \"$gr_complete\" \"$gr_first\" >&2\n");
     switch (kind) {
       case INSPECT, BOUNDS -> { }
       case BYTES, HEAD, TAIL -> script.append("gr_window\n[ $? -eq 0 ] || exit 45\n");
       case LINES -> script.append("gr_window | head -c ").append(maxBytes + 1).append("\n[ $? -eq 0 ] || exit 45\n");
-      case GREP -> script.append("gr_window | grep -a -b -E -e ").append(ShellQuote.quote(expression))
-          .append("\ngr_status=$?; [ \"$gr_status\" -le 1 ] || exit 45\n");
+      // Keep one overflow byte, drain the remaining candidates, and preserve grep failures in stderr framing.
+      case GREP -> script.append("gr_window | { grep -a -b -E -e ").append(ShellQuote.quote(expression))
+          .append("; gr_status=$?; [ \"$gr_status\" -le 1 ] || gr_abort 45; } | { head -c ")
+          .append(maxBytes + 1).append("; cat >/dev/null; }\n[ $? -eq 0 ] || exit 45\n");
     }
     script.append(checks)
         .append("gr_open_after=$(gr_stat /dev/fd/3) || exit 43\n")
@@ -213,21 +217,24 @@ final class SshLogCommands {
     }
     Snapshot before = snapshot(lines[0]);
     Snapshot after = snapshot(lines[2]);
-    if (!lines[1].startsWith(WINDOW) || !lines[1].substring(WINDOW.length()).matches("[0-9]+:[0-9]+:[01]:[01]:[0-9]+")) {
+    if (!lines[1].startsWith(WINDOW) || !lines[1].substring(WINDOW.length()).matches("[0-9]+:[0-9]+:[01]:[01]:[0-9]+:[0-9]+")) {
       throw ConnectorException.resourceError("The SSH server returned invalid log window metadata.", null);
     }
     String[] fields = lines[1].substring(WINDOW.length()).split(":");
     long start;
     long end;
     long complete;
+    long firstComplete;
     try {
       start = Long.parseLong(fields[0]);
       end = Long.parseLong(fields[1]);
       complete = Long.parseLong(fields[4]);
+      firstComplete = Long.parseLong(fields[5]);
     } catch (NumberFormatException e) {
       throw ConnectorException.resourceError("The SSH server returned invalid log byte positions.", null);
     }
-    if (start > end || end > before.size() || complete < start || complete > end) {
+    if (start > end || end > before.size() || complete < start || complete > end
+        || firstComplete < start || firstComplete > end) {
       throw ConnectorException.resourceError("The SSH server returned invalid log byte positions.", null);
     }
     if (!before.identity().equals(after.identity()) || after.size() < before.size()
@@ -235,7 +242,7 @@ final class SshLogCommands {
       throw ConnectorException.badInput("The selected log file was replaced, truncated or rewritten. Start the query again.");
     }
     return new Result(Arrays.copyOf(stdout, stdout.length), before, after, start, end,
-        fields[2].equals("1"), fields[3].equals("1"), complete);
+        fields[2].equals("1"), fields[3].equals("1"), complete, firstComplete);
   }
 
   private static Snapshot snapshot(String line) throws ConnectorException {
@@ -263,6 +270,6 @@ final class SshLogCommands {
     if (status != null && status == 46) {
       return ConnectorException.badInput("The byte offset is past the end of this log file. Start the query again.");
     }
-    return ConnectorException.resourceError("The SSH log command failed. The account needs a POSIX shell and the stat, head, tail, awk, od, wc and grep utilities.", null);
+    return ConnectorException.resourceError("The SSH log command failed. The account needs a POSIX shell and the stat, head, tail, awk, od, wc, grep and cat utilities.", null);
   }
 }
