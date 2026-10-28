@@ -47,10 +47,11 @@ const emit = (text: string): void => {
 };
 
 describe('main\'s event stream', () => {
-  it('reads signed events, reconnects with Last-Event-ID, stops when told', async () => {
+  it('reads signed events, reconnects with Last-Event-ID, stops when told', async (t) => {
     const got: CoreEvent[] = [];
     let opened = 0;
     const feed = new CoreEventFeed({ onEvent: (e) => got.push(e), onOpen: () => opened++, retryMs: 50 });
+    t.after(() => feed.stop());
     feed.start(core());
     await waitFor('the stream', () => open.size === 1);
     assert.ok(connections.at(-1)?.signed, 'signed like every admin request');
@@ -60,8 +61,10 @@ describe('main\'s event stream', () => {
     assert.deepEqual(got[0], { type: 'notify.desktop', data: { kind: 'request', id: 'ap_0123456789ab' }, id: '41' });
     // The core drops the connection: the feed comes back and asks for what came after 42.
     for (const res of open) res.destroy();
-    await waitFor('the reconnect', () => open.size === 1 && connections.length >= 2);
+    // The server sees the request before the client has accepted its response and called onOpen.
+    await waitFor('the reconnected stream to open', () => open.size === 1 && connections.length >= 2 && opened >= 2);
     assert.equal(connections.at(-1)?.lastEventId, '42');
+    assert.ok(connections.at(-1)?.signed, 'the reconnect is also signed');
     assert.ok(opened >= 2);
     feed.stop();
     await waitFor('the stream to close', () => open.size === 0);
