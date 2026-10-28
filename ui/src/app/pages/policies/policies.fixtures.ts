@@ -586,7 +586,7 @@ const SCHEMA = {
           title: 'Tool timeout',
           minimum: 1,
           maximum: 300,
-          default: 10,
+          default: 30,
           'x-env-default': {
             prod: 5,
           },
@@ -727,7 +727,7 @@ const POLICIES = {
         rateLimitPerToken: 120,
         rateLimitPerTool: 30,
         maxResponseKb: 512,
-        toolTimeoutSeconds: 10,
+        toolTimeoutSeconds: 30,
         logLines: 1000,
       },
       approvals: {
@@ -897,7 +897,7 @@ const POLICIES = {
         rateLimitPerToken: 120,
         rateLimitPerTool: 30,
         maxResponseKb: 256,
-        toolTimeoutSeconds: 10,
+        toolTimeoutSeconds: 30,
         logLines: 1000,
       },
       approvals: {

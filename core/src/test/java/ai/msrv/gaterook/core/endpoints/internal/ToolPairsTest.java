@@ -13,13 +13,16 @@ import ai.msrv.gaterook.connector.api.Connector;
 import ai.msrv.gaterook.connector.api.ConnectorManifest;
 import ai.msrv.gaterook.connector.api.EndpointView;
 import ai.msrv.gaterook.connector.api.Env;
+import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.core.connectors.ConnectorRegistry;
 import ai.msrv.gaterook.core.connectors.EnvironmentPolicies;
+import ai.msrv.gaterook.core.policy.internal.LimitsOf;
 import ai.msrv.gaterook.core.templates.TemplateService;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import tools.jackson.databind.node.JsonNodeFactory;
@@ -35,6 +38,12 @@ class ToolPairsTest {
   private final ToolDefinition specific = ToolDefinition.builder("opensearch_request").build();
   private final ConnectorManifest manifest = ConnectorManifest.builder("logs", "1.0.0",
       ConnectorManifest.Kind.BUILT_IN).tools(List.of(shared, specific)).build();
+
+  @BeforeEach
+  void environmentPolicy() {
+    when(policies.view(Env.DEV, manifest)).thenReturn(new PolicyView(Env.DEV, "dev.logs",
+        JsonNodeFactory.instance.objectNode(), LimitsOf.from(JsonNodeFactory.instance.objectNode(), Env.DEV)));
+  }
 
   @Test
   void backendSpecificToolsOnlyPairWithSupportedConnections() {
@@ -54,6 +63,7 @@ class ToolPairsTest {
     ArgumentCaptor<EndpointView> view = ArgumentCaptor.forClass(EndpointView.class);
     verify(connector, times(1)).tools(view.capture());
     assertThat(view.getValue().connections()).containsExactly(search, loki);
+    assertThat(view.getValue().limitsByConnection().get(search.id())).isSameAs(policies.view(Env.DEV, manifest).limits());
 
     assertThat(pairs.offeredFor(loki, members, "dev", Env.DEV))
         .extracting(ToolPairs.Offered::toolKey).containsExactly("logs_search");

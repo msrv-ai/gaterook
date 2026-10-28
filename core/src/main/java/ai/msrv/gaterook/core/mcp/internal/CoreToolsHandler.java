@@ -163,7 +163,8 @@ public class CoreToolsHandler {
       String object, String callId) {
     EndpointSnapshot.Pair any = s.pairs().stream().filter(p -> p.config().id().equals(w.config().id())).findFirst()
         .orElse(null);
-    Limits limits = any == null ? policies.limits(w.config().env()) : engine.view(any.view(), w.config()).limits();
+    Limits limits = any == null ? policies.limits(w.config().env(), w.config().type())
+        : engine.view(any.view(), w.config()).limits();
     ToolCall call = new ToolCall(callId, CoreTools.DESCRIBE_CONNECTION, w.config().name(),
         JsonNodeFactory.instance.objectNode(), null);
     return invoker.describe(new ConnectorInvoker.Request(callId, w.config(), call, limits,
@@ -196,7 +197,7 @@ public class CoreToolsHandler {
     }
     EndpointSnapshot.Pair any = s.pairs().stream().filter(p -> p.config().id().equals(cfg.id())).findFirst()
         .orElse(null);
-    Limits l = any == null ? policies.limits(cfg.env()) : engine.view(any.view(), cfg).limits();
+    Limits l = any == null ? policies.limits(cfg.env(), cfg.type()) : engine.view(any.view(), cfg).limits();
     ObjectNode limits = out.putObject("limits");
     limits.put("maxRows", l.maxRows());
     limits.put("maxLines", l.maxLines());

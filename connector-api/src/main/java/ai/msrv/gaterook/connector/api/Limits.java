@@ -14,7 +14,7 @@ import java.time.Duration;
  * @param maxCellChars     8 KB
  * @param statementTimeout 5 s · 3 s
  * @param commandTimeout   30 s
- * @param toolTimeout      10 s
+ * @param toolTimeout      dev/stage 30 s · prod 5 s; connector-specific limits may be lower
  * @param maxRange         logs/metrics: 168 h · 24 h
  */
 public record Limits(int maxRows, int maxLines, long maxResponseBytes, long maxRequestBytes, long maxOutputBytes,

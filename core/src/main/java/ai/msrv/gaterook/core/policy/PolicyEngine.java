@@ -149,7 +149,7 @@ public class PolicyEngine {
     JsonNode own = sections.path(section);
     return new PolicyView(pair.connectionEnv(), pair.connectionEnv().id() + "." + section,
         own.isObject() ? own.deepCopy() : JsonNodeFactory.instance.objectNode(),
-        LimitsOf.from(sections, pair.connectionEnv()));
+        LimitsOf.from(sections, pair.connectionEnv(), section));
   }
 
   /** The environment's sections narrowed by the connection, the endpoint and the pair. */

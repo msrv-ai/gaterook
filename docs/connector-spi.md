@@ -158,7 +158,7 @@ package ai.msrv.gaterook.connector.api; import java.time.Duration;
 /** Effective limits of one call = min(environment policy, connection, endpoint, tool override), computed by the core. */
 public record Limits(int maxRows /* dev 1,000 · prod 100 */, int maxLines /* logs: 1,000 · 200 */, long maxResponseBytes /* 512 KB */,
     long maxRequestBytes, long maxOutputBytes /* ssh stdout 256 KB */, long maxStderrBytes /* 64 KB */, int maxCellChars /* 8 KB */,
-    Duration statementTimeout /* 5 s · 3 s */, Duration commandTimeout /* 30 s */, Duration toolTimeout /* 10 s */,
+    Duration statementTimeout /* 5 s · 3 s */, Duration commandTimeout /* 30 s */, Duration toolTimeout /* dev/stage 30 s · prod 5 s */,
     Duration maxRange /* logs/metrics: 168 h · 24 h */) {
   // + COMMAND_STOP_MARGIN 2.5 s, MAX_COMMAND_CALL 55 s, MAX_APPROVED_COMMAND_CALL 10 min and
   //   commandCallTimeout(boolean approved) = max(toolTimeout, min(commandTimeout + 2.5 s, approved ? 10 min : 55 s))

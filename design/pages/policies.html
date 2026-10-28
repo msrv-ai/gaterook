@@ -661,10 +661,10 @@
                     <div class="gw-field">
                       <label class="gw-field__label" for="pd-lim-timeout">Tool timeout</label>
                       <div class="gw-input-group">
-                        <input class="gw-input" id="pd-lim-timeout" type="text" inputmode="numeric" autocomplete="off" value="10" aria-describedby="pd-lim-timeout-hint">
+                        <input class="gw-input" id="pd-lim-timeout" type="text" inputmode="numeric" autocomplete="off" value="30" aria-describedby="pd-lim-timeout-hint">
                         <span class="gw-input-group__affix">s</span>
                       </div>
-                      <p class="gw-field__hint" id="pd-lim-timeout-hint">Kubernetes, logs, NoSQL and HTTP. SQL and SSH use theirs above.</p>
+                      <p class="gw-field__hint" id="pd-lim-timeout-hint">Log tools, Kubernetes, NoSQL and HTTP. SQL statements and SSH commands have separate timeouts above.</p>
                     </div>
                     <div class="gw-field">
                       <label class="gw-field__label" for="pd-lim-lines">Log lines per call</label>
@@ -1181,10 +1181,10 @@
                     <div class="gw-field">
                       <label class="gw-field__label" for="ps-lim-timeout">Tool timeout</label>
                       <div class="gw-input-group">
-                        <input class="gw-input" id="ps-lim-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="10" aria-describedby="ps-lim-timeout-hint">
+                        <input class="gw-input" id="ps-lim-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="30" aria-describedby="ps-lim-timeout-hint">
                         <span class="gw-input-group__affix">s</span>
                       </div>
-                      <p class="gw-field__hint" id="ps-lim-timeout-hint">Inherited from dev: 10 s</p>
+                      <p class="gw-field__hint" id="ps-lim-timeout-hint">Inherited from dev: 30 s</p>
                     </div>
                     <div class="gw-field">
                       <label class="gw-field__label" for="ps-lim-lines">Log lines per call</label>
@@ -1688,7 +1688,7 @@
                         <input class="gw-input" id="pp-lim-timeout" type="text" inputmode="numeric" autocomplete="off" placeholder="5" value="5" aria-describedby="pp-lim-timeout-hint">
                         <span class="gw-input-group__affix">s</span>
                       </div>
-                      <p class="gw-field__hint" id="pp-lim-timeout-hint">Prod default · dev: 10 s</p>
+                      <p class="gw-field__hint" id="pp-lim-timeout-hint">Prod default · dev: 30 s</p>
                     </div>
                     <div class="gw-field">
                       <label class="gw-field__label" for="pp-lim-lines">Log lines per call</label>

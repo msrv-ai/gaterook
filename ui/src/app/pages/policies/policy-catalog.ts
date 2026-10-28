@@ -455,7 +455,7 @@ export const FIELDS: Readonly<Record<string, FieldSpec>> = {
   'limits.rateLimitPerToken': { label: 'Rate limit per token', noun: 'rate limit per token', describe: (x) => [t(`Across all ${x.env} connections.`)] },
   'limits.rateLimitPerTool': { label: 'Rate limit per tool', noun: 'rate limit per tool', describe: () => [t('Each tool on each connection.')] },
   'limits.maxResponseKb': { label: 'Max response size', noun: 'max response', describe: () => [t('Bigger results are cut and marked truncated.')] },
-  'limits.toolTimeoutSeconds': { label: 'Tool timeout', noun: 'tool timeout', describe: () => [t('Kubernetes, logs, NoSQL and HTTP. SQL and SSH use theirs above.')] },
+  'limits.toolTimeoutSeconds': { label: 'Tool timeout', noun: 'tool timeout', describe: () => [t('Log tools, Kubernetes, NoSQL and HTTP. SQL statements and SSH commands have separate timeouts above.')] },
   'limits.logLines': { label: 'Log lines per call', noun: 'log lines per call', describe: () => [c('logs_search'), t(' and '), c('logs_tail'), t('.')] },
   'approvals.timeoutMinutes': { label: 'Approval timeout', noun: 'approval timeout', describe: () => [t('The countdown approvers see on a request.')] },
   'approvals.comment': {

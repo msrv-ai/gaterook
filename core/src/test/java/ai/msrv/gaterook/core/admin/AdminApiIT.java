@@ -635,6 +635,9 @@ class AdminApiIT {
     assertThat(dev.path("serving").asBoolean()).isTrue();
     assertThat(dev.path("locks").findValuesAsString("key")).contains("readOnlyTransactions", "approvers", "secrets");
     assertThat(dev.path("sections").path("sql").path("rowLimit").asInt()).isEqualTo(1000);
+    assertThat(dev.path("sections").path("limits").path("toolTimeoutSeconds").asInt()).isEqualTo(30);
+    assertThat(all.path("stage").path("sections").path("limits").path("toolTimeoutSeconds").asInt()).isEqualTo(30);
+    assertThat(all.path("prod").path("sections").path("limits").path("toolTimeoutSeconds").asInt()).isEqualTo(5);
     assertThat(all.path("prod").path("sections").path("approvals").path("comment").asString()).isEqualTo("required");
     assertThat(all.path("usage").path("busiestTool").path("name").asString()).isNotBlank();
     assertThat(api.ok("/api/policies/schema").path("sections").has("approvals")).isTrue();
@@ -644,13 +647,16 @@ class AdminApiIT {
         {"sections":{"sql":{"readOnlyTransactions":false}},"version":%d}""".formatted(version));
     assertThat(locked.path("field").asString()).contains("readOnlyTransactions");
     JsonNode changed = api.expect(200, HttpMethod.PUT, "/api/policies/dev", """
-        {"sections":{"sql":{"rowLimit":500}},"version":%d,"reason":"smaller"}""".formatted(version));
+        {"sections":{"sql":{"rowLimit":500},"limits":{"toolTimeoutSeconds":10}},"version":%d,"reason":"smaller"}""".formatted(version));
     assertThat(changed.path("sections").path("sql").path("rowLimit").asInt()).isEqualTo(500);
     assertThat(changed.path("explicit").path("sql").path("rowLimit").asInt()).isEqualTo(500);
+    assertThat(api.ok("/api/policies/dev").path("sections").path("limits").path("toolTimeoutSeconds").asInt()).isEqualTo(10);
+    assertThat(api.ok("/api/policies/stage").path("sections").path("limits").path("toolTimeoutSeconds").asInt()).isEqualTo(10);
     api.expect(409, HttpMethod.PUT, "/api/policies/dev", """
         {"sections":{"sql":{"rowLimit":400}},"version":%d}""".formatted(version));
     JsonNode reset = api.expect(200, HttpMethod.POST, "/api/policies/dev/reset", "{\"reason\":\"back\"}");
     assertThat(reset.path("explicit").isEmpty()).isTrue();
+    assertThat(reset.path("sections").path("limits").path("toolTimeoutSeconds").asInt()).isEqualTo(30);
     assertThat(api.get("/api/policies/qa").status()).isEqualTo(404);
   }
 

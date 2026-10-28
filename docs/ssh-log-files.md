@@ -6,6 +6,8 @@ For private-key authentication, **Choose file** opens the desktop application's 
 
 The account needs SFTP for browsing and metadata checks, permission to execute commands over SSH, and read access to the selected files. The host must provide a POSIX shell, GNU or BSD `head`, `tail`, `grep` and `stat`, and the standard `awk`, `cat`, `od` and `wc` utilities. GateRook selects and builds the read-only commands from validated file names and query parameters; the AI cannot supply a shell command. No persistent copy of a log file is created on either machine. Symbolic links and nonregular files are rejected. SSH policies control credential methods and output size; Limits controls line counts, response size and deadlines; Logs controls the maximum query period.
 
+The tool timeout defaults to 30 seconds on DEV and 5 seconds on PROD. STAGE inherits unset values from DEV. New connections use their environment policy; an explicitly saved timeout remains in force. HTTP request timeouts apply only to HTTP-policy connectors and do not shorten SSH log calls. Endpoint and tool overrides can still impose a smaller limit.
+
 Automatic health checks verify SSH sign-in, SFTP availability and the selected root folder. Their cost does not grow with the number of selected files. **Test connection** additionally checks read access to every selected file; each log tool also checks the file it uses. A healthy connection therefore does not guarantee that every selected file still exists or remains readable after rotation or a permission change.
 
 ## Tools

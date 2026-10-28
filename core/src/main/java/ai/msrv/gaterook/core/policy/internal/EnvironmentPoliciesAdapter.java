@@ -25,9 +25,10 @@ class EnvironmentPoliciesAdapter implements EnvironmentPolicies {
   @Override
   public PolicyView view(Env env, ConnectorManifest manifest) {
     String section = policies.schemas().sectionOf(manifest.id()).orElse(manifest.id());
-    JsonNode own = policies.section(env, section);
+    JsonNode sections = policies.effective(env);
+    JsonNode own = sections.path(section);
     return new PolicyView(env, env.id() + "." + section,
-        own.isObject() ? own.deepCopy() : JsonNodeFactory.instance.objectNode(), policies.limits(env));
+        own.isObject() ? own.deepCopy() : JsonNodeFactory.instance.objectNode(), LimitsOf.from(sections, env, section));
   }
 
   @Override
