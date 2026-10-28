@@ -13,8 +13,8 @@ import java.util.Set;
  * Where a store may be reached (ARCHITECTURE.md §9 "SSRF": the person typed the address, so it is checked before any
  * resolution, not hop by hop like the egress guard). Vault usually lives on a private network, so private addresses
  * are fine; cloud metadata, link-local and the core's own ports never are, and a number in a non-standard form is
- * refused rather than interpreted. Plain {@code http://} only to this computer: tokens and secrets would otherwise
- * cross the network unencrypted.
+ * refused rather than interpreted. Plain {@code http://} to another computer requires explicit consent because
+ * tokens and secrets cross the network unencrypted.
  */
 public final class StoreAddress {
 
@@ -31,6 +31,15 @@ public final class StoreAddress {
    * @throws StoreException {@code INVALID} with what to change
    */
   public static URI check(String text, Set<Integer> corePorts) {
+    return check(text, corePorts, false);
+  }
+
+  /**
+   * Checks an address with the store's persisted transport consent.
+   *
+   * @param allowPlainHttp whether the user accepted sending tokens and secrets over unencrypted HTTP
+   */
+  public static URI check(String text, Set<Integer> corePorts, boolean allowPlainHttp) {
     URI uri;
     try {
       uri = URI.create(text == null ? "" : text.strip());
@@ -39,7 +48,7 @@ public final class StoreAddress {
     }
     String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase(Locale.ROOT);
     if (!scheme.equals("https") && !scheme.equals("http")) {
-      throw StoreException.invalid("The address starts with https://, like https://vault.acme.internal.");
+      throw StoreException.invalid("The address starts with https:// or http://, like https://vault.acme.internal.");
     }
     if (uri.getRawUserInfo() != null || uri.getRawQuery() != null || uri.getRawFragment() != null) {
       throw StoreException.invalid("Write the address without a user, query or fragment.");
@@ -62,9 +71,9 @@ public final class StoreAddress {
     } else if (loopback && corePorts.contains(port)) {
       throw StoreException.invalid("Port " + port + " on this computer is GateRook itself.");
     }
-    if (scheme.equals("http") && !loopback) {
-      throw StoreException.invalid("Use https:// for a store on another computer: tokens and secrets would cross "
-          + "the network unencrypted.");
+    if (scheme.equals("http") && !loopback && !allowPlainHttp) {
+      throw StoreException.invalid("Use https:// or confirm the risk of HTTP: tokens and secrets cross the network "
+          + "unencrypted.");
     }
     String path = uri.getRawPath() == null ? "" : uri.getRawPath();
     if (path.endsWith("/")) {

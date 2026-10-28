@@ -50,7 +50,7 @@ public record VaultSettings(URI address, String namespace, String caCert, Auth a
    * @throws StoreException {@code INVALID} naming the field to fix
    */
   public static VaultSettings of(JsonNode config, Set<Integer> corePorts) {
-    URI address = StoreAddress.check(text(config, "address"), corePorts);
+    URI address = StoreAddress.check(text(config, "address"), corePorts, config.path("allowPlainHttp").asBoolean(false));
     String namespace = text(config, "namespace");
     if (namespace != null && !NAMESPACE.matcher(namespace).matches()) {
       throw StoreException.invalid("The namespace has characters Vault doesn't accept.");

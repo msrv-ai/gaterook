@@ -193,6 +193,8 @@ The renderer requests `app://gw/api/*`. Electron main proxies these requests to 
 
 Controllers under [core/admin](../core/src/main/java/ai/msrv/gaterook/core/admin/) define the current DTOs and routes. Configuration changes use optimistic versions and schema errors identify the invalid field. Secret response DTOs expose metadata, never stored values. Duplication does not copy secrets. General file operations use constrained tokens or known resource IDs rather than arbitrary renderer-supplied core filesystem paths. The SSH private-key picker is a narrow configuration exception: a dedicated desktop IPC operation opens a native file dialog and returns only the selected absolute path to the form. It takes no renderer-supplied path and does not read or upload file contents; the SSH connector reads the configured key locally after host-key verification.
 
+Vault/OpenBao stores recommend HTTPS. Creating an HTTP store in the UI requires a warning confirmation naming the address and explaining that credentials and secrets travel unencrypted; cancellation sends no create or test request. Confirmation persists `config.allowPlainHttp: true` on that store. The core rejects non-loopback HTTP without this opt-in, while retaining compatibility with existing local HTTP stores. The opt-in does not relax address restrictions or enable redirects.
+
 | API area | Responsibility |
 | --- | --- |
 | `/api/connections`, `/api/connector-types` | List/create/edit/test connections, forms, health, variants, and usage |

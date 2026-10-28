@@ -1,4 +1,4 @@
-import { addressProblem, connectRequest, emptyConnectModel, externalId, fieldProblem, storeName } from './store-connect';
+import { addressProblem, connectRequest, emptyConnectModel, externalId, fieldProblem, isPlainHttp, storeName } from './store-connect';
 
 describe('connect a store', () => {
   const m = emptyConnectModel();
@@ -24,12 +24,34 @@ describe('connect a store', () => {
     expect(fieldProblem('gcp-sm', 'impersonate', { ...m, impersonate: 'gw-secrets@acme-stage.iam.gserviceaccount.com' })).toBeNull();
   });
 
-  it('allows https anywhere and plain http only to this computer (S1 StoreAddress)', () => {
+  it('accepts HTTPS and HTTP addresses, leaving HTTP consent to the connection dialog', () => {
     expect(addressProblem('https://vault.acme.internal')).toBeNull();
     expect(addressProblem('http://127.0.0.1:8200')).toBeNull();
     expect(addressProblem('http://localhost:8200')).toBeNull();
-    expect(addressProblem('http://vault.acme.internal')).toBe('Use https://. Plain http is allowed only to this computer (127.0.0.1).');
+    expect(addressProblem('http://vault.acme.internal')).toBeNull();
+    expect(addressProblem('http://192.0.2.10:8200/')).toBeNull();
+    expect(addressProblem('ftp://vault.acme.internal')).toBe('Use https:// or http:// for the Vault address.');
     expect(addressProblem('vault')).toMatch(/isn't an address/);
+  });
+
+  it('detects HTTP regardless of host, surrounding whitespace or scheme case', () => {
+    for (const address of ['http://vault.acme.internal', ' HTTP://192.0.2.10:8200/ ', 'http://localhost:8200', 'http://[::1]:8200']) {
+      expect(isPlainHttp(address)).toBe(true);
+    }
+    for (const address of ['', 'vault', 'https://vault.acme.internal', 'ftp://vault.acme.internal']) {
+      expect(isPlainHttp(address)).toBe(false);
+    }
+  });
+
+  it('includes the HTTP opt-in only for a confirmed HTTP Vault request', () => {
+    const http = { ...m, address: 'http://vault.acme.internal:8200/', method: 'token' as const };
+    expect(connectRequest('vault', 'vault', http, {}).config['allowPlainHttp']).toBeUndefined();
+    expect(connectRequest('vault', 'vault', http, {}, true).config).toEqual({
+      address: 'http://vault.acme.internal:8200', auth: { method: 'token' }, allowPlainHttp: true,
+    });
+    expect(connectRequest('vault', 'vault', { ...http, address: 'https://vault.acme.internal' }, {}, true).config['allowPlainHttp']).toBeUndefined();
+    expect(connectRequest('aws-sm', 'aws', http, {}, true).config['allowPlainHttp']).toBeUndefined();
+    expect(connectRequest('gcp-sm', 'gcp', http, {}, true).config['allowPlainHttp']).toBeUndefined();
   });
 
   it('makes an ExternalId as the core does: gw-ext- and 12 hex digits', () => {

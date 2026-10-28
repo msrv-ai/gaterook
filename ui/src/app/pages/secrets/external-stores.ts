@@ -48,7 +48,7 @@ import {
   waitingFor,
   waitingText,
 } from './secrets-view';
-import { AWS_REGIONS, ConnectModel, FIELD_POINTERS, SecretKey, connectRequest, emptyConnectModel, externalId, fieldProblem, storeName } from './store-connect';
+import { AWS_REGIONS, ConnectModel, FIELD_POINTERS, SecretKey, connectRequest, emptyConnectModel, externalId, fieldProblem, isPlainHttp, storeName } from './store-connect';
 
 const NO_ANSWER = 'The core didn’t answer. Try again.';
 
@@ -89,6 +89,7 @@ export class GwExternalStores {
   private readonly doc = inject(DOCUMENT);
 
   private readonly connectDialog = viewChild.required<GwDialog>('connectDialog');
+  private readonly plainHttpDialog = viewChild.required<GwDialog>('plainHttpDialog');
   private readonly disconnectDialog = viewChild.required<GwDialog>('disconnectDialog');
   private readonly keepDialog = viewChild.required<GwDialog>('keepDialog');
   /** Sign-in values: typed once, read from the field when sent, never in the form model. */
@@ -157,6 +158,7 @@ export class GwExternalStores {
 
   protected readonly connecting = signal<StoreKindInfo | null>(null);
   protected readonly connectBusy = signal(false);
+  protected readonly pendingHttpAddress = signal<string | null>(null);
   protected readonly connectError = signal<{ readonly title: string; readonly body: string } | null>(null);
   protected readonly submitted = signal(false);
   /** Sign-in values the person left empty (their fields aren't in the model). */
@@ -209,6 +211,11 @@ export class GwExternalStores {
   /** Test and connect: create the store, then test it; a failed test leaves it connected and failing. */
   protected async connect(e: Event): Promise<void> {
     e.preventDefault();
+    if (this.pendingHttpAddress()) return;
+    await this.submitConnect();
+  }
+
+  private async submitConnect(confirmedHttpAddress?: string): Promise<void> {
     const info = this.connecting();
     if (!info || this.connectBusy()) return;
     this.submitted.set(true);
@@ -219,8 +226,15 @@ export class GwExternalStores {
       this.focusFirstError();
       return;
     }
+    const address = this.model().address.trim();
+    const plainHttp = info.kind === 'vault' && isPlainHttp(address);
+    if (plainHttp && confirmedHttpAddress !== address) {
+      this.pendingHttpAddress.set(address);
+      this.plainHttpDialog().openAfterRender(this.doc.querySelector<HTMLElement>('#dlg-connect-store button[type="submit"]'));
+      return;
+    }
     const taken = (this.stores() ?? []).map((s) => s.name);
-    const request: SecretStoreCreate = connectRequest(info.kind, storeName(info.kind, this.model(), taken), this.model(), secrets);
+    const request: SecretStoreCreate = connectRequest(info.kind, storeName(info.kind, this.model(), taken), this.model(), secrets, plainHttp);
     this.connectBusy.set(true);
     try {
       const { store, test } = await this.data.connectStore(request);
@@ -234,7 +248,21 @@ export class GwExternalStores {
     }
   }
 
+  protected confirmPlainHttp(): void {
+    if (!this.pendingHttpAddress() || this.connectBusy()) return;
+    this.plainHttpDialog().close('confirmed');
+  }
+
+  protected async onPlainHttpClosed(result: string): Promise<void> {
+    const address = this.pendingHttpAddress();
+    this.pendingHttpAddress.set(null);
+    // Wait for the native close event before a changed address can open a new warning.
+    if (result === 'confirmed' && address) await this.submitConnect(address);
+  }
+
   protected onConnectClosed(): void {
+    this.plainHttpDialog().close();
+    this.pendingHttpAddress.set(null);
     this.clearSecrets();
     this.connecting.set(null);
   }

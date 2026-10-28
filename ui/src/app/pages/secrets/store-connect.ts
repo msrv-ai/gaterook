@@ -86,7 +86,7 @@ const ACCESS_KEY_ID = /^(AKIA|ASIA)[A-Z0-9]{16}$/;
 const PROJECT = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
 const SERVICE_ACCOUNT = /^[a-z][a-z0-9-]*@[a-z0-9.-]+\.iam\.gserviceaccount\.com$/;
 
-/** Whether an address may be used: https, or plain http only to this computer (S1 `StoreAddress`). */
+/** HTTP needs a separate confirmation before connecting; the core checks the address's remaining restrictions. */
 export function addressProblem(address: string): string | null {
   const v = address.trim();
   if (!v) return 'Enter the address of your Vault, for example https://vault.acme.internal.';
@@ -96,9 +96,17 @@ export function addressProblem(address: string): string | null {
   } catch {
     return `${v} isn't an address. Use https://vault.acme.internal.`;
   }
-  if (url.protocol === 'https:') return null;
-  if (url.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)) return null;
-  return 'Use https://. Plain http is allowed only to this computer (127.0.0.1).';
+  if (url.protocol === 'https:' || url.protocol === 'http:') return null;
+  return 'Use https:// or http:// for the Vault address.';
+}
+
+/** Includes local HTTP stores: every new unencrypted connection needs a visible risk confirmation. */
+export function isPlainHttp(address: string): boolean {
+  try {
+    return new URL(address.trim()).protocol === 'http:';
+  } catch {
+    return false;
+  }
 }
 
 /** The rule of one field for one kind, in the core's words; null when it is fine or not on this kind's form. */
@@ -150,7 +158,7 @@ export function storeName(kind: SecretStoreKind, m: ConnectModel, taken: readonl
 }
 
 /** The request for `POST /api/secret-stores`: only the fields of the kind's form and sign-in method. */
-export function connectRequest(kind: SecretStoreKind, name: string, m: ConnectModel, secrets: { readonly [pointer: string]: string }): SecretStoreCreate {
+export function connectRequest(kind: SecretStoreKind, name: string, m: ConnectModel, secrets: { readonly [pointer: string]: string }, allowPlainHttp = false): SecretStoreCreate {
   const t = (s: string) => s.trim();
   let config: JsonObject;
   if (kind === 'aws-sm') {
@@ -166,6 +174,7 @@ export function connectRequest(kind: SecretStoreKind, name: string, m: ConnectMo
     const auth: JsonObject = { method: m.method };
     if (m.method === 'approle') auth['roleId'] = t(m.roleId);
     config = { address: t(m.address).replace(/\/+$/, ''), auth };
+    if (allowPlainHttp && isPlainHttp(m.address)) config['allowPlainHttp'] = true;
     if (t(m.namespace)) config['namespace'] = t(m.namespace);
     if (t(m.caCert)) config['caCert'] = m.caCert.trim();
   } else {

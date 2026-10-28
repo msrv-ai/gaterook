@@ -101,6 +101,17 @@ class ExternalStoresIT {
       body.putObject("secrets").put("/auth/secretId", FakeVault.SECRET_ID);
       assertThat(api.post("/api/secret-stores", body).status()).as(address).isEqualTo(422);
     }
+    for (String address : List.of("http://169.254.169.254", "http://127.0.0.1:" + core.bean(LocalListener.class).port(),
+        "http://user@vault.acme.internal")) {
+      ObjectNode body = JSON.createObjectNode().put("kind", "vault").put("name", "bad");
+      body.set("config", vaultConfig(address).put("allowPlainHttp", true));
+      body.putObject("secrets").put("/auth/secretId", FakeVault.SECRET_ID);
+      assertThat(api.post("/api/secret-stores", body).status()).as(address).isEqualTo(422);
+    }
+    ObjectNode invalidConsent = JSON.createObjectNode().put("kind", "vault").put("name", "bad");
+    invalidConsent.set("config", vaultConfig(vault.address()).put("allowPlainHttp", "true"));
+    invalidConsent.putObject("secrets").put("/auth/secretId", FakeVault.SECRET_ID);
+    assertThat(api.post("/api/secret-stores", invalidConsent).status()).isEqualTo(422);
     assertThat(api.ok("/api/secret-stores")).isEmpty();
   }
 
@@ -108,7 +119,7 @@ class ExternalStoresIT {
   @Order(2)
   void connectingAVaultKeepsItsSecretIdWriteOnly() {
     ObjectNode body = JSON.createObjectNode().put("kind", "vault").put("name", "vault").put("reason", "S1 test");
-    body.set("config", vaultConfig(vault.address()));
+    body.set("config", vaultConfig(vault.address()).put("allowPlainHttp", true));
     body.putObject("secrets").put("/auth/secretId", FakeVault.SECRET_ID);
     JsonNode created = api.expect(201, HttpMethod.POST, "/api/secret-stores", body);
     storeId = created.path("id").asString();
@@ -117,6 +128,8 @@ class ExternalStoresIT {
     assertThat(created.path("signIn").get(0).path("field").asString()).isEqualTo("/auth/secretId");
     assertThat(created.path("signIn").get(0).path("state").asString()).isEqualTo("stored");
     assertThat(created.path("config").has("secretId")).isFalse();
+    assertThat(created.path("config").path("allowPlainHttp").asBoolean()).isTrue();
+    assertThat(api.ok("/api/secret-stores/" + storeId).path("config").path("allowPlainHttp").asBoolean()).isTrue();
 
     JsonNode test = api.expect(200, HttpMethod.POST, "/api/secret-stores/" + storeId + "/test", null);
     assertThat(test.path("ok").asBoolean()).as(test.toString()).isTrue();
