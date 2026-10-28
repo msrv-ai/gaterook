@@ -69,6 +69,87 @@ class VaultStoreTest {
   }
 
   @Test
+  void browsesKvMountsAndOneFolderWithoutReadingValues() {
+    assertThat(store.browse("", call()).entries()).containsExactly(
+        new SecretStores.VaultEntry("kv", "kv", true), new SecretStores.VaultEntry("kv1", "kv1", true));
+    assertThat(store.browse("kv", call()).entries()).containsExactly(
+        new SecretStores.VaultEntry("stage", "kv/stage", true));
+    SecretStores.VaultBrowse folder = store.browse("kv/stage", call());
+    assertThat(folder.path()).isEqualTo("kv/stage");
+    assertThat(folder.unsupportedEntries()).isZero();
+    assertThat(folder.entries()).containsExactly(new SecretStores.VaultEntry("db", "kv/stage/db", true),
+        new SecretStores.VaultEntry("db", "kv/stage/db", false));
+    assertThat(store.browse("kv1", call()).entries()).containsExactly(
+        new SecretStores.VaultEntry("app", "kv1/app", false));
+    assertThat(vault.to("kv/metadata/")).extracting(RecordedRequest::getMethod).containsOnly("LIST");
+    assertThat(vault.to("kv1/")).extracting(RecordedRequest::getMethod).containsExactly("LIST");
+    assertThat(vault.to("kv/data/")).isEmpty();
+    assertThat(vault.issued.get()).isZero();
+    assertThat(folder.toString()).doesNotContain(FakeVault.DB_PASSWORD, FakeVault.SECRET_ID, vault.token(1));
+    assertThat(vault.to("kv/metadata/").getFirst().getHeaders().get("X-Vault-Token")).isEqualTo(vault.token(1));
+  }
+
+  @Test
+  void browsingExplainsListPermissionAndHandlesEmptyFolders() {
+    assertThatThrownBy(() -> store.browse("kv/forbidden", call()))
+        .isInstanceOfSatisfying(StoreException.class, e -> assertThat(e.reason()).isEqualTo(StoreException.Reason.DENIED))
+        .hasMessageContainingAll("list kv/metadata/forbidden", "Grant list permission", "manually");
+    assertThat(store.browse("kv/empty", call()).entries()).isEmpty();
+    assertThatThrownBy(() -> store.browse("database", call()))
+        .hasMessage("Choose a KV secrets engine to browse stored secrets.");
+    assertThat(vault.issued.get()).isZero();
+    assertThat(vault.to("database/")).isEmpty();
+  }
+
+  @Test
+  void browsingRejectsUnsafeRequestsAndOmitsUnsupportedNames() {
+    for (String path : List.of("/kv", "kv/", "kv//stage", "kv/../stage", "kv/./stage", "kv/%2e%2e", "kv/x?list=true",
+        "kv/x#key", "kv/a b", "kv/é", "kv/" + "a".repeat(129), "vault://kv/stage")) {
+      assertThatThrownBy(() -> store.browse(path, call())).as(path).isInstanceOf(StoreException.class);
+    }
+    assertThatThrownBy(() -> store.browse(null, call())).isInstanceOf(StoreException.class);
+    assertThat(vault.requests).isEmpty();
+    vault.listings.put("kv/metadata/unsafe", "[\"../escape\",\".\",\"/root\",\"foo/bar\",\"x?y\",\"with space\","
+        + "\"password\",\"folder/\"]");
+    SecretStores.VaultBrowse mixed = store.browse("kv/unsafe", call());
+    assertThat(mixed.unsupportedEntries()).isEqualTo(6);
+    assertThat(mixed.entries()).containsExactly(new SecretStores.VaultEntry("folder", "kv/unsafe/folder", true),
+        new SecretStores.VaultEntry("password", "kv/unsafe/password", false));
+    vault.mountListing = "{\"kv/\":{\"type\":\"kv\"},\"with space/\":{\"type\":\"kv\"},"
+        + "\"team/kv/\":{\"type\":\"kv\"},\"database/\":{\"type\":\"database\"}}";
+    SecretStores.VaultBrowse engines = store.browse("", call());
+    assertThat(engines.unsupportedEntries()).isEqualTo(1);
+    assertThat(engines.entries()).containsExactly(new SecretStores.VaultEntry("kv", "kv", true),
+        new SecretStores.VaultEntry("team/kv", "team/kv", true));
+    vault.listings.put("kv/metadata/unsafe", "[7]");
+    assertThatThrownBy(() -> store.browse("kv/unsafe", call())).hasMessage("Vault returned an invalid folder listing.");
+    assertThat(vault.to("kv/data/")).isEmpty();
+  }
+
+  @Test
+  void browsingBoundsFolderAndMountEntryCounts() {
+    var json = JsonMapper.builder().build();
+    var keys = json.createArrayNode();
+    var mounts = json.createObjectNode();
+    for (int i = 0; i < 1000; i++) {
+      keys.add("secret-" + i);
+      mounts.putObject("kv-" + i + "/").put("type", "kv");
+    }
+    vault.listings.put("kv/metadata/large", keys.toString());
+    assertThat(store.browse("kv/large", call()).entries()).hasSize(1000);
+    vault.mountListing = mounts.toString();
+    assertThat(store.browse("", call()).entries()).hasSize(1000);
+    keys.add("one-too-many");
+    mounts.putObject("one-too-many/").put("type", "kv");
+    vault.listings.put("kv/metadata/large", keys.toString());
+    vault.mountListing = mounts.toString();
+    assertThatThrownBy(() -> store.browse("kv/large", call()))
+        .hasMessageContainingAll("more than 1000 entries", "narrower folder");
+    assertThatThrownBy(() -> store.browse("", call()))
+        .hasMessageContainingAll("more than 1000 entries", "narrower folder");
+  }
+
+  @Test
   void readsAKeyOfAKvV2SecretWithItsVersion() {
     try (RemoteValue v = read("vault://kv/stage/db#password")) {
       assertThat(new String(v.value(), StandardCharsets.UTF_8)).isEqualTo(FakeVault.DB_PASSWORD);

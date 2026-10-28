@@ -12,6 +12,7 @@ import { lowerFirst } from './messages';
 import { REFERENCE_SOURCES, SchemaForm } from './schema-form';
 import { referencePlaceholder, sourceCopy } from './secret-sources';
 import { GwTagsInput } from './tags-input';
+import { GwVaultPicker } from './vault-picker';
 
 const join = (...ids: (string | null | undefined)[]) => ids.filter(Boolean).join(' ') || null;
 
@@ -25,7 +26,7 @@ const join = (...ids: (string | null | undefined)[]) => ids.filter(Boolean).join
  */
 @Component({
   selector: 'gw-schema-field',
-  imports: [NgTemplateOutlet, FormField, LucideDynamicIcon, GwSecret, GwTagsInput, GwCodeEditor, forwardRef(() => GwSchemaFields)],
+  imports: [NgTemplateOutlet, FormField, LucideDynamicIcon, GwSecret, GwTagsInput, GwCodeEditor, GwVaultPicker, forwardRef(() => GwSchemaFields)],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './field.html',
 })
@@ -229,7 +230,8 @@ export class GwSchemaField {
 
   protected testReference(): void {
     const ref = this.form().secretReference(this.node());
-    this.form().emit({ kind: 'test', node: this.node(), ref: ref || (this.storedSecret()?.name ?? '') });
+    const store = this.form().secretStore(this.node());
+    this.form().emit({ kind: 'test', node: this.node(), ref: ref || (this.storedSecret()?.name ?? ''), ...(store ? { store } : {}) });
   }
 
   protected saveSecret(value: string): void {

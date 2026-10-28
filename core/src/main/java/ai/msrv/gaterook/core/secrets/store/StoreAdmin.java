@@ -420,6 +420,28 @@ public final class StoreAdmin implements SecretOwners {
     }
   }
 
+  /** Read-only folder browsing with the connected store's verified settings and existing sign-in. */
+  public SecretStores.VaultBrowse browseVault(String idOrName, String path) {
+    StoreClients.Row row = readTx.execute(s -> clients.row(find(idOrName)));
+    if (row.kind() != StoreKind.VAULT) {
+      throw ProblemException.unprocessable("Choose a Vault store", "Only Vault and OpenBao stores support this "
+          + "browser.", null);
+    }
+    Taint scratch = new Taint();
+    try {
+      VaultStore vault = (VaultStore) clients.client(row);
+      return vault.browse(path, StoreCall.within(scratch::add, TEST_BUDGET, clock));
+    } catch (StoreException e) {
+      if (e.reason() == StoreException.Reason.NOT_FOUND || e.reason() == StoreException.Reason.GONE) {
+        throw ProblemException.notFound("Vault path not found", e.getMessage());
+      }
+      throw ProblemException.unprocessable(e.reason() == StoreException.Reason.DENIED ? "Vault access denied"
+          : "Couldn't browse Vault", e.getMessage(), "/path");
+    } finally {
+      scratch.clear();
+    }
+  }
+
   /** Replace reference ({@code PUT /api/secrets/{id}/reference}). */
   public SecretInfo replaceReference(String secretId, String uri, String storeName, String reason) {
     SecretRef ref = StoreBinding.parse(uri, "/uri");

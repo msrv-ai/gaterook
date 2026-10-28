@@ -1451,7 +1451,7 @@ The schema-driven Configure step of Add connection (PostgreSQL demo), also the f
 **States and behavior:**
 
 - new connection, Encrypted here (gw-secret empty, reveal only while typing a new value)
-- reference source, new (mono reference input + Test reference)
+- reference source, new (mono reference input + Test reference); Vault also offers Browse Vault, an editable Folder with Load secrets and a native Secret or folder select, plus Load keys and a native Key in Vault select. The list contains names only; choosing a key updates the reference fragment while preserving a pinned version. Editing the path clears the list, and loading, empty, and permission errors stay beside the picker.
 - secret reference, tested (gw-secret reference well, Vault KV, stage-db)
 - short-lived Vault dynamic credentials (User field hidden, reference well with the role, prod-replica)
 - stored password in the edit view (gw-secret stored: Encrypted · version 3, Replace / Rotate, no reveal)

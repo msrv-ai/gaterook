@@ -87,6 +87,13 @@ export interface SecretReference {
 
 export type SecretStoreKind = 'vault' | 'gcp-sm' | 'aws-sm';
 
+/** Immediate children of a Vault KV folder, or visible KV mounts for the empty path. No secret values. */
+export interface VaultBrowse {
+  readonly path: string;
+  readonly entries: readonly { readonly name: string; readonly path: string; readonly directory: boolean }[];
+  readonly unsupportedEntries?: number;
+}
+
 /** A secret that points into a store: a reference or Vault dynamic credentials (`kind`). */
 export interface SecretStoreReference {
   readonly secretId: string;
@@ -236,6 +243,10 @@ export class SecretsApi {
 
   stores(): Promise<SecretStore[]> {
     return this.api.get('/api/secret-stores');
+  }
+
+  browseVault(store: string, path: string): Promise<VaultBrowse> {
+    return this.api.post(ApiClient.path`/api/secret-stores/${store}/vault/browse`, { path });
   }
 
   /** Connects a store; references of its kind without a store are bound to it (S1). */

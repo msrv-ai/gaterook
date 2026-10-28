@@ -32,6 +32,7 @@ import tools.jackson.databind.JsonNode;
 @RegisterReflectionForBinding({SecretStoresController.Create.class, SecretStoresController.Update.class,
     SecretStoresController.Delete.class, SecretStoresController.Reason.class, SecretStoresController.RefTestRequest.class,
     SecretStoresController.ReplaceReference.class, SecretStoresController.Reference.class,
+    SecretStoresController.VaultBrowseRequest.class, SecretStores.VaultBrowse.class, SecretStores.VaultEntry.class,
     SecretStores.StoreInfo.class, SecretStores.Reference.class, SecretStores.SignInSecret.class,
     SecretStores.TestResult.class, SecretStores.Permission.class, SecretStores.Hint.class, SecretStores.Check.class,
     SecretStores.RefTest.class, SecretStores.Disconnected.class, SecretStores.Issued.class, SecretStores.Source.class})
@@ -66,6 +67,8 @@ class SecretStoresController {
 
   /** Test reference: {@code store} when more than one store of the kind is connected. */
   record RefTestRequest(String uri, String store) {}
+
+  record VaultBrowseRequest(String path) {}
 
   record ReplaceReference(String uri, String store, String reason) {}
 
@@ -141,6 +144,12 @@ class SecretStoresController {
   @PostMapping("/api/secret-stores/{id}/test")
   SecretStores.TestResult test(@PathVariable String id) {
     return stores.test(id);
+  }
+
+  /** Lists names in one Vault folder; selecting a secret uses Test reference to discover its keys. */
+  @PostMapping("/api/secret-stores/{id}/vault/browse")
+  SecretStores.VaultBrowse browseVault(@PathVariable String id, @RequestBody VaultBrowseRequest request) {
+    return stores.browseVault(id, request.path());
   }
 
   @PostMapping("/api/secret-stores/{id}/confirm-integrity")

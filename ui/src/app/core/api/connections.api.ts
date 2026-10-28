@@ -5,7 +5,7 @@ import { Env, Iso, JsonObject, JsonValue, ToolMode, WithReason } from './types';
 /** The value of one secret field of a form: typed here, sent once, never kept by the UI. */
 export type SecretInput =
   | { readonly source: 'local'; readonly value: string }
-  | { readonly source: 'reference' | 'vault-dynamic'; readonly ref: string };
+  | { readonly source: 'reference' | 'vault-dynamic'; readonly ref: string; readonly store?: string };
 
 /** Secrets of a draft by JSON Pointer of the field (`/credentials/password`). */
 export type SecretInputs = { readonly [pointer: string]: SecretInput };
@@ -76,6 +76,7 @@ export interface StoredSecret {
   readonly state: string;
   readonly version: number | null;
   readonly source: string | null;
+  readonly store?: string | null;
   /**
    * What `GET /api/secrets` adds to the row of the same secret (the connection's detail doesn't carry it): when the
    * current version was set, and whether Rotate can issue a new value at the source (else why not).

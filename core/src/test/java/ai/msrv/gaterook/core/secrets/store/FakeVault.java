@@ -3,6 +3,7 @@ package ai.msrv.gaterook.core.secrets.store;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -39,6 +40,12 @@ public final class FakeVault implements AutoCloseable {
   public volatile long tokenTtl = 3600;
   public volatile boolean signRejectsKeyId;
   public volatile String capabilities = "[\"read\"]";
+  public final Map<String, String> listings = new ConcurrentHashMap<>(Map.of(
+      "kv/metadata/", "[\"stage/\"]", "kv/metadata/stage", "[\"db\",\"db/\"]",
+      "kv1/", "[\"app\"]"));
+  public volatile String mountListing = "{\"kv/\":{\"type\":\"kv\",\"options\":{\"version\":\"2\"}},"
+      + "\"kv1/\":{\"type\":\"kv\",\"options\":{\"version\":\"1\"}},\"database/\":{\"type\":\"database\"},"
+      + "\"ssh-client-signer/\":{\"type\":\"ssh\"}}";
 
   public FakeVault() throws IOException {
     server.setDispatcher(new Dispatcher() {
@@ -107,6 +114,9 @@ public final class FakeVault implements AutoCloseable {
       }
       return json(200, out.append("}}").toString());
     }
+    if (path.equals("/v1/sys/internal/ui/mounts")) {
+      return json(200, "{\"data\":{\"secret\":" + mountListing + "}}");
+    }
     if (path.startsWith("/v1/sys/internal/ui/mounts/")) {
       String of = path.substring("/v1/sys/internal/ui/mounts/".length());
       if (of.startsWith("kv/")) {
@@ -126,6 +136,13 @@ public final class FakeVault implements AutoCloseable {
             + "grant access to path \\\"locked/\\\"\"]}");
       }
       return json(400, "{\"errors\":[\"no mount for path\"]}");
+    }
+    if ("LIST".equals(r.getMethod())) {
+      if (path.equals("/v1/kv/metadata/forbidden")) {
+        return json(403, "{\"errors\":[\"permission denied\"]}");
+      }
+      String keys = listings.get(path.substring("/v1/".length()));
+      return keys == null ? json(404, "{\"errors\":[]}") : json(200, "{\"data\":{\"keys\":" + keys + "}}");
     }
     if (path.equals("/v1/kv/data/stage/db")) {
       if ("version=2".equals(query)) {

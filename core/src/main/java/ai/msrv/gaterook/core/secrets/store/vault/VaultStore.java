@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -68,6 +69,7 @@ public final class VaultStore implements SecretStore {
   private record Mount(String path, String type, String kvVersion) {}
 
   private static final JsonFactory JSON = JsonFactory.builder().build();
+  private static final int MAX_BROWSE_ENTRIES = 1000;
 
   private final VaultSettings settings;
   private final SignIn signIn;
@@ -102,6 +104,123 @@ public final class VaultStore implements SecretStore {
   }
 
   // ── References ──────────────────────────────────────────────────────────────────────────────────────────────
+
+  /** Lists only immediate child names; it never reads secret payloads or issues dynamic credentials. */
+  public SecretStores.VaultBrowse browse(String path, StoreCall call) {
+    if (path == null || !path.isEmpty() && !browsePath(path)) {
+      throw StoreException.invalid("Enter a Vault folder without leading or trailing slashes, spaces or query "
+          + "parameters, or leave it empty to list secrets engines.");
+    }
+    if (path.isEmpty()) {
+      return browseMounts(call);
+    }
+    Mount mount = mount(path + "/", call);
+    if (!mount.type().equals("kv")) {
+      throw StoreException.invalid("Choose a KV secrets engine to browse stored secrets.");
+    }
+    String rest = (path + "/").substring(mount.path().length());
+    if (rest.endsWith("/")) {
+      rest = rest.substring(0, rest.length() - 1);
+    }
+    String apiPath = mount.path() + ("2".equals(mount.kvVersion()) ? "metadata/" : "") + rest;
+    try (VaultHttp.Response r = authorized(t -> http.send("LIST", apiPath, null, t, call), call)) {
+      if (r.status() == 403) {
+        throw StoreException.denied("The gateway's token can't list " + apiPath + ". Grant list permission on "
+            + "this path, or enter the secret reference manually.");
+      }
+      if (r.status() == 404) {
+        // Vault uses 404 for an empty folder as well as an absent one.
+        return new SecretStores.VaultBrowse(path, List.of(), 0);
+      }
+      if (!r.ok()) {
+        throw failure("list " + apiPath, r);
+      }
+      JsonNode keys = r.tree("data", "keys");
+      if (!keys.isArray()) {
+        throw StoreException.unavailable("Vault returned an invalid folder listing.", null);
+      }
+      checkBrowseSize(keys.size());
+      List<SecretStores.VaultEntry> entries = new ArrayList<>();
+      int unsupported = 0;
+      for (JsonNode key : keys) {
+        if (!key.isString()) {
+          throw StoreException.unavailable("Vault returned an invalid folder listing.", null);
+        }
+        String name = key.asString();
+        boolean directory = name.endsWith("/");
+        if (directory) {
+          name = name.substring(0, name.length() - 1);
+        }
+        String child = path + "/" + name;
+        if (!SecretRef.VAULT_SEGMENT.matcher(name).matches() || !browsePath(child)) {
+          unsupported++;
+          continue;
+        }
+        entries.add(new SecretStores.VaultEntry(name, child, directory));
+      }
+      return browseResult(path, entries, unsupported);
+    }
+  }
+
+  private SecretStores.VaultBrowse browseMounts(StoreCall call) {
+    try (VaultHttp.Response r = authorized(t -> http.send("GET", "sys/internal/ui/mounts", null, t, call), call)) {
+      if (r.status() == 403) {
+        throw StoreException.denied("The gateway's token can't list Vault secrets engines. Enter a known folder "
+            + "or secret reference manually.");
+      }
+      if (!r.ok()) {
+        throw failure("list secrets engines", r);
+      }
+      JsonNode engines = r.tree("data", "secret");
+      if (!engines.isObject()) {
+        throw StoreException.unavailable("Vault returned an invalid secrets engine listing.", null);
+      }
+      checkBrowseSize(engines.size());
+      List<SecretStores.VaultEntry> entries = new ArrayList<>();
+      int unsupported = 0;
+      for (Map.Entry<String, JsonNode> engine : engines.properties()) {
+        if (!engine.getValue().path("type").asString("").equals("kv")) {
+          continue;
+        }
+        String path = engine.getKey();
+        if (path.endsWith("/")) {
+          path = path.substring(0, path.length() - 1);
+        }
+        if (!browsePath(path)) {
+          unsupported++;
+          continue;
+        }
+        entries.add(new SecretStores.VaultEntry(path, path, true));
+      }
+      return browseResult("", entries, unsupported);
+    }
+  }
+
+  private static boolean browsePath(String path) {
+    if (path.isEmpty() || path.length() + "vault://".length() > SecretRef.MAX_LENGTH) {
+      return false;
+    }
+    for (String segment : path.split("/", -1)) {
+      if (segment.equals(".") || segment.equals("..") || !SecretRef.VAULT_SEGMENT.matcher(segment).matches()) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private static void checkBrowseSize(int size) {
+    if (size > MAX_BROWSE_ENTRIES) {
+      throw StoreException.invalid("Vault returned more than " + MAX_BROWSE_ENTRIES + " entries. Enter a narrower "
+          + "folder or the secret reference manually.");
+    }
+  }
+
+  private static SecretStores.VaultBrowse browseResult(String path, List<SecretStores.VaultEntry> entries,
+      int unsupported) {
+    return new SecretStores.VaultBrowse(path, entries.stream().distinct()
+        .sorted(Comparator.comparing(SecretStores.VaultEntry::directory).reversed()
+            .thenComparing(SecretStores.VaultEntry::name)).toList(), unsupported);
+  }
 
   @Override
   public RemoteValue read(SecretRef reference, StoreCall call) {

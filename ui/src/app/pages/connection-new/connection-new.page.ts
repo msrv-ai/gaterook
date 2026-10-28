@@ -653,7 +653,7 @@ export class ConnectionNewPage {
   private enrich(secrets: readonly StoredSecret[], rows: readonly SecretRow[]): StoredSecret[] {
     return secrets.map((s) => {
       const row = rows.find((r) => r.id === s.secretId);
-      return row ? { ...s, updatedAt: row.rotatedAt, canRotate: row.canRotate, rotateReason: row.rotateReason } : s;
+      return row ? { ...s, store: row.store, updatedAt: row.rotatedAt, canRotate: row.canRotate, rotateReason: row.rotateReason } : s;
     });
   }
 
@@ -1329,7 +1329,7 @@ export class ConnectionNewPage {
       this.rotating.set({ secretId: action.secretId, word, version: s?.version ?? null, key: s?.name?.split('/').at(-1) ?? word });
       this.rotateDialog()?.openAfterRender();
     } else {
-      void this.testReference(action.ref);
+      void this.testReference(action.ref, action.store);
     }
   }
 
@@ -1385,14 +1385,14 @@ export class ConnectionNewPage {
     }
   }
 
-  private async testReference(ref: string): Promise<void> {
+  private async testReference(ref: string, store?: string): Promise<void> {
     const name = this.name() ?? this.current().name;
     if (!ref) {
       this.toasts.show({ tone: 'warning', title: 'Enter the reference first', body: 'Paste the reference from the store, then test it.' });
       return;
     }
     try {
-      const r = await this.secretsApi.testReference(ref);
+      const r = await this.secretsApi.testReference(ref, store);
       this.toasts.show(
         r.found
           ? { tone: 'success', title: `Reference of ${name} works`, body: `Found${r.resolvedVersion ? ` version ${r.resolvedVersion}` : ''}. The value was neither shown nor kept.` }

@@ -35,7 +35,7 @@ export function storedReference(secret: StoredSecret): boolean {
 export type SecretAction =
   | { readonly kind: 'save'; readonly node: SchemaNode; readonly secretId: string | null; readonly value: string }
   | { readonly kind: 'rotate'; readonly node: SchemaNode; readonly secretId: string | null }
-  | { readonly kind: 'test'; readonly node: SchemaNode; readonly ref: string };
+  | { readonly kind: 'test'; readonly node: SchemaNode; readonly ref: string; readonly store?: string };
 
 export interface SchemaFormOptions {
   /** Ids of the controls: `<prefix>-connection-host` (and `-hint`, `-err`); distinct per form on a page. */
@@ -95,6 +95,8 @@ export class SchemaForm {
   readonly source = signal('local');
   /** What is typed into each secret field: a value (`local`) or a reference URI / role. */
   readonly secrets = signal<Readonly<Record<string, string>>>({});
+  /** Explicit Vault store choices, separate from reference text and from secret values. */
+  readonly vaultStores = signal<Readonly<Record<string, string>>>({});
   /** Stored secrets the user chose to replace (their field shows the editing state). */
   readonly replacing = signal<ReadonlySet<string>>(new Set());
   /** Collapsed sections (`x-collapsed`) the user, or an error inside, opened. */
@@ -350,6 +352,12 @@ export class SchemaForm {
     return completeReference(this.source(), this.secrets()[node.pointer] ?? '');
   }
 
+  secretStore(node: SchemaNode): string | undefined {
+    if (this.source() !== 'vault') return undefined;
+    const stored = this.stored.get(node.pointer);
+    return this.vaultStores()[node.pointer] ?? (stored?.source === 'vault' ? stored.store ?? undefined : undefined);
+  }
+
   /**
    * The stored secrets after the page changed one (a replaced value is version N+1, a new reference): the fields
    * whose secret changed leave the editing state and forget what was typed; the rest of the form stays as edited.
@@ -370,6 +378,11 @@ export class SchemaForm {
       for (const f of changed) delete out[f];
       return out;
     });
+    this.vaultStores.update((stores) => {
+      const next = { ...stores };
+      for (const field of changed) delete next[field];
+      return next;
+    });
   }
 
   replace(node: SchemaNode, on: boolean): void {
@@ -379,7 +392,10 @@ export class SchemaForm {
       else next.delete(node.pointer);
       return next;
     });
-    if (!on) this.setSecret(node, '');
+    if (!on) {
+      this.setSecret(node, '');
+      this.vaultStores.update((stores) => omit(stores, node.pointer));
+    }
     this.focusSecret(node, on);
   }
 
@@ -409,7 +425,8 @@ export class SchemaForm {
       const typed = this.secrets()[node.pointer]?.trim() ?? '';
       if (!typed) continue;
       out[node.pointer] = reference
-        ? { source: this.source() === 'dynamic' ? 'vault-dynamic' : 'reference', ref: this.secretReference(node) }
+        ? { source: this.source() === 'dynamic' ? 'vault-dynamic' : 'reference', ref: this.secretReference(node),
+          ...(this.secretStore(node) ? { store: this.secretStore(node) } : {}) }
         : { source: 'local', value: this.secrets()[node.pointer] };
     }
     return out;
@@ -545,6 +562,7 @@ export class SchemaForm {
   reset(current: JsonObject | null, schema: JsonObject): void {
     this.model.set(this.blankText(initialValue(schema, current, current ? null : untracked(this.envState))));
     this.secrets.set({});
+    this.vaultStores.set({});
     this.replacing.set(new Set());
     this.jsonText.set({});
     this.jsonErrors.set({});
