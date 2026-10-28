@@ -174,6 +174,11 @@ public final class GcpConnector implements Connector {
   }
 
   @Override
+  public TestResult discoverProjects(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
+    return logs.discoverProjects(cfg, secrets, ctx);
+  }
+
+  @Override
   public HealthResult health(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
     try {
       Settings s = Settings.parse(cfg);

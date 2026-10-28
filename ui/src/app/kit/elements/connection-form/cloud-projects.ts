@@ -36,6 +36,7 @@ export class GwCloudProjects {
   readonly type = input.required<string>();
   readonly stored = input<readonly StoredSecret[]>([]);
   readonly idPrefix = input.required<string>();
+  readonly title = input('Projects and log views');
   readonly discover = output<ProjectDiscoveryRequest>();
 
   private readonly key = computed(() => {

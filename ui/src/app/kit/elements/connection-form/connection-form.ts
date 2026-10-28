@@ -232,6 +232,11 @@ export class GwConnectionForm {
   readonly discoverDatabases = output<DatabaseDiscoveryRequest>();
   readonly discoverProjects = output<ProjectDiscoveryRequest>();
   readonly projects = viewChild(GwCloudProjects);
+  protected readonly projectTitle = computed(() => {
+    const marker = this.spec().schema['x-project-selection'];
+    return marker && typeof marker === 'object' && !Array.isArray(marker) && typeof marker['title'] === 'string'
+      ? marker['title'] : 'Projects and log views';
+  });
   protected readonly projectNode = computed(() => {
     const marker = this.spec().schema['x-project-selection'];
     if (!marker || typeof marker !== 'object' || Array.isArray(marker) || typeof marker['path'] !== 'string') return null;

@@ -17,6 +17,13 @@ class GcpConfigSchemaTest {
       .getSchema(SchemaResources.of(GcpConnector.class, "gcp").load("config"));
 
   @Test
+  void projectSelectionEditsTheResourceScopes() {
+    JsonNode schema = SchemaResources.of(GcpConnector.class, "gcp").load("config");
+    assertThat(schema.at("/x-project-selection/path").asString()).isEqualTo("/scopes");
+    assertThat(schema.at("/x-project-selection/title").asString()).isEqualTo("Projects, folders or organizations");
+  }
+
+  @Test
   void resourceScopesRequireTheirProjectFolderOrOrganizationPrefix() {
     for (String scope : List.of("projects/example-stage", "projects/123456789012", "folders/123456",
         "organizations/456789")) {

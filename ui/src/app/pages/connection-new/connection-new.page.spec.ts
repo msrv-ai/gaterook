@@ -527,16 +527,23 @@ describe('connection-specific tool preview', () => {
   });
 });
 
-describe('Google Cloud Logging project discovery', () => {
-  it('uses the draft project API before a resource is selected and carries the selected project into test and save', async () => {
+describe('Google Cloud project discovery', () => {
+  it.each(['logs', 'gcp'])('carries a discovered %s project through the draft API, test and save', async (type) => {
     cloudLogging();
+    if (type === 'gcp') {
+      core.spec = { ...core.spec, type: 'gcp', name: 'GCP', schema: CONNECTOR_FORMS['gcp'] };
+      core.catalog = { groups: [{ name: 'Cloud', cards: [{ ...structuredClone(CATALOG.groups[0].cards[0]),
+        type: 'gcp', variant: null, name: 'GCP', presetConfig: null,
+      }] }], installed: [] };
+    }
+    const scopeField = type === 'gcp' ? 'scopes' : 'resourceNames';
     const p = await open('/connections/new#step-2');
-    await p.type('cf-name', 'dev-logs');
+    await p.type('cf-name', 'dev-cloud');
     p.button('Load projects').click();
     await p.settle();
     expect(core.projectRequests).toHaveLength(1);
-    expect(core.projectRequests[0]).toMatchObject({ type: 'logs', env: 'dev', config: {
-      backend: 'gcp-logging', credentials: { source: 'adc' },
+    expect(core.projectRequests[0]).toMatchObject({ type, env: 'dev', config: {
+      ...(type === 'logs' ? { backend: 'gcp-logging' } : {}), credentials: { source: 'adc' },
     }, secrets: {} });
     expect(core.created).toEqual([]);
     const select = p.q<HTMLSelectElement>('#cf-project-select')!;
@@ -546,12 +553,14 @@ describe('Google Cloud Logging project discovery', () => {
     p.button('Continue', p.q('#cf-form')!).click();
     await p.settle();
     expect(p.visible()).toEqual(['step-3']);
-    expect(core.tests[0].config['resourceNames']).toEqual(['projects/example-dev']);
+    expect(core.tests[0].type).toBe(type);
+    expect(core.tests[0].config[scopeField]).toEqual(['projects/example-dev']);
     p.button('Continue', p.q('#step-3')!).click();
     await p.settle();
     p.button('Save connection', p.q('#step-4')!).click();
     await p.settle();
-    expect(core.created[0].config['resourceNames']).toEqual(['projects/example-dev']);
+    expect(core.created[0].type).toBe(type);
+    expect(core.created[0].config[scopeField]).toEqual(['projects/example-dev']);
   });
 
   it('ignores a late project list after a credential change and retries an API failure', async () => {
