@@ -17,7 +17,6 @@ import { GwGeneralSettings } from './general.section';
 import { GwLocalApiSettings } from './local-api.section';
 import { GwNotificationsSettings } from './notifications.section';
 import { SettingsData } from './settings.data';
-import { GwTunnelSettings } from './tunnel.section';
 import { GwUsersSettings } from './users.section';
 
 /** The first render waits this long before it shows placeholders (kit: "when it takes longer than 300 ms"). */
@@ -26,11 +25,11 @@ export const SKELETON_DELAY_MS = 300;
 /** The sections of the settings nav (`/settings/<id>` → `#settings-<id>`). */
 export const SECTION_IDS: ReadonlySet<string> = new Set(SETTINGS_GROUPS.flatMap((g) => g.items.map((i) => i.id)));
 
-/** Anchors inside a section a link may name: `/settings/tunnel#settings-tunnel-callers`, `#settings-signed-in`. */
+/** Anchors inside a section a link may name: `/settings/local-api#st-origins`, `#settings-signed-in`. */
 const FRAGMENT = /^(settings|st)-[a-z0-9-]+$/;
 
 /**
- * Settings (design/pages/settings.html; ARCHITECTURE.md §8.4 "settings"): one page, ten sections in the kit's
+ * Settings (design/pages/settings.html; ARCHITECTURE.md §8.4 "settings"): one page with sections in the kit's
  * settings layout — a nav that marks the section on screen, each section with its own URL (`/settings/<section>`).
  * A topic that applies at once is a plain section confirmed by a toast; a topic with values to save is a form with
  * its own sticky Save bar (the kit's save model).
@@ -38,9 +37,9 @@ const FRAGMENT = /^(settings|st)-[a-z0-9-]+$/;
  * `SettingsData` loads every part on its own; the page waits only for the sections (`GET /api/settings`), shows
  * placeholders after 300 ms, says what failed with Try again and the details when the sections don't load, and that
  * the page may be out of date when a reload fails with data on screen. Parts whose step isn't in this build
- * (notifications K2, tunnel and OAuth K3, audit export K5) say so in their sections.
+ * (notifications K2, OAuth K3, audit export K5) say so in their sections.
  *
- * A link to `/settings/<section>` (and an anchor inside it, `#settings-tunnel-callers`) scrolls there once the
+ * A link to `/settings/<section>` (and an anchor inside it, `#st-origins`) scrolls there once the
  * sections are in, and on every later navigation; an unknown section goes to General. The nav follows the scroll
  * (scroll spy); the URL follows the nav, not the scroll (the kit's hash changes on a click, not while scrolling).
  */
@@ -57,7 +56,6 @@ const FRAGMENT = /^(settings|st)-[a-z0-9-]+$/;
     GwUsersSettings,
     GwNotificationsSettings,
     GwApprovalRulesSettings,
-    GwTunnelSettings,
     GwLocalApiSettings,
     GwAuditSettings,
     GwBackupSettings,
@@ -135,7 +133,7 @@ export class SettingsPage {
 
   /**
    * Brings the target into view. From the settings nav the focus stays on the item (the kit's in-page anchors do the
-   * same); from anywhere else (a link on another page, "Change in Tunnel › Callers") the keyboard goes there too.
+   * same); from anywhere else (a link on another page) the keyboard goes there too.
    */
   private go(target: string, fallback: string): void {
     const active = this.doc.activeElement;

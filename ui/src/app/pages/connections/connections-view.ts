@@ -416,7 +416,7 @@ export function deleteImpact(input: {
         .filter((u) => u.endpoint === slug && u.mode !== 'OFF')
         .map((u) => u.tool)
         .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
-      const clients = endpoints?.find((e) => e.slug === slug)?.clients ?? [];
+      const clients = (endpoints?.find((e) => e.slug === slug)?.clients ?? []).filter((client) => client !== 'claude-ai');
       return { slug, tools: [...new Set(tools)], clients: clients.length ? andList(clients.map(clientName)) : null };
     }),
     pending: (pending ?? [])

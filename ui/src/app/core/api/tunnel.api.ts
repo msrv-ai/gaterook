@@ -73,6 +73,7 @@ export interface OAuthConsent {
   readonly id: string;
   readonly code: string;
   readonly clientHost: string;
+  readonly ingress?: 'LOCAL' | 'TUNNEL';
   readonly redirectHost: string;
   readonly endpoint: string;
   readonly env: string;

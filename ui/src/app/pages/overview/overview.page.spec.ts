@@ -232,14 +232,14 @@ describe('Overview page', () => {
       expect(more.querySelectorAll('.gw-status-tile')).toHaveLength(6);
     });
 
-    it('lists the AI apps: the one to connect first, the connected ones with what they can use, claude.ai last', async () => {
+    it('lists the AI apps: the one to connect first, the connected local apps with what they can use', async () => {
       setupPage();
       const { el } = await render();
       const apps = el.querySelector('section[aria-labelledby="ov-apps-title"]')!;
       expect(apps.querySelector('ul')!.getAttribute('aria-label')).toBe('AI apps, the one to connect first');
       expect(href(byText(apps, '.gw-section__actions a', 'All AI apps'))).toBe('/clients');
       const tiles = Array.from(apps.querySelectorAll('.gw-status-tile'));
-      expect(tiles.map((t) => text(t.querySelector('.gw-status-tile__title')))).toEqual(['Cursor', 'Claude Desktop', 'Codex', 'claude.ai']);
+      expect(tiles.map((t) => text(t.querySelector('.gw-status-tile__title')))).toEqual(['Cursor', 'Claude Desktop', 'Codex']);
 
       const cursor = tile(apps, 'Cursor')!;
       // Its action is the tile's only destination: no link of its own, not interactive.
@@ -253,9 +253,7 @@ describe('Overview page', () => {
       expect(href(claude.querySelector('.gw-card__link'))).toBe('/clients#cl-cd-t');
       expect(text(claude.querySelector('.gw-status-tile__main p'))).toBe('Can use 11 connections, 3 of them prod');
       expect(text(tile(apps, 'Codex')!.querySelector('.gw-status-tile__main p'))).toBe('Can use 8 connections');
-      const web = tile(apps, 'claude.ai')!;
-      expect(text(web.querySelector('.gw-status'))).toBe('Tunnel off');
-      expect(text(web.querySelector('.gw-status-tile__main p'))).toBe('In the browser · used until 12:10');
+      expect(tile(apps, 'claude.ai')).toBeNull();
       // Antigravity isn't installed: it stays on AI apps.
       expect(tile(apps, 'Antigravity')).toBeNull();
     });

@@ -101,7 +101,7 @@ function setup(): ClientsData {
 }
 
 describe('ClientsData: loading', () => {
-  it('loads the cards, the endpoints, Codex’s entry and the manual setup; the tunnel isn’t there before K3', async () => {
+  it('loads the cards, the endpoints, Codex’s entry and the manual setup; remote access stays unloaded', async () => {
     const data = setup();
     await data.start();
     await flush();
@@ -115,7 +115,7 @@ describe('ClientsData: loading', () => {
     expect(calls).toContain('tokens dev');
     expect(data.manual().value?.url).toBe('http://127.0.0.1:7465/mcp/dev');
     expect(data.tunnel()).toBeNull();
-    expect(data.grants().unavailable).toBe(true);
+    expect(data.grants().value).toBeNull();
     expect(data.publishPreview()).toBeNull();
     expect(calls.some((c) => c.startsWith('publish-preview'))).toBe(false);
     expect(data.stale()).toBeNull();
@@ -268,29 +268,21 @@ describe('ClientsData: Disconnect, Remove bridge, Scan', () => {
   });
 });
 
-describe('ClientsData: claude.ai', () => {
-  it('with the tunnel (K3): its state, its sign-ins and what Publish would make public', async () => {
+describe('ClientsData: local access', () => {
+  it('does not load remote access on startup, refresh or tunnel events', async () => {
     const data = setup();
     answers.tunnel = () => Promise.resolve(DEMO_TUNNEL_OFF);
     answers.grants = () => Promise.resolve(DEMO_GRANTS);
     await data.start();
-    await flush();
-    expect(data.tunnel()?.state).toBe('off');
-    expect(data.published()).toBe('stage-readonly');
-    expect(data.grants().value).toHaveLength(1);
-    expect(data.publishPreview()).toEqual(DEMO_PUBLISH);
-
-    // tunnel.state: the store reads the new state first, then what Publish shows follows it.
-    calls = [];
-    answers.tunnel = () => Promise.resolve({ ...DEMO_TUNNEL_OFF, state: 'on', publicUrl: 'https://x.trycloudflare.com/mcp/stage-readonly' });
+    await data.refresh();
     events.emit('tunnel.state', { state: 'on' });
     await flush();
-    expect(data.tunnel()?.state).toBe('on');
-    expect(calls.indexOf('tunnel')).toBeLessThan(calls.indexOf('publish-preview stage-readonly'));
-
-    calls = [];
-    await data.revoke(DEMO_GRANTS[0]);
-    expect(calls[0]).toBe('revoke og_7Hc2');
+    expect(data.tunnel()).toBeNull();
+    expect(data.grants().value).toBeNull();
+    expect(data.publishPreview()).toBeNull();
+    expect(calls).not.toContain('tunnel');
+    expect(calls).not.toContain('grants');
+    expect(calls.some((c) => c.startsWith('publish-preview'))).toBe(false);
   });
 });
 
@@ -320,7 +312,7 @@ describe('ClientsData: the page’s state, as on Overview', () => {
     expect(data.stage()).toBe('in-use');
   });
 
-  it('setup: the first connection and its endpoint, its tools there, and dev as the endpoint claude.ai would publish', async () => {
+  it('setup: the first connection and its endpoint and tools', async () => {
     const data = setup();
     answers.overview = () => Promise.resolve(setupOverview());
     answers.list = () => Promise.resolve(foundClients());
@@ -334,6 +326,6 @@ describe('ClientsData: the page’s state, as on Overview', () => {
     expect(calls).toContain('tools dev');
     expect(data.firstTools()).toEqual([{ group: 'dev-db', connection: 'dev-db', env: 'dev', tools: [] }]);
     expect(data.published()).toBe('dev');
-    expect(calls).toContain('publish-preview dev');
+    expect(calls).not.toContain('publish-preview dev');
   });
 });

@@ -175,7 +175,7 @@ describe('the card for each state of the core', () => {
       ])
         .map((p) => p.text)
         .join(''),
-    ).toBe('2 MCP server tokens and the tunnel token');
+    ).toBe('2 MCP server tokens and an additional service token');
   });
 
   it('locked before /api/master-key answers: the desktop default path, nothing counted; invalid key worded apart', () => {
@@ -285,7 +285,7 @@ describe('Use another port', () => {
     expect(portError('80', 7465, 7466)).toBe('80 is outside 1024 to 65535. Use a port in that range.');
     expect(portError('70000', 7465, 7466)).toBe('70000 is outside 1024 to 65535. Use a port in that range.');
     expect(portError('7465', 7465, 7466)).toBe('7465 is the port that is in use. Choose another one.');
-    expect(portError('7466', 7465, 7466)).toBe('7466 is the tunnel’s port. Choose another one.');
+    expect(portError('7466', 7465, 7466)).toBe('7466 is reserved for an internal listener. Choose another one.');
     expect(portError(' 7475 ', 7465, 7466)).toBeNull();
     expect(portError('7466', 7465, null)).toBeNull();
   });

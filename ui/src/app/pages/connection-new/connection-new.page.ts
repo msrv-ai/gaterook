@@ -27,7 +27,6 @@ import { MasterKeyApi, SecretRow, SecretsApi } from '../../core/api/secrets.api'
 import { Env, JsonObject, JsonValue, ToolMode } from '../../core/api/types';
 import { EventStream } from '../../core/events/event-stream';
 import { CoreStore } from '../../core/stores/core.store';
-import { TunnelStore } from '../../core/stores/tunnel.store';
 import { PRODUCT } from '../../shell/title.strategy';
 import { TimeService } from '../../core/time/time.service';
 import { Announcer } from '../../kit/announcer';
@@ -154,7 +153,6 @@ export class ConnectionNewPage {
   private readonly approvalsApi = inject(ApprovalsApi);
   private readonly masterKey = inject(MasterKeyApi);
   private readonly events = inject(EventStream);
-  private readonly tunnel = inject(TunnelStore);
   protected readonly core = inject(CoreStore);
   private readonly title = inject(Title);
   private readonly router = inject(Router);
@@ -260,7 +258,7 @@ export class ConnectionNewPage {
   private chosenTouched = false;
   protected readonly saving = signal(false);
   protected readonly choices = computed<EndpointChoice[]>(() =>
-    endpointChoices(this.endpoints() ?? [], this.current(), this.tunnel.summary()),
+    endpointChoices(this.endpoints() ?? [], this.current()),
   );
   protected readonly previews = computed(() => {
     const card = this.card();

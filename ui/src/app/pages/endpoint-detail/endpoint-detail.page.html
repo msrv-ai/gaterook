@@ -299,7 +299,7 @@
                   <tbody>
                     @for (g of data.grants(); track g.id) {
                       <tr>
-                        <th scope="row">{{ g.client }}@if (g.ingress === 'TUNNEL') { <span class="gw-badge gw-badge--outline gw-badge--sm">Through the tunnel</span>}</th>
+                        <th scope="row">{{ g.client }}</th>
                         <td><time [attr.datetime]="time.iso(g.createdAt)" [title]="time.absolute(g.createdAt)">{{ time.relative(g.createdAt) }}</time></td>
                         <td>@if (g.lastUsedAt; as at) {<time [attr.datetime]="time.iso(at)" [title]="time.absolute(at)">{{ time.relative(at) }}</time>} @else {<span class="gw-fg-muted">No call yet</span>}</td>
                         <td><time [attr.datetime]="time.iso(g.expiresAt)" [title]="time.absolute(g.expiresAt)">{{ time.date(g.expiresAt) }}</time></td>
@@ -336,7 +336,7 @@
 
   <!-- Dialogs live outside the tab panels: a <dialog> inside a hidden panel would not render. -->
 
-  <gw-split-dialog #split [slug]="s.slug" [options]="splitOptions()" [clients]="splitClients()" [preview]="splitPreview()" [address]="address()" [published]="s.published" (changed)="onSplitChanged($event)" (create)="onSplitCreate($event)" />
+  <gw-split-dialog #split [slug]="s.slug" [options]="splitOptions()" [clients]="splitClients()" [preview]="splitPreview()" [address]="address()" (changed)="onSplitChanged($event)" (create)="onSplitCreate($event)" />
 
   <gw-token-issue-dialog #tokenDialog [slug]="s.slug" [address]="address()" [issued]="issued()" [error]="issueError()" [busy]="issueBusy()" (issue)="issue($event)" (done)="onIssueDone()" />
 }

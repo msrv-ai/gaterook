@@ -47,7 +47,7 @@ describe('deep links: navigation only, strictly by allowlist (§7.1)', () => {
     // The channels send `{path}` (notifications.internal Slack/TelegramChannel): a request, or the queue.
     expect(uiOpenUrl({ path: '/approvals/ap_h7hbxuq2597l' })).toBe('/approvals/ap_h7hbxuq2597l');
     expect(uiOpenUrl({ path: '/approvals' })).toBe('/approvals');
-    expect(uiOpenUrl({ path: 'settings/tunnel' })).toBe('/settings/tunnel');
+    expect(uiOpenUrl({ path: 'settings/tunnel' })).toBeNull();
     expect(uiOpenUrl({ path: '/approvals/../overview' })).toBeNull();
     expect(uiOpenUrl({ path: '/overview' })).toBeNull();
     expect(uiOpenUrl({ path: 42 } as never)).toBeNull();

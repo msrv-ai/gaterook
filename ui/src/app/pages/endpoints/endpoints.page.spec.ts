@@ -211,9 +211,8 @@ describe('Endpoints page', () => {
   it('renders the kit’s cards from the core’s endpoints', async () => {
     setup();
     const { el } = await render();
-    const tenPast12 = clockTime(at(22, '12:10:00'), false);
-    expect(text(el.querySelector('.gw-page-header__meta'))).toBe(`3 endpoints All running 1 published for claude.ai · tunnel off since ${tenPast12}`);
-    expect(el.querySelector('.gw-page-header__meta time')?.getAttribute('datetime')).toBe(at(22, '12:10:00'));
+    expect(text(el.querySelector('.gw-page-header__meta'))).toBe('3 endpoints All running');
+    expect(el.querySelector('.gw-page-header__meta time')).toBeNull();
     expect(el.querySelectorAll('.gw-page-header .gw-btn--primary')).toHaveLength(1);
 
     const dev = card(el, 'dev');
@@ -245,12 +244,12 @@ describe('Endpoints page', () => {
     expect(Array.from(menu.querySelectorAll('[role="menuitem"]')).map(text)).toEqual(['Duplicate', 'Disable', 'Delete endpoint']);
 
     const stage = card(el, 'stage-readonly');
-    expect(text(stage.querySelector('.gw-card__actions .gw-badge'))).toBe('Published for claude.ai');
-    expect(kv(stage, 'AI apps')).toBe(`ai claude.ai Tunnel off since ${tenPast12} Tunnel settings`);
-    expect(kv(stage, 'Tokens')).toBe('1 OAuth sign-in you allowed · Manage the OAuth sign-ins to stage-readonly');
+    expect(stage.querySelector('.gw-card__actions .gw-badge')).toBeNull();
+    expect(kv(stage, 'AI apps')).toBe('None · Connect your AI app to stage-readonly');
+    expect(kv(stage, 'Tokens')).toBe('None');
     expect(kv(stage, 'Approvals')).toBe('None waiting');
     expect(text(stage.querySelector('.gw-risk-callout .gw-alert__body'))).toBe(
-      'private data + untrusted content + external channel through http_get, published to the internet',
+      'private data + untrusted content + external channel through http_get',
     );
 
     const prod = card(el, 'incident-prod');

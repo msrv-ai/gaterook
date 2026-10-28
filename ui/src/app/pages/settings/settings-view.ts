@@ -153,7 +153,7 @@ export function parsePort(raw: string, current: number | null, publicPort: numbe
   const n = Number(s);
   if (n < 1024 || n > 65535) return { value: null, error: 'Use a port from 1024 to 65535.' };
   if (n === current) return { value: null, error: `The core already listens on ${n}. Enter another port.` };
-  if (n === publicPort) return { value: null, error: `${n} is the tunnel's port. Choose another one.` };
+  if (n === publicPort) return { value: null, error: `${n} is reserved by GateRook. Choose another one.` };
   return { value: n, error: null };
 }
 

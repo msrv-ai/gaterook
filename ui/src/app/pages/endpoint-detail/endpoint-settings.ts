@@ -13,7 +13,6 @@ import { RouterLink } from '@angular/router';
 import { isApiError } from '../../core/api/api-error';
 import { EndpointSettings, EndpointSettingsUpdate } from '../../core/api/endpoints.api';
 import { Env, JsonValue } from '../../core/api/types';
-import { EndpointsStore } from '../../core/stores/endpoints.store';
 import { Announcer } from '../../kit/announcer';
 import { GwCopy } from '../../kit/copy';
 import { GwSaveBar, GwSettingsLayout, GwSettingsSection, SettingsNavGroup } from '../../kit/elements/settings-layout/settings-layout';
@@ -121,7 +120,6 @@ function followSaved<T>(saved: () => T, same: (a: T, b: T) => boolean) {
 })
 export class GwEndpointSettings {
   protected readonly data = inject(EndpointDetailData);
-  private readonly store = inject(EndpointsStore);
   private readonly toasts = inject(ToastService);
   private readonly announcer = inject(Announcer);
   private readonly injector = inject(Injector);
@@ -209,10 +207,6 @@ export class GwEndpointSettings {
     return t ? activeTokens(t) : (this.data.summary()?.tokens.active ?? 0);
   });
   protected readonly oauthBusy = signal(false);
-  /** An endpoint published through the tunnel, for "like stage-readonly" (claude.ai signs in only there). */
-  protected readonly publishedExample = computed(() => (this.store.list() ?? []).find((e) => e.published && e.slug !== this.slug())?.slug ?? null);
-  protected readonly published = computed(() => this.data.summary()?.published ?? false);
-
   // ── Protocol ──────────────────────────────────────────────────────────────────────────────────────────────────
 
   protected readonly revisionHints = new Map(KNOWN_REVISIONS.map((r) => [r.rev, r.hint]));

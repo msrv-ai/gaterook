@@ -157,14 +157,10 @@ export class ClientsData {
   }
 
   start(): Promise<void> {
-    this.tunnelStore.start();
     this.unsubscribe.push(
       // An entry removed or repaired outside the app, a port that moved: the cards say it at once.
       this.events.on('clients.drift', () => void this.reloadClients(true)),
       this.events.on('audit.call', () => this.onCall()),
-      this.events.on('oauth.consent.resolved', () => void this.reloadGrants()),
-      // The store reads the new state on this event too; what Publish would show follows once it has it.
-      this.events.on('tunnel.state', () => void this.tunnelStore.refresh().then(() => this.reloadPublishPreview(true))),
     );
     return this.refresh();
   }
@@ -198,11 +194,8 @@ export class ClientsData {
     await Promise.all([
       this.part(this.clientsSignal, () => this.clientsApi.list(), failures).then(() => this.loadEntries(false)),
       this.part(this.endpointsSignal, () => this.endpointsApi.list(), failures).then(() => this.loadManual()),
-      this.part(this.grantsSignal, () => this.oauthApi.grants(), failures),
-      this.tunnelStore.refresh(),
       this.loadOverview(),
     ]);
-    await this.reloadPublishPreview(false);
     if (!this.stopped) this.staleSignal.set(failures[0] ?? null);
   }
 

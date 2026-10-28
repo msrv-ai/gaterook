@@ -38,7 +38,6 @@ export const SETTINGS_GROUPS: readonly SettingsNavGroup[] = [
   {
     label: 'Network',
     items: [
-      { id: 'tunnel', label: 'Tunnel', icon: 'globe' },
       { id: 'local-api', label: 'Local API', icon: 'server' },
     ],
   },

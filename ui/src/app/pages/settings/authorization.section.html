@@ -5,7 +5,7 @@
 <hr class="gw-divider">
 
 <section gwHowItWorks vertical heading="How authorization works" summary="Every AI app is tied to one endpoint and can be cut off at once." stepsLabel="How an AI app is authorized" persist="settings-authorization">
-  <li gwHowItWorksStep icon="log-in" heading="AI app gets a token or signs in with OAuth">Claude Desktop and Codex get a 15-minute token on the fly; Cursor, Antigravity and MCP Inspector send a named token; claude.ai signs in with OAuth 2.1 through the tunnel.</li>
+  <li gwHowItWorksStep icon="log-in" heading="AI app gets a token or signs in with OAuth">Claude Desktop and Codex get a 15-minute token on the fly; Cursor, Antigravity and MCP Inspector use a named token or a local browser sign-in.</li>
   <li gwHowItWorksStep icon="waypoints" heading="Token is bound to one endpoint">@if (tokensEndpoint(); as ep) {A token for <code class="gw-code">{{ ep }}</code> can't call another endpoint.} @else {A token for one endpoint can't call another.} Only its hash is stored.</li>
   <li gwHowItWorksStep icon="shield" heading="Policy decides: allow, approval or deny">Each call is checked against the tool's mode and the environment's limits.</li>
   <li gwHowItWorksStep icon="ban" heading="Revoke any time">The next call with a revoked token is refused. Nothing to restart.</li>
@@ -30,7 +30,7 @@
       </div>
       <!-- Server mode only. Not a disabled switch: on the desktop there is nothing to set, so the row says why. -->
       <dl class="gw-kv">
-        <div class="gw-kv__row"><dt class="gw-kv__key">IP allowlist</dt><dd class="gw-kv__value">Server mode only. On the desktop the core accepts calls from this computer alone, so an address list would have nothing to filter. claude.ai is limited to Anthropic's addresses in <a class="gw-link" routerLink="/settings/tunnel" fragment="settings-tunnel-callers">Tunnel</a>.</dd></div>
+        <div class="gw-kv__row"><dt class="gw-kv__key">IP allowlist</dt><dd class="gw-kv__value">Server mode only. On the desktop the core accepts calls from this computer alone, so an address list would have nothing to filter.</dd></div>
       </dl>
       @let exp = expiring();
       @if (exp.length === 1) {
@@ -52,32 +52,10 @@
   <!-- The saved value is the core's (CIMD by default); picking DCR shows its warning. -->
   <form class="gw-form__section" id="st-oauth" method="dialog" novalidate aria-labelledby="st-oauth-t" (submit)="saveOauth($event)" (reset)="discardOauth($event)">
     <header class="gw-form__section-header">
-      <h3 class="gw-form__legend" id="st-oauth-t">OAuth 2.1 for claude.ai</h3>
-      <p class="gw-form__description">claude.ai runs in the cloud, so instead of a pasted token it signs in with OAuth through the tunnel. @if (published(); as ep) {It reaches endpoint <span class="gw-mono">{{ ep }}</span> only.} @else {It reaches only the endpoint you publish for it.}</p>
+      <h3 class="gw-form__legend" id="st-oauth-t">OAuth 2.1</h3>
+      <p class="gw-form__description">AI apps on this computer can sign in through your browser. Each sign-in grants access to one endpoint.</p>
     </header>
     <div class="gw-form__rows">
-      <div class="gw-field">
-        <span class="gw-field__label" id="st-issuer-l">Issuer URL</span>
-        @if (issuer(); as url) {
-          <div class="gw-copy-field" role="group" aria-labelledby="st-issuer-l" aria-describedby="st-issuer-hint">
-            <code class="gw-copy-field__value" id="st-issuer" [attr.title]="url">{{ url }}</code>
-            <button class="gw-btn gw-btn--sm gw-copy-field__button" type="button" gwCopyFrom="#st-issuer">
-              <span class="gw-copy-field__copy"><svg lucideIcon="copy" class="gw-icon gw-icon--sm"></svg> Copy<span class="gw-sr-only"> issuer URL</span></span>
-              <span class="gw-copy-field__copied"><svg lucideIcon="check" class="gw-icon gw-icon--sm"></svg> Copied</span>
-            </button>
-          </div>
-        } @else {
-          <p class="gw-text-small gw-fg-secondary" aria-describedby="st-issuer-hint">None yet: the issuer is the tunnel's public address, and the tunnel has none.</p>
-        }
-        <p class="gw-field__hint" id="st-issuer-hint">The tunnel's public address. claude.ai finds the metadata at <span class="gw-mono">/.well-known/oauth-protected-resource</span> from the endpoint URL.</p>
-      </div>
-      @if (!tunnelOn()) {
-        <div class="gw-alert gw-alert--warning gw-alert--compact" id="st-oauth-off">
-          <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
-          <div class="gw-alert__content"><p class="gw-alert__body">@if (tunnelUnavailable()) {This version of the app has no tunnel yet, so claude.ai can't reach this issuer.} @else {The tunnel is off, so claude.ai can't reach this issuer.}</p></div>
-          <div class="gw-alert__actions"><a class="gw-btn gw-btn--link" routerLink="/settings/tunnel">Set up tunnel</a></div>
-        </div>
-      }
       <fieldset class="gw-field">
         <legend class="gw-field__label">Client registration</legend>
         <div class="gw-grid gw-grid--auto">
@@ -92,7 +70,7 @@
             <input class="gw-choice-card__input" type="radio" value="cimd+dcr" [formField]="oauthForm.registration" aria-labelledby="st-reg-dcr-t" aria-describedby="st-reg-dcr-d">
             <span class="gw-choice-card__icon"><svg lucideIcon="list-plus" class="gw-icon"></svg></span>
             <span class="gw-choice-card__title" id="st-reg-dcr-t">Dynamic client registration <span class="gw-badge gw-badge--warning gw-badge--sm">Deprecated</span></span>
-            <span class="gw-choice-card__description" id="st-reg-dcr-d">Each client registers itself and gets a client ID the gateway stores. While the tunnel is on, any client that reaches the public URL can register. Only for clients without CIMD.</span>
+            <span class="gw-choice-card__description" id="st-reg-dcr-d">Each client registers itself and gets a client ID the gateway stores. Only for clients without CIMD.</span>
             <span class="gw-choice-card__meta">Deprecated in MCP 2026-07-28</span>
           </label>
         </div>
@@ -100,13 +78,12 @@
       @if (dcr()) {
         <div class="gw-alert gw-alert--warning gw-alert--compact" id="st-reg-dcr-warn">
           <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
-          <div class="gw-alert__content"><p class="gw-alert__body">With dynamic registration, any client that reaches the public URL can register while the tunnel is on. It still gets no token until you allow its sign-in on this computer.</p></div>
+          <div class="gw-alert__content"><p class="gw-alert__body">With dynamic registration, any client on this computer can register. It still gets no token until you allow its sign-in on this computer.</p></div>
         </div>
       }
       <dl class="gw-kv gw-kv--dense">
         <div class="gw-kv__row"><dt class="gw-kv__key">PKCE</dt><dd class="gw-kv__value"><span class="gw-mono">S256</span>, always required</dd></div>
-        <div class="gw-kv__row"><dt class="gw-kv__key">Token audience</dt><dd class="gw-kv__value">The endpoint URL: @if (published(); as ep) {a token for <span class="gw-mono">{{ ep }}</span> works nowhere else} @else {a token for one endpoint works nowhere else}</dd></div>
-        <div class="gw-kv__row"><dt class="gw-kv__key">Callers</dt><dd class="gw-kv__value"><span id="st-oauth-callers">{{ anthropicOnly() ? 'Anthropic IP ranges only' : 'Any address; sign-in still waits for you' }}</span> · <a class="gw-link" routerLink="/settings/tunnel" fragment="settings-tunnel-callers">Change in Tunnel<span class="gw-sr-only"> › Callers</span></a></dd></div>
+        <div class="gw-kv__row"><dt class="gw-kv__key">Token audience</dt><dd class="gw-kv__value">The local endpoint URL: a token for one endpoint works nowhere else</dd></div>
         <div class="gw-kv__row"><dt class="gw-kv__key">Consent</dt><dd class="gw-kv__value">Each new sign-in waits until you allow it on this computer, with a code to match; no answer in 5 min denies</dd></div>
       </dl>
       @if (oauthError(); as err) {
@@ -126,11 +103,11 @@
       } @else {
         <h3 class="gw-form__legend" id="st-grants-t">Signed in</h3>
       }
-      <p class="gw-form__description">OAuth sign-ins you allowed. They outlive the tunnel: revoke one to cut it off before the tunnel is on again.</p>
+      <p class="gw-form__description">OAuth sign-ins you allowed for AI apps on this computer. Revoke one to cut off its access.</p>
     </header>
     <div class="gw-form__rows">
       @if (data.grants().unavailable) {
-        <p class="gw-text-small gw-fg-secondary">Sign-ins aren't listed in this build: it has no OAuth sign-in for claude.ai yet.</p>
+        <p class="gw-text-small gw-fg-secondary">Sign-ins aren't listed in this build.</p>
       } @else if (data.grants().error) {
         <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
           <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
@@ -144,7 +121,7 @@
             <tbody>
               @for (g of grants(); track g.id) {
                 <tr>
-                  <th scope="row">{{ g.client }}@if (g.state === 'address-changed') { <span class="gw-text-caption gw-fg-muted">· the public address changed</span>}</th>
+                  <th scope="row">{{ g.client }}@if (g.state === 'address-changed') { <span class="gw-text-caption gw-fg-muted">· the address changed</span>}</th>
                   <td class="gw-table__cell--mono">{{ g.endpoint ?? 'a removed endpoint' }}</td>
                   <td><time [attr.datetime]="time.iso(g.createdAt)" [attr.title]="time.absolute(g.createdAt, false)">{{ allowedAt(g.createdAt) }}</time>, by you</td>
                   <td>@if (g.lastUsedAt) {<time [attr.datetime]="time.iso(g.lastUsedAt)" [attr.title]="time.absolute(g.lastUsedAt)">{{ time.clock(g.lastUsedAt) }}</time>} @else {Never}</td>
@@ -156,7 +133,7 @@
           </table>
         </div>
       } @else if (data.grants().value) {
-        <p class="gw-text-small gw-fg-secondary" id="st-grants-empty" tabindex="-1">No sign-ins. claude.ai signs in again the next time you publish @if (published(); as ep) {<span class="gw-mono">{{ ep }}</span>} @else {an endpoint}, and you allow it here.</p>
+        <p class="gw-text-small gw-fg-secondary" id="st-grants-empty" tabindex="-1">No sign-ins. Connect an AI app with browser sign-in to allow its access here.</p>
       }
     </div>
   </section>
@@ -179,7 +156,7 @@
     </div>
   </section>
 
-  <div gwSaveBar formId="st-oauth" saveLabel="Save OAuth settings" what="OAuth 2.1 for claude.ai" [dirty]="oauthDirty()" [busy]="oauthBusy()"></div>
+  <div gwSaveBar formId="st-oauth" saveLabel="Save OAuth settings" what="OAuth settings" [dirty]="oauthDirty()" [busy]="oauthBusy()"></div>
 </div>
 
 <!-- Revoke one OAuth sign-in (gw-dialog--sm --danger, Cancel autofocus). -->
@@ -188,7 +165,7 @@
     <header class="gw-dialog__header">
       <span class="gw-icon-tile"><svg lucideIcon="key-round" class="gw-icon"></svg></span>
       <h2 class="gw-dialog__title" id="st-revoke-ai-t">Revoke {{ g.client }} access to {{ g.endpoint ?? 'a removed endpoint' }}?</h2>
-      <p class="gw-dialog__description" id="st-revoke-ai-d">The sign-in stops working at once, also when the tunnel is on again. To come back, {{ g.client }} signs in again and you allow it here.</p>
+      <p class="gw-dialog__description" id="st-revoke-ai-d">The sign-in stops working at once. To come back, {{ g.client }} signs in again and you allow it here.</p>
       <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
     </header>
     <div class="gw-dialog__body">

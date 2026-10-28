@@ -20,7 +20,6 @@ import { DesktopBridge } from '../../core/desktop/desktop-bridge';
 import { ApprovalsStore } from '../../core/stores/approvals.store';
 import { CoreStore } from '../../core/stores/core.store';
 import { EndpointsStore } from '../../core/stores/endpoints.store';
-import { TunnelStore } from '../../core/stores/tunnel.store';
 import { TimeService } from '../../core/time/time.service';
 import { Announcer } from '../../kit/announcer';
 import { GwDialog, GwDialogClose } from '../../kit/dialog';
@@ -83,7 +82,6 @@ export class CoreStartingPage {
   private readonly masterKey = inject(MasterKeyApi);
   private readonly approvals = inject(ApprovalsStore);
   private readonly endpoints = inject(EndpointsStore);
-  private readonly tunnel = inject(TunnelStore);
   private readonly toasts = inject(ToastService);
   private readonly announcer = inject(Announcer);
   private readonly router = inject(Router);
@@ -155,16 +153,6 @@ export class CoreStartingPage {
     const slugs = (this.endpoints.list() ?? []).map((e) => e.slug);
     return port === null ? null : endpointUrls(port, slugs);
   });
-  /**
-   * claude.ai keeps its URL only through a named tunnel or a reserved ngrok domain (§8.6.9): the core says so
-   * (`stableAddress`, step API); before it, a named tunnel or ngrok with an address. Said only when known.
-   */
-  protected readonly stableTunnel = computed(() => {
-    const state = this.tunnel.state();
-    if (state?.stableAddress !== undefined) return state.stableAddress;
-    return state?.provider === 'cloudflare-named' || (state?.provider === 'ngrok' && !!state.host);
-  });
-
   // ── Restore ───────────────────────────────────────────────────────────────────────────────────────────────────
 
   protected readonly restoreBusy = signal(false);
@@ -282,7 +270,7 @@ export class CoreStartingPage {
     try {
       await this.desktop.usePort(publicListener ? { publicPort: Number(text) } : Number(text));
       this.portDialog().close('start');
-      this.announcer.announce(publicListener ? `Starting the core with the tunnel’s listener on port ${text}` : `Starting the core on port ${text}`);
+      this.announcer.announce(publicListener ? `Starting the core with the internal listener on port ${text}` : `Starting the core on port ${text}`);
     } catch (err) {
       this.portRefused.set({ port: this.portText(), message: usePortError(err) });
       this.focus('core-port-new');

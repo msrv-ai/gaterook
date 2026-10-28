@@ -6,7 +6,6 @@ import { isApiError } from '../../core/api/api-error';
 import { ApprovalItem } from '../../core/api/approvals.api';
 import { ConnectionsApi } from '../../core/api/connections.api';
 import { CoreStore } from '../../core/stores/core.store';
-import { TunnelStore } from '../../core/stores/tunnel.store';
 import { TimeService } from '../../core/time/time.service';
 import { Announcer } from '../../kit/announcer';
 import { GwToggle } from '../../kit/disclosure';
@@ -22,7 +21,6 @@ import {
   activityLine,
   appAnchor,
   checkPrompt,
-  claudeAiTile,
   connectionTiles,
   guideAppTile,
   homeAppTiles,
@@ -43,8 +41,8 @@ export const SKELETON_DELAY_MS = 300;
  * - **In use** — an AI app is connected. Waiting for your approval at the top, the quick-access zone (compact
  *   requests, soonest auto-deny first, Review opens the exact action in Approvals; a quiet line when none waits);
  *   Your connections as status tiles, problems first and six visible by default (Test again on an unreachable one), the
- *   rest behind "N more connections"; AI apps as tiles (an app found and not connected first, with Connect;
- *   claude.ai last); one line about Activity.
+ *   rest behind "N more connections"; AI apps as tiles (an app found and not connected first, with Connect);
+ *   one line about Activity.
  * - **First run** — no connection yet: a three-step guide (`gw-stepper --guide`): Add your first connection (the
  *   page's one primary), Connect your AI app (the apps of this computer; Connect waits, `aria-disabled` with the
  *   reason), Check that it works.
@@ -67,7 +65,6 @@ export class OverviewPage {
   protected readonly time = inject(TimeService);
   private readonly connectionsApi = inject(ConnectionsApi);
   private readonly core = inject(CoreStore);
-  private readonly tunnel = inject(TunnelStore);
   private readonly toasts = inject(ToastService);
   private readonly announcer = inject(Announcer);
   private readonly injector = inject(Injector);
@@ -109,11 +106,7 @@ export class OverviewPage {
   /** The connections Test again is testing now. */
   protected readonly testing = signal<readonly string[]>([]);
 
-  private readonly claudeAi = computed(() => {
-    this.time.minute();
-    return claudeAiTile(this.tunnel.available() ? this.tunnel.state() : null, (at) => this.time.clock(at));
-  });
-  protected readonly homeApps = computed(() => homeAppTiles(this.data.clients()?.clients ?? [], this.data.connections(), this.claudeAi()));
+  protected readonly homeApps = computed(() => homeAppTiles(this.data.clients()?.clients ?? [], this.data.connections(), null));
   protected readonly homeAppsLabel = computed(() => (this.homeApps().some((a) => a.action === 'connect') ? 'AI apps, the one to connect first' : 'AI apps'));
   protected readonly activity = computed(() => activityLine(this.overview()?.stats ?? { calls24h: 0, denied24h: 0 }));
 
@@ -152,7 +145,6 @@ export class OverviewPage {
   });
 
   constructor() {
-    this.tunnel.start();
     void this.data.start();
     const timer = setTimeout(() => this.slow.set(true), SKELETON_DELAY_MS);
     effect((onCleanup) => {

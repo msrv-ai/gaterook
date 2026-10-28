@@ -162,7 +162,7 @@ const $$ = <E extends Element = HTMLElement>(sel: string, root: ParentNode = doc
 const control = (root: ParentNode, words: string) => $$<HTMLElement>('button, a', root).find((b) => text(b) === words || text(b).startsWith(words))!;
 /** A client's card by its stable app identity, independent of the compact heading's status text. */
 const clientId: Readonly<Record<string, string>> = { 'Claude Desktop': 'claude-desktop', Codex: 'codex', Cursor: 'cursor', Antigravity: 'antigravity' };
-const card = (name: string) => name === 'claude.ai' ? $('article[aria-labelledby="cl-ai-t"]')! : $(`article[data-client="${clientId[name]}"]`)!;
+const card = (name: string) => $(`article[data-client="${clientId[name]}"]`)!;
 const disclosure = (app: ParentNode) => $<HTMLButtonElement>('button.gw-client-card__row[aria-controls]', app)!;
 const details = (app: ParentNode) => document.getElementById(disclosure(app).getAttribute('aria-controls')!)!;
 const openDialog = () => $<HTMLDialogElement>('dialog[open]');
@@ -226,7 +226,7 @@ describe('Clients page: what it shows', () => {
     const articles = $$('section[aria-labelledby="cl-local-t"] article', el);
     expect(articles).toHaveLength(4);
     expect($('section[aria-labelledby="cl-local-t"] ul.gw-grid--2', el)).toBeNull();
-    for (const app of [...articles, card('claude.ai')]) {
+    for (const app of articles) {
       const toggle = disclosure(app);
       expect(toggle.tagName).toBe('BUTTON');
       expect(toggle.getAttribute('aria-expanded')).toBe('false');
@@ -262,11 +262,8 @@ describe('Clients page: what it shows', () => {
     expect(text(ag)).toContain('Not found on this computer. Install it, then check again.');
     expect(control(ag, 'Check again for Antigravity')).toBeTruthy();
 
-    // Before the tunnel step: the claude.ai card says so and offers nothing.
-    const ai = $('article[aria-labelledby="cl-ai-t"]', el)!;
-    expect(text($('.gw-status__label', ai))).toBe('Not available yet');
-    expect($('.gw-card__footer', ai)).toBeNull();
-    expect(control(ai, 'Publish for claude.ai')).toBeUndefined();
+    expect($('article[aria-labelledby="cl-ai-t"]', el)).toBeNull();
+    expect($('section[aria-labelledby="cl-web-t"]', el)).toBeNull();
 
     expect($('#cl-manual-p', el)!.hidden).toBe(true);
     await click(control($('section[aria-labelledby="cl-manual-t"]', el)!, 'Show manual setup'));
@@ -517,57 +514,16 @@ describe('Clients page: Disconnect and Remove bridge', () => {
   });
 });
 
-describe('Clients page: claude.ai', () => {
-  beforeEach(() => {
-    world.tunnel = () => Promise.resolve(DEMO_TUNNEL_OFF);
+describe('Clients page: local access', () => {
+  it('keeps remote access hidden even when the core has a tunnel and grants', async () => {
+    world.tunnel = () => Promise.resolve({ ...DEMO_TUNNEL_OFF, state: 'on' });
     world.grants = () => Promise.resolve(DEMO_GRANTS);
-  });
-
-  it('opens the browser app details when arriving at its anchor', async () => {
     await TestBed.inject(Router).navigateByUrl('/clients#cl-ai-t');
-    await render();
-    const ai = card('claude.ai');
-    expect(disclosure(ai).getAttribute('aria-expanded')).toBe('true');
-    expect(details(ai).hidden).toBe(false);
-    expect(document.activeElement?.id).toBe('cl-ai-t');
-    expect(disclosure(card('Cursor')).getAttribute('aria-expanded')).toBe('false');
-    expect(calls.some((call) => call.startsWith('preview '))).toBe(false);
-  });
-
-  it('Publish asks first: exactly what becomes public, Cancel has the keyboard', async () => {
-    await render();
-    const ai = await expandCard('claude.ai');
-    expect(text($('.gw-status__label', ai))).toBe('Tunnel off');
-    expect(text(ai)).toContain('stage-db');
-    expect(text(ai)).toContain('19 calls today');
-    const publish = control(ai, 'Publish for claude.ai');
-    await click(publish);
-    const dialog = openDialog()!;
-    expect(text($('.gw-dialog__title', dialog))).toBe('Publish stage-readonly to the internet?');
-    expect(text(dialog)).toContain('/mcp/stage-readonly, /oauth/*, /.well-known/oauth-*');
-    // The core's `local`: its own line for the app, then /mcp/<slug> of the other endpoints.
-    expect(text(dialog)).toContain('Stays localThis app\'s UI, the admin API, endpoints dev and incident-prod');
-    expect(text(ai)).toContain('This app\'s UI, its admin API, and endpoints dev and incident-prod');
-    // The core's cautions the rows don't already say (the quick tunnel's address is the Public URL row).
-    expect(text(dialog)).toContain('NoteDynamic client registration is on: any client that reaches the URL can register');
-    expect(text(dialog)).not.toContain('Use a named tunnel for a stable hostname');
-    expect(text(document.activeElement)).toBe('Cancel');
+    const el = await render();
+    expect($('article[aria-labelledby="cl-ai-t"]', el)).toBeNull();
+    expect($('section[aria-labelledby="cl-web-t"]', el)).toBeNull();
+    expect(control(el, 'Publish for claude.ai')).toBeUndefined();
     expect(calls.some((c) => c.startsWith('publish '))).toBe(false);
-
-    await click(control(dialog, 'Publish stage-readonly'));
-    expect(calls).toContain('publish stage-readonly');
-    expect(toasts().at(-1)?.title).toBe('stage-readonly is public');
-  });
-
-  it('Revoke a sign-in asks first, then cuts it off', async () => {
-    await render();
-    const ai = await expandCard('claude.ai');
-    await click(control(ai, 'Revoke'));
-    const dialog = openDialog()!;
-    expect(text($('.gw-dialog__title', dialog))).toBe('Revoke claude.ai access to stage-readonly?');
-    await click(control(dialog, 'Revoke claude.ai access'));
-    expect(calls).toContain('revoke og_7Hc2');
-    expect(toasts().at(-1)?.title).toBe('claude.ai access to stage-readonly revoked');
   });
 });
 
@@ -678,12 +634,7 @@ describe('Clients page: first run and setup (kit ?state=first-run | setup)', () 
     expect(control(ag, 'How to install Antigravity (opens in your browser)').getAttribute('href')).toBe('https://antigravity.google/');
     expect(control(ag, 'Check again for Antigravity')).toBeTruthy();
 
-    // claude.ai: there is no endpoint to publish yet.
-    const ai = $('article[aria-labelledby="cl-ai-t"]', el)!;
-    expect(kv($('.gw-card__body', ai)!)).toEqual([['Tunnel', 'Never published · Tunnel settings']]);
-    expect(text($('#cl-ai-first-why', ai))).toBe('Add a connection first: there is no endpoint to publish yet.');
-    const publish = control(ai, 'Publish for claude.ai');
-    expect([publish.getAttribute('aria-disabled'), publish.getAttribute('aria-describedby')]).toEqual(['true', 'cl-ai-first-why']);
+    expect($('article[aria-labelledby="cl-ai-t"]', el)).toBeNull();
   });
 
   it('first run: Overview’s How to install (#cl-ag-t) puts the keyboard on that app’s row', async () => {
@@ -770,22 +721,11 @@ describe('Clients page: first run and setup (kit ?state=first-run | setup)', () 
     expect([toggle.getAttribute('aria-expanded'), manual.hidden]).toEqual(['true', false]);
   });
 
-  it('setup: claude.ai was never published; Publish dev is there, secondary', async () => {
+  it('setup keeps browser publishing hidden', async () => {
     setup();
     const el = await render();
-    const ai = $('article[aria-labelledby="cl-ai-t"]', el)!;
-    expect(text($('.gw-card__body > p.gw-text-small', ai))).toBe(
-      "Publishing gives endpoint dev a public HTTPS address behind three gates: Anthropic IP ranges only, your OK on this computer for each new sign-in, and the endpoint's own modes.",
-    );
-    expect(kv($('.gw-card__body', ai)!)).toEqual([
-      ['Public URL', 'None while the tunnel is off'],
-      ['Tunnel', 'Never published · Tunnel settings'],
-      ['Signed in', 'No one yet. Each new sign-in waits until you allow it here.'],
-    ]);
-    const publish = control(ai, 'Publish for claude.ai');
-    expect(publish.classList.contains('gw-btn--primary')).toBe(false);
-    await click(publish);
-    expect(text($('dialog[open] h2'))).toBe('Publish dev to the internet?');
+    expect($('article[aria-labelledby="cl-ai-t"]', el)).toBeNull();
+    expect(control(el, 'Publish for claude.ai')).toBeUndefined();
   });
 
   it('in use: an app’s anchor puts the keyboard on its card', async () => {

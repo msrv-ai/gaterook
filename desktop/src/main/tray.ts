@@ -1,4 +1,4 @@
-// The tray (ARCHITECTURE.md §7.1 "tray (Open · Approvals (3) · Tunnel: off · Quit; macOS setTitle)"): the app keeps
+// The tray (Open · Approvals (3) · Quit; macOS setTitle): the app keeps
 // running there when its window is closed — clients keep working, notifications keep coming. The badge counts the
 // requests waiting.
 import { app, Menu, nativeImage, Tray, type BrowserWindow, type NativeImage } from 'electron';
@@ -83,7 +83,6 @@ export class AppTray {
     return [
       { label: 'Open GateRook', click: () => this.o.open() },
       { label: s.pending > 0 ? `Approvals (${s.pending})` : 'Approvals', click: () => this.o.openApprovals() },
-      { label: `Tunnel: ${s.tunnel ?? 'off'}`, enabled: false },
       ...(s.core ? [{ label: `Core: ${s.core}`, enabled: false }] : []),
       { type: 'separator' },
       { label: 'Quit GateRook', click: () => this.o.quit() },

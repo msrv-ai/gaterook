@@ -74,7 +74,7 @@ describe('settings-view: General › Core', () => {
     expect(parsePort('80', 7465, 43433).error).toBe('Use a port from 1024 to 65535.');
     expect(parsePort('70000', 7465, 43433).error).toBe('Use a port from 1024 to 65535.');
     expect(parsePort('7465', 7465, 43433).error).toBe('The core already listens on 7465. Enter another port.');
-    expect(parsePort('43433', 7465, 43433).error).toBe("43433 is the tunnel's port. Choose another one.");
+    expect(parsePort('43433', 7465, 43433).error).toBe("43433 is reserved by GateRook. Choose another one.");
     expect(parsePort(' 7475 ', 7465, 43433)).toEqual({ value: 7475, error: null });
   });
 

@@ -169,11 +169,9 @@ export interface ClientPart {
   readonly name: string;
 }
 
-/** The clients with live access through a grant, then claude.ai when the endpoint is published through the tunnel. */
+/** Local clients with live access through a grant. */
 export function clientParts(e: EndpointSummary): ClientPart[] {
-  const parts = e.clients.map((id) => ({ id, name: clientName(id) }));
-  if (e.published && !e.clients.includes('claude-ai')) parts.push({ id: 'claude-ai', name: 'claude.ai' });
-  return parts;
+  return e.clients.filter((id) => id !== 'claude-ai').map((id) => ({ id, name: clientName(id) }));
 }
 
 /** The status next to claude.ai on a published endpoint: "Tunnel on", "Tunnel off since 12:10" (or just "Tunnel off"). */
@@ -279,8 +277,7 @@ export function disableBody(e: EndpointSummary, all: readonly EndpointSummary[],
   else {
     const one = clients.length === 1;
     const elsewhere = one && all.some((o) => o.slug !== e.slug && clientParts(o).some((c) => c.id === clients[0].id));
-    const tunnel = e.published ? ', even with the tunnel on' : '';
-    first = `${andList(clients.map((c) => c.name))} ${one ? 'gets' : 'get'} an error on ${one ? 'its' : 'their'} next call${elsewhere ? ' to it' : ''}${tunnel}.`;
+    first = `${andList(clients.map((c) => c.name))} ${one ? 'gets' : 'get'} an error on ${one ? 'its' : 'their'} next call${elsewhere ? ' to it' : ''}.`;
   }
   const names = revocableNames(e, tokens, now);
   const hasTokens = names ? names.length > 0 : e.tokens.active > 0;
@@ -308,12 +305,11 @@ function clauses(parts: readonly string[]): string {
 }
 
 export function deleteFacts(e: EndpointSummary, tokens: readonly TokenRow[] | null, now: number): DeleteFacts {
-  const clients = e.clients.map(clientName);
+  const clients = clientParts(e).map((c) => c.name);
   const names = revocableNames(e, tokens, now);
   const revokes = names ? names.length > 0 : e.tokens.active > 0;
   const waiting = e.approvalsWaiting;
   const parts: string[] = [];
-  if (e.published) parts.push('claude.ai loses this connector', 'the tunnel stops publishing it');
   if (clients.length) {
     const prod = e.env === 'prod' ? ' to the prod connections' : '';
     parts.push(`${andList(clients)} ${clients.length === 1 ? 'loses' : 'lose'} access${prod} at once`);
@@ -321,14 +317,13 @@ export function deleteFacts(e: EndpointSummary, tokens: readonly TokenRow[] | nu
   if (revokes) parts.push('its tokens are revoked');
   if (waiting) parts.push(waiting === 1 ? 'the request waiting for approval is denied' : `the ${waiting} requests waiting for approval are denied`);
   if (!parts.length) parts.push('Its URL stops answering at once');
-  else if (!revokes && !waiting && !e.published) parts.push('its URL stops answering');
+  else if (!revokes && !waiting) parts.push('its URL stops answering');
   const lead = clauses(parts);
-  // Sentence case, except a name that is written in lower case ("claude.ai loses this connector…").
-  const first = lead.startsWith('claude.ai') ? lead : `${lead.charAt(0).toUpperCase()}${lead.slice(1)}`;
+  const first = `${lead.charAt(0).toUpperCase()}${lead.slice(1)}`;
   const description = `${first}. Connections, their secrets and the audit log stay.`;
   // Claude Desktop always reaches an endpoint through its .mcpb bridge (ARCHITECTURE §8.6.2); alone, the kit says so.
-  const alone = !e.published && e.clients.length === 1 && e.clients[0] === 'claude-desktop';
-  const clientNames = alone ? ['Claude Desktop, through its bridge'] : [...clients, ...(e.published ? ['claude.ai, through the tunnel'] : [])];
+  const alone = clients.length === 1 && clientParts(e)[0].id === 'claude-desktop';
+  const clientNames = alone ? ['Claude Desktop, through its bridge'] : clients;
   let tokenText: string;
   if (names) tokenText = names.length ? `${names.join(', ')} (revoked)` : 'None stored';
   else tokenText = e.tokens.active ? `${plural(e.tokens.active, 'active token')} (revoked)` : 'None stored';

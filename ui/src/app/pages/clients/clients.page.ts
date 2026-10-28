@@ -4,7 +4,6 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { isApiError } from '../../core/api/api-error';
 import { ClientCard, ClientId, ClientLink, ConnectRequest } from '../../core/api/clients.api';
-import { OAuthGrant } from '../../core/api/tunnel.api';
 import { DesktopBridge } from '../../core/desktop/desktop-bridge';
 import { CoreStore } from '../../core/stores/core.store';
 import { TimeService } from '../../core/time/time.service';
@@ -21,7 +20,6 @@ import { GwIcon } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
 import { GwCodeBlock } from '../../code/code-block';
 import { checkPrompt } from '../overview/overview-view';
-import { GwClaudeAiAccess } from './claude-ai-access';
 import { ClientsData } from './clients.data';
 import {
   anchorBase,
@@ -53,18 +51,17 @@ export const SKELETON_DELAY_MS = 300;
  * 2. Which apps are connected? — compact app rows with live status, in a stable order. Opening a row reveals the
  *    existing connection details and actions, or the Connect review for a detected app. Folding preserves choices.
  * 3. "No AI apps found" when the scan finds none.
- * 4. How does claude.ai get in? — the tunnel card (step K3; "not available yet" without it).
- * 5. Anything else? — manual setup: the endpoint URL, the snippets, where tokens come from.
+ * 4. Anything else? — manual setup: the endpoint URL, the snippets, where tokens come from.
  *
  * Nothing is written blind: Connect shows the exact change first, Disconnect its reverse and backup. Live: the
- * cards follow `clients.drift` and the calls (`audit.call`), the tunnel `tunnel.state`. Placeholders only when the
+ * cards follow `clients.drift` and the calls (`audit.call`). Placeholders only when the
  * first answer is slow; a failed reload with data on screen says the page may be out of date.
  *
  * Outside "in use" (the page's state is Overview's, from the core's facts; kit `?state=setup | first-run`): no How it
  * works; the apps are quiet rows. Setup — a connection, no AI app yet — opens the app Overview's Connect names
  * (`#cl-<app>-t`) as one Connect review on top, its heading focused: what it can use (the connection, its tools, the
  * endpoint), what will change, "Connect <app>"; once connected here, "Check that it works" with the prompt to copy.
- * claude.ai's Publish is secondary and manual setup is collapsed. First run — nothing set up — keeps the rows with
+ * Manual setup is collapsed. First run — nothing set up — keeps the rows with
  * Connect unavailable and why, the header's Add connection as the page's only primary, and no manual setup.
  */
 @Component({
@@ -81,7 +78,6 @@ export const SKELETON_DELAY_MS = 300;
     GwHowItWorksStep,
     GwClientCard,
     GwInlineConnectCard,
-    GwClaudeAiAccess,
     GwManualSetup,
   ],
   providers: [ClientsData],
@@ -109,14 +105,11 @@ export class ClientsPage {
   protected readonly desktopApp = this.desktop.available;
   /** The client whose Connect is writing. */
   protected readonly connecting = signal<ClientId | null>(null);
-  /** Publish / Turn off on its way. */
-  protected readonly tunnelBusy = signal(false);
 
   protected readonly cards = this.data.cards;
   protected readonly selectedCard = computed(() => this.cards().find((c) => this.clientAnchor(c.client) === this.fragment()) ?? null);
   protected readonly counts = computed(() => headerCounts(this.cards()));
   protected readonly expandedApps = signal<ReadonlySet<string>>(new Set());
-  protected readonly browserExpanded = signal(false);
   protected readonly none = computed(() => this.cards().length > 0 && noClients(this.cards()));
   protected readonly endpoints = this.data.endpointList;
   protected readonly hand = computed(() => handTokens(this.data.tokens(), this.cards()));
@@ -223,11 +216,7 @@ export class ClientsPage {
   private arrive(fragment: string): void {
     const client = anchorClient(fragment);
     if (!client) return;
-    if (client === 'claude-ai') {
-      this.browserExpanded.set(true);
-      this.focus('cl-ai-t');
-      return;
-    }
+    if (client === 'claude-ai') return;
     const card = this.cards().find((c) => c.client === client);
     if (!card) return;
     const base = anchorBase(client);
@@ -376,50 +365,4 @@ export class ClientsPage {
     await this.desktop.openClientConfig(client);
   }
 
-  // ── claude.ai ─────────────────────────────────────────────────────────────────────────────────────────────────
-
-  protected async onPublish(slug: string): Promise<void> {
-    this.tunnelBusy.set(true);
-    try {
-      const state = await this.data.publish(slug);
-      const url = state.publicUrl ?? (state.host ? `https://${state.host}/mcp/${slug}` : null);
-      this.toasts.show({
-        tone: 'warning',
-        icon: 'globe',
-        title: `${slug} is public`,
-        body: url ? `Anthropic IP ranges can reach ${url}. Add it in claude.ai under Settings, Connectors.` : 'The tunnel is starting; the public URL appears here when it is up.',
-      });
-    } catch (e) {
-      this.toasts.show({ tone: 'danger', title: `${slug} wasn't published`, body: errorSentence(e) });
-    } finally {
-      this.tunnelBusy.set(false);
-    }
-  }
-
-  protected async onStopTunnel(): Promise<void> {
-    const slug = this.data.tunnel()?.endpoint ?? this.data.published();
-    this.tunnelBusy.set(true);
-    try {
-      await this.data.stopTunnel();
-      this.toasts.show({
-        tone: 'neutral',
-        icon: 'globe-lock',
-        title: 'Tunnel off',
-        body: `claude.ai can't reach ${slug ?? 'the endpoint'} until you publish it again. Its sign-in stays valid; revoke it under Signed in.`,
-      });
-    } catch (e) {
-      this.toasts.show({ tone: 'danger', title: 'The tunnel is still on', body: errorSentence(e) });
-    } finally {
-      this.tunnelBusy.set(false);
-    }
-  }
-
-  protected async onRevoke(g: OAuthGrant): Promise<void> {
-    try {
-      await this.data.revoke(g);
-      this.toasts.show({ tone: 'success', title: `${g.client} access to ${g.endpoint ?? 'a removed endpoint'} revoked`, body: `${g.client} has to sign in again, and you allow it here.` });
-    } catch (e) {
-      this.toasts.show({ tone: 'danger', title: `${g.client} access wasn't revoked`, body: errorSentence(e) });
-    }
-  }
 }

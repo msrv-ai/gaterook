@@ -104,7 +104,6 @@ export function compactLine(risk: EndpointRisk, review = false, runbooks: number
       text = '';
     }
   }
-  if (risk.published) text += ', published to the internet';
   if (text) parts.push({ text, code: false });
   return parts;
 }

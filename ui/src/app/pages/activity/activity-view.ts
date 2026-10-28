@@ -419,7 +419,7 @@ function changeWhat(c: SetupChange): ChangeRow['what'] {
       return { text: tool, mono: true, route: ep ? ['/endpoints', ep] : null, queryParams: ep ? { tab: 'tools' } : null, caption };
     }
     case 'tunnel':
-      return { text: 'Tunnel', mono: false, route: ['/settings', 'tunnel'], queryParams: null, caption: c.subject && c.subject !== 'Tunnel' ? c.subject.replace(/^Tunnel\s*·?\s*/, '') : null };
+      return { text: 'Tunnel', mono: false, route: null, queryParams: null, caption: c.subject && c.subject !== 'Tunnel' ? c.subject.replace(/^Tunnel\s*·?\s*/, '') : null };
     case 'token':
     case 'grant': {
       // "Token old-claude for dev" · "Grant codex-laptop (codex) for dev"

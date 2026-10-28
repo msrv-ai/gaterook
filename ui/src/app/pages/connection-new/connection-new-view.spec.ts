@@ -117,7 +117,7 @@ const endpoint = (over: Partial<EndpointSummary>): EndpointSummary => ({
 
 const ENDPOINTS = [
   endpoint({}),
-  endpoint({ slug: 'stage-readonly', description: 'Read only. Published for claude.ai through the tunnel.', env: 'stage', access: 'read-only', clients: [], published: true }),
+  endpoint({ slug: 'stage-readonly', description: 'Read only.', env: 'stage', access: 'read-only', clients: ['claude-ai'], published: true }),
   endpoint({ slug: 'incident-prod', description: 'Prod logs, read only.', env: 'prod', clients: ['claude-desktop'] }),
 ];
 
@@ -226,21 +226,21 @@ describe('Add connection: endpoints', () => {
     const dev = { name: 'dev-db', env: 'dev' as const };
     expect(refusalFor(ENDPOINTS[2], dev)).toBe('Accepts prod connections only; dev-db is dev.');
     expect(refusalFor(ENDPOINTS[0], { name: 'prod-db', env: 'prod' })).toBe('Accepts dev and stage connections only; prod-db is prod.');
-    expect(refusalFor(ENDPOINTS[1], { name: 'prod-db', env: 'prod' })).toBe('Published through the tunnel, and a prod connection never is; prod-db is prod.');
+    expect(refusalFor(ENDPOINTS[1], { name: 'prod-db', env: 'prod' })).toBe('This endpoint does not accept production connections; prod-db is prod.');
     // An empty endpoint takes any connection; one changed outside GateRook says so first.
     expect(refusalFor(endpoint({ env: 'prod', connections: { total: 0, byEnv: {} } }), dev)).toBeNull();
     expect(refusalFor(endpoint({ blockedReason: 'Changed outside GateRook.' }), dev)).toBe('Changed outside GateRook.');
   });
 
   it('lists usable endpoints first with their clients, the refused ones after with their reason (kit order)', () => {
-    const choices = endpointChoices(ENDPOINTS, { name: 'dev-db', env: 'dev' }, 'off');
+    const choices = endpointChoices(ENDPOINTS, { name: 'dev-db', env: 'dev' });
     expect(choices.map((c) => [c.slug, c.meta, c.refusal])).toEqual([
       ['dev', 'Claude Desktop, Codex', null],
-      ['stage-readonly', 'claude.ai · tunnel off', null],
+      ['stage-readonly', null, null],
       ['incident-prod', 'Claude Desktop', 'Accepts prod connections only; dev-db is dev.'],
     ]);
     expect(choices[2].description).toBe('Accepts prod connections only; dev-db is dev.');
-    expect(choices[1].warning).toEqual({ title: 'Dev data on a public endpoint', body: 'While the tunnel is on, claude.ai could read dev-db through stage-readonly.' });
+    expect(choices[1].warning).toEqual({ title: 'Review endpoint access', body: 'Check who can use stage-readonly before giving it access to dev-db.' });
     expect(choices[0].warning).toBeNull();
   });
 

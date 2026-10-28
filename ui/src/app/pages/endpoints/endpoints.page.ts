@@ -17,7 +17,6 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { isApiError } from '../../core/api/api-error';
 import { EndpointSummary } from '../../core/api/endpoints.api';
 import { CoreStore } from '../../core/stores/core.store';
-import { TunnelStore } from '../../core/stores/tunnel.store';
 import { TimeService } from '../../core/time/time.service';
 import { GwCodeBlock } from '../../code/code-block';
 import { Announcer } from '../../kit/announcer';
@@ -50,12 +49,10 @@ import {
   headerStatuses,
   healthParts,
   plural,
-  publishedMeta,
   slugError,
   startFromMeta,
   tokensFact,
   toolParts,
-  tunnelStatus,
 } from './endpoints-view';
 
 /** The first render waits this long before it shows placeholders (kit: "when it takes longer than 300 ms"). */
@@ -104,9 +101,8 @@ const START_FROM: readonly { readonly id: StartFrom; readonly icon: string; read
  * Endpoints (design/pages/endpoints.html; ARCHITECTURE.md §8.4 "endpoints"): every MCP URL with what it gives an
  * agent, one card each.
  *
- * - The header counts the endpoints and says whether they run, and how many are published for claude.ai (with the
- *   tunnel's state); Create endpoint is the page's one primary.
- * - A card: the slug (a link to its page) and description; "Published for claude.ai", Running / Disabled and the
+ * - The header counts the endpoints and says whether they run; Create endpoint is the page's one primary.
+ * - A card: the slug (a link to its page) and description; Running / Disabled and the
  *   menu (Duplicate, Disable or Enable, Delete endpoint); the URL to copy; connections by environment; connection
  *   health that names what is slow or unreachable; tools by mode; the clients; tokens (active, expired, one expiring
  *   soon); the approvals waiting; the compact risk callout with Review; View activity, Open in Playground, Configure.
@@ -116,8 +112,8 @@ const START_FROM: readonly { readonly id: StartFrom; readonly icon: string; read
  *   `gw-dialog--danger` that names what stops working, Cancel has the focus.
  *
  * States: nothing for 300 ms, then skeleton cards; an error with Try again; no endpoints (the kit's empty state, the
- * header keeps Create endpoint); out of date (a reload failed with cards on screen). Counters follow approvals, the
- * tunnel, client links and connection health as the core reports them.
+ * header keeps Create endpoint); out of date (a reload failed with cards on screen). Counters follow approvals,
+ * client links and connection health as the core reports them.
  */
 @Component({
   selector: 'gw-endpoints-page',
@@ -144,7 +140,6 @@ export class EndpointsPage {
   protected readonly data = inject(EndpointsData);
   protected readonly time = inject(TimeService);
   private readonly core = inject(CoreStore);
-  private readonly tunnelStore = inject(TunnelStore);
   private readonly toasts = inject(ToastService);
   private readonly announcer = inject(Announcer);
   private readonly router = inject(Router);
@@ -174,7 +169,6 @@ export class EndpointsPage {
 
   protected readonly countText = computed(() => plural(this.rows().length, 'endpoint'));
   protected readonly statuses = computed(() => headerStatuses(this.rows()));
-  protected readonly published = computed(() => publishedMeta(this.rows(), this.tunnelStore.available() ? this.tunnelStore.state() : null));
 
   // ── Cards ─────────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -187,7 +181,6 @@ export class EndpointsPage {
     const busy = this.data.busy();
     this.data.oauth();
     const now = this.time.minute();
-    const tunnel = this.tunnelStore.available() ? this.tunnelStore.state() : null;
     return rows.map((e) => {
       const limited = e.risk.sources.find((s) => s.ingredient === 'externalChannel' && /\bfixed runbooks\b/.test(s.text));
       return {
@@ -200,7 +193,6 @@ export class EndpointsPage {
         health: healthParts(e, connections),
         tools: toolParts(e),
         clients: clientParts(e),
-        tunnel: tunnelStatus(tunnel),
         tokens: tokensFact(e, tokens.get(e.slug) ?? null, this.data.oauthSignIns(e.slug), now, (at) => this.time.relative(at)),
         runbooks: limited && runbooks ? (runbooks.get(limited.connection) ?? null) : null,
         showRisk: e.risk.state !== 'none',
@@ -248,7 +240,6 @@ export class EndpointsPage {
 
   constructor() {
     void this.data.start();
-    this.tunnelStore.start();
     const timer = setTimeout(() => this.slow.set(true), SKELETON_DELAY_MS);
     effect((onCleanup) => {
       if (!this.loading()) clearTimeout(timer);

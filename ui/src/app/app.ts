@@ -11,7 +11,6 @@ import { ApprovalsStore } from './core/stores/approvals.store';
 import { ConsentStore } from './core/stores/consent.store';
 import { CoreStore } from './core/stores/core.store';
 import { SettingsStore } from './core/stores/settings.store';
-import { TunnelStore } from './core/stores/tunnel.store';
 import { ActivationGuard } from './kit/activation-guard';
 import { GwOAuthConsent } from './kit/elements/client-card/oauth-consent';
 import { GwCommandPalette } from './kit/elements/command-palette/command-palette';
@@ -92,7 +91,7 @@ const WARNING_ICONS: Record<string, string> = {
 
 /**
  * The window (pages/_shell.html, copied 1:1): skip link, titlebar (Back, section name, Search ⌘K, the approvals bell,
- * Appearance), the sidebar with the live approvals counter and the core / tunnel status, and main with the app-wide
+ * Appearance), the sidebar with the live approvals counter and core status, and main with the app-wide
  * banners, the page and the command palette. While the core isn't running the status screen is the whole window
  * (core-starting); Welcome uses the no-sidebar variant; the dev gallery has no frame at all.
  *
@@ -101,7 +100,7 @@ const WARNING_ICONS: Record<string, string> = {
  * in Slack or Telegram) only navigate, and re-arm the decision buttons' 700 ms activation delay. `#fragment`s select
  * tabs on every navigation, the same-route ones included (GwFragmentTabs, kit.js `hashchange`).
  *
- * Two things wait for a person on any page, so the window holds them, not a page: a sign-in through the tunnel (the
+ * Two things wait for a person on any page, so the window holds them, not a page: a local app sign-in (the
  * OAuth consent dialog, ARCHITECTURE.md §7.3 — the oldest waiting request, Deny focused, "Allow access" after 700 ms
  * and never on Enter) and, while the window is in front, the toast of a desktop notification (§7.4, kit
  * approval-notification "In-app toast"). Until the first navigation is decided (Welcome or a page) no frame is drawn:
@@ -138,7 +137,6 @@ export class App {
   private readonly toasts = inject(ToastService);
   protected readonly core = inject(CoreStore);
   protected readonly approvals = inject(ApprovalsStore);
-  protected readonly tunnel = inject(TunnelStore);
   protected readonly desktop = inject(DesktopBridge);
   protected readonly history = inject(NavigationHistory);
 
@@ -164,7 +162,7 @@ export class App {
   });
 
   /** The sign-in waiting longest, while the core can take an answer (a restart denies every one anyway). */
-  protected readonly consent = computed(() => (this.core.running() ? (this.consents.pending()[0] ?? null) : null));
+  protected readonly consent = computed(() => (this.core.running() ? (this.consents.pending().find((c) => c.ingress === 'LOCAL') ?? null) : null));
 
   /** The frame waits for the core; the frameless gallery never does (it renders demo data only). */
   protected readonly showStatus = computed(() => this.frame() !== 'none' && !this.core.running());
@@ -177,7 +175,6 @@ export class App {
   protected readonly warnings = computed(() =>
     this.core.warnings().map((w) => ({ ...w, icon: WARNING_ICONS[w.kind] ?? 'triangle-alert' })),
   );
-  protected readonly tunnelOff = signal(false);
   private readonly palette = viewChild(GwCommandPalette);
   /** Whether the core has run once in this window: from then on the frame stays under the status screen. */
   protected readonly mounted = signal(false);
@@ -194,7 +191,6 @@ export class App {
         this.mounted.set(true);
         this.events.start();
         this.approvals.start();
-        this.tunnel.start();
         this.consents.start();
         this.noticeToasts.start();
         if (again) this.reload();
@@ -236,7 +232,6 @@ export class App {
 
   private reload(): void {
     void this.approvals.refresh();
-    void this.tunnel.refresh();
     void this.consents.refresh();
     void this.settings.load();
   }
@@ -285,15 +280,6 @@ export class App {
     this.palette()?.open(e.currentTarget instanceof HTMLElement ? e.currentTarget : null);
   }
 
-  /** "Turn off tunnel" on the banner (K3): no Undo — publishing again always asks first. */
-  protected async turnOffTunnel(): Promise<void> {
-    this.tunnelOff.set(true);
-    try {
-      await this.tunnel.stop();
-    } finally {
-      this.tunnelOff.set(false);
-    }
-  }
 }
 
 function deepest(route: ActivatedRouteSnapshot): ActivatedRouteSnapshot {

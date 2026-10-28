@@ -238,7 +238,7 @@ describe('Activity view (design/pages/activity.html)', () => {
 
   it('shows Setup changes as the kit table does', () => {
     const [tunnelOff, modeOff, , , revoked] = kitChanges().map(changeRow);
-    expect(tunnelOff).toMatchObject({ what: { text: 'Tunnel', route: ['/settings', 'tunnel'], caption: 'Cloudflare' }, by: 'You', reason: null });
+    expect(tunnelOff).toMatchObject({ what: { text: 'Tunnel', route: null, caption: 'Cloudflare' }, by: 'You', reason: null });
     expect(tunnelOff.from).toEqual({ kind: 'status', tone: 'success', text: 'On' });
     expect(tunnelOff.to).toEqual({ kind: 'status', tone: 'neutral', text: 'Off' });
     expect(modeOff.what).toEqual({ text: 'http_get', mono: true, route: ['/endpoints', 'dev'], queryParams: { tab: 'tools' }, caption: 'on billing-api, endpoint dev' });

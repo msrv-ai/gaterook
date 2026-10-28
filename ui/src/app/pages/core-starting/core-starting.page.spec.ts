@@ -9,7 +9,6 @@ import { DesktopBridge, DesktopCoreState } from '../../core/desktop/desktop-brid
 import { ApprovalsStore } from '../../core/stores/approvals.store';
 import { CoreStore } from '../../core/stores/core.store';
 import { EndpointsStore } from '../../core/stores/endpoints.store';
-import { TunnelStore } from '../../core/stores/tunnel.store';
 import { absoluteTime, clockTime, relativeTime } from '../../core/time/time-format';
 import { TimeService } from '../../core/time/time.service';
 import { AriaDisabledGuard } from '../../kit/aria-disabled';
@@ -137,7 +136,6 @@ const PORT_IN_USE: DesktopCoreState = {
 
 let desktop: FakeDesktop;
 let keyCalls: string[];
-let tunnelState: ReturnType<typeof signal<unknown>>;
 let world: {
   key: () => MasterKeyStatus;
   health: () => Promise<Health>;
@@ -157,7 +155,6 @@ const fakeTime: Partial<TimeService> = {
 function configure(): void {
   desktop = new FakeDesktop();
   keyCalls = [];
-  tunnelState = signal<unknown>({ provider: 'cloudflare-named', host: 'gw.acme.dev' });
   world = {
     key: masterKey,
     health: () => never(),
@@ -184,7 +181,6 @@ function configure(): void {
       { provide: MasterKeyApi, useValue: keys },
       { provide: ApprovalsStore, useValue: { pendingCount: signal(3) } },
       { provide: EndpointsStore, useValue: { list: signal([{ slug: 'dev' }, { slug: 'stage-readonly' }, { slug: 'incident-prod' }]) } },
-      { provide: TunnelStore, useValue: { state: tunnelState } },
       { provide: TimeService, useValue: fakeTime },
     ],
   });
@@ -431,7 +427,7 @@ describe('port in use', () => {
     await emit({ ...PORT_IN_USE, detail: 'Address already in use: 127.0.0.1:7466' });
     expect(text(page.querySelector('h1'))).toBe('Port 7466 is already in use');
     expect(text(page.querySelector('.gw-status-screen__text p'))).toBe(
-      "Another process (PID 4242, user alex) is listening on 127.0.0.1:7466, the port of the tunnel's public listener, so the core can't start. Stop that process and restart the core, or start the listener on another port: endpoint URLs stay the same.",
+      "Another process (PID 4242, user alex) is listening on 127.0.0.1:7466, the port of an internal listener, so the core can't start. Stop that process and restart the core, or start the listener on another port: endpoint URLs stay the same.",
     );
     expect(text(page.querySelector('.gw-stepper__step[data-state=error]'))).toBe('Local API, failed Address already in use: 127.0.0.1:7466');
     expect(text(page.querySelector('.gw-code-block'))).toContain('lsof -nP -iTCP:7466 -sTCP:LISTEN');
@@ -455,9 +451,9 @@ describe('port in use', () => {
     expect(dialog.hasAttribute('open')).toBe(true);
     // Nothing a client has changes: no warning tone, the words say what moves and what stays.
     expect(dialog.classList.contains('gw-dialog--warning')).toBe(false);
-    expect(text(dialog.querySelector('.gw-dialog__title'))).toBe('Start the tunnel’s listener on another port?');
+    expect(text(dialog.querySelector('.gw-dialog__title'))).toBe('Start the internal listener on another port?');
     expect(text(dialog.querySelector('.gw-dialog__description'))).toBe(
-      'The core starts with the tunnel’s public listener on the new port. Endpoint URLs stay the same, and so do your AI apps’ configs.',
+      'The core starts with its internal listener on the new port. Endpoint URLs stay the same, and so do your AI apps’ configs.',
     );
     // Ten up from the taken listener, past the local API's port; main checks it is free.
     expect(desktop.calls).toEqual(['findFreePort 7476']);
@@ -466,7 +462,7 @@ describe('port in use', () => {
     expect(text($('#core-port-new-hint'))).toBe('1024 to 65535. 7476 is free on this computer.');
     const rows = Array.from(dialog.querySelectorAll('.gw-kv__row')).map((r) => [text(r.querySelector('dt')), text(r.querySelector('dd'))]);
     expect(rows).toEqual([
-      ['Tunnel listener', '127.0.0.1:7476, which the tunnel connects to when it starts'],
+      ['Internal listener', '127.0.0.1:7476'],
       ['Unchanged', 'Endpoint URLs on 127.0.0.1:7465, and every AI app connected to them'],
     ]);
 
@@ -503,22 +499,15 @@ describe('port in use', () => {
     expect(input.value).toBe('7475');
     expect(text($('#core-port-new-hint'))).toBe('1024 to 65535. 7475 is free on this computer.');
     expect(text(dialog.querySelector('.gw-kv'))).toContain('Endpoint URLs http://127.0.0.1:7475/mcp/dev, /mcp/stage-readonly and /mcp/incident-prod');
-    expect(text(dialog.querySelector('.gw-kv'))).toContain('claude.ai: the tunnel’s public URL stays the same');
-
-    // ngrok without a reserved domain gets a new address with each start: the core says so (step API).
-    tunnelState.set({ provider: 'ngrok', host: 'a1b2-c3d4.ngrok-free.app', ngrokDomain: null, stableAddress: false });
-    await settle();
-    expect(text(dialog.querySelector('.gw-kv'))).not.toContain('claude.ai');
-    tunnelState.set({ provider: 'ngrok', host: 'gw-acme.ngrok.app', ngrokDomain: 'gw-acme.ngrok.app', stableAddress: true });
-    await settle();
-    expect(text(dialog.querySelector('.gw-kv'))).toContain('claude.ai: the tunnel’s public URL stays the same');
+    expect(text(dialog.querySelector('.gw-kv'))).toContain('Claude Desktop: its bridge asks the app for the new URL');
+    expect(text(dialog.querySelector('.gw-kv'))).not.toMatch(/claude\.ai|tunnel/i);
 
     // The tunnel's port: the field says why; main is not asked.
     await type(input, '7466');
     expect(text($('#core-port-new-hint'))).toBe('1024 to 65535.');
     dialog.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
     await settle();
-    expect(text($('#core-port-new-err'))).toBe('7466 is the tunnel’s port. Choose another one.');
+    expect(text($('#core-port-new-err'))).toBe('7466 is reserved for an internal listener. Choose another one.');
     expect(input.getAttribute('aria-invalid')).toBe('true');
     expect(input.getAttribute('aria-describedby')).toBe('core-port-new-err core-port-new-hint');
     expect(desktop.calls).toEqual(['findFreePort 7475']);

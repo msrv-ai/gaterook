@@ -288,6 +288,13 @@ describe('EndpointDetailData', () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(data.grantsState()).toBe('not-available');
+    grantsAnswer = () => Promise.resolve([
+      { id: 'local', endpoint: 'dev', client: 'cursor', ingress: 'LOCAL' },
+      { id: 'remote', endpoint: 'dev', client: 'claude.ai', ingress: 'TUNNEL' },
+    ]);
+    await data.refresh();
+    await Promise.resolve();
+    expect(data.grants()?.map((g) => g.id)).toEqual(['local']);
   });
 
   it('finds which client called a moving connection today, and with which tool', async () => {
