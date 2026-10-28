@@ -1648,7 +1648,7 @@ Grouped settings. On the left, a sticky settings nav: gw-nav with groups Workspa
 - current item: aria-current="page" on the nav link of the section in view (scroll-spy, /settings/<item> in the URL); the jump select shows the same item
 - unsaved: gw-form__actions visible with 'Unsaved changes' (role=status), Discard (type=reset) + Save <object> (type=submit) via form="<id>"; Discard restores the saved values; hidden otherwise
 - applies at once: switch / select / theme topics outside any <form>, no Save bar, confirmed by a success toast naming the setting and its value
-- read-only: About ends Settings with the project author, license link and third-party notice; no Save bar
+- read-only: About ends Settings with the project author, website, GitHub repository link, license link and third-party notice; no Save bar
 - unavailable: server-mode-only topic (Users & roles, UI sign-in, token IP allowlist) with aria-disabled controls + aria-describedby to a gw-alert--neutral --compact (circle-help) that says why and what would enable it
 - narrow (< lg / 1280px): nav hidden, 'Jump to section' select (optgroups per group, max 320 wide) above the sections; changing it scrolls, focus stays on the select
 - anchors #settings-<section>: general, appearance, authorization, users, notifications, approval-rules, tunnel, tunnel-callers, local-api, audit, backup, about
