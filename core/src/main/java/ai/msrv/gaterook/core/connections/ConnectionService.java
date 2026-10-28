@@ -246,6 +246,7 @@ public class ConnectionService {
             "Connection " + name + " added", null, manifest.name() + " · " + env.id(), reason, env, null, name,
             null));
         publisher.publishEvent(new ConnectionChanged(row.getId(), name, env, row.getVersion()));
+        publisher.publishEvent(new ConnectionCreated(row.getId()));
         return row.getId();
       });
       return summary(configs.byId(id).orElseThrow());

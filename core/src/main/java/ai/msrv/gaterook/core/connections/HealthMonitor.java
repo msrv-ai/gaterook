@@ -34,11 +34,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
- * Connection health (kit Connections "Healthy · 42 ms", "Slow · 2.4 s", "Unreachable"): every {@code interval} each
- * connection is asked {@code health()} under a deadline, a few at a time; the result is stored without a new version
- * and published as {@code connection.health}. "Test all" ({@code POST /api/connections/test-all}) runs the full test
+ * Connection health (kit Connections "Healthy · 42 ms", "Slow · 2.4 s", "Unreachable"): newly created connections
+ * are checked after commit, then every {@code interval} each connection is asked {@code health()} under a deadline,
+ * a few at a time; the result is stored without a new version and published as {@code connection.health}.
+ * "Test all" ({@code POST /api/connections/test-all}) runs the full test
  * of each connection in the background, the same way.
  *
  * <p>Connections that changed outside the core, of a type that is off, or while the core is locked are skipped:
@@ -66,6 +68,7 @@ public class HealthMonitor implements ApplicationListener<ApplicationReadyEvent>
   private final boolean demoWorld;
   private final ExecutorService workers = Executors.newThreadPerTaskExecutor(
       Thread.ofVirtual().name("connection-health-", 0).factory());
+  private final Semaphore healthPermits = new Semaphore(PARALLEL);
   private final AtomicBoolean testAllRunning = new AtomicBoolean();
   /** Connection versions ({@code id:version}) this process already ran a full test for, to learn their facts. */
   private final Set<String> factsTried = ConcurrentHashMap.newKeySet();
@@ -130,21 +133,41 @@ public class HealthMonitor implements ApplicationListener<ApplicationReadyEvent>
     }
   }
 
+  /** Starts the first check without waiting for the next round or holding the creation request open. */
+  @TransactionalEventListener
+  public void onConnectionCreated(ConnectionCreated event) {
+    if (demoWorld || interval.isZero() || interval.isNegative() || lock.locked()) {
+      return;
+    }
+    workers.submit(() -> {
+      healthPermits.acquireUninterruptibly();
+      try {
+        if (!lock.locked()) {
+          configs.byId(event.connectionId()).filter(ConnectionConfigs.Stored::verified)
+              .filter(s -> registry.usable(s.config().type())).ifPresent(this::check);
+        }
+      } catch (RuntimeException e) {
+        log.debug("Initial health check failed: {}", masker.log(e.toString()));
+      } finally {
+        healthPermits.release();
+      }
+    });
+  }
+
   /** One round of {@code health()} over every connection; returns how many were checked. */
   public int checkAll() {
     if (lock.locked()) {
       return 0;
     }
     List<ConnectionConfigs.Stored> all = eligible();
-    Semaphore permits = new Semaphore(PARALLEL);
     List<Future<?>> running = new ArrayList<>();
     for (ConnectionConfigs.Stored stored : all) {
       running.add(workers.submit(() -> {
-        permits.acquireUninterruptibly();
+        healthPermits.acquireUninterruptibly();
         try {
           check(stored);
         } finally {
-          permits.release();
+          healthPermits.release();
         }
       }));
     }

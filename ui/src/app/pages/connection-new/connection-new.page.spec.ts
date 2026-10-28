@@ -1008,6 +1008,24 @@ describe('Connection: edit view', () => {
     expect(text(p.q('.gw-page-header__meta .gw-status'))).toBe('Slow · 1.8 s');
   });
 
+  it('keeps health received while the saved connection detail is still loading', async () => {
+    core.detail = { ...structuredClone(DETAIL), health: { state: 'unknown', latencyMs: null, message: null, checkedAt: null } };
+    let resolveForm!: (spec: ConnectionFormSpec) => void;
+    vi.mocked(TestBed.inject(ConnectorTypesApi).form).mockReturnValueOnce(new Promise((resolve) => { resolveForm = resolve; }));
+    const harness = await RouterTestingHarness.create();
+    document.body.appendChild(harness.fixture.nativeElement);
+    await harness.navigateByUrl('/connections/dev-db');
+    await vi.waitFor(() => expect(TestBed.inject(ConnectorTypesApi).form).toHaveBeenCalled());
+
+    TestBed.inject(EventStream).emit('connection.health', {
+      name: 'dev-db', env: 'dev', state: 'healthy', latencyMs: 23, message: null, checkedAt: '2026-10-22T14:30:00+02:00',
+    });
+    resolveForm(structuredClone(SPEC));
+    await settle(harness);
+
+    expect(text(harness.routeNativeElement?.querySelector('.gw-page-header__meta .gw-status'))).toBe('Healthy · 23 ms');
+  });
+
   it('Test connection works in place on the button and says the result in a toast', async () => {
     const p = await open('/connections/dev-db');
     p.q<HTMLButtonElement>('#edit-test')!.click();
