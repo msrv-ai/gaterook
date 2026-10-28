@@ -280,7 +280,7 @@ public class HealthMonitor implements ApplicationListener<ApplicationReadyEvent>
       return;
     }
     try {
-      tester.testStored(stored, null, 0);
+      tester.learnFacts(stored);
     } catch (RuntimeException e) {
       log.debug("The test of {} for its facts failed: {}", cfg.name(), masker.log(e.toString()));
     }

@@ -2,7 +2,11 @@
 
 The **SSH log files** connection reads explicitly selected remote files over SFTP. Configure it in **Connections → Add connection → SSH log files** with a host, user, password or local private-key path, and trusted server key. Browse the remote folders, select a root and allow individual files. Selecting a folder alone does not grant access to every file in it. New rotated filenames must be selected explicitly.
 
+For private-key authentication, **Choose file** opens the desktop application's native file dialog and fills in the absolute path. The picker does not read or upload the key. You can also type an absolute path or a path beginning with `~/`; browser development uses manual path entry because browsers cannot expose a local file's absolute path. The connector reads the key locally when it authenticates, after verifying the server's host key.
+
 The account needs SFTP and read access to those files. No shell commands run. Symbolic links and nonregular files are rejected. SSH policies control credential methods and output size; Limits controls line counts, response size and deadlines; Logs controls the maximum query period.
+
+Automatic health checks verify SSH sign-in, SFTP availability and the selected root folder. Their cost does not grow with the number of selected files. **Test connection** additionally checks read access to every selected file; each log tool also checks the file it uses. A healthy connection therefore does not guarantee that every selected file still exists or remains readable after rotation or a permission change.
 
 ## Tools
 

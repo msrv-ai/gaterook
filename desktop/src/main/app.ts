@@ -22,7 +22,7 @@ import { planFileKey } from './file-key.ts';
 import { FileKeyUnlock } from './file-key-unlock.ts';
 import { NativeUnlockClient } from './native-unlock.ts';
 import { OsFileKey } from './os-file-key.ts';
-import { chooseFile, openClientConfig, openMcpb, reveal, type FilesOptions } from './files.ts';
+import { chooseFile, choosePrivateKeyFile, openClientConfig, openMcpb, reveal, type FilesOptions } from './files.ts';
 import { isTrustedSender } from './ipc-guard.ts';
 import { resolveLayout, type Layout } from './layout.ts';
 import { applyLoginItem, launchedHidden } from './login.ts';
@@ -659,6 +659,7 @@ export class Desktop {
     });
     handle(IPC.saveFile, (purpose) => chooseFile(files, purpose, true));
     handle(IPC.openFile, (purpose) => chooseFile(files, purpose, false));
+    handle(IPC.choosePrivateKeyFile, () => choosePrivateKeyFile(files));
     handle(IPC.openMcpb, (id) => openMcpb(files, id));
     handle(IPC.openClientConfig, (id) => openClientConfig(files, id));
     handle(IPC.reveal, (kind) => reveal(files, kind));

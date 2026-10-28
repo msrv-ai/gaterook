@@ -1,8 +1,8 @@
 // What main and preload share: the renderer-facing types of `window.gwDesktop` and the IPC channel names.
 //
 // The types mirror ui/src/app/core/desktop/desktop-bridge.ts (the UI's contract, ARCHITECTURE.md §7.1 "Preload"):
-// the renderer gets exactly these shapes, never a secret or an Electron object, and no path it could hand back to act
-// on (the core's log path is shown on the status screen, nothing more).
+// the renderer gets exactly these shapes, never a secret or an Electron object. The private-key picker returns the
+// explicitly chosen path for connection settings; no desktop method accepts it back to read or open the file.
 
 /** A progress line of the core's start, plus the `runtime` step main adds itself. */
 export interface CoreStep {
@@ -95,6 +95,7 @@ export const IPC = {
   openExternal: 'gw:open-external',
   saveFile: 'gw:save-file',
   openFile: 'gw:open-file',
+  choosePrivateKeyFile: 'gw:choose-private-key-file',
   openMcpb: 'gw:open-mcpb',
   openClientConfig: 'gw:open-client-config',
   reveal: 'gw:reveal',

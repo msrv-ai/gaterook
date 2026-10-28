@@ -7,7 +7,9 @@
   @let hintId = n.description ? id + '-hint' : null;
   @let lock = f.lockReason(n);
   @let lockId = lock ? id + '-lock' : null;
-  @let describedBy = join(errId, hintId, lockId);
+  @let pickerHintId = filePicker() && !desktop.privateKeyPickerAvailable ? id + '-picker-hint' : null;
+  @let pickerErrorId = filePicker() && filePickerError() ? id + '-picker-error' : null;
+  @let describedBy = join(errId, hintId, lockId, pickerHintId, pickerErrorId);
 
   <ng-template #label>{{ n.title }}@if (n.optional) { <span class="gw-field__optional">Optional</span>}@if (n.stricter && f.stricterBadges) { <span class="gw-badge gw-badge--neutral gw-badge--sm">Policy may tighten</span>}</ng-template>
   <!-- Why options are off on this env (x-forbidden-env): native disabled, as they would weaken prod, with the reason. -->
@@ -236,7 +238,31 @@
         }
         @switch (n.kind) {
           @case ('text') {
-            @if (n.unit) {
+            @if (filePicker()) {
+              <div class="gw-input-group">
+                <input
+                  class="gw-input gw-input--mono"
+                  [id]="id"
+                  [formField]="textField()"
+                  autocomplete="off"
+                  spellcheck="false"
+                  [attr.aria-describedby]="describedBy"
+                  [attr.aria-invalid]="error ? 'true' : null"
+                />
+                <button class="gw-input-group__addon" type="button" [id]="id + '-choose'"
+                  [attr.aria-label]="'Choose ' + lowerFirst(n.title)"
+                  [attr.aria-disabled]="!desktop.privateKeyPickerAvailable || choosingFile() || f.locked(n) ? 'true' : null"
+                  [attr.aria-busy]="choosingFile() ? 'true' : null"
+                  [attr.aria-describedby]="join(pickerHintId, pickerErrorId, lockId)"
+                  (click)="chooseFile()">Choose file…</button>
+              </div>
+              @if (pickerHintId) {
+                <p class="gw-field__hint" [id]="pickerHintId">Choose file is available in the desktop app. Enter the path manually here.</p>
+              }
+              @if (pickerErrorId) {
+                <p class="gw-field__error" [id]="pickerErrorId" role="alert">{{ filePickerError() }}</p>
+              }
+            } @else if (n.unit) {
               <div class="gw-input-group">
                 <input
                   class="gw-input"

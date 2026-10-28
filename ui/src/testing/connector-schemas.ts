@@ -2963,6 +2963,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
                 "privateKeyPath": {
                   "type": "string",
                   "title": "Private key file",
+                  "x-file-picker": "ssh-private-key",
                   "minLength": 1,
                   "maxLength": 4096,
                   "description": "An absolute path on this computer or ~/…; OpenSSH or PEM. The file is read locally and is never uploaded."

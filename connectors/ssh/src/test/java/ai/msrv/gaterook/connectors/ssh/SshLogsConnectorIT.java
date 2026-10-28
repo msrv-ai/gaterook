@@ -7,14 +7,17 @@ import ai.msrv.gaterook.connector.api.Classification;
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.Env;
+import ai.msrv.gaterook.connector.api.HealthResult;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.sshd.common.config.keys.KeyUtils;
 import org.apache.sshd.common.config.keys.writer.openssh.OpenSSHKeyEncryptionContext;
 import org.apache.sshd.common.config.keys.writer.openssh.OpenSSHKeyPairResourceWriter;
@@ -109,6 +112,122 @@ class SshLogsConnectorIT {
         cfg, secrets, TestCtx.read()).structuredContent();
     assertThat(tail.path("lines")).isEqualTo(TestConfigs.json("[\"ERROR two\",\"last\"]"));
     assertThat(sshd.commands).isEmpty();
+  }
+
+  @Test
+  void checksSelectedFilesWithinTheDeadlineOnALatentSftpConnection() throws Exception {
+    var requests = new AtomicInteger();
+    var opened = new AtomicInteger();
+    var factory = new SftpSubsystemFactory.Builder().build();
+    factory.addSftpEventListener(new org.apache.sshd.sftp.server.SftpEventListener() {
+      @Override
+      public void received(org.apache.sshd.server.session.ServerSession session, int type, int id)
+          throws java.io.IOException {
+        requests.incrementAndGet();
+        try {
+          Thread.sleep(30);
+        } catch (InterruptedException e) {
+          Thread.currentThread().interrupt();
+          throw new java.io.IOException("Test request interrupted", e);
+        }
+      }
+
+      @Override
+      public void opening(org.apache.sshd.server.session.ServerSession session, String handle,
+          org.apache.sshd.sftp.server.Handle file) {
+        if (file instanceof org.apache.sshd.sftp.server.FileHandle) opened.incrementAndGet();
+      }
+    });
+    sshd.server.setSubsystemFactories(List.of(factory));
+    String[] files = new String[9];
+    for (int i = 0; i < files.length; i++) {
+      files[i] = "service-" + i + ".log";
+      Files.writeString(root.resolve(files[i]), "entry\n");
+    }
+    var limits = TestCtx.limits(Duration.ofSeconds(30), Duration.ofSeconds(5), 256 * 1024, 64 * 1024);
+    var result = connector.test(cfg(true, files), secrets, TestCtx.of(limits));
+    assertThat(result.ok()).as(String.valueOf(result.error())).isTrue();
+    assertThat(opened.get()).as("every selected file is opened for reading").isEqualTo(9);
+    assertThat(requests.get()).as("shared ancestry is not traversed for every file twice")
+        .isLessThanOrEqualTo(root.getNameCount() * 2 + 72);
+    assertThat(result.metadataUpdate().path("serverVersion").asString()).isNotBlank();
+  }
+
+  @Test
+  void healthChecksTrustedAuthenticatedSftpAndRootWithoutOpeningEverySelectedFile() {
+    var opened = new AtomicInteger();
+    var factory = new SftpSubsystemFactory.Builder().build();
+    factory.addSftpEventListener(new org.apache.sshd.sftp.server.SftpEventListener() {
+      @Override
+      public void opening(org.apache.sshd.server.session.ServerSession session, String handle,
+          org.apache.sshd.sftp.server.Handle file) {
+        if (file instanceof org.apache.sshd.sftp.server.FileHandle) opened.incrementAndGet();
+      }
+    });
+    sshd.server.setSubsystemFactories(List.of(factory));
+    String[] files = java.util.stream.IntStream.range(0, 500).mapToObj(i -> "selected-" + i + ".log")
+        .toArray(String[]::new);
+    assertThat(connector.health(cfg(true, files), secrets, TestCtx.read()).state())
+        .isEqualTo(HealthResult.State.HEALTHY);
+    assertThat(opened.get()).isZero();
+    assertThat(sshd.passwordAttempts.get()).isPositive();
+    assertThat(connector.health(cfg(true, "app.log"), new TestSecrets().with("/credentials/password", "wrong"),
+        TestCtx.read()).state()).isEqualTo(HealthResult.State.UNREACHABLE);
+    var untrusted = new TestSecrets().with("/credentials/password", TestSshd.PASSWORD);
+    assertThat(connector.health(cfg(false, "app.log"), untrusted, TestCtx.read()).message())
+        .contains("host key needs confirmation");
+    assertThat(untrusted.resolved.get()).isZero();
+    var missingRoot = (ObjectNode) cfg(true, "app.log").config();
+    ((ObjectNode) missingRoot.path("logs")).put("root", root.resolve("missing").toString());
+    assertThat(connector.health(config(missingRoot), secrets, TestCtx.read()).state())
+        .isEqualTo(HealthResult.State.UNREACHABLE);
+  }
+
+  @Test
+  void fullTestStillRejectsSymlinksMissingAndUnreadableSelectedFiles() throws Exception {
+    Files.createSymbolicLink(root.resolve("link.log"), root.resolve("app.log"));
+    Files.createSymbolicLink(root.resolve("linked"), root.resolve("nested"));
+    for (String file : List.of("link.log", "linked/worker.log", "nested")) {
+      assertThat(connector.test(cfg(true, file), secrets, TestCtx.read()).ok()).as(file).isFalse();
+    }
+    assertThat(connector.test(cfg(true, "missing.log"), secrets, TestCtx.read()).error().message())
+        .contains("missing.log", "no longer exists");
+    var factory = new SftpSubsystemFactory.Builder().build();
+    factory.addSftpEventListener(new org.apache.sshd.sftp.server.SftpEventListener() {
+      @Override
+      public void opening(org.apache.sshd.server.session.ServerSession session, String handle,
+          org.apache.sshd.sftp.server.Handle file) throws java.io.IOException {
+        if (file instanceof org.apache.sshd.sftp.server.FileHandle) {
+          throw new java.nio.file.AccessDeniedException(file.getFile().toString());
+        }
+      }
+    });
+    sshd.server.setSubsystemFactories(List.of(factory));
+    assertThat(connector.test(cfg(true, "app.log"), secrets, TestCtx.read()).error().message())
+        .contains("app.log", "read access");
+  }
+
+  @Test
+  void fullTestRejectsRootReplacementDuringFileInspection() throws Exception {
+    Path selected = Files.createDirectory(root.resolve("selected"));
+    Files.writeString(selected.resolve("app.log"), "selected entry\n");
+    Files.writeString(root.resolve("nested/app.log"), "outside selection\n");
+    var factory = new SftpSubsystemFactory.Builder().build();
+    factory.addSftpEventListener(new org.apache.sshd.sftp.server.SftpEventListener() {
+      @Override
+      public void opening(org.apache.sshd.server.session.ServerSession session, String handle,
+          org.apache.sshd.sftp.server.Handle file) throws java.io.IOException {
+        if (file instanceof org.apache.sshd.sftp.server.FileHandle) {
+          Files.move(selected, root.resolve("original"));
+          Files.createSymbolicLink(selected, root.resolve("nested"));
+        }
+      }
+    });
+    sshd.server.setSubsystemFactories(List.of(factory));
+    var settings = (ObjectNode) cfg(true, "app.log").config();
+    ((ObjectNode) settings.path("logs")).put("root", selected.toString());
+    assertThat(connector.test(config(settings), secrets, TestCtx.read()).error().message())
+        .contains("Symbolic links");
   }
 
   @Test

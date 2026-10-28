@@ -251,6 +251,15 @@ public class ConnectionTester implements DisposableBean {
   }
 
   Outcome testStored(ConnectionConfigs.Stored stored, String field, int version) {
+    return testStored(stored, field, version, true);
+  }
+
+  /** Optional background discovery must not replace the result of the connection's bounded health probe. */
+  void learnFacts(ConnectionConfigs.Stored stored) {
+    testStored(stored, null, 0, false);
+  }
+
+  private Outcome testStored(ConnectionConfigs.Stored stored, String field, int version, boolean recordHealth) {
     if (!stored.verified()) {
       throw ProblemException.conflict("Changed outside GateRook", stored.name() + " was changed outside "
           + "GateRook. Review it first.");
@@ -263,7 +272,11 @@ public class ConnectionTester implements DisposableBean {
       result = run(manifest, stored.config(), resolver, taint);
     }
     if (field == null) {
-      record(stored, result);
+      if (recordHealth) {
+        record(stored, result);
+      } else {
+        recordMetadata(stored, result);
+      }
     }
     return outcome(result, stored.config().type(), stored.config().env(), stored.id(), null);
   }
@@ -277,6 +290,10 @@ public class ConnectionTester implements DisposableBean {
         : HealthResult.unreachable(result.error() == null ? "Unreachable" : result.error().message());
     connections.recordHealth(stored.id(), health.state(), result.ok() ? health.latencyMs() : null, health.message());
     publishHealth(stored.name(), stored.config().env(), health);
+    recordMetadata(stored, result);
+  }
+
+  private void recordMetadata(ConnectionConfigs.Stored stored, TestResult result) {
     if (result.ok() && result.metadataUpdate() != null && !result.metadataUpdate().isNull()) {
       // Only onto the version this test checked: an edit made while it ran points elsewhere (review API #9).
       connections.recordMetadata(stored.id(), result.metadataUpdate(), stored.config().version());
