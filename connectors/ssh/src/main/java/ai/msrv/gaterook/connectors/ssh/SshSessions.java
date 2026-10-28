@@ -146,9 +146,11 @@ final class SshSessions implements AutoCloseable {
    * @param keyId the key id of a Vault certificate, {@code gw:<connection>:<approval or call>}
    */
   Lease acquire(ConnectionConfig cfg, SshSettings s, SecretResolver secrets, Duration timeout, boolean fresh,
-      String keyId) throws ConnectorException {
-    if (fresh || !s.advanced().reuseSessions()) {
-      return new Lease(open(s, secrets, timeout, keyId), null);
+      String keyId, ExecContext ctx) throws ConnectorException {
+    // Local key files can change without a config version change. Reauthenticate on each call to observe rotation.
+    if (fresh || !s.advanced().reuseSessions() || s.credentials().privateKeyPath() != null
+        || (s.jump() != null && s.jump().credentials().privateKeyPath() != null)) {
+      return new Lease(open(s, secrets, timeout, keyId, ctx), null);
     }
     String key = cfg.id() + "@" + cfg.version();
     Object lock = creating.computeIfAbsent(key, k -> new Object());
@@ -164,7 +166,7 @@ final class SshSessions implements AutoCloseable {
         }
         removeIfIdle(p);
       }
-      Opened opened = open(s, secrets, timeout, keyId);
+      Opened opened = open(s, secrets, timeout, keyId, ctx);
       Instant expires = now.plus(MAX_AGE);
       if (opened.login().notAfter() != null && opened.login().notAfter().minus(CERTIFICATE_MARGIN).isBefore(expires)) {
         expires = opened.login().notAfter().minus(CERTIFICATE_MARGIN);
@@ -178,22 +180,23 @@ final class SshSessions implements AutoCloseable {
   }
 
   /** Connect, check the host key, sign in; through the bastion when there is one. */
-  Opened open(SshSettings s, SecretResolver secrets, Duration timeout, String keyId) throws ConnectorException {
+  Opened open(SshSettings s, SecretResolver secrets, Duration timeout, String keyId, ExecContext ctx)
+      throws ConnectorException {
     long deadline = System.nanoTime() + timeout.toNanos();
     HostKeys.Check hostCheck = HostKeys.check(s.target(), s.hostKeys());
     if (s.jump() == null) {
       ClientSession session = connect(s, s.target(), s.target().host(), s.target().port(), hostCheck, left(deadline));
-      return signIn(session, null, null, s, secrets, deadline, keyId, hostCheck, null);
+      return signIn(session, null, null, s, secrets, deadline, keyId, hostCheck, null, ctx);
     }
     SshSettings.Jump jump = s.jump();
     HostKeys.Check jumpCheck = HostKeys.check(jump.target(), jump.hostKeys());
     ClientSession bastion = connect(s, jump.target(), jump.target().host(), jump.target().port(), jumpCheck,
         left(deadline));
     try {
-      SshLogins.Login jumpLogin = SshLogins.login(jump.credentials(), jump.target(), secrets, keyId, true);
+      SshLogins.Login jumpLogin = SshLogins.login(jump.credentials(), jump.target(), secrets, keyId, true, ctx);
       authenticate(bastion, jumpLogin, left(deadline), jump.target(), jumpCheck);
       ClientSession session = throughBastion(bastion, s, hostCheck, left(deadline));
-      return signIn(session, bastion, jumpLogin, s, secrets, deadline, keyId, hostCheck, jumpCheck);
+      return signIn(session, bastion, jumpLogin, s, secrets, deadline, keyId, hostCheck, jumpCheck, ctx);
     } catch (ConnectorException | RuntimeException e) {
       bastion.close(true);
       throw e;
@@ -220,10 +223,10 @@ final class SshSessions implements AutoCloseable {
   }
 
   private Opened signIn(ClientSession session, ClientSession bastion, SshLogins.Login jumpLogin, SshSettings s,
-      SecretResolver secrets, long deadline, String keyId, HostKeys.Check hostCheck, HostKeys.Check jumpCheck)
+      SecretResolver secrets, long deadline, String keyId, HostKeys.Check hostCheck, HostKeys.Check jumpCheck, ExecContext ctx)
       throws ConnectorException {
     try {
-      SshLogins.Login login = SshLogins.login(s.credentials(), s.target(), secrets, keyId, false);
+      SshLogins.Login login = SshLogins.login(s.credentials(), s.target(), secrets, keyId, false, ctx);
       CoreModuleProperties.HEARTBEAT_INTERVAL.set(session, s.advanced().keepalive());
       authenticate(session, login, left(deadline), s.target(), hostCheck);
       Opened opened = new Opened(session, bastion, login, jumpLogin, session.getServerVersion(), hostCheck,

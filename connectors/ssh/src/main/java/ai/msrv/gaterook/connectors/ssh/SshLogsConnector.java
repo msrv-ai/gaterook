@@ -17,9 +17,6 @@ import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connectors.support.BuiltIn;
 import ai.msrv.gaterook.connectors.support.SchemaResources;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.security.KeyPair;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -265,35 +262,7 @@ public final class SshLogsConnector implements Connector {
       if (!commandPhase.get()) session.close(true);
     });
     try {
-      SshLogins.Login login;
-      if (settings.privateKeyPath() == null) {
-        login = SshLogins.login(ssh.credentials(), ssh.target(), secrets, "gw:" + ctx.callId(), false);
-      } else {
-        // Read after host verification. Each operation rereads the file, so key replacement takes effect immediately.
-        if (!Files.isRegularFile(settings.privateKeyPath())) {
-          throw ConnectorException.badInput("The local private key path must point to a regular file.");
-        }
-        byte[] data;
-        try (var input = Files.newInputStream(settings.privateKeyPath())) {
-          data = input.readNBytes(20001);
-        } catch (IOException e) {
-          throw ConnectorException.resourceError("Cannot read the local private key file. Check its path and permissions.", null);
-        }
-        if (data.length > 20000) {
-          Arrays.fill(data, (byte) 0);
-          throw ConnectorException.badInput("The local private key file is larger than 20,000 bytes.");
-        }
-        char[] key = new String(data, StandardCharsets.US_ASCII).toCharArray();
-        Arrays.fill(data, (byte) 0);
-        try (SecretResolver.Secret passphrase = secrets.isSet("/credentials/passphrase")
-            ? secrets.secret("/credentials/passphrase") : null) {
-          ctx.taint(new String(key));
-          KeyPair pair = PrivateKeys.parse(key, passphrase == null ? null : passphrase.chars(), "private key file");
-          login = new SshLogins.Login(SshSettings.Method.PRIVATE_KEY, null, pair, null, null, 0);
-        } finally {
-          Arrays.fill(key, '\0');
-        }
-      }
+      SshLogins.Login login = SshLogins.login(ssh.credentials(), ssh.target(), secrets, "gw:" + ctx.callId(), false, ctx);
       login.taint(ctx);
       sessions.authenticate(session, login, ctx.remaining(), ssh.target(), check);
       if (!sftpRequired) {

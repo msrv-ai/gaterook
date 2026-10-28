@@ -6,36 +6,15 @@ import java.nio.file.Path;
 import java.util.LinkedHashSet;
 import java.util.List;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.node.ObjectNode;
 
 /** Exact file selection. Remote paths always use POSIX separators, regardless of this computer's OS. */
 record SshLogSettings(SshSettings ssh, Path privateKeyPath, String root, List<String> allowedFiles, JsonNode logsConfig) {
   static SshLogSettings of(ConnectionConfig cfg, boolean selectionRequired) throws ConnectorException {
     String method = cfg.string("/credentials/method");
-    Path key = null;
-    if ("privateKeyFile".equals(method)) {
-      String path = cfg.string("/credentials/privateKeyPath");
-      if (path == null || path.isBlank() || path.length() > 4096 || control(path)) {
-        throw ConnectorException.badInput("Enter the local private key file path.");
-      }
-      if (path.startsWith("~/")) {
-        path = System.getProperty("user.home") + path.substring(1);
-      }
-      try {
-        key = Path.of(path);
-      } catch (RuntimeException e) {
-        throw ConnectorException.badInput("The local private key path is invalid.");
-      }
-      if (!key.isAbsolute()) {
-        throw ConnectorException.badInput("The private key path must be absolute or start with ~/.");
-      }
-    } else if (!"password".equals(method)) {
+    if (!"privateKeyFile".equals(method) && !"password".equals(method)) {
       throw ConnectorException.badInput("Choose password or private key file authentication.");
     }
-    ObjectNode translated = ((ObjectNode) cfg.config()).deepCopy();
-    ((ObjectNode) translated.path("credentials")).put("method", key == null ? "password" : "privateKey");
-    SshSettings ssh = SshSettings.of(new ConnectionConfig(cfg.id(), cfg.name(), cfg.type(), cfg.env(), cfg.version(),
-        translated, cfg.secretFields(), cfg.metadata()));
+    SshSettings ssh = SshSettings.of(cfg);
     String root = cfg.string("/logs/root");
     if (root != null && !root.isBlank()) {
       root = absolute(root);
@@ -52,7 +31,8 @@ record SshLogSettings(SshSettings ssh, Path privateKeyPath, String root, List<St
     if (files.size() > 500 || (selectionRequired && files.isEmpty())) {
       throw ConnectorException.badInput("Select between 1 and 500 log files.");
     }
-    return new SshLogSettings(ssh, key, root, List.copyOf(files), cfg.config().path("logs").deepCopy());
+    return new SshLogSettings(ssh, ssh.credentials().privateKeyPath(), root, List.copyOf(files),
+        cfg.config().path("logs").deepCopy());
   }
 
   static String absolute(String path) throws ConnectorException {

@@ -46,6 +46,12 @@ const cases: readonly ConnectionCase[] = [
   { name: 'SSH: private key without a passphrase or jump host', type: 'ssh',
     config: { connection: sshConnection, credentials: { method: 'privateKey' } },
     secrets: { '/credentials/privateKey': 'test-only-private-key' } },
+  { name: 'SSH: local private key without a passphrase', type: 'ssh',
+    config: { connection: sshConnection, credentials: { method: 'privateKeyFile', privateKeyPath: '/example/keys/runner' } } },
+  { name: 'SSH: encrypted local private key with a certificate', type: 'ssh',
+    config: { connection: sshConnection, credentials: { method: 'privateKeyFile', privateKeyPath: '~/keys/runner',
+      certificate: 'ssh-ed25519-cert-v01@openssh.com AAAA' } },
+    secrets: { '/credentials/passphrase': 'test-key-passphrase' } },
   { name: 'SSH: password without a jump host', type: 'ssh',
     config: { connection: sshConnection, credentials: { method: 'password' } },
     secrets: { '/credentials/password': password } },
@@ -65,6 +71,10 @@ const cases: readonly ConnectionCase[] = [
     config: { connection: sshConnection, credentials: { method: 'password' },
       jump: { host: 'bastion.example.test', credentials: { method: 'privateKey' } } },
     secrets: { '/credentials/password': password, '/jump/credentials/privateKey': 'test-only-jump-key' } },
+  { name: 'SSH: jump host uses its own encrypted local private key', type: 'ssh',
+    config: { connection: sshConnection, credentials: { method: 'privateKeyFile', privateKeyPath: '~/keys/runner' },
+      jump: { host: 'bastion.example.test', credentials: { method: 'privateKeyFile', privateKeyPath: '/example/keys/bastion' } } },
+    secrets: { '/jump/credentials/passphrase': 'test-jump-passphrase' } },
   { name: 'SSH: jump host uses its own password', type: 'ssh',
     config: { connection: sshConnection, credentials: { method: 'privateKey' },
       jump: { host: 'bastion.example.test', credentials: { method: 'password' } } },
@@ -210,6 +220,42 @@ describe('schema-form: minimal active connector configurations', () => {
     }
   });
 
+  it('SSH changes between pasted keys, local files, and passwords without submitting inactive credentials', () => {
+    const form = createSchemaForm(CONNECTOR_FORMS['ssh'], {
+      idPrefix: 'ssh-method', current: { connection: sshConnection, credentials: { method: 'privateKey' } },
+      injector: TestBed.inject(Injector),
+    });
+    const active = (pointer: string) => form.compiled.all.find((node) => node.pointer === pointer && form.visible(node))!;
+    form.setSecret(active('/credentials/privateKey'), 'test-only-pasted-key');
+    form.setSecret(active('/credentials/passphrase'), 'test-only-key-passphrase');
+    form.set(active('/credentials/certificate'), 'ssh-ed25519-cert-v01@openssh.com AAAA');
+    expect(form.submit()).toBe(true);
+
+    form.set(active('/credentials/method'), 'privateKeyFile');
+    expect(active('/credentials/privateKey')).toBeUndefined();
+    expect(form.submit()).toBe(false);
+    expect(form.invalidNodes().map((node) => node.pointer)).toEqual(['/credentials/privateKeyPath']);
+    form.set(active('/credentials/privateKeyPath'), '~/keys/runner');
+    expect(form.submit()).toBe(true);
+    expect(form.value()['credentials']).toEqual({ method: 'privateKeyFile', privateKeyPath: '~/keys/runner',
+      certificate: 'ssh-ed25519-cert-v01@openssh.com AAAA' });
+    expect(form.secretInputs()).toEqual({ '/credentials/passphrase': { source: 'local', value: 'test-only-key-passphrase' } });
+
+    form.set(active('/credentials/method'), 'password');
+    form.setSecret(active('/credentials/password'), password);
+    expect(form.submit()).toBe(true);
+    expect(form.value()['credentials']).toEqual({ method: 'password' });
+    expect(form.secretInputs()).toEqual({ '/credentials/password': { source: 'local', value: password } });
+
+    form.set(active('/credentials/method'), 'privateKey');
+    expect(form.submit()).toBe(true);
+    expect(form.value()['credentials']).toEqual({ method: 'privateKey', certificate: 'ssh-ed25519-cert-v01@openssh.com AAAA' });
+    expect(form.secretInputs()).toEqual({
+      '/credentials/privateKey': { source: 'local', value: 'test-only-pasted-key' },
+      '/credentials/passphrase': { source: 'local', value: 'test-only-key-passphrase' },
+    });
+  });
+
   it('Redis keeps database zero when the user only enters the host', () => {
     const form = createSchemaForm(CONNECTOR_FORMS['redis'], {
       idPrefix: 'redis', current: { connection: { host: 'redis.example.test' } }, injector: TestBed.inject(Injector),
@@ -275,6 +321,12 @@ describe('schema-form: minimal active connector configurations', () => {
       config: { connection: { host: 'db.example.test', databases: ['orders'] } }, pointer: '/credentials/user' },
     { name: 'SSH password', type: 'ssh', config: { connection: sshConnection, credentials: { method: 'password' } },
       pointer: '/credentials/password' },
+    { name: 'SSH private key file', type: 'ssh', config: { connection: sshConnection, credentials: { method: 'privateKeyFile' } },
+      pointer: '/credentials/privateKeyPath' },
+    { name: 'SSH jump host private key file', type: 'ssh',
+      config: { connection: sshConnection, credentials: { method: 'privateKeyFile', privateKeyPath: '~/keys/runner' },
+        jump: { host: 'bastion.example.test', credentials: { method: 'privateKeyFile' } } },
+      pointer: '/jump/credentials/privateKeyPath' },
     { name: 'Kubernetes server', type: 'kubernetes', config: { auth: 'token' }, pointer: '/server' },
     { name: 'HTTP base URL', type: 'http', config: { auth: { type: 'none' } }, pointer: '/baseUrls' },
     { name: 'AWS region scope', type: 'aws', config: { credentials: { source: 'profile', profile: 'example' } }, pointer: '/regions' },

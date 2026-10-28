@@ -3,6 +3,7 @@ package ai.msrv.gaterook.connectors.ssh;
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.Env;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -58,7 +59,7 @@ record SshSettings(Target target, Credentials credentials, HostKeyConfig hostKey
    * @param pointer     the JSON pointer of the credentials object: {@code /credentials} or {@code /jump/credentials}
    * @param certificate an OpenSSH user certificate for the private key ({@code …-cert.pub}), not a secret
    */
-  record Credentials(String pointer, Method method, Vault vault, String certificate) {
+  record Credentials(String pointer, Method method, Vault vault, String certificate, Path privateKeyPath) {
     String password() {
       return pointer + "/password";
     }
@@ -136,9 +137,12 @@ record SshSettings(Target target, Credentials credentials, HostKeyConfig hostKey
   }
 
   private static Credentials credentials(JsonNode n, String pointer) throws ConnectorException {
-    Method method = Method.of(n.path("method").asString("vaultSshCa"));
+    String methodId = n.path("method").asString("vaultSshCa");
+    Path privateKeyPath = "privateKeyFile".equals(methodId)
+        ? PrivateKeys.path(n.path("privateKeyPath").asString(null)) : null;
+    Method method = privateKeyPath == null ? Method.of(methodId) : Method.PRIVATE_KEY;
     if (method == null) {
-      throw ConnectorException.badInput("credentials.method must be vaultSshCa, privateKey or password.");
+      throw ConnectorException.badInput("credentials.method must be vaultSshCa, privateKeyFile, privateKey or password.");
     }
     JsonNode v = n.path("vault");
     Vault vault = null;
@@ -155,7 +159,7 @@ record SshSettings(Target target, Credentials credentials, HostKeyConfig hostKey
           v.path("role").asString("gw-runbooks"), duration, principal.isBlank() ? null : principal);
     }
     String certificate = n.path("certificate").asString("").strip();
-    return new Credentials(pointer, method, vault, certificate.isEmpty() ? null : certificate);
+    return new Credentials(pointer, method, vault, certificate.isEmpty() ? null : certificate, privateKeyPath);
   }
 
   private static HostKeyConfig hostKeys(JsonNode n, String pointer) {

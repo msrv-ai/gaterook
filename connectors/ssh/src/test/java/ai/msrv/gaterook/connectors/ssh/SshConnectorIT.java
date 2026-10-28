@@ -15,6 +15,8 @@ import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.KeyPair;
 import java.time.Duration;
 import java.time.Instant;
@@ -28,11 +30,13 @@ import org.apache.sshd.certificate.OpenSshCertificateBuilder;
 import org.apache.sshd.common.config.keys.KeyUtils;
 import org.apache.sshd.common.config.keys.OpenSshCertificate;
 import org.apache.sshd.common.config.keys.PublicKeyEntry;
+import org.apache.sshd.common.config.keys.writer.openssh.OpenSSHKeyEncryptionContext;
 import org.apache.sshd.common.config.keys.writer.openssh.OpenSSHKeyPairResourceWriter;
 import org.apache.sshd.common.keyprovider.KeyPairProvider;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
@@ -542,6 +546,86 @@ class SshConnectorIT {
   }
 
   @Test
+  void testsAndExecutesWithAnEncryptedLocalKeyAndObservesReplacement(@TempDir Path directory) throws Exception {
+    KeyPair user = KeyUtils.generateKeyPair(KeyPairProvider.SSH_ED25519, 256);
+    Path key = writeKey(directory.resolve("identity"), user, "key passphrase");
+    sshd.authorizedKeys.add(user.getPublic());
+    ObjectNode config = TestConfigs.password(sshd.port(), sshd.hostKeyLine());
+    config.putObject("credentials").put("method", "privateKeyFile").put("privateKeyPath", key.toString());
+    ConnectionConfig cfg = TestConfigs.connection("c1", "dev-vm", Env.DEV, 1, config);
+    offer(cfg, TestConfigs.runbook("whoami", "echo me", true, null));
+    TestSecrets secrets = new TestSecrets().with("/credentials/passphrase", "key passphrase");
+    TestCtx tested = TestCtx.read();
+    assertThat(connector.test(cfg, secrets, tested).ok()).isTrue();
+    assertThat(tested.tainted()).contains(Files.readString(key));
+    ToolCall call = exec("echo executed");
+    TestCtx approved = TestCtx.approved(TestCtx.devLimits(), "ap_key", connector.describeAction(call, cfg).payload());
+    assertThat(out(connector.execute(call, cfg, secrets, approved)).path("stdout").asString()).isEqualTo("executed\n");
+    assertThat(approved.tainted()).contains(Files.readString(key));
+    assertThat(out(connector.execute(run("whoami", null), cfg, secrets, TestCtx.read())).path("stdout").asString())
+        .isEqualTo("me\n");
+
+    KeyPair replacement = KeyUtils.generateKeyPair(KeyPairProvider.SSH_ED25519, 256);
+    writeKey(key, replacement, "key passphrase");
+    sshd.authorizedKeys.clear();
+    sshd.authorizedKeys.add(replacement.getPublic());
+    TestCtx next = TestCtx.read();
+    assertThat(out(connector.execute(run("whoami", null), cfg, secrets, next)).path("stdout").asString()).isEqualTo("me\n");
+    assertThat(next.tainted()).contains(Files.readString(key));
+    assertThat(sshd.sessions).hasValue(4);
+    assertThat(sshd.passwordAttempts).hasValue(0);
+    Files.delete(key);
+    assertThatThrownBy(() -> connector.execute(run("whoami", null), cfg, secrets, TestCtx.read()))
+        .isInstanceOf(ConnectorException.class).hasMessage("The local private key path must point to a regular file.");
+  }
+
+  @Test
+  void localKeysAreReadOnlyAfterTrustingTheHost(@TempDir Path directory) {
+    ObjectNode config = TestConfigs.password(sshd.port(), null);
+    config.putObject("credentials").put("method", "privateKeyFile")
+        .put("privateKeyPath", directory.resolve("missing").toString());
+    TestSecrets secrets = new TestSecrets().with("/credentials/passphrase", "key passphrase");
+    TestCtx ctx = TestCtx.read();
+    TestResult result = connector.test(TestConfigs.connection("c1", "dev-vm", Env.DEV, 1, config), secrets, ctx);
+    assertThat(result.needsConfirmation()).isNotNull();
+    assertThat(secrets.resolved).hasValue(0);
+    assertThat(ctx.tainted()).isEmpty();
+    assertThat(sshd.commands).isEmpty();
+  }
+
+  @Test
+  void aBastionCanInheritALocalKeyOrUseItsOwnEncryptedFile(@TempDir Path directory) throws Exception {
+    TestSshd bastion = server(true);
+    KeyPair targetKey = KeyUtils.generateKeyPair(KeyPairProvider.SSH_ED25519, 256);
+    KeyPair jumpKey = KeyUtils.generateKeyPair(KeyPairProvider.SSH_ED25519, 256);
+    Path targetPath = writeKey(directory.resolve("target"), targetKey, null);
+    Path jumpPath = writeKey(directory.resolve("jump"), jumpKey, "jump passphrase");
+    sshd.authorizedKeys.add(targetKey.getPublic());
+    bastion.authorizedKeys.add(targetKey.getPublic());
+    bastion.authorizedKeys.add(jumpKey.getPublic());
+    ObjectNode config = TestConfigs.password(sshd.port(), sshd.hostKeyLine());
+    config.putObject("credentials").put("method", "privateKeyFile").put("privateKeyPath", targetPath.toString());
+    ObjectNode jump = config.putObject("jump").put("host", "127.0.0.1").put("port", bastion.port());
+    jump.putObject("hostKeys").putArray("pinned").add(bastion.hostKeyLine());
+    for (boolean inherited : new boolean[] {true, false}) {
+      if (!inherited) {
+        jump.putObject("credentials").put("method", "privateKeyFile").put("privateKeyPath", jumpPath.toString());
+      }
+      ConnectionConfig cfg = TestConfigs.connection("c1", "dev-vm", Env.DEV, inherited ? 1 : 2, config.deepCopy());
+      offer(cfg, TestConfigs.runbook("whoami", "echo me", true, null));
+      TestSecrets secrets = new TestSecrets().with("/jump/credentials/passphrase", "jump passphrase");
+      TestCtx ctx = TestCtx.read();
+      assertThat(out(connector.execute(run("whoami", null), cfg, secrets, ctx)).path("stdout").asString()).isEqualTo("me\n");
+      assertThat(ctx.tainted()).contains(Files.readString(targetPath));
+      if (!inherited) {
+        assertThat(ctx.tainted()).contains(Files.readString(jumpPath));
+      }
+    }
+    assertThat(bastion.passwordAttempts).hasValue(0);
+    assertThat(sshd.passwordAttempts).hasValue(0);
+  }
+
+  @Test
   void theVaultCaSignsAFreshCertificateNamedAfterTheCall() throws Exception {
     KeyPair ca = KeyUtils.generateKeyPair(KeyPairProvider.SSH_ED25519, 256);
     sshd.userCa = ca.getPublic();
@@ -671,6 +755,21 @@ class SshConnectorIT {
   }
 
   // ---------------------------------------------------------------------------------------------- helpers
+
+  private static Path writeKey(Path path, KeyPair pair, String passphrase) throws Exception {
+    OpenSSHKeyEncryptionContext encryption = null;
+    if (passphrase != null) {
+      encryption = new OpenSSHKeyEncryptionContext();
+      encryption.setPassword(passphrase);
+      encryption.setCipherName("AES");
+      encryption.setCipherMode("CTR");
+      encryption.setCipherType("256");
+    }
+    try (var output = Files.newOutputStream(path)) {
+      OpenSSHKeyPairResourceWriter.INSTANCE.writePrivateKey(pair, "test key", encryption, output);
+    }
+    return path;
+  }
 
   private List<ToolResult> parallel(int n, Callable<ToolResult> call) throws Exception {
     try (ExecutorService pool = Executors.newVirtualThreadPerTaskExecutor()) {

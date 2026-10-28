@@ -76,7 +76,7 @@ final class SshProbe {
             jumpCheck, left(deadline));
         checks.add(check("bastion host key", t0, true, keyLabel(jumpCheck)));
         long ta = System.nanoTime();
-        SshLogins.Login jl = SshLogins.login(s.jump().credentials(), s.jump().target(), secrets, keyId, true);
+        SshLogins.Login jl = SshLogins.login(s.jump().credentials(), s.jump().target(), secrets, keyId, true, ctx);
         sessions.authenticate(bastion, jl, left(deadline), s.jump().target(), jumpCheck);
         checks.add(check("bastion auth", ta, true, s.jump().target().label()));
         t0 = System.nanoTime();
@@ -89,7 +89,7 @@ final class SshProbe {
       String banner = session.getServerVersion();
 
       long ta = System.nanoTime();
-      SshLogins.Login login = SshLogins.login(s.credentials(), s.target(), secrets, keyId, false);
+      SshLogins.Login login = SshLogins.login(s.credentials(), s.target(), secrets, keyId, false, ctx);
       sessions.authenticate(session, login, left(deadline), s.target(), hostCheck);
       checks.add(check("auth", ta, true, SshLogins.Login.describe(s)));
 
