@@ -135,4 +135,9 @@ public final class ApprovedContext implements ExecContext {
   public JsonNode masked(JsonNode tree) {
     return call.masked(tree);
   }
+
+  @Override
+  public Optional<String> textMaskMarker() {
+    return call.textMaskMarker();
+  }
 }

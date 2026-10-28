@@ -35,7 +35,7 @@ import org.apache.sshd.sftp.common.SftpConstants;
 import org.apache.sshd.sftp.common.SftpException;
 import tools.jackson.databind.node.JsonNodeFactory;
 
-/** Selected remote log files over SFTP. No shell or write-capable operation is exposed. */
+/** Selected remote log files through bounded, application-generated read commands and SFTP browsing. */
 public final class SshLogsConnector implements Connector {
   public static final String TYPE = "ssh-logs";
   static final String LIST = "ssh_logs_list";
@@ -54,13 +54,13 @@ public final class SshLogsConnector implements Connector {
     SchemaResources schemas = SchemaResources.of(SshLogsConnector.class, "ssh-logs");
     manifest = ConnectorManifest.builder(TYPE, BuiltIn.VERSION, ConnectorManifest.Kind.BUILT_IN)
         .name("SSH log files").icon("file-text").group("Logs")
-        .description("Read selected log files over SSH without running shell commands.")
+        .description("Read and search selected log files over SSH with bounded server-side commands.")
         .configSchema(schemas.load("config"))
         .policySchema(SchemaResources.of(SshConnector.class, "ssh").load("policy"))
         .tools(List.of(tool(LIST, "List allowed log files", "List explicitly selected log files and their sizes. "
                 + "Optionally filter root-relative file names by literal text or a safe regular expression with query, "
                 + "matchMode and caseSensitive. Use returned file names with ssh_logs_read or ssh_logs_search.", schemas),
-            tool(READ, "Read a log file", "Read complete UTF-8 lines from a selected log file. Set tail for the actual latest N lines. "
+            tool(READ, "Read a log file", "Read complete UTF-8 lines from a selected log file. Set tail for the latest N lines, or startLine/endLine for a line range. "
                 + "Scanning, output and deadline limits return an explicit continuation cursor.", schemas),
             tool(SEARCH, "Search a log file", "Search selected text or JSONL logs by literal text or a safe regular expression, time range and level. "
                 + "Scans beyond the output window; follow nextCursor with the same filters until scanComplete.", schemas)))
@@ -176,7 +176,7 @@ public final class SshLogsConnector implements Connector {
         String version = SshProbe.serverVersion(opened.session().getServerVersion());
         return TestResult.success((System.nanoTime() - started) / 1_000_000,
             version, settings.ssh().target().label(),
-            new TestResult.Permissions(TestResult.Level.READ, "Selected log files over SFTP", "No write tools", List.of(), null))
+            new TestResult.Permissions(TestResult.Level.READ, "Selected log files over SSH", "No write tools", List.of(), null))
             .withDetails(details).withMetadata(JsonNodeFactory.instance.objectNode().put("serverVersion", version));
       }
     } catch (ConnectorException e) {
@@ -226,15 +226,15 @@ public final class SshLogsConnector implements Connector {
         throw ConnectorException.unavailable("This SSH log connection is busy. Try again shortly.", null);
       }
       var check = HostKeys.check(settings.ssh().target(), settings.ssh().hostKeys());
-      try (Connection opened = open(settings, secrets, ctx, check)) {
+      try (Connection opened = open(settings, secrets, ctx, check, LIST.equals(call.tool()))) {
         return LIST.equals(call.tool()) ? SshLogFiles.list(opened.sftp(), settings, SshLogFileQuery.parse(call.arguments()), ctx)
-            : SshLogScanner.scan(opened.sftp(), settings, cfg, call, ctx, scanFingerprintKey);
+            : SshLogScanner.scan(opened.session(), settings, cfg, call, ctx, scanFingerprintKey);
       }
     } catch (IOException e) {
       if (ctx.cancelled() || ctx.remaining().isZero() || Thread.currentThread().isInterrupted()) {
         throw ConnectorException.timeout("The SSH log operation timed out or was cancelled.");
       }
-      throw ConnectorException.resourceError("Cannot read this remote log. Check the selected path, permissions and SFTP support.", e);
+      throw ConnectorException.resourceError("Cannot read this remote log. Check the selected path, permissions and SSH command support.", e);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw ConnectorException.timeout("The SSH log operation was cancelled.");
@@ -247,12 +247,21 @@ public final class SshLogsConnector implements Connector {
 
   private Connection open(SshLogSettings settings, SecretResolver secrets, ExecContext ctx, HostKeys.Check check)
       throws ConnectorException, IOException {
+    return open(settings, secrets, ctx, check, true);
+  }
+
+  private Connection open(SshLogSettings settings, SecretResolver secrets, ExecContext ctx, HostKeys.Check check,
+      boolean sftpRequired) throws ConnectorException, IOException {
     var ssh = settings.ssh();
     if (ctx.cancelled() || ctx.remaining().isZero()) {
       throw ConnectorException.timeout("The SSH log operation was cancelled.");
     }
     ClientSession session = sessions.connect(ssh, ssh.target(), ssh.target().host(), ssh.target().port(), check, ctx.remaining());
-    ctx.onCancel(() -> session.close(true));
+    var commandPhase = new java.util.concurrent.atomic.AtomicBoolean();
+    ctx.onCancel(() -> {
+      // Command cancellation must send TERM/KILL before the authenticated session is closed.
+      if (!commandPhase.get()) session.close(true);
+    });
     try {
       SshLogins.Login login;
       if (settings.privateKeyPath() == null) {
@@ -285,6 +294,10 @@ public final class SshLogsConnector implements Connector {
       }
       login.taint(ctx);
       sessions.authenticate(session, login, ctx.remaining(), ssh.target(), check);
+      if (!sftpRequired) {
+        commandPhase.set(true);
+        return new Connection(session, null);
+      }
       SftpModuleProperties.SFTP_CHANNEL_OPEN_TIMEOUT.set(session, ctx.remaining());
       AbstractSftpClient.SFTP_CLIENT_CMD_TIMEOUT.set(session, ctx.remaining());
       SftpClient sftp = SftpClientFactory.instance().createSftpClient(session);
@@ -299,7 +312,7 @@ public final class SshLogsConnector implements Connector {
     @Override
     public void close() {
       try {
-        sftp.close();
+        if (sftp != null) sftp.close();
       } catch (IOException ignored) {
         // Closing the session also closes its SFTP channel.
       } finally {

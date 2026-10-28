@@ -6,7 +6,9 @@ import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.connector.api.Limits;
 import ai.msrv.gaterook.core.platform.MaskPolicy;
+import ai.msrv.gaterook.core.platform.Masker;
 import ai.msrv.gaterook.core.platform.Taint;
+import ai.msrv.gaterook.core.invocation.internal.ApprovedContext;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Optional;
@@ -64,5 +66,19 @@ class CallContextTest {
 
     assertThat(prod.masked(JSON.readTree("{\"owner\":\"ravi@acme.dev\"}")).path("owner").asString())
         .as("prod masks personal data by default").doesNotContain("ravi@acme.dev");
+  }
+
+  @Test
+  void sourcePrefiltersCanRelyOnlyOnTheFixedTextReplacementContract() {
+    Taint taint = new Taint();
+    taint.add("cnry-prefilter-secret-0042");
+    CallContext call = CallContext.builder("tc_filter", Env.DEV, LIMITS, Clock.systemUTC()).handles(NO_HANDLES)
+        .taint(taint).build();
+    ExecContext approved = new ApprovedContext(call, "apr_filter", null, null);
+    for (ExecContext context : new ExecContext[] {call, approved}) {
+      assertThat(context.textMaskMarker()).contains(Masker.MASK);
+      assertThat(context.masked(JSON.getNodeFactory().textNode("before cnry-prefilter-secret-0042 after")).asString())
+          .isEqualTo("before " + context.textMaskMarker().orElseThrow() + " after");
+    }
   }
 }

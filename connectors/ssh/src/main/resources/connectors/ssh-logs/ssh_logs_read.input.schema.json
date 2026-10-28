@@ -21,7 +21,19 @@
       "minimum": 0,
       "maximum": 9007199254740991,
       "default": 0,
-      "description": "Legacy single-file forward byte offset. Prefer nextCursor for continuation with snapshot checks. Cannot be combined with tail or cursor."
+      "description": "Legacy single-file forward byte offset. Prefer nextCursor for continuation with snapshot checks. A nonzero offset cannot be combined with tail, cursor or a line range."
+    },
+    "startLine": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991,
+      "description": "First physical line to inspect, numbered from 1 and inclusive. Defaults to 1 when only endLine is supplied. Cannot be combined with tail or a nonzero byte offset."
+    },
+    "endLine": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991,
+      "description": "Last physical line to inspect, inclusive and not before startLine. Omit to read onward from startLine. maxLines still limits the matching records returned per page."
     },
     "tail": {
       "type": "boolean",
@@ -69,7 +81,7 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 8192,
-      "description": "Opaque nextCursor from the preceding response. Repeat the same connection, file(s), filters, tail and limits. Relative time bounds stay anchored to the first call. Modified files or changed access invalidate the cursor."
+      "description": "Opaque nextCursor from the preceding response. Repeat the same connection, file(s), line range, filters, tail and limits. Relative time bounds stay anchored to the first call. Rotation, truncation or detected changes to the scanned snapshot invalidate the cursor; appends beyond the snapshot do not extend it."
     }
   }
 }

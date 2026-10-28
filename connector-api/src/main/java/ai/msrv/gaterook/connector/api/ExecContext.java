@@ -89,6 +89,17 @@ public interface ExecContext {
     return tree;
   }
 
+  /**
+   * Optional guarantee for conservative source prefilters: when {@link #masked} receives a text node, it only
+   * replaces zero or more spans with this fixed marker and makes no other edits. This says nothing about object
+   * or array nodes. Absence means a connector must not assume this property, even if a particular value is unchanged.
+   * A prefilter must still retain every possible match after masking and apply the authoritative masked filter
+   * before returning results; source progress and limits must not reveal matches of hidden values.
+   */
+  default Optional<String> textMaskMarker() {
+    return Optional.empty();
+  }
+
   /** HMAC-signed opaque handles (cursors of logs_tail, redis_scan): the agent can't forge them. */
   interface HandleCodec {
     String seal(String purpose, JsonNode payload, Duration ttl);

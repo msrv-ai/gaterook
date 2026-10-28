@@ -177,10 +177,21 @@ final class TestCtx implements ExecContext {
   }
 
   private java.util.function.UnaryOperator<JsonNode> masker = java.util.function.UnaryOperator.identity();
+  private String textMaskMarker;
 
   TestCtx withMasker(java.util.function.UnaryOperator<JsonNode> value) {
     masker = value;
     return this;
+  }
+
+  TestCtx withTextMaskMarker(String value) {
+    textMaskMarker = value;
+    return this;
+  }
+
+  @Override
+  public Optional<String> textMaskMarker() {
+    return Optional.ofNullable(textMaskMarker);
   }
 
   @Override
