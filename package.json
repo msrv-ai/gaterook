@@ -17,6 +17,8 @@
     "verify:design": "npm --prefix design run verify",
     "build:java": "mvn -B -ntp -DskipTests package",
     "build": "npm run build --prefix design && npm run build:java && npm run build -w ui && npm run build -w desktop",
+    "prepare:win": "node scripts/prepare-windows.mjs",
+    "dist:win:docker": "node scripts/windows-docker.mjs",
     "start": "node desktop/scripts/dev.mjs",
     "dev:ui": "npm run dev -w ui --"
   }

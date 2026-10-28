@@ -60,6 +60,8 @@ Use the URL printed by the dev server. See [the development guide](docs/developm
 
 To build and launch from IntelliJ IDEA, follow [the IDEA setup](docs/development.md#intellij-idea) and use **GateRook: Build**, **GateRook: Run**, or **GateRook: Demo**.
 
+For a local Windows x64 installer, prepare the native inputs on Windows with `npm run prepare:win`, then run `npm run dist:win:docker -- --inputs /path/to/windows-inputs` on a Docker host. This packages an unsigned NSIS `.exe` through `electronuserland/builder:wine`; Windows native compilation and installation checks remain required. See [Windows builds with Docker and Wine](docs/windows-build.md) for prerequisites and commands.
+
 ## Checks
 
 ```bash
@@ -81,6 +83,7 @@ For the full connector integration suite, follow [the Docker test-services guide
 | [Product decisions](docs/DECISIONS.md) | Accepted product and engineering decisions, with implementation caveats |
 | [Research](docs/research/README.md) | Protocol, client, connector, security, native-image, and plugin-host investigations |
 | [Development](docs/development.md) | Toolchains, build/run commands, tests, native builds, and troubleshooting |
+| [Windows builds](docs/windows-build.md) | Native input preparation and local NSIS packaging with Docker and Wine |
 | [GCP logs](docs/gcp-logs.md) | Logs Explorer filters, GKE logs, credentials, scopes, and endpoint access |
 | [SSH log files](docs/ssh-log-files.md) | Remote file selection, searching, latest records, time ranges, and continuation |
 | [Repository layout](docs/repository-layout.md) | Source directories and their responsibilities |
