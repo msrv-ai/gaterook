@@ -4,6 +4,7 @@ import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.connector.api.ToolResult;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -32,6 +33,13 @@ final class Search {
         throw ConnectorException.badInput("Logs Insights searches have no cursor: search again with an earlier to.");
       }
       state = Cursors.openSearch(ctx, r.cursor(), cfg.id(), queryKey);
+      // A valid cursor can outlive a policy or connection-limit change. Its saved range replaces from/to, so
+      // checking only the arguments would let an old cursor retain a wider window than the current call permits.
+      Duration range = Duration.between(instant(state.fromNs()), instant(state.toNs()));
+      if (range.isNegative() || ctx.limits().maxRange() != null && range.compareTo(ctx.limits().maxRange()) > 0) {
+        throw ConnectorException.badInput("The cursor's time range exceeds the current connection or policy limit. "
+            + "Search again without cursor and use a narrower from/to range.");
+      }
     } else {
       state = new Cursors.SearchState(nanos(r.from()), nanos(r.to()), Set.of(), null);
     }
@@ -110,5 +118,9 @@ final class Search {
 
   static long nanos(Instant i) {
     return Math.addExact(Math.multiplyExact(i.getEpochSecond(), 1_000_000_000L), i.getNano());
+  }
+
+  private static Instant instant(long nanos) {
+    return Instant.ofEpochSecond(Math.floorDiv(nanos, 1_000_000_000L), Math.floorMod(nanos, 1_000_000_000L));
   }
 }

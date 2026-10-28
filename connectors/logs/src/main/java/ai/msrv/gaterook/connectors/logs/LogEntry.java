@@ -23,9 +23,10 @@ import tools.jackson.databind.node.ObjectNode;
  * @param fields   structured payload (GCP {@code jsonPayload}, OpenSearch {@code _source}, extra Insights fields), or
  *                 {@code null}
  * @param truncated the message or the fields were cut to the per-entry limits
+ * @param cursorKey internal identity at a timestamp, including a source namespace when backend ids are not global
  */
 record LogEntry(long nanos, Severity severity, String message, Map<String, String> labels, ObjectNode fields,
-    String id, boolean truncated) {
+    String id, boolean truncated, long cursorKey) {
 
   /** Fields above this many bytes are left out (GCP audit logs carry kilobytes of request detail per entry). */
   static final int MAX_FIELDS_BYTES = 4 * 1024;
@@ -64,8 +65,9 @@ record LogEntry(long nanos, Severity severity, String message, Map<String, Strin
       cut |= !kept.isEmpty();
       kept = null;
     }
+    String cleanId = id == null ? null : OutputSanitizer.sanitize(id);
     return new LogEntry(nanos, severity == null ? Severity.DEFAULT : severity, text, sorted, kept,
-        id == null ? null : OutputSanitizer.sanitize(id), cut);
+        cleanId, cut, key(cleanId));
   }
 
   /** A copy of a structured payload whose names and strings are sanitized like the message. */
@@ -93,9 +95,14 @@ record LogEntry(long nanos, Severity severity, String message, Map<String, Strin
         .toString();
   }
 
-  /** 48 bits of SHA-256 of the id: what a cursor remembers about the entries it has handed out at its boundary. */
+  /** Keeps the displayed id unchanged when backend ids are only unique within a project or another source. */
+  LogEntry withCursorNamespace(String namespace) {
+    return new LogEntry(nanos, severity, message, labels, fields, id, truncated, key(hashId(namespace, id)));
+  }
+
+  /** 48 bits of SHA-256: what a cursor remembers about entries already handed out at its boundary. */
   long key() {
-    return key(id);
+    return cursorKey;
   }
 
   static long key(String id) {
@@ -141,7 +148,7 @@ record LogEntry(long nanos, Severity severity, String message, Map<String, Strin
 
   private static byte[] sha256(String s) {
     try {
-      return MessageDigest.getInstance("SHA-256").digest(s.getBytes(StandardCharsets.UTF_8));
+      return MessageDigest.getInstance("SHA-256").digest((s == null ? "" : s).getBytes(StandardCharsets.UTF_8));
     } catch (NoSuchAlgorithmException e) {
       throw new IllegalStateException(e);
     }

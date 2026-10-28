@@ -10,6 +10,8 @@ import java.net.InetAddress;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.FileTime;
 import java.security.KeyPairGenerator;
 import java.time.Clock;
 import java.time.Instant;
@@ -113,6 +115,68 @@ class GcpCredentialsTest {
   }
 
   @Test
+  void reloadsAdcAfterSignInUpdatesTheFileForAnExistingConnection() throws Exception {
+    Path adc = write("adc.json", userSignIn("first-login"));
+    FileTime modified = Files.getLastModifiedTime(adc);
+    cloud = new CloudCredentials(endpoints(adc), Clock.systemUTC());
+    GcpSpec spec = new GcpSpec(GcpSpec.Source.ADC, null, SA, List.of(), 900, null);
+    GoogleCredentials before = cloud.gcp(OWNER, spec, List.of(CloudCredentials.CLOUD_PLATFORM), new FakeSecrets());
+    CloudCredentials.requestMetadata(before, URI.create("https://logging.googleapis.com/"), t -> { });
+
+    Files.writeString(adc, userSignIn("later-login"));
+    Files.setLastModifiedTime(adc, FileTime.from(modified.toInstant().plusSeconds(2)));
+    GoogleCredentials after = cloud.gcp(OWNER, spec, List.of(CloudCredentials.CLOUD_PLATFORM), new FakeSecrets());
+    CloudCredentials.requestMetadata(after, URI.create("https://logging.googleapis.com/"), t -> { });
+
+    assertThat(after).isNotSameAs(before);
+    assertThat(cloud.gcp(OWNER, spec, List.of(CloudCredentials.CLOUD_PLATFORM), new FakeSecrets())).isSameAs(after);
+    assertThat(requests.stream().filter(r -> r.getUrl().encodedPath().equals("/token")))
+        .extracting(r -> r.getBody().utf8()).satisfiesExactly(
+            body -> assertThat(body).contains("refresh_token=first-login"),
+            body -> assertThat(body).contains("refresh_token=later-login"));
+    assertThat(cloud.issued()).as("replaced credentials do not leave duplicate issued entries").hasSize(1);
+  }
+
+  @Test
+  void reloadsAdcWhenSignInReplacesTheFileWithTheSameSizeAndTimestamp() throws Exception {
+    Path adc = write("adc.json", userSignIn("old-login"));
+    FileTime modified = Files.getLastModifiedTime(adc);
+    cloud = new CloudCredentials(endpoints(adc), Clock.systemUTC());
+    GcpSpec spec = new GcpSpec(GcpSpec.Source.ADC, null, null, List.of(), 900, null);
+    GoogleCredentials before = cloud.gcp(OWNER, spec, List.of(CloudCredentials.CLOUD_PLATFORM), new FakeSecrets());
+
+    Path replacement = write("replacement.json", userSignIn("new-login"));
+    Files.setLastModifiedTime(replacement, modified);
+    Files.move(replacement, adc, StandardCopyOption.REPLACE_EXISTING);
+    GoogleCredentials after = cloud.gcp(OWNER, spec, List.of(CloudCredentials.CLOUD_PLATFORM), new FakeSecrets());
+    CloudCredentials.requestMetadata(after, URI.create("https://logging.googleapis.com/"), t -> { });
+
+    assertThat(after).isNotSameAs(before);
+    assertThat(server.takeRequest(5, TimeUnit.SECONDS).getBody().utf8()).contains("refresh_token=new-login");
+  }
+
+  @Test
+  void picksUpNewSignInAfterMissingOrRemovedAdcWithoutRestarting() throws Exception {
+    Path adc = dir.resolve("adc.json");
+    cloud = new CloudCredentials(endpoints(adc), Clock.systemUTC());
+    GcpSpec spec = new GcpSpec(GcpSpec.Source.ADC, null, null, List.of(), 900, null);
+    assertThatThrownBy(() -> cloud.gcp(OWNER, spec, List.of(CloudCredentials.CLOUD_PLATFORM), new FakeSecrets()))
+        .isInstanceOf(ConnectorException.class).hasMessageContaining("gcloud auth application-default login");
+
+    write("adc.json", userSignIn("first-login"));
+    GoogleCredentials before = cloud.gcp(OWNER, spec, List.of(CloudCredentials.CLOUD_PLATFORM), new FakeSecrets());
+    Files.delete(adc);
+    assertThatThrownBy(() -> cloud.gcp(OWNER, spec, List.of(CloudCredentials.CLOUD_PLATFORM), new FakeSecrets()))
+        .isInstanceOf(ConnectorException.class).hasMessageContaining("gcloud auth application-default login");
+
+    write("adc.json", userSignIn("second-login"));
+    GoogleCredentials after = cloud.gcp(OWNER, spec, List.of(CloudCredentials.CLOUD_PLATFORM), new FakeSecrets());
+    CloudCredentials.requestMetadata(after, URI.create("https://logging.googleapis.com/"), t -> { });
+    assertThat(after).isNotSameAs(before);
+    assertThat(server.takeRequest(5, TimeUnit.SECONDS).getBody().utf8()).contains("refresh_token=second-login");
+  }
+
+  @Test
   void tellsWhichRoleIsMissingWhenImpersonationIsDenied() throws Exception {
     iamStatus = 403;
     Path adc = write("adc.json", "{\"type\":\"authorized_user\",\"client_id\":\"c\",\"client_secret\":\"s\","
@@ -144,6 +208,7 @@ class GcpCredentialsTest {
     assertThat(headers.get("x-goog-user-project")).containsExactly("acme-billing");
     RecordedRequest token = server.takeRequest(5, TimeUnit.SECONDS);
     assertThat(token.getBody().utf8()).contains("grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer");
+    assertThat(cloud.gcp(OWNER, spec, List.of(CloudCredentials.CLOUD_PLATFORM), secrets)).isSameAs(credentials);
   }
 
   @Test
@@ -274,6 +339,11 @@ class GcpCredentialsTest {
 
   private Path write(String name, String content) throws IOException {
     return Files.writeString(dir.resolve(name), content);
+  }
+
+  private static String userSignIn(String refreshToken) {
+    return JSON.writeValueAsString(JSON.createObjectNode().put("type", "authorized_user").put("client_id", "c")
+        .put("client_secret", "s").put("refresh_token", refreshToken));
   }
 
   /** What {@code gcloud auth application-default login --impersonate-service-account} writes. */

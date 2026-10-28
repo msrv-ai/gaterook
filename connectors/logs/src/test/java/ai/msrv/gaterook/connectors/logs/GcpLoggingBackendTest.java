@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorException;
+import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connectors.cloudauth.CloudCredentials;
@@ -128,6 +129,83 @@ class GcpLoggingBackendTest {
   }
 
   @Test
+  void readsACommentedExplorerFilterWithoutChangingItsQuotedValuesOrScope() throws Exception {
+    logging.set(r -> json(200, "{\"entries\":[]}"));
+    String query = """
+        -- Select application containers
+        resource.type="k8s_container"
+        resource.labels.namespace_name="app"
+        (textPayload:"--dry-run" OR jsonPayload.message =~ "timeout.*") -- optional match
+        """;
+    String arguments = TestCtx.JSON.createObjectNode().put("query", query)
+        .put("from", "2026-10-22T12:00:00Z").put("to", "2026-10-22T12:30:00Z").toString();
+    connector.execute(Configs.call("logs_search", arguments), cfg, new TestSecrets(), TestCtx.of());
+    JsonNode body = TestCtx.JSON.readTree(requests.stream()
+        .filter(r -> r.getUrl().encodedPath().equals("/v2/entries:list")).findFirst().orElseThrow().getBody().utf8());
+    assertThat(body.path("resourceNames").toString()).isEqualTo("[\"projects/acme-prod\"]");
+    assertThat(body.path("filter").asString()).startsWith("(resource.type=\"k8s_container\")\nAND (")
+        .contains("textPayload:\"--dry-run\"", "resource.labels.namespace_name=\"app\"",
+            "timestamp>=\"2026-10-22T12:00:00Z\"", "timestamp<=\"2026-10-22T12:30:00Z\"")
+        .doesNotContain("Select application", "optional match");
+  }
+
+  @Test
+  void identicalInsertIdsFromDifferentProjectsRemainDistinctAcrossSearchPages() throws Exception {
+    logging.set(r -> json(200, """
+        {"entries":[
+          {"insertId":"same","logName":"projects/acme-stage/logs/stdout", "timestamp":"2026-10-22T12:29:00Z",
+           "textPayload":"stage entry"},
+          {"insertId":"same","logName":"projects/acme-prod/logs/stdout", "timestamp":"2026-10-22T12:29:00Z",
+           "textPayload":"prod entry"}]}
+        """));
+    ConnectionConfig combined = Configs.of("combined-logs", Env.DEV, """
+        {"backend":"gcp-logging","resourceNames":["projects/acme-stage","projects/acme-prod"],
+         "credentials":{"source":"adc"}}
+        """);
+    TestCtx ctx = TestCtx.of();
+    JsonNode first = connector.execute(Configs.call("logs_search", """
+        {"query":"","from":"2026-10-22T12:00:00Z","to":"2026-10-22T12:30:00Z","limit":1}
+        """), combined, new TestSecrets(), ctx).structuredContent();
+    String cursor = first.path("nextCursor").asString();
+    JsonNode second = connector.execute(Configs.call("logs_search", TestCtx.JSON.createObjectNode()
+        .put("query", "").put("limit", 1).put("cursor", cursor).toString()), combined, new TestSecrets(), ctx.next())
+        .structuredContent();
+    assertThat(first.at("/entries/0/message").asString()).isEqualTo("stage entry");
+    assertThat(second.at("/entries/0/message").asString()).isEqualTo("prod entry");
+    assertThat(first.at("/entries/0/id").asString()).isEqualTo("same");
+    assertThat(second.at("/entries/0/id").asString()).as("the displayed insertId is unchanged").isEqualTo("same");
+    assertThat(second.path("count").asInt()).isEqualTo(1);
+  }
+
+  @Test
+  void aShortPageKeepsTheSameRequestParametersWhenFollowingItsToken() throws Exception {
+    logging.set(r -> {
+      JsonNode request = TestCtx.JSON.readTree(r.getBody().utf8());
+      return request.has("pageToken") ? json(200, """
+          {"entries":[
+            {"insertId":"b","timestamp":"2026-10-22T12:28:00Z","textPayload":"second"},
+            {"insertId":"c","timestamp":"2026-10-22T12:27:00Z","textPayload":"third"}]}
+          """) : json(200, """
+          {"entries":[{"insertId":"a","timestamp":"2026-10-22T12:29:00Z","textPayload":"first"}],
+           "nextPageToken":"second-page"}
+          """);
+    });
+    JsonNode answer = OutputSchema.valid(connector.execute(Configs.call("logs_search", """
+        {"query":"severity>=ERROR","from":"2026-10-22T12:00:00Z","to":"2026-10-22T12:30:00Z","limit":2}
+        """), cfg, new TestSecrets(), TestCtx.of())).structuredContent();
+    List<JsonNode> bodies = requests.stream().filter(r -> r.getUrl().encodedPath().equals("/v2/entries:list"))
+        .map(r -> TestCtx.JSON.readTree(r.getBody().utf8())).toList();
+    assertThat(bodies).hasSize(2);
+    for (String parameter : List.of("resourceNames", "filter", "orderBy", "pageSize")) {
+      assertThat(bodies.get(1).path(parameter)).as(parameter).isEqualTo(bodies.get(0).path(parameter));
+    }
+    assertThat(bodies.get(0).path("pageSize").asInt()).isEqualTo(3);
+    assertThat(bodies.get(1).path("pageToken").asString()).isEqualTo("second-page");
+    assertThat(answer.path("count").asInt()).isEqualTo(2);
+    assertThat(answer.path("nextCursor").isString()).isTrue();
+  }
+
+  @Test
   void emptyPagesWithATokenAreFollowedThreeTimesThenTheCursorResumesThem() throws Exception {
     logging.set(r -> json(200, "{\"entries\":[],\"nextPageToken\":\"page-" + requests.size() + "\"}"));
     TestCtx ctx = TestCtx.of();
@@ -149,12 +227,15 @@ class GcpLoggingBackendTest {
     logging.set(q -> json(200, "{\"entries\":[{\"insertId\":\"z\",\"timestamp\":\"" + Instant.now().minusSeconds(60)
         + "\",\"textPayload\":\"found\"}]}"));
     requests.clear();
-    JsonNode next = connector.execute(Configs.call("logs_search", "{\"query\":\"\",\"cursor\":\"" + cursor + "\"}"),
+    JsonNode next = connector.execute(Configs.call("logs_search", "{\"query\":\"\",\"limit\":1,\"cursor\":\"" + cursor + "\"}"),
         cfg, new TestSecrets(), ctx.next()).structuredContent();
     RecordedRequest resumed = requests.stream().filter(q -> q.getUrl().encodedPath().equals("/v2/entries:list"))
         .findFirst().orElseThrow();
     assertThat(TestCtx.JSON.readTree(resumed.getBody().utf8()).path("pageToken").asString())
         .as("the next call resumes where Cloud Logging stopped").isNotEqualTo(lastToken).startsWith("page-");
+    assertThat(TestCtx.JSON.readTree(resumed.getBody().utf8()).path("pageSize"))
+        .as("a changed tool limit must not change Google's pageSize for its existing token")
+        .isEqualTo(TestCtx.JSON.readTree(lists.getFirst().getBody().utf8()).path("pageSize"));
     assertThat(next.at("/entries/0/message").asString()).isEqualTo("found");
   }
 
@@ -169,11 +250,10 @@ class GcpLoggingBackendTest {
         {"backend":"gcp-logging","resourceNames":["projects/acme-prod"],
          "scopeFilter":"resource.type=\\"k8s_container\\" -- the app's pods only","credentials":{"source":"adc"}}"""));
 
-    String filter = GcpLoggingBackend.filter(scoped, "severity>=ERROR", from, to);
+    String filter = GcpLoggingBackend.filter(scoped, "severity>=ERROR -- copied from Logs Explorer", from, to);
 
     assertThat(filter).isEqualTo("""
-        (resource.type="k8s_container" -- the app's pods only
-        )
+        (resource.type="k8s_container")
         AND (severity>=ERROR)
         AND timestamp>="2026-10-22T12:00:00Z"
         AND timestamp<="2026-10-22T12:30:00Z\"""");
@@ -182,10 +262,10 @@ class GcpLoggingBackendTest {
         .reduce("", (a, b) -> a + b + "\n");
     assertThat(read).contains("timestamp>=\"2026-10-22T12:00:00Z\"", "timestamp<=\"2026-10-22T12:30:00Z\"");
     assertThat(read.chars().filter(c -> c == '(').count()).isEqualTo(read.chars().filter(c -> c == ')').count());
-    // The agent's query can't hold a comment at all.
+    // An expression that escapes its parentheses is rejected before it reaches Google.
     assertThatThrownBy(() -> connector.execute(Configs.call("logs_search", "{\"query\":\"x) AND "
         + "timestamp>=\\\"2015-01-01T00:00:00Z\\\" --\"}"), cfg, new TestSecrets(), TestCtx.of()))
-        .isInstanceOfSatisfying(ConnectorException.class, e -> assertThat(e.getMessage()).contains("comment"));
+        .isInstanceOfSatisfying(ConnectorException.class, e -> assertThat(e.getMessage()).contains("parentheses"));
     assertThat(requests).noneMatch(q -> q.getUrl().encodedPath().equals("/v2/entries:list"));
   }
 

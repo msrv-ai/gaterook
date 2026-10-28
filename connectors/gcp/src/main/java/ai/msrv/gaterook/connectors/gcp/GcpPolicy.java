@@ -12,7 +12,7 @@ import java.util.Set;
 /**
  * The Cloud section of an environment's policy as GCP reads it (report 09 §6; one section for GCP and AWS, merged by
  * the core, only stricter wins): which services, locations and resources agents may see, the longest time range of a
- * metrics query, data points and items per call. An empty list means "no restriction" (the core's {@code intersect}
+ * metrics or log query, data points and items per call. An empty list means "no restriction" (the core's {@code intersect}
  * merge); a list that kept nothing in common holds a value no name matches.
  *
  * <p>{@code regions} are GCP locations here: {@code europe-west1} also allows its zones ({@code europe-west1-b});

@@ -195,7 +195,9 @@ sealed interface Settings permits Settings.Loki, Settings.Gcp, Settings.CloudWat
     if (quota < 1 || quota > 60) {
       throw new InvalidSettingsException("The quota share must be 1 to 60 calls per minute.");
     }
-    return new Gcp(names, GcpSpec.fromConfig(c, "/credentials"), text(c, "scopeFilter", null), quota);
+    String scopeFilter = text(c, "scopeFilter", null);
+    if (scopeFilter != null) GcpLoggingFilter.expression(scopeFilter);
+    return new Gcp(names, GcpSpec.fromConfig(c, "/credentials"), scopeFilter, quota);
   }
 
   private static CloudWatch cloudWatch(JsonNode c) {

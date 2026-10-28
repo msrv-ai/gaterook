@@ -585,7 +585,7 @@ The service tool `approval_status` remains available separately.
 
 ### Connectors and extensions
 
-Built-in tool counts are PostgreSQL 4, MySQL 4, MongoDB 2, Redis 2, SSH 2, Logs 2, Kubernetes 4, GCP 2, AWS 2, and HTTP API 2. Logs is one connector with Loki, GCP Cloud Logging, AWS CloudWatch, and OpenSearch backends. OpenSearch is not a plugin.
+Built-in tool counts are PostgreSQL 4, MySQL 4, MongoDB 2, Redis 2, SSH 2, Logs 2, Kubernetes 4, GCP 4, AWS 2, and HTTP API 2. Logs is one connector with Loki, GCP Cloud Logging, AWS CloudWatch, and OpenSearch backends. OpenSearch is not a plugin.
 
 The Jira Service Desk plugin is installed at 1.2.0; catalogue 1.3.0 adds read-only `jira_request_sla`. The `github-mcp` demo server is version 0.6.2 with a signed catalogue entry and lockfile, installed with `npm ci --ignore-scripts`. Its resolved argv runs Node on the installed entry file, not `npx`. Its environment contains only its own token, PATH, HOME, and required basic variables. Its 26 tools have no read-only declarations and are on no endpoint initially. They enter Approval when added and can only be Approval or Off.
 

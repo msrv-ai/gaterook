@@ -12,6 +12,8 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -64,9 +66,9 @@ import tools.jackson.databind.json.JsonMapper;
  * </ul>
  *
  * <p>Credentials live in memory only, cached per owner and config version (a new version, a rotated key or a changed
- * policy makes new ones; {@link #evict} drops them). Values the gateway derives — access tokens, session keys — are
- * secrets too: callers hand them to the call's taint through {@link #requestMetadata} and {@link #tainting}, so the
- * masker removes any echo. No Spring, no global state: {@code UrlConnectionHttpClient} and NetHttpTransport per
+ * policy or ADC file makes new ones; {@link #evict} drops them). Values the gateway derives — access tokens, session
+ * keys — are secrets too: callers hand them to the call's taint through {@link #requestMetadata} and {@link #tainting},
+ * so the masker removes any echo. No Spring, no global state: {@code UrlConnectionHttpClient} and NetHttpTransport per
  * instance, explicit STS endpoints so {@code AWS_ENDPOINT_URL*} can't redirect signed requests.
  */
 public final class CloudCredentials implements AutoCloseable {
@@ -136,11 +138,15 @@ public final class CloudCredentials implements AutoCloseable {
     String secretVersion = spec.source() == GcpSpec.Source.SERVICE_ACCOUNT_KEY
         ? String.valueOf(secrets.meta(spec.keyField()).version()) : "";
     String key = owner.id() + "|" + owner.version() + "|" + spec + "|" + scopes + "|" + secretVersion;
+    AdcFile adc = spec.source() == GcpSpec.Source.ADC ? adcState() : null;
     GcpEntry cached = gcp.get(key);
-    if (cached != null) {
+    if (cached != null && Objects.equals(cached.adc(), adc)) {
       return cached.credentials();
     }
-    GoogleCredentials source = gcpSource(spec, secrets);
+    if (cached != null) {
+      gcp.remove(key, cached);
+    }
+    GoogleCredentials source = gcpSource(spec, secrets, adc);
     GoogleCredentials credentials;
     if (spec.impersonate() != null) {
       ImpersonatedCredentials.Builder builder = ImpersonatedCredentials.newBuilder()
@@ -162,10 +168,10 @@ public final class CloudCredentials implements AutoCloseable {
         credentials = credentials.createWithQuotaProject(spec.quotaProject());
       }
     }
-    GcpEntry entry = new GcpEntry(owner, spec, credentials, new IssuedClock());
+    GcpEntry entry = new GcpEntry(owner, spec, credentials, new IssuedClock(), adc);
     credentials.addChangeListener(changed -> entry.issued().at = clock.instant());
-    GcpEntry raced = gcp.putIfAbsent(key, entry);
-    return raced != null ? raced.credentials() : credentials;
+    return gcp.compute(key, (ignored, current) -> current != null && Objects.equals(current.adc(), adc)
+        ? current : entry).credentials();
   }
 
   /**
@@ -187,7 +193,7 @@ public final class CloudCredentials implements AutoCloseable {
     }
   }
 
-  private GoogleCredentials gcpSource(GcpSpec spec, SecretResolver secrets) throws ConnectorException {
+  private GoogleCredentials gcpSource(GcpSpec spec, SecretResolver secrets, AdcFile adc) throws ConnectorException {
     if (spec.source() == GcpSpec.Source.SERVICE_ACCOUNT_KEY) {
       try (SecretResolver.Secret key = secrets.secret(spec.keyField())) {
         byte[] json = key.bytes();
@@ -198,7 +204,7 @@ public final class CloudCredentials implements AutoCloseable {
         }
       }
     }
-    Path file = adcFile();
+    Path file = adc.path();
     byte[] json;
     try {
       json = Files.readAllBytes(file);
@@ -371,6 +377,20 @@ public final class CloudCredentials implements AutoCloseable {
       return Path.of(System.getenv("APPDATA"), "gcloud", "application_default_credentials.json");
     }
     return Path.of(System.getProperty("user.home"), ".config", "gcloud", "application_default_credentials.json");
+  }
+
+  /** A new gcloud sign-in replaces the ADC source even while an owner keeps the same saved config version. */
+  private AdcFile adcState() throws ConnectorException {
+    Path file = adcFile();
+    try {
+      BasicFileAttributes attributes = Files.readAttributes(file, BasicFileAttributes.class);
+      return new AdcFile(file, attributes.fileKey(), attributes.lastModifiedTime(), attributes.size());
+    } catch (NoSuchFileException e) {
+      throw ConnectorException.unavailable("No Google sign-in on this computer. Run gcloud auth "
+          + "application-default login, then test again.", null);
+    } catch (IOException e) {
+      throw ConnectorException.unavailable("Can't read the Google sign-in at " + file + ": " + e.getMessage(), e);
+    }
   }
 
   private static ConnectorException explainGoogle(IOException e, GoogleCredentials credentials) {
@@ -672,7 +692,10 @@ public final class CloudCredentials implements AutoCloseable {
     volatile Instant lastExpiry;
   }
 
-  private record GcpEntry(Owner owner, GcpSpec spec, GoogleCredentials credentials, IssuedClock issued) {}
+  /** Only file metadata identifies the ADC revision; no credential bytes enter the cache key. */
+  private record AdcFile(Path path, Object fileKey, FileTime modified, long size) {}
+
+  private record GcpEntry(Owner owner, GcpSpec spec, GoogleCredentials credentials, IssuedClock issued, AdcFile adc) {}
 
   private record AwsEntry(Owner owner, AwsSpec spec, AwsCredentialsProvider provider, StsClient sts,
       StsAssumeRoleCredentialsProvider assume, IssuedClock issued) {

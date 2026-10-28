@@ -62,6 +62,7 @@ class LogsCoreProcessIT {
   private static final List<RecordedRequest> REQUESTS = new CopyOnWriteArrayList<>();
   private static final List<String> MCP_ANSWERS = new CopyOnWriteArrayList<>();
   private static MockWebServer fake;
+  private static MockWebServer searchApiFake;
   private static CoreProcess core;
   private static String token;
   private static String keyJson;
@@ -87,6 +88,16 @@ class LogsCoreProcessIT {
       }
     });
     fake.start(InetAddress.getByName("127.0.0.1"), 0);
+    // Separate the authenticated API from the anonymous log connection, including concurrent health probes.
+    searchApiFake = new MockWebServer();
+    searchApiFake.setDispatcher(new Dispatcher() {
+      @Override
+      public MockResponse dispatch(RecordedRequest request) {
+        REQUESTS.add(request);
+        return answer(request);
+      }
+    });
+    searchApiFake.start(InetAddress.getByName("127.0.0.1"), 0);
     String base = "http://127.0.0.1:" + fake.getPort();
     core = CoreProcess.start(CoreProcess.newHome("logs"), CoreProcess.freePort(), List.of(
         "-Dgateway.cloud.gcp.token-uri=" + base + "/token",
@@ -103,6 +114,9 @@ class LogsCoreProcessIT {
     }
     if (fake != null) {
       fake.close();
+    }
+    if (searchApiFake != null) {
+      searchApiFake.close();
     }
   }
 
@@ -190,8 +204,10 @@ class LogsCoreProcessIT {
     }
     assertThat(search).as("logs_search with all four connections").isNotNull();
     assertThat(tail).as("logs_tail, switched on").isNotNull();
-    assertThat(search.path("description").asString()).contains("app-logs: LogQL (Loki)")
-        .contains("gcp-logs: Logging query language (GCP Cloud Logging)").contains("search-logs: Lucene");
+    assertThat(search.path("description").asString()).contains("describe_connection", "LogQL", "Logs Explorer",
+        "Logs Insights", "Lucene");
+    assertThat(search.at("/inputSchema/properties/connection/enum").toString())
+        .isEqualTo("[\"app-logs\",\"aws-logs\",\"gcp-logs\",\"search-logs\"]");
   }
 
   @Test
@@ -241,14 +257,14 @@ class LogsCoreProcessIT {
   @Test
   @Order(5)
   void fullOpenSearchApisAreAvailableByDefaultAndSettingsWaitForExactApproval() throws Exception {
-    String base = "http://127.0.0.1:" + fake.getPort();
+    String base = "http://127.0.0.1:" + searchApiFake.getPort();
     JsonNode tested = save("search-api", """
         {"backend":"opensearch","url":"%s","auth":{"mode":"basic","username":"%s"}}
         """.formatted(base, OPENSEARCH_USER),
         "{\"/auth/secret\":{\"source\":\"local\",\"value\":\"" + OPENSEARCH_PASSWORD + "\"}}");
     assertThat(tested.path("serverVersion").asString()).isEqualTo("OpenSearch 3.9.0");
-    assertThat(REQUESTS.stream().filter(r -> r.getUrl().encodedPath().equals("/")
-        && r.getMethod().equals("GET")).toList()).isNotEmpty().allSatisfy(r ->
+    assertThat(REQUESTS.stream().filter(r -> r.getUrl().port() == searchApiFake.getPort()
+        && r.getUrl().encodedPath().equals("/") && r.getMethod().equals("GET")).toList()).isNotEmpty().allSatisfy(r ->
         assertThat(r.getHeaders().get("Authorization")).isEqualTo("Basic " + OPENSEARCH_BASIC));
     json(admin("POST", "/api/endpoints/logs/connections/search-api", "{}"), 200);
     JsonNode settings = json(admin("GET", "/api/endpoints/logs/settings", null), 200);

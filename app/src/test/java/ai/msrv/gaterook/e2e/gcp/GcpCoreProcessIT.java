@@ -34,8 +34,8 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * The GCP connector through the assembled core (step C7, ARCHITECTURE.md §10): the window's admin API tests and saves
  * a GCP connection (a service account key impersonating another account), an endpoint and a token; an agent then
- * searches the inventory, reads one resource live, reads a metric and tries the dangerous reads. Google is a fake on
- * this computer: the token server, IAM, Cloud Resource Manager, Cloud Asset, Cloud Run and Cloud Monitoring.
+ * searches the inventory, reads one resource live, reads a metric, searches GKE logs and tries the dangerous reads. Google is a fake on
+ * this computer: the token server, IAM, Cloud Resource Manager, Cloud Asset, Cloud Run, Cloud Monitoring and Cloud Logging.
  *
  * <p>The live resource echoes the impersonated token in its configuration and carries a password in a container's
  * environment: the agent sees {@code ‹masked›} for both (§9 "the agent never sees a secret"); no request ever reaches
@@ -85,7 +85,7 @@ class GcpCoreProcessIT {
     fake.start(InetAddress.getByName("127.0.0.1"), 0);
     String base = "http://127.0.0.1:" + fake.getPort();
     StringBuilder services = new StringBuilder();
-    for (String api : List.of("cloudasset", "monitoring", "cloudresourcemanager", "run", "redis", "compute")) {
+    for (String api : List.of("cloudasset", "monitoring", "cloudresourcemanager", "run", "redis", "compute", "logging")) {
       services.append(services.isEmpty() ? "" : ",").append("gcp.").append(api).append('=').append(base);
     }
     core = CoreProcess.start(CoreProcess.newHome("gcp"), CoreProcess.freePort(), List.of(
@@ -138,22 +138,29 @@ class GcpCoreProcessIT {
          "clientInfo":{"name":"gcp-e2e","version":"1"}}}""");
     JsonNode describe = null;
     JsonNode metrics = null;
+    JsonNode logs = null;
     long deadline = System.nanoTime() + Duration.ofSeconds(15).toNanos();
-    while ((describe == null || metrics == null) && System.nanoTime() < deadline) {
+    while ((describe == null || metrics == null || logs == null) && System.nanoTime() < deadline) {
       for (JsonNode t : mcp("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}")
           .at("/result/tools")) {
         if (t.path("name").asString().equals("gcp_describe")) {
           describe = t;
         } else if (t.path("name").asString().equals("gcp_metrics")) {
           metrics = t;
+        } else if (t.path("name").asString().equals("logs_search")) {
+          logs = t;
         }
       }
-      if (describe == null || metrics == null) {
+      if (describe == null || metrics == null || logs == null) {
         Thread.sleep(200);
       }
     }
     assertThat(describe).as("gcp_describe on the endpoint").isNotNull();
     assertThat(metrics).as("gcp_metrics on the endpoint").isNotNull();
+    assertThat(logs).as("logs_search on the GCP connection").isNotNull();
+    assertThat(logs.at("/inputSchema/properties/connection/enum").toString()).isEqualTo("[\"gcp-dev\"]");
+    assertThat(logs.at("/annotations/readOnlyHint").asBoolean()).isTrue();
+    assertThat(logs.has("outputSchema")).isTrue();
     assertThat(describe.path("description").asString()).contains("Scopes: gcp-dev: projects/acme-dev")
         .contains("Connections: gcp-dev (GCP");
     assertThat(describe.at("/inputSchema/properties/scope/enum").toString()).isEqualTo("[\"projects/acme-dev\"]");
@@ -229,6 +236,61 @@ class GcpCoreProcessIT {
 
   @Test
   @Order(5)
+  void nativeGkeFiltersWorkWhenGcpAndLogsShareAnEndpoint() throws Exception {
+    String config = """
+        {"backend":"gcp-logging","resourceNames":["projects/acme-dev"],
+         "credentials":{"source":"serviceAccountKey","impersonate":"%s"}}""".formatted(SA);
+    String secrets = "{\"/credentials/serviceAccountKey\":{\"source\":\"local\",\"value\":"
+        + JsonNodeFactory.instance.textNode(keyJson) + "}}";
+    json(admin("POST", "/api/connections", "{\"name\":\"gcp-logs\",\"type\":\"logs\",\"env\":\"dev\",\"config\":"
+        + config + ",\"secrets\":" + secrets + "}"), 201);
+    json(admin("POST", "/api/endpoints/cloud/connections/gcp-logs", "{}"), 200);
+
+    JsonNode tools = mcp("{\"jsonrpc\":\"2.0\",\"id\":20,\"method\":\"tools/list\",\"params\":{}}")
+        .at("/result/tools");
+    List<JsonNode> logTools = new ArrayList<>();
+    tools.forEach(t -> {
+      if (t.path("name").asString().equals("logs_search")) {
+        logTools.add(t);
+      }
+      assertThat(t.path("name").asString()).isNotEqualTo("logs_tail");
+    });
+    assertThat(logTools).as("a single shared tool survives catalog merging").hasSize(1);
+    assertThat(logTools.getFirst().at("/inputSchema/properties/connection/enum").toString())
+        .isEqualTo("[\"gcp-dev\",\"gcp-logs\"]");
+    assertThat(logTools.getFirst().path("description").asString()).contains("Logs Explorer");
+
+    String query = """
+        -- Copied from Logs Explorer
+        resource.type="k8s_container"
+        resource.labels.namespace_name="default"
+        resource.labels.container_name="api"
+        severity>=ERROR""";
+    for (String connection : List.of("gcp-dev", "gcp-logs")) {
+      ObjectNode arguments = JsonNodeFactory.instance.objectNode().put("connection", connection)
+          .put("query", query).put("source", "projects/acme-dev").put("from", "-1h").put("limit", 10);
+      JsonNode result = call(21, "logs_search", arguments.toString());
+      assertThat(result.at("/result/isError").asBoolean(true)).as(result.toString()).isFalse();
+      assertThat(result.at("/result/structuredContent/entries/0/message").asString()).isEqualTo("request failed");
+      assertThat(result.at("/result/structuredContent/entries/0/labels/container_name").asString()).isEqualTo("api");
+    }
+    List<RecordedRequest> requests = REQUESTS.stream()
+        .filter(r -> r.getUrl().encodedPath().equals("/v2/entries:list"))
+        .filter(r -> CoreProcess.JSON.readTree(r.getBody().utf8()).path("filter").asString()
+            .contains("resource.labels.container_name=\"api\""))
+        .toList();
+    assertThat(requests).hasSize(2);
+    for (RecordedRequest request : requests) {
+      assertThat(request.getHeaders().get("Authorization")).isEqualTo("Bearer " + GCP_TOKEN);
+      JsonNode body = CoreProcess.JSON.readTree(request.getBody().utf8());
+      assertThat(body.path("resourceNames").toString()).isEqualTo("[\"projects/acme-dev\"]");
+      assertThat(body.path("filter").asString()).contains("resource.type=\"k8s_container\"",
+          "resource.labels.container_name=\"api\"", "timestamp>=", "timestamp<=").doesNotContain("-- Copied");
+    }
+  }
+
+  @Test
+  @Order(6)
   void noCredentialReachesAnAnswerOrTheLog() throws Exception {
     List<String> seen = new ArrayList<>(core.stdoutSoFar());
     seen.add(core.coreLog());
@@ -281,6 +343,13 @@ class GcpCoreProcessIT {
            "annotations":{"run.googleapis.com/note":"deployed with Bearer %s"},
            "template":{"containers":[{"image":"api:1.5","env":[{"name":"DB_PASS","value":"%s"}]}]}}"""
           .formatted(GCP_TOKEN, ENV_SECRET));
+    }
+    if (path.equals("/v2/entries:list")) {
+      return json(200, """
+          {"entries":[{"insertId":"log-1","timestamp":"%s","severity":"ERROR","textPayload":"request failed",
+           "logName":"projects/acme-dev/logs/stderr","resource":{"type":"k8s_container",
+           "labels":{"project_id":"acme-dev","namespace_name":"default","container_name":"api"}}}]}"""
+          .formatted(Instant.now().minusSeconds(60)));
     }
     if (path.equals("/v3/projects/acme-dev/metricDescriptors")) {
       return json(200, "{\"metricDescriptors\":[]}");

@@ -15,6 +15,7 @@ import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Nature;
 import ai.msrv.gaterook.connectors.cloudauth.CloudCredentials;
 import ai.msrv.gaterook.connectors.cloudauth.CloudEndpoints;
+import ai.msrv.gaterook.connectors.logs.LogsConnector;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -45,8 +46,8 @@ class GcpConnectorTest {
     assertThat(m.name()).isEqualTo("GCP");
     assertThat(m.group()).isEqualTo("Cloud");
     assertThat(m.icon()).isEqualTo("cloud");
-    assertThat(m.description()).isEqualTo("Resources, statuses and metrics, read through service account "
-        + "impersonation.");
+    assertThat(m.description()).isEqualTo("Resources, statuses, metrics and Cloud Logging, read with the "
+        + "connection's Google identity.");
     assertThat(m.configSchema().path("type").asString()).isEqualTo("object");
     assertThat(m.policySchema().path("x-policy-section").asString()).isEqualTo("cloud");
     assertThat(m.access().files()).containsExactly("~/.config/gcloud/application_default_credentials.json");
@@ -56,16 +57,24 @@ class GcpConnectorTest {
   void publishesTheToolsOfTheKit() {
     List<ToolDefinition> tools = connector.manifest().tools();
 
-    assertThat(tools).extracting(ToolDefinition::name).containsExactly("gcp_describe", "gcp_metrics");
+    assertThat(tools).extracting(ToolDefinition::name).containsExactly("gcp_describe", "gcp_metrics",
+        "logs_search", "logs_tail");
     for (ToolDefinition t : tools) {
       assertThat(t.nature()).as(t.name()).isEqualTo(Nature.READ);
-      assertThat(t.defaultMode()).isEqualTo(Mode.READ_ONLY);
-      assertThat(t.prodDefaultMode()).isEqualTo(Mode.READ_ONLY);
+      boolean tail = t.name().equals("logs_tail");
+      assertThat(t.defaultMode()).isEqualTo(tail ? Mode.OFF : Mode.READ_ONLY);
+      assertThat(t.prodDefaultMode()).isEqualTo(tail ? Mode.OFF : Mode.READ_ONLY);
       assertThat(t.outputSchema()).isNotNull();
-      assertThat(t.annotations()).isEqualTo(ToolDefinition.Annotations.read());
+      assertThat(t.annotations()).isEqualTo(tail ? new ToolDefinition.Annotations(true, false, false, false)
+          : ToolDefinition.Annotations.read());
       assertThat(t.inputSchema().at("/properties/connection").toString()).isEqualTo("{\"type\":\"string\"}");
       assertThat(t.inputSchema().at("/required").toString()).contains("\"connection\"");
       assertThat(t.readOnlyModeAllowed()).isTrue();
+    }
+    try (LogsConnector logs = new LogsConnector(cloud)) {
+      assertThat(tools.stream().filter(t -> t.name().startsWith("logs_")))
+          .containsExactlyElementsOf(logs.manifest().tools().stream()
+              .filter(t -> t.name().startsWith("logs_")).toList());
     }
   }
 
@@ -149,5 +158,9 @@ class GcpConnectorTest {
     assertThat(d.path("identity").asString()).isEqualTo(FakeGoogle.SA);
     assertThat(d.path("liveServices")).hasSize(8);
     assertThat(d.at("/exampleSearches/0/assetTypes/0").asString()).isEqualTo("run.googleapis.com/Service");
+    assertThat(d.at("/logging/tools").toString()).isEqualTo("[\"logs_search\",\"logs_tail\"]");
+    assertThat(d.at("/logging/resourceNames")).isEqualTo(d.path("scopes"));
+    assertThat(d.at("/logging/language").asString()).contains("Cloud Logging query language");
+    assertThat(d.at("/logging/exampleQueries").toString()).contains("k8s_container");
   }
 }

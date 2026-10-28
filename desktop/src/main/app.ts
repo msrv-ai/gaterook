@@ -24,6 +24,7 @@ import { NativeUnlockClient } from './native-unlock.ts';
 import { OsFileKey } from './os-file-key.ts';
 import { chooseFile, choosePrivateKeyFile, openClientConfig, openMcpb, reveal, type FilesOptions } from './files.ts';
 import { isTrustedSender } from './ipc-guard.ts';
+import { GoogleSignIn } from './google-sign-in.ts';
 import { resolveLayout, type Layout } from './layout.ts';
 import { applyLoginItem, launchedHidden } from './login.ts';
 import { createLogger, type Logger } from './log.ts';
@@ -109,6 +110,7 @@ export class Desktop {
   private readonly nativeUnlock: NativeUnlockClient;
   private readonly osFileKey: OsFileKey;
   private readonly events: CoreEventFeed;
+  private readonly googleSignIn = new GoogleSignIn();
   private window: AppWindow | null = null;
   private windowReady = false;
   private tray: AppTray | null = null;
@@ -675,6 +677,10 @@ export class Desktop {
     handle(IPC.saveFile, (purpose) => chooseFile(files, purpose, true));
     handle(IPC.openFile, (purpose) => chooseFile(files, purpose, false));
     handle(IPC.choosePrivateKeyFile, () => choosePrivateKeyFile(files));
+    handle(IPC.signInToGoogle, (...args) => {
+      if (args.length) throw new Error('Google sign-in does not accept arguments.');
+      return this.googleSignIn.signIn();
+    });
     handle(IPC.openMcpb, (id) => openMcpb(files, id));
     handle(IPC.openClientConfig, (id) => openClientConfig(files, id));
     handle(IPC.reveal, (kind) => reveal(files, kind));
@@ -751,6 +757,7 @@ export class Desktop {
           this.updates?.stop();
           this.events.stop();
           this.fileKeyUnlock.close();
+          this.googleSignIn.close();
           await this.supervisor.stop();
           await this.broker?.close();
           this.broker = null;
@@ -806,6 +813,7 @@ export class Desktop {
       { name: 'events', run: () => this.events.stop() },
       { name: 'unlock', run: () => this.fileKeyUnlock.close() },
       { name: 'native unlock', run: () => this.nativeUnlock.close() },
+      { name: 'Google sign-in', run: () => this.googleSignIn.close() },
       { name: 'core', run: () => this.supervisor.stop() },
       { name: 'broker', run: async () => {
         try { await this.broker?.close(); } finally { this.broker = null; }

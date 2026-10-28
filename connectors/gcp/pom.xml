@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  GCP (report 09): gcp_describe (Cloud Asset search and a live GET of one resource) and gcp_metrics (Cloud
-  Monitoring) over REST with java.net.http and google-auth tokens from connectors/cloud-auth.
+  GCP: Cloud Asset inventory, Cloud Monitoring and Cloud Logging over REST. The shared log tools come from
+  connectors/logs, with google-auth tokens from connectors/cloud-auth.
   Spring only in the .boot subpackage. Built by step C7.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -34,6 +34,10 @@
     <dependency>
       <groupId>ai.msrv.gaterook</groupId>
       <artifactId>connectors-cloud-auth</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connectors-logs</artifactId>
     </dependency>
     <dependency>
       <groupId>com.google.auth</groupId>

@@ -109,6 +109,44 @@ async function databaseForm(type = 'mysql') {
   return { ...view, load, choose };
 }
 
+describe('connection form: GCP setup', () => {
+  it('shows the scope format and local sign-in instructions, then submits after correcting a bare project ID', async () => {
+    const { el, host, settle } = await render();
+    host.spec.set(spec('gcp'));
+    await settle();
+    const scopes = el.querySelector<HTMLInputElement>('#cf-scopes')!;
+    expect(scopes.placeholder).toBe('Add a resource scope, for example projects/acme-stage');
+    expect(el.textContent).toContain('folders/');
+    expect(el.textContent).toContain('organizations/');
+    expect(el.textContent).toContain('gcloud auth application-default login');
+
+    scopes.value = 'acme-stage';
+    scopes.dispatchEvent(new Event('input', { bubbles: true }));
+    await settle();
+    el.querySelector<HTMLButtonElement>('button[aria-label="Add resource scope"]')!.click();
+    await settle();
+    el.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+    expect(host.saved).toHaveLength(0);
+    expect(scopes.getAttribute('aria-invalid')).toBe('true');
+    const errorId = scopes.getAttribute('aria-describedby')!.split(' ').find((id) => id.endsWith('-err'))!;
+    expect(el.querySelector(`#${errorId}`)?.textContent).toContain('Use a value such as projects/acme-stage.');
+
+    el.querySelector<HTMLButtonElement>('button[aria-label="Remove resource scope acme-stage"]')!.click();
+    await settle();
+    scopes.value = 'projects/acme-stage';
+    scopes.dispatchEvent(new Event('input', { bubbles: true }));
+    await settle();
+    scopes.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    await settle();
+    el.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+    expect(host.saved).toHaveLength(1);
+    expect(host.saved[0].config).toMatchObject({ scopes: ['projects/acme-stage'], credentials: { source: 'adc' } });
+    expect(host.saved[0].secrets).toEqual({});
+  });
+});
+
 describe('connection form: database discovery', () => {
   it('uses the API dynamic-login source without requiring a manually entered username', async () => {
     const { el, host, settle } = await render();

@@ -43,6 +43,9 @@ const gwDesktop = {
   choosePrivateKeyFile(): Promise<string | null> {
     return ipcRenderer.invoke(IPC.choosePrivateKeyFile);
   },
+  signInToGoogle(): Promise<void> {
+    return ipcRenderer.invoke(IPC.signInToGoogle);
+  },
   openMcpb(linkId: string): Promise<void> {
     return ipcRenderer.invoke(IPC.openMcpb, String(linkId));
   },

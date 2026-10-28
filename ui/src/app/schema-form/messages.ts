@@ -72,7 +72,13 @@ export function valueProblem(node: SchemaNode, value: JsonValue): string | null 
         for (const item of value) {
           if (typeof item !== 'string') continue;
           if (maxLength !== null && item.length > maxLength) return `${item.slice(0, 40)}… is longer than ${maxLength} characters.`;
-          if (pattern && !safeTest(pattern, item)) return `${item} is not a valid ${noun}.`;
+          if (pattern && !safeTest(pattern, item)) {
+            const examples = items['examples'];
+            const example = Array.isArray(examples)
+              ? examples.find((v): v is string => typeof v === 'string' && safeTest(pattern, v))
+              : undefined;
+            return `${item} is not a valid ${noun}.${example ? ` Use a value such as ${example}.` : ''}`;
+          }
         }
       }
       return null;

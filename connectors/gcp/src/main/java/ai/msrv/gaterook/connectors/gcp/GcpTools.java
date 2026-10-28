@@ -16,8 +16,8 @@ import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The two read tools of GCP (report 09 §3). Both are pure READ, so both publish an outputSchema; the kit's mode is Read
- * only on every environment ("Read only · Idempotent").
+ * GCP inventory and metric tools, with the unchanged shared log tools supplied by {@link CloudLogs}. Log tailing
+ * keeps its shared Off default; the other tools default to Read only.
  */
 final class GcpTools {
 
@@ -85,6 +85,11 @@ final class GcpTools {
     }
     List<ToolDefinition> out = new ArrayList<>();
     for (ToolDefinition t : tools) {
+      if (CloudLogs.isTool(t.name())) {
+        // Shared names must have identical definitions across GCP and Logs connections on one endpoint.
+        out.add(t);
+        continue;
+      }
       ObjectNode input = (ObjectNode) t.inputSchema().deepCopy();
       String suffix;
       if (t.name().equals("gcp_describe")) {

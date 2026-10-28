@@ -93,6 +93,8 @@ export interface GwDesktop {
   openFile(purpose: string): Promise<string | null>;
   /** Shows the native picker and returns the selected private key path, without reading its contents. */
   choosePrivateKeyFile(): Promise<string | null>;
+  /** Runs the fixed Google ADC sign-in flow in main; no command, token or credential crosses IPC. */
+  signInToGoogle(): Promise<void>;
   openMcpb(linkId: string): Promise<void>;
   /** Opens an MCP client's config file in the default editor; main resolves the path from the client id itself. */
   openClientConfig(client: string): Promise<void>;
@@ -152,6 +154,7 @@ export class DesktopBridge {
 
   /** Also false when a browser UI connects to an older desktop shell. */
   readonly privateKeyPickerAvailable = typeof this.desktop?.choosePrivateKeyFile === 'function';
+  readonly googleSignInAvailable = typeof this.desktop?.signInToGoogle === 'function';
 
   /** The OS, for `gw-titlebar--mac`; `web` in a browser. */
   readonly platform: GwDesktop['platform'] | 'web' = this.desktop?.platform ?? 'web';
@@ -176,6 +179,11 @@ export class DesktopBridge {
 
   async choosePrivateKeyFile(): Promise<string | null> {
     return this.desktop?.choosePrivateKeyFile?.() ?? null;
+  }
+
+  async signInToGoogle(): Promise<void> {
+    if (!this.desktop?.signInToGoogle) throw new Error('Google sign-in is available in the desktop app. Run gcloud auth application-default login in a terminal, then test again.');
+    await this.desktop.signInToGoogle();
   }
 
   async openMcpb(linkId: string): Promise<void> {

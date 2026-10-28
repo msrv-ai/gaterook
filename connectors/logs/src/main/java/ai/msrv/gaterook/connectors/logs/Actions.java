@@ -10,7 +10,7 @@ import java.util.List;
  * What a person sees when they put a Logs tool in Approval mode themselves (report 07 §3.6): the query exactly as it
  * goes to the backend — for Logs Insights with what the gateway adds, for Cloud Logging with the scope filter and the
  * time range — and the range in absolute time. The approved call runs with these values, not with "-1h" evaluated
- * later.
+ * later. A continuation takes its time bounds and position from the cursor, verified at execution.
  */
 final class Actions {
 
@@ -24,9 +24,14 @@ final class Actions {
       case Settings.Loki l -> lines.add("query: " + r.query());
       case Settings.Gcp g -> {
         lines.add("resources: " + (r.source() != null ? r.source() : String.join(", ", g.resourceNames())));
-        long to = r.to() == null ? from : Search.nanos(r.to());
-        lines.add("filter: " + (r.tool() == LogsRequest.Tool.SEARCH ? GcpLoggingBackend.filter(g, r.query(), from, to)
-            : GcpLoggingBackend.filter(g, r.query(), from, from).replaceFirst("\nAND timestamp<=\"[^\"]*\"$", "")));
+        if (r.cursor() != null) {
+          String expression = GcpLoggingBackend.filterExpression(g, r.query());
+          lines.add("filter: " + (expression.isBlank() ? "(every entry)" : expression));
+        } else {
+          long to = r.to() == null ? from : Search.nanos(r.to());
+          lines.add("filter: " + (r.tool() == LogsRequest.Tool.SEARCH ? GcpLoggingBackend.filter(g, r.query(), from, to)
+              : GcpLoggingBackend.filter(g, r.query(), from, from).replaceFirst("\nAND timestamp<=\"[^\"]*\"$", "")));
+        }
       }
       case Settings.CloudWatch c -> {
         if (r.tool() == LogsRequest.Tool.SEARCH && c.insights()) {
@@ -45,14 +50,18 @@ final class Actions {
         }
       }
     }
-    if (r.tool() == LogsRequest.Tool.SEARCH) {
+    String cursorTime = "from the previous cursor; verified and checked against current limits before execution";
+    if (r.cursor() != null) {
+      if (r.tool() == LogsRequest.Tool.SEARCH) {
+        lines.add("range and position: " + cursorTime + " · limit " + r.limit());
+      } else {
+        lines.add("since: " + cursorTime + " · waits up to " + r.waitFor().toSeconds() + " s · limit " + r.limit());
+      }
+    } else if (r.tool() == LogsRequest.Tool.SEARCH) {
       lines.add("range: " + r.from() + " → " + r.to() + " (" + human(Duration.between(r.from(), r.to())) + ") · limit "
           + r.limit());
     } else {
       lines.add("since: " + r.from() + " · waits up to " + r.waitFor().toSeconds() + " s · limit " + r.limit());
-    }
-    if (r.cursor() != null) {
-      lines.add("continues from the cursor of the previous call");
     }
     String text = String.join("\n", lines);
     String query = r.query().isBlank() ? "every entry" : r.query();
@@ -63,7 +72,9 @@ final class Actions {
     List<ActionPreview.Field> fields = new ArrayList<>();
     fields.add(new ActionPreview.Field("Backend", s.title()));
     fields.add(new ActionPreview.Field("Where", s.target()));
-    if (r.tool() == LogsRequest.Tool.SEARCH) {
+    if (r.cursor() != null) {
+      fields.add(new ActionPreview.Field(r.tool() == LogsRequest.Tool.SEARCH ? "Range" : "Since", cursorTime));
+    } else if (r.tool() == LogsRequest.Tool.SEARCH) {
       fields.add(new ActionPreview.Field("Range", r.from() + " → " + r.to()));
     }
     fields.add(new ActionPreview.Field("Limit", r.limit() + " entries"));

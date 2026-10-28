@@ -8,20 +8,20 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * The Cloud policy reaches {@code classify} only ({@code PolicyView}); {@code execute} sees the call's {@code Limits},
  * which know nothing of services, locations or resource masks. What {@code classify} saw travels to {@code execute}
- * of the same call here, by call id and bound to the connection's id and version — the core classifies right before
- * it executes, also for an approved call. Without a decision {@code execute} refuses: guessing "no restriction" would
- * show what the policy hides.
+ * of the same call here, by call id and bound to the tool and connection's id and version — the core classifies
+ * right before it executes, also for an approved call. Without a decision {@code execute} refuses: guessing "no
+ * restriction" would show what the policy hides.
  */
 final class Decisions {
 
   static final Duration TTL = Duration.ofMinutes(5);
   static final int MAX = 4_096;
 
-  private record Decided(String connectionId, long version, GcpPolicy policy, long atNanos) {}
+  private record Decided(String tool, String connectionId, long version, GcpPolicy policy, long atNanos) {}
 
   private final Map<String, Decided> decided = new ConcurrentHashMap<>();
 
-  void remember(String callId, String connectionId, long version, GcpPolicy policy) {
+  void remember(String callId, String tool, String connectionId, long version, GcpPolicy policy) {
     if (callId == null) {
       return;
     }
@@ -34,17 +34,21 @@ final class Decisions {
             .map(Map.Entry::getKey).toList().forEach(decided::remove);
       }
     }
-    decided.put(callId, new Decided(connectionId, version, policy, now));
+    decided.put(callId, new Decided(tool, connectionId, version, policy, now));
   }
 
-  /** The policy {@code classify} applied to this call on this connection version, once; {@code null} if none. */
-  GcpPolicy take(String callId, String connectionId, long version) {
+  void forget(String callId) {
+    if (callId != null) decided.remove(callId);
+  }
+
+  /** The policy {@code classify} applied to this tool and connection version, once; {@code null} if none. */
+  GcpPolicy take(String callId, String tool, String connectionId, long version) {
     if (callId == null) {
       return null;
     }
     Decided d = decided.remove(callId);
-    if (d == null || System.nanoTime() - d.atNanos() > TTL.toNanos() || !d.connectionId().equals(connectionId)
-        || d.version() != version) {
+    if (d == null || System.nanoTime() - d.atNanos() > TTL.toNanos() || !d.tool().equals(tool)
+        || !d.connectionId().equals(connectionId) || d.version() != version) {
       return null;
     }
     return d.policy();

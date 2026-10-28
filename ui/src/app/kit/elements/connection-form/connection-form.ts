@@ -28,7 +28,7 @@ import { GwToggle } from '../../disclosure';
 import { secretSourceId, sourceCopy } from '../../../schema-form/secret-sources';
 import { GwIcon } from '../../icons';
 import { literalParts } from '../shared/literals';
-import { GwConnectionTest, TestState, TestTarget } from './connection-test';
+import { GwConnectionTest, TestState, TestTarget, usesGoogleAdc } from './connection-test';
 import { fileSelection, withoutFileFields } from './file-selection';
 import { FileBrowseRequest, FileBrowseTrust, GwRemoteFiles } from './remote-files';
 import { DatabaseName, databaseConfig, databaseNames, databaseSelection, initialDatabases, removeConfigPath, withoutDatabaseFields } from './database-selection';
@@ -185,6 +185,13 @@ export class GwConnectionForm {
   readonly testedAt = input<string | null>(null);
   readonly detailsOpen = input(false, { transform: booleanAttribute });
   readonly busy = input(false, { transform: booleanAttribute });
+  protected readonly googleSignIn = computed(() => usesGoogleAdc(this.spec().type, this.state().model()));
+  protected readonly googleSignInContext = computed(() => ({
+    type: this.spec().type,
+    common: this.common(),
+    config: this.state().model(),
+    source: this.state().source(),
+  }));
   readonly saveLabel = input('Save connection');
   readonly backLabel = input<string | null>('Back');
   /**
