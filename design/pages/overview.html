@@ -115,8 +115,9 @@
     <!-- gw-status belongs to component group B. Static on purpose: no gw-status--live in the shell (WCAG 2.2.2) -->
     <div class="gw-sidebar__footer">
       <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Core running</span></span>
-      <span class="gw-sidebar__meta">127.0.0.1:7465 · v0.4.0</span>
+      <span class="gw-sidebar__meta">127.0.0.1:7465</span>
       <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off</span></span>
+      <span class="gw-sidebar__meta">v0.4.0</span>
     </div>
   </div>
 
@@ -127,7 +128,7 @@
         OVERVIEW · the home screen, as little noise as possible. Three states; the app renders one,
         this reference page shows all three (overview.html?state=first-run | setup, or the line at the bottom):
           in use     Waiting for your approval (quick access, only while requests wait; a quiet line when none)
-                     → Your connections (status-tile, problems first, one row + "N more")
+                     → Your connections (status-tile, problems first, six shown + "N more")
                      → AI apps (status-tile, 2 × 2) → one line about Activity
           first-run  nothing set up: a gw-stepper --guide card, 1 Add a connection · 2 Connect your AI app · 3 Check that it works
           setup      a connection exists, no AI app yet: step 1 done, step 2 current
@@ -215,7 +216,7 @@
       </section>
       <p class="gw-text-small gw-fg-muted" id="ov-wait-none" data-ov-show="in-use" hidden><i class="gw-icon gw-icon--sm" data-lucide="circle-check"></i> Nothing waits for your approval. When an AI app asks to change data, the request appears here and as a desktop notification.</p>
 
-      <!-- What the AI apps can use: problems first, one row, the rest behind one disclosure. -->
+      <!-- What the AI apps can use: six shown by default, problems first and never folded; the rest behind one disclosure. -->
       <section class="gw-section" aria-labelledby="ov-conn-title" data-ov-show="in-use">
         <header class="gw-section__header">
           <h2 class="gw-section__title" id="ov-conn-title">Your connections</h2>
@@ -257,11 +258,6 @@
                 <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span>
               </div>
             </li>
-          </ul>
-          <div>
-            <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="ov-conn-more">9 more connections, all healthy <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i></button>
-          </div>
-          <ul class="gw-grid gw-grid--3" role="list" id="ov-conn-more" aria-label="More connections, all healthy" hidden>
             <li class="gw-card gw-card--interactive gw-status-tile">
               <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="leaf"></i></span>
               <div class="gw-status-tile__main">
@@ -286,6 +282,11 @@
               </div>
               <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
             </li>
+          </ul>
+          <div>
+            <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="ov-conn-more">6 more connections, all healthy <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i></button>
+          </div>
+          <ul class="gw-grid gw-grid--3" role="list" id="ov-conn-more" aria-label="More connections, all healthy" hidden>
             <li class="gw-card gw-card--interactive gw-status-tile">
               <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="scroll-text"></i></span>
               <div class="gw-status-tile__main">

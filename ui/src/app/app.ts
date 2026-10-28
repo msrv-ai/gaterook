@@ -174,10 +174,6 @@ export class App {
     const n = this.pending();
     return n > 0 ? `Approvals, ${n} waiting` : 'Approvals';
   });
-  protected readonly coreLine = computed(() => {
-    const v = this.core.version();
-    return v ? `${this.core.address()} · v${v}` : this.core.address();
-  });
   protected readonly warnings = computed(() =>
     this.core.warnings().map((w) => ({ ...w, icon: WARNING_ICONS[w.kind] ?? 'triangle-alert' })),
   );

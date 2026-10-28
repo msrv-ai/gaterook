@@ -114,7 +114,7 @@ Electron frameless titlebar (bg canvas, subtle bottom rule, --gw-layout-titlebar
 
 ### `gw-sidebar`
 
-Navigation column (bg.sidebar, end border): logo and collapse toggle, the scrolling nav, and a footer that always shows the local core and the tunnel (gw-status, static) plus the mono address and version line.
+Navigation column (bg.sidebar, end border): logo and collapse toggle, the scrolling nav, and a footer that always shows the local core and the tunnel (gw-status, static) plus compact mono metadata: the address below the core status and the version on its own final line, with bottom padding. Metadata uses the 11px font token and wraps long values instead of truncating them.
 
 [SCSS](scss/components/_shell.scss)
 
@@ -1812,8 +1812,9 @@ These examples retain the original component and composition structures. Ellipse
     </nav>
     <div class="gw-sidebar__footer">
       <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Core running</span></span>
-      <span class="gw-sidebar__meta">127.0.0.1:7465 · v0.4.0</span>
+      <span class="gw-sidebar__meta">127.0.0.1:7465</span>
       <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off</span></span>
+      <span class="gw-sidebar__meta">v0.4.0</span>
     </div>
   </div>
   <main class="gw-shell__main" id="main" tabindex="-1">

@@ -1817,12 +1817,10 @@ table {
   font-family: var(--gw-font-family-mono);
   font-variant-ligatures: none;
   font-feature-settings: "calt" 0, "liga" 0;
+  font-size: var(--gw-font-size-2xs);
   color: var(--gw-color-text-muted);
   font-variant-numeric: tabular-nums;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .gw-nav {

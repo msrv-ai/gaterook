@@ -42,7 +42,7 @@ export const SKELETON_DELAY_MS = 300;
  *
  * - **In use** — an AI app is connected. Waiting for your approval at the top, the quick-access zone (compact
  *   requests, soonest auto-deny first, Review opens the exact action in Approvals; a quiet line when none waits);
- *   Your connections as status tiles, problems first and one row in view (Test again on an unreachable one), the
+ *   Your connections as status tiles, problems first and six visible by default (Test again on an unreachable one), the
  *   rest behind "N more connections"; AI apps as tiles (an app found and not connected first, with Connect;
  *   claude.ai last); one line about Activity.
  * - **First run** — no connection yet: a three-step guide (`gw-stepper --guide`): Add your first connection (the

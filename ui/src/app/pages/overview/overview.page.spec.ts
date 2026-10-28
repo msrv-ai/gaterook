@@ -201,7 +201,14 @@ describe('Overview page', () => {
         "12 connections: 10 healthy, 1 slow, 1 unreachable. The tag shows each one's environment: dev, stage or prod.",
       );
       const first = section.querySelector('ul[aria-label="Connections that need attention first"]')!;
-      expect(Array.from(first.querySelectorAll('.gw-status-tile__title')).map(text)).toEqual(['billing-api environment stage', 'cache-redis environment dev', 'app-logs environment dev']);
+      expect(Array.from(first.querySelectorAll('.gw-status-tile__title')).map(text)).toEqual([
+        'billing-api environment stage',
+        'cache-redis environment dev',
+        'app-logs environment dev',
+        'dev-cluster environment dev',
+        'dev-db environment dev',
+        'dev-vm environment dev',
+      ]);
 
       const billing = tile(first, 'billing-api')!;
       expect(billing.classList).toContain('gw-card--interactive');
@@ -213,7 +220,7 @@ describe('Overview page', () => {
       expect(tile(first, 'cache-redis')!.querySelector('button')).toBeNull();
 
       // The disclosure sits before the folded list, which opens and closes with it.
-      const toggle = byText<HTMLButtonElement>(section, 'button', '9 more connections, all healthy')!;
+      const toggle = byText<HTMLButtonElement>(section, 'button', '6 more connections, all healthy')!;
       const more = section.querySelector<HTMLElement>('#ov-conn-more')!;
       expect(toggle.getAttribute('aria-controls')).toBe('ov-conn-more');
       expect(toggle.getAttribute('aria-expanded')).toBe('false');
@@ -222,7 +229,7 @@ describe('Overview page', () => {
       toggle.click();
       fixture.detectChanges();
       expect(more.hidden).toBe(false);
-      expect(more.querySelectorAll('.gw-status-tile')).toHaveLength(9);
+      expect(more.querySelectorAll('.gw-status-tile')).toHaveLength(6);
     });
 
     it('lists the AI apps: the one to connect first, the connected ones with what they can use, claude.ai last', async () => {

@@ -90,11 +90,14 @@
           } @else {
             <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Core running</span></span>
           }
-          <span class="gw-sidebar__meta">{{ coreLine() }}</span>
+          <span class="gw-sidebar__meta">{{ core.address() }}</span>
           @if (tunnel.on()) {
             <span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel on</span></span>
           } @else {
             <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off</span></span>
+          }
+          @if (core.version(); as version) {
+            <span class="gw-sidebar__meta">v{{ version }}</span>
           }
         </div>
       </div>
