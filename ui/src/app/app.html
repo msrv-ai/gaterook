@@ -17,7 +17,7 @@
     <header class="gw-titlebar" [class.gw-titlebar--mac]="mac">
       <div class="gw-titlebar__drag">
         @if (frame() === 'app') {
-          <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Go back" [title]="history.canGoBack() ? 'Go back' : 'No previous page'" [disabled]="!history.canGoBack()" (click)="history.back()"><svg lucideIcon="arrow-left" class="gw-icon"></svg></button>
+          <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" [title]="history.canGoBack() ? 'Go back' : 'No previous page'" [disabled]="!history.canGoBack()" (click)="history.back()"><svg lucideIcon="arrow-left" class="gw-icon"></svg> Back</button>
         }
       </div>
       <span class="gw-titlebar__title">{{ section() }}</span>
