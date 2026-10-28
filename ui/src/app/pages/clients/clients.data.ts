@@ -161,6 +161,7 @@ export class ClientsData {
       // An entry removed or repaired outside the app, a port that moved: the cards say it at once.
       this.events.on('clients.drift', () => void this.reloadClients(true)),
       this.events.on('audit.call', () => this.onCall()),
+      this.events.on('oauth.grant.changed', () => void this.reloadClients()),
     );
     return this.refresh();
   }
@@ -303,6 +304,10 @@ export class ClientsData {
 
   /** The exact change for a selection; only the newest selection's answer is kept. */
   async preview(card: ClientCard, request: ConnectRequest): Promise<void> {
+    if (card.client === 'cursor' && request.method === 'oauth') {
+      this.resetConnect(card.client);
+      return;
+    }
     const n = (this.seq.get(card.client) ?? 0) + 1;
     this.seq.set(card.client, n);
     this.setConnect(card.client, { ...this.connectState(card.client), loading: true, failure: null, written: false });
@@ -314,6 +319,11 @@ export class ClientsData {
         this.setConnect(card.client, { preview: null, loading: false, failure: connectFailure(e, card, this.time.now()), written: false });
       }
     }
+  }
+
+  /** Browser sign-in prepares OAuth without a managed config preview or write. */
+  browserSignIn(client: ClientId, endpoint: string): Promise<{ readonly link: string }> {
+    return this.clientsApi.browserSignIn(client, endpoint);
   }
 
   /**

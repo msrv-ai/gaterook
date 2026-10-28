@@ -14,6 +14,7 @@ import ai.msrv.gaterook.core.oauth.internal.persistence.OAuthTokenEntity;
 import ai.msrv.gaterook.core.oauth.internal.persistence.OAuthTokenKind;
 import ai.msrv.gaterook.core.oauth.internal.persistence.OAuthTokenRepository;
 import ai.msrv.gaterook.core.platform.Caller;
+import ai.msrv.gaterook.core.platform.EventBus;
 import ai.msrv.gaterook.core.platform.Ingress;
 import ai.msrv.gaterook.core.platform.PrincipalRevoked;
 import ai.msrv.gaterook.core.platform.SetupChangeRecorder;
@@ -24,6 +25,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -32,7 +34,11 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Sort;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Sign-ins the person allowed ({@code oauth_grant}, {@code og_…}) and their tokens ({@code oauth_token}, by hash
@@ -46,6 +52,8 @@ public class Grants {
 
   public static final Duration GRANT_TTL = Duration.ofDays(7);
   public static final Duration ACCESS_TTL = Duration.ofHours(1);
+  private static final Duration USE_EVENT_INTERVAL = Duration.ofSeconds(1);
+  private static final int MAX_USE_EVENTS = 1_024;
 
   /** Tokens just issued; the values exist only in this answer. */
   public record Issued(String accessToken, String refreshToken, long expiresIn, String scope) {
@@ -73,14 +81,16 @@ public class Grants {
   private final ObjectProvider<EndpointRemovalParticipant> participants;
   private final ObjectProvider<SetupChangeRecorder> setupChanges;
   private final ApplicationEventPublisher publisher;
+  private final EventBus events;
   private final Clock clock;
   private final TransactionTemplate writeTx;
   private final TransactionTemplate readTx;
   private final Map<String, Instant> lastUsed = new ConcurrentHashMap<>();
+  private final Map<String, Instant> lastUseEvents = new LinkedHashMap<>();
 
   Grants(OAuthGrantRepository grants, OAuthTokenRepository tokens, OAuthClientRepository clients,
       EndpointSnapshotService snapshots, ObjectProvider<EndpointRemovalParticipant> participants,
-      ObjectProvider<SetupChangeRecorder> setupChanges, ApplicationEventPublisher publisher, Clock clock,
+      ObjectProvider<SetupChangeRecorder> setupChanges, ApplicationEventPublisher publisher, EventBus events, Clock clock,
       PlatformTransactionManager transactions) {
     this.grants = grants;
     this.tokens = tokens;
@@ -89,6 +99,7 @@ public class Grants {
     this.participants = participants;
     this.setupChanges = setupChanges;
     this.publisher = publisher;
+    this.events = events;
     this.clock = clock;
     this.writeTx = new TransactionTemplate(transactions);
     this.readTx = new TransactionTemplate(transactions);
@@ -149,7 +160,13 @@ public class Grants {
     Instant accessEnd = min(now.plus(ACCESS_TTL), g.getExpiresAt());
     tokens.save(new OAuthTokenEntity(OAuthTokens.hash(access), g, OAuthTokenKind.ACCESS, now, accessEnd));
     tokens.save(new OAuthTokenEntity(OAuthTokens.hash(refresh), g, OAuthTokenKind.REFRESH, now, g.getExpiresAt()));
-    lastUsed.put(g.getId(), now);
+    g.setLastUsedAt(now);
+    String id = g.getId();
+    String endpoint = snapshots.get(g.getEndpointId()).map(EndpointSnapshot::slug).orElse(null);
+    afterCommit(() -> {
+      lastUsed.put(id, now);
+      changed(id, endpoint, "active", now, true);
+    });
     return new Issued(access, refresh, Math.max(1, Duration.between(now, accessEnd).toSeconds()), g.getScope());
   }
 
@@ -336,7 +353,6 @@ public class Grants {
         tokens.save(t);
       }
     }
-    lastUsed.remove(g.getId());
     Optional<EndpointSnapshot> e = snapshots.get(g.getEndpointId());
     String slug = e.map(EndpointSnapshot::slug).orElse(null);
     Env env = e.map(EndpointSnapshot::env).orElse(null);
@@ -348,6 +364,14 @@ public class Grants {
           reason == null ? "The sign-in was revoked" : reason);
     }
     publisher.publishEvent(new PrincipalRevoked(Caller.Kind.OAUTH, g.getId(), g.getEndpointId(), slug));
+    String id = g.getId();
+    afterCommit(() -> {
+      lastUsed.remove(id);
+      synchronized (lastUseEvents) {
+        lastUseEvents.remove(id);
+      }
+      changed(id, slug, "revoked", null, true);
+    });
   }
 
   /** The endpoint is being deleted: its grants go with it (cascade); the rest of the core hears of each live one. */
@@ -402,8 +426,42 @@ public class Grants {
   }
 
   /** A call or refresh used the grant; written once a minute. */
-  void used(String grantId) {
-    lastUsed.put(grantId, clock.instant());
+  void used(String grantId, String endpoint) {
+    Instant now = clock.instant();
+    lastUsed.put(grantId, now);
+    changed(grantId, endpoint, "active", now, false);
+  }
+
+  /** A burst of authenticated requests sends at most one usage event per second, with bounded bookkeeping. */
+  private void changed(String id, String endpoint, String state, Instant usedAt, boolean force) {
+    if ("active".equals(state)) {
+      synchronized (lastUseEvents) {
+        Instant previous = lastUseEvents.get(id);
+        if (!force && previous != null && previous.plus(USE_EVENT_INTERVAL).isAfter(usedAt)) {
+          return;
+        }
+        lastUseEvents.put(id, usedAt);
+        while (lastUseEvents.size() > MAX_USE_EVENTS) {
+          lastUseEvents.remove(lastUseEvents.keySet().iterator().next());
+        }
+      }
+    }
+    ObjectNode data = JsonNodeFactory.instance.objectNode().put("id", id).put("endpoint", endpoint)
+        .put("state", state).put("lastUsedAt", usedAt == null ? null : usedAt.toString());
+    events.publish("oauth.grant.changed", data);
+  }
+
+  private static void afterCommit(Runnable action) {
+    if (TransactionSynchronizationManager.isSynchronizationActive()) {
+      TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+        @Override
+        public void afterCommit() {
+          action.run();
+        }
+      });
+    } else {
+      action.run();
+    }
   }
 
   void flushLastUsed() {

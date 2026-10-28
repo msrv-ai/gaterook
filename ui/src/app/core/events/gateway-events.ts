@@ -50,6 +50,8 @@ export interface GatewayEvents {
   'tunnel.state': { readonly state: string; readonly host?: string | null; readonly endpoint?: string | null };
   'oauth.consent.requested': { readonly id: string; readonly [key: string]: unknown };
   'oauth.consent.resolved': { readonly id: string; readonly decision?: string };
+  /** A grant's token exchange, authenticated use or revocation changed the OAuth connection. */
+  'oauth.grant.changed': { readonly id: string; readonly endpoint: string | null; readonly [key: string]: unknown };
   'notify.state': { readonly channel: string; readonly state: string; readonly [key: string]: unknown };
   /**
    * A desktop notification the core rendered (notifications.internal.DesktopNotices, ARCHITECTURE.md §7.4): Electron

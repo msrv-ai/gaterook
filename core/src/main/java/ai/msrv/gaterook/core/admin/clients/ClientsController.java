@@ -28,17 +28,21 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RegisterReflectionForBinding({ClientViews.Clients.class, ClientViews.Card.class, ClientViews.Method.class,
-    ClientViews.Link.class, ClientViews.Preview.class, ClientViews.FileChange.class, ClientViews.Diff.class,
+    ClientViews.Link.class, ClientViews.Preview.class, ClientViews.BrowserSignIn.class, ClientViews.FileChange.class,
+    ClientViews.Diff.class,
     ClientViews.Hunk.class, ClientViews.Line.class, ClientViews.Connected.class, ClientViews.Disconnected.class,
     ClientViews.Check.class, ClientViews.Step.class, ClientViews.Backup.class, ClientViews.Restored.class,
     ClientViews.BridgeRemoved.class, ClientViews.Manual.class, ClientViews.OtherEndpoint.class,
     ClientViews.Snippet.class, ClientsController.EditProblem.class, ClientsController.McpbFile.class,
-    ClientsController.ConnectBody.class, ClientsController.Confirm.class, ClientsController.RestoreBody.class})
+    ClientsController.ConnectBody.class, ClientsController.BrowserSignInBody.class, ClientsController.Confirm.class,
+    ClientsController.RestoreBody.class})
 class ClientsController {
 
   /** {@code POST …/connect/preview}: endpoint, method and the options of the method. */
   record ConnectBody(String endpoint, String method, String grantLabel, ClientService.TokenOptions token,
       ClientService.CodexOptions codex) {}
+
+  record BrowserSignInBody(String endpoint) {}
 
   /** {@code POST …/connect}, {@code …/disconnect}, {@code …/restore}: the preview to carry out. */
   record Confirm(String previewId, String reason) {}
@@ -71,6 +75,11 @@ class ClientsController {
   @PostMapping("/api/clients/scan")
   Clients scan() {
     return withCalls(clients.scan());
+  }
+
+  @PostMapping("/api/clients/{client}/browser-sign-in")
+  ClientViews.BrowserSignIn browserSignIn(@PathVariable String client, @RequestBody BrowserSignInBody body) {
+    return clients.browserSignIn(client, body.endpoint());
   }
 
   @PostMapping("/api/clients/{client}/connect/preview")

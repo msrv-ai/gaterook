@@ -5,7 +5,7 @@ import { TimeService } from '../../core/time/time.service';
 import { GwDialog, GwDialogClose } from '../../kit/dialog';
 import { ClientEndpoint, activityQuery } from '../../kit/elements/client-card/client-view';
 import { GwClientDisclosure } from '../../kit/elements/client-card/client-disclosure';
-import { activeGrants, localEndpoints } from '../../kit/elements/client-card/tunnel-view';
+import { activeGrants, localEndpoints, oauthClientLabel } from '../../kit/elements/client-card/tunnel-view';
 import { GwClientMark } from '../../kit/elements/shared/client-mark';
 import { GwIcon } from '../../kit/icons';
 import { allowedAt, connectionEnvs, lastCallRow, providerName, tunnelRow } from './clients-view';
@@ -128,6 +128,7 @@ export class GwClaudeAiAccess {
 
   protected readonly revoking = signal<OAuthGrant | null>(null);
   protected readonly activity = activityQuery;
+  protected readonly oauthClientLabel = oauthClientLabel;
   protected readonly allowedAt = (at: string) => allowedAt(at, this.time.minute());
 
   protected askPublish(opener: HTMLElement): void {

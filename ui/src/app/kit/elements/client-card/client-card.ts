@@ -41,6 +41,7 @@ import {
   keeps,
   lastCallAt,
   notInstalledText,
+  observedSignIn,
   restartAlert,
   tableLayout,
   toolCount,
@@ -125,7 +126,7 @@ export class GwClientCard {
   readonly connectStart = output<ClientId>();
   /** The connect selection changed: preview it (`connectPreview`). */
   readonly previewRequest = output<ClientPreviewRequest>();
-  readonly connect = output<{ readonly client: ClientId; readonly previewId: string; readonly request: ConnectRequest | null }>();
+  readonly connect = output<{ readonly client: ClientId; readonly previewId: string | null; readonly request: ConnectRequest | null }>();
   /** Claude Desktop: add an endpoint to the bridge (the page previews and connects in one go). */
   readonly addEndpoint = output<{ readonly client: ClientId; readonly endpoint: string }>();
   /** Disconnect pressed: fetch its preview (`disconnectPreview`). */
@@ -155,7 +156,7 @@ export class GwClientCard {
   /** The compact row's other endpoints of the same client ("also on incident-prod"). */
   protected readonly compactOthers = computed(() => {
     const l = this.scoped();
-    return l ? keeps(this.card(), l) : [];
+    return l ? [...new Set(keeps(this.card(), l).filter((endpoint) => endpoint !== l.endpoint))] : [];
   });
   protected readonly compactLook = computed(() => {
     const l = this.scoped();
@@ -172,8 +173,10 @@ export class GwClientCard {
   protected readonly restart = computed(() => restartAlert(this.card()));
   protected readonly installUrl = computed(() => INSTALL_URL[this.card().client]);
   protected readonly alone = computed(() => this.variant() === 'alone');
+  protected readonly observedSignIn = observedSignIn;
+  protected readonly observedOnly = computed(() => this.card().links.length > 0 && this.card().links.every(observedSignIn));
   /** Clients set up through a file have Open config; the bridge extension has no file. */
-  protected readonly hasConfig = computed(() => !this.bridge() && !!this.card().configPath);
+  protected readonly hasConfig = computed(() => !this.observedOnly() && !this.bridge() && !!this.card().configPath);
 
   protected readonly rows = computed(() =>
     this.card().links.map((l) => {
@@ -248,12 +251,13 @@ export class GwClientCard {
 
   protected confirmConnect(): void {
     const p = this.connectPreview();
-    if (!p || this.connectBlocked()) return;
-    this.connect.emit({ client: this.card().client, previewId: p.previewId, request: this.flow()?.request() ?? null });
+    if (this.connectBlocked()) return;
+    this.connect.emit({ client: this.card().client, previewId: this.flow()?.browserOnly() ? null : p!.previewId, request: this.flow()?.request() ?? null });
     this.connectDialog()?.close('connect');
   }
 
   protected connectBlocked(): boolean {
+    if (this.flow()?.browserOnly()) return !this.flow()?.request();
     return !this.connectPreview() || this.connectLoading() || !!this.connectFailure() || !this.flow()?.request();
   }
 
@@ -274,6 +278,7 @@ export class GwClientCard {
   }
 
   protected askDisconnect(link: ClientLink, opener: HTMLElement): void {
+    if (observedSignIn(link)) return;
     this.leaving.set(link);
     this.disconnectStart.emit(link);
     this.disconnectDialog()?.openAfterRender(opener);
@@ -282,7 +287,7 @@ export class GwClientCard {
   protected confirmDisconnect(): void {
     const l = this.leaving();
     const p = this.matchingPreview();
-    if (!l || !p) return;
+    if (!l || !p || observedSignIn(l)) return;
     this.disconnect.emit({ link: l, previewId: p.previewId });
     this.disconnectDialog()?.close('disconnect');
   }
@@ -297,6 +302,6 @@ export class GwClientCard {
   }
 
   protected onOpenConfig(): void {
-    if (this.canOpenConfig()) this.openConfig.emit(this.card().client);
+    if (this.hasConfig() && this.canOpenConfig()) this.openConfig.emit(this.card().client);
   }
 }

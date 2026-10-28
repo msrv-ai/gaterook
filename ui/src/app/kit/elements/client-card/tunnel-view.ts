@@ -64,6 +64,11 @@ export function activeGrants(grants: readonly OAuthGrant[]): OAuthGrant[] {
   return grants.filter((g) => g.state === 'active' || g.state === 'address-changed');
 }
 
+/** Registered clients use their name; metadata-document clients keep their authenticated host identity. */
+export function oauthClientLabel(grant: OAuthGrant): string {
+  return (grant.clientKind === 'dcr' ? grant.clientName?.trim() : null) || grant.client;
+}
+
 /** "Read access to stage-readonly", "Access to dev: 14 read only, 3 with approval". */
 export function consentWants(c: OAuthConsent): string {
   if (!c.tools.approval && !c.tools.bypass) return 'Read access to';

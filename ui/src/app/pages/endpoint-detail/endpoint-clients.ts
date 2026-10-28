@@ -1,10 +1,11 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { isApiError } from '../../core/api/api-error';
-import { ClientCard, ClientId, ClientLink, ConnectPreview, ConnectRequest } from '../../core/api/clients.api';
+import { ClientCard, ClientId, ClientLink, ClientsApi, ConnectPreview, ConnectRequest } from '../../core/api/clients.api';
+import { DesktopBridge } from '../../core/desktop/desktop-bridge';
 import { EndpointsStore } from '../../core/stores/endpoints.store';
 import { GwClientCard } from '../../kit/elements/client-card/client-card';
-import { ClientEndpoint, ClientFailure, clientFailure, keeps, usesBridgeExtension } from '../../kit/elements/client-card/client-view';
+import { ClientEndpoint, ClientFailure, browserInstallUrl, clientFailure, keeps, usesBridgeExtension } from '../../kit/elements/client-card/client-view';
 import { GwIcon } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
 import { EndpointDetailData } from './endpoint-detail.data';
@@ -31,6 +32,8 @@ export class GwEndpointClients {
   protected readonly data = inject(EndpointDetailData);
   private readonly store = inject(EndpointsStore);
   private readonly toasts = inject(ToastService);
+  private readonly desktop = inject(DesktopBridge);
+  private readonly clientsApi = inject(ClientsApi);
 
   readonly slug = input.required<string>();
 
@@ -73,8 +76,13 @@ export class GwEndpointClients {
   /** Every change of the dialog's choices asks for a new preview; only the latest answer is shown. */
   protected async previewFor(card: ClientCard, request: ConnectRequest): Promise<void> {
     const seq = ++this.previewSeq;
-    this.previewLoading.set(true);
     this.previewFailure.set(null);
+    if (card.client === 'cursor' && request.method === 'oauth') {
+      this.preview.set(null);
+      this.previewLoading.set(false);
+      return;
+    }
+    this.previewLoading.set(true);
     try {
       const p = await this.data.connectPreview(card.client, request);
       if (seq === this.previewSeq) this.preview.set(p);
@@ -87,8 +95,21 @@ export class GwEndpointClients {
     }
   }
 
-  protected async connect(card: ClientCard, previewId: string, request: ConnectRequest | null): Promise<void> {
+  protected async connect(card: ClientCard, previewId: string | null, request: ConnectRequest | null): Promise<void> {
     this.setFailure(card.client, null);
+    if (card.client === 'cursor' && request?.method === 'oauth') {
+      try {
+        const result = await this.clientsApi.browserSignIn(card.client, request.endpoint);
+        const url = browserInstallUrl(result.link);
+        if (!url) throw new Error('The core did not return a valid Cursor installation link.');
+        await this.desktop.openExternal(url);
+        this.toasts.show({ tone: 'success', title: 'Continue in Cursor', body: 'Add GateRook in Cursor, then complete sign-in. The connection status updates automatically.' });
+      } catch (e) {
+        this.toasts.show({ tone: 'danger', title: "Cursor browser sign-in wasn't opened", body: isApiError(e) ? e.detail : e instanceof Error ? e.message : NO_ANSWER });
+      }
+      return;
+    }
+    if (!previewId) return;
     try {
       const result = await this.data.connect(card.client, previewId);
       const t = connectedToast(card.name, request?.endpoint ?? this.slug(), result.notes);

@@ -107,10 +107,10 @@ Electron frameless titlebar (bg canvas, subtle bottom rule, --gw-layout-titlebar
 
 **States and behavior:**
 
-- Back is a native-disabled icon button until a previous application page exists; the renderer owns navigation history. Reference pages show the initial disabled state.
+- Back is a text button with a leading arrow, native-disabled until a previous application page exists; the renderer owns navigation history. Reference pages show the initial disabled state.
 - a gw-counter inside an icon button in __actions is pinned as a corner badge ringed in the canvas colour
 
-**Accessibility:** The <header> is the banner landmark. Back carries aria-label="Go back" and a title explaining its disabled state. Icon buttons carry aria-label ("Approvals, 3 waiting" with an aria-hidden counter; "Appearance"). The Search button's name starts with its visible text ("Search and commands") and its ⌘K kbd is aria-hidden. Overlays at the window edge use gw-menu--right / gw-popover--right. Popover titles are <p>, not headings, because they precede the page h1.
+**Accessibility:** The <header> is the banner landmark. Back uses its visible label as its accessible name and a title explaining its disabled state. Icon buttons carry aria-label ("Approvals, 3 waiting" with an aria-hidden counter; "Appearance"). The Search button's name starts with its visible text ("Search and commands") and its ⌘K kbd is aria-hidden. Overlays at the window edge use gw-menu--right / gw-popover--right. Popover titles are <p>, not headings, because they precede the page h1.
 
 ### `gw-sidebar`
 
@@ -1352,9 +1352,11 @@ Access tokens of one endpoint. The tokens table lists each token by name and pre
 
 ### `client-card`
 
-One MCP client (Claude Desktop, Codex, Cursor, Antigravity, claude.ai): whether it is installed and connected, which endpoints it uses, how it connects (bridge extension, config file, public URL via tunnel), how it authenticates, and the next step. Connect shows the endpoint choice, for Cursor and Antigravity the sign-in choice (token in the file, written in plain text to ~/.cursor/mcp.json, or sign-in through the browser; on a prod endpoint both stay in place unavailable with 'Not on prod endpoints' and the third way 'Through the bridge' is chosen) and the token step (name, lifetime). 'What will change' starts collapsed; expand it to review the exact gw-diff of the config file (Codex: the core's managed block with http_headers_helper = "~/.gaterook/bin/gw-bridge headers …"), the backup path and the core's notes before anything is written. The auth note and any restart needed stay visible outside the disclosure. A client on several endpoints (Claude Desktop on dev and incident-prod, one .mcpb extension per endpoint) lists one row per endpoint with Disconnect, plus Add endpoint and Remove bridge. Cards whose client gets its token on the fly carry the trust boundary: 'Protects against other users and copied files, not against programs you run, including AI agents with a terminal.' The claude.ai card shows what is published, the three gates (Anthropic IP ranges reach /mcp/<slug> — read-only here, the one switch lives in Settings › Tunnel › Callers — while the sign-in page opens in your own browser, OAuth sign-in with a consent screen on this computer, the endpoint's own modes), the tunnel history, the 'Signed in' list with Revoke, and Publish through a warning confirm. --compact is a one-row variant for an endpoint's client list.
+One MCP client (Claude Desktop, Codex, Cursor, Antigravity, claude.ai): whether it is installed and connected, which endpoints it uses, how it connects (bridge extension, config file, public URL via tunnel), how it authenticates, and the next step. Connect shows the endpoint choice, for Cursor and Antigravity the sign-in choice (token in the file, written in plain text to ~/.cursor/mcp.json, or sign-in through the browser; on a prod endpoint both stay in place unavailable with 'Not on prod endpoints' and the third way 'Through the bridge' is chosen) and the token step (name, lifetime). For file-based setup, 'What will change' starts collapsed; expand it to review the exact gw-diff of the config file (Codex: the core's managed block with http_headers_helper = "~/.gaterook/bin/gw-bridge headers …"), the backup path and the core's notes before anything is written. The auth note and any restart needed stay visible outside the disclosure. A client on several endpoints (Claude Desktop on dev and incident-prod, one .mcpb extension per endpoint) lists one row per endpoint with Disconnect, plus Add endpoint and Remove bridge. Cards whose client gets its token on the fly carry the trust boundary: 'Protects against other users and copied files, not against programs you run, including AI agents with a terminal.' The claude.ai card shows what is published, the three gates (Anthropic IP ranges reach /mcp/<slug> — read-only here, the one switch lives in Settings › Tunnel › Callers — while the sign-in page opens in your own browser, OAuth sign-in with a consent screen on this computer, the endpoint's own modes), the tunnel history, the 'Signed in' list with Revoke, and Publish through a warning confirm. --compact is a one-row variant for an endpoint's client list.
 
 The AI apps page starts with compact rows: app mark, name, connection status and a disclosure chevron. Click a row or press Enter or Space to reveal its existing setup, endpoint, authentication and activity details in place. Rows stay collapsed on a normal visit; an app's hash link opens that row before focusing its disclosure button. Closing a row preserves its form choices. How it works and Manual setup also start collapsed.
+
+Cursor browser sign-in enables OAuth for the selected local endpoint and opens its Add to Cursor link in the browser. The link carries only the endpoint URL. GateRook does not parse, back up or write Cursor's config, and the flow requires no config diff confirmation. Open in browser is the visible link action with an adjacent, named icon-only Copy action. After Cursor exchanges its authorization code, show Connected even before a tool call; keep Last call empty until a tool is called. An observed browser sign-in uses Manage sign-in to reach the endpoint's OAuth sign-ins and Revoke, without claiming ownership of Cursor's file.
 
 [SCSS](elements/_client-card.scss) · [Interactive demo](elements/client-card.html)
 
@@ -1382,7 +1384,7 @@ The AI apps page starts with compact rows: app mark, name, connection status and
 
 **States and behavior:**
 
-- connected (View activity, Open config for file clients, Disconnect)
+- connected (View activity, Open config and Disconnect for managed file entries; Manage sign-in for browser-installed OAuth access)
 - detected, not connected (Open config + Connect)
 - not installed (How to install, external + Check again)
 - needs restart (full warning alert, clears on first call)
@@ -1396,16 +1398,16 @@ The AI apps page starts with compact rows: app mark, name, connection status and
 - compact row (endpoint-detail · AI apps)
 - compact disclosure row (AI apps): h3.gw-card__title contains button.gw-client-card__row with the mark, name, status and chevron; data-gw-toggle, aria-expanded and aria-controls reveal the existing body and footer; details start hidden, stay mounted on collapse, and open before focus on hash navigation
 - claude.ai: what gets published (/mcp/stage-readonly, /oauth/*, /.well-known/oauth-*; UI, admin API, dev and incident-prod stay local), three gates, tunnel history ('Off since 12:10 · public today 08:40 to 12:10'), last call 12:08
-- claude.ai 'Signed in' table (OAuth grants: AI app, endpoint, allowed by you, last call, expires) with Revoke → gw-dialog--sm --danger
+- claude.ai 'Signed in' table (OAuth grants: AI app, endpoint, allowed by you, last used, expires) with Revoke → gw-dialog--sm --danger
 - publish confirm: gw-dialog--md --warning listing exactly what becomes public and the three gates, Cancel autofocus; Undo never re-publishes
 - sign-in consent: gw-dialog--md --warning with a code to match, Returns to, From = the IP of the browser that opened the sign-in page, Deny autofocus (Esc and no answer in 5 min deny), 'Allow access' primary (never --approve); it opens by itself when a request arrives (the demo trigger is in its own 'Sign-in request' section)
 - several endpoints (Claude Desktop): gw-table--dense, one row per endpoint with View activity + Disconnect; footer Add endpoint + Remove bridge (danger confirm listing every endpoint)
-- Cursor connect: sign-in choice (token in the file / sign in through the browser), token step (name cursor-laptop, expires 7 days), the plain-text warning in the preview, the core's permissions line and notes
+- Cursor connect: sign-in choice (token in the file / sign in through the browser); token mode shows the token step (name cursor-laptop, expires 7 days), the plain-text warning, permissions and notes; browser mode hides the config diff and backup and opens Add to Cursor from Connect
 - Connect on a prod endpoint: token and browser choices aria-disabled with 'Not on prod endpoints', 'Through the bridge' chosen, the stdio entry in the diff, the core's prod warning
 - inline review with one endpoint: What <app> can use in words, no select
 - Claude Desktop .mcpb review: default-collapsed 'What will change' disclosure with Installs, Runs, Config files none, Token none stored; Claude Desktop asks you to confirm; config-file fallback with diff, backup and restart behind a disclosure
 - waiting for the app (Claude Desktop's install prompt): gw-status--checking 'Waiting for Claude Desktop', the primary keeps its label, aria-busy + aria-disabled, described by what to do in the app; the config-file fallback stays available
-- waiting for sign-in (Cursor, browser sign-in): gw-status--checking 'Waiting for Cursor'; the entry is written, so the card shows 'Finish in Cursor', Check that it works, Open config + Disconnect and no primary
+- waiting for sign-in (Cursor, browser sign-in): gw-status--checking 'Waiting for Cursor'; show 'Continue in Cursor', Open in browser to retry, and Manage sign-in; GateRook has not written a config entry or created a managed file link
 - connected in the inline review: the card stays and ends with Check that it works (prompt in a gw-copy-field, Last call 'Waiting for the first request'); focus on the card's h3
 - compact row with an aria-disabled Connect and a visible reason under the list (first run); the row name is an h3.gw-text-ui hash target
 
@@ -1788,7 +1790,7 @@ These examples retain the original component and composition structures. Ellipse
 <div class="gw-shell">
   <header class="gw-titlebar">
     <div class="gw-titlebar__drag">
-      <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Go back" title="No previous page" disabled><i class="gw-icon" data-lucide="arrow-left"></i></button>
+      <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" title="No previous page" disabled><i class="gw-icon" data-lucide="arrow-left"></i> Back</button>
     </div>
     <span class="gw-titlebar__title">Overview</span>
     <div class="gw-titlebar__actions">…Search ⌘K, approvals bell, appearance popover…</div>

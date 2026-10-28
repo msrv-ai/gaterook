@@ -13,7 +13,8 @@ let nextId = 0;
  * `<article gwInlineConnectCard [card]="cursor" …>` (pages/clients.html, Cursor): a detected client's connection
  * review, revealed by its compact row on AI apps — the endpoint, how
  * it signs in, the token it would get, the exact change of its config and the backup — and Connect as the card's
- * primary. Nothing is written until Connect, and Connect writes only the change on screen: without a preview of the
+ * primary. Cursor browser sign-in opens its install link without editing configuration. Other methods write only
+ * the change on screen: without a preview of the
  * current selection (it is on its way, or the core refused it) Connect asks the core again instead. A refused change
  * is the kit's "Connect failed" in the card, above its footer.
  *
@@ -47,18 +48,18 @@ let nextId = 0;
       @if (collapsible()) {
         <p class="gw-card__description gw-client-card__via" [class.gw-mono]="via().mono">{{ via().text }}</p>
       }
-      <div gwClientConnectFlow #flow page [single]="review()" [lead]="uses()" [card]="card()" [endpoints]="endpoints()" [preview]="preview()" [loading]="loading()" [failure]="failure()" [idPrefix]="anchor() ?? uid" [level]="4" [wrap]="true" [canOpenConfig]="canOpenConfig()" (openConfig)="openConfig.emit()" (requestChange)="onRequest($event)"></div>
+      <div gwClientConnectFlow #flow page [single]="review()" [lead]="uses()" [card]="card()" [endpoints]="endpoints()" [preview]="preview()" [loading]="loading()" [connecting]="connecting()" [failure]="failure()" [idPrefix]="anchor() ?? uid" [level]="4" [wrap]="true" [canOpenConfig]="canOpenConfig()" (openConfig)="openConfig.emit()" (requestChange)="onRequest($event)" (browserSignIn)="onConnect()"></div>
     </div>
     <footer class="gw-card__footer gw-client-card__footer">
       <div class="gw-client-card__actions">
-        @if (!review()) {
+        @if (!review() && !browserOnly()) {
           <button class="gw-btn gw-btn--ghost" type="button" [attr.aria-disabled]="canOpenConfig() ? null : 'true'" [attr.aria-describedby]="canOpenConfig() ? null : uid + '-oc-why'" (click)="canOpenConfig() && openConfig.emit()">Open config<span class="gw-sr-only"> of {{ card().name }}</span></button>
           @if (!canOpenConfig()) {
             <span class="gw-sr-only" [id]="uid + '-oc-why'">Opens the file in the desktop app</span>
           }
         }
         @if (busy()) {
-          <p class="gw-sr-only" [id]="uid + '-busy'">{{ connecting() ? 'Writing the change' : 'Preparing the exact change' }}</p>
+          <p class="gw-sr-only" [id]="uid + '-busy'">{{ browserOnly() ? 'Opening browser sign-in' : connecting() ? 'Writing the change' : 'Preparing the exact change' }}</p>
         }
         <button class="gw-btn gw-btn--primary" type="button" [attr.aria-busy]="connecting() ? 'true' : null" [attr.aria-disabled]="busy() ? 'true' : null" [attr.aria-describedby]="describedBy()" (click)="onConnect()">@if (connecting()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="plug-zap" class="gw-icon"></svg>} Connect {{ card().name }}</button>
       </div>
@@ -87,7 +88,7 @@ export class GwInlineConnectCard {
 
   /** The selection changed (or Connect found no preview to write): ask the core for the exact change. */
   readonly previewRequest = output<ConnectRequest>();
-  readonly connect = output<{ readonly previewId: string; readonly request: ConnectRequest }>();
+  readonly connect = output<{ readonly previewId: string | null; readonly request: ConnectRequest }>();
   readonly openConfig = output<void>();
 
   protected readonly uid = `icc-${++nextId}`;
@@ -95,9 +96,10 @@ export class GwInlineConnectCard {
   private readonly flow = viewChild<GwClientConnectFlow>('flow');
   protected readonly opened = signal(false);
   protected readonly look = computed(() => clientStatusLook(this.failure() ? 'error' : this.card().status));
-  protected readonly via = computed(() => viaText(this.card()));
+  protected readonly browserOnly = computed(() => this.card().client === 'cursor' && this.flow()?.method() === 'oauth');
+  protected readonly via = computed(() => this.browserOnly() ? { text: 'Sign in through the browser', mono: false } : viaText(this.card()));
   protected readonly headingId = computed(() => `${this.anchor() ?? this.uid}-t`);
-  protected readonly busy = computed(() => this.loading() || this.connecting());
+  protected readonly busy = computed(() => (!this.browserOnly() && this.loading()) || this.connecting());
   /** Connect's description: why it waits, and the endpoint's warnings (prod) the flow shows under its select. */
   protected readonly describedBy = computed(() => {
     const flow = this.flow();
@@ -120,11 +122,15 @@ export class GwInlineConnectCard {
     if (request) this.previewRequest.emit(request);
   }
 
-  /** Writes the change on screen; with none for this selection (refused, or never prepared) it asks again. */
+  /** Starts browser sign-in directly, or writes the reviewed change for a config-based method. */
   protected onConnect(): void {
     if (this.busy()) return;
     const request = this.flow()?.request();
     if (!request) return; // the token name is invalid: its field says why
+    if (this.browserOnly()) {
+      this.connect.emit({ previewId: null, request });
+      return;
+    }
     const p = this.preview();
     if (p && !this.failure() && p.endpoint === request.endpoint && p.method === request.method) {
       this.connect.emit({ previewId: p.previewId, request });

@@ -55,8 +55,14 @@ export function usesBridgeExtension(card: ClientCard): boolean {
   return card.methods[0]?.id === 'mcpb';
 }
 
+/** An OAuth grant observed independently of a configuration entry managed by GateRook. */
+export function observedSignIn(link: ClientLink): boolean {
+  return link.method === 'oauth' && link.configPath === null;
+}
+
 /** The card's subtitle (`__via`): "Bridge extension (.mcpb) · 2 endpoints, one of them prod", or the config path. */
 export function viaText(card: ClientCard): { readonly text: string; readonly mono: boolean } {
+  if (card.links.length && card.links.every(observedSignIn)) return { text: 'Signed in through the browser', mono: false };
   if (usesBridgeExtension(card)) {
     const n = card.links.length;
     const prod = card.links.filter((l) => l.env === 'prod').length;
@@ -169,6 +175,30 @@ export const INSTALL_URL: Record<ClientId, string> = {
   cursor: 'https://cursor.com/downloads',
   antigravity: 'https://antigravity.google/',
 };
+
+/** Cursor's URL-only install link, also available before a managed config preview exists. */
+export function cursorInstallLink(endpoint: Pick<ClientEndpoint, 'slug' | 'url'>): string {
+  const bytes = new TextEncoder().encode(JSON.stringify({ url: endpoint.url }));
+  const config = btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(''));
+  return `cursor://anysphere.cursor-deeplink/mcp/install?${new URLSearchParams({ name: `gaterook-${endpoint.slug}`, config })}`;
+}
+
+/** Open Cursor's MCP install link through its HTTPS handoff in the default browser. */
+export function browserInstallUrl(link: string | null | undefined): string | null {
+  if (!link) return null;
+  try {
+    const source = new URL(link);
+    if (source.protocol !== 'cursor:' || source.hostname !== 'anysphere.cursor-deeplink' || source.pathname !== '/mcp/install' || source.username || source.password || source.port || source.hash) return null;
+    const name = source.searchParams.get('name');
+    const config = source.searchParams.get('config');
+    if (!name || !config) return null;
+    const url = new URL('https://cursor.com/install-mcp');
+    url.search = new URLSearchParams({ name, config }).toString();
+    return url.href;
+  } catch {
+    return null;
+  }
+}
 
 /** Activity filtered to a client (and an endpoint): `client:codex endpoint:dev`. */
 export function activityQuery(client: string, endpoint?: string | null): { readonly q: string } {

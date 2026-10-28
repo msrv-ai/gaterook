@@ -24,11 +24,11 @@ let nextId = 0;
         } @else {
           <h3 class="gw-card__title" [id]="uid + '-t'">Connect {{ card().name }}</h3>
         }
-        <p class="gw-card__description">@if (bridge()) {Installs the bridge extension in Claude Desktop. Nothing is written to its config, and no token is stored.} @else {Adds one server to <span class="gw-mono">{{ card().configDisplay }}</span>. Nothing else in the file changes, and a backup is kept.}</p>
+        <p class="gw-card__description">@if (browserOnly()) {Opens Cursor in your browser to add the endpoint and sign in.} @else if (bridge()) {Installs the bridge extension in Claude Desktop. Nothing is written to its config, and no token is stored.} @else {Adds one server to <span class="gw-mono">{{ card().configDisplay }}</span>. Nothing else in the file changes, and a backup is kept.}</p>
       </div>
     </header>
     <div class="gw-card__body">
-      <div gwClientConnectFlow #flow [card]="card()" [endpoints]="endpoints()" [endpoint]="endpoint()" [preview]="preview()" [loading]="loading()" [failure]="failure()" [idPrefix]="uid" [level]="level() + 1" (requestChange)="onRequest($event)"></div>
+      <div gwClientConnectFlow #flow [card]="card()" [endpoints]="endpoints()" [endpoint]="endpoint()" [preview]="preview()" [loading]="loading()" [failure]="failure()" [idPrefix]="uid" [level]="level() + 1" (requestChange)="onRequest($event)" (browserSignIn)="confirm()"></div>
     </div>
     <footer class="gw-card__footer">
       @if (blocked()) {
@@ -50,17 +50,18 @@ export class GwClientConnectCard {
   readonly level = input(3, { transform: numberAttribute });
 
   readonly previewRequest = output<ClientPreviewRequest>();
-  readonly connect = output<{ readonly client: ClientCard['client']; readonly previewId: string; readonly request: ConnectRequest | null }>();
+  readonly connect = output<{ readonly client: ClientCard['client']; readonly previewId: string | null; readonly request: ConnectRequest | null }>();
   readonly cancel = output<void>();
 
   protected readonly uid = `ccf-${++nextId}`;
-  private readonly flow = viewChild.required<GwClientConnectFlow>('flow');
+  private readonly flow = viewChild<GwClientConnectFlow>('flow');
   protected readonly bridge = computed(() => usesBridgeExtension(this.card()));
-  protected readonly blocked = computed(() => !this.preview() || this.loading() || !!this.failure() || !this.flow().request());
+  protected readonly browserOnly = computed(() => this.card().client === 'cursor' && this.flow()?.method() === 'oauth');
+  protected readonly blocked = computed(() => !this.flow()?.request() || (!this.browserOnly() && (!this.preview() || this.loading() || !!this.failure())));
 
   constructor() {
     // Inline, the flow is on screen from the start: preview the default selection once.
-    afterNextRender(() => this.flow().emit());
+    afterNextRender(() => this.flow()?.emit());
   }
 
   protected onRequest(request: ConnectRequest | null): void {
@@ -69,7 +70,7 @@ export class GwClientConnectCard {
 
   protected confirm(): void {
     const p = this.preview();
-    if (!p || this.blocked()) return;
-    this.connect.emit({ client: this.card().client, previewId: p.previewId, request: this.flow().request() });
+    if (this.blocked()) return;
+    this.connect.emit({ client: this.card().client, previewId: this.browserOnly() ? null : p!.previewId, request: this.flow()?.request() ?? null });
   }
 }

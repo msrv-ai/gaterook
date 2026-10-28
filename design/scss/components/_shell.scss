@@ -12,7 +12,7 @@
 //   <a class="gw-skip-link" href="#main">Skip to content</a>
 //   <div class="gw-shell">
 //     <header class="gw-titlebar">                     (+ gw-titlebar--mac on macOS)
-//       <div class="gw-titlebar__drag">…Back icon button…</div>
+//       <div class="gw-titlebar__drag">…Back button with a leading arrow…</div>
 //       <span class="gw-titlebar__title">Overview</span>
 //       <div class="gw-titlebar__actions">…search, approvals, appearance…</div>
 //     </header>
@@ -57,7 +57,7 @@
 //                 whole bar is a drag region; links, buttons, inputs, labels, menus and
 //                 popovers inside opt out (no-drag) automatically.
 //   __title       current section name (ui role, centered in the window, truncates)
-//   __drag        leading drag area and optional Back icon button; empty on Welcome.
+//   __drag        leading drag area and optional Back button with a leading arrow; empty on Welcome.
 //   __actions     search / ⌘K, approvals bell with gw-counter, appearance popover.
 //                 A gw-counter inside an icon button becomes a corner badge. Overlays
 //                 here sit at the window's end edge: use gw-menu--right / gw-popover--right.

@@ -8,6 +8,8 @@ import {
   authNote,
   authParts,
   bridgeFiles,
+  browserInstallUrl,
+  cursorInstallLink,
   changeSummary,
   choiceMeta,
   clientFailure,
@@ -22,13 +24,46 @@ import {
   toolsCell,
   viaText,
 } from './client-view';
-import { answerWithin, consentTools, consentWants, tunnelHistory, tunnelLook, whilePublic } from './tunnel-view';
+import { answerWithin, consentTools, consentWants, oauthClientLabel, tunnelHistory, tunnelLook, whilePublic } from './tunnel-view';
 import { DEMO_GRANTS, DEMO_TUNNEL_OFF, DEMO_TUNNEL_ON, DEMO_CONSENT } from '../../../dev/fixtures-clients';
 
 const words = (parts: readonly { text: string }[]) => parts.map((p) => p.text).join('');
 const [dev, stage, prod] = DEMO_CLIENT_ENDPOINTS;
 
 describe('client-card view (design/elements/client-card.html)', () => {
+  it('labels registered OAuth clients by name and metadata clients by host', () => {
+    const grant = { ...DEMO_GRANTS[0], client: 'localhost', clientName: ' Cursor ', clientKind: 'dcr' as const };
+    expect(oauthClientLabel(grant)).toBe('Cursor');
+    expect(grant.client).toBe('localhost');
+    expect(oauthClientLabel({ ...grant, clientName: 'Custom MCP app' })).toBe('Custom MCP app');
+    expect(oauthClientLabel({ ...grant, clientName: ' ' })).toBe('localhost');
+    expect(oauthClientLabel({ ...grant, clientName: null })).toBe('localhost');
+    expect(oauthClientLabel({ ...grant, clientName: undefined })).toBe('localhost');
+    expect(oauthClientLabel({ ...grant, clientKind: 'cimd', client: 'claude.ai' })).toBe('claude.ai');
+    expect(oauthClientLabel({ ...grant, clientKind: undefined })).toBe('localhost');
+  });
+
+  it('opens Cursor install links in the browser without changing the encoded configuration', () => {
+    const name = 'gaterook-stage readonly';
+    const config = '+/==';
+    const link = `cursor://anysphere.cursor-deeplink/mcp/install?${new URLSearchParams({ name, config })}`;
+    const browser = new URL(browserInstallUrl(link)!);
+    expect(browser.origin + browser.pathname).toBe('https://cursor.com/install-mcp');
+    expect([...browser.searchParams]).toEqual([['name', name], ['config', config]]);
+    expect(browserInstallUrl(null)).toBeNull();
+    expect(browserInstallUrl('not a URL')).toBeNull();
+    expect(browserInstallUrl(link.replace('anysphere.cursor-deeplink', 'other-host'))).toBeNull();
+    expect(browserInstallUrl(link.replace('/mcp/install', '/other'))).toBeNull();
+    expect(browserInstallUrl('cursor://anysphere.cursor-deeplink/mcp/install?name=gaterook-dev')).toBeNull();
+  });
+
+  it('builds the URL-only copy link from the selected endpoint without a config preview', () => {
+    const link = new URL(cursorInstallLink(stage));
+    expect(link.searchParams.get('name')).toBe(`gaterook-${stage.slug}`);
+    expect(JSON.parse(atob(link.searchParams.get('config')!))).toEqual({ url: stage.url });
+    expect(new URL(browserInstallUrl(link.href)!).search).toBe(link.search);
+  });
+
   it('names endpoints in the Connect select as the kit does', () => {
     expect(endpointOption(dev)).toBe('dev · 8 connections, 22 tools');
     expect(endpointOption(stage)).toBe('stage-readonly · 3 connections, read only');

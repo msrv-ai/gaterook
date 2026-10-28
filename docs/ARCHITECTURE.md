@@ -235,6 +235,8 @@ The [broker](../bridge/README.md) runs in Electron main. Bridges connect through
 
 Claude Desktop can use an endpoint-specific `.mcpb`; Codex can use the Java/native `headers` helper; other clients can use supported HTTP/OAuth or stdio methods. A long-lived token in a client file is an explicit method with restricted permissions and production restrictions. Config changes preserve unrelated content, show a diff, create a backup, and compare the original file before writing. Disconnect removes only the gateway-owned entry and revokes its access.
 
+An active local OAuth sign-in becomes connection evidence after token exchange, before any tool call. Cursor's browser Connect enables OAuth for the endpoint and opens its URL-only installer link; Cursor owns the config change, and GateRook creates no managed config entry. The client views match the sign-in to the registered app and endpoint, including browser installations made outside GateRook's config editor. These observed connections link to OAuth sign-in management; they do not imply ownership of a config file or expose the managed-entry Disconnect action. Grant changes refresh client status on the AI apps, endpoint, and Overview screens. Last call remains an audited tool call, separate from sign-in activity.
+
 ### 7.3 Tunnel and OAuth
 
 The default local/public loopback ports are 7465/7466. The public port has an explicit small route allowlist, body limit, host checks, and provider-aware caller filtering. Publication performs a self-test through the edge and becomes active only after it succeeds. A production endpoint cannot be published; the current design publishes one endpoint at a time.

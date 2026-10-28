@@ -178,10 +178,36 @@ describe('ClientsData: loading', () => {
     }
     data.stop();
   });
+
+  it('updates an OAuth connection after authentication without loading hidden remote access', async () => {
+    const data = setup();
+    const link = connected('cursor', { endpoint: 'dev', method: 'oauth' }).link;
+    let status: 'needs-restart' | 'connected' = 'needs-restart';
+    answers.list = () => Promise.resolve(kitClients({ clients: [{ ...DEMO_CLIENTS.cursor, status, links: [{ ...link, status }] }] }));
+    answers.grants = () => Promise.resolve([]);
+    await data.start();
+    expect(data.cards()[0].status).toBe('needs-restart');
+
+    status = 'connected';
+    const grant: OAuthGrant = { ...DEMO_GRANTS[0], id: 'og_cursor', client: 'localhost', clientName: 'Cursor', clientKind: 'dcr', endpoint: 'dev', ingress: 'LOCAL' };
+    answers.grants = () => Promise.resolve([grant]);
+    calls = [];
+    events.emit('oauth.grant.changed', { id: grant.id, endpoint: 'dev' });
+    await flush();
+    expect(calls).toEqual(['list']);
+    expect(data.cards()[0].status).toBe('connected');
+    expect(data.grants().value).toBeNull();
+
+    data.stop();
+    calls = [];
+    events.emit('oauth.grant.changed', { id: grant.id, endpoint: 'dev' });
+    await flush();
+    expect(calls).toEqual([]);
+  });
 });
 
 describe('ClientsData: Connect', () => {
-  it('keeps only the newest selection’s preview', async () => {
+  it('discards an old config preview when browser sign-in is selected', async () => {
     const data = setup();
     await data.start();
     const cursor = DEMO_CLIENTS.cursor;
@@ -195,7 +221,8 @@ describe('ClientsData: Connect', () => {
     await data.preview(cursor, { endpoint: 'dev', method: 'oauth', grantLabel: null });
     release();
     await first;
-    expect(data.connectState('cursor').preview?.method).toBe('oauth');
+    expect(data.connectState('cursor').preview).toBeNull();
+    expect(calls).not.toContain('preview cursor dev oauth');
     expect(data.connectState('cursor').loading).toBe(false);
   });
 

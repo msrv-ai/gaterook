@@ -25,7 +25,11 @@ export interface ClientMethod {
   readonly reason: string | null;
 }
 
-/** One entry GateRook wrote: one endpoint of one client. */
+/**
+ * One endpoint of one client. Usually an entry GateRook wrote; an OAuth link with a null configPath is an
+ * observed browser sign-in instead. Its id is the OAuth grant id, and it is managed through OAuth grants, never
+ * the managed-config disconnect API.
+ */
 export interface ClientLink {
   readonly id: string;
   readonly client: ClientId;
@@ -140,6 +144,11 @@ export interface ConnectResult {
   readonly notes: string[];
 }
 
+/** Enables endpoint OAuth and returns the install link without editing any client configuration. */
+export interface BrowserSignIn {
+  readonly link: string;
+}
+
 export interface DisconnectResult {
   readonly linkId: string;
   readonly entryRemoved: boolean;
@@ -234,6 +243,10 @@ export class ClientsApi {
   /** 422 with {@link ConfigEditProblem} fields when the file can't be edited safely. */
   connectPreview(client: ClientId, request: ConnectRequest): Promise<ConnectPreview> {
     return this.api.post(ApiClient.path`/api/clients/${client}/connect/preview`, request);
+  }
+
+  browserSignIn(client: ClientId, endpoint: string): Promise<BrowserSignIn> {
+    return this.api.post(ApiClient.path`/api/clients/${client}/browser-sign-in`, { endpoint });
   }
 
   /** 409 when the file changed after the preview: preview again. Claude Desktop answers the `.mcpb` path. */

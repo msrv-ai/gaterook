@@ -25,7 +25,7 @@
 
   <header class="gw-titlebar">
     <div class="gw-titlebar__drag">
-      <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Go back" title="No previous page" disabled><i class="gw-icon" data-lucide="arrow-left"></i></button>
+      <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" title="No previous page" disabled><i class="gw-icon" data-lucide="arrow-left"></i> Back</button>
     </div>
     <span class="gw-titlebar__title">AI apps</span>
     <div class="gw-titlebar__actions">
@@ -208,7 +208,7 @@
           <div class="gw-how-it-works__header">
             <div class="gw-card__heading">
               <h2 class="gw-card__title" id="cl-hiw-t">How it works</h2>
-              <p class="gw-card__description">Connect writes one entry into the app's config, with a backup first. The app gets the tools of one endpoint and never a secret.</p>
+              <p class="gw-card__description">Choose an endpoint and how the AI app signs in. File-based setup shows the change and keeps a backup; Cursor's browser sign-in opens Add to Cursor.</p>
             </div>
             <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon gw-how-it-works__toggle" type="button" data-gw-toggle data-gw-toggle-persist="clients-how-it-works" aria-expanded="false" aria-controls="cl-hiw-p" aria-labelledby="cl-hiw-t">
               <i class="gw-icon gw-how-it-works__toggle-icon gw-how-it-works__toggle-icon--collapse" data-lucide="chevron-up"></i>
@@ -227,18 +227,18 @@
                 <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="file-diff"></i></span>
                 <span class="gw-how-it-works__arrow gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="chevron-right"></i></span>
                 <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">2</span>Show what changes</p>
-                <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">You see the exact diff of the config file, for example <code class="gw-code">~/.cursor/mcp.json</code>, before anything is written.</p>
+                <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">File-based setup shows the exact config diff. Cursor's browser sign-in shows the Add to Cursor link.</p>
               </li>
               <li class="gw-how-it-works__step">
                 <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="save"></i></span>
                 <span class="gw-how-it-works__arrow gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="chevron-right"></i></span>
-                <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">3</span>Back up, then write</p>
-                <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">The file is copied next to itself, then one entry is added. Other MCP servers in it stay untouched.</p>
+                <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">3</span>Connect the app</p>
+                <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">File-based setup backs up the config and adds one entry. Browser sign-in opens Add to Cursor; you complete setup in Cursor and allow the sign-in here.</p>
               </li>
               <li class="gw-how-it-works__step">
                 <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="unplug"></i></span>
-                <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">4</span>Disconnect removes the entry and revokes the token</p>
-                <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">The file goes back to how it was, and the app's token stops working on its next call.</p>
+                <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">4</span>Manage access</p>
+                <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">Disconnect removes an entry written by GateRook and revokes its token. Manage sign-in takes you to OAuth sign-ins, where Revoke ends the app's access.</p>
               </li>
             </ol>
             <p class="gw-how-it-works__more"><a class="gw-link gw-text-small" href="settings.html#settings-authorization">Learn how AI apps are authorized</a></p>
@@ -530,15 +530,16 @@
               </footer>
             </article>
 
-            <!-- Cursor · one entry in ~/.cursor/mcp.json. Sign-in: a token in the file (the beginner default, said to be plain text)
-                 or the browser (OAuth, no token in the file). before → after (token) or after-oauth (waiting for Cursor's sign-in). -->
+            <!-- Cursor · a managed token entry or browser sign-in owned by Cursor.
+                 before → after (token) or after-oauth (waiting for Cursor's sign-in). -->
             <article class="gw-card gw-client-card" id="cl-cu-s" data-cl-review="cu" aria-labelledby="cl-cu-s-t" hidden>
               <header class="gw-card__header gw-client-card__header">
                 <div class="gw-client-card__identity">
                   <span class="gw-client-mark gw-client-mark--cursor gw-client-mark--lg" aria-hidden="true">Cu</span>
                   <div class="gw-card__heading">
                     <h3 class="gw-card__title" id="cl-cu-s-t" tabindex="-1">Cursor</h3>
-                    <p class="gw-card__description gw-client-card__via" data-cl-phase="before after-oauth"><span class="gw-mono">~/.cursor/mcp.json</span></p>
+                    <p class="gw-card__description gw-client-card__via" data-cl-phase="before"><span class="gw-mono">~/.cursor/mcp.json</span></p>
+                    <p class="gw-card__description gw-client-card__via" data-cl-phase="after-oauth" hidden>Browser sign-in · endpoint <span class="gw-mono">dev</span></p>
                     <p class="gw-card__description gw-client-card__via" data-cl-phase="after" hidden><span class="gw-mono">~/.cursor/mcp.json</span> · endpoint <span class="gw-mono">dev</span></p>
                   </div>
                 </div>
@@ -548,7 +549,7 @@
               </header>
               <div class="gw-card__body gw-client-card__body" data-cl-phase="before">
                 <div class="gw-client-card__flow">
-                  <p class="gw-text-small gw-fg-secondary">Found on this computer. Choose how Cursor signs in and check the change. Nothing is written until you click Connect Cursor.</p>
+                  <p class="gw-text-small gw-fg-secondary">Found on this computer. Choose how Cursor signs in. Browser sign-in opens Add to Cursor; file-based setup shows the change before you connect.</p>
                   <div class="gw-client-card__step">
                     <h4 class="gw-text-h3">What Cursor can use</h4>
                     <dl class="gw-kv gw-kv--dense">
@@ -572,7 +573,7 @@
                         <input class="gw-choice-card__input" type="radio" name="cl-cu-s-auth" value="oauth" aria-labelledby="cl-cu-s-auth-oauth-t" aria-describedby="cl-cu-s-auth-oauth-d cl-cu-s-auth-oauth-m">
                         <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="log-in"></i></span>
                         <span class="gw-choice-card__title" id="cl-cu-s-auth-oauth-t">Sign in through the browser</span>
-                        <span class="gw-choice-card__description" id="cl-cu-s-auth-oauth-d">Cursor opens your browser and you allow it in this app. No token in the file.</span>
+                        <span class="gw-choice-card__description" id="cl-cu-s-auth-oauth-d">Add the server in Cursor, then allow the sign-in in GateRook. GateRook does not edit your config.</span>
                         <span class="gw-choice-card__meta" id="cl-cu-s-auth-oauth-m">Turns on OAuth sign-in for endpoint <span class="gw-mono">dev</span></span>
                       </label>
                     </div>
@@ -643,11 +644,12 @@
                   <div class="gw-alert gw-alert--info gw-alert--compact" id="cl-cu-s-deeplink" hidden>
                     <i class="gw-icon gw-alert__icon" data-lucide="link"></i>
                     <div class="gw-alert__content">
-                      <p class="gw-alert__body">Prefer to add it from Cursor? An Add to Cursor link carries only the endpoint URL; Cursor then signs in through the browser.</p>
+                      <p class="gw-alert__body">Connect Cursor opens Add to Cursor in your browser. Add the server in Cursor, then allow its sign-in in GateRook. GateRook does not edit your config.</p>
                     </div>
                     <div class="gw-alert__actions">
-                      <button class="gw-btn gw-btn--link gw-btn--sm" type="button" data-cl-deeplink data-gw-copy="cursor://anysphere.cursor-deeplink/mcp/install?name=gaterook-dev&amp;config=eyJ1cmwiOiJodHRwOi8vMTI3LjAuMC4xOjc0NjUvbWNwL2RldiJ9">
-                        <span class="gw-btn__copy">Copy Add to Cursor link</span><span class="gw-btn__copied">Copied</span>
+                      <a class="gw-btn gw-btn--sm" data-cl-deeplink-open href="https://cursor.com/install-mcp?name=gaterook-dev&amp;config=eyJ1cmwiOiJodHRwOi8vMTI3LjAuMC4xOjc0NjUvbWNwL2RldiJ9" target="_blank" rel="noopener noreferrer"><i class="gw-icon gw-icon--sm" data-lucide="external-link"></i>Open in browser</a>
+                      <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Copy Add to Cursor link" title="Copy Add to Cursor link" data-cl-deeplink data-gw-copy="cursor://anysphere.cursor-deeplink/mcp/install?name=gaterook-dev&amp;config=eyJ1cmwiOiJodHRwOi8vMTI3LjAuMC4xOjc0NjUvbWNwL2RldiJ9">
+                        <span class="gw-btn__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i></span><span class="gw-btn__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
                       </button>
                     </div>
                   </div>
@@ -680,14 +682,14 @@
                 <div class="gw-alert gw-alert--info gw-alert--compact">
                   <i class="gw-icon gw-alert__icon" data-lucide="log-in"></i>
                   <div class="gw-alert__content">
-                    <p class="gw-alert__title">Finish in Cursor</p>
-                    <p class="gw-alert__body">In Cursor, open Settings, then MCP, and click Login next to <span class="gw-mono">gaterook-dev</span>. Allow the sign-in here when GateRook asks.</p>
+                    <p class="gw-alert__title">Continue in Cursor</p>
+                    <p class="gw-alert__body">Confirm adding <span class="gw-mono">gaterook-dev</span> in Cursor, then allow its sign-in when GateRook asks.</p>
                   </div>
                 </div>
                 <dl class="gw-kv gw-kv--dense">
                   <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><span class="gw-mono">dev</span> · 4 tools on <span class="gw-mono">dev-db</span></dd></div>
-                  <div class="gw-kv__row"><dt class="gw-kv__key">Auth</dt><dd class="gw-kv__value">Sign-in through the browser; no token in the file</dd></div>
-                  <div class="gw-kv__row"><dt class="gw-kv__key">Backup</dt><dd class="gw-kv__value gw-mono">~/.cursor/mcp.json.bak-2026-10-22</dd></div>
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Auth</dt><dd class="gw-kv__value">Sign-in through the browser</dd></div>
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Setup</dt><dd class="gw-kv__value">Managed by Cursor</dd></div>
                 </dl>
                 <div class="gw-client-card__step">
                   <h4 class="gw-text-h3">Check that it works</h4>
@@ -701,7 +703,7 @@
                       </button>
                     </div>
                   </div>
-                  <p class="gw-text-caption gw-fg-muted">Its first request shows up on Overview and in Activity.</p>
+                  <p class="gw-text-caption gw-fg-muted">The status updates when Cursor completes sign-in. Tool calls appear in Activity.</p>
                 </div>
               </div>
               <footer class="gw-card__footer gw-client-card__footer" data-cl-phase="before">
@@ -718,8 +720,8 @@
               </footer>
               <footer class="gw-card__footer gw-client-card__footer" data-cl-phase="after-oauth" hidden>
                 <div class="gw-client-card__actions">
-                  <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button">Open config<span class="gw-sr-only"> of Cursor</span></button>
-                  <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" data-gw-dialog-open="cl-dlg-disc-cu-s">Disconnect<span class="gw-sr-only"> Cursor</span></button>
+                  <a class="gw-btn gw-btn--sm" data-cl-deeplink-open href="https://cursor.com/install-mcp?name=gaterook-dev&amp;config=eyJ1cmwiOiJodHRwOi8vMTI3LjAuMC4xOjc0NjUvbWNwL2RldiJ9" target="_blank" rel="noopener noreferrer"><i class="gw-icon gw-icon--sm" data-lucide="external-link"></i>Open in browser</a>
+                  <a class="gw-btn gw-btn--link gw-btn--sm" href="endpoint-detail.html#tokens">Manage sign-in<span class="gw-sr-only"> of Cursor</span></a>
                 </div>
               </footer>
             </article>
@@ -802,7 +804,7 @@
             <div class="gw-card__body gw-stack gw-client-card__body">
               <p class="gw-card__description gw-client-card__via gw-mono">~/.cursor/mcp.json</p>
               <div class="gw-client-card__flow">
-                <p class="gw-text-small gw-fg-secondary">Found on this computer. Pick an endpoint and how Cursor signs in, then check the change; nothing is written until you connect.</p>
+                <p class="gw-text-small gw-fg-secondary">Found on this computer. Pick an endpoint and how Cursor signs in. Browser sign-in opens Add to Cursor; file-based setup shows the change before you connect.</p>
                 <div class="gw-grid gw-grid--2">
                   <div class="gw-stack gw-stack--sm">
                     <div class="gw-field">
@@ -841,7 +843,7 @@
                         <input class="gw-choice-card__input" type="radio" name="cl-cu-auth" value="oauth" aria-labelledby="cl-cu-auth-oauth-t" aria-describedby="cl-cu-auth-oauth-d cl-cu-auth-oauth-m">
                         <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="log-in"></i></span>
                         <span class="gw-choice-card__title" id="cl-cu-auth-oauth-t">Sign in through the browser</span>
-                        <span class="gw-choice-card__description" id="cl-cu-auth-oauth-d">Cursor opens your browser and you allow it in this app. No token in the file.</span>
+                        <span class="gw-choice-card__description" id="cl-cu-auth-oauth-d">Add the server in Cursor, then allow the sign-in in GateRook. GateRook does not edit your config.</span>
                         <span class="gw-choice-card__meta" id="cl-cu-auth-oauth-m">Turns on OAuth sign-in for the endpoint</span>
                       </label>
                       <label class="gw-choice-card gw-choice-card--compact" id="cl-cu-auth-bridge" hidden>
@@ -922,15 +924,16 @@
                   </div>
                 </div>
 
-                <!-- OAuth mode only: the other way in, started from Cursor. The link carries the URL, never a token. -->
+                <!-- OAuth mode opens the install link. Cursor owns its setup; GateRook does not write a config entry. -->
                 <div class="gw-alert gw-alert--info gw-alert--compact" id="cl-cu-deeplink" hidden>
                   <i class="gw-icon gw-alert__icon" data-lucide="link"></i>
                   <div class="gw-alert__content">
-                    <p class="gw-alert__body">Prefer to add it from Cursor? An Add to Cursor link carries only the endpoint URL; Cursor then signs in through the browser.</p>
+                    <p class="gw-alert__body">Connect Cursor opens Add to Cursor in your browser. Add the server in Cursor, then allow its sign-in in GateRook. GateRook does not edit your config.</p>
                   </div>
                   <div class="gw-alert__actions">
-                    <button class="gw-btn gw-btn--link gw-btn--sm" type="button" data-cl-deeplink data-gw-copy="cursor://anysphere.cursor-deeplink/mcp/install?name=gaterook-dev&amp;config=eyJ1cmwiOiJodHRwOi8vMTI3LjAuMC4xOjc0NjUvbWNwL2RldiJ9">
-                      <span class="gw-btn__copy">Copy Add to Cursor link</span><span class="gw-btn__copied">Copied</span>
+                    <a class="gw-btn gw-btn--sm" data-cl-deeplink-open href="https://cursor.com/install-mcp?name=gaterook-dev&amp;config=eyJ1cmwiOiJodHRwOi8vMTI3LjAuMC4xOjc0NjUvbWNwL2RldiJ9" target="_blank" rel="noopener noreferrer"><i class="gw-icon gw-icon--sm" data-lucide="external-link"></i>Open in browser</a>
+                    <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" aria-label="Copy Add to Cursor link" title="Copy Add to Cursor link" data-cl-deeplink data-gw-copy="cursor://anysphere.cursor-deeplink/mcp/install?name=gaterook-dev&amp;config=eyJ1cmwiOiJodHRwOi8vMTI3LjAuMC4xOjc0NjUvbWNwL2RldiJ9">
+                      <span class="gw-btn__copy"><i class="gw-icon gw-icon--sm" data-lucide="copy"></i></span><span class="gw-btn__copied"><i class="gw-icon gw-icon--sm" data-lucide="check"></i></span>
                     </button>
                   </div>
                 </div>
@@ -1205,7 +1208,7 @@
               <div class="gw-table-wrap" role="region" aria-labelledby="cl-ai-sessions-cap" tabindex="0">
                 <table class="gw-table gw-table--dense">
                   <caption class="gw-sr-only" id="cl-ai-sessions-cap">OAuth sign-ins of claude.ai to stage-readonly</caption>
-                  <thead><tr><th scope="col">AI app</th><th scope="col">Endpoint</th><th scope="col">Allowed</th><th scope="col">Last call</th><th scope="col">Expires</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th></tr></thead>
+                  <thead><tr><th scope="col">AI app</th><th scope="col">Endpoint</th><th scope="col">Allowed</th><th scope="col">Last used</th><th scope="col">Expires</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th></tr></thead>
                   <tbody>
                     <tr>
                       <th scope="row">claude.ai<span class="gw-text-caption gw-fg-muted" id="cl-ai-moved" hidden> · the public address changed</span></th>
@@ -1485,7 +1488,7 @@
         <div class="gw-dialog__body">
           <dl class="gw-kv gw-kv--dense">
             <div class="gw-kv__row"><dt class="gw-kv__key">Allowed</dt><dd class="gw-kv__value"><time datetime="2026-10-22T08:52:00+02:00" title="2026-10-22 08:52 +02:00">Today 08:52</time>, by you</dd></div>
-            <div class="gw-kv__row"><dt class="gw-kv__key">Last call</dt><dd class="gw-kv__value"><time datetime="2026-10-22T12:08:14+02:00" title="2026-10-22 12:08:14 +02:00">12:08</time></dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Last used</dt><dd class="gw-kv__value"><time datetime="2026-10-22T12:08:14+02:00" title="2026-10-22 12:08:14 +02:00">12:08</time></dd></div>
           </dl>
         </div>
         <footer class="gw-dialog__footer">
@@ -1676,7 +1679,7 @@
         <header class="gw-dialog__header">
           <span class="gw-icon-tile"><i class="gw-icon" data-lucide="unplug"></i></span>
           <h2 class="gw-dialog__title" id="cl-dlg-disc-cu-s-t">Disconnect Cursor?</h2>
-          <p class="gw-dialog__description" id="cl-dlg-disc-cu-s-d">Cursor loses access to endpoint <span class="gw-mono">dev</span> at once. Connect again any time; that issues a new token or sign-in.</p>
+          <p class="gw-dialog__description" id="cl-dlg-disc-cu-s-d">Cursor loses access to endpoint <span class="gw-mono">dev</span> at once. Connect again any time; that issues a new token.</p>
           <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
         </header>
         <div class="gw-dialog__body">
@@ -1835,9 +1838,9 @@
       the diff lines, the token notes and the confirm message. A prod endpoint shows the core's warning, which joins
       the descriptions of the select and of Connect and is read out, and refuses a token in the file and sign-in
       through the browser: both stay in place, aria-disabled with "Not on prod endpoints", and Through the bridge is
-      offered and chosen before the change is drawn. The sign-in choice swaps the token step for the Add to Cursor
-      link (browser) or for nothing (bridge), and rewrites the entry: headers with a token, a URL only, or a stdio
-      entry that starts gw-bridge.
+      offered and chosen before the change is drawn. Browser sign-in hides the file change and backup, opens Add
+      to Cursor, and waits for the sign-in. File-based setup shows headers with a token or a stdio entry that starts
+      gw-bridge.
    5. claude.ai: Publish turns the tunnel on (the app-wide banner, a warning status here and in the sidebar footer,
       the public URL). A quick tunnel gets a new address each time it starts, so the URL is a new one and the
       sign-in made for the old address shows "the public address changed". Turn off tunnel reverses the rest. */
@@ -1953,14 +1956,14 @@
     function message() {
       var mode = auth();
       return mode === "oauth"
-        ? "One server added to ~/.cursor/mcp.json, with no token in it. Cursor opens your browser to sign in; allow it here."
+        ? "Add to Cursor opened in your browser. Confirm the server in Cursor, then allow its sign-in in GateRook."
         : mode === "config-bridge"
           ? "One server added to ~/.cursor/mcp.json, with no token in it: the bridge gets one from this app when Cursor needs it. Backup: ~/.cursor/mcp.json.bak-2026-10-22."
           : "One server added to ~/.cursor/mcp.json with token " + name() + ", which expires in " + exp()[2] + ". Backup: ~/.cursor/mcp.json.bak-2026-10-22.";
     }
     function sayMode() {
       var mode = auth();
-      return mode === "oauth" ? "Sign in through the browser: no token is written, the change has 4 additions."
+      return mode === "oauth" ? "Sign in through the browser: Connect opens Add to Cursor. GateRook does not edit your config."
         : mode === "config-bridge" ? "Through the bridge: no token is written, the change has 6 additions."
         : "Token in the file: a token for Cursor is written into the config" + (sfx ? " in plain text" : "") + ", the change has 7 additions.";
     }
@@ -1995,12 +1998,14 @@
       q('[data-cl-diff="hunk"]').textContent = "@@ -1,8 +1," + (lines[1] + 2) + " @@";
       each('[data-cl-diff="n"]', function (g, i) { g.textContent = String(lines[1] + i); });
       id("-token").hidden = !token;
+      id("-changes").closest(".gw-client-card__step").hidden = oauth;
       if (id("-mode")) id("-mode").hidden = !token;
       if (id("-notes")) id("-notes").hidden = oauth;
       if (id("-plain")) id("-plain").hidden = !token;
       id("-deeplink").hidden = !oauth;
-      q("[data-cl-deeplink]").setAttribute("data-gw-copy",
-        "cursor://anysphere.cursor-deeplink/mcp/install?name=gaterook-" + s + "&config=" + btoa(JSON.stringify({ url: url })));
+      var installQuery = new URLSearchParams({ name: "gaterook-" + s, config: btoa(JSON.stringify({ url: url })) }).toString();
+      each("[data-cl-deeplink-open]", function (link) { link.setAttribute("href", "https://cursor.com/install-mcp?" + installQuery); });
+      q("[data-cl-deeplink]").setAttribute("data-gw-copy", "cursor://anysphere.cursor-deeplink/mcp/install?" + installQuery);
       each("[data-cl-tok-exp]", function (t) { t.setAttribute("datetime", e[0]); t.textContent = e[1]; });
       each("[data-cl-tok-note-name]", function (n) { n.textContent = name(); });
       each("[data-cl-tok-note-exp]", function (n) { n.textContent = e[2]; });
@@ -2010,7 +2015,8 @@
         describedBy(connect, isProd ? "cl-cu-prod" : null);
       }
       if (!sfx) { // in use, Connect is the kit's toast button
-        connect.setAttribute("data-gw-toast-title", "Cursor connected to " + s);
+        connect.setAttribute("data-gw-toast-title", oauth ? "Continue in Cursor" : "Cursor connected to " + s);
+        connect.setAttribute("data-gw-toast-tone", oauth ? "info" : "success");
         connect.setAttribute("data-gw-toast", message());
       }
     }
@@ -2029,6 +2035,9 @@
     });
     tokName.addEventListener("input", sync);
     tokExp.addEventListener("change", sync);
+    connect.addEventListener("click", function () {
+      if (auth() === "oauth") window.open(q("[data-cl-deeplink-open]").href, "_blank", "noopener,noreferrer");
+    });
     sync();
     return { auth: auth, message: message };
   }
@@ -2156,7 +2165,6 @@
   doc.addEventListener("click", function (e) { // the same hash again fires no hashchange
     var a = e.target.closest('a[href^="#cl-"]');
     if (a && a.getAttribute("href") === window.location.hash) { e.preventDefault(); route(); }
-      toast({ title: "stage-readonly is public", body: "Anthropic IP ranges can reach " + PUBLIC_URL + ". Add it in claude.ai under Settings, Connectors.", tone: "warning", icon: "globe" });
   });
   if (!reviews) return; // first run: rows only
 
@@ -2239,15 +2247,17 @@
       tokName.focus();
       return;
     }
-    // Disconnect names what it revokes: the token (by its name) or the browser sign-in. textContent: the name is user input.
-    var rev = $("cl-dlg-disc-cu-s-rev"), m = doc.createElement("span");
-    m.className = "gw-mono";
-    rev.textContent = "";
-    if (oauth) { m.textContent = "dev"; rev.append("Cursor's browser sign-in to ", m); }
-    else { m.textContent = tokName.value.trim(); rev.append("Token ", m, " (gwt_Vb8r…)"); }
+    // Managed token setup has a Disconnect action; browser setup is managed through its OAuth sign-in.
+    if (!oauth) {
+      var rev = $("cl-dlg-disc-cu-s-rev"), m = doc.createElement("span");
+      m.className = "gw-mono";
+      m.textContent = tokName.value.trim();
+      rev.textContent = "";
+      rev.append("Token ", m, " (gwt_Vb8r…)");
+    }
     finish("cu", oauth ? "after-oauth" : "after", {
-      title: oauth ? "gaterook-dev added to Cursor" : "Cursor connected to dev",
-      body: oauth ? "One server added to ~/.cursor/mcp.json, with no token in it. In Cursor's MCP settings, click Login next to gaterook-dev, then allow the sign-in here." : cursorSetup.message(),
+      title: oauth ? "Continue in Cursor" : "Cursor connected to dev",
+      body: cursorSetup.message(),
       tone: oauth ? "info" : "success" });
   });
   // Disconnect (setup): the card goes back to its review. kit.js has already returned focus to the opener, which

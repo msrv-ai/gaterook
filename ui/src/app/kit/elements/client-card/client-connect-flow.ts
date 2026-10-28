@@ -13,6 +13,8 @@ import {
   ClientFailure,
   TOKEN_NAME,
   authNote,
+  browserInstallUrl,
+  cursorInstallLink,
   changeSummary,
   choiceMeta,
   defaultTokenName,
@@ -37,7 +39,8 @@ const TTL_DAYS = [7, 30, 90] as const;
  * the restart it needs.
  *
  * It writes nothing: every change of the selection emits `requestChange` (a `ConnectRequest`) for the page to ask
- * the core for a new preview, and the page passes it back as `preview` (or `failure`).
+ * the core for a new preview, and the page passes it back as `preview` (or `failure`). Cursor browser sign-in
+ * skips that preview and emits `browserSignIn` to prepare OAuth and open the install link.
  */
 @Component({
   selector: 'div[gwClientConnectFlow]',
@@ -84,6 +87,9 @@ export class GwClientConnectFlow {
   readonly lead = input<TemplateRef<unknown> | null>(null);
   /** Open config was pressed in the failure alert. */
   readonly openConfig = output<void>();
+  /** The browser action starts OAuth without writing a client configuration. */
+  readonly browserSignIn = output<void>();
+  readonly connecting = input(false, { transform: booleanAttribute });
 
   readonly endpoint = model<string | null>(null);
   readonly method = model<ClientMethodId | null>(null);
@@ -130,6 +136,7 @@ export class GwClientConnectFlow {
   protected readonly tokenValid = computed(() => TOKEN_NAME.test(this.tokenName()) && this.tokenName().length <= 40);
   protected readonly expiry = computed(() => expiresOn(this.time.minute(), this.ttlDays()));
   protected readonly configName = computed(() => fileName(this.card().configDisplay));
+  readonly browserOnly = computed(() => this.card().client === 'cursor' && this.method() === 'oauth');
 
   protected readonly files = computed(() =>
     (this.preview()?.files ?? []).map((f) => ({
@@ -147,6 +154,7 @@ export class GwClientConnectFlow {
   });
 
   protected readonly restart = computed(() => {
+    if (this.browserOnly()) return null;
     const m = this.method();
     return m ? restartNote(this.card().client, m, this.configName()) : null;
   });
@@ -159,6 +167,7 @@ export class GwClientConnectFlow {
   /** The page: what Connect starts with, in one line. */
   protected readonly intro = computed(() => {
     const name = this.card().name;
+    if (this.browserOnly()) return 'Choose an endpoint, then open Cursor in your browser to add it and sign in.';
     if (!this.showSelect()) {
       // The setup review (kit): the endpoint is named above, so the line says what Connect does.
       if (this.choices().length > 1) return `Found on this computer. Choose how ${name} signs in and check the change. Nothing is written until you click Connect ${name}.`;
@@ -190,8 +199,13 @@ export class GwClientConnectFlow {
           (method === 'config-bridge' && n.startsWith('No token is written: the bridge gets'))));
     return notes.filter((n) => !echoes(n));
   });
-  /** The page: "Add to Cursor" carries only the endpoint URL; offered with sign-in through the browser. */
-  protected readonly deeplink = computed(() => (this.page() && this.method() === 'oauth' ? (this.current()?.link ?? null) : null));
+  /** "Add to Cursor" carries only the endpoint URL; offered with sign-in through the browser. */
+  protected readonly deeplink = computed(() => {
+    const endpoint = this.selected();
+    if (this.browserOnly() && endpoint) return cursorInstallLink(endpoint);
+    return this.method() === 'oauth' ? (this.current()?.link ?? null) : null;
+  });
+  protected readonly browserLink = computed(() => browserInstallUrl(this.deeplink()));
   protected readonly choiceMeta = choiceMeta;
 
   /** The access label a grant gets ("codex-laptop"); the token method names its token instead. */

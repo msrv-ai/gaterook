@@ -88,7 +88,7 @@
   <ng-container [ngTemplateOutlet]="endpointField" />
 }
 
-@if (!page()) {
+@if (!page() && !browserOnly()) {
   @for (w of preview()?.warnings ?? []; track $index) {
     <div class="gw-alert gw-alert--warning gw-alert--compact">
       <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
@@ -129,6 +129,7 @@
   </div>
 }
 
+@if (!browserOnly()) {
 @if (page() && failure(); as f) {
   <!-- The page's "Connect failed": nothing was written; what failed, where to fix it, and the details. -->
   <div class="gw-alert gw-alert--danger" role="alert">
@@ -213,22 +214,27 @@
   </div>
 }
 
+}
+
 @if (deeplink(); as link) {
   <!-- Sign-in through the browser: the other way in, started from the client. The link carries the URL, never a token. -->
   <div class="gw-alert gw-alert--info gw-alert--compact">
     <svg lucideIcon="link" class="gw-icon gw-alert__icon"></svg>
     <div class="gw-alert__content">
-      <p class="gw-alert__body">Prefer to add it from {{ card().name }}? An Add to {{ card().name }} link carries only the endpoint URL; {{ card().name }} then signs in through the browser.</p>
+      <p class="gw-alert__body">Add {{ endpoint() }} to {{ card().name }}, then sign in through the browser. The link carries only the endpoint URL.</p>
     </div>
     <div class="gw-alert__actions">
-      <button class="gw-btn gw-btn--link gw-btn--sm" type="button" [gwCopy]="link">
-        <span class="gw-btn__copy">Copy Add to {{ card().name }} link</span><span class="gw-btn__copied">Copied</span>
+      @if (browserLink(); as url) {
+        <button class="gw-btn gw-btn--sm" type="button" [attr.aria-disabled]="connecting() ? 'true' : null" [attr.aria-busy]="connecting() ? 'true' : null" (click)="connecting() || browserSignIn.emit()"><svg lucideIcon="external-link" class="gw-icon gw-icon--sm"></svg>Open in browser</button>
+      }
+      <button class="gw-btn gw-btn--ghost gw-btn--sm gw-btn--icon" type="button" [gwCopy]="link" [attr.aria-label]="'Copy Add to ' + card().name + ' link'" [title]="'Copy Add to ' + card().name + ' link'">
+        <span class="gw-btn__copy"><svg lucideIcon="copy" class="gw-icon gw-icon--sm"></svg></span><span class="gw-btn__copied"><svg lucideIcon="check" class="gw-icon gw-icon--sm"></svg></span>
       </button>
     </div>
   </div>
 }
 
-@if (!page()) {
+@if (!page() && !browserOnly()) {
   @if (auth(); as a) {
     <div class="gw-alert gw-alert--compact" [class.gw-alert--info]="a.tone === 'info'" [class.gw-alert--warning]="a.tone === 'warning'">
       <svg [lucideIcon]="a.icon" class="gw-icon gw-alert__icon"></svg>

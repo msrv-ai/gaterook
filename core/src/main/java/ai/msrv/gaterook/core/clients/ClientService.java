@@ -355,6 +355,38 @@ public class ClientService {
 
   // ── Connect ─────────────────────────────────────────────────────────────────────────────────────────────────
 
+  /** Enables the endpoint's OAuth sign-in and hands installation to Cursor without reading or editing its config. */
+  public ClientViews.BrowserSignIn browserSignIn(String clientId, String slug) {
+    ClientKind client = client(clientId);
+    if (client != ClientKind.CURSOR) {
+      throw ProblemException.unprocessable("Browser installation is not offered", "Only Cursor supports this "
+          + "browser installation link.", "/client");
+    }
+    if (slug == null || slug.isBlank()) {
+      throw ProblemException.unprocessable("Choose an endpoint", "Pick the endpoint Cursor gets.", "/endpoint");
+    }
+    return writeTx.execute(tx -> {
+      EndpointSnapshot e = endpoints.snapshot(slug);
+      if (e.blocked()) {
+        throw ProblemException.conflict("Changed outside GateRook", slug + ": " + e.blockedReason());
+      }
+      if (!e.enabled()) {
+        throw ProblemException.unprocessable("Endpoint is disabled", "Enable endpoint " + slug + " before "
+            + "starting browser sign-in.", "/endpoint");
+      }
+      if (e.env() == Env.PROD) {
+        throw ProblemException.unprocessable("Not on a prod endpoint", "Sign-in through the browser isn't offered "
+            + "for prod endpoints: use the bridge.", "/endpoint");
+      }
+      if (!e.oauthEnabled()) {
+        endpoints.updateSettings(slug, new EndpointService.SettingsUpdate(null, null, null, null, null, null, true),
+            e.version(), "Sign-in through the browser for Cursor");
+      }
+      return new ClientViews.BrowserSignIn(addToCursorLink("gaterook-" + e.slug(), listener.origin() + "/mcp/"
+          + e.slug()));
+    });
+  }
+
   /** {@code POST /api/clients/{client}/connect/preview}: what Connect would write; nothing is written. */
   public Preview previewConnect(String clientId, ConnectRequest r) {
     ClientKind client = client(clientId);

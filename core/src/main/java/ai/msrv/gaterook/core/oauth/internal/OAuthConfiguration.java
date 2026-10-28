@@ -52,9 +52,9 @@ class OAuthConfiguration {
   @Bean
   Grants oauthGrants(OAuthGrantRepository grants, OAuthTokenRepository tokens, OAuthClientRepository clients,
       EndpointSnapshotService snapshots, ObjectProvider<EndpointRemovalParticipant> participants,
-      ObjectProvider<SetupChangeRecorder> setupChanges, ApplicationEventPublisher publisher, Clock clock,
+      ObjectProvider<SetupChangeRecorder> setupChanges, ApplicationEventPublisher publisher, EventBus events, Clock clock,
       PlatformTransactionManager transactions) {
-    return new Grants(grants, tokens, clients, snapshots, participants, setupChanges, publisher, clock, transactions);
+    return new Grants(grants, tokens, clients, snapshots, participants, setupChanges, publisher, events, clock, transactions);
   }
 
   @Bean

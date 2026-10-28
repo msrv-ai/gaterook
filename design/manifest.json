@@ -208,10 +208,10 @@
         "__actions"
       ],
       "states": [
-        "Back is a native-disabled icon button until a previous application page exists; the renderer owns navigation history. Reference pages show the initial disabled state.",
+        "Back is a text button with a leading arrow, native-disabled until a previous application page exists; the renderer owns navigation history. Reference pages show the initial disabled state.",
         "a gw-counter inside an icon button in __actions is pinned as a corner badge ringed in the canvas colour"
       ],
-      "a11y": "The <header> is the banner landmark. Back carries aria-label=\"Go back\" and a title explaining its disabled state. Icon buttons carry aria-label (\"Approvals, 3 waiting\" with an aria-hidden counter; \"Appearance\"). The Search button's name starts with its visible text (\"Search and commands\") and its ⌘K kbd is aria-hidden. Overlays at the window edge use gw-menu--right / gw-popover--right. Popover titles are <p>, not headings, because they precede the page h1."
+      "a11y": "The <header> is the banner landmark. Back uses its visible label as its accessible name and a title explaining its disabled state. Icon buttons carry aria-label (\"Approvals, 3 waiting\" with an aria-hidden counter; \"Appearance\"). The Search button's name starts with its visible text (\"Search and commands\") and its ⌘K kbd is aria-hidden. Overlays at the window edge use gw-menu--right / gw-popover--right. Popover titles are <p>, not headings, because they precede the page h1."
     },
     {
       "name": "gw-sidebar",

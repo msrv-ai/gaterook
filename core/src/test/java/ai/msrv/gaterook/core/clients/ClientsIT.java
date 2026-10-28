@@ -583,9 +583,9 @@ class ClientsIT {
 
   @Test
   @Order(41)
-  void aSignInThroughTheBrowserTurnsConnectedWithTheClientsFirstCall() {
-    // No access is written for a sign-in: the client gets one when it signs in, so its calls are found by the
-    // client's label on the endpoint (review U9 #7: such a link stayed "needs restart" for good).
+  void browserSignInCallsRemainVisibleButNeedACurrentGrantToProveConnection() {
+    // A browser sign-in has no credential in its config. Audit can show its calls, but historical evidence cannot
+    // revive a grant that no longer exists or has ended.
     JsonNode preview = api.expect(200, HttpMethod.POST, "/api/clients/antigravity/connect/preview", """
         {"endpoint":"dev","method":"oauth"}""");
     String id = api.expect(200, HttpMethod.POST, "/api/clients/antigravity/connect",
@@ -609,16 +609,16 @@ class ClientsIT {
       assertThat(overviewCard("antigravity")).as("Overview's clients node reads the same proof")
           .isEqualTo("needs-restart");
 
-      // Antigravity signs in and calls: its grant is labelled with the name it registered with.
+      // An OAuth call exists in history, but this synthetic principal has no current grant.
       logCall(new Caller(Caller.Kind.OAUTH, "gr_signin", "Antigravity", "antigravity", Ingress.LOCAL, "127.0.0.1"),
           null);
-      assertThat(overviewCard("antigravity")).isEqualTo("connected");
+      assertThat(overviewCard("antigravity")).isEqualTo("needs-restart");
 
       JsonNode after = linkOf("antigravity", id);
-      assertThat(after.path("status").asString()).isEqualTo("connected");
+      assertThat(after.path("status").asString()).isEqualTo("needs-restart");
       assertThat(after.path("lastCallAt").isNull()).isFalse();
       assertThat(after.path("revision").asString()).isEqualTo("2025-11-25");
-      assertThat(card(api.ok("/api/clients"), "antigravity").path("status").asString()).isEqualTo("connected");
+      assertThat(card(api.ok("/api/clients"), "antigravity").path("status").asString()).isEqualTo("needs-restart");
     } finally {
       disconnect(id);
     }

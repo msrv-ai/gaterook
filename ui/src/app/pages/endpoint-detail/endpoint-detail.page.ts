@@ -26,6 +26,7 @@ import { Announcer } from '../../kit/announcer';
 import { GwCopy } from '../../kit/copy';
 import { GwDialog, GwDialogClose } from '../../kit/dialog';
 import { GwToggle } from '../../kit/disclosure';
+import { oauthClientLabel } from '../../kit/elements/client-card/tunnel-view';
 import { GwRiskCallout } from '../../kit/elements/risk-callout/risk-callout';
 import { GwSplitDialog, SplitRequest } from '../../kit/elements/risk-callout/split-dialog';
 import { GwSetupWiring, SetupWiring } from '../../kit/elements/setup-map/setup-map';
@@ -37,6 +38,7 @@ import { GwIcon } from '../../kit/icons';
 import { GwMenu, GwMenuTrigger } from '../../kit/menu';
 import { GwTabs } from '../../kit/tabs';
 import { ToastService } from '../../kit/toast.service';
+import { jumpTo } from '../secrets/jump';
 import { GwEndpointClients } from './endpoint-clients';
 import { EndpointDetailData } from './endpoint-detail.data';
 import {
@@ -134,6 +136,7 @@ export const SPLIT_FRAGMENT = 'ep-dlg-split';
   templateUrl: './endpoint-detail.page.html',
 })
 export class EndpointDetailPage {
+  protected readonly oauthClientLabel = oauthClientLabel;
   protected readonly data = inject(EndpointDetailData);
   protected readonly time = inject(TimeService);
   private readonly core = inject(CoreStore);
@@ -151,6 +154,7 @@ export class EndpointDetailPage {
   readonly tab = input<string | null>(null);
 
   private readonly tabs = viewChild<GwTabs>('tabs');
+  private readonly oauthSessions = viewChild<ElementRef<HTMLElement>>('oauthSessions');
   private readonly splitDialog = viewChild<GwSplitDialog>('split');
   private readonly duplicateDialog = viewChild<GwDialog>('duplicateDialog');
   private readonly deleteDialog = viewChild<GwDialog>('deleteDialog');
@@ -327,6 +331,18 @@ export class EndpointDetailPage {
       const id = this.selectedTab();
       const tabs = this.tabs();
       if (tabs) untracked(() => tabs.selectById(id));
+    });
+    // The shell scrolls inside its main region, so the router leaves fragment scrolling to the page.
+    effect((onCleanup) => {
+      const fragment = this.fragment();
+      const tab = this.selectedTab();
+      const section = this.oauthSessions()?.nativeElement;
+      if (fragment !== 'ep-oauth-sessions' || tab !== 'tab-tokens' || !section) return;
+      // Wait for this change detection to reveal the tab, even when no further render is needed.
+      const timer = setTimeout(() => {
+        if (section.isConnected) jumpTo(this.host.ownerDocument, 'ep-oauth-sessions');
+      });
+      onCleanup(() => clearTimeout(timer));
     });
     // `#ep-dlg-split` opens Split endpoint once the risk is known (and only where there is something to split).
     effect(() => {

@@ -3,6 +3,7 @@ package ai.msrv.gaterook.core.oauth.internal;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.core.endpoints.EndpointSnapshot;
 import ai.msrv.gaterook.core.endpoints.EndpointSnapshotService;
+import ai.msrv.gaterook.core.oauth.OAuthService.ClientUse;
 import ai.msrv.gaterook.core.oauth.internal.persistence.OAuthClientKind;
 import ai.msrv.gaterook.core.platform.Authenticator;
 import ai.msrv.gaterook.core.platform.Caller;
@@ -438,6 +439,20 @@ public class OAuthServer {
     return grants.list();
   }
 
+  /** Current local sign-ins that have completed token exchange, including use before any audited tool call. */
+  public List<ClientUse> localClientUses() {
+    Instant now = clock.instant();
+    return grants.list().stream().filter(g -> g.ingress() == Ingress.LOCAL && "active".equals(g.state())
+        && g.revokedAt() == null && g.expiresAt().isAfter(now) && g.lastUsedAt() != null)
+        .flatMap(g -> grants.live(g.id()).flatMap(live -> clients.forToken(
+            new Issuers.Server(Ingress.LOCAL, "", null), live.clientId()))
+            .flatMap(client -> snapshots.get(g.endpointId()).filter(e -> e.enabled() && !e.blocked()
+                && e.oauthEnabled() && e.env() != Env.PROD && issuers.localResource(e.slug()).equals(g.resource()))
+                .map(e -> new ClientUse(g.id(), clientHint(client.host(), client.name()), e.slug(), e.env().id(),
+                    g.createdAt(), g.lastUsedAt()))).stream())
+        .filter(use -> use.client() != null).toList();
+  }
+
   public void revokeGrant(String id, String reason) {
     grants.revoke(id, reason == null || reason.isBlank() ? "Revoked in GateRook" : reason);
   }
@@ -479,7 +494,7 @@ public class OAuthServer {
     if (!expected.equals(g.resource())) {
       return Optional.empty();
     }
-    grants.used(g.grantId());
+    grants.used(g.grantId(), request.endpointSlug());
     clients.used(g.clientRowId());
     // The trusted label: a metadata document client is its host (HTTPS vouches for it, not its self-declared name);
     // a registered one is the name it registered with, as "Signed in" shows it.
@@ -489,8 +504,12 @@ public class OAuthServer {
   }
 
   private static String clientHint(Grants.Live g) {
-    String host = g.clientHost() == null ? "" : g.clientHost().toLowerCase(Locale.ROOT);
-    String name = g.clientName() == null ? "" : g.clientName().toLowerCase(Locale.ROOT);
+    return clientHint(g.clientHost(), g.clientName());
+  }
+
+  private static String clientHint(String clientHost, String clientName) {
+    String host = clientHost == null ? "" : clientHost.toLowerCase(Locale.ROOT);
+    String name = clientName == null ? "" : clientName.toLowerCase(Locale.ROOT);
     if (host.equals("claude.ai") || host.endsWith(".claude.ai")) {
       return "claude-ai";
     }

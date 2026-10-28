@@ -6,6 +6,7 @@ import { ClientsApi } from '../../core/api/clients.api';
 import { ConnectionsApi } from '../../core/api/connections.api';
 import { Overview, OverviewApi } from '../../core/api/overview.api';
 import { EventStream } from '../../core/events/event-stream';
+import { connected } from '../clients/clients.fixtures';
 import { ROWS, clientsInUse, devDb, firstRun, overview, setup } from './overview.fixtures';
 import { OverviewData } from './overview.data';
 
@@ -19,13 +20,27 @@ function deferred<T>() {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+class FakeEvents {
+  readonly handlers = new Map<string, Set<(data: unknown) => void>>();
+  on(type: string, h: (data: unknown) => void): () => void {
+    if (!this.handlers.has(type)) this.handlers.set(type, new Set());
+    this.handlers.get(type)!.add(h);
+    return () => this.handlers.get(type)!.delete(h);
+  }
+  emit(type: string, data: unknown): void {
+    this.handlers.get(type)?.forEach((h) => h(data));
+  }
+}
+
 let gets: ReturnType<typeof deferred<Overview>>[];
 let calls: string[];
 let clientsAnswer: () => Promise<unknown>;
+let events: FakeEvents;
 
 function make(): OverviewData {
   gets = [];
   calls = [];
+  events = new FakeEvents();
   clientsAnswer = () => Promise.resolve(clientsInUse());
   const overviewApi: Partial<OverviewApi> = {
     get: () => {
@@ -58,13 +73,44 @@ function make(): OverviewData {
         },
       },
       { provide: ConnectionsApi, useValue: connectionsApi },
-      { provide: EventStream, useValue: { on: () => () => undefined } },
+      { provide: EventStream, useValue: events },
     ],
   });
   return runInInjectionContext(TestBed.inject(Injector), () => new OverviewData());
 }
 
 describe('OverviewData', () => {
+  it('refreshes OAuth connection status without a tool call and stops listening on disposal', async () => {
+    const data = make();
+    const link = connected('cursor', { endpoint: 'dev', method: 'oauth' }).link;
+    let status: 'needs-restart' | 'connected' = 'needs-restart';
+    clientsAnswer = () => Promise.resolve({ ...clientsInUse(), clients: clientsInUse().clients.map((c) => c.client === 'cursor' ? { ...c, status, links: [{ ...link, status }] } : c) });
+    const first = data.start();
+    gets[0].resolve(overview());
+    await first;
+    expect(data.clients()?.clients.find((c) => c.client === 'cursor')?.status).toBe('needs-restart');
+
+    vi.useFakeTimers();
+    try {
+      status = 'connected';
+      events.emit('oauth.grant.changed', { id: 'og_cursor', endpoint: 'dev' });
+      events.emit('oauth.grant.changed', { id: 'og_cursor', endpoint: 'dev' });
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(gets).toHaveLength(2);
+      gets[1].resolve(overview());
+      await vi.advanceTimersByTimeAsync(0);
+      expect(data.clients()?.clients.find((c) => c.client === 'cursor')?.status).toBe('connected');
+      data.stop();
+      expect(events.handlers.get('oauth.grant.changed')?.size).toBe(0);
+      events.emit('oauth.grant.changed', { id: 'og_cursor', endpoint: 'dev' });
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(gets).toHaveLength(2);
+    } finally {
+      data.stop();
+      vi.useRealTimers();
+    }
+  });
+
   it('runs one refresh at a time and one more after it for whatever came meanwhile', async () => {
     const data = make();
     const first = data.refresh();

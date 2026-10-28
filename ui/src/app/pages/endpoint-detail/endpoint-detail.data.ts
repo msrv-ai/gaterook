@@ -116,6 +116,7 @@ export class EndpointDetailData {
   private inFlight: Promise<void> | null = null;
   private again = false;
   private stopped = false;
+  private grantsRequest = 0;
   private liveTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly unsubscribe: (() => void)[] = [];
   private readonly typeCache = new Map<string, Record<string, string>>();
@@ -127,6 +128,7 @@ export class EndpointDetailData {
   /** Starts on one endpoint (and again when the route's slug changes: a split's new endpoint, a link). */
   open(slug: string): Promise<void> {
     if (this.slugSignal() !== slug) {
+      this.grantsRequest++;
       this.slugSignal.set(slug);
       this.detailSignal.set(null);
       this.groupsSignal.set(null);
@@ -161,6 +163,9 @@ export class EndpointDetailData {
         if (mine(c.endpoint)) this.scheduleLive();
       }),
       this.events.on('clients.drift', () => void this.reloadClients()),
+      this.events.on('oauth.grant.changed', (g) => {
+        if (mine(g.endpoint)) void Promise.all([this.reloadClients(), this.reloadGrants(), this.reloadDetail()]);
+      }),
     );
   }
 
@@ -269,11 +274,16 @@ export class EndpointDetailData {
 
   private async reloadGrants(): Promise<void> {
     const slug = this.slugSignal();
+    if (!slug || this.stopped) return;
+    const request = ++this.grantsRequest;
+    const current = () => !this.stopped && this.slugSignal() === slug && this.grantsRequest === request;
     try {
       const all = await this.oauthApi.grants();
+      if (!current()) return;
       this.grantsSignal.set(all.filter((g) => g.endpoint === slug && g.ingress === 'LOCAL'));
       this.grantsStateSignal.set('ready');
     } catch (e) {
+      if (!current()) return;
       this.grantsStateSignal.set(isApiError(e) && e.kind === 'not-available' ? 'not-available' : 'failed');
     }
   }

@@ -11,7 +11,7 @@ import { Announcer } from '../../kit/announcer';
 import { GwCopy } from '../../kit/copy';
 import { GwToggle } from '../../kit/disclosure';
 import { ClientPreviewRequest, GwClientCard } from '../../kit/elements/client-card/client-card';
-import { ConfigEntry, INSTALL_URL, viaText } from '../../kit/elements/client-card/client-view';
+import { ConfigEntry, INSTALL_URL, browserInstallUrl, viaText } from '../../kit/elements/client-card/client-view';
 import { GwClientMark } from '../../kit/elements/shared/client-mark';
 import { clientStatusLook } from '../../kit/elements/shared/dictionaries';
 import { literalParts } from '../../kit/elements/shared/literals';
@@ -305,9 +305,23 @@ export class ClientsPage {
     if (card) void this.data.preview(card, r.request);
   }
 
-  protected async onConnect(card: ClientCard, previewId: string, request: ConnectRequest | null): Promise<void> {
+  protected async onConnect(card: ClientCard, previewId: string | null, request: ConnectRequest | null): Promise<void> {
+    if (this.connecting()) return;
     this.connecting.set(card.client);
     try {
+      if (card.client === 'cursor' && request?.method === 'oauth') {
+        try {
+          const result = await this.data.browserSignIn(card.client, request.endpoint);
+          const url = browserInstallUrl(result.link);
+          if (!url) throw new Error('The core returned an invalid Cursor install link.');
+          await this.desktop.openExternal(url);
+          this.toasts.show({ tone: 'info', title: 'Continue in Cursor', body: `Add ${request.endpoint} in Cursor, then finish signing in through the browser.` });
+        } catch (e) {
+          this.toasts.show({ tone: 'danger', title: 'Cursor sign-in did not open', body: errorSentence(e) });
+        }
+        return;
+      }
+      if (!previewId) return;
       const done = await this.data.connect(card, previewId);
       if (!done) return; // the card says what failed
       if (this.stage() === 'setup') {
@@ -364,5 +378,6 @@ export class ClientsPage {
     if (!this.desktopApp) return;
     await this.desktop.openClientConfig(client);
   }
+
 
 }

@@ -19,6 +19,10 @@
   }
 </ng-template>
 
+<ng-template #manageSignIn let-link>
+  <a class="gw-btn gw-btn--ghost gw-btn--sm" [routerLink]="['/endpoints', link.endpoint]" [queryParams]="{ tab: 'tokens' }" fragment="ep-oauth-sessions">Manage sign-in<span class="gw-sr-only"> of {{ c().name }} on {{ link.endpoint }}</span></a>
+</ng-template>
+
 @if (variant() === 'compact') {
   <div class="gw-client-card__row">
     <span [gwClientMark]="c().client"></span>
@@ -29,6 +33,8 @@
         @let others = compactOthers();
         @if (bridge()) {
           <span class="gw-text-caption gw-fg-muted">Bridge extension (.mcpb)@if (others.length) {, also on @for (o of others; track o) {<span class="gw-mono">{{ o }}</span>@if (!$last) {{{ $index === others.length - 2 ? ' and ' : ', ' }}}}} · token issued on the fly · <ng-container [ngTemplateOutlet]="lastCallCaption" [ngTemplateOutletContext]="{ $implicit: l.lastCallAt }" /></span>
+        } @else if (observedSignIn(l)) {
+          <span class="gw-text-caption gw-fg-muted">Signed in through the browser · <ng-container [ngTemplateOutlet]="lastCallCaption" [ngTemplateOutletContext]="{ $implicit: l.lastCallAt }" /></span>
         } @else {
           <span class="gw-text-caption gw-fg-muted gw-client-card__via"><span class="gw-mono">{{ l.configDisplay ?? c().configDisplay }}</span>@if (l.grantLabel) { · access <span class="gw-mono">{{ l.grantLabel }}</span>, token issued on the fly} @else if (l.tokenName) { · token <span class="gw-mono">{{ l.tokenName }}</span>} · <ng-container [ngTemplateOutlet]="lastCallCaption" [ngTemplateOutletContext]="{ $implicit: l.lastCallAt }" /></span>
         }
@@ -42,7 +48,11 @@
     <div class="gw-client-card__actions">
       @if (scoped(); as l) {
         <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/activity" [queryParams]="activity(c().client, l.endpoint)">View activity<span class="gw-sr-only"> of {{ c().name }}</span></a>
-        <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askDisconnect(l, $any($event.currentTarget))">Disconnect<span class="gw-sr-only"> {{ c().name }}{{ table() ? ' from ' + l.endpoint : '' }}</span></button>
+        @if (observedSignIn(l)) {
+          <ng-container [ngTemplateOutlet]="manageSignIn" [ngTemplateOutletContext]="{ $implicit: l }" />
+        } @else {
+          <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askDisconnect(l, $any($event.currentTarget))">Disconnect<span class="gw-sr-only"> {{ c().name }}{{ table() ? ' from ' + l.endpoint : '' }}</span></button>
+        }
       } @else if (c().status === 'not-installed') {
         <a class="gw-btn gw-btn--link gw-btn--sm" [href]="installUrl()" target="_blank" rel="noopener noreferrer">How to install<span class="gw-sr-only"> {{ c().name }} (opens in your browser)</span><svg lucideIcon="external-link" class="gw-icon gw-icon--sm"></svg></a>
       } @else {
@@ -146,7 +156,11 @@
                   <td><ng-container [ngTemplateOutlet]="lastCallTime" [ngTemplateOutletContext]="{ $implicit: r.link.lastCallAt }" /></td>
                   <td class="gw-table__cell--actions">
                     <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/activity" [queryParams]="activity(c().client, r.link.endpoint)">View activity<span class="gw-sr-only"> of {{ c().name }} on {{ r.link.endpoint }}</span></a>
-                    <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askDisconnect(r.link, $any($event.currentTarget))">Disconnect<span class="gw-sr-only"> {{ c().name }} from {{ r.link.endpoint }}</span></button>
+                    @if (observedSignIn(r.link)) {
+                      <ng-container [ngTemplateOutlet]="manageSignIn" [ngTemplateOutletContext]="{ $implicit: r.link }" />
+                    } @else {
+                      <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askDisconnect(r.link, $any($event.currentTarget))">Disconnect<span class="gw-sr-only"> {{ c().name }} from {{ r.link.endpoint }}</span></button>
+                    }
                   </td>
                 </tr>
               }
@@ -212,14 +226,18 @@
             <ng-container [ngTemplateOutlet]="openConfigButton" />
           }
           @if (table()) {
-            @if (free().length) {
+            @if (free().length && !observedOnly()) {
               <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="dialog" (click)="bridge() ? openAdd($any($event.currentTarget)) : openConnect($any($event.currentTarget))"><svg lucideIcon="plus" class="gw-icon gw-icon--sm"></svg>Add endpoint<span class="gw-sr-only"> to {{ c().name }}</span></button>
             }
             @if (bridge()) {
               <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askRemoveBridge($any($event.currentTarget))">Remove bridge<span class="gw-sr-only"> from {{ c().name }}</span></button>
             }
-          } @else {
-            <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askDisconnect(link()!, $any($event.currentTarget))">Disconnect<span class="gw-sr-only"> {{ c().name }}</span></button>
+          } @else if (link(); as l) {
+            @if (observedSignIn(l)) {
+              <ng-container [ngTemplateOutlet]="manageSignIn" [ngTemplateOutletContext]="{ $implicit: l }" />
+            } @else {
+              <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askDisconnect(l, $any($event.currentTarget))">Disconnect<span class="gw-sr-only"> {{ c().name }}</span></button>
+            }
           }
         </div>
       </footer>
@@ -249,7 +267,11 @@
             <ng-container [ngTemplateOutlet]="openConfigButton" />
           }
           @if (link(); as l) {
-            <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askDisconnect(l, $any($event.currentTarget))">Disconnect<span class="gw-sr-only"> {{ c().name }}</span></button>
+            @if (observedSignIn(l)) {
+              <ng-container [ngTemplateOutlet]="manageSignIn" [ngTemplateOutletContext]="{ $implicit: l }" />
+            } @else {
+              <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askDisconnect(l, $any($event.currentTarget))">Disconnect<span class="gw-sr-only"> {{ c().name }}</span></button>
+            }
           }
         </div>
       </footer>
@@ -261,7 +283,11 @@
             <ng-container [ngTemplateOutlet]="openConfigButton" />
           }
           @if (!failure() && link(); as l) {
-            <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askDisconnect(l, $any($event.currentTarget))">Disconnect<span class="gw-sr-only"> {{ c().name }}</span></button>
+            @if (observedSignIn(l)) {
+              <ng-container [ngTemplateOutlet]="manageSignIn" [ngTemplateOutletContext]="{ $implicit: l }" />
+            } @else {
+              <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askDisconnect(l, $any($event.currentTarget))">Disconnect<span class="gw-sr-only"> {{ c().name }}</span></button>
+            }
           }
           <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="dialog" (click)="openConnect($any($event.currentTarget))"><svg lucideIcon="refresh-cw" class="gw-icon gw-icon--sm"></svg>{{ failure() ? 'Try again' : 'Connect again' }}<span class="gw-sr-only"> to connect {{ c().name }}</span></button>
         </div>
@@ -282,7 +308,7 @@
         <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" gwDialogClose><svg lucideIcon="x" class="gw-icon"></svg></button>
       </header>
       <div class="gw-dialog__body">
-        <div gwClientConnectFlow #flow [card]="c()" [endpoints]="connectEndpoints()" [endpoint]="endpoint()" [preview]="connectPreview()" [loading]="connectLoading()" [failure]="connectFailure()" [idPrefix]="uid + '-cn'" autofocus wrap (requestChange)="onPreviewRequest($event)"></div>
+        <div gwClientConnectFlow #flow [card]="c()" [endpoints]="connectEndpoints()" [endpoint]="endpoint()" [preview]="connectPreview()" [loading]="connectLoading()" [failure]="connectFailure()" [idPrefix]="uid + '-cn'" autofocus wrap (requestChange)="onPreviewRequest($event)" (browserSignIn)="confirmConnect()"></div>
       </div>
       <footer class="gw-dialog__footer">
         @if (connectBlocked()) {

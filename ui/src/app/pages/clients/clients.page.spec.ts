@@ -15,6 +15,7 @@ import { absoluteTime, clockTime, isoLocal, relativeTime, shortDate } from '../.
 import { TimeService } from '../../core/time/time.service';
 import { DEMO_GRANTS, DEMO_PUBLISH, DEMO_TUNNEL_OFF } from '../../dev/fixtures-clients';
 import { Announcer } from '../../kit/announcer';
+import { ClipboardWriter } from '../../kit/clipboard';
 import { AriaDisabledGuard } from '../../kit/aria-disabled';
 import { provideKitIcons } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
@@ -88,6 +89,7 @@ function configure(): void {
   const clients: Partial<ClientsApi> = {
     list: () => (calls.push('list'), world.list()),
     scan: () => (calls.push('scan'), world.list()),
+    browserSignIn: (client, endpoint) => (calls.push(`browser-sign-in ${client} ${endpoint}`), Promise.resolve({ link: previewFor(client, { endpoint, method: 'oauth' }).link! })),
     connectPreview: (client, r) => (calls.push(`preview ${client} ${r.endpoint} ${r.method}`), world.preview(client, r)),
     connect: (client, id) => (calls.push(`connect ${client} ${id}`), Promise.resolve(connected(client, { endpoint: 'dev', method: 'token', token: { name: 'cursor-laptop', ttlDays: 7 } }))),
     disconnectPreview: (id) => (calls.push(`disconnect-preview ${id}`), Promise.resolve(id === 'cl_cx_dev' ? codexDisconnect() : bridgeDisconnect(id === 'cl_cd_dev' ? 'dev' : 'incident-prod'))),
@@ -121,7 +123,7 @@ function configure(): void {
       { provide: OAuthApi, useValue: { grants: () => world.grants(), revoke: (id: string) => (calls.push(`revoke ${id}`), Promise.resolve()) } },
       { provide: CoreApi, useValue: { counters: () => Promise.resolve({ approvals: 0, tunnel: 'off' }) } },
       { provide: EventStream, useValue: events },
-      { provide: DesktopBridge, useValue: { available: false, openMcpb: () => Promise.resolve(), openClientConfig: () => Promise.resolve() } },
+      { provide: DesktopBridge, useValue: { available: false, openMcpb: () => Promise.resolve(), openClientConfig: () => Promise.resolve(), openExternal: (url: string) => (calls.push(`open ${url}`), Promise.resolve()) } },
       { provide: CoreStore, useValue: { running: signal(true), instanceChanges: signal(0), address: signal('127.0.0.1:7465') } },
       { provide: TimeService, useValue: fakeTime },
     ],
@@ -189,6 +191,24 @@ async function choose(select: HTMLSelectElement, value: string): Promise<void> {
 // ── Tests ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 describe('Clients page: what it shows', () => {
+  it('shows an observed OAuth connection and routes its management to sign-ins without disconnecting a config', async () => {
+    const link = { ...connected('cursor', { endpoint: 'dev', method: 'oauth' }).link, id: 'og_cursor', configPath: null, configDisplay: null, entryName: null, lastCallAt: null };
+    world.list = () => Promise.resolve(kitClients({ clients: kitClients().clients.map((c) => c.client === 'cursor' ? { ...c, status: 'connected', links: [link] } : c) }));
+    await render();
+    const cursor = card('Cursor');
+    expect(text($('.gw-status__label', cursor))).toBe('Connected');
+    expect(text($('.gw-card__description', cursor))).toBe('Signed in through the browser');
+    expect(text(cursor)).toContain('No call yet');
+    expect(control(cursor, 'Disconnect')).toBeUndefined();
+    expect(control(cursor, 'Open config')).toBeUndefined();
+    const manage = control(cursor, 'Manage sign-in');
+    expect(manage.getAttribute('href')).toBe('/endpoints/dev?tab=tokens#ep-oauth-sessions');
+    calls = [];
+    await click(manage);
+    expect(TestBed.inject(Router).url).toBe('/endpoints/dev?tab=tokens#ep-oauth-sessions');
+    expect(calls.some((c) => c.startsWith('disconnect-preview'))).toBe(false);
+  });
+
   it('keeps the requested installation card available when no AI app is installed', async () => {
     world.list = () => Promise.resolve(noneFound());
     await TestBed.inject(Router).navigateByUrl('/clients#cl-ag-t');
@@ -383,6 +403,7 @@ describe('Clients page: Connect inline', () => {
 
     await click(control(cursor, 'Connect Cursor'));
     expect(calls).toContain('connect cursor pv_cursor_dev_token');
+    expect(calls.some((c) => c.startsWith('open '))).toBe(false);
     expect(toasts().map((t) => [t.title, t.body])).toContainEqual([
       'Cursor connected to dev',
       'One server added to ~/.cursor/mcp.json with token cursor-laptop, which expires in 7 days. Backup: ~/.cursor/mcp.json.bak-2026-10-22.',
@@ -426,16 +447,75 @@ describe('Clients page: Connect inline', () => {
     expect(again.find((r) => r.checked) && label(again.find((r) => r.checked)!)).toBe('Token in the file');
   });
 
-  it('sign-in through the browser offers the "Add to Cursor" link', async () => {
+  it('offers browser sign-in without a config preview, with a subtle copy action', async () => {
     await render();
     const cursor = await expandCard('Cursor');
-    const oauth = $$<HTMLInputElement>('input[type="radio"]', cursor)[1];
-    oauth.click();
+    calls = [];
+    await click($$<HTMLInputElement>('input[type="radio"]', cursor)[1]);
+    expect(calls).toEqual([]);
+    expect(text(cursor)).toContain('The link carries only the endpoint URL');
+    expect(text(cursor)).not.toContain('What will change');
+    expect(control(cursor, 'Open config')).toBeUndefined();
+    const copy = $<HTMLButtonElement>('button[aria-label="Copy Add to Cursor link"]', cursor)!;
+    const write = vi.spyOn(TestBed.inject(ClipboardWriter), 'write').mockResolvedValue(true);
+    await click(copy);
+    expect(write).toHaveBeenCalledWith('cursor://anysphere.cursor-deeplink/mcp/install?name=gaterook-dev&config=eyJ1cmwiOiJodHRwOi8vMTI3LjAuMC4xOjc0NjUvbWNwL2RldiJ9');
+    expect(copy.hasAttribute('data-copied')).toBe(true);
+    await click(control(cursor, 'Open in browser'));
+    expect(calls).toEqual(['browser-sign-in cursor dev', 'open https://cursor.com/install-mcp?name=gaterook-dev&config=eyJ1cmwiOiJodHRwOi8vMTI3LjAuMC4xOjc0NjUvbWNwL2RldiJ9']);
+  });
+
+  it('opens the browser after OAuth preparation and never writes client config', async () => {
+    await render();
+    const cursor = await expandCard('Cursor');
+    await click($$<HTMLInputElement>('input[type="radio"]', cursor)[1]);
+    calls = [];
+    let finish!: (value: { link: string }) => void;
+    const prepare = vi.spyOn(TestBed.inject(ClientsApi), 'browserSignIn').mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+    const connect = vi.spyOn(TestBed.inject(ClientsApi), 'connect');
+    control(cursor, 'Connect Cursor').click();
+    expect(prepare).toHaveBeenCalledExactlyOnceWith('cursor', 'dev');
+    expect(calls.some((c) => c.startsWith('open '))).toBe(false);
+    finish({ link: previewFor('cursor', { endpoint: 'dev', method: 'oauth' }).link! });
     await settle();
-    expect(calls).toContain('preview cursor dev oauth');
-    expect(text(cursor)).toContain('Prefer to add it from Cursor? An Add to Cursor link carries only the endpoint URL');
-    expect(control(cursor, 'Copy Add to Cursor link')).toBeTruthy();
-    expect(text(cursor)).not.toContain('Turns on OAuth sign-in for endpoint dev.');
+    expect(connect).not.toHaveBeenCalled();
+    expect(calls.filter((c) => c.startsWith('open '))).toEqual(['open https://cursor.com/install-mcp?name=gaterook-dev&config=eyJ1cmwiOiJodHRwOi8vMTI3LjAuMC4xOjc0NjUvbWNwL2RldiJ9']);
+    expect(toasts().at(-1)?.title).toBe('Continue in Cursor');
+  });
+
+  it('does not open the browser when OAuth preparation fails', async () => {
+    await render();
+    const cursor = await expandCard('Cursor');
+    await click($$<HTMLInputElement>('input[type="radio"]', cursor)[1]);
+    vi.spyOn(TestBed.inject(ClientsApi), 'browserSignIn').mockRejectedValue(problem(409, { status: 409, detail: 'The endpoint is unavailable.' }));
+    await click(control(cursor, 'Connect Cursor'));
+    expect(calls.some((c) => c.startsWith('open ') || c.startsWith('connect '))).toBe(false);
+    expect(toasts().at(-1)?.title).toBe('Cursor sign-in did not open');
+  });
+
+  it('allows retrying browser sign-in after the browser fails to open', async () => {
+    await render();
+    const cursor = await expandCard('Cursor');
+    await click($$<HTMLInputElement>('input[type="radio"]', cursor)[1]);
+    const open = vi.spyOn(TestBed.inject(DesktopBridge), 'openExternal').mockRejectedValueOnce(new Error('Browser unavailable'));
+    await click(control(cursor, 'Connect Cursor'));
+    expect(toasts().at(-1)?.title).toBe('Cursor sign-in did not open');
+    expect(calls.some((c) => c.startsWith('connect '))).toBe(false);
+    await click(control(cursor, 'Connect Cursor'));
+    expect(open).toHaveBeenCalledTimes(2);
+    expect(toasts().at(-1)?.title).toBe('Continue in Cursor');
+  });
+
+  it('lets browser sign-in proceed even when the config preview fails', async () => {
+    world.preview = () => Promise.reject(problem(422, { status: 422, detail: 'Invalid JSON', reason: 'invalid' }));
+    await render();
+    const cursor = await expandCard('Cursor');
+    await click($$<HTMLInputElement>('input[type="radio"]', cursor)[1]);
+    expect($('.gw-alert--danger', cursor)).toBeNull();
+    expect(text(cursor)).not.toContain('What will change');
+    await click(control(cursor, 'Connect Cursor'));
+    expect(calls).toContain('browser-sign-in cursor dev');
+    expect(calls.some((c) => c.startsWith('connect '))).toBe(false);
   });
 
   it('a change the core refuses is the kit’s "Connect failed": nothing written, Open config, Details', async () => {
@@ -675,6 +755,20 @@ describe('Clients page: first run and setup (kit ?state=first-run | setup)', () 
     expect(text($('#cl-other-t', el))).toBe('Other apps on this computer');
     expect($('#cl-rows', el)!.getAttribute('aria-labelledby')).toBe('cl-other-t');
     expect(rows(el).map((r) => text($('h3', r)))).toEqual(['Claude Desktop', 'Cursor', 'Antigravity']);
+  });
+
+  it('setup: Cursor browser sign-in opens from the initial review without a config write', async () => {
+    setup();
+    const el = await arrive('cl-cu-t');
+    await settle();
+    const review = $('article[aria-labelledby="cl-cu-s-t"]', el)!;
+    expect(document.activeElement?.id).toBe('cl-cu-s-t');
+    await click($<HTMLInputElement>('input[value="oauth"]', review)!);
+    expect(text(review)).not.toContain('What will change');
+    await click(control(review, 'Connect Cursor'));
+    expect(calls).toContain('browser-sign-in cursor dev');
+    expect(calls.some((call) => call.startsWith('connect ') || call === 'preview cursor dev oauth')).toBe(false);
+    expect(toasts().at(-1)?.title).toBe('Continue in Cursor');
   });
 
   it('setup: Connect writes the change; the card stays on top with “Check that it works” and the prompt to copy', async () => {

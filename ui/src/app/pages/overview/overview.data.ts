@@ -88,6 +88,7 @@ export class OverviewData {
       // changes what the tiles say.
       this.events.on('audit.call', () => this.schedule(DELAY.call)),
       this.events.on('clients.drift', () => this.schedule(DELAY.clients)),
+      this.events.on('oauth.grant.changed', () => this.schedule(DELAY.clients)),
     );
     return this.refresh();
   }

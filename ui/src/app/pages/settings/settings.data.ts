@@ -47,7 +47,7 @@ export type Sections = { readonly [name: string]: SettingsSection };
  *
  * Each part loads on its own: one that fails, or that this core doesn't have, leaves the others working. Reloads are
  * coalesced (one in flight, one more after it). Live: `tunnel.state`, `notify.state` / `notify.link.updated`,
- * `oauth.consent.resolved`, the end of a master-key rotation, and an integrity alert on a policy (Approval rules
+ * `oauth.consent.resolved` / `oauth.grant.changed`, the end of a master-key rotation, and an integrity alert on a policy (Approval rules
  * shows the policies' approval settings).
  *
  * Values a person types for a secret (a bot token, a passphrase) go out in one request and are never kept here.
@@ -142,6 +142,7 @@ export class SettingsData {
       on('notify.state', () => void this.reloadNotifications()),
       on('notify.link.updated', () => void this.reloadNotifications()),
       on('oauth.consent.resolved', () => void this.reloadPart(this.grantsSignal, () => this.oauthApi.grants())),
+      on('oauth.grant.changed', () => void this.reloadPart(this.grantsSignal, () => this.oauthApi.grants())),
       on('master-key.rotation', (e) => {
         if (e.state === 'done' || e.state === 'failed') void this.reloadPart(this.masterKeySignal, () => this.masterKeyApi.status());
       }),

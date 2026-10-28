@@ -20,7 +20,7 @@ import { GwIcon } from '../../icons';
 import { GwClientMark } from '../shared/client-mark';
 import { GwOAuthConsent } from './oauth-consent';
 import { ClientEndpoint, activityQuery } from './client-view';
-import { activeGrants, localEndpoints, tunnelHistory, tunnelLook, whilePublic } from './tunnel-view';
+import { activeGrants, localEndpoints, oauthClientLabel, tunnelHistory, tunnelLook, whilePublic } from './tunnel-view';
 
 let nextId = 0;
 
@@ -99,6 +99,7 @@ export class GwClaudeAiCard {
   protected readonly revoking = signal<OAuthGrant | null>(null);
   protected readonly consentShown = signal<OAuthConsent | null>(null);
   protected readonly activity = activityQuery;
+  protected readonly oauthClientLabel = oauthClientLabel;
 
   protected askPublish(opener: HTMLElement): void {
     this.publishDialog()?.open(opener);
