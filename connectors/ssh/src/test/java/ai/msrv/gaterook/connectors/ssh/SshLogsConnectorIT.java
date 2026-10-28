@@ -8,6 +8,7 @@ import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.HealthResult;
+import ai.msrv.gaterook.connector.api.Limits;
 import ai.msrv.gaterook.connector.api.PolicyView;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import java.io.ByteArrayOutputStream;
@@ -112,6 +113,112 @@ class SshLogsConnectorIT {
         cfg, secrets, TestCtx.read()).structuredContent();
     assertThat(tail.path("lines")).isEqualTo(TestConfigs.json("[\"ERROR two\",\"last\"]"));
     assertThat(sshd.commands).isEmpty();
+  }
+
+  @Test
+  void filtersAllowedFileNamesByLiteralTextAndRegexWithoutOpeningTheirContents() throws Exception {
+    Files.writeString(root.resolve("audit[1].log"), "audit event\n");
+    var cfg = cfg(true, "app.log", "nested/worker.log", "audit[1].log");
+    var opened = new AtomicInteger();
+    var factory = new SftpSubsystemFactory.Builder().build();
+    factory.addSftpEventListener(new org.apache.sshd.sftp.server.SftpEventListener() {
+      @Override
+      public void opening(org.apache.sshd.server.session.ServerSession session, String handle,
+          org.apache.sshd.sftp.server.Handle file) {
+        if (file instanceof org.apache.sshd.sftp.server.FileHandle) opened.incrementAndGet();
+      }
+    });
+    sshd.server.setSubsystemFactories(List.of(factory));
+    record Example(String arguments, List<String> files) {}
+    for (var example : List.of(
+        new Example("{}", List.of("app.log", "nested/worker.log", "audit[1].log")),
+        new Example("{\"query\":\"\"}", List.of("app.log", "nested/worker.log", "audit[1].log")),
+        new Example("{\"query\":\"APP\"}", List.of()),
+        new Example("{\"query\":\"WORKER\",\"caseSensitive\":false}", List.of("nested/worker.log")),
+        new Example("{\"query\":\"nested/\"}", List.of("nested/worker.log")),
+        new Example("{\"query\":\"[1]\"}", List.of("audit[1].log")),
+        new Example("{\"query\":\".*\"}", List.of()),
+        new Example("{\"query\":\"^nested/worker[.]log$\",\"matchMode\":\"regex\"}", List.of("nested/worker.log")),
+        new Example("{\"query\":\"APP[.]LOG$\",\"matchMode\":\"regex\",\"caseSensitive\":false}", List.of("app.log")),
+        new Example("{\"query\":\"private\"}", List.of()))) {
+      var result = connector.execute(call("ssh_logs_list", example.arguments()), cfg, secrets, TestCtx.read());
+      var content = result.structuredContent();
+      assertThat(content.path("files")).as(example.arguments())
+          .extracting(node -> node.path("file").asString()).containsExactlyElementsOf(example.files());
+      assertThat(content.path("root").asString()).isEqualTo(root.toString());
+      assertThat(content.path("truncated").asBoolean()).isFalse();
+      assertThat(result.truncated()).isFalse();
+      for (var file : content.path("files")) {
+        assertThat(file.path("size").asLong()).isEqualTo(Files.size(root.resolve(file.path("file").asString())));
+      }
+    }
+    assertThat(opened.get()).isZero();
+    assertThat(sshd.commands).isEmpty();
+  }
+
+  @Test
+  void filtersBeforeRemoteMetadataChecksAndListingLimits() throws Exception {
+    var cfg = cfg(true, "missing-" + "x".repeat(1500) + ".log", "app.log", "nested/worker.log", "missing-after.log");
+    var limits = listingLimits(1, 2048 + root.toString().length() * 12L);
+    var result = connector.execute(call("ssh_logs_list", "{\"query\":\"worker\"}"), cfg, secrets,
+        TestCtx.of(limits));
+    assertThat(result.structuredContent().path("files")).extracting(node -> node.path("file").asString())
+        .containsExactly("nested/worker.log");
+    assertThat(result.structuredContent().path("truncated").asBoolean()).isFalse();
+    assertThat(result.truncated()).isFalse();
+  }
+
+  @Test
+  void filteredListsStillReportRowAndResponseLimits() throws Exception {
+    var cfg = cfg(true, "app.log", "nested/worker.log");
+    var rowLimited = connector.execute(call("ssh_logs_list", "{\"query\":\".log\"}"), cfg, secrets,
+        TestCtx.of(listingLimits(1, TestCtx.devLimits().maxResponseBytes())));
+    assertThat(rowLimited.structuredContent().path("files")).extracting(node -> node.path("file").asString())
+        .containsExactly("app.log");
+    assertThat(rowLimited.structuredContent().path("truncated").asBoolean()).isTrue();
+    assertThat(rowLimited.truncatedReason()).isEqualTo("row_limit");
+
+    var sizeLimited = connector.execute(call("ssh_logs_list", "{\"query\":\".log\"}"), cfg, secrets,
+        TestCtx.of(listingLimits(1000, 512 + root.toString().length() * 12L)));
+    assertThat(sizeLimited.structuredContent().path("files")).extracting(node -> node.path("file").asString())
+        .containsExactly("app.log");
+    assertThat(sizeLimited.structuredContent().path("truncated").asBoolean()).isTrue();
+    assertThat(sizeLimited.truncatedReason()).isEqualTo("size_limit");
+  }
+
+  private static Limits listingLimits(int maxRows, long maxResponseBytes) {
+    var defaults = TestCtx.devLimits();
+    return new Limits(maxRows, defaults.maxLines(), maxResponseBytes, defaults.maxRequestBytes(),
+        defaults.maxOutputBytes(), defaults.maxStderrBytes(), defaults.maxCellChars(), defaults.statementTimeout(),
+        defaults.commandTimeout(), defaults.toolTimeout(), defaults.maxRange());
+  }
+
+  @Test
+  void rejectsInvalidFilenameFiltersBeforeResolvingCredentialsOrAuthenticating() {
+    var cfg = cfg(true, "app.log");
+    var policy = new PolicyView(Env.DEV, "dev.ssh", TestConfigs.json("{}"), TestCtx.devLimits());
+    for (String arguments : List.of("{\"query\":42}", "{\"query\":null}", "{\"query\":[]}",
+        "{\"caseSensitive\":\"false\"}", "{\"caseSensitive\":null}", "{\"matchMode\":42}",
+        "{\"matchMode\":null}", "{\"matchMode\":\"glob\"}", "{\"query\":\"[\",\"matchMode\":\"regex\"}",
+        "{\"query\":\"(?=app)\",\"matchMode\":\"regex\"}",
+        JsonNodeFactory.instance.objectNode().put("query", "(app)\\1").put("matchMode", "regex").toString(),
+        JsonNodeFactory.instance.objectNode().put("query", "x".repeat(1025)).toString())) {
+      var call = call("ssh_logs_list", arguments);
+      assertThat(connector.classify(call, cfg, policy).kind()).as(arguments).isEqualTo(Classification.Kind.DENY);
+      assertThatThrownBy(() -> connector.execute(call, cfg, secrets, TestCtx.read()))
+          .as(arguments).isInstanceOf(ConnectorException.class);
+    }
+    assertThat(secrets.resolved.get()).isZero();
+    assertThat(sshd.passwordAttempts.get()).isZero();
+    assertThat(sshd.commands).isEmpty();
+  }
+
+  @Test
+  void filenameMatchesStillRejectSelectedSymbolicLinks() throws Exception {
+    Files.createSymbolicLink(root.resolve("link.log"), root.resolve("private.txt"));
+    assertThatThrownBy(() -> connector.execute(call("ssh_logs_list", "{\"query\":\"link\"}"),
+        cfg(true, "app.log", "link.log"), secrets, TestCtx.read()))
+        .isInstanceOf(ConnectorException.class).hasMessageContaining("Symbolic links");
   }
 
   @Test

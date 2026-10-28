@@ -57,7 +57,9 @@ public final class SshLogsConnector implements Connector {
         .description("Read selected log files over SSH without running shell commands.")
         .configSchema(schemas.load("config"))
         .policySchema(SchemaResources.of(SshConnector.class, "ssh").load("policy"))
-        .tools(List.of(tool(LIST, "List allowed log files", "List only the explicitly selected log files and their sizes.", schemas),
+        .tools(List.of(tool(LIST, "List allowed log files", "List explicitly selected log files and their sizes. "
+                + "Optionally filter root-relative file names by literal text or a safe regular expression with query, "
+                + "matchMode and caseSensitive. Use returned file names with ssh_logs_read or ssh_logs_search.", schemas),
             tool(READ, "Read a log file", "Read complete UTF-8 lines from a selected log file. Set tail for the actual latest N lines. "
                 + "Scanning, output and deadline limits return an explicit continuation cursor.", schemas),
             tool(SEARCH, "Search a log file", "Search selected text or JSONL logs by literal text or a safe regular expression, time range and level. "
@@ -105,6 +107,7 @@ public final class SshLogsConnector implements Connector {
 
   private static void validateCall(ToolCall call, SshLogSettings settings, ai.msrv.gaterook.connector.api.Limits limits) throws ConnectorException {
     if (LIST.equals(call.tool())) {
+      SshLogFileQuery.parse(call.arguments());
       return;
     }
     if (!READ.equals(call.tool()) && !SEARCH.equals(call.tool())) {
@@ -224,7 +227,7 @@ public final class SshLogsConnector implements Connector {
       }
       var check = HostKeys.check(settings.ssh().target(), settings.ssh().hostKeys());
       try (Connection opened = open(settings, secrets, ctx, check)) {
-        return LIST.equals(call.tool()) ? SshLogFiles.list(opened.sftp(), settings, ctx)
+        return LIST.equals(call.tool()) ? SshLogFiles.list(opened.sftp(), settings, SshLogFileQuery.parse(call.arguments()), ctx)
             : SshLogScanner.scan(opened.sftp(), settings, cfg, call, ctx, scanFingerprintKey);
       }
     } catch (IOException e) {

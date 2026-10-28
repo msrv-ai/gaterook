@@ -12,13 +12,39 @@ Automatic health checks verify SSH sign-in, SFTP availability and the selected r
 
 | Tool | Use |
 | --- | --- |
-| `ssh_logs_list` | List the selected files and their sizes. |
+| `ssh_logs_list` | List selected files and their sizes, optionally filtering by file name. |
 | `ssh_logs_read` | Read one file, including its last N records or records in a time range. |
 | `ssh_logs_search` | Filter one, several, or all allowed files by literal text, regex, level and event time. |
 
 Each physical UTF-8 line is one record. JSON Lines must contain one JSON object per line. A stack trace is therefore several records; continuation lines are not automatically assigned the preceding line's timestamp. Compressed archives are not a supported log format.
 
-The tools return `entries` with file names, byte offsets, parsed timestamps, levels and masked text. `lines` contains the same text for compatibility. Matching uses masked values, including JSON field masking, so hidden values cannot be recovered by guessing a filter. JSON records may be serialized to normalized JSON after masking.
+The read and search tools return `entries` with file names, byte offsets, parsed timestamps, levels and masked text. `lines` contains the same text for compatibility. Content matching uses masked values, including JSON field masking, so hidden values cannot be recovered by guessing a filter. JSON records may be serialized to normalized JSON after masking.
+
+## List files and search by name
+
+Pass only the connection to `ssh_logs_list` to list the selected files:
+
+```json
+{
+  "connection": "server-logs"
+}
+```
+
+To find selected files whose names contain `worker`, ignoring case:
+
+```json
+{
+  "connection": "server-logs",
+  "query": "worker",
+  "caseSensitive": false
+}
+```
+
+`query` matches the full root-relative file name, including subfolders such as `services/worker.log`. It accepts at most 1,024 characters. Matching defaults to a case-sensitive literal substring; an empty or omitted query matches all selected files. Set `matchMode` to `regex` for RE2 matching within the name. For example, `"query": "^services/.*[.]log$"` with `"matchMode": "regex"` finds selected `.log` files below `services/`. Anchors constrain the full name; backreferences and look-around are unsupported.
+
+The result contains `root`, a `files` array of `{ "file": "services/worker.log", "size": 1234 }` objects, and `truncated`. Sizes are in bytes, and names retain the configured selection order. Use a returned `file` name with `ssh_logs_read` or `ssh_logs_search` to inspect its contents. No matches returns an empty `files` array.
+
+Only explicitly selected files are eligible. Name filtering runs before checking remote file metadata and applying row and response-size limits. If `truncated` is true, narrow the name query to reduce the result. Listing does not read log contents or discover unselected files.
 
 ## Last N records
 

@@ -20,6 +20,46 @@ class SshLogSchemasTest {
   }
 
   @Test
+  void supportsListingAndSearchingSelectedFileNames() {
+    for (String request : new String[] {
+        """
+        {"connection":"server-logs"}""",
+        """
+        {"connection":"server-logs","query":""}""",
+        """
+        {"connection":"server-logs","query":"worker","matchMode":"literal","caseSensitive":false}""",
+        """
+        {"connection":"server-logs","query":"^services/.*[.]log$","matchMode":"regex","caseSensitive":true}"""}) {
+      assertThat(schema("ssh_logs_list.input").validate(JSON.readTree(request))).as(request).isEmpty();
+    }
+    var longestQuery = JSON.createObjectNode().put("connection", "server-logs").put("query", "x".repeat(1024));
+    assertThat(schema("ssh_logs_list.input").validate(longestQuery)).isEmpty();
+  }
+
+  @Test
+  void rejectsInvalidFileNameSearchArguments() {
+    for (String request : new String[] {
+        """
+        {"query":"worker"}""",
+        """
+        {"connection":"server-logs","query":42}""",
+        """
+        {"connection":"server-logs","query":null}""",
+        """
+        {"connection":"server-logs","matchMode":"glob"}""",
+        """
+        {"connection":"server-logs","matchMode":false}""",
+        """
+        {"connection":"server-logs","caseSensitive":"false"}""",
+        """
+        {"connection":"server-logs","file":"app.log"}"""}) {
+      assertThat(schema("ssh_logs_list.input").validate(JSON.readTree(request))).as(request).isNotEmpty();
+    }
+    var oversizedQuery = JSON.createObjectNode().put("connection", "server-logs").put("query", "x".repeat(1025));
+    assertThat(schema("ssh_logs_list.input").validate(oversizedQuery)).isNotEmpty();
+  }
+
+  @Test
   void supportsLastNRecordsAndQueriesByPeriodLevelTextOrRegex() {
     assertThat(schema("ssh_logs_read.input").validate(JSON.readTree("""
         {"connection":"server-logs","file":"app.log","tail":true,"maxLines":100}
