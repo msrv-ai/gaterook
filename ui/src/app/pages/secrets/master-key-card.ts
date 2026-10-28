@@ -19,7 +19,6 @@ import {
   backupLead,
   keyAlerts,
   keyFileName,
-  keyFolder,
   createdRow,
   keysText,
   osProtectionText,
@@ -33,7 +32,7 @@ const NO_ANSWER = 'The core didn’t answer. Try again.';
 /**
  * Secrets › Master key (design/pages/secrets.html `#master-key`; ARCHITECTURE.md §6 `/api/master-key/*`, §8.4):
  * where the key is, who can read it, what it protects and when it was last backed up, with what is wrong with it in
- * the kit's words (permissions, OS protection, a synced folder, a missing backup) and the trust boundary of §8.6.11.
+ * the kit's words (permissions, OS protection, a synced folder, a missing backup).
  *
  * - Back up key (the card's primary): an optional passphrase, then the desktop's save dialog picks where the copy
  *   goes; the core gets only the dialog's one-time token, never a path. Outside the desktop app it can't save.
@@ -63,8 +62,6 @@ export class GwMasterKeyCard {
   private readonly passphrase = viewChild<ElementRef<HTMLInputElement>>('passphrase');
 
   protected readonly osProtectionText = osProtectionText;
-  protected readonly keyFolder = keyFolder;
-  protected readonly keyFileName = keyFileName;
   protected readonly keysText = keysText;
 
   protected readonly status = computed(() => this.data.masterKey().value);

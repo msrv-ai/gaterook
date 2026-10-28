@@ -142,7 +142,7 @@ Read only on a mutating tool and Bypass on a read-only endpoint remain natively 
 
 Desktop has one local user; audit setup changes say **You**. Names, roles, and avatars for other people belong only in explicitly labeled server-mode previews. The common demo clock is 14:30 local time on 2026-10-22; events never occur later, although deadlines may.
 
-The trust boundary is the OS account. Master-key and bridge explanations must say that protection covers other users and copied files, not programs running as the same user, including terminal-capable agents. OS protection is enabled by default where supported. The packaged core is native; JRE wording applies only to the Java plugin host, started when needed.
+The trust boundary is the OS account. The onboarding master-key explanation and bridge explanations must say that protection covers other users and copied files, not programs running as the same user, including terminal-capable agents. OS protection is enabled by default where supported. The packaged core is native; JRE wording applies only to the Java plugin host, started when needed.
 
 ### Dangerous actions
 

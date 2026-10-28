@@ -13,7 +13,6 @@ import {
   filterRows,
   keyAlerts,
   keyFileName,
-  keyFolder,
   createdRow,
   keysText,
   osProtectionText,
@@ -213,8 +212,7 @@ describe('master key', () => {
     expect(keyAlerts(kitMasterKey({ osProtection: 'off', problems: ['no-os-protection'] }))[0].title).toBe('OS protection is off');
   });
 
-  it('places the file, its folder and the backup', () => {
-    expect(keyFolder('/Users/you/.gaterook/master.keyset')).toBe('/Users/you/.gaterook/');
+  it('places the file and the backup', () => {
     expect(keyFileName('C:\\Users\\you\\.gaterook\\master.keyset')).toBe('master.keyset');
     expect(backupFileName(NOW)).toBe('master-keyset-2026-10-22.json');
     expect(backupLead(8)).toBe("Without a copy, the 8 secrets stored here can't be recovered if this computer is lost.");
