@@ -10,7 +10,7 @@ Use the same origin for the authorization server and resource server, with an is
 
 Client registration defaults to Client ID Metadata Documents (CIMD). The reviewed claude.ai client ID was `https://claude.ai/oauth/mcp-oauth-client-metadata`. Advertise both `client_id_metadata_document_supported: true` and `none` in token endpoint authentication methods; the reviewed Claude documentation required both to select CIMD. Dynamic registration (DCR), deprecated in the reviewed modern MCP revision, is an optional explicit setting.
 
-Access tokens (`gwo_`) last one hour. Refresh tokens (`gwr_`) rotate on every exchange; reuse revokes the entire grant. The default grant lasts seven days from consent, and refresh does not extend it. Store token hashes, bind every token to a canonical endpoint audience, and check the grant on every request for immediate revocation.
+The original research proposed one-hour access tokens and seven-day grants. The current application contract issues access tokens (`gwo_`), refresh tokens (`gwr_`), and grants for up to 184 days from consent, covering at least six calendar months. Refresh tokens rotate on every exchange; reuse revokes the entire grant, and refresh does not extend its absolute expiry. Store token hashes, bind every token to a canonical endpoint audience, and check the grant on every request for immediate revocation. Existing issued expiry dates remain unchanged. See [the architecture](../ARCHITECTURE.md#73-tunnel-and-oauth) for the current contract.
 
 Consent happens on the user's computer. The browser displays a comparison code and waits; an application dialog displays the same code, client host, redirect host, endpoint, permissions, and expiry. Deny receives initial focus. Closing, Escape, or five minutes without a decision denies access.
 
@@ -93,11 +93,13 @@ A new Allow replaces the previous active grant for the same client/endpoint pair
 {
   "access_token": "<new opaque access token>",
   "token_type": "Bearer",
-  "expires_in": 3600,
+  "expires_in": 15897599,
   "refresh_token": "<new rotating refresh token>",
   "scope": "mcp"
 }
 ```
+
+`expires_in` reports the remaining seconds before the grant expires; the example is a newly issued 184-day sign-in.
 
 Refresh consumes the old token and creates a new one atomically. Reuse of a consumed refresh token revokes the grant. Replayed authorization codes also trigger defensive grant revocation. Invalid refresh returns `invalid_grant`, as expected by the reviewed Claude client. Reject query-string access tokens and mismatched audiences. Revocation follows RFC 7009's non-disclosing successful response for unknown tokens.
 

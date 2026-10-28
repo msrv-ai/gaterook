@@ -60,9 +60,11 @@
           <div class="gw-field">
             <label class="gw-field__label" [for]="uid + '-expires'">Expires</label>
             <select class="gw-select" [id]="uid + '-expires'" [attr.aria-describedby]="uid + '-expires-hint'" (change)="lifetime.set($any($event.target).value)">
+              <option value="1d" [selected]="lifetime() === '1d'">1 day</option>
               <option value="7d" [selected]="lifetime() === '7d'">7 days</option>
               <option value="30d" [selected]="lifetime() === '30d'">30 days</option>
               <option value="90d" [selected]="lifetime() === '90d'">90 days</option>
+              <option value="184d" [selected]="lifetime() === '184d'">6 months (184 days)</option>
               <option value="custom" [selected]="lifetime() === 'custom'">Custom date</option>
             </select>
             @if (lifetime() === 'custom') {
@@ -70,7 +72,7 @@
             }
             <p class="gw-field__hint" [id]="uid + '-expires-hint'">
               @if (ttlDays() > 0) {
-                On <time [attr.datetime]="dateIso(expiresOn())">{{ dateText(expiresOn()) }}</time>.@if (lifetime() === '7d') { The default; short lifetimes are safer.}
+                On <time [attr.datetime]="dateIso(expiresOn())">{{ dateText(expiresOn()) }}</time>.@if (lifetime() === defaultTtlDays() + 'd') { The default from Settings.}
               } @else {
                 Pick the day the token stops working.
               }

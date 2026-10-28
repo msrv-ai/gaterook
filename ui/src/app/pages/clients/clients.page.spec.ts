@@ -7,6 +7,7 @@ import { ClientsApi, ClientsView, ConnectPreview, ConnectRequest } from '../../c
 import { CoreApi } from '../../core/api/core.api';
 import { EndpointSummary, EndpointsApi, TokensApi, ToolGroup, ToolRow } from '../../core/api/endpoints.api';
 import { Overview, OverviewApi } from '../../core/api/overview.api';
+import { SettingsApi } from '../../core/api/settings.api';
 import { OAuthApi, OAuthGrant, TunnelApi, TunnelState } from '../../core/api/tunnel.api';
 import { DesktopBridge } from '../../core/desktop/desktop-bridge';
 import { EventStream } from '../../core/events/event-stream';
@@ -91,7 +92,7 @@ function configure(): void {
     scan: () => (calls.push('scan'), world.list()),
     browserSignIn: (client, endpoint) => (calls.push(`browser-sign-in ${client} ${endpoint}`), Promise.resolve({ link: previewFor(client, { endpoint, method: 'oauth' }).link! })),
     connectPreview: (client, r) => (calls.push(`preview ${client} ${r.endpoint} ${r.method}`), world.preview(client, r)),
-    connect: (client, id) => (calls.push(`connect ${client} ${id}`), Promise.resolve(connected(client, { endpoint: 'dev', method: 'token', token: { name: 'cursor-laptop', ttlDays: 7 } }))),
+    connect: (client, id) => (calls.push(`connect ${client} ${id}`), Promise.resolve(connected(client, { endpoint: 'dev', method: 'token', token: { name: 'cursor-laptop', ttlDays: 184 } }))),
     disconnectPreview: (id) => (calls.push(`disconnect-preview ${id}`), Promise.resolve(id === 'cl_cx_dev' ? codexDisconnect() : bridgeDisconnect(id === 'cl_cd_dev' ? 'dev' : 'incident-prod'))),
     disconnect: (id, previewId) => (calls.push(`disconnect ${id} ${previewId}`), Promise.resolve({ linkId: id, entryRemoved: id === 'cl_cx_dev', rejectedApprovals: 0, notes: [] })),
     removeClaudeBridge: () => (calls.push('remove-bridge'), Promise.resolve({ revoked: [], removedFiles: [], rejectedApprovals: 0, notes: [] })),
@@ -99,6 +100,7 @@ function configure(): void {
   };
   TestBed.configureTestingModule({
     providers: [
+      { provide: SettingsApi, useValue: { get: () => Promise.resolve({ values: { tokenTtlDays: 184 } }) } },
       provideRouter([{ path: '**', children: [] }]),
       provideKitIcons(),
       { provide: ClientsApi, useValue: clients },
@@ -394,7 +396,7 @@ describe('Clients page: Connect inline', () => {
     await render();
     const cursor = await expandCard('Cursor');
     expect(calls).toContain('preview cursor dev token');
-    expect(text(cursor)).toContain('Token cursor-laptop · expires in 7 days · written in plain text to ~/.cursor/mcp.json · Revoke');
+    expect(text(cursor)).toContain('Token cursor-laptop · expires in 184 days · written in plain text to ~/.cursor/mcp.json · Revoke');
     expect(text(cursor)).toContain('7 additions, 1 deletion');
     expect(text(cursor)).toContain('~/.cursor/mcp.json.bak-2026-10-22');
     // The token line is shown once, in the token step.
@@ -406,7 +408,7 @@ describe('Clients page: Connect inline', () => {
     expect(calls.some((c) => c.startsWith('open '))).toBe(false);
     expect(toasts().map((t) => [t.title, t.body])).toContainEqual([
       'Cursor connected to dev',
-      'One server added to ~/.cursor/mcp.json with token cursor-laptop, which expires in 7 days. Backup: ~/.cursor/mcp.json.bak-2026-10-22.',
+      'One server added to ~/.cursor/mcp.json with token cursor-laptop, which expires in 184 days. Backup: ~/.cursor/mcp.json.bak-2026-10-22.',
     ]);
   });
 

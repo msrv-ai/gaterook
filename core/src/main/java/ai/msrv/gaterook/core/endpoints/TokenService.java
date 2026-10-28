@@ -38,7 +38,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 /**
  * Named endpoint tokens ({@code gwt_}, ARCHITECTURE.md A4, kit {@code token-issue}): 256 random bits, shown once,
  * stored only as {@code b64url(sha256)} and looked up on every request, so Revoke takes effect on the next call.
- * The default lifetime is 7 days (Settings › Authorization). People see a prefix ({@code gwt_K9xP…}), never the value.
+ * The default lifetime is 184 days (Settings › Authorization). People see a prefix ({@code gwt_K9xP…}), never the value.
  * Bridge tokens ({@code gwb_}, 15 minutes, per grant) are issued by the clients module; their rows show here as
  * "issued on the fly".
  */
@@ -51,8 +51,9 @@ public class TokenService implements PrincipalStatus {
   /** {@code gwb_}: a bridge token. */
   public static final String BRIDGE_PREFIX = "gwb_";
 
-  public static final Duration DEFAULT_TTL = Duration.ofDays(7);
-  public static final int MAX_TTL_DAYS = 90;
+  /** At least six calendar months, including the longest six-month interval. */
+  public static final Duration DEFAULT_TTL = Duration.ofDays(184);
+  public static final int MAX_TTL_DAYS = 184;
 
   private static final Pattern NAME = Pattern.compile("^[a-z0-9][a-z0-9-]{0,39}$");
   private static final SecureRandom RANDOM = new SecureRandom();
@@ -111,7 +112,7 @@ public class TokenService implements PrincipalStatus {
   /**
    * {@code POST /api/endpoints/{slug}/tokens {name, ttlDays}}: the value is in the result and nowhere else.
    *
-   * @param ttlDays 1–90, or {@code null} for the default of Settings › Authorization (7 days)
+   * @param ttlDays 1–184, or {@code null} for the default of Settings › Authorization (184 days)
    */
   public Issued issue(String slug, String name, Integer ttlDays, String reason) {
     return issue(slug, name, ttlDays, reason, null);
@@ -129,9 +130,9 @@ public class TokenService implements PrincipalStatus {
       throw ProblemException.unprocessable("Invalid name", "Lowercase letters, digits and hyphens, like "
           + "inspector-debug.", "/name");
     }
-    Duration ttl = ttlDays == null ? defaultTtl() : Duration.ofDays(ttlDays);
+    Duration ttl = Duration.ofDays(ttlDays == null ? defaultTtlDays() : ttlDays);
     if (ttl.toDays() < 1 || ttl.toDays() > MAX_TTL_DAYS) {
-      throw ProblemException.unprocessable("Invalid lifetime", "A token lives 1 to 90 days.", "/ttlDays");
+      throw ProblemException.unprocessable("Invalid lifetime", "A token lives 1 to " + MAX_TTL_DAYS + " days.", "/ttlDays");
     }
     byte[] random = new byte[32];
     RANDOM.nextBytes(random);
@@ -294,9 +295,11 @@ public class TokenService implements PrincipalStatus {
     batch.forEach((id, at) -> lastUsed.remove(id, at));
   }
 
-  private Duration defaultTtl() {
-    return settings.find("authorization").map(v -> v.value().path("tokenTtlDays").asInt(7))
-        .filter(days -> days >= 1 && days <= MAX_TTL_DAYS).map(Duration::ofDays).orElse(DEFAULT_TTL);
+  /** The configured default for a named token, also used by client connection previews. */
+  public int defaultTtlDays() {
+    int fallback = Math.toIntExact(DEFAULT_TTL.toDays());
+    return settings.find("authorization").map(v -> v.value().path("tokenTtlDays").asInt(fallback))
+        .filter(days -> days >= 1 && days <= MAX_TTL_DAYS).orElse(fallback);
   }
 
   /** {@code b64url(sha256(token))}: the only form a token is stored in. */

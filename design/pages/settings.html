@@ -456,9 +456,10 @@
                     <label class="gw-field__label" for="st-ttl">Default token lifetime</label>
                     <select class="gw-select" id="st-ttl" aria-describedby="st-ttl-hint">
                       <option>1 day</option>
-                      <option selected>7 days</option>
+                      <option>7 days</option>
                       <option>30 days</option>
                       <option>90 days</option>
+                      <option selected>6 months (184 days)</option>
                     </select>
                     <p class="gw-field__hint" id="st-ttl-hint">Cursor and Antigravity keep their token in plain text in their config file, so a short lifetime limits what a copied file gives away. You can pick another lifetime when you issue a token. Nothing is written to the configs of Claude Desktop and Codex: the <span class="gw-mono">.mcpb</span> bridge and the Codex headers helper ask the app for a token each time.</p>
                   </div>
@@ -551,7 +552,7 @@
                           <td class="gw-table__cell--mono">stage-readonly</td>
                           <td><time datetime="2026-10-22T08:52:00+02:00" title="2026-10-22 08:52 +02:00">Today 08:52</time>, by you</td>
                           <td><time datetime="2026-10-22T12:08:14+02:00" title="2026-10-22 12:08:14 +02:00">12:08</time></td>
-                          <td><time datetime="2026-10-29T08:52:00+01:00" title="2026-10-29 08:52 +01:00">Oct 29</time></td>
+                          <td><time datetime="2027-04-24T08:52:00+02:00" title="2027-04-24 08:52 +02:00">Apr 24, 2027</time></td>
                           <td class="gw-table__cell--actions"><button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" data-gw-dialog-open="st-revoke-ai-dlg">Revoke<span class="gw-sr-only"> claude.ai access to stage-readonly</span></button></td>
                         </tr>
                       </tbody>

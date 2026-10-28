@@ -145,7 +145,8 @@ class ClaudeAiSignInIT {
     assertThat(access).startsWith("gwo_");
     assertThat(refresh).startsWith("gwr_");
     assertThat(tokens.path("token_type").asString()).isEqualTo("Bearer");
-    assertThat(tokens.path("expires_in").asLong()).isEqualTo(3600);
+    assertThat(tokens.path("expires_in").asLong()).isBetween(Duration.ofDays(184).minusMinutes(1).toSeconds(),
+        Duration.ofDays(184).toSeconds());
     assertThat(tokens.path("scope").asString()).isEqualTo("mcp offline_access");
 
     // 8. MCP with the token.
@@ -172,13 +173,13 @@ class ClaudeAiSignInIT {
     assertThat(row).containsEntry("principal_kind", "OAUTH").containsEntry("ingress", "TUNNEL")
         .containsEntry("caller_ip", TunnelWorld.CLAUDE).containsEntry("token_label", "localhost");
 
-    // 9. "Signed in": one active sign-in for 7 days.
+    // 9. "Signed in": one active sign-in for at least six calendar months.
     JsonNode grant = active();
     assertThat(grant.path("endpoint").asString()).isEqualTo("stage-readonly");
     assertThat(grant.path("ingress").asString()).isEqualTo("TUNNEL");
     assertThat(grant.path("client").asString()).isEqualTo("localhost");
     assertThat(Duration.between(Instant.parse(grant.path("createdAt").asString()),
-        Instant.parse(grant.path("expiresAt").asString()))).isEqualTo(Duration.ofDays(7));
+        Instant.parse(grant.path("expiresAt").asString()))).isEqualTo(Duration.ofDays(184));
 
     // 10. Refresh rotates; the old refresh token presented again revokes the whole sign-in.
     TunnelWorld.Answer r = claude.refresh(world.clientId(), refresh, resource);
@@ -268,17 +269,23 @@ class ClaudeAiSignInIT {
 
   @Test
   @Order(5)
-  void aSignInLastsSevenDaysAndAnAccessTokenAnHour() {
+  void aSignInAndItsAccessTokenLastSixMonthsWithoutRefreshExtendingTheDeadline() {
     JsonNode tokens = claude.signIn(world.clientId(), REDIRECT, resource);
     String access = tokens.path("access_token").asString();
     String refresh = tokens.path("refresh_token").asString();
     world.shift(Duration.ofMinutes(61));
     try {
-      assertThat(claude.mcp("stage-readonly", access, "tools/list").status()).isEqualTo(401);
+      assertThat(claude.mcp("stage-readonly", access, "tools/list").status()).isEqualTo(200);
+      world.shift(Duration.ofDays(183));
+      assertThat(claude.mcp("stage-readonly", access, "tools/list").status()).isEqualTo(200);
       TunnelWorld.Answer r = claude.refresh(world.clientId(), refresh, resource);
       assertThat(r.status()).isEqualTo(200);
+      assertThat(r.json().path("expires_in").asLong()).isBetween(1L, Duration.ofDays(1).toSeconds());
       refresh = r.json().path("refresh_token").asString();
-      world.shift(Duration.ofDays(7).plusMinutes(1));
+      String refreshedAccess = r.json().path("access_token").asString();
+      world.shift(Duration.ofDays(184).plusMinutes(1));
+      assertThat(claude.mcp("stage-readonly", access, "tools/list").status()).isEqualTo(401);
+      assertThat(claude.mcp("stage-readonly", refreshedAccess, "tools/list").status()).isEqualTo(401);
       assertThat(claude.refresh(world.clientId(), refresh, resource).status()).as("never extended").isEqualTo(400);
     } finally {
       world.shift(Duration.ZERO);

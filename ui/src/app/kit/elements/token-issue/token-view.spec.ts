@@ -128,6 +128,41 @@ describe('token-issue elements', () => {
     expect(fixture.componentInstance.revoked).toEqual(['gr_demoCodexLp']);
   });
 
+  it('issues for six months by default and preserves a chosen shorter lifetime', async () => {
+    @Component({ imports: [GwTokenIssueDialog], template: `<gw-token-issue-dialog slug="dev" suggestedName="cursor-laptop" [defaultTtlDays]="defaultDays()" (issue)="requests.push($event)" />` })
+    class Host {
+      defaultDays = signal<number | undefined>(undefined);
+      requests: { readonly name: string; readonly ttlDays: number }[] = [];
+      dialog = viewChild.required(GwTokenIssueDialog);
+    }
+    const fixture = TestBed.createComponent(Host);
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const host = fixture.componentInstance;
+    const el = fixture.nativeElement as HTMLElement;
+    host.dialog().open();
+    fixture.detectChanges();
+    const select = el.querySelector<HTMLSelectElement>('select')!;
+    const form = el.querySelector<HTMLFormElement>('form')!;
+    expect(select.value).toBe('184d');
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    expect(host.requests.at(-1)).toEqual({ name: 'cursor-laptop', ttlDays: 184 });
+
+    select.value = '30d';
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    expect(host.requests.at(-1)).toEqual({ name: 'cursor-laptop', ttlDays: 30 });
+
+    host.defaultDays.set(7);
+    fixture.detectChanges();
+    el.querySelector('dialog')!.close();
+    host.dialog().open();
+    fixture.detectChanges();
+    expect(select.value).toBe('7d');
+  });
+
   it('shows the issued token once: closing drops it, reopening starts from the form', async () => {
     @Component({ imports: [GwTokenIssueDialog], template: `<gw-token-issue-dialog slug="dev" [issued]="issued()" (done)="done = done + 1" />` })
     class Host {

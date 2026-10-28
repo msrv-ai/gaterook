@@ -22,7 +22,7 @@ export function kitSections(over: Partial<Record<string, JsonObject>> = {}): { [
   const values: Record<string, JsonObject> = {
     general: { openAtLogin: true, startHidden: true, autoUpdate: true, singleKeyShortcuts: true },
     appearance: { theme: 'system', contrast: 'system' },
-    authorization: { tokenTtlDays: 7, clientRegistration: 'cimd' },
+    authorization: { tokenTtlDays: 184, clientRegistration: 'cimd' },
     'approval-rules': {
       decisionsFrom: 'app-and-linked',
       requireCommentOnProd: true,

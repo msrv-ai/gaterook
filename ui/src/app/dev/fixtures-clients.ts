@@ -301,7 +301,7 @@ export const DEMO_GRANTS: OAuthGrant[] = [
     endpoint: 'stage-readonly',
     ingress: 'TUNNEL',
     createdAt: '2026-10-22T08:52:00+02:00',
-    expiresAt: '2026-10-29T08:52:00+01:00',
+    expiresAt: '2027-04-24T08:52:00+01:00',
     lastUsedAt: '2026-10-22T12:08:14+02:00',
     state: 'active',
   },

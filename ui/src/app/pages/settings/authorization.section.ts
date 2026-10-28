@@ -3,6 +3,7 @@ import { FormField, form } from '@angular/forms/signals';
 import { RouterLink } from '@angular/router';
 import { isApiError } from '../../core/api/api-error';
 import { OAuthGrant } from '../../core/api/tunnel.api';
+import { DEFAULT_TOKEN_TTL_DAYS } from '../../core/api/token-lifetime';
 import { TimeService } from '../../core/time/time.service';
 import { Announcer } from '../../kit/announcer';
 import { GwDialog, GwDialogClose } from '../../kit/dialog';
@@ -49,7 +50,7 @@ export class GwAuthorizationSettings {
   private readonly values = computed(() => this.data.section('authorization')?.values);
   protected readonly ttlOptions = TOKEN_TTL_DAYS;
   protected readonly daysText = daysText;
-  protected readonly ttl = computed(() => numOf(this.values(), 'tokenTtlDays', 7));
+  protected readonly ttl = computed(() => numOf(this.values(), 'tokenTtlDays', DEFAULT_TOKEN_TTL_DAYS));
   protected readonly ttlBusy = signal(false);
 
   /** An endpoint that has tokens, for "See the tokens of endpoint dev". */

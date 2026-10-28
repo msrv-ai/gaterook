@@ -68,7 +68,7 @@ describe('client-card', () => {
   @Component({
     imports: [GwClientCard],
     template: `
-      <article gwClientCard [card]="cursor" [endpoints]="endpoints" [connectPreview]="preview()" (previewRequest)="requests.push($event)" (connect)="connected.push($event.previewId)"></article>
+      <article gwClientCard [card]="cursor" [defaultTtlDays]="defaultDays()" [endpoints]="endpoints" [connectPreview]="preview()" (previewRequest)="requests.push($event)" (connect)="connected.push($event.previewId)"></article>
       <article gwClientCard [card]="codex" [endpoints]="endpoints" [disconnectPreview]="leaving()" (disconnectStart)="starts.push($event)" (disconnect)="gone.push($event.previewId)" [canOpenConfig]="false" (openConfig)="opened = opened + 1"></article>
       <article gwClientCard [card]="cursor" [endpoints]="endpoints" [failure]="failure"></article>
     `,
@@ -79,6 +79,7 @@ describe('client-card', () => {
     endpoints = DEMO_CLIENT_ENDPOINTS;
     failure = DEMO_CLIENT_FAILURE;
     preview = signal<ConnectPreview | null>(null);
+    defaultDays = signal(184);
     leaving = signal<ConnectPreview | null>(null);
     requests: ClientPreviewRequest[] = [];
     connected: (string | null)[] = [];
@@ -94,7 +95,7 @@ describe('client-card', () => {
     await fixture.whenStable();
     const dialog = cursor.querySelector('dialog')!;
     expect(dialog.hasAttribute('open')).toBe(true);
-    expect(host.requests.at(-1)).toEqual({ client: 'cursor', request: { endpoint: 'dev', method: 'token', token: { name: 'cursor-laptop', ttlDays: 7 } } });
+    expect(host.requests.at(-1)).toEqual({ client: 'cursor', request: { endpoint: 'dev', method: 'token', token: { name: 'cursor-laptop', ttlDays: 184 } } });
     const confirm = button(dialog, 'Confirm and connect');
     expect(confirm.getAttribute('aria-disabled')).toBe('true');
     confirm.click();
@@ -106,6 +107,30 @@ describe('client-card', () => {
     button(dialog, 'Confirm and connect').click();
     expect(host.connected).toEqual(['pv_cursor_dev']);
     expect(dialog.hasAttribute('open')).toBe(false);
+  });
+
+  it('updates an untouched lifetime from Settings without replacing a user choice', async () => {
+    const { el, fixture, host } = await render(Host);
+    const cursor = el.querySelector('article')!;
+    button(cursor, 'Connect').click();
+    await fixture.whenStable();
+    const lifetime = cursor.querySelector<HTMLSelectElement>('select[id$="-tok-exp"]')!;
+    expect(lifetime.value).toBe('184');
+    host.defaultDays.set(30);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(lifetime.value).toBe('30');
+    expect(host.requests.at(-1)?.request?.token?.ttlDays).toBe(30);
+
+    lifetime.value = '7';
+    lifetime.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    await fixture.whenStable();
+    host.defaultDays.set(90);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(lifetime.value).toBe('7');
+    expect(host.requests.at(-1)?.request?.token?.ttlDays).toBe(7);
   });
 
   it('starts browser sign-in without requiring a config preview', async () => {

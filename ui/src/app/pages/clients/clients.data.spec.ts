@@ -6,6 +6,7 @@ import { ClientsApi, ClientsView, ConnectPreview, ConnectRequest } from '../../c
 import { CoreApi } from '../../core/api/core.api';
 import { EndpointsApi, TokensApi, ToolGroup } from '../../core/api/endpoints.api';
 import { Overview, OverviewApi } from '../../core/api/overview.api';
+import { SettingsApi } from '../../core/api/settings.api';
 import { OAuthApi, OAuthGrant, PublishPreview, TunnelApi, TunnelState } from '../../core/api/tunnel.api';
 import { EventStream } from '../../core/events/event-stream';
 import { TimeService } from '../../core/time/time.service';
@@ -75,6 +76,7 @@ function setup(): ClientsData {
   TestBed.configureTestingModule({
     providers: [
       ClientsData,
+      { provide: SettingsApi, useValue: { get: () => Promise.resolve({ values: { tokenTtlDays: 30 } }) } },
       { provide: ClientsApi, useValue: clients },
       {
         provide: EndpointsApi,
@@ -106,6 +108,7 @@ describe('ClientsData: loading', () => {
     await data.start();
     await flush();
     expect(data.loaded()).toBe(true);
+    expect(data.defaultTokenTtlDays()).toBe(30);
     expect(data.cards().map((c) => c.client)).toEqual(['claude-desktop', 'codex', 'cursor', 'antigravity']);
     expect(data.endpointList().map((e) => e.slug)).toEqual(['dev', 'stage-readonly', 'incident-prod']);
     // Codex's entry, read once from its disconnect preview (a preview writes nothing); the bridge has no entry.

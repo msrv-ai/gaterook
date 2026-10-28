@@ -101,7 +101,7 @@ public class ClientService {
   /** How long a previewed change can be confirmed. */
   public static final Duration PREVIEW_TTL = Duration.ofMinutes(10);
   private static final int MAX_PREVIEWS = 64;
-  private static final Set<Integer> TOKEN_DAYS = Set.of(1, 7, 30, 90);
+  private static final Set<Integer> TOKEN_DAYS = Set.of(1, 7, 30, 90, 184);
   private static final Pattern NAME = Pattern.compile("^[a-z0-9]+(?:-[a-z0-9]+)*$");
   private static final Pattern NAMED_TOKEN = Pattern.compile("gwt_[A-Za-z0-9_-]{43}");
   private static final Pattern ANY_TOKEN = Pattern.compile("gw[tbor]_[A-Za-z0-9_-]{43}");
@@ -113,7 +113,7 @@ public class ClientService {
   public record ConnectRequest(String endpoint, String method, String grantLabel, TokenOptions token,
       CodexOptions codex) {}
 
-  /** {@code method: token}: the named token's name and lifetime (1, 7, 30 or 90 days; 7 by default). */
+  /** {@code method: token}: the named token's name and lifetime (1, 7, 30, 90 or 184 days; Settings default if omitted). */
   public record TokenOptions(String name, Integer ttlDays) {}
 
   /** Codex: {@code default_tools_approval_mode} ({@code writes} or {@code prompt}) and {@code tool_timeout_sec}. */
@@ -421,13 +421,13 @@ public class ClientService {
     if (method == LinkMethod.TOKEN) {
       String name = r.token() == null || r.token().name() == null ? client.id() + "-" + env.shortHostname()
           : r.token().name();
-      int days = r.token() == null || r.token().ttlDays() == null ? 7 : r.token().ttlDays();
+      int days = r.token() == null || r.token().ttlDays() == null ? tokens.defaultTtlDays() : r.token().ttlDays();
       if (!NAME.matcher(name).matches() || name.length() > 40) {
         throw ProblemException.unprocessable("Invalid token name", "Lowercase letters, digits and hyphens, like "
             + "cursor-laptop.", "/token/name");
       }
       if (!TOKEN_DAYS.contains(days)) {
-        throw ProblemException.unprocessable("Invalid lifetime", "A token for a client lives 1, 7, 30 or 90 days.",
+        throw ProblemException.unprocessable("Invalid lifetime", "A token for a client lives 1, 7, 30, 90 or 184 days.",
             "/token/ttlDays");
       }
       token = new TokenOptions(name, days);

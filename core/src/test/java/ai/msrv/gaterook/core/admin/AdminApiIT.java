@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -705,7 +706,7 @@ class AdminApiIT {
     assertThat(List.copyOf(all.propertyNames())).containsExactly("general", "appearance", "authorization",
         "approval-rules", "local-api", "audit", "backup");
     assertThat(all.path("general").path("values").path("autoUpdate").asBoolean()).isTrue();
-    assertThat(all.path("authorization").path("values").path("tokenTtlDays").asInt()).isEqualTo(7);
+    assertThat(all.path("authorization").path("values").path("tokenTtlDays").asInt()).isEqualTo(184);
     assertThat(all.path("audit").path("values").path("retentionYears").asInt()).isEqualTo(1);
     assertThat(all.path("backup").path("values").path("keep").asInt()).isEqualTo(7);
     assertThat(all.path("local-api").path("values").path("address").asString()).isEqualTo("127.0.0.1");
@@ -725,8 +726,24 @@ class AdminApiIT {
     assertThat(api.expect(422, HttpMethod.PUT, "/api/settings/general", "{\"autoUpdate\":true}").path("field")
         .asString()).isEqualTo("/version");
     assertThat(api.get("/api/settings/users").status()).isEqualTo(404);
-    // TokenService reads the default lifetime from the same section.
-    api.expect(200, HttpMethod.PUT, "/api/settings/authorization", "{\"tokenTtlDays\":30,\"version\":0}");
+    JsonNode defaultToken = api.expect(201, HttpMethod.POST, "/api/endpoints/dev/tokens",
+        "{\"name\":\"six-month-default\"}");
+    assertThat(Duration.between(Instant.now(), Instant.parse(defaultToken.path("expiresAt").asString())).toDays())
+        .isBetween(183L, 184L);
+    JsonNode preset = api.expect(200, HttpMethod.PUT, "/api/settings/authorization",
+        "{\"tokenTtlDays\":184,\"version\":0}");
+    assertThat(preset.path("values").path("tokenTtlDays").asInt()).isEqualTo(184);
+    api.expect(422, HttpMethod.PUT, "/api/settings/authorization",
+        "{\"tokenTtlDays\":185,\"version\":%d}".formatted(preset.path("version").asLong()));
+    api.expect(201, HttpMethod.POST, "/api/endpoints/dev/tokens", "{\"name\":\"six-month-explicit\",\"ttlDays\":184}");
+    for (int invalid : List.of(0, 185)) {
+      assertThat(api.expect(422, HttpMethod.POST, "/api/endpoints/dev/tokens",
+          "{\"name\":\"invalid-lifetime\",\"ttlDays\":%d}".formatted(invalid)).path("field").asString())
+          .isEqualTo("/ttlDays");
+    }
+    // TokenService still honors a shorter default selected in Settings.
+    api.expect(200, HttpMethod.PUT, "/api/settings/authorization",
+        "{\"tokenTtlDays\":30,\"version\":%d}".formatted(preset.path("version").asLong()));
     JsonNode token = api.expect(201, HttpMethod.POST, "/api/endpoints/dev/tokens", "{\"name\":\"ttl-default\"}");
     long days = Duration.between(java.time.Instant.now(), java.time.Instant.parse(token.path("expiresAt").asString()))
         .toDays();

@@ -225,9 +225,10 @@ export function updateToast(state: UpdateState, version: string | null): ToastOp
 
 // ── Authorization ───────────────────────────────────────────────────────────────────────────────────────────────
 
-export const TOKEN_TTL_DAYS = [1, 7, 30, 90] as const;
+export { TOKEN_TTL_DAYS } from '../../core/api/token-lifetime';
 
 export function daysText(d: number): string {
+  if (d === 184) return '6 months (184 days)';
   return d === 1 ? '1 day' : `${count(d)} days`;
 }
 

@@ -15,6 +15,8 @@ import {
 } from '../../core/api/clients.api';
 import { EndpointSummary, EndpointsApi, TokenRow, TokensApi, ToolGroup } from '../../core/api/endpoints.api';
 import { Overview, OverviewApi } from '../../core/api/overview.api';
+import { SettingsApi } from '../../core/api/settings.api';
+import { DEFAULT_TOKEN_TTL_DAYS, tokenTtlDays } from '../../core/api/token-lifetime';
 import { OAuthApi, OAuthGrant, PublishPreview, TunnelApi, TunnelState } from '../../core/api/tunnel.api';
 import { EventStream } from '../../core/events/event-stream';
 import { TunnelStore } from '../../core/stores/tunnel.store';
@@ -75,6 +77,7 @@ export class ClientsData {
   private readonly tunnelApi = inject(TunnelApi);
   private readonly oauthApi = inject(OAuthApi);
   private readonly overviewApi = inject(OverviewApi);
+  private readonly settingsApi = inject(SettingsApi);
   private readonly tunnelStore = inject(TunnelStore);
   private readonly events = inject(EventStream);
   private readonly time = inject(TimeService);
@@ -94,6 +97,8 @@ export class ClientsData {
   /** `GET /api/overview`; null before its answer, undefined once it failed or isn't there (the page is then in use). */
   private readonly overviewSignal = signal<Overview | null | undefined>(null);
   private readonly firstToolsSignal = signal<ToolGroup[] | null>(null);
+  private readonly defaultTokenTtlDaysSignal = signal(DEFAULT_TOKEN_TTL_DAYS);
+  readonly defaultTokenTtlDays = this.defaultTokenTtlDaysSignal.asReadonly();
 
   readonly clients = this.clientsSignal.asReadonly();
   readonly endpoints = this.endpointsSignal.asReadonly();
@@ -196,8 +201,18 @@ export class ClientsData {
       this.part(this.clientsSignal, () => this.clientsApi.list(), failures).then(() => this.loadEntries(false)),
       this.part(this.endpointsSignal, () => this.endpointsApi.list(), failures).then(() => this.loadManual()),
       this.loadOverview(),
+      this.loadTokenDefault(),
     ]);
     if (!this.stopped) this.staleSignal.set(failures[0] ?? null);
+  }
+
+  private async loadTokenDefault(): Promise<void> {
+    try {
+      const settings = await this.settingsApi.get('authorization');
+      if (!this.stopped) this.defaultTokenTtlDaysSignal.set(tokenTtlDays(settings.values['tokenTtlDays']));
+    } catch {
+      // The initial default or the last known setting keeps Connect usable while settings are unavailable.
+    }
   }
 
   /** The page's state, and in setup the tools the Connect review names; a failure leaves the page in use. */

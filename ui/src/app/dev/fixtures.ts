@@ -160,7 +160,7 @@ export const DEMO_ISSUED: IssuedToken = {
   name: 'cursor-laptop',
   token: 'gwt_Vb8rT2kLq9XwN4cZ7mHs1PdF6yJa3eUg5RiK0oBt',
   prefix: 'gwt_Vb8r',
-  expiresAt: '2026-10-29T14:30:00+01:00',
+  expiresAt: '2027-04-24T14:30:00+01:00',
 };
 
 const action = (text: string, language: string) => ({

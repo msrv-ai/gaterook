@@ -17,6 +17,7 @@ import {
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { IssuedToken, TokenRow } from '../../../core/api/endpoints.api';
+import { DEFAULT_TOKEN_TTL_DAYS, tokenTtlDays } from '../../../core/api/token-lifetime';
 import { TimeService } from '../../../core/time/time.service';
 import { GwCopy } from '../../copy';
 import { GwDialog, GwDialogClose } from '../../dialog';
@@ -158,7 +159,7 @@ export type IssueStep = 'form' | 'result';
 
 /**
  * `<gw-token-issue-dialog slug="dev" [issued]="token" [error]="nameError" (issue)="…">` (elements/token-issue.html,
- * Issue token): name, lifetime (7 days by default) and the fixed endpoint; then the result step with the only copy of
+ * Issue token): name, lifetime (184 days by default) and the fixed endpoint; then the result step with the only copy of
  * the token (initial focus: Copy). The result step has no close button and Done needs "I've stored this token" (the
  * dialog is guarded: Esc and the backdrop don't close it). Desktop tokens have no IP allowlist.
  */
@@ -182,6 +183,7 @@ export class GwTokenIssueDialog {
   readonly error = input<string | null>(null);
   /** A suggested name ("cursor-laptop"). */
   readonly suggestedName = input('');
+  readonly defaultTtlDays = input(DEFAULT_TOKEN_TTL_DAYS, { transform: tokenTtlDays });
   readonly busy = input(false, { transform: booleanAttribute });
 
   readonly issue = output<{ readonly name: string; readonly ttlDays: number }>();
@@ -190,7 +192,7 @@ export class GwTokenIssueDialog {
   protected readonly uid = `tki-dlg-${++nextId}`;
   private readonly dialog = viewChild.required<GwDialog>('dlg');
   protected readonly name = signal('');
-  protected readonly lifetime = signal('7d');
+  protected readonly lifetime = signal(`${DEFAULT_TOKEN_TTL_DAYS}d`);
   protected readonly customDate = signal('');
   /** The only copy of the token this dialog renders; cleared when the dialog closes or opens again. */
   protected readonly shown = signal<IssuedToken | null>(null);
@@ -226,7 +228,7 @@ export class GwTokenIssueDialog {
   open(opener?: HTMLElement | null): void {
     this.shown.set(null);
     this.name.set(this.suggestedName());
-    this.lifetime.set('7d');
+    this.lifetime.set(`${this.defaultTtlDays()}d`);
     this.dialog().open(opener);
   }
 

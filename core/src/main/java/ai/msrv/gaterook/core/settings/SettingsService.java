@@ -229,7 +229,7 @@ public class SettingsService {
           "contrast":{"enum":["system","normal","more"],"default":"system","title":"Contrast"}}}"""));
     out.put("authorization", parse("""
         {"type":"object","additionalProperties":false,"properties":{
-          "tokenTtlDays":{"type":"integer","enum":[1,7,30,90],"default":7,"title":"Default token lifetime",
+          "tokenTtlDays":{"type":"integer","enum":[1,7,30,90,184],"default":184,"title":"Default token lifetime",
             "x-unit":"days"},
           "clientRegistration":{"enum":["cimd","cimd+dcr"],"default":"cimd","title":"Client registration"}}}"""));
     out.put("approval-rules", parse("""

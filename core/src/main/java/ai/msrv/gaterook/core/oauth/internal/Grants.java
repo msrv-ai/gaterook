@@ -42,16 +42,17 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Sign-ins the person allowed ({@code oauth_grant}, {@code og_…}) and their tokens ({@code oauth_token}, by hash
- * only; report 02 §6.4). A grant lives 7 days from Allow, and refreshing never extends it; one grant at a time per
- * client and endpoint (a new Allow revokes the previous one). Access tokens live an hour; refresh tokens rotate on
- * every use, and presenting a used one revokes the whole grant (OAuth 2.1 §4.3.1). Every check reads the database, so a
- * Revoke takes effect on the next call. Revoking rejects what the grant still waits for and tells the rest of the
- * core ({@link PrincipalRevoked}), all in one transaction.
+ * only; report 02 §6.4). A grant lives 184 days from Allow, and refreshing never extends it; one grant at a time per
+ * client and endpoint (a new Allow revokes the previous one). Access tokens last until the grant expires; refresh
+ * tokens rotate on every use, and presenting a used one revokes the whole grant (OAuth 2.1 §4.3.1). Every check reads
+ * the database, so a Revoke takes effect on the next call. Revoking rejects what the grant still waits for and tells
+ * the rest of the core ({@link PrincipalRevoked}), all in one transaction.
  */
 public class Grants {
 
-  public static final Duration GRANT_TTL = Duration.ofDays(7);
-  public static final Duration ACCESS_TTL = Duration.ofHours(1);
+  /** 184 days covers at least six calendar months, including the longest six-month spans. */
+  public static final Duration GRANT_TTL = Duration.ofDays(184);
+  public static final Duration ACCESS_TTL = GRANT_TTL;
   private static final Duration USE_EVENT_INTERVAL = Duration.ofSeconds(1);
   private static final int MAX_USE_EVENTS = 1_024;
 
@@ -109,7 +110,7 @@ public class Grants {
   // ── Allow ───────────────────────────────────────────────────────────────────────────────────────────────────
 
   /**
-   * The person allowed a sign-in: a new grant for 7 days; the client's previous grant for the endpoint is revoked
+   * The person allowed a sign-in: a new grant for 184 days; the client's previous grant for the endpoint is revoked
    * in the same transaction.
    *
    * @param why the Setup change's reason ("Code 4F7-2KQ · from 203.0.113.24")
@@ -119,7 +120,7 @@ public class Grants {
   }
 
   /**
-   * {@link #create} as of {@code at}, 7 days from then: the demo world's sign-in of this morning, without a Setup
+   * {@link #create} as of {@code at}, 184 days from then: the demo world's sign-in of this morning, without a Setup
    * change ({@code record} false), as the kit's Activity lists none for it.
    */
   String create(Clients.Client client, String endpointId, Ingress ingress, String resource, String scope, String why,

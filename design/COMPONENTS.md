@@ -1303,7 +1303,7 @@ Warns about the dangerous combination inside one endpoint: private data + untrus
 
 ### `token-issue`
 
-Access tokens of one endpoint. The tokens table lists each token by name and prefix only, with created, expires (warning badge under 7 days), last used (links to Activity filtered by the token) and status; Claude Desktop's bridge and Codex's helper grant (codex-laptop) are 'issued on the fly' rows with no gwt_… value or prefix. The 'Issue token' dialog asks for a name and an expiry (7 days by default, 'Short lifetimes are safer') and shows the endpoint slug read-only; the IP allowlist (field and column) exists only in server mode, since the desktop core listens on 127.0.0.1 only. Its one-time result step has no close button and shows the full value in gw-copy-field--secret-once, the warning 'This is the only time you can see this token', the endpoint URL and a required 'I've stored this token' before Done (a token for a config file says it is stored there in plain text). Revoke opens a danger confirmation that names the token, says what stops working and confirms with a toast.
+Access tokens of one endpoint. The tokens table lists each token by name and prefix only, with created, expires (warning badge under 7 days), last used (links to Activity filtered by the token) and status; Claude Desktop's bridge and Codex's helper grant (codex-laptop) are 'issued on the fly' rows with no gwt_… value or prefix. The 'Issue token' dialog asks for a name and an expiry (6 months / 184 days by default, with shorter lifetimes available) and shows the endpoint slug read-only; the IP allowlist (field and column) exists only in server mode, since the desktop core listens on 127.0.0.1 only. Its one-time result step has no close button and shows the full value in gw-copy-field--secret-once, the warning 'This is the only time you can see this token', the endpoint URL and a required 'I've stored this token' before Done (a token for a config file says it is stored there in plain text). Revoke opens a danger confirmation that names the token, says what stops working and confirms with a toast.
 
 [SCSS](elements/_token-issue.scss) · [Interactive demo](elements/token-issue.html)
 
@@ -1337,7 +1337,7 @@ Access tokens of one endpoint. The tokens table lists each token by name and pre
 - table row Expiring (warning, hourglass) + expiry badge 'In 3 days'
 - table row Expired (neutral, timer-off), no action
 - table row Revoked (danger, ban), no action
-- issue form: idle (data-step=form, name autofocus, 7 days selected, 'On Oct 29, 2026')
+- issue form: idle (data-step=form, name autofocus, 6 months (184 days) selected, 'On Apr 24, 2027')
 - issue form: invalid (aria-invalid + gw-field__error on the taken name; server mode only: gw-tag--danger + circle-alert + field error naming a bad IP such as 10.20.0.300)
 - result (data-step=result): token shown once, no close button, Done blocked by the required checkbox
 - revoke confirm: gw-dialog--sm --danger, Cancel autofocus, 'Revoke token codex-laptop', success toast
@@ -1402,7 +1402,7 @@ Cursor browser sign-in enables OAuth for the selected local endpoint and opens i
 - publish confirm: gw-dialog--md --warning listing exactly what becomes public and the three gates, Cancel autofocus; Undo never re-publishes
 - sign-in consent: gw-dialog--md --warning with a code to match, Returns to, From = the IP of the browser that opened the sign-in page, Deny autofocus (Esc and no answer in 5 min deny), 'Allow access' primary (never --approve); it opens by itself when a request arrives (the demo trigger is in its own 'Sign-in request' section)
 - several endpoints (Claude Desktop): gw-table--dense, one row per endpoint with View activity + Disconnect; footer Add endpoint + Remove bridge (danger confirm listing every endpoint)
-- Cursor connect: sign-in choice (token in the file / sign in through the browser); token mode shows the token step (name cursor-laptop, expires 7 days), the plain-text warning, permissions and notes; browser mode hides the config diff and backup and opens Add to Cursor from Connect
+- Cursor connect: sign-in choice (token in the file / sign in through the browser); token mode shows the token step (name cursor-laptop, expires 184 days), the plain-text warning, permissions and notes; browser mode hides the config diff and backup and opens Add to Cursor from Connect
 - Connect on a prod endpoint: token and browser choices aria-disabled with 'Not on prod endpoints', 'Through the bridge' chosen, the stdio entry in the diff, the core's prod warning
 - inline review with one endpoint: What <app> can use in words, no select
 - Claude Desktop .mcpb review: default-collapsed 'What will change' disclosure with Installs, Runs, Config files none, Token none stored; Claude Desktop asks you to confirm; config-file fallback with diff, backup and restart behind a disclosure
@@ -1648,7 +1648,7 @@ Grouped settings. On the left, a sticky settings nav: gw-nav with groups Workspa
 - unavailable: server-mode-only topic (Users & roles, UI sign-in, token IP allowlist) with aria-disabled controls + aria-describedby to a gw-alert--neutral --compact (circle-help) that says why and what would enable it
 - narrow (< lg / 1280px): nav hidden, 'Jump to section' select (optgroups per group, max 320 wide) above the sections; changing it scrolls, focus stays on the select
 - anchors #settings-<section>: general, appearance, authorization, users, notifications, approval-rules, tunnel, tunnel-callers, local-api, audit, backup
-- demo values (BLUEPRINT §9): default token lifetime 7 days (select 1 / 7 / 30 / 90 days); issuer 'None yet' while the quick tunnel is off; Notifications — desktop on, Slack connected (workspace acme, DMs recommended, #deploy-approvals selected, last delivery 14:02:30), Telegram not set up; Slack and Telegram never offer Approve for prod; Approval rules — 'Require a comment on prod' on; Tunnel › Callers — the one Anthropic IP allowlist switch (on); Audit — retention 1 / 2 / 3 / 5 years, default 1 year
+- demo values (BLUEPRINT §9): default token lifetime 6 months (select 1 / 7 / 30 / 90 / 184 days); issuer 'None yet' while the quick tunnel is off; Notifications — desktop on, Slack connected (workspace acme, DMs recommended, #deploy-approvals selected, last delivery 14:02:30), Telegram not set up; Slack and Telegram never offer Approve for prod; Approval rules — 'Require a comment on prod' on; Tunnel › Callers — the one Anthropic IP allowlist switch (on); Audit — retention 1 / 2 / 3 / 5 years, default 1 year
 
 **Reference screens:**
 

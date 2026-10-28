@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, Injector, TemplateRef, afterNextRender, booleanAttribute, computed, effect, inject, input, model, output, signal, viewChild } from '@angular/core';
 import { ClientCard, ConnectPreview, ConnectRequest } from '../../core/api/clients.api';
+import { DEFAULT_TOKEN_TTL_DAYS, tokenTtlDays } from '../../core/api/token-lifetime';
 import { GwClientConnectFlow } from '../../kit/elements/client-card/client-connect-flow';
 import { GwClientDisclosure } from '../../kit/elements/client-card/client-disclosure';
 import { ClientEndpoint, ClientFailure, viaText } from '../../kit/elements/client-card/client-view';
@@ -48,7 +49,7 @@ let nextId = 0;
       @if (collapsible()) {
         <p class="gw-card__description gw-client-card__via" [class.gw-mono]="via().mono">{{ via().text }}</p>
       }
-      <div gwClientConnectFlow #flow page [single]="review()" [lead]="uses()" [card]="card()" [endpoints]="endpoints()" [preview]="preview()" [loading]="loading()" [connecting]="connecting()" [failure]="failure()" [idPrefix]="anchor() ?? uid" [level]="4" [wrap]="true" [canOpenConfig]="canOpenConfig()" (openConfig)="openConfig.emit()" (requestChange)="onRequest($event)" (browserSignIn)="onConnect()"></div>
+      <div gwClientConnectFlow #flow page [single]="review()" [lead]="uses()" [card]="card()" [defaultTtlDays]="defaultTtlDays()" [endpoints]="endpoints()" [preview]="preview()" [loading]="loading()" [connecting]="connecting()" [failure]="failure()" [idPrefix]="anchor() ?? uid" [level]="4" [wrap]="true" [canOpenConfig]="canOpenConfig()" (openConfig)="openConfig.emit()" (requestChange)="onRequest($event)" (browserSignIn)="onConnect()"></div>
     </div>
     <footer class="gw-card__footer gw-client-card__footer">
       <div class="gw-client-card__actions">
@@ -70,6 +71,7 @@ let nextId = 0;
 })
 export class GwInlineConnectCard {
   readonly card = input.required<ClientCard>();
+  readonly defaultTtlDays = input(DEFAULT_TOKEN_TTL_DAYS, { transform: tokenTtlDays });
   readonly collapsible = input(false, { transform: booleanAttribute });
   readonly expanded = model(false);
   readonly endpoints = input.required<readonly ClientEndpoint[]>();

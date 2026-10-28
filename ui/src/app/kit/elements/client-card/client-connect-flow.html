@@ -115,7 +115,7 @@
         <label class="gw-field__label" [for]="idPrefix() + '-tok-exp'">Expires</label>
         <select class="gw-select" [id]="idPrefix() + '-tok-exp'" [attr.aria-describedby]="idPrefix() + '-tok-exp-hint'" (change)="onTtl($event)">
           @for (d of ttls; track d) {
-            <option [value]="d" [selected]="d === ttlDays()">{{ d }} days</option>
+            <option [value]="d" [selected]="d === ttlDays()">{{ d === 184 ? '6 months (184 days)' : d === 1 ? '1 day' : d + ' days' }}</option>
           }
         </select>
         <p class="gw-field__hint" [id]="idPrefix() + '-tok-exp-hint'">On <time [attr.datetime]="time.iso(expiry()).slice(0, 10)">{{ time.date(expiry(), true) }}</time>. Connect again to renew it.</p>

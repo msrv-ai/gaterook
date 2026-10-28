@@ -2799,12 +2799,14 @@ Changing anything
               <div class="gw-field">
                 <label class="gw-field__label" for="ep-tok-expires">Expires</label>
                 <select class="gw-select" id="ep-tok-expires" aria-describedby="ep-tok-expires-hint">
-                  <option value="7d" selected>7 days</option>
+                  <option value="1d">1 day</option>
+                  <option value="7d">7 days</option>
                   <option value="30d">30 days</option>
                   <option value="90d">90 days</option>
+                  <option value="184d" selected>6 months (184 days)</option>
                   <option value="custom">Custom date</option>
                 </select>
-                <p class="gw-field__hint" id="ep-tok-expires-hint">On <time datetime="2026-10-29">Oct 29, 2026</time>. The default; short lifetimes are safer.</p>
+                <p class="gw-field__hint" id="ep-tok-expires-hint">On <time datetime="2027-04-24">Apr 24, 2027</time>. The default is 6 months (184 days); choose a shorter lifetime when needed.</p>
               </div>
               <p class="gw-text-caption gw-fg-muted">No IP allowlist on the desktop: the gateway listens on <span class="gw-mono">127.0.0.1</span> only, so a token works from this computer. Allowed IPs is a server-mode setting.</p>
               <div class="gw-field">
@@ -2850,7 +2852,7 @@ Changing anything
               </div>
               <dl class="gw-kv gw-kv--dense">
                 <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint URL</dt><dd class="gw-kv__value gw-mono">http://127.0.0.1:7465/mcp/dev</dd></div>
-                <div class="gw-kv__row"><dt class="gw-kv__key">Expires</dt><dd class="gw-kv__value">In 7 days · <time datetime="2026-10-29T14:30:00+01:00" title="2026-10-29 14:30 +01:00">Oct 29, 2026</time></dd></div>
+                <div class="gw-kv__row"><dt class="gw-kv__key">Expires</dt><dd class="gw-kv__value">In 184 days · <time datetime="2027-04-24T14:30:00+02:00" title="2027-04-24 14:30 +02:00">Apr 24, 2027</time></dd></div>
               </dl>
               <div class="gw-checkbox">
                 <input class="gw-checkbox__input" type="checkbox" id="ep-tok-stored" required aria-describedby="ep-tok-stored-hint">
@@ -2976,9 +2978,11 @@ Changing anything
                   <div class="gw-field">
                     <label class="gw-field__label" for="ep-cu-tok-exp">Expires</label>
                     <select class="gw-select" id="ep-cu-tok-exp" aria-describedby="ep-cu-tok-exp-hint">
-                      <option value="7" selected>7 days</option>
+                      <option value="1">1 day</option>
+                      <option value="7">7 days</option>
                       <option value="30">30 days</option>
                       <option value="90">90 days</option>
+                      <option value="184" selected>6 months (184 days)</option>
                     </select>
                     <p class="gw-field__hint" id="ep-cu-tok-exp-hint">Connect again to renew it.</p>
                   </div>
@@ -3022,7 +3026,7 @@ Changing anything
                   <p class="gw-alert__body">The bridge gets a 15-minute token from this app whenever Cursor needs one. There is no token value to copy or paste.</p>
                 </div>
               </div>
-              <p class="gw-text-caption gw-fg-muted" id="ep-cu-token-note">Token <span class="gw-mono" data-ep-cu-note-name>cursor-laptop</span> · expires in <span data-ep-cu-note-exp>7 days</span> · written in plain text to <span class="gw-mono">~/.cursor/mcp.json</span> · <a class="gw-link" href="#tokens">Revoke on the Tokens tab</a></p>
+              <p class="gw-text-caption gw-fg-muted" id="ep-cu-token-note">Token <span class="gw-mono" data-ep-cu-note-name>cursor-laptop</span> · expires in <span data-ep-cu-note-exp>184 days</span> · written in plain text to <span class="gw-mono">~/.cursor/mcp.json</span> · <a class="gw-link" href="#tokens">Revoke on the Tokens tab</a></p>
               <div class="gw-alert gw-alert--info gw-alert--compact" id="ep-cu-deeplink" hidden>
                 <i class="gw-icon gw-alert__icon" data-lucide="link"></i>
                 <div class="gw-alert__content">
@@ -3039,7 +3043,7 @@ Changing anything
           </div>
           <footer class="gw-dialog__footer">
             <button class="gw-btn" type="button" data-gw-dialog-close>Cancel</button>
-            <button class="gw-btn gw-btn--primary" type="button" data-gw-dialog-close id="ep-cu-confirm" data-gw-toast="Cursor loads the gateway server now with token cursor-laptop, which expires in 7 days. Backup kept next to the file." data-gw-toast-title="Cursor connected to dev" data-gw-toast-tone="success">Confirm and connect</button>
+            <button class="gw-btn gw-btn--primary" type="button" data-gw-dialog-close id="ep-cu-confirm" data-gw-toast="Cursor loads the gateway server now with token cursor-laptop, which expires in 184 days. Backup kept next to the file." data-gw-toast-title="Cursor connected to dev" data-gw-toast-tone="success">Confirm and connect</button>
           </footer>
         </form>
       </dialog>
