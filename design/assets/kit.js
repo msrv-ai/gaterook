@@ -1043,96 +1043,155 @@
   }
 
   // ───────────────────────── Vault reference demo ─────────────────────────
-  // These fixtures contain names only. The application loads names through the core's Vault connection.
+  // Fixtures contain complete reference names only. The application discovers accessible KV keys in the core.
   function initVaultPickers() {
+    var closeActive = null;
     doc.querySelectorAll('[data-source="vault"]').forEach(function (root) {
       var ref = root.querySelector("[data-vault-reference]");
       if (!ref) return;
-      var keys = root.querySelector("[data-vault-key-select]");
-      var load = root.querySelector("[data-vault-keys-load]");
-      var status = root.querySelector("[data-vault-keys-status]");
-      var spinner = root.querySelector("[data-vault-keys-spinner]");
-      var folder = root.querySelector("[data-vault-folder]");
-      var secrets = root.querySelector("[data-vault-secret-select]");
-      var browserStatus = root.querySelector("[data-vault-browser-status]");
-      var request = 0;
-      function parts() {
-        var text = ref.value.trim();
-        var hash = text.indexOf("#");
-        var query = text.indexOf("?");
-        var key = hash < 0 ? "" : text.slice(hash + 1, query > hash ? query : undefined);
-        var base = hash < 0 ? text : text.slice(0, hash) + (query > hash ? text.slice(query) : "");
-        return { base: base, key: key };
-      }
-      function options(select, prompt, names) {
-        select.replaceChildren(new Option(prompt, ""));
-        names.forEach(function (name) { select.add(new Option(name, name)); });
-        select.disabled = names.length === 0;
-      }
-      function reset() {
-        request++;
-        spinner.hidden = true;
-        load.removeAttribute("aria-busy");
-        load.removeAttribute("aria-disabled");
-        options(keys, "Load keys to choose a key", []);
-        status.textContent = "Enter a Vault secret path, then load its keys. Only key names are shown.";
-      }
-      function loadKeys() {
-        var value = parts();
-        if (!/^(vault:\/\/)?[^\s?#]+\/[^\s?#]+(?:\?version=[1-9][0-9]*)?$/.test(value.base)) {
-          reset();
-          status.textContent = "Enter a Vault secret path, such as vault://kv/dev/db, then load its keys.";
-          return;
+      var panel = root.querySelector("[data-vault-suggestions]");
+      var status = root.querySelector("[data-vault-status]");
+      var refresh = root.querySelector("[data-vault-refresh]");
+      var spinner = root.querySelector("[data-vault-spinner]");
+      var names = [], visible = [], active = -1, open = false, loaded = false, busy = false, request = 0;
+      var source = root.closest("form");
+      var fixture = ["kv/dev/db#password", "kv/dev/db#username", "kv/stage/db#password", "kv/stage/db#username", "secret/dev/api#token"];
+      function isVisible() { return ref.getClientRects().length > 0; }
+      function query() { return ref.value.trim().replace(/^vault:\/\//, "").replace(/\?version=[1-9][0-9]*/g, "").toLowerCase(); }
+      function position() { if (open) placeMenu({ trigger: ref.closest(".gw-input-group"), panel: panel }); }
+      function close() {
+        open = false;
+        active = -1;
+        ref.setAttribute("aria-expanded", "false");
+        ref.removeAttribute("aria-activedescendant");
+        if (panel.hasAttribute("popover")) {
+          try { panel.hidePopover(); } catch (err) { /* already hidden */ }
+          panel.removeAttribute("popover");
         }
+        panel.style.top = panel.style.left = panel.style.maxHeight = "";
+        panel.classList.remove("gw-menu--up");
+        panel.hidden = true;
+        if (closeActive === close) closeActive = null;
+      }
+      function render() {
+        var text = query();
+        visible = names.filter(function (name) { return !text || name.toLowerCase().includes(text); });
+        active = Math.min(active, visible.length - 1);
+        panel.replaceChildren();
+        visible.forEach(function (name, i) {
+          var option = doc.createElement("button");
+          option.type = "button";
+          option.className = "gw-menu__item";
+          option.id = panel.id + "-" + i;
+          option.setAttribute("role", "option");
+          option.setAttribute("aria-selected", String(i === active));
+          option.classList.toggle("gw-menu__item--active", i === active);
+          option.tabIndex = -1;
+          var label = doc.createElement("span");
+          label.className = "gw-menu__label gw-mono";
+          label.textContent = name;
+          option.appendChild(label);
+          option.addEventListener("mousedown", function (event) { event.preventDefault(); });
+          option.addEventListener("click", function () {
+            var currentPath = ref.value.replace(/^vault:\/\//, "").split(/[?#]/)[0];
+            var version = ref.value.match(/\?version=([1-9][0-9]*)/);
+            ref.value = version && currentPath === name.split("#")[0] ? name.replace("#", "?version=" + version[1] + "#") : name;
+            ref.dispatchEvent(new Event("input", { bubbles: true }));
+            ref.dispatchEvent(new Event("change", { bubbles: true }));
+            close();
+            ref.focus();
+          });
+          panel.appendChild(option);
+        });
+        if (!visible.length) {
+          var empty = doc.createElement("p");
+          empty.className = "gw-menu__note";
+          empty.textContent = busy ? "Loading Vault paths and keys…" : names.length ? "No matching references. Keep typing or enter a reference manually." : "No references available. You can enter a reference manually.";
+          panel.appendChild(empty);
+        }
+        if (active >= 0) ref.setAttribute("aria-activedescendant", panel.id + "-" + active);
+        else ref.removeAttribute("aria-activedescendant");
+        position();
+      }
+      function show() {
+        if (!isVisible()) return;
+        if (closeActive && closeActive !== close) closeActive();
+        open = true;
+        closeActive = close;
+        panel.hidden = false;
+        ref.setAttribute("aria-expanded", "true");
+        if (canPopover && !panel.hasAttribute("popover")) {
+          panel.setAttribute("popover", "manual");
+          try { panel.showPopover(); } catch (err) { panel.removeAttribute("popover"); }
+        }
+        render();
+      }
+      function load() {
+        if (busy || !isVisible()) return;
         var current = ++request;
-        options(keys, "Loading keys…", []);
+        busy = true;
+        names = [];
+        loaded = false;
         spinner.hidden = false;
-        load.setAttribute("aria-busy", "true");
-        load.setAttribute("aria-disabled", "true");
-        status.textContent = "Loading key names from Vault…";
+        refresh.setAttribute("aria-busy", "true");
+        refresh.setAttribute("aria-disabled", "true");
+        status.textContent = "Loading Vault paths and keys…";
+        if (open) render();
         window.setTimeout(function () {
-          if (current !== request || parts().base !== value.base) return;
+          if (request !== current || !isVisible()) return;
+          busy = false;
+          loaded = true;
           spinner.hidden = true;
-          load.removeAttribute("aria-busy");
-          load.removeAttribute("aria-disabled");
-          options(keys, "Choose a key", ["password", "username"]);
-          keys.value = value.key === "password" || value.key === "username" ? value.key : "";
-          status.textContent = "2 demo key names loaded. No secret values are shown.";
+          refresh.removeAttribute("aria-busy");
+          refresh.removeAttribute("aria-disabled");
+          var state = root.getAttribute("data-vault-demo-state");
+          names = state === "denied" || state === "empty" ? [] : fixture.slice();
+          status.textContent = state === "denied" ? "Vault denied listing paths. Grant list access to the KV metadata path, then retry. Manual references still work."
+            : state === "empty" ? "No accessible Vault keys were found. You can enter a reference manually."
+            : state === "partial" ? "Some paths could not be loaded. Available references are listed; check Vault list and read permissions."
+            : names.length + " references available. Type to filter paths and keys; secret values are never shown.";
+          refresh.lastChild.textContent = state === "denied" ? "Retry" : "Refresh list";
+          if (open) render();
         }, 250);
       }
-      function loadSecrets() {
-        var path = folder.value.trim().replace(/^vault:\/\//, "").replace(/\/+$/, "");
-        folder.value = path;
-        var entries = { "": ["kv/"], "kv": ["dev/", "stage/"], "kv/dev": ["db"], "kv/stage": ["db"] };
-        var names = entries[path] || [];
-        options(secrets, names.length ? "Choose a secret or folder" : "No secrets found", names);
-        browserStatus.textContent = names.length ? "Demo paths loaded. Choose a secret to load its key names." : "No demo secrets in this folder. Leave the folder empty to list mounts, or try kv, kv/dev or kv/stage.";
-      }
-      ref.addEventListener("input", reset);
-      load.addEventListener("click", loadKeys);
-      keys.addEventListener("change", function () {
-        if (!keys.value) return;
-        ref.value = parts().base + "#" + keys.value;
-        ref.dispatchEvent(new Event("change", { bubbles: true }));
-      });
-      folder.addEventListener("input", function () {
-        options(secrets, "Load secrets to choose a path", []);
-        browserStatus.textContent = "Choose a folder to open it, or a secret to load its keys.";
-      });
-      root.querySelector("[data-vault-secrets-load]").addEventListener("click", loadSecrets);
-      secrets.addEventListener("change", function () {
-        if (!secrets.value) return;
-        var path = (folder.value ? folder.value + "/" : "") + secrets.value;
-        if (secrets.value.endsWith("/")) {
-          folder.value = path.slice(0, -1);
-          loadSecrets();
-        } else {
-          reset();
-          ref.value = "vault://" + path;
-          ref.dispatchEvent(new Event("change", { bubbles: true }));
-          loadKeys();
+      function selectedSource() {
+        if (isVisible()) { if (!loaded && !busy) load(); }
+        else {
+          close();
+          if (busy) { request++; busy = false; spinner.hidden = true; refresh.removeAttribute("aria-busy"); refresh.removeAttribute("aria-disabled"); }
         }
+      }
+      ref.addEventListener("input", function () {
+        ref.value = ref.value.replace(/^vault:\/\//, "");
+        active = -1;
+        if (!loaded && !busy) load();
+        show();
       });
+      ref.addEventListener("click", function () { if (!loaded && !busy) load(); show(); });
+      ref.addEventListener("keydown", function (event) {
+        if (event.isComposing) return;
+        if (event.key === "Escape") { if (open) { event.preventDefault(); event.stopPropagation(); close(); } return; }
+        if (event.key === "Tab") { close(); return; }
+        if (event.key === "Enter" && open) {
+          event.preventDefault(); event.stopPropagation();
+          if (active >= 0) panel.children[active].click();
+          return;
+        }
+        if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+        event.preventDefault(); event.stopPropagation();
+        if (!open) { if (!loaded && !busy) load(); show(); }
+        if (!visible.length) return;
+        active = event.key === "ArrowDown" ? (active + 1) % visible.length : active <= 0 ? visible.length - 1 : active - 1;
+        render();
+        panel.children[active].scrollIntoView({ block: "nearest" });
+      });
+      ref.addEventListener("blur", function () { window.setTimeout(function () { if (!panel.contains(doc.activeElement) && doc.activeElement !== ref) close(); }, 0); });
+      refresh.addEventListener("click", load);
+      doc.addEventListener("click", function (event) { if (open && event.target !== ref && !panel.contains(event.target)) close(); });
+      if (source) source.addEventListener("change", selectedSource);
+      window.addEventListener("resize", position);
+      window.addEventListener("scroll", function (event) { if (!panel.contains(event.target)) position(); }, true);
+      selectedSource();
     });
   }
 

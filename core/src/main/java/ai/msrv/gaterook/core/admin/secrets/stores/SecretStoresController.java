@@ -33,6 +33,7 @@ import tools.jackson.databind.JsonNode;
     SecretStoresController.Delete.class, SecretStoresController.Reason.class, SecretStoresController.RefTestRequest.class,
     SecretStoresController.ReplaceReference.class, SecretStoresController.Reference.class,
     SecretStoresController.VaultBrowseRequest.class, SecretStores.VaultBrowse.class, SecretStores.VaultEntry.class,
+    SecretStores.VaultReferences.class, SecretStores.VaultDiscoveryIssue.class,
     SecretStores.StoreInfo.class, SecretStores.Reference.class, SecretStores.SignInSecret.class,
     SecretStores.TestResult.class, SecretStores.Permission.class, SecretStores.Hint.class, SecretStores.Check.class,
     SecretStores.RefTest.class, SecretStores.Disconnected.class, SecretStores.Issued.class, SecretStores.Source.class})
@@ -150,6 +151,12 @@ class SecretStoresController {
   @PostMapping("/api/secret-stores/{id}/vault/browse")
   SecretStores.VaultBrowse browseVault(@PathVariable String id, @RequestBody VaultBrowseRequest request) {
     return stores.browseVault(id, request.path());
+  }
+
+  /** Loads selectable KV paths and key names for the connection form's autocomplete. */
+  @PostMapping("/api/secret-stores/{id}/vault/references")
+  SecretStores.VaultReferences vaultReferences(@PathVariable String id) {
+    return stores.vaultReferences(id);
   }
 
   @PostMapping("/api/secret-stores/{id}/confirm-integrity")

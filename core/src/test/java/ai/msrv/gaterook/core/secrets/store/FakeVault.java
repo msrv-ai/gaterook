@@ -41,8 +41,10 @@ public final class FakeVault implements AutoCloseable {
   public volatile boolean signRejectsKeyId;
   public volatile String capabilities = "[\"read\"]";
   public final Map<String, String> listings = new ConcurrentHashMap<>(Map.of(
-      "kv/metadata/", "[\"stage/\"]", "kv/metadata/stage", "[\"db\",\"db/\"]",
-      "kv1/", "[\"app\"]"));
+      "kv/metadata", "[\"stage/\"]", "kv/metadata/stage", "[\"db\",\"db/\"]",
+      "kv1", "[\"app\"]"));
+  public final Set<String> deniedPaths = ConcurrentHashMap.newKeySet();
+  public final Map<String, String> responses = new ConcurrentHashMap<>();
   public volatile String mountListing = "{\"kv/\":{\"type\":\"kv\",\"options\":{\"version\":\"2\"}},"
       + "\"kv1/\":{\"type\":\"kv\",\"options\":{\"version\":\"1\"}},\"database/\":{\"type\":\"database\"},"
       + "\"ssh-client-signer/\":{\"type\":\"ssh\"}}";
@@ -94,6 +96,13 @@ public final class FakeVault implements AutoCloseable {
     }
     if (token == null || !token.startsWith("hvs.cnry-token-") || revokedTokens.contains(token)) {
       return json(403, "{\"errors\":[\"permission denied\"]}");
+    }
+    if (deniedPaths.contains(path.substring("/v1/".length()))) {
+      return json(403, "{\"errors\":[\"permission denied\"]}");
+    }
+    String override = responses.get(path.substring("/v1/".length()));
+    if (override != null) {
+      return json(200, override);
     }
     if (path.equals("/v1/auth/token/lookup-self")) {
       return json(200, "{\"data\":{\"policies\":[\"default\",\"gaterook\"],\"ttl\":" + tokenTtl + ",\"renewable\":"

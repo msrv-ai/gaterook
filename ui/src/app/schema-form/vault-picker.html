@@ -1,62 +1,47 @@
-<div class="gw-toolbar">
-  <div class="gw-toolbar__start">
-    <button class="gw-btn" type="button" [attr.aria-expanded]="browsing()" [attr.aria-controls]="id() + '-browser'" (click)="toggleBrowse()">Browse Vault</button>
-    <button class="gw-btn" type="button" [gwAriaDisabled]="storesBusy() || keyList()?.state === 'loading'"
-      [attr.aria-busy]="storesBusy() || keyList()?.state === 'loading' ? 'true' : null"
-      [attr.aria-describedby]="id() + '-keys-status'" (click)="loadKeys()">
-      @if (storesBusy() || keyList()?.state === 'loading') {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Load keys
-    </button>
+<div class="gw-secret gw-menu-host" data-state="empty">
+  <div class="gw-input-group">
+    @if (prefix()) {<span class="gw-input-group__affix gw-mono" [id]="fieldId() + '-prefix'">vault://</span>}
+    <input #field class="gw-input gw-input--mono" type="text" [id]="fieldId()" [value]="text()"
+      placeholder="Search Vault paths and keys" autocomplete="off" spellcheck="false" role="combobox"
+      aria-autocomplete="list" [attr.aria-expanded]="expanded()" [attr.aria-controls]="id() + '-options'"
+      [attr.aria-activedescendant]="activeId()" [attr.aria-invalid]="invalid() ? 'true' : null"
+      [attr.aria-describedby]="(describedBy() ? describedBy() + ' ' : '') + (prefix() ? fieldId() + '-prefix ' : '') + id() + '-status' + (result()?.issues?.length ? ' ' + id() + '-issues' : '')"
+      (click)="open()" (input)="onInput(field)" (keydown)="onKeydown($event)" (blur)="close()" />
+  </div>
+  <span class="gw-secret__actions"><button class="gw-btn" type="button" (click)="testReference()">Test reference</button></span>
+  <div #panel class="gw-menu gw-menu--wide" role="listbox" [id]="id() + '-options'" aria-label="Vault paths and keys" hidden>
+    @for (ref of visible(); track ref; let i = $index) {
+      <button class="gw-menu__item" type="button" role="option" tabindex="-1" [id]="id() + '-option-' + i"
+        [attr.aria-selected]="activeIndex() === i" [class.gw-menu__item--active]="activeIndex() === i"
+        (mousedown)="$event.preventDefault()" (click)="choose(ref)">
+        <span class="gw-menu__label gw-mono">{{ ref.slice('vault://'.length) }}</span>
+      </button>
+    }
   </div>
 </div>
-@if (storesBusy()) {<p class="gw-field__hint" role="status">Loading Vault stores…</p>}
-@if (storesError()) {<p class="gw-field__error" role="alert">{{ storesError() }}</p>}
-@if (stores(); as choices) {
-  @if (choices.length > 1 || (choices.length === 1 && store() !== choices[0].id)) {
-    <div class="gw-field">
-      <label class="gw-field__label" [for]="id() + '-store'">Vault store</label>
-      <select class="gw-select" [id]="id() + '-store'" [value]="store()" [attr.aria-describedby]="id() + '-store-hint'" (change)="chooseStore($any($event.target).value)">
-        <option value="" disabled>Choose a Vault store</option>
-        @for (store of choices; track store.id) {<option [value]="store.id">{{ store.name }}</option>}
-      </select>
-      <p class="gw-field__hint" [id]="id() + '-store-hint'">Choose the store, then load its secrets or key names.</p>
+@if (stores().length > 1 || (stores().length === 1 && !selectedStore())) {
+  <div class="gw-field">
+    <label class="gw-field__label" [for]="id() + '-store'">Vault store</label>
+    <select class="gw-select" [id]="id() + '-store'" [value]="store()" (change)="chooseStore($any($event.target).value)">
+      <option value="" disabled>Choose a Vault store</option>
+      @for (store of stores(); track store.id) {<option [value]="store.id">{{ store.name }}</option>}
+    </select>
+  </div>
+}
+<p [class]="error() ? 'gw-field__error' : 'gw-field__hint'" [id]="id() + '-status'" role="status">{{ status() }}</p>
+@if (result(); as loaded) {
+  @if (loaded.issues.length) {
+    <div [id]="id() + '-issues'">
+      @for (issue of loaded.issues.slice(0, 3); track $index) {<p class="gw-field__hint">{{ issue.message }}</p>}
+      @if (loaded.issues.length > 3) {<p class="gw-field__hint">{{ loaded.issues.length - 3 }} additional paths could not be loaded.</p>}
     </div>
   }
 }
-<div class="gw-form__rows" [id]="id() + '-browser'" [hidden]="!browsing()">
-  <div class="gw-field">
-    <label class="gw-field__label" [for]="id() + '-folder'">Folder</label>
-    <div class="gw-input-group">
-      <input class="gw-input gw-input--mono" [id]="id() + '-folder'" [value]="folder()" placeholder="All KV mounts" autocomplete="off" spellcheck="false"
-        [attr.aria-describedby]="id() + '-folder-hint'" (input)="folder.set($any($event.target).value.trim())" />
-      <button class="gw-input-group__addon" type="button" [gwAriaDisabled]="browseBusy() || storesBusy()"
-        [attr.aria-busy]="browseBusy() ? 'true' : null" [attr.aria-describedby]="id() + '-browse-status'" (click)="loadFolder()">
-        @if (browseBusy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Load secrets
-      </button>
-    </div>
-    <p class="gw-field__hint" [id]="id() + '-folder-hint'">Leave empty to list KV mounts, or enter a folder such as kv/dev. Listing needs Vault list permission; you can also enter a secret reference manually.</p>
+<div class="gw-toolbar">
+  <div class="gw-toolbar__start">
+    <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" [gwAriaDisabled]="storesBusy() || loading()"
+      [attr.aria-busy]="storesBusy() || loading() ? 'true' : null" [attr.aria-describedby]="id() + '-status'" (click)="refresh()">
+      @if (storesBusy() || loading()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Refresh list
+    </button>
   </div>
-  <div class="gw-field">
-    <label class="gw-field__label" [for]="id() + '-entries'">Secret or folder</label>
-    <select class="gw-select gw-mono" [id]="id() + '-entries'" [disabled]="browseBusy() || !listing()?.entries?.length" [value]="''"
-      [attr.aria-describedby]="id() + '-browse-status'" (change)="chooseEntry($any($event.target).value); $any($event.target).value = ''">
-      <option value="" disabled>Choose a secret or folder</option>
-      @for (entry of listing()?.entries ?? []; track $index) {<option [value]="$index">{{ entry.name }}{{ entry.directory ? '/' : '' }}</option>}
-    </select>
-    <p [class]="browseError() ? 'gw-field__error' : 'gw-field__hint'" [id]="id() + '-browse-status'" role="status">
-      @if (browseBusy()) {Loading secrets from Vault…}
-      @else if (browseError()) { {{ browseError() }} }
-      @else if (listing()?.entries?.length === 0) {No secrets or folders were returned. Enter a known path manually if needed.}
-      @else {Choose a folder to open it, or a secret to load its keys.}
-      @if (listing()?.unsupportedEntries) { Some paths cannot be used in a GateRook reference and are not listed.}
-    </p>
-  </div>
-</div>
-<div class="gw-field">
-  <label class="gw-field__label" [for]="id() + '-key'">Key in Vault</label>
-  <select class="gw-select gw-mono" [id]="id() + '-key'" [disabled]="keyList()?.state !== 'ready' || !keyList()?.keys?.length"
-    [value]="selectedKey()" [attr.aria-describedby]="id() + '-keys-status'" (change)="chooseKey($any($event.target).value)">
-    <option value="" disabled>Choose a key</option>
-    @for (key of keyList()?.keys ?? []; track key) {<option [value]="key">{{ key }}</option>}
-  </select>
-  <p [class]="keyList()?.state === 'error' ? 'gw-field__error' : 'gw-field__hint'" [id]="id() + '-keys-status'" role="status">{{ keyList()?.message ?? 'Enter a secret path and load its keys, or browse Vault to choose a secret.' }}</p>
 </div>

@@ -1432,6 +1432,7 @@ The schema-driven Configure step of Add connection (PostgreSQL demo), also the f
 - gw-input
 - gw-select
 - gw-input-group
+- gw-menu-host / gw-menu
 - gw-secret
 - gw-choice-card
 - gw-env
@@ -1452,7 +1453,7 @@ The schema-driven Configure step of Add connection (PostgreSQL demo), also the f
 **States and behavior:**
 
 - new connection, Encrypted here (gw-secret empty, reveal only while typing a new value)
-- reference source, new (mono reference input + Test reference); Vault also offers Browse Vault, an editable Folder with Load secrets and a native Secret or folder select, plus Load keys and a native Key in Vault select. The list contains names only; choosing a key updates the reference fragment while preserving a pinned version. Editing the path clears the list, and loading, empty, and permission errors stay beside the picker.
+- reference source, new (mono reference input + Test reference); Vault loads accessible paths and key names automatically into one autocomplete. Typing filters complete path#key suggestions, and choosing one inserts the reference. Click or ArrowDown opens suggestions; arrow keys move, Enter chooses, and Escape or Tab closes while focus stays in the input. Loading, empty, and partial-permission states stay beside the field; Refresh list retries discovery. Values are never shown and manual references remain available.
 - secret reference, tested (gw-secret reference well, Vault KV, stage-db)
 - stored password in the edit view (gw-secret stored: Encrypted · version 3, Replace / Rotate, no reveal)
 - Rotate unavailable (a connector that can't set a value at the source, cache-redis): aria-disabled with the reason under the field

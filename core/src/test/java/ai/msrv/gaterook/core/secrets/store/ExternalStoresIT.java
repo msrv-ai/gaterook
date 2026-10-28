@@ -213,6 +213,20 @@ class ExternalStoresIT {
         "{\"path\":\"kv/forbidden\"}");
     assertThat(browseDenied.path("detail").asString()).contains("list permission", "kv/metadata/forbidden");
 
+    JsonNode suggestions = api.expect(200, HttpMethod.POST, "/api/secret-stores/" + storeId + "/vault/references", null);
+    assertThat(suggestions.path("complete").asBoolean()).isTrue();
+    assertThat(suggestions.path("issues")).isEmpty();
+    assertThat(StreamSupport.stream(suggestions.path("references").spliterator(), false).map(JsonNode::asString))
+        .containsExactly("vault://kv/stage/db#password", "vault://kv/stage/db#user", "vault://kv1/app#api_key");
+    assertThat(suggestions.toString()).doesNotContain(FakeVault.DB_PASSWORD, FakeVault.SECRET_ID, vault.token(1),
+        "cnry-kv1-api-key");
+    vault.deniedPaths.add("kv/metadata");
+    JsonNode partial = api.expect(200, HttpMethod.POST, "/api/secret-stores/" + storeId + "/vault/references", null);
+    assertThat(partial.path("complete").asBoolean()).isFalse();
+    assertThat(partial.path("issues").get(0).path("reason").asString()).isEqualTo("denied");
+    assertThat(partial.path("references").get(0).asString()).isEqualTo("vault://kv1/app#api_key");
+    vault.deniedPaths.clear();
+
     JsonNode keys = api.expect(200, HttpMethod.POST, "/api/secret-refs/test", "{\"uri\":\"vault://kv/stage/db\","
         + "\"store\":\"" + storeId + "\"}");
     assertThat(keys.path("found").asBoolean()).isTrue();
@@ -365,6 +379,8 @@ class ExternalStoresIT {
     JsonNode browse = api.expect(422, HttpMethod.POST, "/api/secret-stores/" + storeId + "/vault/browse",
         "{\"path\":\"kv/stage\"}");
     assertThat(browse.path("detail").asString()).contains("was changed outside GateRook");
+    JsonNode suggestions = api.expect(422, HttpMethod.POST, "/api/secret-stores/" + storeId + "/vault/references", null);
+    assertThat(suggestions.path("detail").asString()).contains("was changed outside GateRook");
     assertThat(vault.requests).hasSize(requestsBeforeBrowse);
     assertThat(api.ok("/api/secret-stores/" + storeId).path("verified").asBoolean()).isFalse();
     assertThat(core.bean(ai.msrv.gaterook.core.platform.IntegrityAlerts.class).has("secret-store", storeId)).isTrue();

@@ -43,8 +43,8 @@ export class MenuService {
     return this.openSignal()?.panel === panel;
   }
 
-  /** Opens `panel` for `trigger`, closing any other; focus goes to the selected item (or first / last). */
-  openFor(trigger: HTMLElement, panel: HTMLElement, focusLast = false): void {
+  /** Opens a panel. Comboboxes retain DOM focus in their input and use aria-activedescendant. */
+  openFor(trigger: HTMLElement, panel: HTMLElement, focusLast = false, retainFocus = false): void {
     this.listen();
     this.close(false);
     panel.hidden = false;
@@ -70,7 +70,7 @@ export class MenuService {
             'input[type="radio"]:checked, input:not([type="radio"]):not([type="hidden"]), select, textarea, button, [tabindex]:not([tabindex="-1"])',
           ) ?? panel.querySelector<HTMLElement>("input,select,textarea,button,[tabindex]:not([tabindex='-1'])"))
         : (selected ?? (focusLast ? items[items.length - 1] : items[0]));
-    target?.focus();
+    if (!retainFocus) target?.focus();
   }
 
   /** Closes the open panel; `returnFocus` puts the keyboard back on its trigger. */

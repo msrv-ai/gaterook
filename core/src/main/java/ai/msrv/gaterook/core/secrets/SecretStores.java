@@ -62,6 +62,12 @@ public class SecretStores {
   /** Immediate children of a Vault folder, with a count of names omitted by the reference grammar. */
   public record VaultBrowse(String path, List<VaultEntry> entries, int unsupportedEntries) {}
 
+  /** One inaccessible or omitted part of autocomplete discovery; never carries a secret value. */
+  public record VaultDiscoveryIssue(String path, String reason, String message) {}
+
+  /** Complete selectable references from the accessible KV tree, with explicit partial-result reasons. */
+  public record VaultReferences(List<String> references, boolean complete, List<VaultDiscoveryIssue> issues) {}
+
   /** What disconnecting a store left behind. */
   public record Disconnected(List<String> referencesNotConnected, int leasesRevoked, List<String> secretsDestroyed) {}
 
@@ -132,6 +138,10 @@ public class SecretStores {
 
   public VaultBrowse browseVault(String idOrName, String path) {
     return admin.browseVault(idOrName, path);
+  }
+
+  public VaultReferences vaultReferences(String idOrName) {
+    return admin.vaultReferences(idOrName);
   }
 
   /** Replace reference of a stored reference (after its test). */
