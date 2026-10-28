@@ -7,7 +7,8 @@ import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const PRODUCT = 'GateRook';
-const FORMAT = 2;
+const BUNDLE_ID = 'ai.msrv.gaterook.desktop.dev';
+const FORMAT = 3;
 const ICON_FILE = 'GateRook.icns';
 const DEFAULT_ICON = fileURLToPath(new URL('../../design/assets/gaterook/gaterook-icon-macos.icns', import.meta.url));
 
@@ -41,7 +42,8 @@ export function prepareDevRuntime(electron, cacheDir, { platform = process.platf
   }
   const icon = readFileSync(iconPath);
   // Refresh the cached bundle after either an Electron update or a change to the canonical macOS icon.
-  const fingerprint = createHash('sha256').update(JSON.stringify({ format: FORMAT, sourceExecutable, product: PRODUCT }))
+  const fingerprint = createHash('sha256').update(JSON.stringify({ format: FORMAT, sourceExecutable, product: PRODUCT,
+    bundleIdentifier: BUNDLE_ID }))
     .update(readFileSync(sourceInfo)).update(readFileSync(sourceExecutable)).update(icon).digest('hex');
   const destination = join(cacheDir, fingerprint.slice(0, 24));
   const bundle = join(destination, `${PRODUCT}.app`);
@@ -67,14 +69,19 @@ export function prepareDevRuntime(electron, cacheDir, { platform = process.platf
     cpSync(sourceBundle, temporaryBundle, { recursive: true, verbatimSymlinks: true, preserveTimestamps: true,
       mode: constants.COPYFILE_FICLONE });
     const temporaryInfo = join(temporaryBundle, 'Contents', 'Info.plist');
+    // Notification permissions belong to this development app, independently of other Electron apps and releases.
+    run('/usr/bin/plutil', ['-replace', 'CFBundleIdentifier', '-string', BUNDLE_ID, temporaryInfo]);
     run('/usr/bin/plutil', ['-replace', 'CFBundleName', '-string', PRODUCT, temporaryInfo]);
     run('/usr/bin/plutil', ['-replace', 'CFBundleDisplayName', '-string', PRODUCT, temporaryInfo]);
     run('/usr/bin/plutil', ['-replace', 'CFBundleIconFile', '-string', ICON_FILE, temporaryInfo]);
+    run('/usr/bin/plutil', ['-replace', 'NSUserNotificationAlertStyle', '-string', 'alert', temporaryInfo]);
     writeFileSync(join(temporaryBundle, 'Contents', 'Resources', ICON_FILE), icon);
     // Only the outer bundle metadata and icon changed. Re-sign it ad hoc for local use; keep nested Electron binaries,
     // entitlements and helper names intact. This does not create a distributable signed release.
-    run('/usr/bin/codesign', ['--force', '--sign', '-', '--preserve-metadata=identifier,entitlements,flags,runtime', temporaryBundle]);
-    writeFileSync(join(temporary, 'runtime.json'), JSON.stringify({ fingerprint, sourceExecutable, product: PRODUCT }) + '\n');
+    run('/usr/bin/codesign', ['--force', '--sign', '-', '--identifier', BUNDLE_ID,
+      '--preserve-metadata=entitlements,flags,runtime', temporaryBundle]);
+    writeFileSync(join(temporary, 'runtime.json'), JSON.stringify({ fingerprint, sourceExecutable, product: PRODUCT,
+      bundleIdentifier: BUNDLE_ID }) + '\n');
     try {
       renameSync(temporary, destination);
     } catch (error) {

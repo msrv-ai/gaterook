@@ -45,6 +45,8 @@ Select **GateRook: Run** and click **Run** to build and start the desktop applic
 
 On macOS, the development launcher caches a locally signed `GateRook.app` under the ignored `desktop/.dev/runtime/` directory so the Dock and application menu show the product name. It refreshes the cache when Electron changes and leaves the installed npm dependency untouched. Deep links use `gaterook://`; the default application data directory is `~/.gaterook`.
 
+The macOS development app uses the notification identity `ai.msrv.gaterook.desktop.dev`, separate from the installed app and generic Electron development apps. Allow notifications when macOS asks. If approval counters appear inside GateRook but system alerts or the Dock badge are missing, check **System Settings → Notifications → GateRook** and allow notifications and badges. Focus can delay banners even when notifications are allowed. After updating an older development runtime, restart with `npm start` to use the new identity; the launcher refreshes its cached runtime automatically.
+
 Run configurations must point to the actual application `package.json`: `$PROJECT_DIR$` refers to the directory opened in IDEA, which may be a parent directory. Keep machine-specific paths in local `.idea` settings, which are ignored by Git.
 
 ## Build outputs

@@ -6,6 +6,14 @@ import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { prepareDevRuntime } from '../scripts/dev-runtime.mjs';
 
+function signingIdentifier(bundle) {
+  const result = spawnSync('/usr/bin/codesign', ['--display', '--verbose=4', bundle], { encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+  const identifier = /^Identifier=(.+)$/m.exec(result.stderr);
+  assert.ok(identifier, 'The bundle has a signing identifier.');
+  return identifier[1];
+}
+
 describe('the macOS development runtime', () => {
   const directory = mkdtempSync(join(tmpdir(), 'gw-dev-runtime-'));
   after(() => rmSync(directory, { recursive: true, force: true }));
@@ -18,7 +26,7 @@ describe('the macOS development runtime', () => {
     }
   });
 
-  it('brands only a copy, preserves executable identity and symlinks, and reuses the cached runtime',
+  it('isolates notification identity in a copy, preserves the Electron executable and symlinks, and reuses the cache',
     { skip: process.platform !== 'darwin' }, () => {
       const bundle = join(directory, 'source', 'Electron.app');
       const contents = join(bundle, 'Contents');
@@ -38,6 +46,10 @@ describe('the macOS development runtime', () => {
       writeFileSync(join(contents, 'Resources', 'asset.txt'), 'original asset');
       writeFileSync(join(contents, 'Resources', 'electron.icns'), 'original runtime icon');
       symlinkSync('asset.txt', join(contents, 'Resources', 'asset-link'));
+      assert.equal(spawnSync('/usr/bin/codesign', ['--force', '--sign', '-', '--identifier',
+        metadata.CFBundleIdentifier, bundle]).status, 0);
+      const originalIdentifier = signingIdentifier(bundle);
+      assert.equal(originalIdentifier, metadata.CFBundleIdentifier);
       const originalExecutable = readFileSync(executable);
       const originalInfo = readFileSync(info);
       const iconPath = join(directory, 'canonical.icns');
@@ -51,7 +63,10 @@ describe('the macOS development runtime', () => {
       const copiedInfo = JSON.parse(spawnSync('/usr/bin/plutil', ['-convert', 'json', '-o', '-',
         join(copiedContents, 'Info.plist')], { encoding: 'utf8' }).stdout);
       assert.deepEqual(copiedInfo, { ...metadata, CFBundleName: 'GateRook', CFBundleDisplayName: 'GateRook',
-        CFBundleIconFile: 'GateRook.icns' });
+        CFBundleIconFile: 'GateRook.icns', CFBundleIdentifier: 'ai.msrv.gaterook.desktop.dev',
+        NSUserNotificationAlertStyle: 'alert' });
+      assert.equal(signingIdentifier(join(copiedContents, '..')), copiedInfo.CFBundleIdentifier);
+      assert.equal(signingIdentifier(bundle), originalIdentifier, 'The source signing identity stays unchanged.');
       assert.deepEqual(readFileSync(info), originalInfo);
       assert.deepEqual(readFileSync(executable), originalExecutable);
       assert.equal(readFileSync(join(contents, 'Resources', 'electron.icns'), 'utf8'), 'original runtime icon');
