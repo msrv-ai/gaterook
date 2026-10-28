@@ -29,6 +29,8 @@ import { secretSourceId, sourceCopy } from '../../../schema-form/secret-sources'
 import { GwIcon } from '../../icons';
 import { literalParts } from '../shared/literals';
 import { GwConnectionTest, TestState, TestTarget } from './connection-test';
+import { fileSelection, withoutFileFields } from './file-selection';
+import { FileBrowseRequest, FileBrowseTrust, GwRemoteFiles } from './remote-files';
 import { DatabaseName, databaseConfig, databaseNames, databaseSelection, initialDatabases, removeConfigPath, withoutDatabaseFields } from './database-selection';
 
 /** What Save (and Test) hand to the page: the request members of `POST /api/connections` / `/test`. */
@@ -96,6 +98,7 @@ export function signInTarget(type: string): string {
     case 'redis':
       return 'the database';
     case 'ssh':
+    case 'ssh-logs':
       return 'the server';
     case 'kubernetes':
       return 'the cluster';
@@ -146,7 +149,7 @@ let nextId = 0;
  */
 @Component({
   selector: 'form[gwConnectionForm]',
-  imports: [NgTemplateOutlet, GwIcon, RouterLink, FormField, GwSchemaSection, GwConnectionTest, GwDialog, GwDialogClose, GwToggle],
+  imports: [NgTemplateOutlet, GwIcon, RouterLink, FormField, GwSchemaSection, GwConnectionTest, GwDialog, GwDialogClose, GwToggle, GwRemoteFiles],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     class: 'gw-form gw-connection-form',
@@ -210,6 +213,10 @@ export class GwConnectionForm {
   readonly back = output<void>();
   readonly runTest = output<ConnectionFormValue>();
   readonly secretAction = output<SecretAction>();
+  readonly browseFiles = output<FileBrowseRequest>();
+  readonly trustFiles = output<FileBrowseTrust>();
+  readonly fileSelection = computed(() => fileSelection(this.spec().schema));
+  readonly files = viewChild(GwRemoteFiles);
   readonly discoverDatabases = output<DatabaseDiscoveryRequest>();
   readonly databaseSelection = computed(() => databaseSelection(this.spec().schema));
   private readonly databaseBaselines = new WeakMap<SchemaForm, string>();
@@ -430,7 +437,7 @@ export class GwConnectionForm {
    * the loose fields before the sections (HTTP's base URLs, AWS regions). It comes first and takes the Name.
    */
   protected readonly rootSection = computed<SchemaNode | null>(() => {
-    const fields = withoutDatabaseFields(this.state().compiled.loose, this.databaseSelection());
+    const fields = withoutFileFields(withoutDatabaseFields(this.state().compiled.loose, this.databaseSelection()), this.fileSelection());
     return fields.length ? rootSection(fields, 'Connection') : null;
   });
 
@@ -454,7 +461,7 @@ export class GwConnectionForm {
     return cut < 0 ? [] : all.slice(cut);
   });
 
-  private readonly databaseSections = computed(() => withoutDatabaseFields(this.state().compiled.sections, this.databaseSelection()));
+  private readonly databaseSections = computed(() => withoutFileFields(withoutDatabaseFields(this.state().compiled.sections, this.databaseSelection()), this.fileSelection()));
 
   private readonly displaySections = computed(() => {
     const state = this.state();
@@ -578,8 +585,15 @@ export class GwConnectionForm {
   protected readonly validationSummary = computed(() => {
     if (!this.submitted()) return null;
     return this.nameError() ?? this.state().invalidNodes().map((node) => this.state().error(node))[0]
-      ?? this.databaseProblem();
+      ?? this.databaseProblem() ?? this.files()?.problem();
   });
+
+  fileSelectionValid(): boolean {
+    if (!this.files()?.problem()) return true;
+    this.submitted.set(true);
+    afterNextRender(() => document.getElementById(`${this.idPrefix()}-files-browse`)?.focus(), { injector: this.injector });
+    return false;
+  }
 
   value(): ConnectionFormValue {
     const s = this.state();
@@ -601,7 +615,7 @@ export class GwConnectionForm {
       // it runs after it).
       afterNextRender(() => document.getElementById(`${this.idPrefix()}-name`)?.focus(), { injector: this.injector });
     }
-    if (!fieldsOk || !nameOk || !this.databaseSelectionValid()) return;
+    if (!fieldsOk || !nameOk || !this.databaseSelectionValid() || !this.fileSelectionValid()) return;
     // A changed setting that asks first (x-confirm: Run the credential command, a port) goes through its dialog.
     const changes = untracked(this.state().confirmations);
     if (changes.length) {
@@ -657,6 +671,7 @@ export class GwConnectionForm {
   reset(): void {
     this.state().reset(databaseConfig(this.config(), this.databaseSelection()), this.spec().schema);
     this.databaseDiscovery.set(null);
+    this.files()?.reset();
     this.common.set({ name: this.name(), env: (this.env() ?? this.spec().env ?? 'dev') as string });
     this.submitted.set(false);
     untracked(() => this.commonForm().reset());

@@ -134,7 +134,7 @@
                     }
                   </ul>
                 }
-                <div><a class="gw-btn gw-btn--sm" routerLink="/connectors" fragment="templates"><svg lucideIcon="plus" class="gw-icon gw-icon--sm"></svg> New runbook<span class="gw-sr-only"> for {{ s.connections.join(', ') }}</span></a></div>
+                @if (sshConnections().length) {<div><a class="gw-btn gw-btn--sm" routerLink="/connectors" fragment="templates"><svg lucideIcon="plus" class="gw-icon gw-icon--sm"></svg> New runbook<span class="gw-sr-only"> for {{ sshConnections().join(', ') }}</span></a></div>}
                 <div class="gw-form__row">
                   @if (has('ssh.commandTimeoutSeconds')) {
                     <div gwPolicyNumber [view]="view('ssh.commandTimeoutSeconds')" [field]="textField('ssh.commandTimeoutSeconds')" [unit]="unit('ssh.commandTimeoutSeconds')" [placeholder]="placeholder('ssh.commandTimeoutSeconds')"></div>

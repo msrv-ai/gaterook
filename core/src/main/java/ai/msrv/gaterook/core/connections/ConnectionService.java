@@ -694,6 +694,21 @@ public class ConnectionService {
         throw ProblemException.unprocessable("Choose databases", "Select at least one database.", "/config" + path);
       }
     }
+    JsonNode files = manifest.configSchema().path("x-file-selection");
+    if (!discovery && files.path("required").asBoolean(false)) {
+      String rootPath = files.path("rootPath").asString("");
+      String path = files.path("path").asString("");
+      JsonNode root = rootPath.startsWith("/") ? config.at(rootPath) : null;
+      JsonNode allowed = path.startsWith("/") ? config.at(path) : null;
+      if (root == null || !root.isString() || root.asString().isBlank()) {
+        throw ProblemException.unprocessable("Choose a folder", "Select a remote log folder.",
+            "/config" + rootPath);
+      }
+      if (allowed == null || !allowed.isArray() || allowed.isEmpty()) {
+        throw ProblemException.unprocessable("Choose log files", "Select at least one allowed log file.",
+            "/config" + path);
+      }
+    }
     EnvLocks.check(manifest.configSchema(), config, env).ifPresent(v -> {
       throw ProblemException.unprocessable("Not allowed on " + env.id(), v.message(), "/config" + v.pointer());
     });

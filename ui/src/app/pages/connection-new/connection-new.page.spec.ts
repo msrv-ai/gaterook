@@ -6,7 +6,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { CONNECTOR_FORMS } from '../../../testing/connector-schemas';
 import { ApiError } from '../../core/api/api-error';
 import { ApprovalItem, ApprovalsApi } from '../../core/api/approvals.api';
-import { ConnectionDetail, ConnectionsApi, CreateConnectionRequest, TestDraftRequest, TestOutcome, UpdateConnectionRequest } from '../../core/api/connections.api';
+import { ConnectionDetail, ConnectionsApi, CreateConnectionRequest, TestConfirmed, TestDraftRequest, TestOutcome, UpdateConnectionRequest } from '../../core/api/connections.api';
 import { ConnectionFormSpec, ConnectorCatalog, ConnectorTool, ConnectorTypeDetail, ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { ConnectionPreview, EndpointSummary, EndpointsApi, ToolGroup, ToolRow } from '../../core/api/endpoints.api';
 import { Policies, PoliciesApi } from '../../core/api/policies.api';
@@ -209,6 +209,11 @@ class FakeCore {
   discoveries: TestDraftRequest[] = [];
   nextDiscovery: TestOutcome | ApiError = outcome({ ok: true, details: { databases: ['app', 'reports'] } });
   pendingDiscovery: Promise<TestOutcome> | null = null;
+  fileRequests: (TestDraftRequest & { readonly path: string })[] = [];
+  nextFiles: TestOutcome | ApiError = outcome({ ok: true, details: { path: '/var/log', parent: '/var',
+    entries: [{ name: 'app.log', path: '/var/log/app.log', type: 'file', size: 20 }], truncated: false } });
+  pendingFiles: Promise<TestOutcome> | null = null;
+  pendingConfirm: Promise<TestConfirmed> | null = null;
   created: CreateConnectionRequest[] = [];
   createFails: ApiError | null = null;
   added: string[] = [];
@@ -259,6 +264,12 @@ beforeEach(() => {
     get: vi.fn(async () => structuredClone(TYPE)),
   };
   const connections: Partial<ConnectionsApi> = {
+    browseFiles: vi.fn(async (r: TestDraftRequest & { readonly path: string }) => {
+      core.fileRequests.push(structuredClone(r));
+      if (core.pendingFiles) return core.pendingFiles;
+      if (core.nextFiles instanceof ApiError) throw core.nextFiles;
+      return structuredClone(core.nextFiles);
+    }),
     databases: vi.fn(async (r: TestDraftRequest) => {
       core.discoveries.push(structuredClone(r));
       if (core.pendingDiscovery) return core.pendingDiscovery;
@@ -270,7 +281,7 @@ beforeEach(() => {
       if (core.nextTest instanceof ApiError) throw core.nextTest;
       return structuredClone(core.nextTest);
     }),
-    confirmDraft: vi.fn(async () => ({ kind: 'host-key', config: { connection: { hostKey: 'ssh-ed25519 AAAA' } }, retest: OK })),
+    confirmDraft: vi.fn(async () => core.pendingConfirm ?? ({ kind: 'host-key', config: { connection: { hostKey: 'ssh-ed25519 AAAA' } }, retest: OK })),
     create: vi.fn(async (r: CreateConnectionRequest) => {
       if (core.createFails) throw core.createFails;
       core.created.push(structuredClone(r));
@@ -1377,5 +1388,97 @@ describe('Add connection: first run (kit ?state=first-run)', () => {
     const p = await open();
     expect(text(p.q('#page-title'))).toBe('Add connection');
     expect(p.steps()[3]).toBe('upcoming:4 Add to endpoint');
+  });
+});
+
+
+/** The actual connector schema also exercises conditional password versus local key-file fields. */
+function sshLogs() {
+  core.spec = { ...SPEC, type: 'ssh-logs', name: 'SSH log files', schema: CONNECTOR_FORMS['ssh-logs'] };
+  core.catalog = { groups: [{ name: 'Logs', cards: [{ ...CATALOG.groups[0].cards[0], type: 'ssh-logs', name: 'SSH log files', icon: 'scroll-text' }] }], installed: [] };
+  core.detail = { ...structuredClone(DETAIL), type: 'ssh-logs', typeName: 'SSH log files',
+    config: { connection: { host: 'logs.example.test', username: 'reader' }, credentials: { method: 'password' },
+      logs: { root: '/var/log', allowedFiles: ['app.log'] } } };
+}
+
+describe('connection-new: SSH remote files', () => {
+  it('uses stored credentials for edits and retries browsing only after consent to a changed host', async () => {
+    sshLogs();
+    const p = await open('/connections/dev-db');
+    await p.type('cf-connection-host', 'other.example.test');
+    core.nextFiles = new ApiError('conflict', 409, { title: 'Send the stored password to other.example.test?',
+      detail: 'The password will be used to browse this server.', confirm: 'send-secret-to-new-host' });
+    p.button('Browse folders').click(); await p.settle();
+    expect(core.fileRequests[0]).toMatchObject({ existing: 'dev-db', type: 'ssh-logs', path: '/var/log', secrets: {} });
+    expect(core.fileRequests[0].config).not.toHaveProperty('credentials.password');
+    const dialog = p.q<HTMLDialogElement>('#dlg-new-host')!;
+    expect(dialog.open).toBe(true);
+    core.nextFiles = outcome({ ok: true, details: { path: '/var/log', parent: '/var', entries: [], truncated: false } });
+    p.button('Send and browse folders', dialog).click(); await p.settle();
+    expect(core.fileRequests).toHaveLength(2);
+    expect(core.fileRequests[1].confirm).toBe('send-secret-to-new-host');
+    expect(text(p.q('#cf-form'))).toContain('No regular files or folders');
+    expect(text(p.q('#cf-form'))).toContain('app.log');
+  });
+
+  it('retains explicit new-host consent only through the unchanged host-key trust and browse retry', async () => {
+    sshLogs();
+    const p = await open('/connections/dev-db');
+    await p.type('cf-connection-host', 'other.example.test');
+    core.nextFiles = new ApiError('conflict', 409, { title: 'Send the stored password?', detail: 'The host changed.', confirm: 'send-secret-to-new-host' });
+    p.button('Browse folders').click(); await p.settle();
+    core.nextFiles = HOST_KEY;
+    p.button('Send and browse folders', p.q('#dlg-new-host')!).click(); await p.settle();
+    core.pendingConfirm = Promise.resolve({ kind: 'host-key', config: { hostKeys: { pinned: ['ssh-ed25519 AAAA'] } }, retest: OK });
+    core.nextFiles = outcome({ ok: true, details: { path: '/var/log', parent: '/var', entries: [], truncated: false } });
+    p.button('Trust host key and browse').click(); await p.settle();
+    expect(core.fileRequests).toHaveLength(3);
+    expect(core.fileRequests[2]).toMatchObject({ confirm: 'send-secret-to-new-host',
+      config: { connection: { host: 'other.example.test' }, hostKeys: { pinned: ['ssh-ed25519 AAAA'] } } });
+    await p.type('cf-connection-host', 'different.example.test');
+    p.button('Browse folders').click(); await p.settle();
+    expect(core.fileRequests[3].confirm).toBeUndefined();
+  });
+
+  it('does not restore file permissions removed while host-key confirmation is in flight', async () => {
+    sshLogs();
+    const p = await open('/connections/dev-db');
+    core.nextFiles = HOST_KEY;
+    p.button('Browse folders').click(); await p.settle();
+    let finish!: (value: TestConfirmed) => void;
+    core.pendingConfirm = new Promise((resolve) => { finish = resolve; });
+    p.button('Trust host key and browse').click(); await p.settle();
+    p.q<HTMLButtonElement>('button[aria-label="Remove allowed file app.log"]')!.click(); await p.settle();
+    core.nextFiles = outcome({ ok: true, details: { path: '/var/log', parent: '/var', entries: [], truncated: false } });
+    finish({ kind: 'host-key', config: { ...(core.detail as ConnectionDetail).config, hostKeys: { pinned: ['ssh-ed25519 AAAA'] } }, retest: OK });
+    await p.settle();
+    expect(p.page().form()!.files()!.selected()).toEqual([]);
+    expect(p.page().form()!.value().config['hostKeys']).toEqual({ pinned: ['ssh-ed25519 AAAA'] });
+    expect(core.fileRequests).toHaveLength(2);
+    expect(core.fileRequests[1].config['logs']).toMatchObject({ root: '/var/log' });
+    expect(core.fileRequests[1].config['logs']).not.toHaveProperty('allowedFiles');
+  });
+
+  it('drops late folder replies after the connection changes and renders password and key-file choices', async () => {
+    sshLogs();
+    const p = await open('/connections/new#step-2');
+    await p.type('cf-connection-host', 'logs.example.test');
+    await p.type('cf-connection-username', 'reader');
+    await p.type('cf-credentials-password', 'test-only-password');
+    expect(p.q('#cf-credentials-privateKeyPath')).toBeNull();
+    let finish!: (value: TestOutcome) => void;
+    core.pendingFiles = new Promise((resolve) => { finish = resolve; });
+    p.button('Browse folders').click(); await p.settle();
+    expect(core.fileRequests[0].secrets).toEqual({ '/credentials/password': { source: 'local', value: 'test-only-password' } });
+    const method = p.q<HTMLSelectElement>('#cf-credentials-method')!;
+    method.value = 'privateKeyFile'; method.dispatchEvent(new Event('change', { bubbles: true })); await p.settle();
+    await p.type('cf-credentials-privateKeyPath', '/example/keys/reader');
+    expect(p.q('#cf-credentials-password')).toBeNull();
+    core.pendingFiles = null;
+    p.button('Browse folders').click(); await p.settle();
+    expect(core.fileRequests[1].config['credentials']).toEqual({ method: 'privateKeyFile', privateKeyPath: '/example/keys/reader' });
+    expect(core.fileRequests[1].secrets).toEqual({});
+    finish(outcome({ ok: true, details: { path: '/stale', parent: '/', entries: [], truncated: false } })); await p.settle();
+    expect(p.page().form()!.files()!.directory()?.path).toBe('/var/log');
   });
 });

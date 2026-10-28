@@ -15,6 +15,8 @@ import tools.jackson.databind.JsonNode;
 /** The call context the core would give: a deadline, limits, cancellation, and approval when a test says so. */
 final class TestCtx implements ExecContext {
 
+  private static final java.util.Map<String, JsonNode> CURSORS = new java.util.concurrent.ConcurrentHashMap<>();
+
   private final String callId;
   private final Limits limits;
   private final Instant deadline;
@@ -144,7 +146,19 @@ final class TestCtx implements ExecContext {
 
   @Override
   public HandleCodec handles() {
-    throw new UnsupportedOperationException("SSH seals no handles");
+    return new HandleCodec() {
+      @Override
+      public String seal(String purpose, JsonNode payload, Duration ttl) {
+        String token = java.util.UUID.randomUUID().toString();
+        CURSORS.put(purpose + ":" + token, payload.deepCopy());
+        return token;
+      }
+
+      @Override
+      public Optional<JsonNode> open(String purpose, String handle) {
+        return Optional.ofNullable(CURSORS.get(purpose + ":" + handle)).map(JsonNode::deepCopy);
+      }
+    };
   }
 
   @Override
@@ -160,6 +174,18 @@ final class TestCtx implements ExecContext {
   @Override
   public Egress egress() {
     throw new UnsupportedOperationException("SSH uses no HTTP egress");
+  }
+
+  private java.util.function.UnaryOperator<JsonNode> masker = java.util.function.UnaryOperator.identity();
+
+  TestCtx withMasker(java.util.function.UnaryOperator<JsonNode> value) {
+    masker = value;
+    return this;
+  }
+
+  @Override
+  public JsonNode masked(JsonNode tree) {
+    return masker.apply(tree);
   }
 
   private final List<String> tainted = new CopyOnWriteArrayList<>();

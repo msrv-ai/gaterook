@@ -190,6 +190,13 @@
   </section>
 }
 
+@if (fileSelection(); as selection) {
+  @if (show('connection')) {
+    <gw-remote-files [form]="s" [selection]="selection" [value]="value()" [type]="spec().type" [stored]="stored()" [idPrefix]="p" [submitted]="submitted()"
+      (browse)="browseFiles.emit($event)" (trust)="trustFiles.emit($event)" />
+  }
+}
+
 @if (show('safety')) {
   @let env = common().env;
   <section class="gw-form__section gw-connection-form__safety" [attr.aria-labelledby]="p + '-env-t'">

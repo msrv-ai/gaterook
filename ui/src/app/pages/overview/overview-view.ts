@@ -289,6 +289,7 @@ export function checkPrompt(type: string | null, name: string | null): string {
     case 'kubernetes':
       return `Show me the pods in ${name}`;
     case 'logs':
+    case 'ssh-logs':
       return `Show me the latest errors in ${name}`;
     default:
       return `Show me what you can see in ${name}`;

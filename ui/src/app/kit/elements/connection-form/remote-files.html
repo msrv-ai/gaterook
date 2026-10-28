@@ -1,0 +1,91 @@
+@let p = idPrefix();
+@let listing = directory();
+@let state = result();
+<section class="gw-form__section" [attr.aria-labelledby]="p + '-files-title'">
+  <header class="gw-form__section-header">
+    <h3 class="gw-form__legend" [id]="p + '-files-title'">Remote log files</h3>
+    <p class="gw-form__description">Browse the server, choose a log folder, then select the files agents may read. Only selected files are allowed; new files are not added automatically.</p>
+  </header>
+  <div class="gw-form__rows">
+    <div class="gw-field">
+      <label class="gw-field__label" [for]="p + '-files-path'">Remote folder</label>
+      <div class="gw-input-group">
+        <input class="gw-input gw-input--mono" [id]="p + '-files-path'" [value]="address()" (input)="address.set($any($event.target).value)"
+          autocomplete="off" spellcheck="false" [attr.aria-describedby]="p + '-files-status'" />
+        <button class="gw-btn" type="button" [id]="p + '-files-browse'" (click)="load()" [attr.aria-busy]="busy() ? 'true' : null"
+          [attr.aria-disabled]="busy() ? 'true' : null" [attr.aria-describedby]="p + '-files-status'">
+          @if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}
+          Browse folders
+        </button>
+      </div>
+      <p class="gw-field__hint" [id]="p + '-files-status'" role="status">
+        @if (busy()) {Connecting and loading the remote folder…}
+        @else if (listing) { {{ listing.entries.length }} entries · {{ selected().length }} files allowed }
+        @else {Enter the SSH server and credentials above, then browse an absolute folder path.}
+      </p>
+    </div>
+    @if (state?.state === 'error') {
+      <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+        <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content"><p class="gw-alert__title">Couldn't browse the remote folder</p><p class="gw-alert__body">{{ state!.message }}</p></div>
+      </div>
+    }
+    @if (state?.state === 'confirmation') {
+      <div class="gw-alert gw-alert--warning" role="status">
+        <svg lucideIcon="key-round" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content">
+          <p class="gw-alert__title">{{ confirmationTitle() }}</p>
+          <p class="gw-alert__body">{{ state!.message }}</p>
+          <dl class="gw-kv gw-kv--dense">
+            @for (fact of facts(); track fact.key) {<div class="gw-kv__row"><dt class="gw-kv__key">{{ fact.label }}</dt><dd class="gw-kv__value gw-mono">{{ fact.value }}</dd></div>}
+          </dl>
+          @if (state!.outcome?.confirmationId) {<div class="gw-alert__actions"><button class="gw-btn" type="button" (click)="confirm()">Trust host key and browse</button></div>}
+        </div>
+      </div>
+    }
+    @if (listing) {
+      <nav class="gw-toolbar" aria-label="Remote folder navigation">
+        @if (listing.parent) {<button class="gw-btn gw-btn--sm" type="button" (click)="load(listing.parent)"><svg lucideIcon="arrow-up" class="gw-icon"></svg>Parent folder</button>}
+        <span class="gw-mono">{{ listing.path }}</span>
+        @if (listing.path !== root()) {<button class="gw-btn gw-btn--sm" type="button" (click)="chooseRoot()">Use this log folder</button>}
+      </nav>
+      @if (listing.path !== root()) {<p class="gw-field__hint">Choosing another log folder clears the allowed file selection.</p>}
+      @if (listing.truncated) {<div class="gw-alert gw-alert--warning gw-alert--compact" role="status"><svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg><div class="gw-alert__content"><p class="gw-alert__body">This folder has more entries than can be shown. Open a more specific folder using its path.</p></div></div>}
+      <div class="gw-table-wrap" role="region" [attr.aria-labelledby]="p + '-files-caption'" tabindex="0">
+        <table class="gw-table gw-table--dense">
+          <caption class="gw-sr-only" [id]="p + '-files-caption'">Files and folders in {{ listing.path }}</caption>
+          <thead><tr><th scope="col">Name</th><th scope="col">Access</th></tr></thead>
+          <tbody>
+            @for (entry of listing.entries; track entry.path; let i = $index) {
+              <tr>
+                <th scope="row" class="gw-table__cell--mono">
+                  @if (entry.type === 'directory') {<button class="gw-btn gw-btn--link gw-btn--sm" type="button" (click)="load(entry.path)" [attr.aria-label]="'Open folder ' + entry.name"><svg lucideIcon="folder-open" class="gw-icon"></svg>{{ entry.name }}</button>}
+                  @else {<svg lucideIcon="file-text" class="gw-icon"></svg> {{ entry.name }}}
+                </th>
+                <td>
+                  @if (entry.type === 'directory') {<span class="gw-fg-muted">Folder</span>}
+                  @else if (relative(entry) !== null) {
+                    <label class="gw-checkbox">
+                      <input class="gw-checkbox__input" type="checkbox" [checked]="selectedEntry(entry)" (change)="select(entry, $any($event.target).checked)" [attr.aria-label]="'Allow ' + entry.name" />
+                      <span class="gw-checkbox__control" aria-hidden="true"></span><span class="gw-checkbox__label">Allow read</span>
+                    </label>
+                  } @else {<span class="gw-text-small gw-fg-muted">Choose this log folder first</span>}
+                </td>
+              </tr>
+            } @empty {<tr><td colspan="2">No regular files or folders are available here. Symbolic links are not shown.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    }
+    <div class="gw-field">
+      <span class="gw-field__label">Allowed log folder</span>
+      <p class="gw-field__hint"><span class="gw-mono">{{ root() || 'No folder selected' }}</span></p>
+      @if (selected().length) {
+        <ul class="gw-tag-list" aria-label="Allowed log files">
+          @for (path of selected(); track path) {<li class="gw-tag gw-tag--mono"><span class="gw-tag__label" [title]="path">{{ path }}</span><button class="gw-tag__remove" type="button" [attr.aria-label]="'Remove allowed file ' + path" (click)="remove(path)"><svg lucideIcon="x" class="gw-icon"></svg></button></li>}
+        </ul>
+      } @else {<p class="gw-field__hint">No files allowed yet. Select files in the folder above.</p>}
+    </div>
+    @if (error(); as message) {<p class="gw-field__error" [id]="p + '-files-error'" role="alert"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ message }}</p>}
+  </div>
+</section>

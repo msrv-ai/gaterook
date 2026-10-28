@@ -77,6 +77,10 @@ class ConnectionsController {
   record TestDraft(String type, String env, JsonNode config, Map<String, SecretSource> secrets, String existing,
       String confirm) {}
 
+  /** The administrative remote folder browser; its entries do not grant agent access. */
+  record BrowseFiles(String type, String env, JsonNode config, Map<String, SecretSource> secrets, String existing,
+      String confirm, String path) {}
+
   /** {@code confirm}: {@code danger} after the core asked (409 with {@code confirm}) about a prod user's rights. */
   record Create(String name, String type, String env, JsonNode config, Map<String, SecretSource> secrets,
       String reason, String confirm) {}
@@ -247,6 +251,17 @@ class ConnectionsController {
     try {
       return TestDtos.outcome(tester.discoverDatabases(request.type(), env(request.env()), request.config(), secrets,
           request.existing(), request.confirm()));
+    } finally {
+      clear(secrets, request.secrets());
+    }
+  }
+
+  @PostMapping("/api/connections/browse-files")
+  TestDtos.Outcome browseFiles(@RequestBody BrowseFiles request) {
+    Map<String, SecretInput> secrets = secrets(request.secrets());
+    try {
+      return TestDtos.outcome(tester.browseFiles(request.type(), env(request.env()), request.config(), secrets,
+          request.existing(), request.confirm(), request.path()));
     } finally {
       clear(secrets, request.secrets());
     }

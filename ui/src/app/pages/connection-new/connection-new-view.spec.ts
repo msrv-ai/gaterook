@@ -21,6 +21,7 @@ import {
   isFirstRun,
   list,
   policyDefaults,
+  POLICY_SECTION,
   refusalFor,
   savedToast,
   secretsSentence,
@@ -301,6 +302,22 @@ describe('Add connection: what prod turns on', () => {
       { icon: 'ban', text: 'No DDL: CREATE, ALTER, DROP, TRUNCATE are refused', literals: ['CREATE', 'ALTER', 'DROP', 'TRUNCATE'] },
       { icon: 'hourglass', text: 'Approval timeout 10 min, a comment is required to approve' },
     ]);
+  });
+
+  it('uses SSH defaults and only the applicable log time-range default for SSH log files', () => {
+    expect(POLICY_SECTION['ssh-logs']).toBe('ssh');
+    const fields: JsonObject = { sections: {
+      ssh: { properties: { maxOutputKb: { type: 'integer', title: 'Max output size', 'x-unit': 'KB' } } },
+      logs: { properties: {
+        maxRangeHours: { type: 'integer', title: 'Longest time range', 'x-unit': 'h' },
+        defaultLimit: { type: 'integer', title: 'Entries per call by default' },
+        maxTailWaitSeconds: { type: 'integer', title: 'Longest wait of logs_tail' },
+      } },
+    } };
+    const lines = policyDefaults('ssh-logs',
+      policy({ ssh: { maxOutputKb: 256 }, logs: { maxRangeHours: 168, defaultLimit: 100, maxTailWaitSeconds: 8 } }),
+      policy({ ssh: { maxOutputKb: 128 }, logs: { maxRangeHours: 24, defaultLimit: 50, maxTailWaitSeconds: 3 } }), fields);
+    expect(lines.map((line) => line.text)).toEqual(['Max output size 128 KB (dev: 256 KB)', 'Longest time range 24 h (dev: 168 h)']);
   });
 
   it('only lists what differs: a type without a policy section gets the approvals line alone', () => {

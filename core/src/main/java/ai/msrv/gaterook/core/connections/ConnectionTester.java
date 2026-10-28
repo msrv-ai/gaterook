@@ -77,6 +77,8 @@ public class ConnectionTester implements DisposableBean {
    */
   public record ConfirmOutcome(String kind, JsonNode config, Outcome retest) {}
 
+  private enum DraftOperation { TEST, DATABASES, FILES }
+
   private final ConnectorRegistry registry;
   private final ConnectionConfigs configs;
   private final ConnectionService connections;
@@ -121,20 +123,30 @@ public class ConnectionTester implements DisposableBean {
    */
   public Outcome testDraft(String type, Env env, JsonNode config, Map<String, SecretInput> typed, String existing,
       String confirm) {
-    return testDraft(type, env, config, typed, existing, confirm, false);
+    return testDraft(type, env, config, typed, existing, confirm, DraftOperation.TEST, null);
   }
 
   /** Lists databases with the same secret handling, host checks and deadline as a draft test. */
   public Outcome discoverDatabases(String type, Env env, JsonNode config, Map<String, SecretInput> typed,
       String existing, String confirm) {
-    return testDraft(type, env, config, typed, existing, confirm, true);
+    return testDraft(type, env, config, typed, existing, confirm, DraftOperation.DATABASES, null);
+  }
+
+  /** Browses remote files with the same secret handling, host checks and deadline as a draft test. */
+  public Outcome browseFiles(String type, Env env, JsonNode config, Map<String, SecretInput> typed,
+      String existing, String confirm, String path) {
+    return testDraft(type, env, config, typed, existing, confirm, DraftOperation.FILES, path);
   }
 
   private Outcome testDraft(String type, Env env, JsonNode config, Map<String, SecretInput> typed, String existing,
-      String confirm, boolean discovery) {
+      String confirm, DraftOperation operation, String path) {
     Map<String, char[]> values = new HashMap<>();
     Map<String, SecretService.DraftReference> references = new HashMap<>();
     try {
+      if (operation == DraftOperation.FILES && path != null
+          && (path.length() > 4096 || !path.startsWith("/") || path.chars().anyMatch(c -> c < 32 || c == 127))) {
+        throw ProblemException.unprocessable("Invalid folder", "Enter an absolute remote folder path.", "/path");
+      }
       ConnectorManifest manifest = usable(type);
       if (config == null || !config.isObject() || SecretFields.mentionsPlaceholder(config)) {
         throw ProblemException.unprocessable("Invalid settings", "The settings must be an object without stored "
@@ -196,7 +208,7 @@ public class ConnectionTester implements DisposableBean {
         present.addAll(stored.secretIds().keySet());
         secretFields.addAll(stored.secretIds().keySet());
       }
-      connections.validate(manifest, draft, present, dynamic, env, discovery);
+      connections.validate(manifest, draft, present, dynamic, env, operation != DraftOperation.TEST);
       String id = stored == null ? "draft-" + Ids.uuid() : stored.id();
       ConnectionConfig cfg = new ConnectionConfig(id, stored == null ? "draft" : stored.name(), type, env,
           stored == null ? 0 : stored.config().version(), draft.deepCopy(), Set.copyOf(secretFields),
@@ -206,7 +218,7 @@ public class ConnectionTester implements DisposableBean {
       SecretResolver fallback = stored == null && references.isEmpty() ? null
           : secrets.draftResolver(cfg, references, taint);
       try (DraftSecrets resolver = new DraftSecrets(secretFields, values, fallback, taint)) {
-        TestResult result = run(manifest, cfg, resolver, taint, discovery);
+        TestResult result = run(manifest, cfg, resolver, taint, operation, path);
         // Trust applies to the draft: an edit saves the patched config with the rest of the form.
         return outcome(result, type, env, null, draft);
       }
@@ -317,17 +329,20 @@ public class ConnectionTester implements DisposableBean {
 
   /** Runs {@code test} under the deadline and masks what it says. */
   TestResult run(ConnectorManifest manifest, ConnectionConfig cfg, SecretResolver resolver, Taint taint) {
-    return run(manifest, cfg, resolver, taint, false);
+    return run(manifest, cfg, resolver, taint, DraftOperation.TEST, null);
   }
 
   private TestResult run(ConnectorManifest manifest, ConnectionConfig cfg, SecretResolver resolver, Taint taint,
-      boolean discovery) {
+      DraftOperation operation, String path) {
     Connector connector = registry.connectorFor(cfg).orElseThrow(() -> ProblemException.unprocessable(
         "Unknown connector", "There is no connector type " + cfg.type() + ".", "/type"));
     CallContext ctx = contexts.builder(Ids.next("tst_"), cfg, policies.limits(cfg.env()))
         .timeout(timeout).taint(taint).build();
-    Future<TestResult> future = executor.submit(() -> discovery
-        ? connector.discoverDatabases(cfg, resolver, ctx) : connector.test(cfg, resolver, ctx));
+    Future<TestResult> future = executor.submit(() -> switch (operation) {
+      case TEST -> connector.test(cfg, resolver, ctx);
+      case DATABASES -> connector.discoverDatabases(cfg, resolver, ctx);
+      case FILES -> connector.browseFiles(cfg, resolver, ctx, path);
+    });
     TestResult result;
     try {
       result = future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);

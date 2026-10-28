@@ -12,5 +12,6 @@ class SshHints implements RuntimeHintsRegistrar {
   public void registerHints(RuntimeHints hints, ClassLoader classLoader) {
     // Tool, connection and policy schemas are read with getResourceAsStream: null in native without this hint.
     hints.resources().registerPattern("connectors/ssh/*.schema.json");
+    hints.resources().registerPattern("connectors/ssh-logs/*.schema.json");
   }
 }

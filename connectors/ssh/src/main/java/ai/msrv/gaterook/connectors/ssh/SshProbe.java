@@ -279,7 +279,7 @@ final class SshProbe {
   }
 
   /** "First connection to …": the person compares the fingerprint, then the key is pinned by the patch. */
-  private static TestResult.Confirmation trust(HostKeys.Check check, SshSettings.Target where, boolean bastion) {
+  static TestResult.Confirmation trust(HostKeys.Check check, SshSettings.Target where, boolean bastion) {
     PublicKey key = check.seen();
     String type = KeyUtils.getKeyType(key);
     String file = type.contains("ed25519") ? "ed25519" : type.contains("ecdsa") ? "ecdsa" : "rsa";
@@ -309,7 +309,7 @@ final class SshProbe {
     return patch;
   }
 
-  private static TestResult changed(HostKeys.Check check, SshSettings.Target where, ConnectorException e,
+  static TestResult changed(HostKeys.Check check, SshSettings.Target where, ConnectorException e,
       List<TestResult.Check> checks) {
     ObjectNode details = JsonNodeFactory.instance.objectNode();
     details.put("host", where.host());

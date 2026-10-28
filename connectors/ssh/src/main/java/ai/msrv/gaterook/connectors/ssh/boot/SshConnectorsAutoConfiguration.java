@@ -2,6 +2,7 @@ package ai.msrv.gaterook.connectors.ssh.boot;
 
 import ai.msrv.gaterook.connector.api.Connector;
 import ai.msrv.gaterook.connectors.ssh.SshConnector;
+import ai.msrv.gaterook.connectors.ssh.SshLogsConnector;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ImportRuntimeHints;
@@ -14,6 +15,11 @@ import org.springframework.context.annotation.ImportRuntimeHints;
 @AutoConfiguration
 @ImportRuntimeHints(SshHints.class)
 public class SshConnectorsAutoConfiguration {
+
+  @Bean
+  Connector sshLogsConnector() {
+    return new SshLogsConnector();
+  }
 
   @Bean
   Connector sshConnector() {

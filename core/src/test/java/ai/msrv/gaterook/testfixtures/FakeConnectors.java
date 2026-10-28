@@ -404,6 +404,19 @@ public class FakeConnectors {
     }
 
     @Override
+    public TestResult browseFiles(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, String path) {
+      TestResult result = test(cfg, secrets, ctx);
+      if (!result.ok()) return result;
+      ObjectNode details = JsonNodeFactory.instance.objectNode();
+      details.put("path", path == null ? "/var/log" : path);
+      details.put("parent", "/var");
+      details.putArray("entries").addObject().put("name", "app.log").put("path", "/var/log/app.log")
+          .put("type", "file").put("size", 42);
+      details.put("truncated", false);
+      return result.withDetails(details);
+    }
+
+    @Override
     public ToolResult execute(ToolCall call, ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx)
         throws ConnectorException {
       if (!ctx.approved() && classify(call, cfg, null).kind() != Classification.Kind.READ) {

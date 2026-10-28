@@ -67,6 +67,7 @@ For the full connector integration suite, follow [the Docker test-services guide
 | [Product decisions](docs/DECISIONS.md) | Accepted product and engineering decisions, with implementation caveats |
 | [Research](docs/research/README.md) | Protocol, client, connector, security, native-image, and plugin-host investigations |
 | [Development](docs/development.md) | Toolchains, build/run commands, tests, native builds, and troubleshooting |
+| [SSH log files](docs/ssh-log-files.md) | Remote file selection, searching, latest records, time ranges, and continuation |
 | [Repository layout](docs/repository-layout.md) | Source directories and their responsibilities |
 | [Migration scope](docs/migration.md) | Source inclusion, compatibility, and publication boundaries |
 | [Design kit](design/README.md) | Tokens, styles, assets, reference pages, and verification |

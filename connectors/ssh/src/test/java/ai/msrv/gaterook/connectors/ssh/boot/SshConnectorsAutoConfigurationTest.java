@@ -25,7 +25,7 @@ class SshConnectorsAutoConfigurationTest {
         .withConfiguration(AutoConfigurations.of(SshConnectorsAutoConfiguration.class))
         .run(ctx -> assertThat(ctx.getBeansOfType(Connector.class).values())
             .extracting(c -> c.manifest().id())
-            .containsExactly("ssh"));
+            .containsExactlyInAnyOrder("ssh", "ssh-logs"));
   }
 
   @Test

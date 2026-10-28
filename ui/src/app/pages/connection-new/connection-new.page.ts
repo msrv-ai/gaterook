@@ -34,7 +34,8 @@ import { GwAriaDisabled } from '../../kit/aria-disabled';
 import { GwDialog, GwDialogClose } from '../../kit/dialog';
 import { GwToggle } from '../../kit/disclosure';
 import { ConnectionFormValue, DatabaseDiscoveryRequest, GwConnectionForm, ProdDefault, signInTarget } from '../../kit/elements/connection-form/connection-form';
-import { databaseSelection } from '../../kit/elements/connection-form/database-selection';
+import { FileBrowseRequest, FileBrowseTrust } from '../../kit/elements/connection-form/remote-files';
+import { databaseSelection, removeConfigPath } from '../../kit/elements/connection-form/database-selection';
 import { GwConnectionTest, TestState, testConfirmTitle, testFacts } from '../../kit/elements/connection-form/connection-test';
 import { GwConnectorPicker } from '../../kit/elements/connector-card/connector-card';
 import { clientName } from '../../kit/elements/shared/client-mark';
@@ -43,6 +44,7 @@ import { MODES, healthLook } from '../../kit/elements/shared/dictionaries';
 import { literalParts } from '../../kit/elements/shared/literals';
 import { GwIcon } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
+import { getAt, setAt } from '../../schema-form/compile';
 import { SecretAction } from '../../schema-form/schema-form';
 import {
   EndpointChoice,
@@ -218,6 +220,7 @@ export class ConnectionNewPage {
   private copied: { readonly type: string; readonly env: Env; readonly config: JsonObject } | null = null;
   protected readonly databaseSetup = computed(() => !!this.spec() && !!databaseSelection(this.spec()!.schema));
   private databaseRun = 0;
+  private readonly fileConsents = new WeakMap<FileBrowseRequest, string>();
 
   /** The name and env as the person set them in Configure (the stepper and the later steps follow them). */
   readonly current = computed(() => this.form()?.current() ?? { name: this.startName(), env: this.startEnv() ?? 'dev' });
@@ -414,7 +417,7 @@ export class ConnectionNewPage {
   protected readonly confirmTitle = computed(() => testConfirmTitle(this.editConfirm(), this.host()));
   protected readonly confirmFacts = computed(() => testFacts(this.editConfirm()?.needsConfirmation?.data));
   /** The core asked before sending the stored secret to a new host (409 `send-secret-to-new-host`). */
-  protected readonly newHost = signal<{ readonly title: string; readonly detail: string; readonly value: ConnectionFormValue; readonly discoveryKey?: string } | null>(null);
+  protected readonly newHost = signal<{ readonly title: string; readonly detail: string; readonly value: ConnectionFormValue; readonly discoveryKey?: string; readonly fileRequest?: FileBrowseRequest } | null>(null);
   /** A prod save the core stopped for the rights of the connection's user (409 `confirm: danger`). */
   protected readonly dangerDialog = viewChild<GwDialog>('dangerDialog');
   protected readonly danger = signal<{ readonly title: string; readonly detail: string; readonly retry: () => void } | null>(null);
@@ -740,6 +743,61 @@ export class ConnectionNewPage {
       } else if (error?.kind === 'unprocessable') {
         this.applyFormErrors(error, true, request.value.name);
       }
+    }
+  }
+
+  /** Browsing uses the same draft credential and host-consent boundary as testing. */
+  async browseFiles(request: FileBrowseRequest, confirm: string | null = null): Promise<void> {
+    const form = this.form();
+    const picker = form?.files();
+    const spec = this.spec();
+    if (!form || !picker || !spec || !picker.current(request) || !picker.start(request)) return;
+    const gen = this.gen;
+    if (confirm) this.fileConsents.set(request, confirm);
+    try {
+      const result = await this.connections.browseFiles({ type: spec.type, env: request.value.env,
+        config: request.value.config, secrets: request.value.secrets, path: request.path,
+        ...(this.mode() === 'edit' ? { existing: this.name() } : {}), ...(confirm ? { confirm } : {}) });
+      if (gen === this.gen && form === this.form()) picker.complete(request, result);
+    } catch (e) {
+      if (gen !== this.gen || form !== this.form()) return;
+      const error = isApiError(e) ? e : null;
+      if (!picker.complete(request, null, error?.detail ?? "The core didn't answer. Try again.")) return;
+      if (error?.confirm === 'send-secret-to-new-host') {
+        this.newHost.set({ title: error.title, detail: error.detail, value: request.value, fileRequest: request });
+        this.hostDialog()?.openAfterRender();
+      } else if (error?.kind === 'unprocessable') this.applyFormErrors(error, true, request.value.name);
+    }
+  }
+
+  async trustFiles(event: FileBrowseTrust): Promise<void> {
+    const form = this.form();
+    const picker = form?.files();
+    if (!form || !picker?.current(event.request)) return;
+    const gen = this.gen;
+    try {
+      const result = await this.connections.confirmDraft(event.confirmationId);
+      if (gen !== this.gen || form !== this.form() || !picker.current(event.request)) return;
+      form.state().model.update((model) => {
+        let patched = merge(model, result.config) as JsonObject;
+        // A pending trust response must not restore file permissions removed while it was in flight.
+        for (const path of [picker.selection().rootPath, picker.selection().path]) {
+          const current = getAt(model, path);
+          patched = current === null ? removeConfigPath(patched, path) : setAt(patched, path, current);
+        }
+        return patched;
+      });
+      // The trusted key changes the fingerprint. Browse again using the current draft.
+      picker.reset();
+      const trustedDraft = draftKey(this.spec()?.type ?? null, form.value());
+      const consent = this.fileConsents.get(event.request) ?? null;
+      afterNextRender(() => {
+        if (gen !== this.gen || form !== this.form() || trustedDraft !== draftKey(this.spec()?.type ?? null, form.value())) return;
+        picker.load(event.request.path, (request) => void this.browseFiles(request, consent));
+      }, { injector: this.injector });
+    } catch (e) {
+      if (gen === this.gen && form === this.form()) picker.complete(event.request, null,
+        isApiError(e) ? e.detail : 'Could not trust the host key. Browse again to retry.');
     }
   }
 
@@ -1093,7 +1151,8 @@ export class ConnectionNewPage {
   protected sendToNewHost(): void {
     const pending = this.newHost();
     this.hostDialog()?.close('send');
-    if (pending?.discoveryKey) void this.loadDatabases({ key: pending.discoveryKey, value: pending.value }, 'send-secret-to-new-host');
+    if (pending?.fileRequest) void this.browseFiles(pending.fileRequest, 'send-secret-to-new-host');
+    else if (pending?.discoveryKey) void this.loadDatabases({ key: pending.discoveryKey, value: pending.value }, 'send-secret-to-new-host');
     else if (pending) void this.saveEdit(pending.value, 'send-secret-to-new-host');
   }
 

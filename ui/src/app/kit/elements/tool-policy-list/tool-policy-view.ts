@@ -174,6 +174,8 @@ export function limitFields(type: string | null): LimitField[] {
       return [field('rowLimit', 'Row limit', 'rows', 'sql'), field('statementTimeoutMs', 'Timeout', 's', 'sql', 1000), field('maxResponseKb', 'Max response size', 'KB', 'sql')];
     case 'ssh':
       return [field('commandTimeoutSeconds', 'Timeout', 's', 'ssh'), field('maxOutputKb', 'Max output size', 'KB', 'ssh')];
+    case 'ssh-logs':
+      return [...limitFields('logs'), field('maxOutputKb', 'Max output size', 'KB', 'ssh')];
     case 'logs':
       return [field('logLines', 'Line limit', 'lines', 'limits'), field('toolTimeoutSeconds', 'Timeout', 's', 'limits'), field('maxResponseKb', 'Max response size', 'KB', 'limits')];
     case 'http':

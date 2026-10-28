@@ -2851,6 +2851,243 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
     "patternProperties": {
       "^(command|env|inheritEnv|url|headers)$": {}
     }
+  },
+  "ssh-logs": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "connection",
+      "credentials"
+    ],
+    "x-card": {
+      "description": "Read selected log files over SSH without running shell commands."
+    },
+    "x-file-selection": {
+      "rootPath": "/logs/root",
+      "path": "/logs/allowedFiles",
+      "required": true
+    },
+    "properties": {
+      "connection": {
+        "type": "object",
+        "title": "Connection",
+        "additionalProperties": false,
+        "description": "The core connects from this machine, so your VPN and hosts file apply.",
+        "required": [
+          "host",
+          "username"
+        ],
+        "properties": {
+          "host": {
+            "type": "string",
+            "title": "Host",
+            "maxLength": 253
+          },
+          "port": {
+            "type": "integer",
+            "title": "Port",
+            "minimum": 1,
+            "maximum": 65535,
+            "default": 22
+          },
+          "username": {
+            "type": "string",
+            "title": "User",
+            "pattern": "^[a-z_][a-z0-9_.-]{0,31}$",
+            "description": "A dedicated account with read access to the selected logs."
+          }
+        }
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "additionalProperties": false,
+        "required": [
+          "method"
+        ],
+        "properties": {
+          "method": {
+            "enum": [
+              "password",
+              "privateKeyFile"
+            ],
+            "default": "password",
+            "x-enumTitles": [
+              "Password",
+              "Private key file"
+            ],
+            "title": "Authentication"
+          },
+          "password": true,
+          "privateKeyPath": true,
+          "passphrase": true
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "password"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "password"
+              ],
+              "properties": {
+                "password": {
+                  "type": "string",
+                  "title": "Password",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "privateKeyFile"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "privateKeyPath"
+              ],
+              "properties": {
+                "privateKeyPath": {
+                  "type": "string",
+                  "title": "Private key file",
+                  "minLength": 1,
+                  "maxLength": 4096,
+                  "description": "An absolute path on this computer or ~/…; OpenSSH or PEM. The file is read locally and is never uploaded."
+                },
+                "passphrase": {
+                  "type": "string",
+                  "title": "Key passphrase (optional)",
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "logs": {
+        "type": "object",
+        "title": "Log format",
+        "additionalProperties": false,
+        "properties": {
+          "root": {
+            "type": "string",
+            "title": "Remote log folder",
+            "maxLength": 4096,
+            "description": "Choose an absolute folder on the SSH server. Symbolic links are not followed."
+          },
+          "allowedFiles": {
+            "type": "array",
+            "title": "Allowed log files",
+            "maxItems": 500,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "description": "Exact file paths relative to the selected folder. New or rotated names are not allowed automatically."
+          },
+          "format": {
+            "type": "string",
+            "title": "Format",
+            "enum": [
+              "auto",
+              "text",
+              "jsonl"
+            ],
+            "x-enumTitles": [
+              "Detect text or JSON Lines",
+              "Text",
+              "JSON Lines"
+            ],
+            "default": "auto",
+            "description": "Auto detects JSON objects per line and otherwise reads plain text."
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Time zone",
+            "maxLength": 100,
+            "default": "UTC",
+            "description": "Used only when a timestamp has no UTC offset. Use an IANA zone such as Europe/Madrid or UTC. Ambiguous daylight-saving times are reported as unparsed."
+          },
+          "timestampField": {
+            "type": "string",
+            "title": "JSON timestamp field",
+            "maxLength": 256,
+            "description": "Optional exact field name, dotted path or JSON Pointer, such as @timestamp, event.time or /event/time. Empty detects @timestamp, timestamp, time or ts."
+          },
+          "levelField": {
+            "type": "string",
+            "title": "JSON level field",
+            "maxLength": 256,
+            "description": "Optional exact field name, dotted path or JSON Pointer. Empty detects level, severity or log.level."
+          },
+          "timestampPattern": {
+            "type": "string",
+            "title": "Timestamp pattern",
+            "maxLength": 256,
+            "description": "Optional Java date-time pattern for the text prefix or JSON timestamp, for example uuuu-MM-dd HH:mm:ss,SSS. Empty recognizes ISO timestamps and common year-month-day text dates. Include the year; dates without a year are not inferred."
+          },
+          "timestampUnit": {
+            "type": "string",
+            "title": "Numeric timestamp unit",
+            "enum": [
+              "milliseconds",
+              "seconds"
+            ],
+            "x-enumTitles": [
+              "Unix milliseconds",
+              "Unix seconds"
+            ],
+            "default": "milliseconds",
+            "description": "Unit of numeric timestamps in JSON Lines. Text date strings are parsed independently."
+          }
+        },
+        "x-collapsed": true,
+        "description": "Parse text logs and JSON Lines for time and level filters. Each physical line is one record; timestamps without an offset use the configured time zone."
+      },
+      "hostKeys": {
+        "type": "object",
+        "title": "Host key",
+        "x-gateway-hostkey": true,
+        "additionalProperties": false,
+        "properties": {
+          "pinned": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "string",
+              "maxLength": 16000
+            },
+            "description": "Filled by Test connection after you confirm the fingerprint.",
+            "title": "Trusted host keys"
+          },
+          "knownHosts": {
+            "type": "string",
+            "x-widget": "textarea",
+            "maxLength": 64000,
+            "description": "Optional known_hosts lines, hashed lines too.",
+            "title": "Known hosts"
+          }
+        },
+        "x-collapsed": true
+      }
+    }
   }
 };
 
@@ -5401,6 +5638,456 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "legacyAlgorithms": false,
         "probeSudo": true
       }
+    }
+  },
+  "ssh-logs": {
+    "sections": [
+      "/connection",
+      "/credentials",
+      "/logs",
+      "/hostKeys"
+    ],
+    "loose": [],
+    "rows": {
+      "/connection": [
+        [
+          "/connection/host",
+          "/connection/port"
+        ],
+        [
+          "/connection/username"
+        ]
+      ],
+      "/credentials": [
+        [
+          "/credentials/method"
+        ],
+        [
+          "/credentials/password"
+        ],
+        [
+          "/credentials/privateKeyPath"
+        ],
+        [
+          "/credentials/passphrase"
+        ]
+      ],
+      "/logs": [
+        [
+          "/logs/root"
+        ],
+        [
+          "/logs/allowedFiles"
+        ],
+        [
+          "/logs/format"
+        ],
+        [
+          "/logs/timezone"
+        ],
+        [
+          "/logs/timestampField"
+        ],
+        [
+          "/logs/levelField"
+        ],
+        [
+          "/logs/timestampPattern"
+        ],
+        [
+          "/logs/timestampUnit"
+        ]
+      ],
+      "/hostKeys": [
+        [
+          "/hostKeys/pinned"
+        ],
+        [
+          "/hostKeys/knownHosts"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/connection",
+        "kind": "object",
+        "title": "Connection",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/host",
+        "kind": "text",
+        "title": "Host",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/port",
+        "kind": "number",
+        "title": "Port",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/username",
+        "kind": "text",
+        "title": "User",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/method",
+        "kind": "select",
+        "title": "Authentication",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "password",
+          "privateKeyFile"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/password",
+        "kind": "secret",
+        "title": "Password",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.method in [\"password\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/privateKeyPath",
+        "kind": "text",
+        "title": "Private key file",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.method in [\"privateKeyFile\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/passphrase",
+        "kind": "secret",
+        "title": "Key passphrase (optional)",
+        "required": false,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.method in [\"privateKeyFile\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/logs",
+        "kind": "object",
+        "title": "Log format",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/logs/root",
+        "kind": "text",
+        "title": "Remote log folder",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/logs/allowedFiles",
+        "kind": "tags",
+        "title": "Allowed log files",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/logs/format",
+        "kind": "select",
+        "title": "Format",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "auto",
+          "text",
+          "jsonl"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/logs/timezone",
+        "kind": "text",
+        "title": "Time zone",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/logs/timestampField",
+        "kind": "text",
+        "title": "JSON timestamp field",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/logs/levelField",
+        "kind": "text",
+        "title": "JSON level field",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/logs/timestampPattern",
+        "kind": "text",
+        "title": "Timestamp pattern",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/logs/timestampUnit",
+        "kind": "select",
+        "title": "Numeric timestamp unit",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "milliseconds",
+          "seconds"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/hostKeys",
+        "kind": "object",
+        "title": "Host key",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/hostKeys/pinned",
+        "kind": "tags",
+        "title": "Trusted host keys",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/hostKeys/knownHosts",
+        "kind": "textarea",
+        "title": "Known hosts",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "connection": {
+        "port": 22
+      },
+      "credentials": {
+        "method": "password"
+      },
+      "logs": {
+        "format": "auto",
+        "timezone": "UTC",
+        "timestampUnit": "milliseconds"
+      },
+      "hostKeys": {}
+    },
+    "prodDefaults": {
+      "connection": {
+        "port": 22
+      },
+      "credentials": {
+        "method": "password"
+      },
+      "logs": {
+        "format": "auto",
+        "timezone": "UTC",
+        "timestampUnit": "milliseconds"
+      },
+      "hostKeys": {}
     }
   },
   "logs": {

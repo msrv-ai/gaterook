@@ -4,8 +4,8 @@
 
   sshd-common declares RootedFileSystemProvider in META-INF/services/java.nio.file.spi.FileSystemProvider. GraalVM 25
   instantiates installed file system providers at build time, and that object in the image heap fails the native
-  build. The rooted FS is only used by the SFTP server, which we don't ship. This module re-packages sshd-core and
-  sshd-common unchanged (no relocation) minus that service file.
+  build. The rooted FS is only used by the SFTP server, which the application does not run. This module re-packages sshd-core, sshd-common and
+  sshd-sftp unchanged (no relocation) minus that service file.
 
   The originals are <optional>: Maven 3.9 doesn't hand the dependency-reduced POM to reactor siblings (MNG-5899),
   so non-optional originals would leak to connectors/ssh next to the shaded copy. connectors/ssh additionally
@@ -34,6 +34,11 @@
     <dependency>
       <groupId>org.apache.sshd</groupId>
       <artifactId>sshd-common</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.sshd</groupId>
+      <artifactId>sshd-sftp</artifactId>
       <optional>true</optional>
     </dependency>
     <!-- The one runtime dependency of the originals that consumers still need. -->
@@ -78,11 +83,18 @@
                 <includes>
                   <include>org.apache.sshd:sshd-core</include>
                   <include>org.apache.sshd:sshd-common</include>
+                  <include>org.apache.sshd:sshd-sftp</include>
                 </includes>
               </artifactSet>
               <filters>
                 <filter>
                   <artifact>org.apache.sshd:sshd-common</artifact>
+                  <excludes>
+                    <exclude>META-INF/services/java.nio.file.spi.FileSystemProvider</exclude>
+                  </excludes>
+                </filter>
+                <filter>
+                  <artifact>org.apache.sshd:sshd-sftp</artifact>
                   <excludes>
                     <exclude>META-INF/services/java.nio.file.spi.FileSystemProvider</exclude>
                   </excludes>
