@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import ai.msrv.gaterook.connector.api.ConnectorException;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.AlgorithmParameters;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -28,6 +30,7 @@ import org.apache.sshd.common.config.keys.writer.openssh.OpenSSHKeyPairResourceW
 import org.apache.sshd.common.keyprovider.KeyPairProvider;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /** The key formats of the config form: OpenSSH (plain, bcrypt-encrypted), PKCS#8 (plain, PBES2-encrypted). */
 class PrivateKeysTest {
@@ -83,6 +86,20 @@ class PrivateKeysTest {
         .hasMessageContaining("shorter than 2048 bits");
     assertThatThrownBy(() -> PrivateKeys.parse("not a key".toCharArray(), null, "k"))
         .isInstanceOf(ConnectorException.class);
+  }
+
+  @Test
+  void localKeyReadsAreBoundedAndRequireARegularFile(@TempDir Path directory) throws Exception {
+    Path key = directory.resolve("identity");
+    Files.writeString(key, "a".repeat(20000));
+    assertThat(PrivateKeys.readFile(key)).hasSize(20000);
+    Files.writeString(key, "a".repeat(20001));
+    assertThatThrownBy(() -> PrivateKeys.readFile(key)).isInstanceOf(ConnectorException.class)
+        .hasMessage("The local private key file is larger than 20,000 bytes.");
+    for (Path invalid : List.of(directory, directory.resolve("missing"))) {
+      assertThatThrownBy(() -> PrivateKeys.readFile(invalid)).isInstanceOf(ConnectorException.class)
+          .hasMessage("The local private key path must point to a regular file.");
+    }
   }
 
   @Test

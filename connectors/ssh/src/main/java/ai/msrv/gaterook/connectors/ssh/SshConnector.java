@@ -318,7 +318,7 @@ public final class SshConnector implements Connector {
     SshExec.Result r = null;
     try {
       for (int attempt = 0; r == null; attempt++) {
-        try (SshSessions.Lease lease = sessions.acquire(cfg, s, secrets, openWithin, fresh, keyId)) {
+        try (SshSessions.Lease lease = sessions.acquire(cfg, s, secrets, openWithin, fresh, keyId, ctx)) {
           // A pooled session signed in for an earlier call: this call resolved no password, yet must mask its echo.
           lease.opened.taint(ctx);
           r = runOn(lease, command, cfg, ctx);

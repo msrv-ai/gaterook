@@ -5,6 +5,8 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.StreamCorruptedException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.AlgorithmParameters;
 import java.security.GeneralSecurityException;
 import java.security.KeyPair;
@@ -37,6 +39,49 @@ final class PrivateKeys {
   private static final String ENCRYPTED_PKCS8 = "-----BEGIN ENCRYPTED PRIVATE KEY-----";
 
   private PrivateKeys() {}
+
+  static Path path(String value) throws ConnectorException {
+    if (value == null || value.isBlank() || value.length() > 4096
+        || value.codePoints().anyMatch(c -> Character.isISOControl(c) || Character.getType(c) == Character.FORMAT)) {
+      throw ConnectorException.badInput("Enter the local private key file path.");
+    }
+    String expanded = value.startsWith("~/") ? System.getProperty("user.home") + value.substring(1) : value;
+    Path path;
+    try {
+      path = Path.of(expanded);
+    } catch (RuntimeException e) {
+      throw ConnectorException.badInput("The local private key path is invalid.");
+    }
+    if (!path.isAbsolute()) {
+      throw ConnectorException.badInput("The private key path must be absolute or start with ~/.");
+    }
+    return path;
+  }
+
+  /** Read only after host-key verification; the caller zeroes the returned key after parsing it. */
+  static char[] readFile(Path path) throws ConnectorException {
+    if (!Files.isRegularFile(path)) {
+      throw ConnectorException.badInput("The local private key path must point to a regular file.");
+    }
+    byte[] data;
+    try (var input = Files.newInputStream(path)) {
+      data = input.readNBytes(20001);
+    } catch (IOException e) {
+      throw ConnectorException.resourceError("Cannot read the local private key file. Check its path and permissions.", null);
+    }
+    try {
+      if (data.length > 20000) {
+        throw ConnectorException.badInput("The local private key file is larger than 20,000 bytes.");
+      }
+      char[] key = new char[data.length];
+      for (int i = 0; i < data.length; i++) {
+        key[i] = data[i] >= 0 ? (char) data[i] : '\ufffd';
+      }
+      return key;
+    } finally {
+      Arrays.fill(data, (byte) 0);
+    }
+  }
 
   static KeyPair parse(char[] keyText, char[] passphrase, String field) throws ConnectorException {
     byte[] pem = null;

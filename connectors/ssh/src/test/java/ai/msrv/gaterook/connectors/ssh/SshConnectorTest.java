@@ -19,6 +19,7 @@ import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Nature;
 import ai.msrv.gaterook.connector.api.ToolResult;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -230,6 +231,20 @@ class SshConnectorTest {
     assertThat(host.reason()).isEqualTo("Sign-in with a password isn't allowed on dev.");
     assertThat(host.hint()).isEqualTo("Switch dev-vm to Vault SSH CA certificate or private key in Setup.");
     assertThat(bastion.ruleId()).isEqualTo("prod.ssh.credential-method");
+  }
+
+  @Test
+  void localKeyFilesFollowThePrivateKeyCredentialPolicyForTheHostAndBastion() {
+    ObjectNode config = TestConfigs.password(NO_SSH, null);
+    config.putObject("credentials").put("method", "privateKeyFile")
+        .put("privateKeyPath", Path.of("target", "test-keys", "host").toAbsolutePath().toString());
+    config.putObject("jump").put("host", "bastion.example.test").putObject("credentials")
+        .put("method", "privateKeyFile").put("privateKeyPath", Path.of("target", "test-keys", "bastion").toAbsolutePath().toString());
+    ConnectionConfig cfg = TestConfigs.connection("c1", "dev-vm", Env.DEV, 4, config);
+    assertThat(connector.classify(run("compose-ps", null), cfg,
+        policy(Env.DEV, "{\"allowedCredentialMethods\":[\"privateKey\"]}")).kind()).isEqualTo(Classification.Kind.READ);
+    assertThat(connector.classify(run("compose-ps", null), cfg,
+        policy(Env.DEV, "{\"allowedCredentialMethods\":[\"password\"]}")).ruleId()).isEqualTo("dev.ssh.credential-method");
   }
 
   @Test

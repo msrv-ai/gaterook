@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.Env;
+import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -46,6 +47,38 @@ class SshSettingsTest {
     config.withObjectProperty("credentials").put("method", "inherit");
     assertThatThrownBy(() -> settings(config)).isInstanceOf(ConnectorException.class)
         .hasMessageContaining("credentials.method");
+  }
+
+  @Test
+  void localKeyFilesUsePrivateKeyPolicyAndTheCorrectCredentialScope() throws Exception {
+    ObjectNode config = TestConfigs.password(22, null);
+    config.putObject("credentials").put("method", "privateKeyFile").put("privateKeyPath", "~/keys/target");
+    config.putObject("jump").put("host", "bastion.example.test");
+    SshSettings inherited = settings(config);
+    assertThat(inherited.credentials().method()).isEqualTo(SshSettings.Method.PRIVATE_KEY);
+    assertThat(inherited.credentials().privateKeyPath()).isEqualTo(Path.of(System.getProperty("user.home"), "keys/target"));
+    assertThat(inherited.jump().credentials()).isSameAs(inherited.credentials());
+
+    Path bastionKey = Path.of("target", "test-keys", "bastion").toAbsolutePath();
+    config.withObjectProperty("jump").putObject("credentials").put("method", "privateKeyFile")
+        .put("privateKeyPath", bastionKey.toString());
+    SshSettings separate = settings(config);
+    assertThat(separate.jump().credentials().privateKeyPath()).isEqualTo(bastionKey);
+    assertThat(separate.jump().credentials().passphrase()).isEqualTo("/jump/credentials/passphrase");
+    assertThat(config.at("/credentials/method").asString()).isEqualTo("privateKeyFile");
+  }
+
+  @Test
+  void keyFileAuthenticationRequiresAnAbsolutePathWithoutControlCharacters() {
+    for (String path : new String[] {"", "keys/id_ed25519", "~other/key", "/keys/\nkey", "/keys/\u200bkey", "/" + "a".repeat(4096)}) {
+      ObjectNode config = TestConfigs.password(22, null);
+      config.putObject("credentials").put("method", "privateKeyFile").put("privateKeyPath", path);
+      assertThatThrownBy(() -> settings(config)).isInstanceOf(ConnectorException.class);
+    }
+    ObjectNode missing = TestConfigs.password(22, null);
+    missing.putObject("credentials").put("method", "privateKeyFile");
+    assertThatThrownBy(() -> settings(missing)).isInstanceOf(ConnectorException.class)
+        .hasMessage("Enter the local private key file path.");
   }
 
   private static SshSettings settings(ObjectNode config) throws ConnectorException {

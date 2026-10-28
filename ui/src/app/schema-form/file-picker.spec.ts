@@ -1,44 +1,66 @@
-import { Component } from '@angular/core';
+import { Component, Injector, input } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { CONNECTOR_FORMS } from '../../testing/connector-schemas';
+import { JsonObject } from '../core/api/types';
 import { DesktopBridge } from '../core/desktop/desktop-bridge';
 import { provideKitIcons } from '../kit/icons';
-import { createSchemaForm } from './schema-form';
+import { SchemaForm, createSchemaForm } from './schema-form';
 import { GwSchemaForm } from './schema-form.component';
 
-@Component({ imports: [GwSchemaForm], template: '<gw-schema-form [form]="form" />' })
+@Component({ imports: [GwSchemaForm], template: '<gw-schema-form [form]="form()" />' })
 class Host {
-  readonly form = createSchemaForm(CONNECTOR_FORMS['ssh-logs'], { idPrefix: 'key', current: {
-    connection: { host: 'logs.example.test', username: 'reader' },
-    credentials: { method: 'privateKeyFile', privateKeyPath: '~/keys/original' },
-  } });
+  readonly form = input.required<SchemaForm>();
 }
 
-async function render(choose = vi.fn<() => Promise<string | null>>().mockResolvedValue('/example/keys/reader'), available = true) {
+async function render(choose = vi.fn<() => Promise<string | null>>().mockResolvedValue('/example/keys/reader'),
+    available = true, connectorType = 'ssh', extra: JsonObject = {}) {
   TestBed.configureTestingModule({ providers: [provideKitIcons(),
     { provide: DesktopBridge, useValue: { privateKeyPickerAvailable: available, choosePrivateKeyFile: choose } }] });
+  const form = createSchemaForm(CONNECTOR_FORMS[connectorType], { idPrefix: 'key', injector: TestBed.inject(Injector), current: {
+    connection: { host: 'ssh.example.test', username: 'reader' },
+    credentials: { method: 'privateKeyFile', privateKeyPath: '~/keys/original' },
+    ...extra,
+  } });
   const fixture = TestBed.createComponent(Host);
+  fixture.componentRef.setInput('form', form);
   const settle = async () => { await Promise.resolve(); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges(); };
   await settle();
   const el = fixture.nativeElement as HTMLElement;
-  const input = () => el.querySelector<HTMLInputElement>('#key-credentials-privateKeyPath')!;
-  const button = () => el.querySelector<HTMLButtonElement>('#key-credentials-privateKeyPath-choose')!;
+  const input = (prefix = 'credentials') => el.querySelector<HTMLInputElement>(`#key-${prefix}-privateKeyPath`)!;
+  const button = (prefix = 'credentials') => el.querySelector<HTMLButtonElement>(`#key-${prefix}-privateKeyPath-choose`)!;
   const type = async (value: string) => { input().value = value; input().dispatchEvent(new Event('input', { bubbles: true })); await settle(); };
-  return { fixture, settle, input, button, type, choose, el, form: fixture.componentInstance.form };
+  return { fixture, settle, input, button, type, choose, el, form };
 }
 
 describe('private key path field', () => {
-  it('inserts the selected path into the editable configuration field without replacing log settings or secrets', async () => {
-    const p = await render();
+  it.each(['ssh', 'ssh-logs'])('%s: saves the selected path as configuration and keeps the passphrase separate', async (type) => {
+    const extra: JsonObject = type === 'ssh' ? { runbooksOnly: true } : { logs: { root: '/var/log', allowedFiles: ['app.log'] } };
+    const p = await render(undefined, true, type, extra);
+    const passphrase = p.form.compiled.all.find((node) => node.pointer === '/credentials/passphrase' && p.form.visible(node))!;
+    p.form.setSecret(passphrase, 'test-only-key-passphrase');
     expect(p.button().type).toBe('button');
     expect(p.button().getAttribute('aria-label')).toBe('Choose private key file');
     p.button().click(); await p.settle();
     expect(p.choose).toHaveBeenCalledExactlyOnceWith();
     expect(p.input().value).toBe('/example/keys/reader');
     expect(p.form.value()['credentials']).toEqual({ method: 'privateKeyFile', privateKeyPath: '/example/keys/reader' });
-    expect(p.form.secrets()).toEqual({});
+    expect(p.form.value()).toMatchObject(extra);
+    expect(p.form.secretInputs()).toEqual({ '/credentials/passphrase': { source: 'local', value: 'test-only-key-passphrase' } });
     await p.type('~/keys/manual');
     expect(p.form.value()['credentials']).toEqual({ method: 'privateKeyFile', privateKeyPath: '~/keys/manual' });
+  });
+
+  it('chooses a separate bastion key without changing the connection key', async () => {
+    const p = await render(vi.fn<() => Promise<string | null>>().mockResolvedValue('/example/keys/bastion'), true, 'ssh', {
+      jump: { host: 'bastion.example.test', credentials: { method: 'privateKeyFile', privateKeyPath: '~/keys/original-bastion' } },
+    });
+    p.form.setExpanded(p.form.compiled.all.find((node) => node.pointer === '/jump')!, true);
+    await p.settle();
+    p.button('jump-credentials').click(); await p.settle();
+    expect(p.input('jump-credentials').value).toBe('/example/keys/bastion');
+    expect(p.input().value).toBe('~/keys/original');
+    expect(p.form.value()['jump']).toMatchObject({ credentials: { method: 'privateKeyFile', privateKeyPath: '/example/keys/bastion' } });
+    expect(p.form.secretInputs()).toEqual({});
   });
 
   it('keeps the existing path when the dialog is cancelled', async () => {

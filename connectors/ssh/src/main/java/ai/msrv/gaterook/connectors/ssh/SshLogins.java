@@ -8,6 +8,7 @@ import java.security.GeneralSecurityException;
 import java.security.KeyPair;
 import java.security.PublicKey;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Map;
 import org.apache.sshd.client.session.ClientSession;
 import org.apache.sshd.common.config.keys.KeyUtils;
@@ -75,7 +76,7 @@ final class SshLogins {
    * @param forBastion a Vault certificate for a bastion needs {@code permit-port-forwarding}
    */
   static Login login(SshSettings.Credentials c, SshSettings.Target target, SecretResolver secrets, String keyId,
-      boolean forBastion) throws ConnectorException {
+      boolean forBastion, ExecContext ctx) throws ConnectorException {
     return switch (c.method()) {
       case PASSWORD -> {
         try (SecretResolver.Secret password = secrets.secret(c.password())) {
@@ -84,27 +85,35 @@ final class SshLogins {
         }
       }
       case PRIVATE_KEY -> {
-        char[] passphrase = null;
-        try (SecretResolver.Secret key = secrets.secret(c.privateKey())) {
-          SecretResolver.Secret p = secrets.isSet(c.passphrase()) ? secrets.secret(c.passphrase()) : null;
-          try {
-            passphrase = p == null ? null : p.chars();
-            KeyPair pair = PrivateKeys.parse(key.chars(), passphrase, c.privateKey());
-            Instant notAfter = null;
-            if (c.certificate() != null) {
-              pair = PrivateKeys.withCertificate(pair, c.certificate());
-              notAfter = validBefore((OpenSshCertificate) pair.getPublic());
-            }
-            yield new Login(c.method(), null, pair, notAfter, null, 0);
-          } finally {
-            if (p != null) {
-              p.close();
-            }
-          }
+        KeyPair pair = privateKey(c, secrets, ctx);
+        Instant notAfter = null;
+        if (c.certificate() != null) {
+          pair = PrivateKeys.withCertificate(pair, c.certificate());
+          notAfter = validBefore((OpenSshCertificate) pair.getPublic());
         }
+        yield new Login(c.method(), null, pair, notAfter, null, 0);
       }
       case VAULT_SSH_CA -> vault(c, target, secrets, keyId, forBastion);
     };
+  }
+
+  private static KeyPair privateKey(SshSettings.Credentials c, SecretResolver secrets, ExecContext ctx)
+      throws ConnectorException {
+    char[] localKey = null;
+    try (SecretResolver.Secret key = c.privateKeyPath() == null ? secrets.secret(c.privateKey()) : null) {
+      if (c.privateKeyPath() != null) {
+        localKey = PrivateKeys.readFile(c.privateKeyPath());
+        ctx.taint(new String(localKey));
+      }
+      try (SecretResolver.Secret passphrase = secrets.isSet(c.passphrase()) ? secrets.secret(c.passphrase()) : null) {
+        return PrivateKeys.parse(localKey == null ? key.chars() : localKey,
+            passphrase == null ? null : passphrase.chars(), c.privateKey());
+      }
+    } finally {
+      if (localKey != null) {
+        Arrays.fill(localKey, '\0');
+      }
+    }
   }
 
   private static Login vault(SshSettings.Credentials c, SshSettings.Target target, SecretResolver secrets,

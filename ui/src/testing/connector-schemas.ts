@@ -798,12 +798,14 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           "method": {
             "enum": [
               "vaultSshCa",
+              "privateKeyFile",
               "privateKey",
               "password"
             ],
             "default": "vaultSshCa",
             "x-enumTitles": [
               "Vault SSH CA: a fresh certificate per call",
+              "Private key file",
               "Private key",
               "Password"
             ]
@@ -869,6 +871,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
                       "enum": [
                         "inherit",
                         "vaultSshCa",
+                        "privateKeyFile",
                         "privateKey",
                         "password"
                       ],
@@ -876,6 +879,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
                       "x-enumTitles": [
                         "Use connection credentials",
                         "Vault SSH CA: a fresh certificate per call",
+                        "Private key file",
                         "Private key",
                         "Password"
                       ]
@@ -949,6 +953,7 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           "method": true,
           "vault": true,
           "privateKey": true,
+          "privateKeyPath": true,
           "passphrase": true,
           "certificate": true,
           "password": true
@@ -1024,9 +1029,50 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
                   "x-widget": "textarea",
                   "maxLength": 20000,
                   "description": "OpenSSH or PEM (PKCS#1, PKCS#8): ed25519, ECDSA or RSA ≥ 2048."
-                },
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "const": "privateKeyFile"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "privateKeyPath"
+              ],
+              "properties": {
+                "privateKeyPath": {
+                  "type": "string",
+                  "title": "Private key file",
+                  "x-file-picker": "ssh-private-key",
+                  "minLength": 1,
+                  "maxLength": 4096,
+                  "description": "An absolute path on this computer or ~/…; OpenSSH or PEM. The file is read locally and is never uploaded."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "method": {
+                  "enum": [
+                    "privateKey",
+                    "privateKeyFile"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
                 "passphrase": {
                   "type": "string",
+                  "title": "Key passphrase (optional)",
                   "writeOnly": true,
                   "x-gateway-secret": "value",
                   "format": "password"
@@ -5388,6 +5434,9 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
           "/credentials/privateKey"
         ],
         [
+          "/credentials/privateKeyPath"
+        ],
+        [
           "/credentials/passphrase"
         ],
         [
@@ -5440,6 +5489,9 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         ],
         [
           "/jump/credentials/privateKey"
+        ],
+        [
+          "/jump/credentials/privateKeyPath"
         ],
         [
           "/jump/credentials/passphrase"
@@ -5655,6 +5707,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "unit": null,
         "options": [
           "vaultSshCa",
+          "privateKeyFile",
           "privateKey",
           "password"
         ],
@@ -5797,16 +5850,34 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "confirm": null
       },
       {
+        "pointer": "/credentials/privateKeyPath",
+        "kind": "text",
+        "title": "Private key file",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "credentials.method in [\"privateKeyFile\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
         "pointer": "/credentials/passphrase",
         "kind": "secret",
-        "title": "passphrase",
+        "title": "Key passphrase (optional)",
         "required": false,
         "secret": "value",
         "mono": false,
         "unit": null,
         "options": [],
         "when": [
-          "credentials.method in [\"privateKey\"]"
+          "credentials.method in [\"privateKey\",\"privateKeyFile\"]"
         ],
         "multiline": false,
         "envDefault": {},
@@ -5824,7 +5895,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "unit": null,
         "options": [],
         "when": [
-          "credentials.method in [\"privateKey\"]"
+          "credentials.method in [\"privateKey\",\"privateKeyFile\"]"
         ],
         "multiline": false,
         "envDefault": {},
@@ -5947,6 +6018,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "options": [
           "inherit",
           "vaultSshCa",
+          "privateKeyFile",
           "privateKey",
           "password"
         ],
@@ -6098,9 +6170,28 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "confirm": null
       },
       {
+        "pointer": "/jump/credentials/privateKeyPath",
+        "kind": "text",
+        "title": "Private key file",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "jump.host length >= 1",
+          "jump.credentials.method in [\"privateKeyFile\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
         "pointer": "/jump/credentials/passphrase",
         "kind": "secret",
-        "title": "passphrase",
+        "title": "Key passphrase (optional)",
         "required": false,
         "secret": "value",
         "mono": false,
@@ -6108,7 +6199,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "options": [],
         "when": [
           "jump.host length >= 1",
-          "jump.credentials.method in [\"privateKey\"]"
+          "jump.credentials.method in [\"privateKey\",\"privateKeyFile\"]"
         ],
         "multiline": false,
         "envDefault": {},
@@ -6127,7 +6218,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "options": [],
         "when": [
           "jump.host length >= 1",
-          "jump.credentials.method in [\"privateKey\"]"
+          "jump.credentials.method in [\"privateKey\",\"privateKeyFile\"]"
         ],
         "multiline": false,
         "envDefault": {},
