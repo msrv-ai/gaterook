@@ -34,11 +34,17 @@ class PolicyEngineTest {
   /** Schema defaults per environment, with environments that "didn't verify" on demand. */
   static final class StubPolicies extends PolicyService {
 
-    final PolicySchemas schemas = PolicySchemas.forManifests(List.of(SQL), JSON);
+    final PolicySchemas schemas;
+    final ObjectNode explicit = JSON.createObjectNode();
     final Set<Env> tampered = EnumSet.noneOf(Env.class);
 
     StubPolicies() {
+      this(SQL);
+    }
+
+    StubPolicies(ConnectorManifest... manifests) {
       super(null, null, null, null, null, null, null, null, JSON, null, null);
+      schemas = PolicySchemas.forManifests(List.of(manifests), JSON);
     }
 
     @Override
@@ -51,6 +57,9 @@ class PolicyEngineTest {
       ObjectNode out = JSON.createObjectNode();
       for (String section : schemas.names()) {
         out.set(section, schemas.defaults(section, env));
+        for (var field : explicit.path(section).properties()) {
+          ((ObjectNode) out.path(section)).set(field.getKey(), field.getValue());
+        }
       }
       return out;
     }
@@ -245,7 +254,7 @@ class PolicyEngineTest {
         cfg(Env.DEV, null), Classification.read());
     assertThat(dev.limits().maxRows()).isEqualTo(1_000);
     assertThat(dev.limits().statementTimeout()).isEqualTo(Duration.ofSeconds(5));
-    assertThat(dev.limits().toolTimeout()).isEqualTo(Duration.ofSeconds(10));
+    assertThat(dev.limits().toolTimeout()).isEqualTo(Duration.ofSeconds(30));
     assertThat(dev.limits().maxLines()).isEqualTo(1_000);
     assertThat(dev.limits().maxResponseBytes()).isEqualTo(512 * 1024);
     assertThat(dev.ratePerToken()).isEqualTo(120);
@@ -262,6 +271,62 @@ class PolicyEngineTest {
     assertThat(prod.ratePerTool()).isEqualTo(20);
     assertThat(prod.view().section().path("denyDdl").asBoolean()).isTrue();
     assertThat(prod.view().rulePrefix()).isEqualTo("prod.sql");
+  }
+
+  @Test
+  void httpRequestTimeoutOnlyCapsConnectorsUsingTheHttpPolicySection() {
+    ConnectorManifest http = timeoutManifest("http", "http");
+    ConnectorManifest httpPlugin = timeoutManifest("custom-http", "http");
+    ConnectorManifest sshLogs = timeoutManifest("ssh-logs", "ssh");
+    StubPolicies configured = new StubPolicies(SQL, http, httpPlugin, sshLogs);
+    configured.explicit.putObject("limits").put("toolTimeoutSeconds", 30);
+    PolicyEngine scoped = new PolicyEngine(configured);
+
+    assertThat(configured.limits(Env.DEV).toolTimeout()).isEqualTo(Duration.ofSeconds(30));
+    for (ConnectorManifest manifest : List.of(SQL, http, httpPlugin, sshLogs)) {
+      PairView pair = timeoutPair(manifest, null, null);
+      Duration expected = Duration.ofSeconds(manifest == http || manifest == httpPlugin ? 10 : 30);
+      assertThat(configured.limits(Env.DEV, manifest.id()).toolTimeout()).as(manifest.id()).isEqualTo(expected);
+      assertThat(scoped.view(pair, null).limits().toolTimeout()).as(manifest.id()).isEqualTo(expected);
+      assertThat(scoped.decide(pair, null, Classification.read()).limits().toolTimeout())
+          .as(manifest.id()).isEqualTo(expected);
+    }
+  }
+
+  @Test
+  void scopedTimeoutsStillRespectEndpointAndToolCapsWithoutRelaxingHttp() {
+    ConnectorManifest http = timeoutManifest("http", "http");
+    ConnectorManifest sshLogs = timeoutManifest("ssh-logs", "ssh");
+    StubPolicies configured = new StubPolicies(http, sshLogs);
+    configured.explicit.putObject("limits").put("toolTimeoutSeconds", 30);
+    PolicyEngine scoped = new PolicyEngine(configured);
+    JsonNode endpoint = JSON.createObjectNode().put("toolTimeoutSeconds", 25);
+    JsonNode pairLimit = JSON.createObjectNode().put("toolTimeoutSeconds", 20);
+    assertThat(scoped.view(timeoutPair(sshLogs, endpoint, pairLimit), null).limits().toolTimeout())
+        .isEqualTo(Duration.ofSeconds(20));
+    assertThat(scoped.view(timeoutPair(http, endpoint, pairLimit), null).limits().toolTimeout())
+        .isEqualTo(Duration.ofSeconds(10));
+    JsonNode stricter = JSON.createObjectNode().put("toolTimeoutSeconds", 4);
+    for (ConnectorManifest manifest : List.of(http, sshLogs)) {
+      assertThat(scoped.view(timeoutPair(manifest, endpoint, stricter), null).limits().toolTimeout())
+          .as(manifest.id()).isEqualTo(Duration.ofSeconds(4));
+    }
+  }
+
+  private static ConnectorManifest timeoutManifest(String id, String section) {
+    ObjectNode schema = JSON.createObjectNode().put("type", "object").put("x-policy-section", section);
+    ObjectNode properties = schema.putObject("properties");
+    if (section.equals("http")) {
+      properties.putObject("toolTimeoutSeconds").put("type", "integer").put("default", 10)
+          .put("x-stricter", "min");
+    }
+    return ConnectorManifest.builder(id, "1.0.0", ConnectorManifest.Kind.BUILT_IN).policySchema(schema).build();
+  }
+
+  private static PairView timeoutPair(ConnectorManifest manifest, JsonNode endpointLimits, JsonNode overrides) {
+    ToolDefinition tool = ToolDefinition.builder("read").nature(Nature.READ).build();
+    return new PairView("ep_1", "ep", Env.DEV, false, "cn_1", "resource", Env.DEV, manifest, tool,
+        tool.name(), Mode.READ_ONLY, endpointLimits, overrides);
   }
 
   @Test

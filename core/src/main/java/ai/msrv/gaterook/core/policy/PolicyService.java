@@ -257,6 +257,12 @@ public class PolicyService implements SmartInitializingSingleton {
     return LimitsOf.from(effective(env), env);
   }
 
+  /** Environment limits with the connector's own request deadline, before endpoint or tool overrides. */
+  public Limits limits(Env env, String connectorType) {
+    String section = schemas().sectionOf(connectorType).orElse(connectorType);
+    return LimitsOf.from(effective(env), env, section);
+  }
+
   public MaskPolicy maskPolicy(Env env) {
     return MaskPolicy.fromSection(section(env, "masking"), MaskPolicy.defaults(env));
   }

@@ -6,7 +6,7 @@ import java.time.Duration;
 import tools.jackson.databind.JsonNode;
 
 /**
- * {@link Limits} from merged policy sections (BLUEPRINT §9: dev 1,000 rows · 5 s · 1,000 lines · 512 KB · 10 s; prod
+ * {@link Limits} from merged policy sections (dev 1,000 rows · 5 s · 1,000 lines · 512 KB · 30 s; prod
  * 100 rows · 3 s · 200 lines · 256 KB · 5 s). A section the core doesn't know (a connector module that isn't part of
  * this build) falls back to the defaults of its environment.
  */
@@ -17,7 +17,13 @@ public final class LimitsOf {
 
   private LimitsOf() {}
 
+  /** Environment-wide limits, without a connector-specific tool deadline. */
   public static Limits from(JsonNode sections, Env env) {
+    return from(sections, env, null);
+  }
+
+  /** The resolved connector policy section determines which additional tool deadline applies. */
+  public static Limits from(JsonNode sections, Env env, String section) {
     boolean prod = env == Env.PROD;
     JsonNode sql = sections.path("sql");
     JsonNode ssh = sections.path("ssh");
@@ -26,8 +32,10 @@ public final class LimitsOf {
     JsonNode limits = sections.path("limits");
     long responseKb = Math.min(limits.path("maxResponseKb").asLong(prod ? 256 : 512),
         Math.min(sql.path("maxResponseKb").asLong(Long.MAX_VALUE), http.path("maxResponseKb").asLong(Long.MAX_VALUE)));
-    long toolTimeout = Math.min(limits.path("toolTimeoutSeconds").asLong(prod ? 5 : 10),
-        http.path("toolTimeoutSeconds").asLong(Long.MAX_VALUE));
+    long toolTimeout = limits.path("toolTimeoutSeconds").asLong(prod ? 5 : 30);
+    if ("http".equals(section)) {
+      toolTimeout = Math.min(toolTimeout, http.path("toolTimeoutSeconds").asLong(Long.MAX_VALUE));
+    }
     return new Limits(
         sql.path("rowLimit").asInt(prod ? 100 : 1_000),
         limits.path("logLines").asInt(prod ? 200 : 1_000),

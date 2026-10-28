@@ -127,7 +127,7 @@ public class ToolPairs {
       List<TemplateService.Compiled> compiled = templates.compiledFor(cfg.id());
       compiledById.put(cfg.id(), compiled);
       configs.add(cfg);
-      limits.put(cfg.id(), policies.limits(cfg.env()));
+      limits.put(cfg.id(), policies.view(cfg.env(), m.manifest()).limits());
       for (TemplateService.Compiled c : compiled) {
         for (JsonNode value : c.contributions()) {
           contributions.add(new EndpointView.Contribution(cfg.id(), c.templateId(), c.version(), value));

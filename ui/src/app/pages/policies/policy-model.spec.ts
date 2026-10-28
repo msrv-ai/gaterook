@@ -58,6 +58,9 @@ describe('policy model', () => {
     expect(envDefault(keySchema(schemas, 'sql', 'readOnlyTransactions'), 'dev')).toBe(true);
     expect(envDefault(keySchema(schemas, 'sql', 'allowlist'), 'dev')).toEqual([]);
     expect(envDefault(keySchema(schemas, 'approvals', 'comment'), 'prod')).toBe('required');
+    expect(envDefault(keySchema(schemas, 'limits', 'toolTimeoutSeconds'), 'dev')).toBe(30);
+    expect(envDefault(keySchema(schemas, 'limits', 'toolTimeoutSeconds'), 'stage')).toBe(30);
+    expect(envDefault(keySchema(schemas, 'limits', 'toolTimeoutSeconds'), 'prod')).toBe(5);
   });
 
   it('edits every key but the locked ones, each as a number, checkbox, select or list', () => {

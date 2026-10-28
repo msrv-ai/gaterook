@@ -640,7 +640,7 @@ Every SQL read runs in a READ ONLY transaction ending with ROLLBACK. Mutations r
 | Kubernetes verbs | get/list/describe/logs/restart/apply | Inherits unless overridden | get/list/describe/logs |
 | DDL | Subject to policy/approval | Subject to policy/approval | CREATE/ALTER/DROP/TRUNCATE denied |
 
-Dev command timeout is 30 s and tool timeout is 10 s. Logs allow up to 168 hours, 100 entries, and an eight-second tail wait. Stage inherits unset values from dev; production has independent stricter defaults. Demo summaries are **4 set on dev · base for stage**, **3 stage defaults · 6 set on stage · 32 inherited from dev**, and **24 prod defaults · 2 set on prod**.
+Dev command and tool timeouts default to 30 s; production tool timeout defaults to 5 s. Logs allow up to 168 hours, 100 entries, and an eight-second tail wait. Stage inherits unset values from dev; production has independent stricter defaults. Demo summaries are **4 set on dev · base for stage**, **3 stage defaults · 6 set on stage · 32 inherited from dev**, and **24 prod defaults · 2 set on prod**.
 
 HTTP private networks remain blocked unless an explicit range is allowed. The demo's only HTTP connection is on stage, so dev HTTP egress displays an empty-state card with read-only rules. Environment reset lists all removed overrides, including non-inherited ones. Desktop approval always needs one person.
 

@@ -420,7 +420,7 @@ class ConnectionsController {
     if (manifest.configSchema() != null) {
       collectVisible(manifest.configSchema(), "", cfg, visible);
     }
-    Limits l = policies.limits(cfg.env());
+    Limits l = policies.limits(cfg.env(), cfg.type());
     ObjectNode limits = out.putObject("limits");
     limits.put("maxRows", l.maxRows());
     limits.put("maxLines", l.maxLines());
