@@ -56,13 +56,13 @@ describe('Your connections', () => {
     expect(connectionTile(health('x', 'healthy', { type: 'mongodb', typeLabel: undefined })).meta).toEqual([{ text: 'MongoDB' }]);
   });
 
-  it('puts problems first, one row in view, the rest behind "N more connections, all healthy"', () => {
+  it('puts problems first, six in view, the rest behind "N more connections, all healthy"', () => {
     const t = connectionTiles(HEALTH);
-    expect(t.shown.map((c) => c.name)).toEqual(['billing-api', 'cache-redis', 'app-logs']);
-    expect(t.more).toHaveLength(9);
+    expect(t.shown.map((c) => c.name)).toEqual(['billing-api', 'cache-redis', 'app-logs', 'dev-cluster', 'dev-db', 'dev-vm']);
+    expect(t.more).toHaveLength(6);
     // Healthy ones by environment: dev, stage, prod.
-    expect(t.more.map((c) => c.env)).toEqual(['dev', 'dev', 'dev', 'dev', 'stage', 'stage', 'prod', 'prod', 'prod']);
-    expect(t.moreLabel).toBe('9 more connections, all healthy');
+    expect(t.more.map((c) => c.env)).toEqual(['dev', 'stage', 'stage', 'prod', 'prod', 'prod']);
+    expect(t.moreLabel).toBe('6 more connections, all healthy');
     expect(t.description).toBe("12 connections: 10 healthy, 1 slow, 1 unreachable. The tag shows each one's environment: dev, stage or prod.");
   });
 
@@ -74,15 +74,22 @@ describe('Your connections', () => {
       health('d', 'unreachable'),
       health('e', 'healthy'),
       health('f', 'unknown'),
+      health('g', 'unreachable'),
+      health('h', 'unreachable'),
+      health('i', 'unreachable'),
     ];
     const t = connectionTiles(rows);
-    expect(t.shown.map((c) => c.name)).toEqual(['a', 'b', 'd', 'c']);
+    expect(t.shown.map((c) => c.name)).toEqual(['a', 'b', 'd', 'g', 'h', 'i', 'c']);
     expect(t.moreLabel).toBe('2 more connections: 1 healthy, 1 not checked yet');
-    expect(connectionTiles([health('e', 'healthy'), health('f', 'healthy'), health('g', 'healthy'), health('h', 'healthy')]).moreLabel).toBe(
+    expect(connectionTiles(['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((name) => health(name, 'healthy'))).moreLabel).toBe(
       '1 more connection, healthy',
     );
     expect(connectionTiles([health('e', 'healthy')]).description).toBe("1 connection: healthy. The tag shows each one's environment: dev, stage or prod.");
-    expect(connectionTiles([health('e', 'healthy')]).moreLabel).toBeNull();
+    for (const count of [1, 4, 6]) {
+      const few = connectionTiles(Array.from({ length: count }, (_, i) => health(`connection-${i}`, 'healthy')));
+      expect(few.shown).toHaveLength(count);
+      expect(few.moreLabel).toBeNull();
+    }
   });
 
   it('tells the result of Test again', () => {

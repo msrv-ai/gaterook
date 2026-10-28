@@ -37,7 +37,8 @@
 //         </div>
 //         <div class="gw-nav__group gw-nav__group--end"><ul class="gw-nav__list">…Settings…</ul></div>
 //       </nav>
-//       <div class="gw-sidebar__footer">…gw-status… <span class="gw-sidebar__meta">127.0.0.1:7465 · v0.4.0</span></div>
+//       <div class="gw-sidebar__footer">…core gw-status… <span class="gw-sidebar__meta">127.0.0.1:7465</span>
+//         …tunnel gw-status… <span class="gw-sidebar__meta">v0.4.0</span></div>
 //     </div>
 //     <main class="gw-shell__main" id="main" tabindex="-1">
 //       (app-wide gw-alert--banner here, before the page)
@@ -73,7 +74,7 @@
 //   __body        scrolls on its own; carries .gw-nav
 //   __footer      core and tunnel gw-status (static: never gw-status--live here, a dot
 //                 that pulses on every screen forever fails WCAG 2.2.2); __meta is the
-//                 mono address / version line
+//                 compact mono address below core status and version last, above the bottom padding
 // gw-nav          the app's information architecture (BLUEPRINT §2).
 //   __group       a block of links; labelled groups are role="group" + aria-labelledby
 //                 pointing at their __group-label. --end pins the group to the bottom
@@ -281,9 +282,10 @@
 
   &__meta {
     @include gw-type(code-sm);
+    font-size: var(--gw-font-size-2xs);
     color: var(--gw-color-text-muted);
     @include gw-tabular;
-    @include gw-truncate;
+    overflow-wrap: anywhere;
   }
 }
 

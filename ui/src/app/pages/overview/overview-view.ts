@@ -75,7 +75,7 @@ export function connectionTile(row: HealthRow): ConnectionTile {
   return { name: row.name, env: row.env, icon: connectorIcon(row.type), meta, state, retest: state.tone === 'danger' };
 }
 
-/** The set of tiles: problems first, one row in view, the rest behind "N more connections, all healthy". */
+/** The set of tiles: problems first, six visible by default, the rest behind "N more connections, all healthy". */
 export interface ConnectionTiles {
   readonly shown: readonly ConnectionTile[];
   readonly more: readonly ConnectionTile[];
@@ -85,8 +85,8 @@ export interface ConnectionTiles {
   readonly description: string;
 }
 
-/** Tiles in one row of `gw-grid --3`. */
-export const ROW = 3;
+/** Default number of visible tiles; problems are always shown. */
+const DEFAULT_VISIBLE_CONNECTIONS = 6;
 
 const STATE_WORDS: readonly { readonly tone: string; readonly word: string }[] = [
   { tone: 'success', word: 'healthy' },
@@ -108,7 +108,7 @@ export function connectionTiles(rows: readonly HealthRow[]): ConnectionTiles {
     .sort((a, b) => TONE_RANK[a.t.state.tone] - TONE_RANK[b.t.state.tone] || (ENV_RANK[a.t.env] ?? 3) - (ENV_RANK[b.t.env] ?? 3) || a.i - b.i)
     .map((x) => x.t);
   const problems = tiles.filter((t) => t.state.tone === 'danger' || t.state.tone === 'warning').length;
-  const visible = Math.max(ROW, problems);
+  const visible = Math.max(DEFAULT_VISIBLE_CONNECTIONS, problems);
   const shown = tiles.slice(0, visible);
   const more = tiles.slice(visible);
   let moreLabel: string | null = null;
