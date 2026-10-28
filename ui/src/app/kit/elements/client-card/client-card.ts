@@ -14,6 +14,7 @@ import {
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ClientCard, ClientId, ClientLink, ConnectPreview, ConnectRequest } from '../../../core/api/clients.api';
+import { DEFAULT_TOKEN_TTL_DAYS, tokenTtlDays } from '../../../core/api/token-lifetime';
 import { TimeService } from '../../../core/time/time.service';
 import { GwCodeBlock } from '../../../code/code-block';
 import { GwDialog, GwDialogClose } from '../../dialog';
@@ -85,6 +86,7 @@ export class GwClientCard {
   protected readonly time = inject(TimeService);
 
   readonly card = input.required<ClientCard>();
+  readonly defaultTtlDays = input(DEFAULT_TOKEN_TTL_DAYS, { transform: tokenTtlDays });
   /** AI apps starts with the name and status; details stay mounted while folded. */
   readonly collapsible = input(false, { transform: booleanAttribute });
   readonly expanded = model(false);

@@ -13,6 +13,7 @@ import ai.msrv.gaterook.core.clients.internal.ClientsConfiguration;
 import ai.msrv.gaterook.core.clients.internal.JsonEntryEditor;
 import ai.msrv.gaterook.core.clients.internal.TomlBlockEditor;
 import ai.msrv.gaterook.core.endpoints.ClientGrants;
+import ai.msrv.gaterook.core.endpoints.TokenService;
 import ai.msrv.gaterook.core.endpoints.EndpointConnections;
 import ai.msrv.gaterook.core.endpoints.EndpointService;
 import ai.msrv.gaterook.core.platform.Caller;
@@ -153,7 +154,7 @@ class ClientsIT {
   @Order(10)
   void cursorShowsTheChangeThenWritesOneEntryWithAToken() throws Exception {
     JsonNode preview = api.expect(200, HttpMethod.POST, "/api/clients/cursor/connect/preview", """
-        {"endpoint":"dev","method":"token","token":{"name":"cursor-laptop","ttlDays":7}}""");
+        {"endpoint":"dev","method":"token","token":{"name":"cursor-laptop"}}""");
     JsonNode file = preview.path("files").get(0);
     assertThat(file.path("kind").asString()).isEqualTo("config");
     assertThat(file.path("display").asString()).isEqualTo("~/.cursor/mcp.json");
@@ -166,7 +167,8 @@ class ClientsIT {
     assertThat(file.path("backupPath").asString()).isEqualTo("~/.cursor/mcp.json.bak-" + LocalDate.now());
     assertThat(preview.path("link").asString()).startsWith("cursor://anysphere.cursor-deeplink/mcp/install?name="
         + "gaterook-dev&config=");
-    assertThat(preview.path("notes").toString()).contains("cursor-laptop").contains("plain text");
+    assertThat(preview.path("notes").toString()).contains("cursor-laptop").contains("plain text")
+        .contains("expires in 184 days");
     assertThat(preview.path("repair").asBoolean()).isFalse();
 
     JsonNode connected = api.expect(200, HttpMethod.POST, "/api/clients/cursor/connect",
@@ -182,6 +184,9 @@ class ClientsIT {
     Matcher m = NAMED.matcher(after);
     assertThat(m.find()).isTrue();
     cursorToken = m.group();
+    assertThat(core.bean(TokenService.class).list("dev").stream().filter(t -> t.name().equals("cursor-laptop")))
+        .singleElement().satisfies(t -> assertThat(Duration.between(t.createdAt(), t.expiresAt()).toDays())
+            .isEqualTo(184));
     assertThat(after).isEqualTo(expectedCursor(cursorToken));
     // Only our entry: taking it out gives the original back byte for byte.
     assertThat(JsonEntryEditor.remove(after, "mcpServers", "gaterook-dev")).isEqualTo(cursorBefore);

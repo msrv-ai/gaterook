@@ -35,7 +35,7 @@ import { GwLiveNote, demoFixture, liveRead } from '../live';
     <section class="gw-section" aria-labelledby="tki-dialog">
       <header class="gw-section__header">
         <h2 class="gw-section__title" id="tki-dialog">Issue token dialog</h2>
-        <p class="gw-section__description">For clients that need a pasted bearer token (MCP Inspector, Cursor and Antigravity through their config file, scripts); Claude Desktop and Codex never need one. Name, lifetime (7 days by default) and the fixed endpoint, then the result step with the only copy of the token; its initial focus is Copy. Desktop tokens have no IP allowlist (server mode only). One dialog swaps its body (<code class="gw-code">data-step</code> goes from form to result). The result step has no close button: Done needs “I've stored this token”. Use the buttons to open each state.</p>
+        <p class="gw-section__description">For clients that need a pasted bearer token (MCP Inspector, Cursor and Antigravity through their config file, scripts); Claude Desktop and Codex never need one. Name, lifetime (184 days by default) and the fixed endpoint, then the result step with the only copy of the token; its initial focus is Copy. Desktop tokens have no IP allowlist (server mode only). One dialog swaps its body (<code class="gw-code">data-step</code> goes from form to result). The result step has no close button: Done needs “I've stored this token”. Use the buttons to open each state.</p>
       </header>
       <div class="gw-token-issue">
         <div class="gw-toolbar">

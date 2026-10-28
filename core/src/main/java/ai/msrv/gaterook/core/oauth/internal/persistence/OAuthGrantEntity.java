@@ -18,7 +18,7 @@ import java.util.Objects;
 
 /**
  * A person's consent ({@code og_…}): one client may call one endpoint through one ingress until {@code expiresAt}
- * (7 days). It is the principal of approvals and rate limits for OAuth calls, never a rotating token.
+ * (184 days for new grants). It is the principal of approvals and rate limits for OAuth calls, never a rotating token.
  */
 @Entity
 @Table(name = "oauth_grant")

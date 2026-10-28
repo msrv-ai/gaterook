@@ -541,6 +541,8 @@ describe('Settings page: Authorization', () => {
   it('the default token lifetime applies at once; a token that runs out within 7 days is named', async () => {
     const el = await render();
     const a = $('#settings-authorization', el)!;
+    expect($<HTMLSelectElement>('#st-ttl', a)!.value).toBe('184');
+    expect(text($<HTMLSelectElement>('#st-ttl', a)!.selectedOptions[0])).toBe('6 months (184 days)');
     expect(text(a)).toContain('Token inspector-debug on endpoint dev expires in 3 days.');
     await type($<HTMLSelectElement>('#st-ttl', a)!, '30');
     expect(bodies['authorization']).toEqual({ tokenTtlDays: 30, version: 3 });

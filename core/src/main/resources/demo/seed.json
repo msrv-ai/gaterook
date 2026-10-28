@@ -160,7 +160,7 @@
         "appId": "A0MCPGW0001"}}, "lastDeliveryMinutesAgo": 28}
   },
   "tunnel": {
-    "_comment": "BLUEPRINT §9 claude.ai and the tunnel: stage-readonly is published through a Cloudflare quick tunnel; it was on 08:40-12:10 (here: 3 h 50 min to 20 min before the seeding) with 19 calls from claude.ai, and is off now, as after every start. claude.ai's sign-in was allowed 12 minutes into that session and stays in Signed in for 7 days. Nothing is contacted: the client row is written as a first sign-in would have stored it.",
+    "_comment": "BLUEPRINT §9 claude.ai and the tunnel: stage-readonly is published through a Cloudflare quick tunnel; it was on 08:40-12:10 (here: 3 h 50 min to 20 min before the seeding) with 19 calls from claude.ai, and is off now, as after every start. claude.ai's sign-in was allowed 12 minutes into that session and stays in Signed in for 184 days. Nothing is contacted: the client row is written as a first sign-in would have stored it.",
     "endpoint": "stage-readonly",
     "host": "gw-acme-7f3k.trycloudflare.com",
     "provider": "cloudflare-quick",

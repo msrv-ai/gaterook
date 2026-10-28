@@ -37,7 +37,7 @@
     @if (cards().length) {
       <ul class="gw-stack gw-stack--sm" [attr.aria-label]="'AI apps of endpoint ' + ep">
         @for (c of cards(); track c.client) {
-          <li gwClientCard variant="compact" [endpoint]="ep" [card]="c" [endpoints]="endpoints()"
+          <li gwClientCard variant="compact" [endpoint]="ep" [card]="c" [endpoints]="endpoints()" [defaultTtlDays]="data.authorization()?.['tokenTtlDays']"
             [connectPreview]="preview()" [connectLoading]="previewLoading()" [connectFailure]="connectFailureOf(c.client)" [failure]="failureOf(c.client)"
             [disconnectPreview]="leaving()" [canOpenConfig]="false"
             (connectStart)="onConnectStart()" (previewRequest)="previewFor(c, $event.request)" (connect)="connect(c, $event.previewId, $event.request)"

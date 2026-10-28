@@ -272,7 +272,8 @@ class EndpointsIT {
     assertThat(issued.token()).startsWith("gwt_").hasSize(47);
     assertThat(issued.prefix()).hasSize(8).isEqualTo(issued.token().substring(0, 8));
     assertThat(issued.toString()).doesNotContain(issued.token());
-    assertThat(issued.expiresAt()).isAfter(Instant.now().plusSeconds(6 * 86_400));
+    assertThat(issued.expiresAt()).isBetween(Instant.now().plus(Duration.ofDays(183)),
+        Instant.now().plus(Duration.ofDays(184)));
     String stored = core.jdbc().queryForObject("select hash from api_token where id = ?", String.class, issued.id());
     assertThat(stored).isEqualTo(TokenService.hash(issued.token())).doesNotContain(issued.token());
 

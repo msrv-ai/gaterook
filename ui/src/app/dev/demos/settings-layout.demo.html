@@ -75,9 +75,11 @@
             <div class="gw-field">
               <label class="gw-field__label" for="st-ttl">Default token lifetime</label>
               <select class="gw-select" id="st-ttl" aria-describedby="st-ttl-hint" (change)="applied('Default token lifetime', $any($event.target).selectedOptions[0].text)">
-                <option selected>7 days</option>
+                <option>1 day</option>
+                <option>7 days</option>
                 <option>30 days</option>
                 <option>90 days</option>
+                <option selected>6 months (184 days)</option>
               </select>
               <p class="gw-field__hint" id="st-ttl-hint">You can still pick another lifetime when you issue a token.</p>
             </div>

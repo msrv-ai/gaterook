@@ -9,6 +9,8 @@ import ai.msrv.gaterook.core.tunnel.TunnelWorld;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 import java.util.stream.StreamSupport;
 import javax.sql.DataSource;
@@ -162,6 +164,91 @@ class OAuthClientStatusIT {
     assertThat(Files.readString(config)).isEqualTo(managedConfig);
   }
 
+  @Test
+  void aCursorAccessTokenWorksForSixMonthsWithoutARefreshAndStopsAtTheGrantDeadline() {
+    Authorized approved = approveCursor();
+    JsonNode tokens = exchangeTokens(approved);
+    String access = tokens.path("access_token").asString();
+    String refresh = tokens.path("refresh_token").asString();
+    JsonNode grant = api.ok("/api/oauth/grants").get(0);
+    Instant expiresAt = Instant.parse(grant.path("expiresAt").asString());
+    assertThat(Duration.between(Instant.parse(grant.path("createdAt").asString()), expiresAt))
+        .isEqualTo(Duration.ofDays(184));
+    assertThat(tokens.path("expires_in").asLong()).isBetween(Duration.ofDays(184).minusMinutes(1).toSeconds(),
+        Duration.ofDays(184).toSeconds());
+
+    try {
+      for (Duration age : new Duration[] {Duration.ofMinutes(61), Duration.ofDays(8), Duration.ofDays(183)}) {
+        world.shift(age);
+        assertThat(local.mcp("dev", access, "tools/list").status()).as("access after %s", age).isEqualTo(200);
+      }
+      world.shift(Duration.between(Instant.now(), expiresAt.minusSeconds(60)));
+      assertThat(local.mcp("dev", access, "tools/list").status()).isEqualTo(200);
+      TunnelWorld.Answer renewed = local.refresh(approved.clientId(), refresh, resource);
+      assertThat(renewed.status()).as(renewed.body()).isEqualTo(200);
+      assertThat(renewed.json().path("expires_in").asLong()).isBetween(1L, 60L);
+      String renewedAccess = renewed.json().path("access_token").asString();
+      String renewedRefresh = renewed.json().path("refresh_token").asString();
+      assertThat(renewedRefresh).isNotEqualTo(refresh);
+
+      world.shift(Duration.between(Instant.now(), expiresAt));
+      assertThat(local.mcp("dev", access, "tools/list").status()).isEqualTo(401);
+      assertThat(local.mcp("dev", renewedAccess, "tools/list").status()).isEqualTo(401);
+      TunnelWorld.Answer expired = local.refresh(approved.clientId(), renewedRefresh, resource);
+      assertThat(expired.status()).isEqualTo(400);
+      assertThat(expired.json().path("error").asString()).isEqualTo("invalid_grant");
+    } finally {
+      world.shift(Duration.ZERO);
+    }
+  }
+
+  @Test
+  void cursorTokensAndRefreshRotationSurviveCoreRestarts() throws IOException {
+    Authorized approved = approveCursor();
+    JsonNode tokens = exchangeTokens(approved);
+    String access = tokens.path("access_token").asString();
+    String refresh = tokens.path("refresh_token").asString();
+    String expiresAt = api.ok("/api/oauth/grants").get(0).path("expiresAt").asString();
+    Path home = world.home();
+    int port = world.localPort();
+
+    world.restart();
+    api = world.admin();
+    local = new OAuthFlow(world, false);
+    assertThat(world.home()).isEqualTo(home);
+    assertThat(world.localPort()).isEqualTo(port);
+    assertThat(cursor().path("status").asString()).isEqualTo("connected");
+    discoverTools(access);
+
+    TunnelWorld.Answer answer = local.refresh(approved.clientId(), refresh, resource);
+    assertThat(answer.status()).as(answer.body()).isEqualTo(200);
+    JsonNode renewed = answer.json();
+
+    world.restart();
+    api = world.admin();
+    local = new OAuthFlow(world, false);
+    String renewedAccess = renewed.path("access_token").asString();
+    discoverTools(renewedAccess);
+    assertThat(api.ok("/api/oauth/grants").get(0).path("expiresAt").asString()).isEqualTo(expiresAt);
+    assertThat(Files.readString(config)).isEqualTo(ORIGINAL_CONFIG);
+    world.shift(Duration.ofDays(183));
+    try {
+      assertThat(local.mcp("dev", access, "tools/list").status()).isEqualTo(200);
+      assertThat(local.mcp("dev", renewedAccess, "tools/list").status()).isEqualTo(200);
+    } finally {
+      world.shift(Duration.ZERO);
+    }
+
+    // Restart must also retain consumption: replay still revokes both generations of access tokens.
+    TunnelWorld.Answer replay = local.refresh(approved.clientId(), refresh, resource);
+    assertThat(replay.status()).isEqualTo(400);
+    assertThat(replay.json().path("error").asString()).isEqualTo("invalid_grant");
+    assertThat(local.mcp("dev", access, "tools/list").status()).isEqualTo(401);
+    assertThat(local.mcp("dev", renewedAccess, "tools/list").status()).isEqualTo(401);
+    assertThat(local.refresh(approved.clientId(), renewed.path("refresh_token").asString(), resource).status())
+        .isEqualTo(400);
+  }
+
   private record Authorized(String clientId, OAuthFlow.Pkce pkce, String code, String grantId) {}
 
   private Authorized approveCursor() {
@@ -186,10 +273,14 @@ class OAuthClientStatusIT {
   }
 
   private String exchange(Authorized approved) {
+    return exchangeTokens(approved).path("access_token").asString();
+  }
+
+  private JsonNode exchangeTokens(Authorized approved) {
     TunnelWorld.Answer exchanged = local.exchange(approved.clientId(), REDIRECT, approved.code(), approved.pkce(),
         resource);
     assertThat(exchanged.status()).as(exchanged.body()).isEqualTo(200);
-    return exchanged.json().path("access_token").asString();
+    return exchanged.json();
   }
 
   private void discoverTools(String access) {

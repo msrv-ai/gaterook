@@ -235,6 +235,8 @@ The [broker](../bridge/README.md) runs in Electron main. Bridges connect through
 
 Claude Desktop can use an endpoint-specific `.mcpb`; Codex can use the Java/native `headers` helper; other clients can use supported HTTP/OAuth or stdio methods. A long-lived token in a client file is an explicit method with restricted permissions and production restrictions. Config changes preserve unrelated content, show a diff, create a backup, and compare the original file before writing. Disconnect removes only the gateway-owned entry and revokes its access.
 
+New named tokens default to 184 days, covering at least six calendar months. Settings → Authorization can select a shorter default, and issuance accepts an explicit lifetime from 1 to 184 days. Existing saved defaults and issued expiry dates are preserved. Bridge credentials remain automatic, 15-minute credentials bound to the running core; their renewal does not ask the user to sign in.
+
 An active local OAuth sign-in becomes connection evidence after token exchange, before any tool call. Cursor's browser Connect enables OAuth for the endpoint and opens its URL-only installer link; Cursor owns the config change, and GateRook creates no managed config entry. The client views match the sign-in to the registered app and endpoint, including browser installations made outside GateRook's config editor. These observed connections link to OAuth sign-in management; they do not imply ownership of a config file or expose the managed-entry Disconnect action. Grant changes refresh client status on the AI apps, endpoint, and Overview screens. Last call remains an audited tool call, separate from sign-in activity.
 
 ### 7.3 Tunnel and OAuth
@@ -242,6 +244,8 @@ An active local OAuth sign-in becomes connection evidence after token exchange, 
 The default local/public loopback ports are 7465/7466. The public port has an explicit small route allowlist, body limit, host checks, and provider-aware caller filtering. Publication performs a self-test through the edge and becomes active only after it succeeds. A production endpoint cannot be published; the current design publishes one endpoint at a time.
 
 Cloudflared/ngrok run as supervised children with pinned binary hashes and minimal environments. Provider tokens are secrets. A quick tunnel changes origin between runs, so grants and audience checks must follow the actual issuer/resource. OAuth uses PKCE S256, exact redirect/resource validation, client metadata checks, rotating refresh tokens, and local consent with a comparison code. Local and tunnel authorization domains cannot exchange tokens accidentally.
+
+New OAuth sign-ins and their access and refresh tokens last up to 184 days from consent on both local and tunnel ingress. Refresh rotates the tokens without extending the sign-in's absolute expiry. GateRook stores only token hashes in its database and checks the grant on every request, so revocation still takes effect on the next call. Restarting the core with the same data directory and endpoint origin preserves a live sign-in; changing the port, home, or public origin changes its authorization context. Existing tokens keep their issued expiry: sign in once again to obtain the longer lifetime after upgrading.
 
 ### 7.4 Notifications
 

@@ -276,7 +276,7 @@ class DemoSeed {
       Instant issuedAt = t.has("issuedDaysAgo")
           ? clock.instant().minus(Duration.ofDays(t.path("issuedDaysAgo").asLong())) : null;
       TokenService.Issued issued = tokens.issue(t.path("endpoint").asString(), t.path("name").asString(),
-          t.path("ttlDays").asInt(7), null, issuedAt);
+          t.has("ttlDays") ? t.path("ttlDays").asInt() : null, null, issuedAt);
       if (t.has("revoke")) {
         tokens.revoke(issued.id(), t.path("revoke").asString());
       }
@@ -480,7 +480,7 @@ class DemoSeed {
 
   /**
    * The kit's tunnel (BLUEPRINT §9): {@code stage-readonly} is the tunnel's endpoint, it was public through a quick
-   * tunnel this morning and is off now, and claude.ai's sign-in of that session is in "Signed in" for 7 days. Times
+   * tunnel this morning and is off now, and claude.ai's sign-in of that session is in "Signed in" for 184 days. Times
    * are relative to the seeding, like the rest of the world.
    */
   private TunnelSession tunnel(JsonNode t) {

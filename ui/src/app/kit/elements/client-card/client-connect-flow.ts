@@ -2,6 +2,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, TemplateRef, booleanAttribute, computed, effect, inject, input, model, numberAttribute, output, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ClientCard, ClientMethod, ClientMethodId, ConnectPreview, ConnectRequest, toKitDiff } from '../../../core/api/clients.api';
+import { DEFAULT_TOKEN_TTL_DAYS, TOKEN_TTL_DAYS, tokenTtlDays } from '../../../core/api/token-lifetime';
 import { TimeService } from '../../../core/time/time.service';
 import { GwDiff } from '../../../code/diff';
 import { GwCodeBlock } from '../../../code/code-block';
@@ -27,9 +28,6 @@ import {
   restartNote,
 } from './client-view';
 
-/** The token lifetimes Connect offers (kit: 7 days by default). */
-const TTL_DAYS = [7, 30, 90] as const;
-
 /**
  * `<div gwClientConnectFlow [card]="cursor" [endpoints]="…" [preview]="p" (requestChange)="…">` (client-card.html,
  * "Connect"): the body of Connect, in the connect dialog or inline in a card (`__flow`). Endpoint · for clients with
@@ -53,6 +51,7 @@ export class GwClientConnectFlow {
   protected readonly time = inject(TimeService);
 
   readonly card = input.required<ClientCard>();
+  readonly defaultTtlDays = input(DEFAULT_TOKEN_TTL_DAYS, { transform: tokenTtlDays });
   /** The endpoints to choose from (Add endpoint passes only those the client doesn't reach yet). */
   readonly endpoints = input.required<readonly ClientEndpoint[]>();
   readonly preview = input<ConnectPreview | null>(null);
@@ -96,14 +95,16 @@ export class GwClientConnectFlow {
   /** The sign-in the person picked themselves (a prod endpoint may force another for a while). */
   private readonly chosen = signal<ClientMethodId | null>(null);
   readonly tokenName = model<string>('');
-  readonly ttlDays = model<number>(7);
+  readonly ttlDays = model<number>(DEFAULT_TOKEN_TTL_DAYS);
+  private ttlChosen = false;
+  private requested = false;
   /** Expanded only on request; opening a connect dialog starts a new collapsed review. */
   readonly changesExpanded = signal(false);
 
   /** The selection changed: ask the core for a new preview. Null while the token name is invalid. */
   readonly requestChange = output<ConnectRequest | null>();
 
-  protected readonly ttls = TTL_DAYS;
+  protected readonly ttls = TOKEN_TTL_DAYS;
   protected readonly endpointOption = endpointOption;
   protected readonly langLabel = langLabel;
   protected readonly selected = computed(() => this.endpoints().find((e) => e.slug === this.endpoint()) ?? null);
@@ -223,6 +224,15 @@ export class GwClientConnectFlow {
   });
 
   constructor() {
+    effect(() => {
+      const days = this.defaultTtlDays();
+      untracked(() => {
+        if (!this.ttlChosen && this.ttlDays() !== days) {
+          this.ttlDays.set(days);
+          if (this.requested) this.emit();
+        }
+      });
+    });
     // Defaults: the first endpoint, the first method that endpoint allows, the client's token name.
     effect(() => {
       const endpoints = this.endpoints();
@@ -266,12 +276,14 @@ export class GwClientConnectFlow {
   }
 
   protected onTtl(e: Event): void {
+    this.ttlChosen = true;
     this.ttlDays.set(Number((e.target as HTMLSelectElement).value));
     this.emit();
   }
 
   /** Re-preview: after the endpoint settles (the methods follow it) or the token name is committed. */
   emit(): void {
+    this.requested = true;
     queueMicrotask(() => this.requestChange.emit(this.request()));
   }
 }

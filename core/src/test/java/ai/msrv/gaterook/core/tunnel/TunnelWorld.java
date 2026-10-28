@@ -73,21 +73,23 @@ public final class TunnelWorld implements AutoCloseable {
   private static final HeldCertificate LEAF = new HeldCertificate.Builder().commonName("localhost")
       .addSubjectAlternativeName("localhost").signedBy(CA).build();
 
-  private final ConfigurableApplicationContext context;
+  private ConfigurableApplicationContext context;
+  private final List<String> arguments;
   private final Path home;
   private final int publicPort;
   private final FakeAgents.Agent cloudflared;
   private final FakeAgents.Agent ngrok;
   private final HttpsServer claude;
   private final String clientId;
-  private final AdminMvc admin;
+  private AdminMvc admin;
   private volatile String lastHost;
   private final HttpClient http = HttpClient.newBuilder().proxy(HttpClient.Builder.NO_PROXY)
       .followRedirects(HttpClient.Redirect.NEVER).connectTimeout(Duration.ofSeconds(5)).build();
 
   private TunnelWorld(ConfigurableApplicationContext context, Path home, int publicPort, FakeAgents.Agent cloudflared,
-      FakeAgents.Agent ngrok, HttpsServer claude, String clientId) {
+      FakeAgents.Agent ngrok, HttpsServer claude, String clientId, List<String> arguments) {
     this.context = context;
+    this.arguments = List.copyOf(arguments);
     this.home = home;
     this.publicPort = publicPort;
     this.cloudflared = cloudflared;
@@ -228,7 +230,7 @@ public final class TunnelWorld implements AutoCloseable {
       ConfigurableApplicationContext context = new SpringApplicationBuilder(GatewayApplication.class)
           .sources(FakeConnectors.class, Probe.class).contextFactory(GatewayLauncher.contexts(true))
           .run(args.toArray(String[]::new));
-      return new TunnelWorld(context, home, publicPort, cloudflared, ngrok, claude, clientId);
+      return new TunnelWorld(context, home, publicPort, cloudflared, ngrok, claude, clientId, args);
     } catch (IOException e) {
       throw new IllegalStateException(e);
     }
@@ -243,6 +245,18 @@ public final class TunnelWorld implements AutoCloseable {
   }
 
   // ── The core ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  /** Restarts the real core against the same home and local port, retaining the client's resource identity. */
+  public void restart() {
+    int port = localPort();
+    context.close();
+    List<String> restartArguments = new ArrayList<>(arguments.stream()
+        .filter(a -> !a.startsWith("--server.port=")).toList());
+    restartArguments.add("--server.port=" + port);
+    context = new SpringApplicationBuilder(GatewayApplication.class).sources(FakeConnectors.class, Probe.class)
+        .contextFactory(GatewayLauncher.contexts(true)).run(restartArguments.toArray(String[]::new));
+    admin = new AdminMvc(context, localPort());
+  }
 
   /** Runs the core's clock {@code ahead} of real time (zero again before the next admin request). */
   public void shift(Duration ahead) {

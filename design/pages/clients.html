@@ -580,7 +580,7 @@
                   </fieldset>
                   <div class="gw-client-card__step" id="cl-cu-s-token">
                     <h4 class="gw-text-h3">Token for Cursor</h4>
-                    <p class="gw-text-caption gw-fg-muted">Token <span class="gw-mono" data-cl-tok-note-name>cursor-laptop</span> · expires <time datetime="2026-10-29" data-cl-tok-exp>Oct 29, 2026</time> (<span data-cl-tok-note-exp>7 days</span>) · written in plain text to <span class="gw-mono">~/.cursor/mcp.json</span></p>
+                    <p class="gw-text-caption gw-fg-muted">Token <span class="gw-mono" data-cl-tok-note-name>cursor-laptop</span> · expires <time datetime="2027-04-24" data-cl-tok-exp>Apr 24, 2027</time> (<span data-cl-tok-note-exp>184 days</span>) · written in plain text to <span class="gw-mono">~/.cursor/mcp.json</span></p>
                     <div>
                       <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="cl-cu-s-more"><i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i> Change name or expiry<span class="gw-sr-only"> of the token for Cursor</span></button>
                     </div>
@@ -594,11 +594,13 @@
                       <div class="gw-field">
                         <label class="gw-field__label" for="cl-cu-s-tok-exp">Expires</label>
                         <select class="gw-select" id="cl-cu-s-tok-exp" aria-describedby="cl-cu-s-tok-exp-hint">
-                          <option value="7" selected>7 days</option>
+                          <option value="1">1 day</option>
+                          <option value="7">7 days</option>
                           <option value="30">30 days</option>
                           <option value="90">90 days</option>
+                          <option value="184" selected>6 months (184 days)</option>
                         </select>
-                        <p class="gw-field__hint" id="cl-cu-s-tok-exp-hint">On <time datetime="2026-10-29" data-cl-tok-exp>Oct 29, 2026</time>. Connect again to renew it.</p>
+                        <p class="gw-field__hint" id="cl-cu-s-tok-exp-hint">On <time datetime="2027-04-24" data-cl-tok-exp>Apr 24, 2027</time>. Connect again to renew it.</p>
                       </div>
                     </div>
                   </div>
@@ -658,7 +660,7 @@
               <div class="gw-card__body gw-stack gw-client-card__body" data-cl-phase="after" hidden>
                 <dl class="gw-kv gw-kv--dense">
                   <div class="gw-kv__row"><dt class="gw-kv__key">Endpoint</dt><dd class="gw-kv__value"><span class="gw-mono">dev</span> · 4 tools on <span class="gw-mono">dev-db</span></dd></div>
-                  <div class="gw-kv__row"><dt class="gw-kv__key">Auth</dt><dd class="gw-kv__value">Token <span class="gw-mono" data-cl-tok-note-name>cursor-laptop</span> (<span class="gw-mono">gwt_Vb8r…</span>) in plain text in <span class="gw-mono">~/.cursor/mcp.json</span>, expires <time datetime="2026-10-29" data-cl-tok-exp>Oct 29, 2026</time></dd></div>
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Auth</dt><dd class="gw-kv__value">Token <span class="gw-mono" data-cl-tok-note-name>cursor-laptop</span> (<span class="gw-mono">gwt_Vb8r…</span>) in plain text in <span class="gw-mono">~/.cursor/mcp.json</span>, expires <time datetime="2027-04-24" data-cl-tok-exp>Apr 24, 2027</time></dd></div>
                   <div class="gw-kv__row"><dt class="gw-kv__key">Backup</dt><dd class="gw-kv__value gw-mono">~/.cursor/mcp.json.bak-2026-10-22</dd></div>
                   <div class="gw-kv__row"><dt class="gw-kv__key">Last call</dt><dd class="gw-kv__value"><span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Waiting for the first request</span></span></dd></div>
                 </dl>
@@ -869,14 +871,16 @@
                     <div class="gw-field">
                       <label class="gw-field__label" for="cl-cu-tok-exp">Expires</label>
                       <select class="gw-select" id="cl-cu-tok-exp" aria-describedby="cl-cu-tok-exp-hint">
-                        <option value="7" selected>7 days</option>
+                        <option value="1">1 day</option>
+                        <option value="7">7 days</option>
                         <option value="30">30 days</option>
                         <option value="90">90 days</option>
+                        <option value="184" selected>6 months (184 days)</option>
                       </select>
-                      <p class="gw-field__hint" id="cl-cu-tok-exp-hint">On <time datetime="2026-10-29" data-cl-tok-exp>Oct 29, 2026</time>. Connect again to renew it.</p>
+                      <p class="gw-field__hint" id="cl-cu-tok-exp-hint">On <time datetime="2027-04-24" data-cl-tok-exp>Apr 24, 2027</time>. Connect again to renew it.</p>
                     </div>
                   </div>
-                  <p class="gw-text-caption gw-fg-muted">Token <span class="gw-mono" data-cl-tok-note-name>cursor-laptop</span> · expires in <span data-cl-tok-note-exp>7 days</span> · written in plain text to <span class="gw-mono">~/.cursor/mcp.json</span> · <a class="gw-link" href="endpoint-detail.html#tokens">Revoke<span class="gw-sr-only"> it on the Tokens tab of the endpoint</span></a></p>
+                  <p class="gw-text-caption gw-fg-muted">Token <span class="gw-mono" data-cl-tok-note-name>cursor-laptop</span> · expires in <span data-cl-tok-note-exp>184 days</span> · written in plain text to <span class="gw-mono">~/.cursor/mcp.json</span> · <a class="gw-link" href="endpoint-detail.html#tokens">Revoke<span class="gw-sr-only"> it on the Tokens tab of the endpoint</span></a></p>
                 </div>
 
                 <div class="gw-client-card__step">
@@ -942,7 +946,7 @@
             <footer class="gw-card__footer gw-client-card__footer">
               <div class="gw-client-card__actions">
                 <button class="gw-btn gw-btn--ghost" type="button">Open config<span class="gw-sr-only"> of Cursor</span></button>
-                <button class="gw-btn gw-btn--primary" type="button" id="cl-cu-connect" data-gw-toast="One server added to ~/.cursor/mcp.json with token cursor-laptop, which expires in 7 days. Backup: ~/.cursor/mcp.json.bak-2026-10-22." data-gw-toast-title="Cursor connected to dev" data-gw-toast-tone="success"><i class="gw-icon" data-lucide="plug-zap"></i> Connect Cursor</button>
+                <button class="gw-btn gw-btn--primary" type="button" id="cl-cu-connect" data-gw-toast="One server added to ~/.cursor/mcp.json with token cursor-laptop, which expires in 184 days. Backup: ~/.cursor/mcp.json.bak-2026-10-22." data-gw-toast-title="Cursor connected to dev" data-gw-toast-tone="success"><i class="gw-icon" data-lucide="plug-zap"></i> Connect Cursor</button>
               </div>
             </footer>
             </div>
@@ -1215,7 +1219,7 @@
                       <td class="gw-table__cell--mono">stage-readonly</td>
                       <td><time datetime="2026-10-22T08:52:00+02:00" title="2026-10-22 08:52 +02:00">Today 08:52</time>, by you</td>
                       <td><time datetime="2026-10-22T12:08:14+02:00" title="2026-10-22 12:08:14 +02:00">12:08</time></td>
-                      <td><time datetime="2026-10-29T08:52:00+01:00" title="2026-10-29 08:52 +01:00">Oct 29</time></td>
+                      <td><time datetime="2027-04-24T08:52:00+02:00" title="2027-04-24 08:52 +02:00">Apr 24, 2027</time></td>
                       <td class="gw-table__cell--actions"><button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" data-gw-dialog-open="cl-dlg-revoke-ai">Revoke<span class="gw-sr-only"> claude.ai access to stage-readonly</span></button></td>
                     </tr>
                   </tbody>
@@ -1937,7 +1941,7 @@
   });
 
   // ── 3. Cursor: endpoint, sign-in and token → the exact change (in use: no suffix; setup: -s) ──
-  var EXPIRES = { "7": ["2026-10-29", "Oct 29, 2026", "7 days"], "30": ["2026-11-21", "Nov 21, 2026", "30 days"], "90": ["2027-01-20", "Jan 20, 2027", "90 days"] };
+  var EXPIRES = { "1": ["2026-10-23", "Oct 23, 2026", "1 day"], "7": ["2026-10-29", "Oct 29, 2026", "7 days"], "30": ["2026-11-21", "Nov 21, 2026", "30 days"], "90": ["2027-01-20", "Jan 20, 2027", "90 days"], "184": ["2027-04-24", "Apr 24, 2027", "184 days"] };
   // Per sign-in: additions and the first new-side line number after the entry.
   var MODES = { token: [7, 12], oauth: [4, 9], "config-bridge": [6, 11] };
   function cursorFlow(sfx) {
@@ -1952,7 +1956,7 @@
     function auth() { var r = q('input[name="cl-cu' + sfx + '-auth"]:checked'); return r ? r.value : "token"; }
     function slug() { return ep ? ep.value : "dev"; }
     function name() { return tokName.value.trim() || "cursor-laptop"; }
-    function exp() { return EXPIRES[tokExp.value] || EXPIRES["7"]; }
+    function exp() { return EXPIRES[tokExp.value] || EXPIRES["184"]; }
     function message() {
       var mode = auth();
       return mode === "oauth"

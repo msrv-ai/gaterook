@@ -53,9 +53,9 @@
 //       <form method="dialog">
 //         <header class="gw-dialog__header">…Issue token + close…</header>
 //         <div class="gw-dialog__body"><div class="gw-token-issue__form" data-step="form">
-//           Name (gw-input--mono, required, autofocus) · Expires (gw-select: 7 (default) /
-//           30 / 90 days / Custom date; hint "On Oct 29, 2026. The default; short lifetimes
-//           are safer.") · desktop: a caption "No IP allowlist on the desktop…"; server
+//           Name (gw-input--mono, required, autofocus) · Expires (gw-select: 1 / 7 / 30 / 90 days /
+//           6 months (184 days, default) / Custom date; hint "On Apr 24, 2027.
+//           The default is 6 months (184 days); choose a shorter lifetime when needed.") · desktop: a caption "No IP allowlist on the desktop…"; server
 //           mode: Allowed IPs (<label for> the entry input; __ips: gw-tag-list +
 //           __ip-entry) · Endpoint (gw-input--mono readonly + the URL in the hint)
 //         </div></div>

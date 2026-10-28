@@ -47,7 +47,7 @@ import { kitElement } from '../elements';
       <div class="gw-grid gw-grid--2">
         <section gwHowItWorks vertical summary="Every client is tied to one endpoint and can be cut off at once." stepsLabel="How a client is authorized">
           <li gwHowItWorksStep icon="log-in" heading="Client gets a token or signs in with OAuth">Desktop clients use a bearer token; claude.ai signs in with OAuth 2.1 through the tunnel.</li>
-          <li gwHowItWorksStep icon="waypoints" heading="Token is bound to one endpoint">A token for <code class="gw-code">dev</code> cannot call <code class="gw-code">stage-readonly</code>. Named tokens last 7 days by default; Claude Desktop and Codex get 15-minute ones on the fly.</li>
+          <li gwHowItWorksStep icon="waypoints" heading="Token is bound to one endpoint">A token for <code class="gw-code">dev</code> cannot call <code class="gw-code">stage-readonly</code>. Named tokens last 184 days by default; Claude Desktop and Codex get 15-minute ones on the fly.</li>
           <li gwHowItWorksStep icon="shield" heading="Policy decides allow / approval / deny">Each call is checked against the tool's mode and the environment's limits.</li>
           <li gwHowItWorksStep icon="ban" heading="Revoke any time">The next call with a revoked token is refused. Nothing to restart.</li>
           <p class="gw-how-it-works__more" gwHowItWorksMore><a class="gw-link gw-text-small" routerLink="/settings/authorization">Learn more about tokens and OAuth</a></p>

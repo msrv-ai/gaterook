@@ -64,7 +64,7 @@
 //     show. Cursor and Antigravity keep an endpoint token in their config (Cursor's:
 //     cursor-laptop, in plain text in ~/.cursor/mcp.json; Connect says so), or
 //     Cursor signs in through the browser instead. claude.ai: OAuth 2.1.
-//     Token defaults: 7 days; no IP allowlist on desktop tokens (server mode only).
+//     Token defaults: 6 months (184 days); no IP allowlist on desktop tokens (server mode only).
 //   Open config  only for clients set up through a file (Codex, Cursor,
 //     Antigravity); the bridge extension has no file to open.
 //   Several endpoints (Claude Desktop through its bridge: dev and incident-prod)
@@ -116,7 +116,7 @@
 //   whose body is __flow: Endpoint (gw-select, autofocus: the dialog's initial
 //   focus) · for Cursor the Sign-in choice (gw-choice-card --compact radios:
 //   "Token in the file" / "Sign in through the browser") and, in token mode, a
-//   __step "Token for Cursor" (Name cursor-laptop, Expires 7 days; no IP
+//   __step "Token for Cursor" (Name cursor-laptop, Expires 6 months (184 days); no IP
 //   allowlist on the desktop) · __step "What will change" (default-collapsed
 //   disclosure: gw-diff --wrap of the config file + __backup line) · visible
 //   auth note (a gw-alert--warning when the token

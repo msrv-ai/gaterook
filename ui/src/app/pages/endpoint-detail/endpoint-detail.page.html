@@ -338,7 +338,7 @@
 
   <gw-split-dialog #split [slug]="s.slug" [options]="splitOptions()" [clients]="splitClients()" [preview]="splitPreview()" [address]="address()" (changed)="onSplitChanged($event)" (create)="onSplitCreate($event)" />
 
-  <gw-token-issue-dialog #tokenDialog [slug]="s.slug" [address]="address()" [issued]="issued()" [error]="issueError()" [busy]="issueBusy()" (issue)="issue($event)" (done)="onIssueDone()" />
+  <gw-token-issue-dialog #tokenDialog [slug]="s.slug" [address]="address()" [defaultTtlDays]="data.authorization()?.['tokenTtlDays']" [issued]="issued()" [error]="issueError()" [busy]="issueBusy()" (issue)="issue($event)" (done)="onIssueDone()" />
 }
 
 <dialog class="gw-dialog gw-dialog--sm" gwDialog gwDialogStatic #duplicateDialog="gwDialog" id="ep-dlg-duplicate" aria-labelledby="ep-dup-title" aria-describedby="ep-dup-desc">
