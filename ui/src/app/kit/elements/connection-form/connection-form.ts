@@ -32,6 +32,7 @@ import { GwConnectionTest, TestState, TestTarget, usesGoogleAdc } from './connec
 import { fileSelection, withoutFileFields } from './file-selection';
 import { FileBrowseRequest, FileBrowseTrust, GwRemoteFiles } from './remote-files';
 import { DatabaseName, databaseConfig, databaseNames, databaseSelection, initialDatabases, removeConfigPath, withoutDatabaseFields } from './database-selection';
+import { GwCloudProjects, ProjectDiscoveryRequest } from './cloud-projects';
 
 /** What Save (and Test) hand to the page: the request members of `POST /api/connections` / `/test`. */
 export interface ConnectionFormValue {
@@ -96,6 +97,7 @@ export function signInTarget(type: string): string {
     case 'sql':
     case 'mongodb':
     case 'redis':
+    case 'opensearch':
       return 'the database';
     case 'ssh':
     case 'ssh-logs':
@@ -103,6 +105,9 @@ export function signInTarget(type: string): string {
     case 'kubernetes':
       return 'the cluster';
     case 'logs':
+    case 'gcp-logging':
+    case 'cloudwatch':
+    case 'loki':
       return 'the log store';
     case 'http':
       return 'the API';
@@ -149,7 +154,7 @@ let nextId = 0;
  */
 @Component({
   selector: 'form[gwConnectionForm]',
-  imports: [NgTemplateOutlet, GwIcon, RouterLink, FormField, GwSchemaSection, GwConnectionTest, GwDialog, GwDialogClose, GwToggle, GwRemoteFiles],
+  imports: [NgTemplateOutlet, GwIcon, RouterLink, FormField, GwSchemaSection, GwConnectionTest, GwDialog, GwDialogClose, GwToggle, GwRemoteFiles, GwCloudProjects],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     class: 'gw-form gw-connection-form',
@@ -225,6 +230,14 @@ export class GwConnectionForm {
   readonly fileSelection = computed(() => fileSelection(this.spec().schema));
   readonly files = viewChild(GwRemoteFiles);
   readonly discoverDatabases = output<DatabaseDiscoveryRequest>();
+  readonly discoverProjects = output<ProjectDiscoveryRequest>();
+  readonly projects = viewChild(GwCloudProjects);
+  protected readonly projectNode = computed(() => {
+    const marker = this.spec().schema['x-project-selection'];
+    if (!marker || typeof marker !== 'object' || Array.isArray(marker) || typeof marker['path'] !== 'string') return null;
+    const state = this.state();
+    return state.compiled.all.find((node) => node.pointer === marker['path'] && state.visible(node)) ?? null;
+  });
   readonly databaseSelection = computed(() => databaseSelection(this.spec().schema));
   private readonly databaseBaselines = new WeakMap<SchemaForm, string>();
 
@@ -444,7 +457,8 @@ export class GwConnectionForm {
    * the loose fields before the sections (HTTP's base URLs, AWS regions). It comes first and takes the Name.
    */
   protected readonly rootSection = computed<SchemaNode | null>(() => {
-    const fields = withoutFileFields(withoutDatabaseFields(this.state().compiled.loose, this.databaseSelection()), this.fileSelection());
+    const fields = withoutFileFields(withoutDatabaseFields(this.state().compiled.loose, this.databaseSelection()), this.fileSelection())
+      .filter((node) => node !== this.projectNode());
     return fields.length ? rootSection(fields, 'Connection') : null;
   });
 
@@ -589,9 +603,16 @@ export class GwConnectionForm {
 
   // ─── Submit ───
 
+  /** Project scopes are rendered after credentials, although the schema compiler groups loose fields first. */
+  private readonly invalidFields = computed(() => {
+    const fields = this.state().invalidNodes();
+    const project = this.projectNode();
+    return project ? [...fields.filter((node) => node !== project), ...fields.filter((node) => node === project)] : fields;
+  });
+
   protected readonly validationSummary = computed(() => {
     if (!this.submitted()) return null;
-    return this.nameError() ?? this.state().invalidNodes().map((node) => this.state().error(node))[0]
+    return this.nameError() ?? this.invalidFields().map((node) => this.state().error(node))[0]
       ?? this.databaseProblem() ?? this.files()?.problem();
   });
 
@@ -616,6 +637,10 @@ export class GwConnectionForm {
     this.submitted.set(true);
     untracked(() => this.commonForm().markAsTouched());
     const fieldsOk = this.state().submit();
+    if (!fieldsOk && this.projectNode()) {
+      const first = this.invalidFields()[0];
+      if (first) this.state().focus(first);
+    }
     const nameOk = this.mode() === 'edit' || !this.commonForm.name().invalid();
     if (!nameOk) {
       // The name comes first on the page: it takes the focus over the schema's first error (registered after it, so
@@ -679,6 +704,7 @@ export class GwConnectionForm {
     this.state().reset(databaseConfig(this.config(), this.databaseSelection()), this.spec().schema);
     this.databaseDiscovery.set(null);
     this.files()?.reset();
+    this.projects()?.reset();
     this.common.set({ name: this.name(), env: (this.env() ?? this.spec().env ?? 'dev') as string });
     this.submitted.set(false);
     untracked(() => this.commonForm().reset());

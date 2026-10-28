@@ -67,5 +67,9 @@ describe('tool-policy-list view (design/elements/tool-policy-list.html)', () => 
     expect(limitFields('ssh-logs').map((f) => [f.section, f.key])).toEqual([
       ['limits', 'logLines'], ['limits', 'toolTimeoutSeconds'], ['limits', 'maxResponseKb'], ['ssh', 'maxOutputKb'],
     ]);
+    for (const type of ['gcp-logging', 'cloudwatch', 'loki']) {
+      expect(limitFields(type).map((f) => f.key)).toEqual(['logLines', 'toolTimeoutSeconds', 'maxResponseKb']);
+    }
+    expect(limitFields('opensearch').map((f) => f.key)).toEqual(['toolTimeoutSeconds', 'maxResponseKb']);
   });
 });

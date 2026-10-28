@@ -57,8 +57,8 @@ final class LokiBackend implements Backend {
   public Page oldest(String query, String source, long fromNs, long toNs, int want) throws ConnectorException {
     Page p = range(query, fromNs, toNs, want, "forward");
     if (p.aggregate() != null) {
-      throw ConnectorException.badInput("logs_tail needs a log query (a stream selector with filters), not a metric "
-          + "query. Use logs_search for metrics.");
+      throw ConnectorException.badInput("Tailing needs a log query (a stream selector with filters), not a metric "
+          + "query. Use a search call for metrics.");
     }
     return p;
   }

@@ -72,13 +72,13 @@ final class Tail {
       if (left <= 0) {
         String cursor = Cursors.seal(ctx, cfg.id(), queryKey, state);
         return Results.tail(new Results.TailAnswer(cfg.name(), s, r.waitFor(), List.of(), null, cursor,
-            (System.nanoTime() - started) / 1_000_000, gap, gapBefore, stats, r.notes()));
+            (System.nanoTime() - started) / 1_000_000, gap, gapBefore, stats, r.notes()), cfg.type());
       }
       try {
         Thread.sleep(Duration.ofNanos(Math.min(left, backend.pollEvery().toNanos())));
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
-        throw ConnectorException.timeout("logs_tail was cancelled while it waited.");
+        throw ConnectorException.timeout(LogsTools.tailName(cfg.type()) + " was cancelled while it waited.");
       }
     }
   }
@@ -126,7 +126,7 @@ final class Tail {
     }
     String cursor = Cursors.seal(ctx, cfg.id(), queryKey, next);
     return Results.tail(new Results.TailAnswer(cfg.name(), s, r.waitFor(), kept, cutBy, cursor,
-        (System.nanoTime() - started) / 1_000_000, gap, gapBefore, stats, r.notes()));
+        (System.nanoTime() - started) / 1_000_000, gap, gapBefore, stats, r.notes()), cfg.type());
   }
 
   private static long nanos(ExecContext ctx) {

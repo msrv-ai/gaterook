@@ -30,6 +30,11 @@ public interface Connector extends AutoCloseable {
     return true;
   }
 
+  /** Draft setup descriptions for this configuration. No I/O, credential resolution or persisted changes. */
+  default List<ToolDefinition> previewTools(ConnectionConfig cfg) {
+    return manifest().tools().stream().filter(tool -> supportsTool(tool.name(), cfg)).toList();
+  }
+
   /** No I/O, no secrets, a few ms; runs before the policy. MUTATION requires approval unless the pair explicitly uses Bypass. */
   Classification classify(ToolCall call, ConnectionConfig cfg, PolicyView policy);
 
@@ -48,6 +53,11 @@ public interface Connector extends AutoCloseable {
   /** Authenticates a server draft and returns selectable names in {@code details.databases}; saves nothing. */
   default TestResult discoverDatabases(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
     return TestResult.failure("discovery-unavailable", "This connector can't list databases.", null);
+  }
+
+  /** Authenticates a draft and returns selectable cloud projects in {@code details.projects}; saves nothing. */
+  default TestResult discoverProjects(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
+    return TestResult.failure("discovery-unavailable", "This connector can't list projects.", null);
   }
 
   /**

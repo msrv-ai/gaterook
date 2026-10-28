@@ -304,6 +304,67 @@ class ConnectionsIT {
   }
 
   @Test
+  void discoveringProjectsUsesDraftSecretsWithoutSavingMasksFailuresAndHonorsTheDeadline() {
+    int before = core.jdbc().queryForObject("select count(*) from connection", Integer.class);
+    SecretInput password = SecretInput.local("projects-pass-7654321".toCharArray());
+    ConnectionTester.Outcome found = tester.discoverProjects("pgfake", Env.DEV, TestCore.config("db.test"),
+        Map.of("/credentials/password", password), null, null);
+    assertThat(found.result().ok()).isTrue();
+    assertThat(found.result().details().at("/projects/0/projectId").asString()).isEqualTo("example-prod");
+    assertThat(found.result().details().path("discoveryComplete").asBoolean()).isTrue();
+    assertThat(password.value()).containsOnly('\0');
+    assertThat(core.jdbc().queryForObject("select count(*) from connection", Integer.class)).isEqualTo(before);
+
+    ConnectionTester.Outcome failed = tester.discoverProjects("pgfake", Env.DEV, TestCore.config("fail.test"),
+        Map.of("/credentials/password", SecretInput.local("projects-pass-7654321".toCharArray())), null, null);
+    assertThat(failed.result().error().message()).contains("‹masked›").doesNotContain("projects-pass-7654321");
+    ConnectionTester.Outcome slow = tester.discoverProjects("pgfake", Env.DEV, TestCore.config("slow.test"),
+        Map.of("/credentials/password", SecretInput.local("projects-pass-7654321".toCharArray())), null, null);
+    assertThat(slow.result().error().code()).isEqualTo("timeout");
+  }
+
+  @Test
+  void discoveringProjectsRetainsStoredCredentialTargetChecks() {
+    core.connection("projects-stored", "pgfake", Env.DEV, "db.test");
+    assertThatThrownBy(() -> tester.discoverProjects("pgfake", Env.DEV, TestCore.config("another.test"), Map.of(),
+        "projects-stored", null)).isInstanceOfSatisfying(ProblemException.class,
+            e -> assertThat(e.confirm()).isEqualTo(ConnectionService.CONFIRM_NEW_HOST));
+    assertThat(tester.discoverProjects("pgfake", Env.DEV, TestCore.config("db.test"), Map.of(), "projects-stored",
+        null).result().ok()).isTrue();
+  }
+
+  @Test
+  void projectDiscoveryRelaxesOnlyTheSelectionAndLeavesTheSaveSchemaUntouched() {
+    ObjectNode schema = (ObjectNode) TestCore.JSON.readTree("""
+        {"type":"object","x-project-selection":{"path":"/resourceNames"},"oneOf":[
+          {"required":["backend","resourceNames","credentials"],"properties":{
+            "backend":{"const":"gcp-logging"},
+            "resourceNames":{"type":"array","minItems":1,"items":{"type":"string","pattern":"^projects/"}},
+            "credentials":{"type":"object","required":["source"],"properties":{"source":{"const":"adc"}}}}},
+          {"required":["backend","url"],"properties":{"backend":{"const":"loki"},"url":{"type":"string"}}}
+        ]}""");
+    String original = schema.toString();
+    ConnectorManifest manifest = ConnectorManifest.builder("projects-test", "1.0.0", ConnectorManifest.Kind.BUILT_IN)
+        .configSchema(schema).build();
+    ObjectNode config = (ObjectNode) TestCore.JSON.readTree("""
+        {"backend":"gcp-logging","credentials":{"source":"adc"}}""");
+    connections.validateProjectDiscovery(manifest, config, Set.of(), Set.of(), Env.DEV);
+    assertThatThrownBy(() -> connections.validate(manifest, config, Set.of(), Env.DEV))
+        .isInstanceOf(ProblemException.class);
+    config.putArray("resourceNames").add("unfinished-selection");
+    connections.validateProjectDiscovery(manifest, config, Set.of(), Set.of(), Env.DEV);
+    assertThatThrownBy(() -> connections.validate(manifest, config, Set.of(), Env.DEV))
+        .isInstanceOf(ProblemException.class);
+    ((ObjectNode) config.path("credentials")).remove("source");
+    assertThatThrownBy(() -> connections.validateProjectDiscovery(manifest, config, Set.of(), Set.of(), Env.DEV))
+        .isInstanceOf(ProblemException.class);
+    ((ObjectNode) config.path("credentials")).put("source", "adc");
+    config.putArray("resourceNames").add("projects/example-prod");
+    connections.validate(manifest, config, Set.of(), Env.DEV);
+    assertThat(schema.toString()).isEqualTo(original);
+  }
+
+  @Test
   void browsingFilesUsesDraftSecretsWithoutSavingMasksFailuresAndHonorsTheDeadline() {
     int before = core.jdbc().queryForObject("select count(*) from connection", Integer.class);
     SecretInput password = SecretInput.local("browse-pass-7654321".toCharArray());

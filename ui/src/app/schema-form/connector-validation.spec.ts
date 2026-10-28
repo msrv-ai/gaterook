@@ -96,6 +96,26 @@ const cases: readonly ConnectionCase[] = [
   { name: 'GCP: service account key', type: 'gcp',
     config: { scopes: ['projects/example-project'], credentials: { source: 'serviceAccountKey' } },
     secrets: { '/credentials/serviceAccountKey': serviceAccountKey } },
+  { name: 'GCP Cloud Logging: application default credentials and fixed backend', type: 'gcp-logging',
+    config: { resourceNames: ['projects/example-project'], credentials: { source: 'adc' } } },
+  { name: 'GCP Cloud Logging: service account key and fixed backend', type: 'gcp-logging',
+    config: { resourceNames: ['projects/example-project'], credentials: { source: 'serviceAccountKey' } },
+    secrets: { '/credentials/serviceAccountKey': serviceAccountKey } },
+  { name: 'Loki connector: no authentication and fixed backend', type: 'loki',
+    config: { url: 'https://loki.example.test', auth: { mode: 'none' } } },
+  { name: 'Loki connector: bearer token and fixed backend', type: 'loki',
+    config: { url: 'https://loki.example.test', auth: { mode: 'bearer' } },
+    secrets: { '/auth/secret': 'test-only-token' } },
+  { name: 'CloudWatch connector: access key and fixed backend', type: 'cloudwatch',
+    config: { region: 'eu-central-1', logGroups: ['/example/app'], credentials: { source: 'accessKey', accessKeyId } },
+    secrets: { '/credentials/secretAccessKey': secretKey } },
+  { name: 'CloudWatch connector: profile and fixed backend', type: 'cloudwatch',
+    config: { region: 'eu-central-1', logGroups: ['/example/app'], credentials: { source: 'profile', profile: 'example' } } },
+  { name: 'OpenSearch connector: fixed full API access without log inputs', type: 'opensearch',
+    config: { url: 'https://search.example.test:9200', auth: { mode: 'none' } } },
+  { name: 'OpenSearch connector: basic authentication without log inputs', type: 'opensearch',
+    config: { url: 'https://search.example.test:9200', auth: { mode: 'basic', username: 'reader' } },
+    secrets: { '/auth/secret': password } },
   { name: 'Loki: no authentication', type: 'logs',
     config: { backend: 'loki', url: 'https://loki.example.test', auth: { mode: 'none' } } },
   { name: 'Loki: bearer token without a username', type: 'logs',
@@ -168,10 +188,27 @@ describe('schema-form: minimal active connector configurations', () => {
         expect(valid, errors.join('\n')).toBe(true);
         expect(errors).toEqual([]);
         expect(form.value()).toMatchObject(sample.config);
+        if (['gcp-logging', 'loki', 'cloudwatch', 'opensearch'].includes(sample.type)) {
+          expect(getAt(form.value(), ['backend'])).toBe(sample.type);
+        }
+        if (sample.type === 'opensearch') expect(getAt(form.value(), ['apiAccess'])).toBe('full');
         expect(Object.keys(form.secretInputs()).sort()).toEqual(Object.keys(sample.secrets ?? {}).sort());
       });
     }
   }
+
+  it('OpenSearch has no legacy log scope or field mapping inputs', () => {
+    const form = createSchemaForm(CONNECTOR_FORMS['opensearch'], {
+      idPrefix: 'opensearch', current: { url: 'https://search.example.test:9200', auth: { mode: 'none' } },
+      injector: TestBed.inject(Injector),
+    });
+    const legacyFields = ['indices', 'scopeQuery', 'timestampField', 'messageField', 'severityField', 'labelFields', 'advanced'];
+    const pointers = form.compiled.all.map((node) => node.pointer);
+    for (const field of legacyFields) {
+      expect(pointers).not.toContain(`/${field}`);
+      expect(form.value()).not.toHaveProperty(field);
+    }
+  });
 
   it('Redis keeps database zero when the user only enters the host', () => {
     const form = createSchemaForm(CONNECTOR_FORMS['redis'], {
@@ -242,6 +279,13 @@ describe('schema-form: minimal active connector configurations', () => {
     { name: 'HTTP base URL', type: 'http', config: { auth: { type: 'none' } }, pointer: '/baseUrls' },
     { name: 'AWS region scope', type: 'aws', config: { credentials: { source: 'profile', profile: 'example' } }, pointer: '/regions' },
     { name: 'GCP resource scope', type: 'gcp', config: { credentials: { source: 'adc' } }, pointer: '/scopes' },
+    { name: 'GCP Cloud Logging project scope', type: 'gcp-logging',
+      config: { credentials: { source: 'adc' } }, pointer: '/resourceNames' },
+    { name: 'Loki connector URL', type: 'loki', config: { auth: { mode: 'none' } }, pointer: '/url' },
+    { name: 'CloudWatch connector log groups', type: 'cloudwatch',
+      config: { region: 'eu-central-1', credentials: { source: 'profile', profile: 'example' } }, pointer: '/logGroups' },
+    { name: 'OpenSearch connector basic username', type: 'opensearch',
+      config: { url: 'https://search.example.test:9200', auth: { mode: 'basic' } }, pointer: '/auth/username' },
     { name: 'OpenSearch scoped log indices', type: 'logs',
       config: { backend: 'opensearch', url: 'https://search.example.test:9200', apiAccess: 'logs', auth: { mode: 'none' } },
       pointer: '/indices' },

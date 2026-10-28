@@ -243,6 +243,13 @@
                   <span class="gw-choice-card__meta" id="pk-rd-m">Built-in · 2 tools</span>
                 </label>
                 <label class="gw-choice-card gw-connector-card__option">
+                  <input class="gw-choice-card__input" type="radio" name="connector-type" value="opensearch" aria-labelledby="pk-os-t" aria-describedby="pk-os-d pk-os-m">
+                  <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="database"></i></span>
+                  <span class="gw-choice-card__title" id="pk-os-t">OpenSearch</span>
+                  <span class="gw-choice-card__description" id="pk-os-d">Search indices with JSON Query DSL. Administration waits for approval.</span>
+                  <span class="gw-choice-card__meta" id="pk-os-m">Built-in · 3 tools</span>
+                </label>
+                <label class="gw-choice-card gw-connector-card__option">
                   <input class="gw-choice-card__input" type="radio" name="connector-type" value="clickhouse" aria-disabled="true" aria-labelledby="pk-ch-t" aria-describedby="pk-ch-d pk-ch-m">
                   <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="database"></i></span>
                   <span class="gw-choice-card__title" id="pk-ch-t">ClickHouse <span class="gw-badge gw-badge--outline gw-badge--sm"><i class="gw-icon gw-badge__icon" data-lucide="puzzle"></i>Plugin</span></span>
@@ -273,28 +280,21 @@
                   <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="scroll-text"></i></span>
                   <span class="gw-choice-card__title" id="pk-gcl-t">GCP Cloud Logging</span>
                   <span class="gw-choice-card__description" id="pk-gcl-d">Search logs with service account impersonation.</span>
-                  <span class="gw-choice-card__meta" id="pk-gcl-m">Built-in Logs · 2 tools</span>
+                  <span class="gw-choice-card__meta" id="pk-gcl-m">Built-in · 2 tools</span>
                 </label>
                 <label class="gw-choice-card gw-connector-card__option">
                   <input class="gw-choice-card__input" type="radio" name="connector-type" value="cloudwatch" aria-labelledby="pk-cw-t" aria-describedby="pk-cw-d pk-cw-m">
                   <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="scroll-text"></i></span>
                   <span class="gw-choice-card__title" id="pk-cw-t">AWS CloudWatch</span>
                   <span class="gw-choice-card__description" id="pk-cw-d">Logs Insights queries with AssumeRole.</span>
-                  <span class="gw-choice-card__meta" id="pk-cw-m">Built-in Logs · 2 tools</span>
+                  <span class="gw-choice-card__meta" id="pk-cw-m">Built-in · 2 tools</span>
                 </label>
                 <label class="gw-choice-card gw-connector-card__option">
                   <input class="gw-choice-card__input" type="radio" name="connector-type" value="loki" aria-labelledby="pk-loki-t" aria-describedby="pk-loki-d pk-loki-m">
                   <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="scroll-text"></i></span>
                   <span class="gw-choice-card__title" id="pk-loki-t">Loki</span>
-                  <span class="gw-choice-card__description" id="pk-loki-d">LogQL search and label browsing.</span>
-                  <span class="gw-choice-card__meta" id="pk-loki-m">Built-in Logs · 2 tools</span>
-                </label>
-                <label class="gw-choice-card gw-connector-card__option">
-                  <input class="gw-choice-card__input" type="radio" name="connector-type" value="opensearch" aria-labelledby="pk-os-t" aria-describedby="pk-os-d pk-os-m">
-                  <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="scroll-text"></i></span>
-                  <span class="gw-choice-card__title" id="pk-os-t">OpenSearch</span>
-                  <span class="gw-choice-card__description" id="pk-os-d">Lucene query search over log indices.</span>
-                  <span class="gw-choice-card__meta" id="pk-os-m">Built-in Logs · 2 tools</span>
+                  <span class="gw-choice-card__description" id="pk-loki-d">Search and tail logs with LogQL.</span>
+                  <span class="gw-choice-card__meta" id="pk-loki-m">Built-in · 2 tools</span>
                 </label>
               </div>
             </div>
@@ -1362,7 +1362,7 @@ Caused by: java.net.SocketTimeoutException: Connect timed out
   var CONN = {
     "app-logs": { pick: "loki", label: "Loki", env: "dev", host: "loki.dev.internal:3100", health: ["success", "Healthy · 64 ms"], ms: 64,
       cred: ["local", 1, "41 days ago", "2026-09-11T09:40:00+02:00", "token", "token"],
-      eps: [["dev", [["logs_search", R], ["logs_tail", O]]]] },
+      eps: [["dev", [["loki_search", R], ["loki_tail", O]]]] },
     "aws-stage": { pick: "aws", label: "AWS", env: "stage", host: "eu-central-1 · acme-stage", health: ["success", "Healthy · 96 ms"], ms: 96,
       cred: ["local", 2, "30 days ago", "2026-09-22T15:05:00+02:00", "base access key", "access-key"],
       del: "Its encrypted base access key (version 2) is destroyed; the role gw-readonly stays in AWS.",
@@ -1390,7 +1390,7 @@ Caused by: java.net.SocketTimeoutException: Connect timed out
     "prod-logs": { pick: "gcp-logging", label: "GCP Cloud Logging", env: "prod", host: "projects/acme-prod", health: ["success", "Healthy · 210 ms"], ms: 210,
       cred: ["dynamic", "gw-reader@acme-prod.iam.gserviceaccount.com", "GCP impersonation", "Service account", "Your Google sign-in borrows this account's read access: a short-lived token, valid 15 min."],
       del: "Nothing is stored here: the gw-reader service account stays in GCP.",
-      eps: [["incident-prod", [["logs_search", R], ["logs_tail", O]]]] },
+      eps: [["incident-prod", [["gcp_logging_search", R], ["gcp_logging_tail", O]]]] },
     "prod-replica": { pick: "postgresql", label: "PostgreSQL 16 · read replica", env: "prod", host: "replica.prod.internal:5432/app", health: ["success", "Healthy · 31 ms"], ms: 31,
       cred: ["dynamic", "vault://database/creds/prod-replica-readonly", "Vault dynamic", "Vault role", "Vault creates a short-lived database user, renews it automatically and revokes it when the connection goes idle."],
       del: "Nothing is stored here: the Vault role stays.",
@@ -1406,7 +1406,7 @@ Caused by: java.net.SocketTimeoutException: Connect timed out
       del: "The Vault reference is removed; the secret itself stays in Vault.",
       eps: [["stage-readonly", [["sql_list_schemas", R], ["sql_describe_table", R], ["sql_query", R], ["sql_execute", O]]]] }
   };
-  var TYPE_ALIAS = { logs: "loki" }; // connectors.html links by connector, the picker lists log back ends
+  var TYPE_ALIAS = { logs: "loki" }; // Saved legacy Logs links open the Loki choice; new links use each connector type.
   var MODES = { read: ["eye", "Read only"], approval: ["user-check", "Approval"], off: ["circle-off", "Off"] };
 
   function el(tag, cls, text) {

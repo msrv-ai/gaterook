@@ -41,7 +41,8 @@ class BuiltInConnectorCatalogTest {
   /** Current built-in tool counts used by the runtime connector catalog. */
   private static final Map<String, Integer> TOOLS_PER_CONNECTOR = orderedMap(
       "PostgreSQL", 4, "MySQL", 4, "MongoDB", 4, "Redis", 2, "SSH", 2, "Logs", 5, "SSH log files", 3,
-      "Kubernetes", 4, "GCP", 2, "AWS", 2, "HTTP API", 2);
+      "Kubernetes", 4, "GCP", 4, "AWS", 2, "HTTP API", 2, "GCP Cloud Logging", 2, "AWS CloudWatch", 2,
+      "Loki", 2, "OpenSearch", 3);
 
   /** Current default modes for the connection types in BLUEPRINT §9's {@code dev} endpoint. */
   private static final Map<String, Map<String, Mode>> DEV_ENDPOINT = Map.of(
@@ -60,7 +61,8 @@ class BuiltInConnectorCatalogTest {
   /** Names a tool of each built-in family must start with; reserved for them against plugins and MCP servers. */
   private static final Map<String, String> TOOL_PREFIX = orderedMap("postgres", "sql_", "mysql", "sql_",
       "mongodb", "mongo_", "redis", "redis_", "ssh", "ssh_", "ssh-logs", "ssh_logs_", "logs", "logs_",
-      "kubernetes", "k8s_", "gcp", "gcp_", "aws", "aws_", "http", "http_");
+      "kubernetes", "k8s_", "gcp", "gcp_", "aws", "aws_", "http", "http_",
+      "gcp-logging", "gcp_logging_", "cloudwatch", "cloudwatch_logs_", "loki", "loki_", "opensearch", "opensearch_");
 
   /** Property names that hold credentials: a connection form must never show them back (ARCHITECTURE.md §9). */
   private static final Set<String> SECRET_PROPERTIES = Set.of("password", "passphrase", "privateKey", "token",
@@ -95,7 +97,7 @@ class BuiltInConnectorCatalogTest {
   @Test
   void everyConnectorModuleRegistersItsConnectorTypes() {
     assertThat(byId.keySet()).containsExactlyInAnyOrder("postgres", "mysql", "mongodb", "redis", "ssh", "logs", "ssh-logs",
-        "kubernetes", "gcp", "aws", "http", "mcp-server");
+        "kubernetes", "gcp", "aws", "http", "mcp-server", "gcp-logging", "cloudwatch", "loki", "opensearch");
     assertThat(connectors).hasSize(byId.size());
   }
 
@@ -172,22 +174,23 @@ class BuiltInConnectorCatalogTest {
   }
 
   @Test
-  void toolNamesAreReservedPerFamilyAndOnlySqlIsShared() {
+  void toolNamesAreReservedPerFamilyAndLegacyAliasesRetainTheirDefinitions() {
     Map<String, ToolDefinition> seen = new HashMap<>();
     for (ConnectorManifest m : byId.values()) {
       for (ToolDefinition t : m.tools()) {
         String prefix = m.id().equals("logs") && t.name().startsWith("opensearch_")
-            ? "opensearch_" : TOOL_PREFIX.get(m.id());
+            ? "opensearch_" : m.id().equals("gcp") && t.name().startsWith("logs_")
+            ? "logs_" : TOOL_PREFIX.get(m.id());
         assertThat(t.name()).as(m.id()).matches("^[a-z][a-z0-9_]{0,63}$").startsWith(prefix);
         ToolDefinition earlier = seen.putIfAbsent(t.name(), t);
         if (earlier != null) {
-          // The core merges same-named tools of PostgreSQL and MySQL only if they are equal (§5 step 4).
-          assertThat(t.name()).startsWith("sql_");
+          // SQL and the retained legacy cloud log/OpenSearch aliases share identical definitions.
+          assertThat(t.name()).matches("^(sql_|logs_|opensearch_).*");
           assertThat(t).isEqualTo(earlier);
         }
       }
     }
-    assertThat(seen).hasSize(30);
+    assertThat(seen).hasSize(36);
   }
 
   @Test

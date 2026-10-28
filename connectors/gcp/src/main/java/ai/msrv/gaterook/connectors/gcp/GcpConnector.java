@@ -103,6 +103,14 @@ public final class GcpConnector implements Connector {
   }
 
   @Override
+  public List<ToolDefinition> previewTools(ConnectionConfig cfg) {
+    List<ToolDefinition> preview = new ArrayList<>(manifest.tools().stream()
+        .filter(tool -> !CloudLogs.isTool(tool.name())).toList());
+    preview.addAll(logs.previewTools(cfg));
+    return List.copyOf(preview);
+  }
+
+  @Override
   public Classification classify(ToolCall call, ConnectionConfig cfg, PolicyView policy) {
     decisions.forget(call.callId());
     Settings s;

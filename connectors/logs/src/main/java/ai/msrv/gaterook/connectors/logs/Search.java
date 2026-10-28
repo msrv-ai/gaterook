@@ -47,7 +47,7 @@ final class Search {
     Page page = backend.newest(r.query(), r.source(), state.fromNs(), state.toNs(), want, state.continuation());
     if (page.aggregate() != null) {
       return Results.search(new Results.SearchAnswer(cfg.name(), s, state.fromNs(), state.toNs(), List.of(),
-          page.aggregate(), page.partial(), null, false, page.stats(), r.notes()));
+          page.aggregate(), page.partial(), null, false, page.stats(), r.notes()), cfg.type());
     }
     List<LogEntry> fresh = new ArrayList<>();
     for (LogEntry e : page.entries()) {
@@ -113,7 +113,7 @@ final class Search {
       }
     }
     return Results.search(new Results.SearchAnswer(cfg.name(), s, state.fromNs(), state.toNs(), kept, null, reason,
-        next, gap, page.stats(), r.notes()));
+        next, gap, page.stats(), r.notes()), cfg.type());
   }
 
   static long nanos(Instant i) {

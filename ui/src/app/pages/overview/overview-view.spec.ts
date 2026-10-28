@@ -175,6 +175,10 @@ describe('Activity line and the guide', () => {
     expect(checkPrompt('mongodb', 'orders')).toBe('Show me the collections in orders');
     expect(checkPrompt('kubernetes', 'dev-cluster')).toBe('Show me the pods in dev-cluster');
     expect(checkPrompt('logs', 'app-logs')).toBe('Show me the latest errors in app-logs');
+    for (const type of ['gcp-logging', 'cloudwatch', 'loki']) {
+      expect(checkPrompt(type, 'app-logs')).toBe('Show me the latest errors in app-logs');
+    }
+    expect(checkPrompt('opensearch', 'search-db')).toBe('Show me the indices in search-db');
     expect(checkPrompt('ssh', 'dev-vm')).toBe('Show me what you can see in dev-vm');
   });
 

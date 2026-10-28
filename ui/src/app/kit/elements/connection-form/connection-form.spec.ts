@@ -110,6 +110,29 @@ async function databaseForm(type = 'mysql') {
 }
 
 describe('connection form: GCP setup', () => {
+  it.each(['gcp-logging', 'loki', 'cloudwatch', 'opensearch'])('keeps %s fixed to its own backend without exposing a backend selector', async (type) => {
+    const { el, host, settle } = await render();
+    host.spec.set(spec(type));
+    await settle();
+    expect(el.querySelector('#cf-backend')).toBeNull();
+    expect(host.form().value().config['backend']).toBe(type);
+    if (type === 'gcp-logging') {
+      expect(el.querySelector('#cf-project-load')).not.toBeNull();
+      const credentials = el.querySelector('#cf-credentials-source')!;
+      const scopes = el.querySelector('#cf-resourceNames')!;
+      expect(credentials.compareDocumentPosition(scopes) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    } else {
+      expect(el.querySelector('#cf-project-load')).toBeNull();
+    }
+    if (type === 'opensearch') {
+      expect(host.form().value().config['apiAccess']).toBe('full');
+      for (const field of ['apiAccess', 'indices', 'scopeQuery', 'timestampField']) {
+        expect(el.querySelector(`#cf-${field}`)).toBeNull();
+      }
+      expect(el.querySelector('#cf-url')).not.toBeNull();
+    }
+  });
+
   it('shows the scope format and local sign-in instructions, then submits after correcting a bare project ID', async () => {
     const { el, host, settle } = await render();
     host.spec.set(spec('gcp'));

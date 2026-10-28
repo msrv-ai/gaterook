@@ -298,8 +298,10 @@ final class OpenSearchBackend implements Backend {
           .withChecks(probe.checks())
           .withMetadata(JsonNodeFactory.instance.objectNode().put("serverVersion", version).put("apiAccess", "full"))
           .withHint(new TestResult.Hint(TestResult.Severity.INFO, "opensearch.full-api", "/apiAccess",
-              "Full REST access uses the server user's permissions. Log index patterns and scopeQuery apply only "
-                  + "to logs_search and logs_tail. Administrative requests default to Approval; explicit endpoint "
+              "Full REST access uses the server user's permissions. "
+                  + (call.cfg().type().equals("opensearch") ? "" : "Log index patterns and scopeQuery apply only "
+                      + "to logs_search and logs_tail. ")
+                  + "Administrative requests default to Approval; explicit endpoint "
                   + "Bypass executes them without asking."));
       for (TestResult.Hint hint : Probe.transport(s.base(), s.auth(), call.cfg().env())) {
         result = result.withHint(hint);

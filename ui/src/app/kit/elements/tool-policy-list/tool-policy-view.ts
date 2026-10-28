@@ -177,6 +177,9 @@ export function limitFields(type: string | null): LimitField[] {
     case 'ssh-logs':
       return [...limitFields('logs'), field('maxOutputKb', 'Max output size', 'KB', 'ssh')];
     case 'logs':
+    case 'gcp-logging':
+    case 'cloudwatch':
+    case 'loki':
       return [field('logLines', 'Line limit', 'lines', 'limits'), field('toolTimeoutSeconds', 'Timeout', 's', 'limits'), field('maxResponseKb', 'Max response size', 'KB', 'limits')];
     case 'http':
       return [field('toolTimeoutSeconds', 'Timeout', 's', 'http'), field('maxResponseKb', 'Max response size', 'KB', 'http')];

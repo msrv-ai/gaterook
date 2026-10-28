@@ -141,7 +141,7 @@ record LogsRequest(Tool tool, String query, String source, Instant from, Instant
         }
         if (maxRange != null && Duration.between(from, now).compareTo(maxRange) > 0) {
           throw new TimeArg.InvalidTimeException("since goes back further than this environment allows ("
-              + maxRange.toHours() + " h). Use a later time, or logs_search for older entries.");
+              + maxRange.toHours() + " h). Use a later time, or a search call for older entries.");
         }
       }
     } catch (TimeArg.InvalidTimeException e) {

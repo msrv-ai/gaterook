@@ -179,12 +179,12 @@ export const CONNECTOR_SECTIONS: Readonly<Record<string, SectionSpec>> = {
   k8s: { types: ['kubernetes'], icon: 'ship-wheel', noun: 'Kubernetes' },
   cloud: { types: ['aws', 'gcp'], icon: 'cloud', noun: 'cloud' },
   http: { types: ['http'], icon: 'globe', noun: 'HTTP' },
-  logs: { types: ['logs', 'ssh-logs'], icon: 'scroll-text', noun: 'logs' },
+  logs: { types: ['gcp-logging', 'cloudwatch', 'loki', 'logs', 'ssh-logs'], icon: 'scroll-text', noun: 'logs' },
 };
 export const CORE_SECTIONS: readonly string[] = ['masking', 'limits', 'approvals'];
 
 /** The connector type order of the catalog (Databases, Remote access, Logs, Kubernetes, Cloud, HTTP and MCP). */
-const TYPE_ORDER = ['postgres', 'mysql', 'mongodb', 'redis', 'ssh', 'ssh-logs', 'logs', 'kubernetes', 'gcp', 'aws', 'http', 'mcp-server'];
+const TYPE_ORDER = ['postgres', 'mysql', 'mongodb', 'redis', 'opensearch', 'ssh', 'ssh-logs', 'gcp-logging', 'cloudwatch', 'loki', 'logs', 'kubernetes', 'gcp', 'aws', 'http', 'mcp-server'];
 
 export function typeRank(type: string): number {
   const i = TYPE_ORDER.indexOf(type);
@@ -426,7 +426,7 @@ export const FIELDS: Readonly<Record<string, FieldSpec>> = {
   'http.maxRequestKb': { label: 'Max request body', noun: 'max request body', describe: () => [t('A bigger body is denied before it is sent.')] },
   'logs.maxRangeHours': { label: 'Longest time range', noun: 'longest time range', describe: () => [t('A search further back is cut to this range.')] },
   'logs.defaultLimit': { label: 'Entries per call by default', noun: 'entries per call', describe: () => [t('When the agent asks for no limit. Log lines per call in Limits caps every call.')] },
-  'logs.maxTailWaitSeconds': { label: 'Longest wait of logs_tail', noun: 'logs_tail wait', describe: () => [t('How long one call waits for new lines.')] },
+  'logs.maxTailWaitSeconds': { label: 'Longest tail wait', noun: 'tail wait', describe: () => [t('How long one call waits for new lines.')] },
   'masking.pii': {
     label: 'Personal data, found by pattern',
     noun: 'personal data masking',
@@ -456,7 +456,7 @@ export const FIELDS: Readonly<Record<string, FieldSpec>> = {
   'limits.rateLimitPerTool': { label: 'Rate limit per tool', noun: 'rate limit per tool', describe: () => [t('Each tool on each connection.')] },
   'limits.maxResponseKb': { label: 'Max response size', noun: 'max response', describe: () => [t('Bigger results are cut and marked truncated.')] },
   'limits.toolTimeoutSeconds': { label: 'Tool timeout', noun: 'tool timeout', describe: () => [t('Log tools, Kubernetes, NoSQL and HTTP. SQL statements and SSH commands have separate timeouts above.')] },
-  'limits.logLines': { label: 'Log lines per call', noun: 'log lines per call', describe: () => [c('logs_search'), t(' and '), c('logs_tail'), t('.')] },
+  'limits.logLines': { label: 'Log lines per call', noun: 'log lines per call', describe: () => [t('Applies to log search and tail tools.')] },
   'approvals.timeoutMinutes': { label: 'Approval timeout', noun: 'approval timeout', describe: () => [t('The countdown approvers see on a request.')] },
   'approvals.comment': {
     label: 'Comment on a decision',

@@ -193,7 +193,8 @@
                   <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1" data-value="mongodb"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="leaf"></i><span class="gw-menu__label">MongoDB</span><span class="gw-menu__hint">1<span class="gw-sr-only"> connections</span></span></button>
                   <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1" data-value="redis"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="layers"></i><span class="gw-menu__label">Redis</span><span class="gw-menu__hint">1<span class="gw-sr-only"> connections</span></span></button>
                   <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1" data-value="ssh"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="terminal"></i><span class="gw-menu__label">SSH</span><span class="gw-menu__hint">2<span class="gw-sr-only"> connections</span></span></button>
-                  <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1" data-value="logs"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="scroll-text"></i><span class="gw-menu__label">Logs</span><span class="gw-menu__hint">2<span class="gw-sr-only"> connections</span></span></button>
+                  <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1" data-value="gcp-logging"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="scroll-text"></i><span class="gw-menu__label">GCP Cloud Logging</span><span class="gw-menu__hint">1<span class="gw-sr-only"> connections</span></span></button>
+                  <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1" data-value="loki"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="scroll-text"></i><span class="gw-menu__label">Loki</span><span class="gw-menu__hint">1<span class="gw-sr-only"> connections</span></span></button>
                   <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1" data-value="kubernetes"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="ship-wheel"></i><span class="gw-menu__label">Kubernetes</span><span class="gw-menu__hint">1<span class="gw-sr-only"> connections</span></span></button>
                   <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1" data-value="aws"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="cloud"></i><span class="gw-menu__label">AWS</span><span class="gw-menu__hint">1<span class="gw-sr-only"> connections</span></span></button>
                   <button class="gw-menu__item" type="button" role="option" aria-selected="false" tabindex="-1" data-value="http"><i class="gw-icon gw-menu__check" data-lucide="check"></i><i class="gw-icon gw-menu__icon" data-lucide="globe"></i><span class="gw-menu__label">HTTP API</span><span class="gw-menu__hint">1<span class="gw-sr-only"> connections</span></span></button>
@@ -237,7 +238,7 @@
               </tr>
             </thead>
             <tbody>
-            <tr data-conn="app-logs" data-type="logs" data-env="dev" data-health="healthy">
+            <tr data-conn="app-logs" data-type="loki" data-env="dev" data-health="healthy">
               <th scope="row">
                 <a class="gw-link gw-mono" href="connection-new.html?edit=app-logs">app-logs</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--dev">dev</span>
                 <div class="gw-text-code-sm gw-fg-muted" title="loki.dev.internal:3100">loki.dev.internal:3100</div>
@@ -497,7 +498,7 @@
                 </div>
               </td>
             </tr>
-            <tr data-conn="prod-logs" data-type="logs" data-env="prod" data-health="healthy">
+            <tr data-conn="prod-logs" data-type="gcp-logging" data-env="prod" data-health="healthy">
               <th scope="row">
                 <a class="gw-link gw-mono" href="connection-new.html?edit=prod-logs">prod-logs</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--prod">prod</span>
                 <div class="gw-text-code-sm gw-fg-muted" title="projects/acme-prod">projects/acme-prod</div>
@@ -1001,7 +1002,7 @@
   // Enabled tools (not Off) per endpoint, from BLUEPRINT §9 (dev) and the endpoint pages (stage-readonly, incident-prod).
   var CLIENTS = { "dev": "Claude Desktop and Codex", "stage-readonly": "claude.ai", "incident-prod": "Claude Desktop" };
   var IMPACT = {
-    "app-logs": { secret: "Its encrypted token is destroyed.", eps: [["dev", ["logs_search"]]] },
+    "app-logs": { secret: "Its encrypted token is destroyed.", eps: [["dev", ["loki_search"]]] },
     "aws-stage": { secret: "Its encrypted base access key (version 2) is destroyed; the role gw-readonly stays in AWS.", eps: [["dev", ["aws_describe", "aws_metrics"]], ["stage-readonly", ["aws_describe", "aws_metrics"]]] },
     "billing-api": { secret: "Its two references are removed; the secrets stay in GCP and AWS Secrets Manager.", eps: [["dev", ["http_request"]], ["stage-readonly", ["http_get"]]], pending: ["http_request", "Codex"] },
     "cache-redis": { secret: "Its encrypted password is destroyed.", eps: [["dev", ["redis_get", "redis_scan"]]] },
@@ -1009,7 +1010,7 @@
     "dev-db": { secret: "Its encrypted password (version 3) is destroyed.", eps: [["dev", ["sql_list_schemas", "sql_describe_table", "sql_query", "sql_execute"]]], pending: ["sql_execute", "Codex"] },
     "dev-vm": { secret: "Nothing is stored here: certificates come from the Vault SSH CA.", eps: [["dev", ["ssh_run"]]] },
     "orders-mongo": { secret: "Its encrypted password is destroyed.", eps: [["dev", ["mongo_find", "mongo_aggregate"]]] },
-    "prod-logs": { secret: "Nothing is stored here: the gw-reader service account stays in GCP.", eps: [["incident-prod", ["logs_search"]]] },
+    "prod-logs": { secret: "Nothing is stored here: the gw-reader service account stays in GCP.", eps: [["incident-prod", ["gcp_logging_search"]]] },
     "prod-replica": { secret: "Nothing is stored here: the Vault role stays.", eps: [["incident-prod", ["sql_list_schemas", "sql_describe_table", "sql_query"]]] },
     "prod-vm": { secret: "Nothing is stored here: certificates come from the Vault SSH CA.", eps: [["incident-prod", ["ssh_run"]]] },
     "stage-db": { secret: "The Vault reference is removed; the secret itself stays in Vault.", eps: [["stage-readonly", ["sql_list_schemas", "sql_describe_table", "sql_query"]]] }

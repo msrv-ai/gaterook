@@ -142,6 +142,11 @@ export class ConnectorTypesApi {
     return this.api.get(ApiClient.path`/api/connector-types/${type}`);
   }
 
+  /** The tools supported by one draft configuration, without connecting or resolving credentials. */
+  previewTools(type: string, config: JsonObject, env: Env): Promise<{ readonly tools: ConnectorTool[] }> {
+    return this.api.post(ApiClient.path`/api/connector-types/${type}/tools`, { config, env });
+  }
+
   form(type: string, env?: Env | null): Promise<ConnectionFormSpec> {
     return this.api.get(ApiClient.path`/api/connector-types/${type}/form`, { env });
   }

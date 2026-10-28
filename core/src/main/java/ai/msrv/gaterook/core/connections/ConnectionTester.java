@@ -77,7 +77,7 @@ public class ConnectionTester implements DisposableBean {
    */
   public record ConfirmOutcome(String kind, JsonNode config, Outcome retest) {}
 
-  private enum DraftOperation { TEST, DATABASES, FILES }
+  private enum DraftOperation { TEST, DATABASES, FILES, PROJECTS }
 
   private final ConnectorRegistry registry;
   private final ConnectionConfigs configs;
@@ -130,6 +130,12 @@ public class ConnectionTester implements DisposableBean {
   public Outcome discoverDatabases(String type, Env env, JsonNode config, Map<String, SecretInput> typed,
       String existing, String confirm) {
     return testDraft(type, env, config, typed, existing, confirm, DraftOperation.DATABASES, null);
+  }
+
+  /** Lists cloud projects with the same secret handling, host checks and deadline as a draft test. */
+  public Outcome discoverProjects(String type, Env env, JsonNode config, Map<String, SecretInput> typed,
+      String existing, String confirm) {
+    return testDraft(type, env, config, typed, existing, confirm, DraftOperation.PROJECTS, null);
   }
 
   /** Browses remote files with the same secret handling, host checks and deadline as a draft test. */
@@ -208,7 +214,11 @@ public class ConnectionTester implements DisposableBean {
         present.addAll(stored.secretIds().keySet());
         secretFields.addAll(stored.secretIds().keySet());
       }
-      connections.validate(manifest, draft, present, dynamic, env, operation != DraftOperation.TEST);
+      if (operation == DraftOperation.PROJECTS) {
+        connections.validateProjectDiscovery(manifest, draft, present, dynamic, env);
+      } else {
+        connections.validate(manifest, draft, present, dynamic, env, operation != DraftOperation.TEST);
+      }
       String id = stored == null ? "draft-" + Ids.uuid() : stored.id();
       ConnectionConfig cfg = new ConnectionConfig(id, stored == null ? "draft" : stored.name(), type, env,
           stored == null ? 0 : stored.config().version(), draft.deepCopy(), Set.copyOf(secretFields),
@@ -359,6 +369,7 @@ public class ConnectionTester implements DisposableBean {
       case TEST -> connector.test(cfg, resolver, ctx);
       case DATABASES -> connector.discoverDatabases(cfg, resolver, ctx);
       case FILES -> connector.browseFiles(cfg, resolver, ctx, path);
+      case PROJECTS -> connector.discoverProjects(cfg, resolver, ctx);
     });
     TestResult result;
     try {

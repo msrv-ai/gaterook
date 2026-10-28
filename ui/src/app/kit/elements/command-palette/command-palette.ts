@@ -22,6 +22,7 @@ import { GwDialog } from '../../dialog';
 import { GwIcon } from '../../icons';
 import { ShortcutService } from '../../shortcuts';
 import { ThemeService } from '../../theme';
+import { CONNECTOR_ICONS, CONNECTOR_NAMES } from '../shared/connector-icons';
 
 /** One row of the palette: a page or action link, an action button, a connection or an endpoint. */
 export interface PaletteOption {
@@ -85,36 +86,6 @@ const ACTIONS: Record<string, { readonly label: string; readonly icon: string; r
   'connect-client': { label: 'Connect your AI app', icon: 'app-window', hint: 'Claude Desktop, Codex, Cursor', keywords: 'clients ai apps claude codex cursor' },
 };
 
-const TYPE_NAMES: Record<string, string> = {
-  postgres: 'PostgreSQL',
-  mysql: 'MySQL',
-  mongodb: 'MongoDB',
-  redis: 'Redis',
-  ssh: 'SSH',
-  'ssh-logs': 'SSH log files',
-  logs: 'Logs',
-  kubernetes: 'Kubernetes',
-  gcp: 'GCP',
-  aws: 'AWS',
-  http: 'HTTP API',
-  'mcp-server': 'MCP server',
-};
-
-const TYPE_ICONS: Record<string, string> = {
-  postgres: 'database',
-  mysql: 'database',
-  mongodb: 'leaf',
-  redis: 'layers',
-  ssh: 'terminal',
-  'ssh-logs': 'scroll-text',
-  logs: 'scroll-text',
-  kubernetes: 'ship-wheel',
-  gcp: 'cloud',
-  aws: 'cloud',
-  http: 'globe',
-  'mcp-server': 'plug',
-};
-
 /** Builds the palette's rows from `/api/search` (and what only the renderer knows: theme, the endpoint URL). */
 export function paletteOptions(result: SearchResult, opts: { readonly pending: number; readonly address: string }): PaletteOption[] {
   const out: PaletteOption[] = [];
@@ -163,11 +134,11 @@ export function paletteOptions(result: SearchResult, opts: { readonly pending: n
       group: 'connections',
       label: c.name,
       mono: true,
-      icon: TYPE_ICONS[c.type] ?? 'database',
-      hint: TYPE_NAMES[c.type] ?? c.type,
+      icon: CONNECTOR_ICONS[c.type] ?? 'database',
+      hint: CONNECTOR_NAMES[c.type] ?? c.type,
       env: c.env,
       route: c.route,
-      keywords: `${c.type} ${TYPE_NAMES[c.type] ?? ''}`,
+      keywords: `${c.type} ${CONNECTOR_NAMES[c.type] ?? ''}`,
     });
   }
   for (const e of result.endpoints) {

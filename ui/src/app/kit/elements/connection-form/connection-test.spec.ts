@@ -50,10 +50,15 @@ describe('connection test: Google sign-in', () => {
   it('offers Google sign-in for GCP ADC and GCP Logging ADC only', () => {
     expect(usesGoogleAdc('gcp', { credentials: { source: 'adc' } })).toBe(true);
     expect(usesGoogleAdc('gcp', { credentials: { source: 'serviceAccountKey' } })).toBe(false);
+    expect(usesGoogleAdc('gcp-logging', { credentials: { source: 'adc' } })).toBe(true);
+    expect(usesGoogleAdc('gcp-logging', { credentials: { source: 'serviceAccountKey' } })).toBe(false);
     expect(usesGoogleAdc('logs', { backend: 'gcp-logging', credentials: { source: 'adc' } })).toBe(true);
     expect(usesGoogleAdc('logs', { backend: 'gcp-logging', credentials: { source: 'serviceAccountKey' } })).toBe(false);
     expect(usesGoogleAdc('logs', { backend: 'cloudwatch', credentials: { source: 'adc' } })).toBe(false);
     expect(usesGoogleAdc('aws', { credentials: { source: 'adc' } })).toBe(false);
+    for (const type of ['loki', 'cloudwatch', 'opensearch']) {
+      expect(usesGoogleAdc(type, { credentials: { source: 'adc' } })).toBe(false);
+    }
     expect(usesGoogleAdc('gcp', {})).toBe(false);
   });
 

@@ -7,7 +7,7 @@ import { JsonValue } from '../core/api/types';
 import { DesktopBridge, desktopErrorText } from '../core/desktop/desktop-bridge';
 import { GwSecret } from '../kit/secret';
 import { literalParts } from '../kit/elements/shared/literals';
-import { SchemaNode, getAt, tagNoun } from './compile';
+import { SchemaNode, getAt, sameJson, tagNoun } from './compile';
 import { lowerFirst } from './messages';
 import { REFERENCE_SOURCES, SchemaForm } from './schema-form';
 import { referencePlaceholder, sourceCopy } from './secret-sources';
@@ -77,7 +77,8 @@ export class GwSchemaField {
   }
 
   protected hidden(): boolean {
-    return !this.form().visible(this.node());
+    return ('const' in this.node().schema && sameJson(this.value(), this.node().schema['const']))
+      || !this.form().visible(this.node());
   }
 
   /** The error sentence with the value it names set in mono ("<Dev DB> is not a slug…"). */

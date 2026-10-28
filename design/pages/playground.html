@@ -463,21 +463,21 @@
                       <caption class="gw-sr-only" id="pg-g-app-logs-cap">Tools on app-logs</caption>
                       <thead><tr><th scope="col">Tool</th><th scope="col">Mode on <span data-pg-ep-name>dev</span></th></tr></thead>
                       <tbody>
-                      <tr class="gw-tool-policy-list__row" data-mode="read" data-tool="logs_search" data-conn="app-logs" hidden>
+                      <tr class="gw-tool-policy-list__row" data-mode="read" data-tool="loki_search" data-conn="app-logs" hidden>
                         <th scope="row" class="gw-tool-policy-list__tool">
                           <div class="gw-tool-policy-list__name">
-                            <a class="gw-table__row-link gw-mono" href="playground.html?tool=logs_search">logs_search</a>
-                            <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of logs_search"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
+                            <a class="gw-table__row-link gw-mono" href="playground.html?tool=loki_search">loki_search</a>
+                            <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of loki_search"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--neutral" title="idempotentHint">Idempotent</li></ul>
                           </div>
                           <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Search log lines with a LogQL query.</p>
                         </th>
                         <td><span class="gw-mode gw-mode--read"><i class="gw-icon" data-lucide="eye"></i>Read only</span></td>
                       </tr>
-                      <tr class="gw-tool-policy-list__row" data-mode="off" data-tool="logs_tail" data-conn="app-logs" hidden>
+                      <tr class="gw-tool-policy-list__row" data-mode="off" data-tool="loki_tail" data-conn="app-logs" hidden>
                         <th scope="row" class="gw-tool-policy-list__tool">
                           <div class="gw-tool-policy-list__name">
-                            <a class="gw-table__row-link gw-mono" href="playground.html?tool=logs_tail">logs_tail</a>
-                            <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of logs_tail"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li></ul>
+                            <a class="gw-table__row-link gw-mono" href="playground.html?tool=loki_tail">loki_tail</a>
+                            <ul class="gw-tool-policy-list__annotations" aria-label="MCP annotations of loki_tail"><li class="gw-badge gw-badge--outline gw-badge--sm gw-badge--info" title="readOnlyHint">Read only</li></ul>
                           </div>
                           <p class="gw-tool-policy-list__description gw-text-caption gw-fg-muted">Stream new log lines for up to 5 minutes.</p>
                         </th>
@@ -1489,7 +1489,7 @@ id     status   customer_email  customer_phone  total   created_at
       ["billing-api", "globe", [["http_get", "read", "RIW", "GET or HEAD on the allowed paths of the API."], ["http_request", "off", "DW", "POST, PUT, PATCH or DELETE on the allowed paths. You approve the exact request."]]]] },
     "incident-prod": { conns: ["prod-replica", "prod-logs", "prod-vm"], groups: [
       ["prod-replica", "database", SQL("off")],
-      ["prod-logs", "scroll-text", [["logs_search", "read", "RI", "Search log entries with a Cloud Logging filter."], ["logs_tail", "off", "R", "Stream new log entries for up to 5 minutes."]]],
+      ["prod-logs", "scroll-text", [["gcp_logging_search", "read", "RI", "Search log entries with a Cloud Logging filter."], ["gcp_logging_tail", "off", "R", "Return new log entries with a bounded wait."]]],
       ["prod-vm", "terminal", [["ssh_run", "read", "", "Run a saved runbook: service-status is read only and runs at once, restart-api waits for approval."], ["ssh_exec", "off", "D", "Run any shell command on the host."]]]] }
   };
   // The descriptions of the arguments in the tools' inputSchema (the field hints).

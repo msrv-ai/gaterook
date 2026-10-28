@@ -1,5 +1,6 @@
 package ai.msrv.gaterook.core.admin.connectortypes;
 
+import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorManifest;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
@@ -20,6 +21,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.aot.hint.annotation.RegisterReflectionForBinding;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -35,7 +37,7 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * The connector catalog (ARCHITECTURE.md §6 connection-new and connectors, kit {@code connection-new.html} step 1 and
  * {@code connectors.html} › Installed): one card per type in the kit's groups, a type with {@code x-variants} as one
- * card per variant (Logs: GCP Cloud Logging, AWS CloudWatch, Loki, OpenSearch), the
+ * card per variant, the
  * generic MCP server type last with "Tools from the server". The Installed list shows each type once with its
  * process; the form gives the schema, its secret fields and what an environment changes.
  */
@@ -45,7 +47,8 @@ import tools.jackson.databind.node.ObjectNode;
     ConnectorTypesController.Process.class, ConnectorTypesController.Variant.class,
     ConnectorTypesController.TypeDetail.class, ConnectorTypesController.Tool.class, ConnectorTypesController.Form.class,
     ConnectorTypesController.SecretField.class, ConnectorTypesController.SecretSource.class,
-    ConnectorTypesController.EnvChange.class, ConnectorTypesController.EnvDefaults.class})
+    ConnectorTypesController.EnvChange.class, ConnectorTypesController.EnvDefaults.class,
+    ConnectorTypesController.ToolPreviewRequest.class, ConnectorTypesController.ToolPreview.class})
 class ConnectorTypesController {
 
   /** The kit's groups in its order (BLUEPRINT §6 connection-new). */
@@ -53,7 +56,8 @@ class ConnectorTypesController {
       "HTTP and MCP");
 
   /** Built-in types in the kit's order inside their groups. */
-  static final List<String> KIT_ORDER = List.of("postgres", "mysql", "mongodb", "redis", "ssh", "logs", "ssh-logs", "kubernetes",
+  static final List<String> KIT_ORDER = List.of("postgres", "mysql", "mongodb", "redis", "opensearch", "ssh",
+      "gcp-logging", "cloudwatch", "loki", "logs", "ssh-logs", "kubernetes",
       "gcp", "aws", "http", "mcp-server");
 
   record Reason(String reason) {}
@@ -91,6 +95,10 @@ class ConnectorTypesController {
       String prodDefaultMode, ToolDefinition.Annotations annotations) {}
 
   record TypeDetail(Installed type, List<Tool> tools, List<String> templateKinds) {}
+
+  record ToolPreviewRequest(JsonNode config, String env) {}
+
+  record ToolPreview(List<Tool> tools) {}
 
   /** A secret field of the form and the kind of secret it takes ({@code value}, {@code login}, {@code pem}, …). */
   record SecretField(String pointer, String kind, String title) {}
@@ -139,9 +147,12 @@ class ConnectorTypesController {
     plugins.installed().forEach(p -> pluginRows.put(p.id(), p));
     for (ConnectorType t : types) {
       ConnectorManifest m = t.manifest();
-      byGroup.computeIfAbsent(m.group(), k -> new ArrayList<>()).addAll(cards(t, stored, pluginRows));
+      boolean legacy = m.configSchema() != null && m.configSchema().path("x-legacy").asBoolean(false);
+      if (!legacy) {
+        byGroup.computeIfAbsent(m.group(), k -> new ArrayList<>()).addAll(cards(t, stored, pluginRows));
+      }
       if (t.kind() != ConnectorManifest.Kind.MCP_SERVER) {
-        installed.add(installed(t, stored, pluginRows));
+        if (!legacy || count(stored, m.id(), null) > 0) installed.add(installed(t, stored, pluginRows));
       } else {
         // Each external MCP server is installed on its own (C10): its connection, version, tools and process.
         stored.stream().filter(s -> s.config().type().equals(m.id())).forEach(s -> installed.add(server(t, s)));
@@ -170,13 +181,34 @@ class ConnectorTypesController {
   @GetMapping("/api/connector-types/{type}")
   TypeDetail get(@PathVariable String type) {
     ConnectorType t = require(type);
-    List<Tool> tools = t.manifest().tools().stream().map(d -> new Tool(d.name(), d.title(), d.description(),
-        d.nature().name().toLowerCase(Locale.ROOT), mode(d.defaultMode()), mode(d.prodDefaultMode()),
-        d.annotations())).toList();
+    List<Tool> tools = t.manifest().tools().stream().map(ConnectorTypesController::tool).toList();
     List<String> kinds = registry.templateKinds().values().stream()
         .filter(k -> k.connectionTypes().contains(type)).map(ai.msrv.gaterook.connector.api.TemplateKind::kind).sorted()
         .toList();
     return new TypeDetail(installed(t, connections.all()), tools, kinds);
+  }
+
+  /** Local capability preview only: no credential resolution, connection test, or upstream discovery. */
+  @PostMapping("/api/connector-types/{type}/tools")
+  ToolPreview previewTools(@PathVariable String type, @RequestBody ToolPreviewRequest request) {
+    ConnectorType t = require(type);
+    if (request.config() == null || !request.config().isObject()) {
+      throw ProblemException.unprocessable("Check the settings", "Connection settings must be an object.", "/config");
+    }
+    Env env;
+    try {
+      env = request.env() == null ? Env.DEV : Env.valueOf(request.env().toUpperCase(Locale.ROOT));
+    } catch (IllegalArgumentException e) {
+      throw ProblemException.unprocessable("Check the environment", "Choose dev, stage or prod.", "/env");
+    }
+    List<ToolDefinition> definitions = t.manifest().tools();
+    // External connectors retain their declared catalog capabilities; preview never starts their process.
+    if (t.kind() == ConnectorManifest.Kind.BUILT_IN) {
+      ConnectionConfig draft = new ConnectionConfig("preview", "preview", type, env, 0,
+          request.config().deepCopy(), Set.of(), null);
+      definitions = registry.connectorFor(draft).map(connector -> connector.previewTools(draft)).orElse(List.of());
+    }
+    return new ToolPreview(definitions.stream().map(ConnectorTypesController::tool).toList());
   }
 
   @GetMapping("/api/connector-types/{type}/form")
@@ -405,5 +437,11 @@ class ConnectorTypesController {
       case APPROVAL -> "approval";
       case BYPASS -> "bypass";
     };
+  }
+
+  private static Tool tool(ToolDefinition definition) {
+    return new Tool(definition.name(), definition.title(), definition.description(),
+        definition.nature().name().toLowerCase(Locale.ROOT), mode(definition.defaultMode()),
+        mode(definition.prodDefaultMode()), definition.annotations());
   }
 }

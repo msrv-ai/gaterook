@@ -267,6 +267,17 @@ class ConnectionsController {
     }
   }
 
+  @PostMapping("/api/connections/projects")
+  TestDtos.Outcome discoverProjects(@RequestBody TestDraft request) {
+    Map<String, SecretInput> secrets = secrets(request.secrets());
+    try {
+      return TestDtos.outcome(tester.discoverProjects(request.type(), env(request.env()), request.config(), secrets,
+          request.existing(), request.confirm()));
+    } finally {
+      clear(secrets, request.secrets());
+    }
+  }
+
   @PostMapping("/api/connections")
   ResponseEntity<Row> create(@RequestBody Create request) {
     Map<String, SecretInput> secrets = secrets(request.secrets());
