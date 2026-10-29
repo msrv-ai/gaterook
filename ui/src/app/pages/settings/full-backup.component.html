@@ -1,0 +1,95 @@
+@if (!restoreOnly()) {
+<header class="gw-form__section-header">
+  <h3 class="gw-form__legend" id="{{ ids('full-backup-t') }}">Full backup and restore</h3>
+  <p class="gw-form__description">Recover your gateway on this computer or move it to another one with a single encrypted file.</p>
+</header>
+<div class="gw-form__rows">
+  <div class="gw-alert gw-alert--info gw-alert--compact">
+    <svg lucideIcon="shield-check" class="gw-icon gw-alert__icon"></svg>
+    <div class="gw-alert__content"><p class="gw-alert__body">Includes the database, master key, desktop settings and local connector and plugin files, encrypted together with a required passphrase. Keep the passphrase separately: GateRook cannot recover it.</p></div>
+  </div>
+  <div class="gw-settings-layout__inline">
+    <button class="gw-btn gw-btn--primary" type="button" aria-haspopup="dialog" [attr.aria-disabled]="!desktop.fullBackupAvailable || !canCreate() || busy() ? 'true' : null" [attr.aria-describedby]="!desktop.fullBackupAvailable ? ids('full-backup-why') : !canCreate() ? ids('full-backup-locked') : ids('full-backup-hint')" (click)="openCreate($event)"><svg lucideIcon="archive" class="gw-icon"></svg> Create full backup</button>
+    <button class="gw-btn gw-btn--danger-ghost" type="button" aria-haspopup="dialog" [attr.aria-disabled]="!desktop.fullBackupAvailable || busy() ? 'true' : null" [attr.aria-describedby]="!desktop.fullBackupAvailable ? ids('full-backup-why') : ids('full-backup-hint')" (click)="openRestore($event)"><svg lucideIcon="archive-restore" class="gw-icon"></svg> Restore full backup</button>
+  </div>
+  <p class="gw-text-caption gw-fg-muted" id="{{ ids('full-backup-hint') }}">Restore replaces the current gateway data and closes GateRook. Back up your current gateway before restoring.</p>
+  @if (!desktop.fullBackupAvailable) {
+    <p class="gw-text-caption gw-fg-muted" id="{{ ids('full-backup-why') }}">Full backup and restore require an up-to-date GateRook desktop app.</p>
+  } @else if (!canCreate()) {
+    <p class="gw-text-caption gw-fg-muted" id="{{ ids('full-backup-locked') }}">Unlock the master key before creating a full backup. You can still restore an existing full backup.</p>
+  }
+</div>
+} @else {
+  <button class="gw-btn gw-btn--danger-ghost" type="button" aria-haspopup="dialog" [attr.aria-disabled]="!desktop.fullBackupAvailable || busy() ? 'true' : null" (click)="openRestore($event)"><svg lucideIcon="archive-restore" class="gw-icon"></svg> Restore full backup</button>
+}
+
+<dialog class="gw-dialog gw-dialog--md" id="{{ ids('full-backup-dlg') }}" gwDialog gwDialogStatic #createDialog="gwDialog" aria-labelledby="{{ ids('full-backup-dlg-t') }}" aria-describedby="{{ ids('full-backup-dlg-d') }}" (cancel)="guardCancel($event)" (closed)="clear()">
+  <form method="dialog" novalidate (submit)="create($event)">
+    <header class="gw-dialog__header">
+      <span class="gw-icon-tile"><svg lucideIcon="archive" class="gw-icon"></svg></span>
+      <h2 class="gw-dialog__title" id="{{ ids('full-backup-dlg-t') }}">Create full backup</h2>
+      <p class="gw-dialog__description" id="{{ ids('full-backup-dlg-d') }}">Choose a strong, unique passphrase to protect your gateway and its saved secrets.</p>
+      <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" [attr.aria-disabled]="busy() ? 'true' : null" [attr.aria-describedby]="busy() ? ids('full-backup-status') : null" (click)="cancel('create')"><svg lucideIcon="x" class="gw-icon"></svg></button>
+    </header>
+    <div class="gw-dialog__body">
+      <div class="gw-stack">
+        <div class="gw-field">
+          <label class="gw-field__label" for="{{ ids('full-backup-pass') }}">Backup passphrase <span class="gw-field__required">Required</span></label>
+          <input class="gw-input" id="{{ ids('full-backup-pass') }}" #createPass type="password" required minlength="12" maxlength="1024" autocomplete="new-password" spellcheck="false" autofocus [readOnly]="busy()" [attr.aria-invalid]="invalid() === 'create' ? 'true' : null" [attr.aria-describedby]="invalid() === 'create' ? ids('full-backup-pass-hint full-backup-error') : ids('full-backup-pass-hint')">
+          <p class="gw-field__hint" id="{{ ids('full-backup-pass-hint') }}">Use at least 12 characters, ideally several random words. Save it in your password manager separately from the backup.</p>
+        </div>
+        <div class="gw-field">
+          <label class="gw-field__label" for="{{ ids('full-backup-repeat') }}">Repeat passphrase <span class="gw-field__required">Required</span></label>
+          <input class="gw-input" id="{{ ids('full-backup-repeat') }}" #repeatPass type="password" required maxlength="1024" autocomplete="new-password" spellcheck="false" [readOnly]="busy()" [attr.aria-invalid]="invalid() === 'repeat' ? 'true' : null" [attr.aria-describedby]="invalid() === 'repeat' ? ids('full-backup-error') : null">
+        </div>
+        <p class="gw-text-small gw-fg-muted">Creating a backup briefly stops and restarts the gateway; active calls may be interrupted. A native save dialog asks where to put the encrypted file. Store a copy away from this computer. Losing the passphrase makes the backup unusable.</p>
+        @if (error(); as message) {
+          <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert" id="{{ ids('full-backup-error') }}"><svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg><div class="gw-alert__content"><p class="gw-alert__body">{{ message }}</p></div></div>
+        }
+        @if (busy()) {
+          <p class="gw-text-small gw-fg-muted" role="status" id="{{ ids('full-backup-status') }}">Creating the encrypted backup. Keep GateRook open until it finishes.</p>
+        }
+      </div>
+    </div>
+    <footer class="gw-dialog__footer">
+      <button class="gw-btn" type="button" [attr.aria-disabled]="busy() ? 'true' : null" [attr.aria-describedby]="busy() ? ids('full-backup-status') : null" (click)="cancel('create')">Cancel</button>
+      <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-disabled]="busy() ? 'true' : null" [attr.aria-busy]="busy() ? 'true' : null" [attr.aria-describedby]="busy() ? ids('full-backup-status') : null">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} Choose where to save</button>
+    </footer>
+  </form>
+</dialog>
+
+<dialog class="gw-dialog gw-dialog--md gw-dialog--danger" id="{{ ids('full-restore-dlg') }}" gwDialog gwDialogStatic #restoreDialog="gwDialog" aria-labelledby="{{ ids('full-restore-t') }}" aria-describedby="{{ ids('full-restore-d') }}" (cancel)="guardCancel($event)" (closed)="clear()">
+  <header class="gw-dialog__header">
+    <span class="gw-icon-tile"><svg lucideIcon="archive-restore" class="gw-icon"></svg></span>
+    <h2 class="gw-dialog__title" id="{{ ids('full-restore-t') }}">Restore full backup?</h2>
+    <p class="gw-dialog__description" id="{{ ids('full-restore-d') }}">Replace this gateway's data with an encrypted full backup.</p>
+    <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" [attr.aria-disabled]="busy() ? 'true' : null" [attr.aria-describedby]="busy() ? ids('full-restore-status') : null" (click)="cancel('restore')"><svg lucideIcon="x" class="gw-icon"></svg></button>
+  </header>
+  <div class="gw-dialog__body">
+    <div class="gw-stack">
+      <p>The current connections, policies, settings, audit history and stored secrets will be replaced. Create a full backup first if you need to keep them.</p>
+      <p>GateRook checks the passphrase and backup integrity before a final confirmation, then replaces data and closes. Reopen GateRook and reconnect your AI apps after recovery.</p>
+      <p>Restored plugins stay disabled until you review them; external MCP servers start on first use. Tunnels stay off. Files outside the GateRook data folder need to be linked again, and plugin runtimes may need reinstalling.</p>
+      <div class="gw-field">
+        <label class="gw-field__label" for="{{ ids('full-restore-pass') }}">Backup passphrase <span class="gw-field__required">Required</span></label>
+        <input class="gw-input" id="{{ ids('full-restore-pass') }}" #restorePass type="password" required maxlength="1024" autocomplete="off" spellcheck="false" [readOnly]="busy()" [attr.aria-invalid]="invalid() === 'restore' ? 'true' : null" [attr.aria-describedby]="invalid() === 'restore' ? ids('full-restore-pass-hint full-restore-error') : ids('full-restore-pass-hint')">
+        <p class="gw-field__hint" id="{{ ids('full-restore-pass-hint') }}">Enter the passphrase used when the backup was created. The next dialog selects the encrypted backup file. Use the same GateRook version that created it; the file must be no larger than 256 MiB.</p>
+      </div>
+      <div class="gw-field">
+        <label class="gw-field__label" for="{{ ids('full-restore-confirm') }}">Type RESTORE to confirm</label>
+        <input class="gw-input gw-input--mono" id="{{ ids('full-restore-confirm') }}" #confirmation type="text" required autocomplete="off" spellcheck="false" [readOnly]="busy()" [attr.aria-invalid]="invalid() === 'confirmation' ? 'true' : null" [attr.aria-describedby]="invalid() === 'confirmation' ? ids('full-restore-confirm-hint full-restore-error') : ids('full-restore-confirm-hint')">
+        <p class="gw-field__hint" id="{{ ids('full-restore-confirm-hint') }}">Enter RESTORE exactly, then choose the backup to restore.</p>
+      </div>
+      @if (error(); as message) {
+        <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert" id="{{ ids('full-restore-error') }}"><svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg><div class="gw-alert__content"><p class="gw-alert__body">{{ message }}</p></div></div>
+      }
+      @if (busy()) {
+        <p class="gw-text-small gw-fg-muted" role="status" id="{{ ids('full-restore-status') }}">Checking and restoring the backup. Keep GateRook open; it will close when finished.</p>
+      }
+    </div>
+  </div>
+  <footer class="gw-dialog__footer">
+    <button class="gw-btn" type="button" autofocus [attr.aria-disabled]="busy() ? 'true' : null" [attr.aria-describedby]="busy() ? ids('full-restore-status') : null" (click)="cancel('restore')">Cancel</button>
+    <button class="gw-btn gw-btn--danger" type="button" [attr.aria-disabled]="busy() ? 'true' : null" [attr.aria-busy]="busy() ? 'true' : null" [attr.aria-describedby]="busy() ? ids('full-restore-status') : ids('full-restore-confirm-hint')" (click)="restore()">@if (busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} Choose backup and restore</button>
+  </footer>
+</dialog>

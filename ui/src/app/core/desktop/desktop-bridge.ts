@@ -83,6 +83,12 @@ export interface DesktopPorts {
   readonly publicPort?: number;
 }
 
+/** The desktop owns file selection and contents; only the outcome and a display name reach the renderer. */
+export interface FullBackupResult {
+  readonly cancelled: boolean;
+  readonly fileName?: string;
+}
+
 /** What Electron's preload exposes as `window.gwDesktop` (§7.1): no secrets; paths only from an explicit key selection. */
 export interface GwDesktop {
   readonly platform: 'darwin' | 'win32' | 'linux';
@@ -108,6 +114,8 @@ export interface GwDesktop {
   restartCore(): Promise<void>;
   /** Deletes local application data and closes GateRook after an exact RESET confirmation. */
   resetApplication(confirmation: string): Promise<void>;
+  createFullBackup(passphrase: string): Promise<FullBackupResult>;
+  restoreFullBackup(passphrase: string, confirmation: string): Promise<FullBackupResult>;
   /**
    * Writes `desktop.json` and restarts the core on `port` — a number moves the local API, `{ publicPort }` the tunnel's
    * public listener (or both at once); rejects with a reason main can't use it (taken, reserved).
@@ -155,6 +163,7 @@ export class DesktopBridge {
   /** Also false when a browser UI connects to an older desktop shell. */
   readonly privateKeyPickerAvailable = typeof this.desktop?.choosePrivateKeyFile === 'function';
   readonly googleSignInAvailable = typeof this.desktop?.signInToGoogle === 'function';
+  readonly fullBackupAvailable = typeof this.desktop?.createFullBackup === 'function' && typeof this.desktop?.restoreFullBackup === 'function';
 
   /** The OS, for `gw-titlebar--mac`; `web` in a browser. */
   readonly platform: GwDesktop['platform'] | 'web' = this.desktop?.platform ?? 'web';
@@ -224,6 +233,17 @@ export class DesktopBridge {
     if (!this.desktop) throw new Error('Reset is available only in the desktop app.');
     if (confirmation !== 'RESET') throw new Error('Type RESET exactly to confirm.');
     await this.desktop.resetApplication(confirmation);
+  }
+
+  async createFullBackup(passphrase: string): Promise<FullBackupResult> {
+    if (!this.fullBackupAvailable) throw new Error('Full backup is available in an up-to-date GateRook desktop app.');
+    return this.desktop!.createFullBackup(passphrase);
+  }
+
+  async restoreFullBackup(passphrase: string, confirmation: string): Promise<FullBackupResult> {
+    if (!this.fullBackupAvailable) throw new Error('Full restore is available in an up-to-date GateRook desktop app.');
+    if (confirmation !== 'RESTORE') throw new Error('Type RESTORE exactly to confirm.');
+    return this.desktop!.restoreFullBackup(passphrase, confirmation);
   }
 
   async unlock(): Promise<void> {

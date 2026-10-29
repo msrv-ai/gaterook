@@ -8,6 +8,7 @@ import { GwIcon } from '../../kit/icons';
 import { GwReveal } from '../../kit/reveal';
 import { ToastService } from '../../kit/toast.service';
 import { SettingsData } from './settings.data';
+import { GwFullBackup } from './full-backup.component';
 import { boolOf, dailyHint, dayAt, dbBackedUpToast, fileOf, folderOf, keyBackedUpToast, keyBackupFileName, keyBackupLead, numOf, onOff, protectsText, savedToast, strOf } from './settings-view';
 
 const NO_ANSWER = 'The core didn’t answer. Try again.';
@@ -25,16 +26,17 @@ const NO_ANSWER = 'The core didn’t answer. Try again.';
  */
 @Component({
   selector: 'section[gwBackupSettings]',
-  imports: [RouterLink, GwIcon, GwDialog, GwDialogClose, GwReveal],
+  imports: [RouterLink, GwIcon, GwDialog, GwDialogClose, GwReveal, GwFullBackup],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'gw-settings-layout__section', id: 'settings-backup', 'aria-labelledby': 'st-backup-t' },
   template: `
     <header class="gw-section__header">
       <h2 class="gw-section__title" id="st-backup-t">Backup</h2>
-      <p class="gw-section__description">What you need to restore this gateway on another computer: the database, and the master key kept apart from it.</p>
+      <p class="gw-section__description">Create an encrypted full backup for recovery, or keep separate copies of the database and master key.</p>
     </header>
     <hr class="gw-divider">
     <div class="gw-form">
+      <section gwFullBackup [canCreate]="!!data.masterKey().value && !data.masterKey().value?.locked"></section>
       <section class="gw-form__section" aria-labelledby="st-db-t">
         <header class="gw-form__section-header">
           <h3 class="gw-form__legend" id="st-db-t">Database</h3>

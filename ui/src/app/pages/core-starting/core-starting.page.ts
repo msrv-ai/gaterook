@@ -27,6 +27,7 @@ import { GwStatusScreen, StatusScreenBusy, StatusScreenNotice } from '../../kit/
 import { GwIcon } from '../../kit/icons';
 import { GwReveal } from '../../kit/reveal';
 import { ToastService } from '../../kit/toast.service';
+import { GwFullBackup } from '../settings/full-backup.component';
 import {
   DEFAULT_KEY_PATH,
   ToastText,
@@ -60,7 +61,7 @@ const QUIT_IN_BROWSER = 'This window is a browser tab: close the tab to leave.';
  *   taken port is the tunnel's public listener's, the same dialog moves only that listener (`usePort({ publicPort })`):
  *   no endpoint URL changes, so it has no warning tone; Restart core stays for a process stopped meanwhile;
  * - locked (master key missing or invalid): what `/api/master-key` says (the key file, how many secrets, the last
- *   backup); **Restore from backup** — an optional passphrase, then the system open dialog, and the core unlocks
+ *   backup); **Restore master key** — an optional passphrase, then the system open dialog, and the core unlocks
  *   without a restart; **Create a new key** — the kit's danger confirmation, then the Secrets page, where the
  *   secrets that lost their value are entered again;
  * - stopped (the core ran and exited) and a failed start for any other reason: exit code, reason, uptime, the log
@@ -71,7 +72,7 @@ const QUIT_IN_BROWSER = 'This window is a browser tab: close the tab to leave.';
  */
 @Component({
   selector: 'gw-core-starting-page',
-  imports: [GwStatusScreen, GwDialog, GwDialogClose, GwIcon, GwReveal],
+  imports: [GwStatusScreen, GwDialog, GwDialogClose, GwIcon, GwReveal, GwFullBackup],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './core-starting.page.html',
 })
@@ -283,12 +284,12 @@ export class CoreStartingPage {
     this.portBusy.set(false);
   }
 
-  // ── Restore from backup ───────────────────────────────────────────────────────────────────────────────────────
+  // ── Restore master key ───────────────────────────────────────────────────────────────────────────────────────
 
   protected openRestore(): void {
     this.restoreError.set(null);
     this.restoreBusy.set(false);
-    // The opener is the focused "Restore from backup": focus comes back to it on Cancel.
+    // The opener is the focused "Restore master key": focus comes back to it on Cancel.
     this.restoreDialog().open();
   }
 

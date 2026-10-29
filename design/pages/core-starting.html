@@ -176,6 +176,7 @@
         </div>
         <footer class="gw-card__footer">
           <button class="gw-btn" type="button">Quit</button>
+          <button class="gw-btn gw-btn--danger-ghost" type="button" data-gw-dialog-open="core-full-restore-dlg"><i class="gw-icon" data-lucide="archive-restore"></i> Restore full backup</button>
           <button class="gw-btn gw-btn--primary" type="button" data-gw-dialog-open="core-port-dlg">Use another port</button>
         </footer>
       </section>
@@ -225,7 +226,8 @@
         </div>
         <footer class="gw-card__footer">
           <button class="gw-btn" type="button">Quit</button>
-          <button class="gw-btn gw-btn--primary" type="button" data-gw-dialog-open="core-restore-dlg"><i class="gw-icon" data-lucide="archive-restore"></i> Restore from backup</button>
+          <button class="gw-btn gw-btn--danger-ghost" type="button" data-gw-dialog-open="core-full-restore-dlg"><i class="gw-icon" data-lucide="archive-restore"></i> Restore full backup</button>
+          <button class="gw-btn gw-btn--primary" type="button" data-gw-dialog-open="core-restore-dlg"><i class="gw-icon" data-lucide="archive-restore"></i> Restore master key</button>
         </footer>
       </section>
     </div>
@@ -271,6 +273,7 @@
           <p class="gw-sr-only" role="alert">The gateway core stopped unexpectedly.</p>
         </div>
         <footer class="gw-card__footer">
+          <button class="gw-btn gw-btn--danger-ghost" type="button" data-gw-dialog-open="core-full-restore-dlg"><i class="gw-icon" data-lucide="archive-restore"></i> Restore full backup</button>
           <button class="gw-btn" type="button"><i class="gw-icon" data-lucide="file-text"></i> Open logs</button>
           <button class="gw-btn gw-btn--primary" type="button"><i class="gw-icon" data-lucide="rotate-cw"></i> Restart core</button>
         </footer>
@@ -319,6 +322,7 @@
           <p class="gw-sr-only" role="alert">The core failed to start: another core is using the database.</p>
         </div>
         <footer class="gw-card__footer">
+          <button class="gw-btn gw-btn--danger-ghost" type="button" data-gw-dialog-open="core-full-restore-dlg"><i class="gw-icon" data-lucide="archive-restore"></i> Restore full backup</button>
           <button class="gw-btn" type="button"><i class="gw-icon" data-lucide="file-text"></i> Open logs</button>
           <button class="gw-btn gw-btn--primary" type="button"><i class="gw-icon" data-lucide="rotate-cw"></i> Restart core</button>
         </footer>
@@ -378,7 +382,7 @@
     </form>
   </dialog>
 
-  <!-- Restore from backup: Secrets › Back up master key the other way round (ARCHITECTURE §8.6.18). The passphrase
+  <!-- Restore master key: Secrets › Back up master key the other way round (ARCHITECTURE §8.6.18). The passphrase
        comes first because the file dialog's token is single-use; then the system open dialog picks the copy, and
        the core gets only that dialog's one-time token, never a path. Initial focus: the passphrase. -->
   <dialog class="gw-dialog gw-dialog--md" id="core-restore-dlg" aria-labelledby="core-restore-t" aria-describedby="core-restore-d" data-gw-static>
@@ -416,6 +420,36 @@
     </form>
   </dialog>
 
+  <dialog class="gw-dialog gw-dialog--md gw-dialog--danger" id="core-full-restore-dlg" data-gw-static aria-labelledby="core-full-restore-t" aria-describedby="core-full-restore-d">
+    <header class="gw-dialog__header">
+      <span class="gw-icon-tile"><i class="gw-icon" data-lucide="archive-restore"></i></span>
+      <h2 class="gw-dialog__title" id="core-full-restore-t">Restore full backup?</h2>
+      <p class="gw-dialog__description" id="core-full-restore-d">Replace this gateway's data with an encrypted full backup.</p>
+      <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+    </header>
+    <div class="gw-dialog__body">
+      <div class="gw-stack">
+        <p>The current connections, policies, settings, audit history and stored secrets will be replaced. Create a full backup first if you need to keep them.</p>
+        <p>GateRook checks the passphrase and backup integrity before a final confirmation, then replaces data and closes. Reopen GateRook and reconnect your AI apps after recovery.</p>
+        <p>Restored plugins stay disabled until you review them; external MCP servers start on first use. Tunnels stay off. Files outside the GateRook data folder need to be linked again, and plugin runtimes may need reinstalling.</p>
+        <div class="gw-field">
+          <label class="gw-field__label" for="core-full-restore-pass">Backup passphrase <span class="gw-field__required">Required</span></label>
+          <input class="gw-input" id="core-full-restore-pass" aria-describedby="core-full-restore-pass-hint" type="password" required maxlength="1024" autocomplete="off" spellcheck="false">
+          <p class="gw-field__hint" id="core-full-restore-pass-hint">Enter the passphrase used when the backup was created. The next dialog selects the encrypted backup file. Use the same GateRook version that created it; the file must be no larger than 256 MiB.</p>
+        </div>
+        <div class="gw-field">
+          <label class="gw-field__label" for="core-full-restore-confirm">Type RESTORE to confirm</label>
+          <input class="gw-input gw-input--mono" id="core-full-restore-confirm" aria-describedby="core-full-restore-confirm-hint" type="text" required autocomplete="off" spellcheck="false">
+          <p class="gw-field__hint" id="core-full-restore-confirm-hint">Enter RESTORE exactly, then choose the backup to restore.</p>
+        </div>
+      </div>
+    </div>
+    <footer class="gw-dialog__footer">
+      <button class="gw-btn" type="button" autofocus data-gw-dialog-close>Cancel</button>
+      <button class="gw-btn gw-btn--danger" type="button" id="core-full-restore-action"> Choose backup and restore</button>
+    </footer>
+  </dialog>
+
   <!-- Create a new master key: destructive, so gw-dialog--danger; Cancel has autofocus -->
   <dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" id="core-newkey-dlg" aria-labelledby="core-newkey-t" aria-describedby="core-newkey-d">
     <header class="gw-dialog__header">
@@ -444,6 +478,22 @@
    show (data-state and the accessible name of <main>), as the app does when the core's state changes. */
 (function () {
   "use strict";
+
+  // Full recovery uses the same explicit confirmation as Settings; this page only previews the native handoff.
+  var fullRestore = document.getElementById("core-full-restore-action");
+  var fullDialog = document.getElementById("core-full-restore-dlg");
+  fullRestore.addEventListener("click", function () {
+    var pass = document.getElementById("core-full-restore-pass");
+    var confirmation = document.getElementById("core-full-restore-confirm");
+    if (!pass.reportValidity()) return;
+    confirmation.setCustomValidity(confirmation.value === "RESTORE" ? "" : "Type RESTORE exactly to confirm.");
+    if (!confirmation.reportValidity()) return;
+    fullDialog.close("preview");
+    window.gwToast({ tone: "info", title: "Full restore preview", body: "The desktop app selects and validates the encrypted file before final confirmation. This reference does not replace data." });
+  });
+  fullDialog.addEventListener("close", function () {
+    fullDialog.querySelectorAll("input").forEach(function (field) { field.value = ""; field.setCustomValidity(""); });
+  });
   var screen = document.querySelector(".gw-status-screen");
   var list = document.querySelector('.gw-status-screen [role="tablist"]');
   if (!screen || !list || !("MutationObserver" in window)) return;

@@ -24,7 +24,8 @@ import tools.jackson.databind.node.ObjectNode;
 public final class LockedModeFilter extends OncePerRequestFilter {
 
   private static final Set<String> OPEN = Set.of("GET /api/health", "GET /api/events", "GET /api/master-key",
-      "POST /api/master-key/restore", "POST /api/master-key/create", "POST /internal/files/grant");
+      "POST /api/master-key/restore", "POST /api/master-key/create", "POST /internal/files/grant",
+      "POST /internal/full-backup/validate");
   private static final JsonMapper JSON = JsonMapper.builder().build();
 
   private final MasterKeyLock lock;

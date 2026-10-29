@@ -4,6 +4,7 @@ import com.google.crypto.tink.KeysetHandle;
 import com.google.crypto.tink.subtle.Hkdf;
 import ai.msrv.gaterook.core.platform.EventBus;
 import ai.msrv.gaterook.core.platform.GatewayPaths;
+import ai.msrv.gaterook.core.platform.GatewayDatabase;
 import ai.msrv.gaterook.core.platform.HmacKeys;
 import ai.msrv.gaterook.core.platform.MasterKeyChanged;
 import ai.msrv.gaterook.core.platform.MasterKeyLock;
@@ -571,6 +572,31 @@ public class MasterKeyService implements HmacKeys, InitializingBean, DisposableB
   }
 
   // ── Backup, restore, create ─────────────────────────────────────────────────────────────────────────────────
+
+  /** A consistent database/key pair for the desktop's encrypted archive; never writes a portable key to disk. */
+  byte[] fullBackupSnapshot(GatewayDatabase database, Path target) throws IOException, GeneralSecurityException {
+    writes.lock();
+    try {
+      requireUnlocked();
+      // Rotation may rewrap rows concurrently, but cannot add, disable or remove a key while this lock is held.
+      // The captured keyset therefore opens every version visible to VACUUM's read transaction.
+      KeysetHandle captured = current();
+      database.backupInto(target);
+      return BackupCodec.write(captured, null);
+    } finally {
+      writes.unlock();
+    }
+  }
+
+  /** Rewraps an already validated portable key with this computer's OS key without changing the live keyset. */
+  byte[] protectFullBackupKey(KeysetHandle restored) throws GeneralSecurityException {
+    writes.lock();
+    try {
+      return KeysetFile.encode(restored, loader.fileKey());
+    } finally {
+      writes.unlock();
+    }
+  }
 
   /**
    * Writes a backup of the current keyset to {@code target} (0600), protected by {@code passphrase} when given. After
