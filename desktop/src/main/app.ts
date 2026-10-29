@@ -2,7 +2,7 @@
 // and supervises, the signing proxy, the event stream that drives notifications, badge and tray, the token broker,
 // the IPC of `window.gwDesktop`, updates, deep links (ARCHITECTURE.md §7.1–§7.4, A20).
 import { app, dialog, ipcMain, Menu, nativeTheme, protocol, safeStorage, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { Broker } from '@gaterook/broker';
@@ -32,6 +32,9 @@ import { DesktopNotifications } from './notifications.ts';
 import { canBind, findFreePort } from './ports.ts';
 import { mayUnlock, proxyToCore } from './proxy.ts';
 import { ShutdownSequence } from './shutdown.ts';
+import { createFullBackup, restoreFullBackup, type FullBackupHost, type RestoreContext } from './full-backup.ts';
+import { recoverFullRestore } from './full-backup-restore.ts';
+import { privateDirectory } from './full-backup-files.ts';
 import { findDangerousSwitches } from './switches.ts';
 import { AppTray, markImage, setBadge } from './tray.ts';
 import { Updates } from './updater.ts';
@@ -92,6 +95,7 @@ export function main(): Desktop | null {
   const first = deepLinkInArgv(process.argv);
   if (first) desktop.deepLink(first);
   app.whenReady().then(async () => {
+    if (existsSync(layout.home)) recoverFullRestore(realpathSync(layout.home));
     if (hasPendingReset(layout.home)) await desktop.finishReset();
     else await desktop.start();
   }).catch((e: Error) => {
@@ -133,6 +137,7 @@ export class Desktop {
   private stopped = false;
   private shutdown: ShutdownSequence | null = null;
   private resetting = false;
+  private fullBackupBusy = false;
   /** A development smoke run (smoke.ts): no focus stealing, no notifications on screen. */
   private readonly smoke: boolean;
   private readonly smokeConsole: string[] = [];
@@ -279,7 +284,7 @@ export class Desktop {
         return autoUpdateWanted(general?.autoUpdate, this.config.autoUpdate);
       },
       prepareInstall: async () => {
-        if (this.resetting || this.quitting) throw new Error('GateRook is closing.');
+        if (this.resetting || this.quitting || this.fullBackupBusy) throw new Error('GateRook is busy or closing.');
         // Squirrel closes windows before before-quit; let our close handler release them.
         this.quitting = true;
         await this.stopForQuit();
@@ -313,7 +318,7 @@ export class Desktop {
 
   private onCoreState(state: DesktopCoreState): void {
     if (this.resetting) return;
-    this.send(IPC.coreStatePush, state);
+    if (!(this.fullBackupBusy && state.kind === 'starting')) this.send(IPC.coreStatePush, state);
     // A hidden login launch may finish loading before the broker starts and the unlock gate is published.
     if (state.kind === 'unlock-required' && !state.unlocking && !this.smoke && this.windowReady) this.showWindow();
     if (state.kind === 'ready' && this.rendererSubscribed) this.readyDeliveredFor = this.supervisor.endpoint()?.instanceNonce ?? null;
@@ -361,7 +366,7 @@ export class Desktop {
   }
 
   private onCoreEvent(e: CoreEvent): void {
-    if (this.resetting) return;
+    if (this.resetting || this.fullBackupBusy) return;
     if (this.relayEvents) this.send(IPC.eventPush, { type: e.type, data: e.data, id: e.id });
     const data = (typeof e.data === 'object' && e.data !== null ? e.data : {}) as Record<string, unknown>;
     switch (e.type) {
@@ -594,7 +599,7 @@ export class Desktop {
       if (route.kind === 'api') {
         const core = this.supervisor.endpoint();
         // Only once the page got `ready` from this core: before that, the status screen owns the window.
-        const open = !this.resetting && core && this.readyDeliveredFor === core.instanceNonce ? core : null;
+        const open = !this.resetting && !this.fullBackupBusy && core && this.readyDeliveredFor === core.instanceNonce ? core : null;
         const answer = await proxyToCore(request, route.target, open);
         // Restore or Create of the master key unlocks the core without a restart: main asks it again.
         if (open?.locked && mayUnlock(request.method, route.target, answer.status)) void this.recheckLock(open);
@@ -638,7 +643,10 @@ export class Desktop {
           this.log(`IPC ${channel} refused: not the app's window`);
           throw new Error('Not allowed');
         }
-        if (this.resetting || this.quitting) throw new Error('GateRook is closing.');
+        if (this.resetting || this.quitting || (this.fullBackupBusy
+            && channel !== IPC.coreState && channel !== IPC.updateState && channel !== IPC.pendingDeepLink)) {
+          throw new Error('GateRook is busy or closing.');
+        }
         return fn(...args);
       });
     };
@@ -648,7 +656,7 @@ export class Desktop {
           this.log(`IPC ${channel} refused: not the app's window`);
           return;
         }
-        if (this.resetting || this.quitting) return;
+        if (this.resetting || this.quitting || this.fullBackupBusy) return;
         fn(...args);
       });
     };
@@ -694,6 +702,8 @@ export class Desktop {
     handle(IPC.restartCore, async () => {
       void this.supervisor.restart();
     });
+    handle(IPC.createFullBackup, (passphrase) => this.fullBackup(false, passphrase));
+    handle(IPC.restoreFullBackup, (passphrase, confirmation) => this.fullBackup(true, passphrase, confirmation));
     handle(IPC.resetApplication, (confirmation) => {
       if (this.quitting) throw new Error('GateRook is closing.');
       requestApplicationReset(this.resetPaths(), confirmation, this.supervisor.pid());
@@ -738,6 +748,100 @@ export class Desktop {
   }
 
   // ── Quit ────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  /** Imported SQLite data is validated in an isolated, empty home, including when the main database cannot start. */
+  private async fullRestoreContext(): Promise<RestoreContext> {
+    const paused = !this.supervisor.endpoint();
+    if (paused) await this.supervisor.pause();
+    let home: string | null = null;
+    let helper: CoreSupervisor | null = null;
+    try {
+      const temporary = join(realpathSync(this.layout.home), 'tmp');
+      privateDirectory(temporary);
+      home = mkdtempSync(join(temporary, 'full-validator-'));
+      const validatorHome = home;
+      const port = await findFreePort(17465, [this.config.port, this.config.publicPort]);
+      if (port === null) throw new Error('No local port is available for backup validation.');
+      const publicPort = await findFreePort(port + 1, [port, this.config.port, this.config.publicPort]);
+      if (publicPort === null) throw new Error('No second local port is available for backup validation.');
+      helper = new CoreSupervisor({ version: app.getVersion(), home: validatorHome, ports: () => ({ port, publicPort }),
+        command: () => {
+          const command = coreArgv(this.layout.core, { home: validatorHome, resources: this.layout.resources, bridgeJar: this.layout.bridgeJar });
+          return { ...command, env: coreEnv(process.env, false) };
+        },
+        fileKey: () => this.prepareFileKey(), log: () => undefined, restartDelaysMs: [],
+      });
+      const validator = helper;
+      const prepared = new Promise<ReadyCore>((resolve, reject) => {
+        validator.onReady((core) => resolve(core));
+        validator.onState((state) => {
+          if (state.kind === 'failed' || state.kind === 'stopped') reject(new Error('The recovery validator could not start. Check the core installation and try again.'));
+        });
+      });
+      await validator.start();
+      const core = await prepared;
+      return { home: validatorHome, core, current: () => validator.endpoint(), close: async () => {
+        try {
+          await validator.stop();
+          rmSync(validatorHome, { recursive: true, force: true });
+        } finally { if (paused) await this.supervisor.resume(false); }
+      } };
+    } catch (error) {
+      try {
+        await helper?.stop();
+        if (home) rmSync(home, { recursive: true, force: true });
+      } finally { if (paused) await this.supervisor.resume(false); }
+      throw error;
+    }
+  }
+
+  private async fullBackup(restore: boolean, passphrase: unknown, confirmation?: unknown): Promise<{ cancelled: boolean; fileName?: string }> {
+    if (this.fullBackupBusy) throw new Error('A full backup or restore is already running.');
+    this.fullBackupBusy = true;
+    let stopped = false;
+    const host: FullBackupHost = {
+      home: this.layout.home, version: app.getVersion(),
+      saveDialog: (options) => this.window ? dialog.showSaveDialog(this.window.win, options) : dialog.showSaveDialog(options),
+      openDialog: (options) => this.window ? dialog.showOpenDialog(this.window.win, options) : dialog.showOpenDialog(options),
+      confirmRestore: (options) => this.window ? dialog.showMessageBox(this.window.win, options) : dialog.showMessageBox(options),
+      core: () => this.supervisor.endpoint(),
+      restoreContext: () => this.fullRestoreContext(),
+      pause: async () => { await this.supervisor.pause(); },
+      resume: async () => { await this.supervisor.resume(); },
+      stop: async () => {
+        this.updates?.stop();
+        this.events.stop();
+        this.googleSignIn.close();
+        await this.supervisor.stop();
+        stopped = true;
+        await this.broker?.close();
+        this.broker = null;
+      },
+      restored: async () => {
+        applyLoginItem({ openAtLogin: false, startHidden: false }, this.layout.dev, this.log);
+        this.window?.win.destroy();
+        this.window = null;
+        await session.defaultSession.closeAllConnections();
+        await session.defaultSession.clearStorageData();
+        await session.defaultSession.clearAuthCache();
+        session.defaultSession.flushStorageData();
+        await dialog.showMessageBox({ type: 'info', title: 'Full backup restored',
+          message: 'Open GateRook again to use the restored data.',
+          detail: 'Reconnect AI apps and review restored plugins, MCP servers, and external file references.', buttons: ['Close'] });
+      },
+    };
+    try {
+      return restore ? await restoreFullBackup(host, passphrase, confirmation) : await createFullBackup(host, passphrase);
+    } catch (error) {
+      if (stopped) dialog.showErrorBox('GateRook restore needs attention',
+        'GateRook will close. Reopen it to complete recovery before using this gateway.\n\n'
+        + (error instanceof Error ? error.message : 'The restore did not finish.'));
+      throw error;
+    } finally {
+      this.fullBackupBusy = false;
+      if (stopped) app.quit();
+    }
+  }
 
   private resetPaths(): ResetPaths {
     return { home: this.layout.home, userData: app.getPath('userData'),
@@ -797,7 +901,7 @@ export class Desktop {
 
   /** Quit stops the core first (stdin EOF), then lets Electron go. */
   beforeQuit(event: { preventDefault(): void }): void {
-    if (this.resetting) { event.preventDefault(); return; }
+    if (this.resetting || this.fullBackupBusy) { event.preventDefault(); return; }
     this.quitting = true;
     if (this.stopped || this.shutdown?.completed) return;
     event.preventDefault();

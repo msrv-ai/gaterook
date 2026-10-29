@@ -85,6 +85,7 @@ export class CoreSupervisor {
   private restartTimer: NodeJS.Timeout | null = null;
   private startPromise: Promise<void> | null = null;
   private shuttingDown = false;
+  private paused = false;
   private readonly stateListeners: Listener<DesktopCoreState>[] = [];
   private readonly readyListeners: Listener<ReadyCore>[] = [];
   private readonly downListeners: Listener<void>[] = [];
@@ -166,7 +167,7 @@ export class CoreSupervisor {
 
   /** Starts a core unless one runs or is starting. */
   start(): Promise<void> {
-    if (this.shuttingDown) return Promise.resolve();
+    if (this.shuttingDown || this.paused) return Promise.resolve();
     if (this.run && !this.hasExited(this.run)) return Promise.resolve();
     this.startPromise ??= this.spawnRun().finally(() => (this.startPromise = null));
     return this.startPromise;
@@ -174,7 +175,7 @@ export class CoreSupervisor {
 
   /** Restart core (the status screen, "Use another port", core.restart-required): a fresh start, crash count reset. */
   async restart(): Promise<void> {
-    if (this.shuttingDown) return;
+    if (this.shuttingDown || this.paused) return;
     this.cancelRestart();
     await this.startPromise;
     // The screen leaves `ready` at once: while the old core stops, nothing answers for it.
@@ -191,6 +192,20 @@ export class CoreSupervisor {
     this.cancelRestart();
     await this.startPromise;
     await this.stopRun();
+  }
+
+  /** Stop all core writes during a full backup without enabling automatic restarts. */
+  async pause(): Promise<void> {
+    this.paused = true;
+    this.cancelRestart();
+    await this.startPromise;
+    await this.stopRun();
+  }
+
+  async resume(start = true): Promise<void> {
+    this.paused = false;
+    this.crashes = 0;
+    if (start) await this.start();
   }
 
   private hasExited(run: Run): boolean {
@@ -229,7 +244,7 @@ export class CoreSupervisor {
         portOwner: null, log: null, ...meta });
       return;
     }
-    if (this.shuttingDown) {
+    if (this.shuttingDown || this.paused) {
       key.fileKey?.fill(0);
       return;
     }
@@ -395,7 +410,7 @@ export class CoreSupervisor {
     const ranFor = run.readyAt === null ? 0 : this.o.now() - run.readyAt;
     if (ranFor >= this.o.stableAfterMs) this.crashes = 0;
     const delays = this.o.restartDelaysMs;
-    if (this.crashes < delays.length && !this.shuttingDown) {
+    if (this.crashes < delays.length && !this.shuttingDown && !this.paused) {
       const delay = delays[this.crashes] ?? 1000;
       this.crashes++;
       this.o.log(`core crashed; restart ${this.crashes} of ${delays.length} in ${delay} ms`);

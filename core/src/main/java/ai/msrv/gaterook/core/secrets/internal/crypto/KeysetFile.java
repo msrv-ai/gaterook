@@ -98,10 +98,20 @@ public final class KeysetFile {
 
   /** Writes {@code handle} atomically: encrypted under {@code fileKey}, or cleartext when it is {@code null}. */
   public void write(KeysetHandle handle, Aead fileKey) throws IOException, GeneralSecurityException {
+    byte[] bytes = encode(handle, fileKey);
+    try {
+      writeAtomically(path, bytes, true);
+    } finally {
+      java.util.Arrays.fill(bytes, (byte) 0);
+    }
+  }
+
+  /** The portable key rewrapped for a destination computer, without writing it to disk. */
+  public static byte[] encode(KeysetHandle handle, Aead fileKey) throws GeneralSecurityException {
     String json = fileKey != null
         ? TinkJsonProtoKeysetFormat.serializeEncryptedKeyset(handle, fileKey, FILE_AD, Envelope.CFG)
         : TinkJsonProtoKeysetFormat.serializeKeyset(handle, Envelope.CFG, InsecureSecretKeyAccess.get());
-    writeAtomically(path, json.getBytes(StandardCharsets.UTF_8), true);
+    return json.getBytes(StandardCharsets.UTF_8);
   }
 
   /** Renames the current file to {@code master.keyset.replaced-<epoch ms>} (kept 0400) and returns the new path. */

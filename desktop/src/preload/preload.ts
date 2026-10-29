@@ -94,6 +94,12 @@ const gwDesktop = {
   resetApplication(confirmation: string): Promise<void> {
     return ipcRenderer.invoke(IPC.resetApplication, String(confirmation));
   },
+  createFullBackup(passphrase: string): Promise<{ cancelled: boolean; fileName?: string }> {
+    return ipcRenderer.invoke(IPC.createFullBackup, passphrase);
+  },
+  restoreFullBackup(passphrase: string, confirmation: string): Promise<{ cancelled: boolean }> {
+    return ipcRenderer.invoke(IPC.restoreFullBackup, passphrase, confirmation);
+  },
   unlock(): Promise<void> {
     return ipcRenderer.invoke(IPC.unlock);
   },

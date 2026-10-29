@@ -114,6 +114,28 @@ describe('the core process', () => {
     assert.equal(supervisor.endpoint(), null);
   });
 
+  it('pauses all core writes until resume and ignores restart requests during maintenance', async () => {
+    const { supervisor, runs } = await setup();
+    await supervisor.start();
+    await waitFor('ready', () => supervisor.endpoint());
+    const pid = supervisor.pid()!;
+    await supervisor.pause();
+    assert.equal(alive(pid), false);
+    assert.equal(supervisor.endpoint(), null);
+    await supervisor.start();
+    await supervisor.restart();
+    assert.equal(runs().length, 1);
+    await supervisor.resume(false);
+    assert.equal(runs().length, 1, 'canceling recovery permits retry without starting the failed core');
+    await supervisor.restart();
+    await waitFor('resumed', () => supervisor.endpoint());
+    assert.equal(runs().length, 2);
+    await supervisor.pause();
+    await supervisor.stop();
+    await supervisor.resume();
+    assert.equal(runs().length, 2, 'quit cannot be undone by maintenance cleanup');
+  });
+
   it('a taken port is PORT_IN_USE with the exit code and the log', async () => {
     const { supervisor, port } = await setup();
     const squatter: Server = createServer();

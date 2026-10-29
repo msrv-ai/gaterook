@@ -17,6 +17,11 @@
   (openLogs)="openLogs()"
   (retry)="core.refresh()"
 >
+  <ng-container fullRecovery>
+    @if (desktop.fullBackupAvailable && (core.state().kind === 'locked' || core.state().kind === 'failed' || core.state().kind === 'stopped')) {
+      <gw-full-backup restoreOnly idPrefix="core" />
+    }
+  </ng-container>
   <!--
     Use another port. The local API (kit #core-port-dlg): risky but reversible, so gw-dialog--warning with a primary
     confirm — every endpoint URL changes. The tunnel's public listener (E1 review finding 4, main's
@@ -86,7 +91,7 @@
   </dialog>
 
   <!--
-    Restore from backup: the kit's Secrets › Back up master key the other way round — an optional passphrase, then the
+    Restore master key: the kit's Secrets › Back up master key the other way round — an optional passphrase, then the
     system open dialog picks the copy; the core gets only that dialog's one-time token, never a path (§6, §7.1).
   -->
   <dialog class="gw-dialog gw-dialog--md" id="core-restore-dlg" gwDialog gwDialogStatic #restoreDialog="gwDialog" aria-labelledby="core-restore-t" aria-describedby="core-restore-d" (closed)="onRestoreClosed()">
