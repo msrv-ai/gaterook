@@ -677,7 +677,7 @@
   <profiles>
     <!--
       The servers of test-services/docker-compose.yml (scripts/test-services.sh up; test-services/README.md) instead of
-      the ones the ITs start themselves, and the ITs that need them: MySQL/MariaDB, MongoDB, logs, Vault, moto. The
+      the ones the ITs start themselves, and the ITs that need them: MySQL/MariaDB, Oracle, MongoDB, logs, Vault, moto. The
       modules connectors/redis and connectors/ssh turn on their own switches with the same profile.
     -->
     <profile>

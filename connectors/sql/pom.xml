@@ -78,7 +78,8 @@
     <plugins>
       <!--
         *IT against real servers: PostgreSQL 16 from local binaries (skipped without them), MySQL 8.4 and MariaDB 11.4
-        only with -Pmysql-it (tag mysql-it; downloads into ~/.cache/mcp-gateway-test/sql, SHA-256 checked).
+        with -Pmysql-it (tag mysql-it; downloads into ~/.cache/mcp-gateway-test/sql, SHA-256 checked), or Docker-backed
+        services including Oracle with -Pservices. Oracle also accepts an explicit GW_ORACLE_HOST fixture.
       -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
