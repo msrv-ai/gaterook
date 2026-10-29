@@ -123,7 +123,7 @@ describe('connection form: Oracle Database', () => {
 });
 
 describe('connection form: GCP setup', () => {
-  it.each(['gcp-logging', 'loki', 'cloudwatch', 'opensearch'])('keeps %s fixed to its own backend without exposing a backend selector', async (type) => {
+  it.each(['gcp-logging', 'loki', 'cloudwatch', 'opensearch', 'elasticsearch'])('keeps %s fixed to its own backend without exposing a backend selector', async (type) => {
     const { el, host, settle } = await render();
     host.spec.set(spec(type));
     await settle();
@@ -137,13 +137,26 @@ describe('connection form: GCP setup', () => {
     } else {
       expect(el.querySelector('#cf-project-load')).toBeNull();
     }
-    if (type === 'opensearch') {
+    if (['opensearch', 'elasticsearch'].includes(type)) {
       expect(host.form().value().config['apiAccess']).toBe('full');
       for (const field of ['apiAccess', 'indices', 'scopeQuery', 'timestampField']) {
         expect(el.querySelector(`#cf-${field}`)).toBeNull();
       }
       expect(el.querySelector('#cf-url')).not.toBeNull();
     }
+  });
+
+  it('shows Elasticsearch API key authentication without AWS credential fields', async () => {
+    const { el, host, settle } = await render();
+    host.spec.set(spec('elasticsearch'));
+    host.config.set({ url: 'https://elastic.example.test:9200', auth: { mode: 'apiKey' } });
+    await settle();
+    const mode = el.querySelector<HTMLSelectElement>('#cf-auth-mode')!;
+    expect([...mode.options].map((option) => option.value)).toEqual(['basic', 'apiKey', 'bearer', 'none']);
+    expect(el.querySelector('#cf-auth-secret')).not.toBeNull();
+    expect(el.querySelector('#cf-auth-username')).toBeNull();
+    expect(el.querySelector('#cf-auth-awsRegion')).toBeNull();
+    expect(el.querySelector('#cf-caCertificate')).not.toBeNull();
   });
 
   it('shows the scope format and local sign-in instructions, then submits after correcting a bare project ID', async () => {

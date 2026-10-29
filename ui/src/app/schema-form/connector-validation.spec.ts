@@ -131,6 +131,17 @@ const cases: readonly ConnectionCase[] = [
   { name: 'OpenSearch connector: basic authentication without log inputs', type: 'opensearch',
     config: { url: 'https://search.example.test:9200', auth: { mode: 'basic', username: 'reader' } },
     secrets: { '/auth/secret': password } },
+  { name: 'Elasticsearch connector: fixed full API access without log inputs', type: 'elasticsearch',
+    config: { url: 'https://elastic.example.test:9200', auth: { mode: 'none' } } },
+  { name: 'Elasticsearch connector: basic authentication', type: 'elasticsearch',
+    config: { url: 'https://elastic.example.test:9200', auth: { mode: 'basic', username: 'reader' } },
+    secrets: { '/auth/secret': password } },
+  { name: 'Elasticsearch connector: encoded API key', type: 'elasticsearch',
+    config: { url: 'https://elastic.example.test:9200', auth: { mode: 'apiKey' } },
+    secrets: { '/auth/secret': 'aWQ6dGVzdC1vbmx5LWtleQ==' } },
+  { name: 'Elasticsearch connector: bearer token', type: 'elasticsearch',
+    config: { url: 'https://elastic.example.test:9200', auth: { mode: 'bearer' } },
+    secrets: { '/auth/secret': 'test-only-token' } },
   { name: 'Loki: no authentication', type: 'logs',
     config: { backend: 'loki', url: 'https://loki.example.test', auth: { mode: 'none' } } },
   { name: 'Loki: bearer token without a username', type: 'logs',
@@ -203,10 +214,10 @@ describe('schema-form: minimal active connector configurations', () => {
         expect(valid, errors.join('\n')).toBe(true);
         expect(errors).toEqual([]);
         expect(form.value()).toMatchObject(sample.config);
-        if (['gcp-logging', 'loki', 'cloudwatch', 'opensearch'].includes(sample.type)) {
+        if (['gcp-logging', 'loki', 'cloudwatch', 'opensearch', 'elasticsearch'].includes(sample.type)) {
           expect(getAt(form.value(), ['backend'])).toBe(sample.type);
         }
-        if (sample.type === 'opensearch') expect(getAt(form.value(), ['apiAccess'])).toBe('full');
+        if (['opensearch', 'elasticsearch'].includes(sample.type)) expect(getAt(form.value(), ['apiAccess'])).toBe('full');
         expect(Object.keys(form.secretInputs()).sort()).toEqual(Object.keys(sample.secrets ?? {}).sort());
       });
     }
@@ -228,9 +239,9 @@ describe('schema-form: minimal active connector configurations', () => {
     expect(getAt(form.value(), ['connection', 'databases'])).toBeNull();
   });
 
-  it('OpenSearch has no legacy log scope or field mapping inputs', () => {
-    const form = createSchemaForm(CONNECTOR_FORMS['opensearch'], {
-      idPrefix: 'opensearch', current: { url: 'https://search.example.test:9200', auth: { mode: 'none' } },
+  it.each(['opensearch', 'elasticsearch'])('%s has no legacy log scope or field mapping inputs', (type) => {
+    const form = createSchemaForm(CONNECTOR_FORMS[type], {
+      idPrefix: type, current: { url: 'https://search.example.test:9200', auth: { mode: 'none' } },
       injector: TestBed.inject(Injector),
     });
     const legacyFields = ['indices', 'scopeQuery', 'timestampField', 'messageField', 'severityField', 'labelFields', 'advanced'];
@@ -366,6 +377,12 @@ describe('schema-form: minimal active connector configurations', () => {
       config: { region: 'eu-central-1', credentials: { source: 'profile', profile: 'example' } }, pointer: '/logGroups' },
     { name: 'OpenSearch connector basic username', type: 'opensearch',
       config: { url: 'https://search.example.test:9200', auth: { mode: 'basic' } }, pointer: '/auth/username' },
+    { name: 'Elasticsearch connector URL', type: 'elasticsearch',
+      config: { auth: { mode: 'none' } }, pointer: '/url' },
+    { name: 'Elasticsearch connector basic username', type: 'elasticsearch',
+      config: { url: 'https://elastic.example.test:9200', auth: { mode: 'basic' } }, pointer: '/auth/username' },
+    { name: 'Elasticsearch connector API key', type: 'elasticsearch',
+      config: { url: 'https://elastic.example.test:9200', auth: { mode: 'apiKey' } }, pointer: '/auth/secret' },
     { name: 'OpenSearch scoped log indices', type: 'logs',
       config: { backend: 'opensearch', url: 'https://search.example.test:9200', apiAccess: 'logs', auth: { mode: 'none' } },
       pointer: '/indices' },

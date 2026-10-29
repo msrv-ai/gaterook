@@ -199,6 +199,7 @@ describe('Activity line and the guide', () => {
       expect(checkPrompt(type, 'app-logs')).toBe('Show me the latest errors in app-logs');
     }
     expect(checkPrompt('opensearch', 'search-db')).toBe('Show me the indices in search-db');
+    expect(checkPrompt('elasticsearch', 'elastic-db')).toBe('Show me the indices in elastic-db');
     expect(checkPrompt('ssh', 'dev-vm')).toBe('Show me what you can see in dev-vm');
   });
 

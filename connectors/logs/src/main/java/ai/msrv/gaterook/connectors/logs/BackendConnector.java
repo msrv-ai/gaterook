@@ -15,6 +15,7 @@ import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connectors.cloudauth.CloudCredentials;
+import ai.msrv.gaterook.connectors.support.SchemaResources;
 import java.time.Clock;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -35,7 +36,7 @@ public final class BackendConnector implements Connector {
   }
 
   public BackendConnector(String type, CloudCredentials cloud, Clock clock) {
-    if (!List.of("gcp-logging", "loki", "cloudwatch", "opensearch").contains(type)) {
+    if (!List.of("gcp-logging", "loki", "cloudwatch", "opensearch", "elasticsearch").contains(type)) {
       throw new IllegalArgumentException("Unknown log or search service: " + type);
     }
     this.type = type;
@@ -45,12 +46,14 @@ public final class BackendConnector implements Connector {
       case "gcp-logging" -> "GCP Cloud Logging";
       case "cloudwatch" -> "AWS CloudWatch";
       case "opensearch" -> "OpenSearch";
+      case "elasticsearch" -> "Elasticsearch";
       default -> "Loki";
     };
     String description = switch (type) {
       case "gcp-logging" -> "Search Google Cloud logs with native Logs Explorer filters and scoped credentials.";
       case "cloudwatch" -> "Search AWS CloudWatch log groups with Logs Insights or filter patterns.";
       case "opensearch" -> "Query OpenSearch indices and use its REST API. Administrative requests require approval by default.";
+      case "elasticsearch" -> "Query Elasticsearch indices and use its REST API. Administrative requests require approval by default.";
       default -> "Search and tail Loki logs with LogQL and scoped credentials.";
     };
     List<String> files = switch (type) {
@@ -59,10 +62,10 @@ public final class BackendConnector implements Connector {
       default -> List.of();
     };
     this.manifest = ConnectorManifest.builder(type, shared.version(), shared.kind()).name(name)
-        .icon(type.equals("opensearch") ? "database" : "scroll-text")
-        .group(type.equals("opensearch") ? "Databases" : "Logs").description(description)
+        .icon(isSearch(type) ? "database" : "scroll-text")
+        .group(isSearch(type) ? "Databases" : "Logs").description(description)
         .configSchema(configurationSchema(shared.configSchema(), type))
-        .policySchema(type.equals("opensearch") ? null : shared.policySchema())
+        .policySchema(isSearch(type) ? null : shared.policySchema())
         .tools(LogsTools.forBackend(shared.tools(), type, false))
         .access(new ConnectorManifest.RequiredAccess(List.of(), List.of(), files)).build();
   }
@@ -102,7 +105,7 @@ public final class BackendConnector implements Connector {
   public ToolResult execute(ToolCall call, ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx)
       throws ConnectorException {
     ToolCall internal = internalCall(call);
-    if (ctx.approved() && !type.equals("opensearch")) {
+    if (ctx.approved() && !isSearch(type)) {
       JsonNode payload = ctx.approvedPayload().orElseThrow(() -> ConnectorException.denied(
           "The authorization contains no log request. Nothing was executed."));
       if (!internal.tool().equals(payload.path("tool").asString(""))) {
@@ -144,7 +147,7 @@ public final class BackendConnector implements Connector {
   public Optional<JsonNode> describe(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, String object)
       throws ConnectorException {
     Optional<JsonNode> result = delegate.describe(configuration(cfg), secrets, ctx, object);
-    if (type.equals("opensearch") && result.orElse(null) instanceof ObjectNode details) {
+    if (isSearch(type) && result.orElse(null) instanceof ObjectNode details) {
       details.put("scope", "Server credentials and permissions control all REST targets, including body-level indices.");
       details.remove("tailWaitsUpToSeconds");
       details.remove("sources");
@@ -179,9 +182,9 @@ public final class BackendConnector implements Connector {
     }
     ObjectNode config = (ObjectNode) cfg.config().deepCopy();
     config.put("backend", type);
-    if (type.equals("opensearch")) {
+    if (isSearch(type)) {
       if (!config.path("apiAccess").asString("full").equals("full")) {
-        throw ConnectorException.badInput("The OpenSearch connector uses full REST API access.");
+        throw ConnectorException.badInput("The " + manifest.name() + " connector uses full REST API access.");
       }
       config.put("apiAccess", "full");
     }
@@ -189,8 +192,11 @@ public final class BackendConnector implements Connector {
         cfg.secretFields(), cfg.metadata());
   }
 
-  /** Each service reuses its canonical branch and definitions, never a second editable schema copy. */
+  /** Each service uses its canonical schema or legacy branch, never a second editable schema copy. */
   public static JsonNode configurationSchema(JsonNode shared, String type) {
+    if (type.equals("elasticsearch")) {
+      return SchemaResources.of(LogsConnector.class, "logs").load("elasticsearch.config");
+    }
     ObjectNode schema = null;
     for (JsonNode branch : shared.path("oneOf")) {
       if (type.equals(branch.at("/properties/backend/const").asString(""))) {
@@ -203,7 +209,7 @@ public final class BackendConnector implements Connector {
     ObjectNode properties = (ObjectNode) schema.path("properties");
     properties.putObject("backend").put("type", "string").put("const", type).put("default", type);
     if (type.equals("gcp-logging")) schema.set("x-project-selection", shared.path("x-project-selection").deepCopy());
-    if (type.equals("opensearch")) {
+    if (isSearch(type)) {
       schema.remove("allOf");
       for (String field : List.of("indices", "timestampField", "messageField", "severityField", "labelFields",
           "scopeQuery", "advanced")) properties.remove(field);
@@ -217,6 +223,10 @@ public final class BackendConnector implements Connector {
       for (String reference : references) definitions.set(reference, shared.path("$defs").path(reference).deepCopy());
     }
     return schema;
+  }
+
+  private static boolean isSearch(String type) {
+    return type.equals("opensearch") || type.equals("elasticsearch");
   }
 
   private static void collectReferences(JsonNode node, Set<String> references) {

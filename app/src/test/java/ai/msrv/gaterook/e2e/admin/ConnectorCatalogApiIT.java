@@ -38,7 +38,7 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * {@code GET /api/connector-types} of the assembled core with the real built-in connectors against the kit's type
  * picker (design/pages/connection-new.html, step 1 "Choose a connector type"; M1.6 "the /api/connector-types catalogue matches the
- * kit"): the groups in the kit's order, each card's name, icon, description and tool count, each log provider as its own connector, OpenSearch under Databases, the external MCP server last with its tools from the server. The kit's catalog plugins (ClickHouse,
+ * kit"): the groups in the kit's order, each card's name, icon, description and tool count, each log provider as its own connector, OpenSearch and Elasticsearch under Databases, the external MCP server last with its tools from the server. The kit's catalog plugins (ClickHouse,
  * Jira Service Desk) arrive with the plugin host and the catalog (K4, K6), OpenAPI import with its template kind (C9).
  * Over the real listener, signed as Electron signs. Connectors › Installed keeps the manifests' longer texts.
  */
@@ -68,6 +68,8 @@ class ConnectorCatalogApiIT {
           "Read keys and scan by pattern. Read only."),
       new KitCard("Databases", "opensearch", null, "OpenSearch", "database", "built-in", 3,
           "Query OpenSearch indices and use its REST API. Administrative requests require approval by default."),
+      new KitCard("Databases", "elasticsearch", null, "Elasticsearch", "database", "built-in", 3,
+          "Query Elasticsearch indices and use its REST API. Administrative requests require approval by default."),
       new KitCard("Remote access", "ssh", null, "SSH", "terminal", "built-in", 2,
           "Runbooks with typed parameters, through an SSH CA or a key."),
       new KitCard("Logs", "gcp-logging", null, "GCP Cloud Logging", "scroll-text", "built-in", 2,
@@ -137,7 +139,7 @@ class ConnectorCatalogApiIT {
 
     // Connectors › Installed: one row per type, the MCP server type isn't one (its servers are, with K5).
     List<String> installed = each(catalog.path("installed"), "id");
-    assertThat(installed).containsExactly("postgres", "mysql", "oracle", "sqlserver", "mongodb", "redis", "opensearch", "ssh", "gcp-logging", "cloudwatch", "loki", "ssh-logs", "kubernetes",
+    assertThat(installed).containsExactly("postgres", "mysql", "oracle", "sqlserver", "mongodb", "redis", "opensearch", "elasticsearch", "ssh", "gcp-logging", "cloudwatch", "loki", "ssh-logs", "kubernetes",
         "gcp", "aws", "http");
     for (JsonNode row : catalog.path("installed")) {
       assertThat(row.path("state").asString()).isEqualTo("enabled");
@@ -168,6 +170,12 @@ class ConnectorCatalogApiIT {
         .containsExactly("cloudwatch_logs_search", "cloudwatch_logs_tail");
     JsonNode search = preview("opensearch", "{\"url\":\"https://search.example.test\",\"auth\":{\"mode\":\"none\"}}");
     assertThat(each(search, "name")).containsExactly("opensearch_indices", "opensearch_query", "opensearch_request");
+    JsonNode elasticsearch = preview("elasticsearch",
+        "{\"url\":\"https://elastic.example.test\",\"auth\":{\"mode\":\"apiKey\"}}");
+    assertThat(each(elasticsearch, "name"))
+        .containsExactly("elasticsearch_indices", "elasticsearch_query", "elasticsearch_request");
+    assertThat(elasticsearch).allSatisfy(tool -> assertThat(tool.path("description").asString())
+        .contains("Elasticsearch").doesNotContain("OpenSearch", "opensearch_"));
     JsonNode limited = preview("logs", """
         {"backend":"opensearch","url":"https://search.example.test","auth":{"mode":"none"},
          "apiAccess":"logs","indices":["logs-app-*"]}""");
@@ -185,19 +193,28 @@ class ConnectorCatalogApiIT {
         {"name":"catalog-search","type":"opensearch","env":"dev",
          "config":{"backend":"opensearch","url":"https://search.example.test","auth":{"mode":"none"}}}""");
     assertThat(search.status()).as(search.body()).isEqualTo(201);
+    Answer elasticsearch = send("POST", "/api/connections", """
+        {"name":"catalog-elastic","type":"elasticsearch","env":"dev",
+         "config":{"backend":"elasticsearch","url":"https://elastic.example.test","auth":{"mode":"apiKey"}},
+         "secrets":{"/auth/secret":{"source":"local","value":"Y2F0YWxvZzplbGFzdGljLWtleQ=="}}}""");
+    assertThat(elasticsearch.status()).as(elasticsearch.body()).isEqualTo(201);
+    assertThat(get("/api/connections/catalog-elastic").toString()).doesNotContain("Y2F0YWxvZzplbGFzdGljLWtleQ==");
     assertThat(send("POST", "/api/endpoints", "{\"slug\":\"catalog-mixed\",\"startFrom\":\"empty\"}").status())
         .isEqualTo(201);
-    for (String name : List.of("catalog-google", "catalog-search")) {
+    for (String name : List.of("catalog-google", "catalog-search", "catalog-elastic")) {
       assertThat(send("POST", "/api/endpoints/catalog-mixed/connections/" + name, "{}").status()).isEqualTo(200);
     }
     JsonNode groups = get("/api/endpoints/catalog-mixed/tools");
-    assertThat(each(groups, "connection")).contains("catalog-google", "catalog-search");
+    assertThat(each(groups, "connection")).contains("catalog-google", "catalog-search", "catalog-elastic");
     for (JsonNode group : groups) {
       if (group.path("connection").asString("").equals("catalog-google")) {
         assertThat(each(group.path("tools"), "name")).containsExactly("gcp_logging_search", "gcp_logging_tail");
       } else if (group.path("connection").asString("").equals("catalog-search")) {
         assertThat(each(group.path("tools"), "name"))
             .containsExactly("opensearch_indices", "opensearch_query", "opensearch_request");
+      } else if (group.path("connection").asString("").equals("catalog-elastic")) {
+        assertThat(each(group.path("tools"), "name"))
+            .containsExactly("elasticsearch_indices", "elasticsearch_query", "elasticsearch_request");
       }
     }
     ToolCatalog.Catalog published = core.getBean(ToolCatalog.class)
@@ -210,6 +227,10 @@ class ConnectorCatalogApiIT {
     assertThat(published.tool("opensearch_query")).isPresent().get().satisfies(tool -> {
       assertThat(tool.inputSchema().at("/properties/connection/enum").toString()).isEqualTo("[\"catalog-search\"]");
       assertThat(tool.description()).doesNotContain("Google Cloud", "catalog-google");
+    });
+    assertThat(published.tool("elasticsearch_query")).isPresent().get().satisfies(tool -> {
+      assertThat(tool.inputSchema().at("/properties/connection/enum").toString()).isEqualTo("[\"catalog-elastic\"]");
+      assertThat(tool.description()).contains("Elasticsearch").doesNotContain("OpenSearch", "catalog-search");
     });
     assertThat(published.tool("logs_search")).isEmpty();
   }

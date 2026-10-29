@@ -10,7 +10,7 @@ GateRook is a single application source tree with Maven modules and npm workspac
 | `app/` | Executable Spring Boot application, native image configuration, process and end-to-end tests |
 | `core/` | Gateway modules: policy, approvals, audit, secrets, endpoints, MCP, OAuth, clients, notifications, and admin API |
 | `connector-api/` | Connector SPI and shared types |
-| `connectors/` | SQL, MongoDB, Redis, SSH, logs, Kubernetes, GCP, AWS, HTTP, external MCP, and shared support |
+| `connectors/` | SQL, MongoDB, Redis, OpenSearch, Elasticsearch, SSH, logs, Kubernetes, GCP, AWS, HTTP, external MCP, and shared support |
 | `plugin-protocol/` | GPP/1 messages, framing, and protocol tests |
 | `plugin-host/`, `plugin-it/` | Isolated JVM plugin runtime and integration tests |
 | `plugins/` | First-party plugins and test fixtures |

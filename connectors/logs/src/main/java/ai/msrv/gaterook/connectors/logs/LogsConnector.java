@@ -104,12 +104,12 @@ public final class LogsConnector implements Connector {
 
   @Override
   public boolean supportsTool(String tool, ConnectionConfig cfg) {
-    if (!tool.startsWith("opensearch_")) {
+    if (!OpenSearchRequest.isTool(tool)) {
       return true;
     }
     try {
       return Settings.parse(cfg) instanceof Settings.OpenSearch s
-          && (tool.equals("opensearch_indices") || s.fullApi());
+          && tool.startsWith(s.backend() + "_") && (tool.equals(s.tool("indices")) || s.fullApi());
     } catch (Settings.InvalidSettingsException e) {
       return false;
     }
@@ -126,12 +126,13 @@ public final class LogsConnector implements Connector {
     }
     if (OpenSearchRequest.isTool(call.tool())) {
       try {
-        OpenSearchRequest request = OpenSearchRequest.plan(call, openSearch(s), policy.limits());
-        return call.tool().equals(OpenSearchRequest.REQUEST)
-            ? Classification.mutation("OpenSearch REST request: " + request.method() + " "
+        Settings.OpenSearch os = openSearch(s);
+        OpenSearchRequest request = OpenSearchRequest.plan(call, os, policy.limits());
+        return call.tool().equals(os.tool("request"))
+            ? Classification.mutation(s.title() + " REST request: " + request.method() + " "
                 + request.path()) : Classification.read();
       } catch (ConnectorException e) {
-        return Classification.deny(policy.rule("opensearch_api"), e.getMessage(), null);
+        return Classification.deny(policy.rule(s.backend() + "_api"), e.getMessage(), null);
       }
     }
     LogsRequest.PolicyLimits limits = policyLimits(policy, cfg.env());
@@ -211,12 +212,12 @@ public final class LogsConnector implements Connector {
       OpenSearchRequest request;
       if (ctx.approved()) {
         JsonNode payload = ctx.approvedPayload().orElseThrow(() -> ConnectorException.denied(
-            "The authorization contains no OpenSearch request. Nothing was executed."));
+            "The authorization contains no " + os.title() + " request. Nothing was executed."));
         request = OpenSearchRequest.approved(payload, call, os, ctx.limits());
       } else {
         request = OpenSearchRequest.plan(call, os, ctx.limits());
-        if (call.tool().equals(OpenSearchRequest.REQUEST)) {
-          throw ConnectorException.denied("opensearch_request requires core authorization of its exact request "
+        if (call.tool().equals(os.tool("request"))) {
+          throw ConnectorException.denied(os.tool("request") + " requires core authorization of its exact request "
               + "through Approval or explicit Bypass.");
         }
       }
@@ -250,7 +251,7 @@ public final class LogsConnector implements Connector {
     ObjectNode out = backend(s, cfg, secrets, ctx).describe(object);
     out.put("backend", s.backend());
     out.put("title", s.title());
-    out.put("language", s instanceof Settings.OpenSearch os && os.fullApi() ? "OpenSearch REST / JSON Query DSL"
+    out.put("language", s instanceof Settings.OpenSearch os && os.fullApi() ? os.title() + " REST / JSON Query DSL"
         : s.language());
     out.put("example", s instanceof Settings.OpenSearch os && os.fullApi()
         ? "POST /products/_search with body {\"query\":{\"match_all\":{}}}" : s.example());
@@ -288,7 +289,7 @@ public final class LogsConnector implements Connector {
     if (settings instanceof Settings.OpenSearch os) {
       return os;
     }
-    throw ConnectorException.badInput("This tool requires an OpenSearch connection.");
+    throw ConnectorException.badInput("This tool requires an OpenSearch or Elasticsearch connection.");
   }
 
   private static LogsRequest.PolicyLimits policyLimits(PolicyView policy, Env env) {

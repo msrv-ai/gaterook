@@ -33,7 +33,8 @@ import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.util.Timeout;
 
 /**
- * OpenSearch REST transport with no retries, redirects, implicit authentication or method/body rewriting. A request
+ * Shared OpenSearch and Elasticsearch REST transport with no retries, redirects, implicit authentication or
+ * method/body rewriting. A request
  * may be an approved operation even when its method is GET, and a lost response must never trigger another request.
  */
 final class OpenSearchHttp {
@@ -43,10 +44,10 @@ final class OpenSearchHttp {
   record BoundedResponse(int status, String body, String contentType, boolean truncated) {}
 
   static BoundedResponse send(HttpRequest signedRequest, String body, ExecContext ctx, long maxBytes,
-      SSLContext ssl) throws ConnectorException {
+      SSLContext ssl, String service) throws ConnectorException {
     long millis = Math.min(Http.MAX_REQUEST.toMillis(), ctx.remaining().minus(Http.MARGIN).toMillis());
     if (millis <= 0 || ctx.cancelled()) {
-      throw ConnectorException.timeout("The OpenSearch request deadline has expired.");
+      throw ConnectorException.timeout("The " + service + " request deadline has expired.");
     }
     HttpUriRequestBase request = new HttpUriRequestBase(signedRequest.method(), signedRequest.uri());
     signedRequest.headers().map().forEach((name, values) -> values.forEach(value -> request.addHeader(name, value)));
@@ -64,7 +65,7 @@ final class OpenSearchHttp {
     AtomicBoolean expired = new AtomicBoolean();
     // A per-call virtual watchdog bounds a slow trickle as well as a stalled read. It owns no thread pool and is
     // interrupted when the call ends; cancellation closes the active socket rather than waiting for entity drain.
-    Thread deadline = Thread.ofVirtual().name("opensearch-request-deadline").start(() -> {
+    Thread deadline = Thread.ofVirtual().name("search-request-deadline").start(() -> {
       try {
         Thread.sleep(millis);
         expired.set(true);
@@ -105,7 +106,7 @@ final class OpenSearchHttp {
         }
       }
       if (expired.get() || ctx.cancelled()) {
-        throw ConnectorException.timeout("The OpenSearch request was cancelled or exceeded its deadline. Check "
+        throw ConnectorException.timeout("The " + service + " request was cancelled or exceeded its deadline. Check "
             + "server state before retrying a change.");
       }
       Header contentType = response.getFirstHeader("Content-Type");
@@ -113,15 +114,15 @@ final class OpenSearchHttp {
           contentType == null ? "" : contentType.getValue(), truncated);
     } catch (IOException e) {
       if (expired.get() || ctx.cancelled() || e instanceof InterruptedIOException) {
-        throw ConnectorException.timeout("OpenSearch did not finish its response before the deadline or was "
+        throw ConnectorException.timeout(service + " did not finish its response before the deadline or was "
             + "cancelled. The operation may still be running; inspect server state before retrying a change.");
       }
       if (ctx.approved() && !(e instanceof ConnectException) && !(e instanceof UnknownHostException)
           && !(e instanceof SSLHandshakeException)) {
-        throw ConnectorException.outcomeUnknown("The OpenSearch connection failed after dispatch; the approved "
+        throw ConnectorException.outcomeUnknown("The " + service + " connection failed after dispatch; the approved "
             + "operation may have been applied. Inspect server state before retrying.", e);
       }
-      throw ConnectorException.unavailable("The OpenSearch request failed: "
+      throw ConnectorException.unavailable("The " + service + " request failed: "
           + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()), e);
     } finally {
       deadline.interrupt();

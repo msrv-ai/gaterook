@@ -101,6 +101,7 @@ export function signInTarget(type: string): string {
     case 'mongodb':
     case 'redis':
     case 'opensearch':
+    case 'elasticsearch':
       return 'the database';
     case 'ssh':
     case 'ssh-logs':
