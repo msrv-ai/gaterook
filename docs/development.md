@@ -94,6 +94,18 @@ To start over, open **Settings → General → Reset GateRook**, type `RESET`, a
 
 An interrupted reset is retried before the core starts on the next launch. The reset targets GateRook-owned paths in the selected home and its Electron session; unrelated files in a development home are retained. On macOS it deletes only that home's native unlock Keychain item. Shared OS safe-storage entries are retained because other homes may use them.
 
+## Full backup and restore
+
+In the desktop app, open **Settings → Backup → Create full backup**. Enter and repeat a unique passphrase of 12–1,024 characters, then save the `.grbackup` file outside the GateRook data folder. Store a copy away from this computer and keep the passphrase separately, for example in a password manager. GateRook cannot recover a forgotten passphrase. Creating the backup briefly stops and restarts the gateway to capture local plugin files; active calls may be interrupted.
+
+The encrypted file includes the database (connections, endpoints, policies, stored secrets, settings and audit history), its portable master key, desktop settings, installed plugin files, plugin data and local connector files. AES-256-GCM encrypts the backup data and manifest and authenticates them together with the format header. Each backup uses scrypt to derive its encryption key from the passphrase, with a fresh random salt and nonce. Full backups have a 256 MiB file limit. Daily database backups remain separate and do not include the master key.
+
+Generated runtimes, caches, logs, previous backups, browser sessions and files referenced outside the GateRook data folder are excluded. External secret-store values remain external. Reinstall MCP runtimes and relink external private keys, configuration files and other references on the destination computer as needed. A full backup restores GateRook's local state; it does not copy external databases or services.
+
+To recover, use the same GateRook version, open **Settings → Backup → Restore full backup**, enter the backup passphrase and type `RESTORE`. If the master key is missing or invalid, or the core cannot open the database, the recovery screen also offers **Restore full backup**; **Restore master key** remains available for a separate key-only copy. Select the encrypted file and review the final native confirmation. Validation runs in a separate temporary core, so recovery remains available when the original database cannot start. GateRook verifies the authenticated file, database integrity, matching database schema and master key before replacing local data. Create a full backup of the destination first if you need to retain its current state. Replacement runs with the core stopped; an interrupted replacement is rolled back before the next core startup.
+
+GateRook closes when restoration succeeds. Reopen it, review the restored configuration and reconnect your AI apps: previous client access is revoked. Restored plugins are disabled, external MCP servers start on first use, and tunnels stay off until enabled. This computer's listener ports are retained, and startup at login is disabled. The restored master key uses the destination's local protection; the source computer's OS key-store credentials are not transferred.
+
 ## Browser development
 
 ```bash

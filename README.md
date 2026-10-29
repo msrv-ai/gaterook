@@ -50,6 +50,8 @@ npm start -- --demo --home ./desktop/.dev/demo --protection off
 
 Demo data is seeded only into a new home. Add `--fresh` only when you intend to delete that selected development home. Rebuild after source changes with `npm run build`.
 
+**Settings → Backup** offers passphrase-encrypted full backup and restore, including the database and master key. See [full backup and restore](docs/development.md#full-backup-and-restore) for recovery steps, included data and limits.
+
 For browser UI development with a signed local API proxy:
 
 ```bash

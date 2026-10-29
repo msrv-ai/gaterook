@@ -1275,10 +1275,28 @@
           <section class="gw-settings-layout__section" id="settings-backup" aria-labelledby="st-backup-t">
             <header class="gw-section__header">
               <h2 class="gw-section__title" id="st-backup-t">Backup</h2>
-              <p class="gw-section__description">What you need to restore this gateway on another computer: the database, and the master key kept apart from it.</p>
+              <p class="gw-section__description">Create an encrypted full backup for recovery, or keep separate copies of the database and master key.</p>
             </header>
             <hr class="gw-divider">
             <div class="gw-form">
+              <section class="gw-form__section" aria-labelledby="st-full-backup-t">
+                <header class="gw-form__section-header">
+                  <h3 class="gw-form__legend" id="st-full-backup-t">Full backup and restore</h3>
+                  <p class="gw-form__description">Recover your gateway on this computer or move it to another one with a single encrypted file.</p>
+                </header>
+                <div class="gw-form__rows">
+                  <div class="gw-alert gw-alert--info gw-alert--compact">
+                    <i class="gw-icon gw-alert__icon" data-lucide="shield-check"></i>
+                    <div class="gw-alert__content"><p class="gw-alert__body">Includes the database, master key, desktop settings and local connector and plugin files, encrypted together with a required passphrase. Keep the passphrase separately: GateRook cannot recover it.</p></div>
+                  </div>
+                  <div class="gw-settings-layout__inline">
+                    <button class="gw-btn gw-btn--primary" type="button" data-gw-dialog-open="st-full-backup-dlg"><i class="gw-icon" data-lucide="archive"></i> Create full backup</button>
+                    <button class="gw-btn gw-btn--danger-ghost" type="button" data-gw-dialog-open="st-full-restore-dlg"><i class="gw-icon" data-lucide="archive-restore"></i> Restore full backup</button>
+                  </div>
+                  <p class="gw-text-caption gw-fg-muted" id="st-full-backup-hint">Restore replaces the current gateway data and closes GateRook. Back up your current gateway before restoring.</p>
+                </div>
+              </section>
+
               <section class="gw-form__section" aria-labelledby="st-db-t">
                 <header class="gw-form__section-header">
                   <h3 class="gw-form__legend" id="st-db-t">Database</h3>
@@ -1468,6 +1486,65 @@
         <footer class="gw-dialog__footer">
           <button class="gw-btn" type="button" data-gw-dialog-close autofocus>Cancel</button>
           <button class="gw-btn gw-btn--danger" type="button" id="st-revoke-ai-confirm" data-gw-dialog-close value="revoke">Revoke claude.ai access</button>
+        </footer>
+      </dialog>
+
+      <dialog class="gw-dialog gw-dialog--md" id="st-full-backup-dlg" data-gw-static aria-labelledby="st-full-backup-dlg-t" aria-describedby="st-full-backup-dlg-d">
+        <form method="dialog" id="st-full-backup-form">
+          <header class="gw-dialog__header">
+            <span class="gw-icon-tile"><i class="gw-icon" data-lucide="archive"></i></span>
+            <h2 class="gw-dialog__title" id="st-full-backup-dlg-t">Create full backup</h2>
+            <p class="gw-dialog__description" id="st-full-backup-dlg-d">Choose a strong, unique passphrase to protect your gateway and its saved secrets.</p>
+            <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+          </header>
+          <div class="gw-dialog__body">
+            <div class="gw-stack">
+              <div class="gw-field">
+                <label class="gw-field__label" for="st-full-backup-pass">Backup passphrase <span class="gw-field__required">Required</span></label>
+                <input class="gw-input" id="st-full-backup-pass" aria-describedby="st-full-backup-pass-hint" type="password" required minlength="12" maxlength="1024" autocomplete="new-password" spellcheck="false" autofocus>
+                <p class="gw-field__hint" id="st-full-backup-pass-hint">Use at least 12 characters, ideally several random words. Save it in your password manager separately from the backup.</p>
+              </div>
+              <div class="gw-field">
+                <label class="gw-field__label" for="st-full-backup-repeat">Repeat passphrase <span class="gw-field__required">Required</span></label>
+                <input class="gw-input" id="st-full-backup-repeat" type="password" required maxlength="1024" autocomplete="new-password" spellcheck="false">
+              </div>
+              <p class="gw-text-small gw-fg-muted">Creating a backup briefly stops and restarts the gateway; active calls may be interrupted. A native save dialog asks where to put the encrypted file. Store a copy away from this computer. Losing the passphrase makes the backup unusable.</p>
+            </div>
+          </div>
+          <footer class="gw-dialog__footer">
+            <button class="gw-btn" type="button" data-gw-dialog-close>Cancel</button>
+            <button class="gw-btn gw-btn--primary" type="submit"> Choose where to save</button>
+          </footer>
+        </form>
+      </dialog>
+
+      <dialog class="gw-dialog gw-dialog--md gw-dialog--danger" id="st-full-restore-dlg" data-gw-static aria-labelledby="st-full-restore-t" aria-describedby="st-full-restore-d">
+        <header class="gw-dialog__header">
+          <span class="gw-icon-tile"><i class="gw-icon" data-lucide="archive-restore"></i></span>
+          <h2 class="gw-dialog__title" id="st-full-restore-t">Restore full backup?</h2>
+          <p class="gw-dialog__description" id="st-full-restore-d">Replace this gateway's data with an encrypted full backup.</p>
+          <button class="gw-btn gw-btn--ghost gw-btn--icon gw-btn--sm gw-dialog__close" type="button" aria-label="Close" data-gw-dialog-close><i class="gw-icon" data-lucide="x"></i></button>
+        </header>
+        <div class="gw-dialog__body">
+          <div class="gw-stack">
+            <p>The current connections, policies, settings, audit history and stored secrets will be replaced. Create a full backup first if you need to keep them.</p>
+            <p>GateRook checks the passphrase and backup integrity before a final confirmation, then replaces data and closes. Reopen GateRook and reconnect your AI apps after recovery.</p>
+            <p>Restored plugins stay disabled until you review them; external MCP servers start on first use. Tunnels stay off. Files outside the GateRook data folder need to be linked again, and plugin runtimes may need reinstalling.</p>
+            <div class="gw-field">
+              <label class="gw-field__label" for="st-full-restore-pass">Backup passphrase <span class="gw-field__required">Required</span></label>
+              <input class="gw-input" id="st-full-restore-pass" aria-describedby="st-full-restore-pass-hint" type="password" required maxlength="1024" autocomplete="off" spellcheck="false">
+              <p class="gw-field__hint" id="st-full-restore-pass-hint">Enter the passphrase used when the backup was created. The next dialog selects the encrypted backup file. Use the same GateRook version that created it; the file must be no larger than 256 MiB.</p>
+            </div>
+            <div class="gw-field">
+              <label class="gw-field__label" for="st-full-restore-confirm">Type RESTORE to confirm</label>
+              <input class="gw-input gw-input--mono" id="st-full-restore-confirm" aria-describedby="st-full-restore-confirm-hint" type="text" required autocomplete="off" spellcheck="false">
+              <p class="gw-field__hint" id="st-full-restore-confirm-hint">Enter RESTORE exactly, then choose the backup to restore.</p>
+            </div>
+          </div>
+        </div>
+        <footer class="gw-dialog__footer">
+          <button class="gw-btn" type="button" autofocus data-gw-dialog-close>Cancel</button>
+          <button class="gw-btn gw-btn--danger" type="button" id="st-full-restore-action"> Choose backup and restore</button>
         </footer>
       </dialog>
 
@@ -2187,6 +2264,37 @@
       toast({ title: "claude.ai access to stage-readonly revoked", body: "claude.ai has to sign in again, and you allow it here.", tone: "success" });
     });
   }
+
+  // Full backup reference: validate input and explain the native desktop handoff without producing files.
+  var fullCreate = document.getElementById("st-full-backup-form");
+  var fullPass = document.getElementById("st-full-backup-pass");
+  var fullRepeat = document.getElementById("st-full-backup-repeat");
+  if (fullCreate && fullPass && fullRepeat) {
+    function validateFullPass() {
+      fullRepeat.setCustomValidity(fullRepeat.value === fullPass.value ? "" : "Enter the same passphrase again.");
+    }
+    fullPass.addEventListener("input", validateFullPass);
+    fullRepeat.addEventListener("input", validateFullPass);
+    fullCreate.addEventListener("submit", function () {
+      setTimeout(function () { toast({ tone: "info", title: "Full backup preview", body: "The desktop app opens a native save dialog and writes an encrypted backup. This reference does not create files." }); }, 0);
+    });
+  }
+  var fullRestore = document.getElementById("st-full-restore-action");
+  if (fullRestore) fullRestore.addEventListener("click", function () {
+    var pass = document.getElementById("st-full-restore-pass");
+    var confirmation = document.getElementById("st-full-restore-confirm");
+    if (!pass.reportValidity()) return;
+    confirmation.setCustomValidity(confirmation.value === "RESTORE" ? "" : "Type RESTORE exactly to confirm.");
+    if (!confirmation.reportValidity()) return;
+    document.getElementById("st-full-restore-dlg").close("preview");
+    toast({ tone: "info", title: "Full restore preview", body: "The desktop app selects and validates the encrypted file, then asks for final confirmation. This reference does not replace data." });
+  });
+  ["st-full-backup-dlg", "st-full-restore-dlg"].forEach(function (id) {
+    var dialog = document.getElementById(id);
+    dialog.addEventListener("close", function () {
+      dialog.querySelectorAll("input").forEach(function (field) { field.value = ""; field.setCustomValidity(""); });
+    });
+  });
 
   // ── Back up master key: in the app the system save dialog runs here; the demo assumes ~/Downloads ──
   var backupForm = document.getElementById("st-backup-key-form");

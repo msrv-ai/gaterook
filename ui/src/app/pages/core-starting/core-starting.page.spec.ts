@@ -30,6 +30,7 @@ const problem = (status: number, body: object) => ApiError.fromHttp(new HttpErro
 
 class FakeDesktop {
   available = true;
+  fullBackupAvailable = false;
   platform = 'linux' as const;
   calls: string[] = [];
   freePort: number | null = 7475;
@@ -59,6 +60,7 @@ class FakeDesktop {
     this.calls.push('unlock');
     return this.unlockResult();
   }
+  restoreFullBackup = vi.fn(async (_passphrase: string, _confirmation: string) => ({ cancelled: true }));
   usePort(port: number | { readonly port?: number; readonly publicPort?: number }): Promise<void> {
     this.calls.push(`usePort ${typeof port === 'number' ? port : JSON.stringify(port)}`);
     return this.usePortResult(port);
@@ -369,7 +371,7 @@ describe('OS-protected encryption key', () => {
     expect(button('Unlock GateRook')!.getAttribute('aria-disabled')).toBeNull();
     expect(document.activeElement).toBe(button('Unlock GateRook'));
     expect(button('Create a new key')).toBeNull();
-    expect(button('Restore from backup')).toBeNull();
+    expect(button('Restore master key')).toBeNull();
     button('Unlock GateRook')!.click();
     await settle();
     expect(desktop.calls).toEqual(['unlock', 'unlock']);
@@ -565,6 +567,26 @@ describe('locked: master key not found', () => {
     world.health = () => Promise.resolve(health({ status: 'locked', locked: 'MASTER_KEY_MISSING' }));
   });
 
+  it('offers full encrypted recovery without unlocking or opening Settings', async () => {
+    desktop.fullBackupAvailable = true;
+    const page = await render();
+    expect(button('Restore full backup', page.querySelector('.gw-card__footer')!)!).not.toBeNull();
+    button('Restore full backup')!.click();
+    await settle();
+    const dialog = $<HTMLDialogElement>('#core-full-restore-dlg')!;
+    expect(dialog.open).toBe(true);
+    expect(text(document.activeElement)).toBe('Cancel');
+    expect($('#st-full-restore-dlg')).toBeNull();
+    await type($<HTMLInputElement>('#core-full-restore-pass')!, 'a long backup passphrase');
+    await type($<HTMLInputElement>('#core-full-restore-confirm')!, 'RESTORE');
+    button('Choose backup and restore', dialog)!.click();
+    await settle();
+    expect(desktop.restoreFullBackup).toHaveBeenCalledExactlyOnceWith('a long backup passphrase', 'RESTORE');
+    expect($<HTMLInputElement>('#core-full-restore-pass')!.value).toBe('');
+    expect(desktop.calls).toEqual([]);
+    expect(keyCalls).toEqual(['status']);
+  });
+
   it('words what /api/master-key says: the file, the secrets, the last backup; the key is the failed step', async () => {
     const page = await render();
     expect(keyCalls).toEqual(['status']);
@@ -649,9 +671,9 @@ describe('locked: master key not found', () => {
     expect(TestBed.inject(CoreStore).running()).toBe(true);
   });
 
-  it('Restore from backup: passphrase first (focused), then the open dialog’s token; the core unlocks, the field is emptied', async () => {
+  it('Restore master key: passphrase first (focused), then the open dialog’s token; the core unlocks, the field is emptied', async () => {
     const page = await render();
-    const opener = button('Restore from backup')!;
+    const opener = button('Restore master key')!;
     opener.focus();
     opener.click();
     await settle();
@@ -678,7 +700,7 @@ describe('locked: master key not found', () => {
   it('a backup that needs its passphrase: the field says so and takes the focus; the dialog stays', async () => {
     world.restore = () => Promise.reject(problem(422, { title: 'Can’t read the backup', detail: 'This backup is protected by a passphrase. Enter it to restore.' }));
     await render();
-    button('Restore from backup')!.click();
+    button('Restore master key')!.click();
     await settle();
     const dialog = $<HTMLDialogElement>('#core-restore-dlg')!;
     dialog.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
@@ -701,7 +723,7 @@ describe('locked: master key not found', () => {
   it('a cancelled file dialog asks nothing of the core', async () => {
     desktop.openFileToken = null;
     await render();
-    button('Restore from backup')!.click();
+    button('Restore master key')!.click();
     await settle();
     $('#core-restore-dlg form')!.dispatchEvent(new Event('submit', { cancelable: true }));
     await settle();
@@ -712,7 +734,7 @@ describe('locked: master key not found', () => {
   it('a file main can’t hand to the core is said in the dialog, nothing is asked of the core', async () => {
     desktop.openFile = () => Promise.reject(new Error("Error invoking remote method 'gw:openFile': Error: The core refused the file: choose a file, not a folder."));
     await render();
-    button('Restore from backup')!.click();
+    button('Restore master key')!.click();
     await settle();
     const dialog = $<HTMLDialogElement>('#core-restore-dlg')!;
     dialog.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
@@ -729,7 +751,7 @@ describe('locked: master key not found', () => {
     expect(quit.getAttribute('aria-disabled')).toBe('true');
     expect(text(document.getElementById(quit.getAttribute('aria-describedby')!))).toBe('This window is a browser tab: close the tab to leave.');
     quit.click();
-    button('Restore from backup')!.click();
+    button('Restore master key')!.click();
     await settle();
     const choose = button('Choose the backup file')!;
     expect(choose.getAttribute('aria-disabled')).toBe('true');
@@ -751,6 +773,22 @@ describe('stopped and failed starts', () => {
     logTail: '14:29:52.405 INFO  Shutting down: 3 pending approval requests kept\n14:29:52.411 INFO  Terminating (exit 3)',
     port: 7465,
   };
+
+  it('offers full recovery after a stopped or failed core, but not while starting', async () => {
+    desktop.fullBackupAvailable = true;
+    await render();
+    await emit(STOPPED);
+    expect(button('Restore full backup')).not.toBeNull();
+    await emit({ ...PORT_IN_USE, reason: 'DB_LOCKED', detail: 'The database could not be opened.' } as DesktopCoreState);
+    expect(button('Restore full backup')).not.toBeNull();
+    button('Restore full backup')!.click();
+    await settle();
+    expect($<HTMLDialogElement>('#core-full-restore-dlg')!.open).toBe(true);
+    button('Cancel', $('#core-full-restore-dlg')!)!.click();
+    await settle();
+    await emit(KIT_LIVE);
+    expect(button('Restore full backup')).toBeNull();
+  });
 
   it('stopped: the exit facts, the requests this window saw waiting, the last log lines on demand', async () => {
     world.health = () => Promise.resolve(health({}));

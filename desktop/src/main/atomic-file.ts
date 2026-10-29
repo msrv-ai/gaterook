@@ -31,7 +31,7 @@ export function writeFileAtomic(file: string, data: string | Uint8Array, mode = 
 }
 
 /** The folder's entry for a renamed file reaches the disk (POSIX; Windows has no fsync of a folder). */
-function syncFolder(dir: string): void {
+export function syncFolder(dir: string): void {
   if (process.platform === 'win32') return;
   let fd: number | null = null;
   try {

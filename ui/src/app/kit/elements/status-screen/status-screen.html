@@ -124,6 +124,7 @@
         </div>
         <footer class="gw-card__footer">
           <ng-container *ngTemplateOutlet="quitButton" />
+          <ng-container *ngTemplateOutlet="fullRecovery" />
           @if (asPort()?.publicListener) {
             <button class="gw-btn" type="button" [attr.aria-busy]="busy() === 'restart' ? 'true' : null" [attr.aria-disabled]="busy() === 'restart' ? 'true' : null" (click)="restart.emit()">@if (busy() === 'restart') {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="rotate-cw" class="gw-icon"></svg>} Restart core</button>
           }
@@ -174,7 +175,8 @@
         </div>
         <footer class="gw-card__footer">
           <ng-container *ngTemplateOutlet="quitButton" />
-          <button class="gw-btn gw-btn--primary" type="button" (click)="restore.emit()"><svg lucideIcon="archive-restore" class="gw-icon"></svg> Restore from backup</button>
+          <ng-container *ngTemplateOutlet="fullRecovery" />
+          <button class="gw-btn gw-btn--primary" type="button" (click)="restore.emit()"><svg lucideIcon="archive-restore" class="gw-icon"></svg> Restore master key</button>
         </footer>
         <!-- The confirmation lives in the card's own view so the danger notice's button can open it. -->
         <dialog class="gw-dialog gw-dialog--sm gw-dialog--danger" gwDialog #newKey="gwDialog" [attr.aria-labelledby]="uid + '-newkey-title'" [attr.aria-describedby]="uid + '-newkey-desc'" (closed)="$event === 'create' && createKey.emit()">
@@ -294,7 +296,7 @@
     <p class="gw-status-screen__meta gw-text-caption gw-fg-muted">{{ versionText() }}@if (metaShowsAddress()) { · core on <span class="gw-mono">{{ address() }}</span>}@if (metaShowsLog()) { · log <span class="gw-mono">{{ logFile() }}</span>}</p>
   }
 </div>
-<!-- The page's own dialogs (Use another port, Restore from backup) live inside this main landmark, as in the kit. -->
+<!-- The page's own dialogs (Use another port, Restore master key) live inside this main landmark, as in the kit. -->
 <ng-content />
 
 
@@ -357,7 +359,12 @@
   }
 </ng-template>
 
+<ng-template #fullRecovery>
+  <ng-content select="[fullRecovery]" />
+</ng-template>
+
 <ng-template #logsAndRestart>
+  <ng-container *ngTemplateOutlet="fullRecovery" />
   <button class="gw-btn" type="button" (click)="openLogs.emit()"><svg lucideIcon="file-text" class="gw-icon"></svg> Open logs</button>
   <button class="gw-btn gw-btn--primary" type="button" [attr.aria-busy]="busy() === 'restart' ? 'true' : null" [attr.aria-disabled]="busy() === 'restart' ? 'true' : null" (click)="restart.emit()">@if (busy() === 'restart') {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="rotate-cw" class="gw-icon"></svg>} Restart core</button>
 </ng-template>
