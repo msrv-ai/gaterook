@@ -366,10 +366,16 @@ final class TemplateParams {
 
   /** Binds every value with its JDBC type; NULL with the type too. */
   static void bind(PreparedStatement ps, List<Bound> values, boolean mysql) throws SQLException {
+    bind(ps, values, mysql ? new MySqlDialect() : new PostgresDialect());
+  }
+
+  static void bind(PreparedStatement ps, List<Bound> values, SqlDialect dialect) throws SQLException {
     int i = 1;
     for (Bound b : values) {
       if (b.value() == null) {
-        ps.setNull(i++, sqlType(b.type(), mysql));
+        int type = dialect.sqlServer() && b.type() == Type.TIMESTAMP
+            ? microsoft.sql.Types.DATETIMEOFFSET : sqlType(b.type(), dialect.mysql());
+        ps.setNull(i++, type);
         continue;
       }
       switch (b.value()) {

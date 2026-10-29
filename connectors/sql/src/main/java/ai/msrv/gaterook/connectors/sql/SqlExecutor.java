@@ -16,10 +16,9 @@ import java.util.List;
 /**
  * How a statement runs (report 04 §6.1, §6.4, §7.3).
  *
- * <p>A <b>read</b> takes a pooled connection, makes its next transaction READ ONLY before the first statement, runs
- * the prelude (statement and lock timeouts on the server, name resolution, the read-only check) and the statement,
- * and always ends with ROLLBACK: whatever a function did inside the transaction is undone, and the session goes back
- * to the pool clean. The database is the guarantee that a read doesn't write; the classifier only chooses the route.
+ * <p>A <b>read</b> takes a pooled connection and always ends with ROLLBACK. PostgreSQL and MySQL enforce READ ONLY
+ * before the first statement. SQL Server relies on strict SELECT admission and known built-in functions; a
+ * SELECT-only login supplies server-enforced protection. The prelude also establishes timeouts and name resolution.
  *
  * <p>A <b>change</b> runs in a read-write transaction with the same prelude and ends with COMMIT; any error before it
  * rolls back. A connection lost during COMMIT leaves the outcome unknown, and the call says so; it is never retried.
@@ -75,8 +74,9 @@ final class SqlExecutor {
 
   /**
    * Plans of a change before its request exists ({@code prepare}): READ ONLY where the server allows EXPLAIN of a
-   * change in it (PostgreSQL), else a read-write transaction (MySQL refuses EXPLAIN UPDATE in READ ONLY); either way
-   * it ends with ROLLBACK. EXPLAIN without ANALYZE doesn't run the statement.
+   * change in it (PostgreSQL), else a read-write transaction (MySQL refuses EXPLAIN UPDATE in READ ONLY, and SQL
+   * Server has no read-only transactions); either way it ends with ROLLBACK. EXPLAIN without ANALYZE and SQL Server's
+   * SHOWPLAN_XML do not run the statement.
    */
   <T> T explain(SqlPools.Pool pool, ConnectionSettings s, ExecContext ctx, String connection, Work<T> work)
       throws ConnectorException {
@@ -90,12 +90,12 @@ final class SqlExecutor {
     try {
       c = pool.borrow();
     } catch (SQLException e) {
-      throw SqlErrors.of(e, dialect.mysql(), connection, env(ctx), Duration.ofMillis(timeoutMs));
+      throw SqlErrors.of(e, dialect, connection, env(ctx), Duration.ofMillis(timeoutMs));
     }
     boolean broken = false;
     try {
       // Before the first statement: pgjdbc opens the transaction with BEGIN READ ONLY, Connector/J sets the session.
-      c.setReadOnly(readOnly);
+      if (!dialect.sqlServer()) c.setReadOnly(readOnly);
       dialect.prelude(c, pool.server(), s, timeoutMs, readOnly);
       T result = work.run(c, pool.server(), timeoutMs);
       if (!commit) {
@@ -126,7 +126,7 @@ final class SqlExecutor {
         throw ConnectorException.resourceError("The call was cancelled: the statement was stopped and rolled back.",
             e);
       }
-      throw SqlErrors.of(e, dialect.mysql(), connection, env(ctx), Duration.ofMillis(timeoutMs));
+      throw SqlErrors.of(e, dialect, connection, env(ctx), Duration.ofMillis(timeoutMs));
     } catch (ConnectorException | RuntimeException e) {
       if (!broken) {
         broken = !rollbackQuietly(c);
@@ -155,8 +155,8 @@ final class SqlExecutor {
 
   /** A statement of the call: escape processing off, a client-side timeout, cancelled with the call. */
   Statement statement(Connection c, ExecContext ctx, long timeoutMs, BoundSql bound) throws SQLException {
-    Statement st = create(c, "", bound, dialect.mysql());
-    st.setQueryTimeout((int) Math.max(1, (timeoutMs + 999) / 1000 + 2));
+    Statement st = create(c, "", bound, dialect);
+    st.setQueryTimeout((int) Math.max(1, (timeoutMs + 999) / 1000 + (dialect.sqlServer() ? 0 : 2)));
     Statement registered = st;
     ctx.onCancel(() -> {
       try {
@@ -173,11 +173,15 @@ final class SqlExecutor {
    * plain statement that runs the text as written ({@link #execute}).
    */
   static Statement create(Connection c, String prefix, BoundSql bound, boolean mysql) throws SQLException {
+    return create(c, prefix, bound, mysql ? new MySqlDialect() : new PostgresDialect());
+  }
+
+  static Statement create(Connection c, String prefix, BoundSql bound, SqlDialect dialect) throws SQLException {
     if (bound.prepared()) {
       // No escape processing to turn off: a template can't contain {…} (NamedSql), and a prepared statement's text
       // is parsed when it is prepared.
       PreparedStatement ps = c.prepareStatement(prefix + bound.sql());
-      TemplateParams.bind(ps, bound.values(), mysql);
+      TemplateParams.bind(ps, bound.values(), dialect);
       return ps;
     }
     Statement st = c.createStatement();
@@ -204,7 +208,7 @@ final class SqlExecutor {
       ResultSet rs = st.getResultSet();
       try {
         return ResultReader.read(rs, limit, ctx.limits().maxResponseBytes(), ctx.limits().maxCellChars(),
-            dialect.mysql(), false);
+            dialect, false);
       } finally {
         try {
           rs.close();
@@ -235,7 +239,7 @@ final class SqlExecutor {
         if (isResult) {
           try (ResultSet rs = st.getResultSet()) {
             ResultReader.Read read = ResultReader.read(rs, MAX_RETURNING, ctx.limits().maxResponseBytes(),
-                ctx.limits().maxCellChars(), dialect.mysql(), true);
+                ctx.limits().maxCellChars(), dialect, true);
             out.add(new Applied(type, read.total(), read.table(), read.truncatedReason() != null));
           }
         } else {

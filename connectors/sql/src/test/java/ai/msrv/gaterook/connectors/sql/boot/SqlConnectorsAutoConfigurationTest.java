@@ -20,12 +20,12 @@ class SqlConnectorsAutoConfigurationTest {
   }
 
   @Test
-  void registersPostgresAndMysql() {
+  void registersSqlConnectors() {
     new ApplicationContextRunner()
         .withConfiguration(AutoConfigurations.of(SqlConnectorsAutoConfiguration.class))
         .run(ctx -> assertThat(ctx.getBeansOfType(Connector.class).values())
             .extracting(c -> c.manifest().id())
-            .containsExactlyInAnyOrder("postgres", "mysql"));
+            .containsExactlyInAnyOrder("postgres", "mysql", "sqlserver"));
   }
 
   @Test
@@ -36,6 +36,8 @@ class SqlConnectorsAutoConfigurationTest {
     assertThat(RuntimeHintsPredicates.resource().forResource("connectors/sql/sql_query.input.schema.json"))
         .accepts(hints);
     assertThat(RuntimeHintsPredicates.resource().forResource("connectors/sql/postgres.config.schema.json"))
+        .accepts(hints);
+    assertThat(RuntimeHintsPredicates.resource().forResource("connectors/sql/sqlserver.config.schema.json"))
         .accepts(hints);
   }
 }

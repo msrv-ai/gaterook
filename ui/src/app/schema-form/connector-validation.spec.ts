@@ -20,7 +20,7 @@ const serviceAccountKey = JSON.stringify({ type: 'service_account', project_id: 
   client_email: 'reader@example-project.iam.gserviceaccount.com', private_key: 'test-only-private-key' });
 const sshConnection = { host: 'ssh.example.test', username: 'reader' };
 const cases: readonly ConnectionCase[] = [
-  ...['postgres', 'mysql'].map((type) => ({
+  ...['postgres', 'mysql', 'sqlserver'].map((type) => ({
     name: `${type}: selected database and password`, type,
     config: { connection: { host: 'db.example.test', databases: ['orders'] }, credentials: { user: 'reader' } },
     secrets: { '/credentials/password': password },
@@ -268,7 +268,7 @@ describe('schema-form: minimal active connector configurations', () => {
     expect(form.secretInputs()).toEqual({});
   });
 
-  for (const type of ['postgres', 'mysql']) {
+  for (const type of ['postgres', 'mysql', 'sqlserver']) {
     it(`${type}: a dynamic Vault role supplies the username`, () => {
       const form = createSchemaForm(CONNECTOR_FORMS[type], {
         idPrefix: 'dynamic', current: { connection: { host: 'db.example.test', databases: ['orders'] } },
@@ -323,6 +323,11 @@ describe('schema-form: minimal active connector configurations', () => {
     { name: 'Redis host', type: 'redis', config: {}, pointer: '/connection/host' },
     { name: 'PostgreSQL username', type: 'postgres',
       config: { connection: { host: 'db.example.test', databases: ['orders'] } }, pointer: '/credentials/user' },
+    { name: 'SQL Server username', type: 'sqlserver',
+      config: { connection: { host: 'db.example.test', databases: ['orders'] } }, pointer: '/credentials/user' },
+    { name: 'SQL Server password', type: 'sqlserver',
+      config: { connection: { host: 'db.example.test', databases: ['orders'] }, credentials: { user: 'reader' } },
+      pointer: '/credentials/password' },
     { name: 'SSH password', type: 'ssh', config: { connection: sshConnection, credentials: { method: 'password' } },
       pointer: '/credentials/password' },
     { name: 'SSH private key file', type: 'ssh', config: { connection: sshConnection, credentials: { method: 'privateKeyFile' } },

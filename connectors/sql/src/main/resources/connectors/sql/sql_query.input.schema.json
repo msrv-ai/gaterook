@@ -12,14 +12,14 @@
     "database": {
       "type": "string",
       "minLength": 1,
-      "maxLength": 63,
+      "maxLength": 128,
       "description": "A database selected for this connection. Required when the connection has more than one selected database."
     },
     "sql": {
       "type": "string",
       "minLength": 1,
       "maxLength": 100000,
-      "description": "One SELECT, WITH \u2026 SELECT, VALUES, TABLE, SHOW or EXPLAIN. Runs in a read-only transaction."
+      "description": "One SELECT, WITH \u2026 SELECT, VALUES, TABLE, SHOW or EXPLAIN. PostgreSQL and MySQL use read-only transactions. SQL Server accepts one SELECT or WITH SELECT using known built-in functions; every read is rolled back."
     },
     "limit": {
       "type": "integer",

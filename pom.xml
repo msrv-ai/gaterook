@@ -73,6 +73,7 @@
     <fabric8.version>8.0.0</fabric8.version>
     <okhttp.version>5.5.1</okhttp.version>
     <google-auth.version>1.54.0</google-auth.version>
+    <mssql-jdbc.version>13.6.0.jre11</mssql-jdbc.version>
     <jsqlparser.version>5.4</jsqlparser.version>
     <sshd.version>2.20.0</sshd.version>
     <re2j.version>1.8</re2j.version>
@@ -104,6 +105,7 @@
       Each profile replaces its own tag with a name no test uses, so several profiles compose.
     -->
     <it.tag.mysql>mysql-it</it.tag.mysql>
+    <it.tag.sqlserver>sqlserver-it</it.tag.sqlserver>
     <it.tag.mongo>mongo-it</it.tag.mongo>
     <it.tag.logs>logs-it</it.tag.logs>
     <it.tag.kube>kube-api</it.tag.kube>
@@ -117,7 +119,7 @@
     <it.services></it.services>
     <!-- Extra JVM options of the test forks: the tracing agent of the nightly metadata report (native.yml). -->
     <test.jvm.extra></test.jvm.extra>
-    <it.excludedGroups>${it.tag.mysql},${it.tag.mongo},${it.tag.logs},${it.tag.kube},${it.tag.vault},${it.tag.cloud},${it.tag.network},${it.tag.mcpclients},${it.tag.openapi},${it.tag.mcpservers}</it.excludedGroups>
+    <it.excludedGroups>${it.tag.mysql},${it.tag.sqlserver},${it.tag.mongo},${it.tag.logs},${it.tag.kube},${it.tag.vault},${it.tag.cloud},${it.tag.network},${it.tag.mcpclients},${it.tag.openapi},${it.tag.mcpservers}</it.excludedGroups>
   </properties>
 
   <dependencyManagement>
@@ -263,6 +265,11 @@
             <artifactId>protobuf-java</artifactId>
           </exclusion>
         </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>com.microsoft.sqlserver</groupId>
+        <artifactId>mssql-jdbc</artifactId>
+        <version>${mssql-jdbc.version}</version>
       </dependency>
       <dependency>
         <groupId>com.github.jsqlparser</groupId>
@@ -689,6 +696,10 @@
     <profile>
       <id>mysql-it</id>
       <properties><it.tag.mysql>__enabled-mysql-it</it.tag.mysql></properties>
+    </profile>
+    <profile>
+      <id>sqlserver-it</id>
+      <properties><it.tag.sqlserver>__enabled-sqlserver-it</it.tag.sqlserver></properties>
     </profile>
     <profile>
       <id>mongo-it</id>

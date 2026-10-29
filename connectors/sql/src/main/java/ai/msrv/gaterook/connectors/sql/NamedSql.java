@@ -19,10 +19,18 @@ import java.util.Set;
 record NamedSql(String jdbc, List<String> order, List<String> errors, Set<String> used) {
 
   static NamedSql compile(String sql, boolean mysql, Set<String> declared) {
+    return compile(sql, mysql, false, declared);
+  }
+
+  static NamedSql compile(String sql, SqlDialect dialect, Set<String> declared) {
+    return compile(sql, dialect.mysql(), dialect.sqlServer(), declared);
+  }
+
+  private static NamedSql compile(String sql, boolean mysql, boolean sqlServer, Set<String> declared) {
     List<String> errors = new ArrayList<>();
     List<String> order = new ArrayList<>();
     Set<String> used = new LinkedHashSet<>();
-    SqlLexer.Scan scan = SqlLexer.scan(sql, mysql);
+    SqlLexer.Scan scan = SqlLexer.scan(sql, mysql, sqlServer);
     if (scan.unterminated()) {
       errors.add("A quote or comment in the SQL isn't closed.");
       return new NamedSql(sql, List.of(), List.copyOf(errors), Set.of());
@@ -55,8 +63,9 @@ record NamedSql(String jdbc, List<String> order, List<String> errors, Set<String
           out.append('?');
           i = j;
         } else if (c == '?') {
-          if (mysql) {
-            errors.add("Write :name for a parameter: a bare ? isn't allowed in a MySQL template.");
+          if (mysql || sqlServer) {
+            errors.add("Write :name for a parameter: a bare ? isn't allowed in a "
+                + (sqlServer ? "SQL Server" : "MySQL") + " template.");
             out.append('?');
           } else {
             out.append("??");

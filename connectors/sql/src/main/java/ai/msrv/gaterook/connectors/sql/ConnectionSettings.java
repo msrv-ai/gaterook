@@ -6,12 +6,13 @@ import java.util.List;
 
 /**
  * The non-secret settings of one SQL connection, read from its config ({@code postgres.config.schema.json},
- * {@code mysql.config.schema.json}) with the form's defaults. The core validated the config against the schema
- * before the connector sees it.
+ * {@code mysql.config.schema.json}, {@code sqlserver.config.schema.json}) with the form's defaults. The core
+ * validated the config against the schema before the connector sees it.
  *
- * @param database      PostgreSQL: required; MySQL: the default database, or {@code null}
+ * @param database      PostgreSQL: required; MySQL and SQL Server: the default database, or {@code null}
  * @param defaultSchema      where unqualified names live: PostgreSQL {@code defaultSchema} ({@code public}), MySQL
- *                           the database (or {@code null} without one)
+ *                           the database (or {@code null} without one); SQL Server: the user's expected default
+ *                           schema ({@code dbo})
  * @param statementTimeoutMs the connection's own statement timeout ({@code advanced.statementTimeoutMs}), 0 when it
  *                           has none: a call gets the stricter of it and the policy's (the core's limits don't
  *                           read connection settings)
@@ -21,6 +22,21 @@ record ConnectionSettings(String host, int port, String database, String sslMode
     List<String> allowedFunctions, boolean allowPublicKeyRetrieval, int statementTimeoutMs) {
 
   static final String PASSWORD = "/credentials/password";
+
+  static ConnectionSettings of(ConnectionConfig cfg, SqlDialect dialect) {
+    if (!dialect.sqlServer()) {
+      return of(cfg, dialect.mysql());
+    }
+    ConnectionSettings base = of(cfg, false);
+    return new ConnectionSettings(base.host(), cfg.integer("/connection/port", 1433), base.database(),
+        base.sslMode(), base.caCertificate(), base.user(), base.poolSize(), base.connectTimeoutMs(),
+        orDefault(cfg.string("/advanced/defaultSchema"), "dbo"), base.schemaAllowlist(), base.allowedFunctions(),
+        false, base.statementTimeoutMs());
+  }
+
+  ConnectionSettings withDatabase(String value, SqlDialect dialect) {
+    return withDatabase(value, dialect.mysql());
+  }
 
   static ConnectionSettings of(ConnectionConfig cfg, boolean mysql) {
     String database = blankToNull(DatabaseSelection.first(cfg));

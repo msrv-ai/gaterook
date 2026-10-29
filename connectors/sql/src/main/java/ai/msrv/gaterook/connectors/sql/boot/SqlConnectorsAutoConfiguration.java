@@ -4,6 +4,7 @@ import ai.msrv.gaterook.connector.api.Connector;
 import ai.msrv.gaterook.connectors.sql.JdbcSqlConnector;
 import ai.msrv.gaterook.connectors.sql.MySqlDialect;
 import ai.msrv.gaterook.connectors.sql.PostgresDialect;
+import ai.msrv.gaterook.connectors.sql.SqlServerDialect;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ImportRuntimeHints;
@@ -22,6 +23,11 @@ public class SqlConnectorsAutoConfiguration {
   @Bean
   Connector postgresConnector() {
     return new JdbcSqlConnector(new PostgresDialect());
+  }
+
+  @Bean
+  Connector sqlServerConnector() {
+    return new JdbcSqlConnector(new SqlServerDialect());
   }
 
   @Bean

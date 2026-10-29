@@ -14,9 +14,9 @@ import java.util.Properties;
  * parameters: report 04 §6.5), the settings of every call, plan estimates, introspection, the probes of Test
  * connection and password changes.
  */
-public sealed interface SqlDialect permits PostgresDialect, MySqlDialect {
+public sealed interface SqlDialect permits PostgresDialect, MySqlDialect, SqlServerDialect {
 
-  /** Connector type: {@code postgres} or {@code mysql}. */
+  /** Connector type: {@code postgres}, {@code mysql} or {@code sqlserver}. */
   String type();
 
   /** Catalog name, e.g. "PostgreSQL". */
@@ -28,8 +28,13 @@ public sealed interface SqlDialect permits PostgresDialect, MySqlDialect {
   /** Name of the connection form under {@code connectors/sql/}, without {@code .schema.json}. */
   String configSchemaName();
 
-  /** MySQL's lexer and parser rules (backslash escapes, backticks); PostgreSQL's otherwise. */
+  /** MySQL's lexer and parser rules (backslash escapes, backticks). SQL Server is distinguished by sqlServer(). */
   boolean mysql();
+
+  /** Microsoft SQL Server uses T-SQL and has no read-only transaction mode. */
+  default boolean sqlServer() {
+    return "sqlserver".equals(type());
+  }
 
   /** The driver itself: no {@code DriverManager} scan, no driver chosen by URL. */
   Driver driver();
@@ -51,8 +56,8 @@ public sealed interface SqlDialect permits PostgresDialect, MySqlDialect {
 
   /**
    * The settings of one call, the first statement of its transaction: server-side statement and lock timeouts, how
-   * unqualified names and literals are read. For a read it also checks that the transaction is READ ONLY: if the
-   * driver didn't make it so, nothing runs.
+   * unqualified names and literals are read. PostgreSQL and MySQL also verify READ ONLY for reads. SQL Server has
+   * no read-only transaction mode and requires strict T-SQL admission checks before this method is called.
    */
   void prelude(Connection c, ServerInfo server, ConnectionSettings s, long timeoutMs, boolean readOnly)
       throws SQLException;

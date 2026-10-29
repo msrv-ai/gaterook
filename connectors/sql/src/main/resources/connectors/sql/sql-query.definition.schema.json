@@ -142,7 +142,7 @@
       "type": "string",
       "title": "Database",
       "minLength": 1,
-      "maxLength": 63,
+      "maxLength": 128,
       "description": "A selected database on the connection. Required when more than one database is selected."
     }
   }

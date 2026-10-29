@@ -185,8 +185,8 @@
                 <div class="gw-form__rows">
                   <dl class="gw-kv gw-kv--dense">
                     <div class="gw-kv__row"><dt class="gw-kv__key">INSERT, UPDATE, DELETE, DDL</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">unless Bypass · rule <code class="gw-code">dev.sql.write-approval</code></span></dd></div>
-                    <!-- A lock, not a checkbox: reads always run READ ONLY and end with ROLLBACK, on every environment. -->
-                    <div class="gw-kv__row"><dt class="gw-kv__key">Run queries in a read-only transaction</dt><dd class="gw-kv__value"><span class="gw-badge"><i class="gw-icon gw-badge__icon" data-lucide="lock"></i>Always on</span> <span class="gw-text-caption gw-fg-muted"><span class="gw-mono">sql_query</span> opens READ ONLY transactions, so the database refuses a SELECT that calls a function that writes</span></dd></div>
+                    <!-- Read protection is fixed: dialect-specific admission checks and rollback cannot be disabled. -->
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Keep query calls read-only</dt><dd class="gw-kv__value"><span class="gw-badge"><i class="gw-icon gw-badge__icon" data-lucide="lock"></i>Always on</span> <span class="gw-text-caption gw-fg-muted">PostgreSQL and MySQL use READ ONLY transactions. SQL Server validates <span class="gw-mono">sql_query</span> and rolls it back; use a SELECT-only login for database-enforced protection.</span></dd></div>
                   </dl>
                   <div class="gw-form__row">
                     <div class="gw-field">
@@ -767,7 +767,7 @@
                 <div class="gw-form__rows">
                   <dl class="gw-kv gw-kv--dense">
                     <div class="gw-kv__row"><dt class="gw-kv__key">INSERT, UPDATE, DELETE</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">unless Bypass · rule <code class="gw-code">stage.sql.write-approval</code></span></dd></div>
-                    <div class="gw-kv__row"><dt class="gw-kv__key">Run queries in a read-only transaction</dt><dd class="gw-kv__value"><span class="gw-badge"><i class="gw-icon gw-badge__icon" data-lucide="lock"></i>Always on</span> <span class="gw-text-caption gw-fg-muted"><span class="gw-mono">sql_query</span> opens READ ONLY transactions, so the database refuses a SELECT that calls a function that writes</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Keep query calls read-only</dt><dd class="gw-kv__value"><span class="gw-badge"><i class="gw-icon gw-badge__icon" data-lucide="lock"></i>Always on</span> <span class="gw-text-caption gw-fg-muted">PostgreSQL and MySQL use READ ONLY transactions. SQL Server validates <span class="gw-mono">sql_query</span> and rolls it back; use a SELECT-only login for database-enforced protection.</span></dd></div>
                   </dl>
                   <div class="gw-form__row">
                     <div class="gw-field">
@@ -1289,7 +1289,7 @@
                 <div class="gw-form__rows">
                   <dl class="gw-kv gw-kv--dense">
                     <div class="gw-kv__row"><dt class="gw-kv__key">INSERT, UPDATE, DELETE</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">unless Bypass · rule <code class="gw-code">prod.sql.write-approval</code></span></dd></div>
-                    <div class="gw-kv__row"><dt class="gw-kv__key">Run queries in a read-only transaction</dt><dd class="gw-kv__value"><span class="gw-badge"><i class="gw-icon gw-badge__icon" data-lucide="lock"></i>Always on</span> <span class="gw-text-caption gw-fg-muted"><span class="gw-mono">sql_query</span> opens READ ONLY transactions, so the database refuses a SELECT that calls a function that writes</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Keep query calls read-only</dt><dd class="gw-kv__value"><span class="gw-badge"><i class="gw-icon gw-badge__icon" data-lucide="lock"></i>Always on</span> <span class="gw-text-caption gw-fg-muted">PostgreSQL and MySQL use READ ONLY transactions. SQL Server validates <span class="gw-mono">sql_query</span> and rolls it back; use a SELECT-only login for database-enforced protection.</span></dd></div>
                   </dl>
                   <div class="gw-form__row">
                     <div class="gw-field">

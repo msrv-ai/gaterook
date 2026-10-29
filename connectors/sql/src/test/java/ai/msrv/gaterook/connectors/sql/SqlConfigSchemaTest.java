@@ -8,6 +8,7 @@ import ai.msrv.gaterook.connectors.support.SchemaResources;
 import com.networknt.schema.SchemaRegistry;
 import com.networknt.schema.SpecificationVersion;
 import java.util.Set;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import tools.jackson.databind.json.JsonMapper;
@@ -17,6 +18,23 @@ class SqlConfigSchemaTest {
   private static final JsonMapper JSON = JsonMapper.builder().build();
   private static final SchemaResources RESOURCES = SchemaResources.of(JdbcSqlConnector.class, "sql");
   private static final SchemaRegistry SCHEMAS = SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12);
+
+  @Test
+  void sqlPasswordAuthenticationRequiresNonemptyLoginAndPassword() {
+    ObjectNode config = (ObjectNode) JSON.readTree("""
+        {"connection":{"host":"db.example.test","port":1433,"databases":["app"]},
+         "credentials":{"user":"reader","password":"stored-password"}}
+        """);
+    var schema = SCHEMAS.getSchema(RESOURCES.load("sqlserver.config"));
+    ObjectNode credentials = (ObjectNode) config.path("credentials");
+    assertThat(schema.validate(config)).isEmpty();
+    credentials.remove("password");
+    assertThat(schema.validate(config)).as("SQL authentication requires a stored or supplied password").isNotEmpty();
+    credentials.put("password", "");
+    assertThat(schema.validate(config)).isNotEmpty();
+    credentials.put("password", "stored-password").put("user", "");
+    assertThat(schema.validate(config)).isNotEmpty();
+  }
 
   @ParameterizedTest
   @ValueSource(strings = {"postgres", "mysql"})

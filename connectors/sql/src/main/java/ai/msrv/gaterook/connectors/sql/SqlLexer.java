@@ -138,6 +138,58 @@ final class SqlLexer {
     return mysql ? scanMySql(sql) : scanPostgres(sql);
   }
 
+  static Scan scan(String sql, SqlDialect dialect) {
+    return scan(sql, dialect.mysql(), dialect.sqlServer());
+  }
+
+  static Scan scan(String sql, boolean mysql, boolean sqlServer) {
+    return sqlServer ? scanSqlServer(sql) : scan(sql, mysql);
+  }
+
+  /** T-SQL with QUOTED_IDENTIFIER ON: brackets escape as ]], and block comments nest. */
+  private static Scan scanSqlServer(String sql) {
+    List<Segment> out = new ArrayList<>();
+    int code = 0;
+    int i = 0;
+    boolean unterminated = false;
+    while (i < sql.length()) {
+      char c = sql.charAt(i);
+      int end = -1;
+      Kind kind = null;
+      if (c == '\'') {
+        end = quoted(sql, i, '\'', false);
+        kind = Kind.STRING;
+      } else if (c == '"' || c == '[') {
+        end = quoted(sql, i, c == '[' ? ']' : '"', false);
+        kind = Kind.QUOTED_IDENTIFIER;
+      } else if (sql.startsWith("--", i)) {
+        end = lineEnd(sql, i);
+        kind = Kind.COMMENT;
+      } else if (sql.startsWith("/*", i)) {
+        end = nestedComment(sql, i);
+        kind = Kind.COMMENT;
+      }
+      if (kind == null) {
+        i++;
+        continue;
+      }
+      if (code < i) {
+        out.add(new Segment(Kind.CODE, code, i));
+      }
+      if (end < 0) {
+        unterminated = true;
+        end = sql.length();
+      }
+      out.add(new Segment(kind, i, end));
+      i = end;
+      code = end;
+    }
+    if (code < sql.length()) {
+      out.add(new Segment(Kind.CODE, code, sql.length()));
+    }
+    return new Scan(sql, List.copyOf(out), unterminated);
+  }
+
   // ── PostgreSQL ──────────────────────────────────────────────────────────────────────────────────────────────
 
   private static Scan scanPostgres(String sql) {

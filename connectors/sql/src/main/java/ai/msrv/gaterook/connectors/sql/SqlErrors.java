@@ -55,6 +55,25 @@ final class SqlErrors {
     return ConnectorException.resourceError(describe(e), e);
   }
 
+  static ConnectorException of(SQLException e, SqlDialect dialect, String connection, String env, Duration timeout) {
+    if (!dialect.sqlServer()) return of(e, dialect.mysql(), connection, env, timeout);
+    String state = state(e);
+    if (unreachable(e, state)) return ConnectorException.unavailable(reach(e, connection), e);
+    if (e instanceof java.sql.SQLTimeoutException || "HYT00".equals(state) || "HYT01".equals(state)
+        || e.getErrorCode() == 1222) {
+      return ConnectorException.resourceError("Statement timeout (" + seconds(timeout) + " on " + env
+          + ") exceeded. Narrow the WHERE clause or use TOP.", e);
+    }
+    if (e.getErrorCode() == 229 || e.getErrorCode() == 230 || e.getErrorCode() == 262) {
+      return ConnectorException.resourceError("The database user of " + connection + " may not do this: "
+          + describe(e) + ".", e);
+    }
+    if (e.getErrorCode() == 1205 || "40001".equals(state)) {
+      return ConnectorException.resourceError(describe(e) + ". The transaction was rolled back after a deadlock; retry.", e);
+    }
+    return of(e, false, connection, env, timeout);
+  }
+
   /**
    * PostgreSQL: {@code ERROR 42P01: relation "ordrs" does not exist (position 15). Hint: …}; MySQL as its own client
    * prints it: {@code ERROR 1146 (42S02): Table 'app.ordrs' doesn't exist}.
@@ -99,7 +118,7 @@ final class SqlErrors {
       return true;
     }
     int code = e.getErrorCode();
-    if (code == 1045 || code == 1049 || code == 2002 || code == 2003 || code == 2006 || code == 2013) {
+    if (code == 18456 || code == 4060 || code == 1045 || code == 1049 || code == 2002 || code == 2003 || code == 2006 || code == 2013) {
       return true;
     }
     for (Throwable t = e; t != null; t = t.getCause()) {

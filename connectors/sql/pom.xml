@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  PostgreSQL and MySQL/MariaDB (report 04, report 10 §6.6): JdbcSqlConnector with PostgresDialect and MySqlDialect,
+  PostgreSQL, MySQL/MariaDB and SQL Server (report 04, report 10 §6.6): JdbcSqlConnector with vendor dialects,
   the JSqlParser classifier, a HikariCP pool per connection and TemplateKind "sql-query". Plain JDBC, no Spring
   JdbcClient: the connector needs the transaction, setMaxRows, ResultSetMetaData and Statement.cancel().
   Spring only in the .boot subpackage. Built by step C1.
@@ -40,6 +40,10 @@
     <dependency>
       <groupId>com.mysql</groupId>
       <artifactId>mysql-connector-j</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.microsoft.sqlserver</groupId>
+      <artifactId>mssql-jdbc</artifactId>
     </dependency>
     <dependency>
       <groupId>com.github.jsqlparser</groupId>

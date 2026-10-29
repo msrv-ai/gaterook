@@ -78,7 +78,7 @@ export class GwTemplatesPanel {
     const loaded = kinds !== null;
     const reason = (kind: string, text: string): string | null => (loaded && kinds.has(kind) ? null : loaded ? text : 'Checking what this core offers…');
     return {
-      sql: reason('sql-query', 'This build’s PostgreSQL and MySQL connectors don’t offer SQL query templates yet.'),
+      sql: reason('sql-query', 'This build’s PostgreSQL, MySQL and SQL Server connectors don’t offer SQL query templates yet.'),
       // These kinds have no editor in this build of the app (only SQL queries do): said as it is, never faked.
       ssh: kinds?.has('ssh-runbook') ? 'This build of the app has no runbook editor yet.' : reason('ssh-runbook', 'This build’s SSH connector doesn’t offer runbooks yet.'),
       openapi: kinds?.has('openapi') ? 'This build of the app has no OpenAPI import yet.' : reason('openapi', 'This build’s HTTP API connector can’t import OpenAPI files yet.'),

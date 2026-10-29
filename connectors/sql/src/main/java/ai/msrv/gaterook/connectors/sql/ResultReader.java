@@ -48,6 +48,12 @@ final class ResultReader {
    */
   static Read read(ResultSet rs, int maxRows, long maxBytes, int maxCellChars, boolean mysql, boolean countRest)
       throws SQLException {
+    return read(rs, maxRows, maxBytes, maxCellChars, mysql ? new MySqlDialect() : new PostgresDialect(), countRest);
+  }
+
+  static Read read(ResultSet rs, int maxRows, long maxBytes, int maxCellChars, SqlDialect dialect, boolean countRest)
+      throws SQLException {
+    boolean mysql = dialect.mysql();
     ResultSetMetaData md = rs.getMetaData();
     int n = md.getColumnCount();
     List<ToolResult.Column> columns = new ArrayList<>(n);
@@ -56,8 +62,8 @@ final class ResultReader {
     for (int i = 1; i <= n; i++) {
       types[i - 1] = md.getColumnType(i);
       typeNames[i - 1] = md.getColumnTypeName(i) == null ? "" : md.getColumnTypeName(i);
-      columns.add(new ToolResult.Column(md.getColumnLabel(i), typeNames[i - 1], origin(md, i, Part.SCHEMA, mysql),
-          origin(md, i, Part.TABLE, mysql), origin(md, i, Part.COLUMN, mysql)));
+      columns.add(new ToolResult.Column(md.getColumnLabel(i), typeNames[i - 1], origin(md, i, Part.SCHEMA, dialect),
+          origin(md, i, Part.TABLE, dialect), origin(md, i, Part.COLUMN, dialect)));
     }
     ArrayNode rows = JsonNodeFactory.instance.arrayNode();
     String truncated = null;
@@ -92,12 +98,12 @@ final class ResultReader {
   private enum Part { SCHEMA, TABLE, COLUMN }
 
   /** pgjdbc: base schema, table and column (an alias is followed); Connector/J: database, original table and column. */
-  private static String origin(ResultSetMetaData md, int i, Part part, boolean mysql) {
+  private static String origin(ResultSetMetaData md, int i, Part part, SqlDialect dialect) {
     try {
       String v;
-      if (mysql) {
+      if (dialect.mysql() || dialect.sqlServer()) {
         v = switch (part) {
-          case SCHEMA -> md.getCatalogName(i);
+          case SCHEMA -> dialect.mysql() ? md.getCatalogName(i) : md.getSchemaName(i);
           case TABLE -> md.getTableName(i);
           case COLUMN -> md.getColumnName(i);
         };
@@ -133,6 +139,10 @@ final class ResultReader {
       // pgjdbc says DOUBLE for money, whose text has a currency sign.
       String v = rs.getString(i);
       return v == null ? f.nullNode() : f.stringNode(v);
+    }
+    if (name.equals("datetimeoffset")) {
+      OffsetDateTime value = rs.getObject(i, OffsetDateTime.class);
+      return value == null ? f.nullNode() : text(value.toString(), maxCellChars);
     }
     switch (type) {
       case Types.TINYINT, Types.SMALLINT, Types.INTEGER -> {

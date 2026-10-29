@@ -104,7 +104,7 @@ Built-in registration uses explicit beans; enable/disable state is stored in `co
 The source of truth is [connector-api](../connector-api/src/main/java/ai/msrv/gaterook/connector/) and the [SPI reference](connector-spi.md). A connector exposes its manifest, schemas, tools, configuration test, classification, action description/preparation, execution, and optional template/resource capabilities.
 
 - **Classification is fast and deterministic.** It receives configuration and policy, not secret values, and must not perform network I/O. Failures deny the call.
-- **Preparation is bounded and side-effect-free.** It can reject a request, report no change, or produce a canonical action and approved payload. SQL preparation uses a read-only transaction; Kubernetes preparation uses server dry-run; HTTP/SSH preparation does not send the requested mutation.
+- **Preparation is bounded and side-effect-free.** It can reject a request, report no change, or produce a canonical action and approved payload. SQL preparation uses non-executing query plans and rollback; Kubernetes preparation uses server dry-run; HTTP/SSH preparation does not send the requested mutation.
 - **Execution receives a scoped context.** Credentials are limited to the selected connection and call. The context carries cancellation, deadline, approved state, egress controls, and taint tracking.
 - **Only the core can authorize mutation execution.** A human approval or an explicitly configured Bypass tool mode authorizes an exact prepared payload. A client-controlled field cannot set that state. Connectors reject mutations without it as defense in depth; Bypass carries no approval ID.
 - **Results are data.** Every output is bounded and masked by the core before it reaches a client, audit view, or notification. A connector cannot opt out.
@@ -112,7 +112,7 @@ The source of truth is [connector-api](../connector-api/src/main/java/ai/msrv/ga
 
 A connector's JSON schemas describe input, output, configuration, and policy. UI extension keywords provide labels, variants, secret fields, options, environment locks, and stricter-wins merge rules. Schemas are bounded before validation to avoid excessive recursion or work. Shared tool names can merge only when their schemas match apart from the allowed connection enumeration.
 
-Built-ins include SQL, MongoDB, Redis, SSH, logs, Kubernetes, GCP, AWS, HTTP/OpenAPI, and external MCP support. Connector-specific research documents describe drivers, classification edge cases, safe reads, and integration matrices.
+Built-ins include SQL (PostgreSQL, MySQL/MariaDB and [SQL Server](sql-server.md)), MongoDB, Redis, SSH, logs, Kubernetes, GCP, AWS, HTTP/OpenAPI, and external MCP support. Connector-specific research documents describe drivers, classification edge cases, safe reads, and integration matrices.
 
 ## 4. Persistence and integrity
 
@@ -307,7 +307,7 @@ Conditional authentication fields are displayed and validated only for the selec
 
 Database schemas declare `x-database-selection` with the selection array's `path` and an optional `legacyPath`. The connection wizard collects server settings and credentials first, loads accessible databases through `POST /api/connections/databases`, then saves the chosen databases as one connection. Discovery does not save credentials or create a connection. It shares draft testing's validation, masking, timeout, and confirmation before sending stored credentials to another host. Changing connection settings invalidates the loaded list. A `required` marker requires a nonempty selection or a legacy database outside discovery; selection arrays reject empty values.
 
-MySQL, PostgreSQL, MongoDB, Redis, and ClickHouse retain existing connection formats when no selection array is present. A new selection intersects existing schema, collection, or key restrictions. Calls that need a database select one explicitly when several are configured; a single selection supplies the default. Database identity participates in SQL/Redis pool routing, SQL approval payloads, and Redis cursors. PostgreSQL discovery uses a configurable bootstrap database; Redis reports an incomplete list when the account cannot read the configured database count.
+MySQL, PostgreSQL, SQL Server, MongoDB, Redis, and ClickHouse retain existing connection formats when no selection array is present. A new selection intersects existing schema, collection, or key restrictions. Calls that need a database select one explicitly when several are configured; a single selection supplies the default. Database identity participates in SQL/Redis pool routing, SQL approval payloads, and Redis cursors. PostgreSQL discovery uses a configurable bootstrap database; Redis reports an incomplete list when the account cannot read the configured database count.
 
 Redis setup does not require database discovery or selection. It defaults to logical database 0; an optional database number or allowlist can be configured in Advanced without changing saved connection scopes.
 
@@ -339,7 +339,7 @@ The application follows the kit's first-run, setup, and in-use Overview composit
 
 1. Show the actual core runtime from the API: native in a native build, JVM in development. The plugin runtime is a separate JRE.
 2. Codex's `http_headers_helper` is a string. Claude Desktop uses an endpoint-specific bridge bundle. Cursor and Antigravity have supported token, browser, or bridge methods; production policy can disable methods.
-3. SQL read-only transaction enforcement is an always-on lock. Kubernetes `watch` is outside the tool surface. `http_request` describes its actual supported mutation methods.
+3. SQL read protection is always on. PostgreSQL/MySQL use read-only transactions; SQL Server uses strict SELECT validation and rollback, with a SELECT-only login required for server-enforced protection. Kubernetes `watch` is outside the tool surface. `http_request` describes its actual supported mutation methods.
 4. Tunnel caller filtering does not block the person's browser authorization page. Consent shows the actual browser address rather than a fixed service range.
 5. Describe leased credentials as short-lived and automatically renewed, not necessarily a fresh user per call. The OpenSearch database connector provides index discovery, JSON Query DSL and REST administration under server permissions. Administrative operations default to Approval mode. Saved legacy `logs` connections with the OpenSearch backend retain their scoped Lucene log tools and optional `apiAccess: "logs"` restriction; the new OpenSearch connector exposes only its three database tools. See [OpenSearch API access](research/opensearch-api.md). Plugins use separate processes. Show real child environment constraints and disable unsupported rotation with a reason.
 6. SQL uses `limit` (default 50) and environment statement-timeout policy. Production SSH runbooks follow both tool mode and runbook classification.
@@ -368,7 +368,7 @@ The application follows the kit's first-run, setup, and in-use Overview composit
 | Local admin is not exposed to agents or websites | Per-request HMAC, replay protection, host/origin guards, CSP, narrow proxy, and public-port isolation tests |
 | Tokens remain purpose- and audience-bound | Hash lookup, revocation, TTL, ingress checks, client/grant binding, and OAuth negative tests |
 | Untrusted network input cannot bypass egress policy | DNS and actual socket-address checks, metadata/internal-address blocks, explicit private ranges, no ambient proxy or automatic redirects |
-| SQL reads cannot silently write | Read-only transaction plus rollback, parser/allowlist restrictions, server timeout, forbidden functions/hints, and privilege probes |
+| SQL reads cannot silently write | PostgreSQL/MySQL read-only transactions; SQL Server strict SELECT and function checks with a SELECT-only login; rollback, allowlists, timeouts, forbidden functions/hints, and privilege probes |
 | SSH parameters cannot become shell syntax | Typed runbook parameters, constrained templates, POSIX quoting, leading-option restrictions, pinned host keys, and no PTY/agent forwarding |
 | Extension code cannot claim built-in trust | Reserved namespaces, pinned artifacts, reviewed snapshots, separate hosts, and secret capability checks |
 | Production remains stricter | Environment locks, no mixed production endpoints, constrained tools/limits, required review comments, and no channel approval/publication |

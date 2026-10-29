@@ -50,12 +50,14 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The SQL connector of one dialect: PostgreSQL or MySQL/MariaDB (report 04, ARCHITECTURE.md §10 C1).
+ * The SQL connector of one dialect: PostgreSQL, MySQL/MariaDB or SQL Server (report 04, ARCHITECTURE.md §10 C1).
  *
  * <p>The route of a call comes from {@link SqlClassifier} and {@link SqlRules} in {@link #classify}, without I/O. The
- * guarantee that a read doesn't write is the database's: every read — {@code sql_query}, introspection, a read
+ * PostgreSQL and MySQL enforce reads in the database: every read — {@code sql_query}, introspection, a read
  * template, even one a person approved because it calls a function that isn't built in — runs in a READ ONLY
- * transaction that ends with ROLLBACK ({@link SqlExecutor}). A change runs only after approval
+ * transaction that ends with ROLLBACK ({@link SqlExecutor}). SQL Server instead requires strictly analyzed SELECTs
+ * and known built-in functions, with rollback; a SELECT-only login supplies server-enforced protection.
+ * A change runs only after approval
  * ({@code ctx.approved()}), exactly as the person saw it ({@code approvedPayload}), in one transaction.
  *
  * <p>{@link #execute} gets no policy, so it checks again what it can without one (defence in depth): a read is one
@@ -126,9 +128,9 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     } catch (ConnectorException e) {
       return Classification.deny(policy.rule("database-not-selected"), e.getMessage(), null);
     }
-    SqlPolicy p = SqlPolicy.of(policy, cfg, mysql(), settings);
+    SqlPolicy p = SqlPolicy.of(policy, cfg, dialect, settings);
     if (call.template() != null) {
-      TemplateCall t = TemplateCall.of(call.template().binding(), mysql());
+      TemplateCall t = TemplateCall.of(call.template().binding(), dialect);
       if (t.problem() != null) {
         return Classification.deny(p.rule("template-invalid"), t.problem(), "Save the template again.");
       }
@@ -140,9 +142,9 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
         yield Classification.read();
       }
       case SqlTools.DESCRIBE_TABLE -> SqlRules.describe(IdentifierRules.table(Objects.requireNonNullElse(
-          call.string("table"), ""), mysql(), p.defaultSchema()), p);
-      case SqlTools.QUERY -> SqlRules.query(SqlClassifier.analyze(call.string("sql"), mysql()), p);
-      case SqlTools.EXECUTE -> SqlRules.execute(SqlClassifier.analyze(call.string("sql"), mysql()), p);
+          call.string("table"), ""), dialect, p.defaultSchema()), p);
+      case SqlTools.QUERY -> SqlRules.query(SqlClassifier.analyze(call.string("sql"), dialect), p);
+      case SqlTools.EXECUTE -> SqlRules.execute(SqlClassifier.analyze(call.string("sql"), dialect), p);
       default -> Classification.deny(p.rule("unknown-tool"), manifest.name() + " has no tool " + call.tool() + ".",
           null);
     };
@@ -171,23 +173,23 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
                 shorten(call.tool() + " on " + cfg.name()))
             .withPayload(databasePayload(JsonNodeFactory.instance.objectNode().set("arguments", args), cfg, s))
             .withFacets(Map.of("tool", call.tool()))
-            .withImpact(List.of(new Field("Transaction", "Read only, always rolled back")));
+            .withImpact(List.of(new Field("Transaction", readTransaction())));
       }
     };
   }
 
   private ActionPreview describeSql(ToolCall call, ConnectionConfig cfg, ConnectionSettings s, String target) {
     String sql = Objects.requireNonNullElse(call.string("sql"), "");
-    Analysis a = SqlClassifier.analyze(sql, mysql());
+    Analysis a = SqlClassifier.analyze(sql, dialect);
     List<Field> impact = new ArrayList<>();
     List<String> warnings = new ArrayList<>();
     Map<String, String> facets = new LinkedHashMap<>();
     facets.put("statement", statementTypes(a));
     if (SqlTools.QUERY.equals(call.tool())) {
-      impact.add(new Field("Transaction", "Read only, always rolled back"));
+      impact.add(new Field("Transaction", readTransaction()));
       warnings.addAll(functionWarnings(a, cfg, s));
     } else {
-      List<String> targets = SqlRules.targets(a, mysql(), s.defaultSchema());
+      List<String> targets = SqlRules.targets(a, dialect, s.defaultSchema());
       impact.add(new Field("Target table", targets.isEmpty() ? (a.parsed() ? "None" : "Unknown: not analyzed")
           : String.join(", ", targets)));
       if (!targets.isEmpty()) {
@@ -213,7 +215,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
 
   private ActionPreview describeTemplate(ToolCall call, ConnectionConfig cfg, ConnectionSettings s, String target) {
     ToolCall.TemplateBinding b = call.template();
-    TemplateCall t = TemplateCall.of(b.binding(), mysql());
+    TemplateCall t = TemplateCall.of(b.binding(), dialect);
     List<Field> fields = new ArrayList<>();
     List<String> warnings = new ArrayList<>();
     fields.add(new Field("Template", t.name() + " · version " + b.version()));
@@ -231,10 +233,10 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     fields.add(new Field("Binding", "Values are bound by the driver, never pasted into the SQL"));
     List<Field> impact = new ArrayList<>();
     if (t.read()) {
-      impact.add(new Field("Transaction", "Read only, always rolled back"));
+      impact.add(new Field("Transaction", readTransaction()));
       warnings.addAll(functionWarnings(t.analysis(), cfg, s));
     } else {
-      List<String> targets = SqlRules.targets(t.analysis(), mysql(), s.defaultSchema());
+      List<String> targets = SqlRules.targets(t.analysis(), dialect, s.defaultSchema());
       impact.add(new Field("Target table", targets.isEmpty() ? "None" : String.join(", ", targets)));
       impact.add(new Field("Transaction", transaction(t.analysis())));
     }
@@ -265,12 +267,28 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
       if (requested == null) throw ConnectorException.denied("The approved action does not specify a database.");
     }
     String database = DatabaseSelection.resolve(cfg, requested);
-    return ConnectionSettings.of(cfg, mysql()).withDatabase(database, mysql());
+    return ConnectionSettings.of(cfg, dialect).withDatabase(database, mysql());
   }
 
-  /** Enforce the selected MySQL databases even when execute is called without the policy classifier. */
+  /** Enforce database boundaries even when execute is called without the policy classifier. */
   private void checkSelectedTables(Analysis analysis, ConnectionConfig cfg, ConnectionSettings settings)
       throws ConnectorException {
+    if (dialect.sqlServer()) {
+      for (StatementFacts statement : analysis.statements()) {
+        if (statement.tables() == null) {
+          throw ConnectorException.denied("The gateway cannot verify the SQL Server database scope.");
+        }
+        for (String name : statement.tables()) {
+          if (IdentifierRules.table(name, dialect, settings.defaultSchema()) == null) {
+            throw ConnectorException.denied("SQL Server statements must stay in the selected database. Use schema.table.");
+          }
+        }
+      }
+      if (analysis.functions().stream().anyMatch(function -> function.parts().size() > 2)) {
+        throw ConnectorException.denied("SQL Server functions must stay in the selected database.");
+      }
+      return;
+    }
     if (!mysql() || !DatabaseSelection.configured(cfg)) return;
     Allowlist scope = Allowlist.of(List.of(), settings.schemaAllowlist(), true, DatabaseSelection.selected(cfg));
     for (StatementFacts statement : analysis.statements()) {
@@ -287,14 +305,22 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
 
   /** What the read of a request calls that isn't built in: the reason a person decides. */
   private List<String> functionWarnings(Analysis a, ConnectionConfig cfg, ConnectionSettings s) {
-    FunctionRules.Verdict v = FunctionRules.check(a.functions(), mysql(), FunctionRules.fromMetadata(cfg.metadata()),
+    FunctionRules.Verdict v = FunctionRules.check(a.functions(), dialect, FunctionRules.fromMetadata(cfg.metadata()),
         List.of(), s.allowedFunctions());
     if (v.notBuiltIn().isEmpty()) {
       return List.of();
     }
+    if (dialect.sqlServer()) {
+      return List.of("SQL Server reads refuse functions outside the known built-in set: "
+          + String.join(", ", v.notBuiltIn()) + ".");
+    }
     return List.of("Calls " + String.join(", ", v.notBuiltIn()) + (v.notBuiltIn().size() == 1 ? ", which isn't a "
         + "built-in function" : ", which aren't built-in functions") + ": it may change data or act outside the "
         + "database. It still runs in a read-only transaction that is rolled back.");
+  }
+
+  private String readTransaction() {
+    return dialect.sqlServer() ? "Validated read query, always rolled back" : "Read only, always rolled back";
   }
 
   private String transaction(Analysis a) {
@@ -312,7 +338,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
   }
 
   private String firstTargets(Analysis a, ConnectionSettings s) {
-    List<String> targets = SqlRules.targets(a, mysql(), s.defaultSchema());
+    List<String> targets = SqlRules.targets(a, dialect, s.defaultSchema());
     if (targets.isEmpty()) {
       return "";
     }
@@ -338,7 +364,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     if (call.template() != null) {
       // A value the template can't take (a time that isn't one, a bound the schema doesn't express) would leave
       // the request without values: nobody approves a statement whose values are unknown.
-      TemplateCall t = TemplateCall.of(call.template().binding(), mysql());
+      TemplateCall t = TemplateCall.of(call.template().binding(), dialect);
       if (t.problem() != null) {
         return PreparedAction.reject(t.problem());
       }
@@ -376,7 +402,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
    */
   private List<BoundSql> changes(ToolCall call, ActionPreview preview) {
     if (call.template() != null) {
-      TemplateCall t = TemplateCall.of(call.template().binding(), mysql());
+      TemplateCall t = TemplateCall.of(call.template().binding(), dialect);
       if (t.read() || t.problem() != null || t.analysis().kind() != Kind.DML || !EXPLAINABLE.contains(t.statement())) {
         return List.of();
       }
@@ -392,11 +418,11 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
       return List.of();
     }
     String sql = Objects.requireNonNullElse(call.string("sql"), "");
-    Analysis a = SqlClassifier.analyze(sql, mysql());
+    Analysis a = SqlClassifier.analyze(sql, dialect);
     if (!a.parsed()) {
       return List.of();
     }
-    List<String> pieces = SqlLexer.scan(sql, mysql()).statements();
+    List<String> pieces = SqlLexer.scan(sql, dialect).statements();
     if (pieces.size() != a.count()) {
       return List.of();
     }
@@ -416,9 +442,9 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
 
   private List<String> statementTypesOf(ToolCall call) {
     if (call.template() != null) {
-      return List.of(TemplateCall.of(call.template().binding(), mysql()).statement());
+      return List.of(TemplateCall.of(call.template().binding(), dialect).statement());
     }
-    return SqlClassifier.analyze(Objects.requireNonNullElse(call.string("sql"), ""), mysql()).statements().stream()
+    return SqlClassifier.analyze(Objects.requireNonNullElse(call.string("sql"), ""), dialect).statements().stream()
         .map(StatementFacts::type).toList();
   }
 
@@ -462,10 +488,12 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
           throw e;
         }
         int code = e.getErrorCode();
-        boolean syntax = "42601".equals(state) || (mysql() && code == 1064);
+        boolean syntax = "42601".equals(state) || (mysql() && code == 1064)
+            || (dialect.sqlServer() && (code == 102 || code == 156));
         // A missing table or column, or a user that may not do it: no statement before this one changes that.
         boolean missing = "42P01".equals(state) || "42703".equals(state) || "42883".equals(state)
-            || "42501".equals(state) || (mysql() && (code == 1146 || code == 1054 || code == 1142 || code == 1143));
+            || "42501".equals(state) || (mysql() && (code == 1146 || code == 1054 || code == 1142 || code == 1143))
+            || (dialect.sqlServer() && (code == 207 || code == 208 || code == 229));
         if (syntax || (missing && i == 0)) {
           return new Estimates(rows, warnings, "The database can't run it, so nobody was asked to approve it: "
               + SqlErrors.describe(e) + ".");
@@ -521,15 +549,18 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
   private ToolResult query(ToolCall call, ConnectionConfig cfg, ConnectionSettings s, SecretResolver secrets,
       ExecContext ctx) throws ConnectorException {
     String sql = sql(call, ctx);
-    Analysis a = SqlClassifier.analyze(sql, mysql());
+    Analysis a = SqlClassifier.analyze(sql, dialect);
     if (!a.parsed() || a.count() != 1 || a.kind() != Kind.READ) {
       throw ConnectorException.denied("sql_query only runs one statement the gateway reads as a read.");
     }
     checkSelectedTables(a, cfg, s);
-    FunctionRules.Verdict v = FunctionRules.check(a.functions(), mysql(), FunctionRules.fromMetadata(cfg.metadata()),
+    FunctionRules.Verdict v = FunctionRules.check(a.functions(), dialect, FunctionRules.fromMetadata(cfg.metadata()),
         List.of(), s.allowedFunctions());
     if (!v.denied().isEmpty()) {
       throw ConnectorException.denied(String.join(", ", v.denied()) + " isn't allowed through GateRook.");
+    }
+    if (dialect.sqlServer() && !v.notBuiltIn().isEmpty()) {
+      throw ConnectorException.denied("SQL Server reads only allow known built-in functions.");
     }
     if (!v.notBuiltIn().isEmpty() && !ctx.approved()) {
       throw ConnectorException.denied("Not approved: " + String.join(", ", v.notBuiltIn()) + " isn't a built-in "
@@ -541,8 +572,8 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
   }
 
   /**
-   * A read as it runs, without any check of what it is: in a READ ONLY transaction that ends with ROLLBACK. The tests
-   * of that guarantee call it with statements that write, as if the classifier were off.
+   * Runs an admitted read and rolls back. PostgreSQL/MySQL additionally enforce READ ONLY; their tests call this
+   * directly with writes to verify server enforcement. SQL Server must pass the admission checks before this call.
    */
   ToolResult runRead(ConnectionConfig cfg, ConnectionSettings s, SecretResolver secrets, ExecContext ctx,
       BoundSql statement, int limit) throws ConnectorException {
@@ -562,15 +593,16 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
       throw ConnectorException.denied("Not approved: sql_execute changes data, so a person approves it first.");
     }
     String sql = sql(call, ctx);
-    Analysis a = SqlClassifier.analyze(sql, mysql());
+    Analysis a = SqlClassifier.analyze(sql, dialect);
     checkSelectedTables(a, cfg, s);
     if (a.tooComplex() || a.kind() == Kind.FORBIDDEN) {
       throw ConnectorException.denied("This statement can't run through GateRook.");
     }
-    if (a.count() > (mysql() ? 1 : SqlRules.MAX_POSTGRES_STATEMENTS)) {
+    if (a.count() > (mysql() || dialect.sqlServer() ? 1 : SqlRules.MAX_POSTGRES_STATEMENTS)
+        || (dialect.sqlServer() && !a.parsed())) {
       throw ConnectorException.denied("Too many statements for one sql_execute.");
     }
-    FunctionRules.Verdict v = FunctionRules.check(a.functions(), mysql(), FunctionRules.fromMetadata(cfg.metadata()),
+    FunctionRules.Verdict v = FunctionRules.check(a.functions(), dialect, FunctionRules.fromMetadata(cfg.metadata()),
         List.of(), s.allowedFunctions());
     if (!v.denied().isEmpty()) {
       throw ConnectorException.denied(String.join(", ", v.denied()) + " isn't allowed through GateRook.");
@@ -653,14 +685,18 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
       Analysis analysis, String statement, boolean read, Integer maxRows, String problem) {
 
     static TemplateCall of(JsonNode binding, boolean mysql) {
+      return of(binding, mysql ? new MySqlDialect() : new PostgresDialect());
+    }
+
+    static TemplateCall of(JsonNode binding, SqlDialect dialect) {
       String name = binding.path("name").asString("template");
       String sql = binding.path("sql").asString("");
       List<String> errors = new ArrayList<>();
       List<TemplateParams.Param> params = TemplateParams.parse(binding.path("params"), errors);
       Set<String> declared = new LinkedHashSet<>();
       params.forEach(p -> declared.add(p.name()));
-      NamedSql named = NamedSql.compile(sql, mysql, declared);
-      Analysis a = SqlClassifier.analyze(sql, mysql);
+      NamedSql named = NamedSql.compile(sql, dialect, declared);
+      Analysis a = SqlClassifier.analyze(sql, dialect);
       Integer maxRows = binding.path("maxRows").isIntegralNumber() ? binding.get("maxRows").asInt() : null;
       String statement = a.statements().isEmpty() ? "SQL" : a.statements().getFirst().type();
       List<String> storedOrder = new ArrayList<>();
@@ -681,7 +717,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
 
   private ToolResult runTemplate(ToolCall call, ConnectionConfig cfg, ConnectionSettings s, SecretResolver secrets,
       ExecContext ctx) throws ConnectorException {
-    TemplateCall t = TemplateCall.of(call.template().binding(), mysql());
+    TemplateCall t = TemplateCall.of(call.template().binding(), dialect);
     if (t.problem() != null) {
       throw ConnectorException.denied(t.problem());
     }
@@ -689,10 +725,13 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     if (t.analysis().kind() == Kind.FORBIDDEN) {
       throw ConnectorException.denied(t.name() + " can't run through GateRook.");
     }
-    FunctionRules.Verdict v = FunctionRules.check(t.analysis().functions(), mysql(),
+    FunctionRules.Verdict v = FunctionRules.check(t.analysis().functions(), dialect,
         FunctionRules.fromMetadata(cfg.metadata()), List.of(), s.allowedFunctions());
     if (!v.denied().isEmpty()) {
       throw ConnectorException.denied(String.join(", ", v.denied()) + " isn't allowed through GateRook.");
+    }
+    if (dialect.sqlServer() && t.read() && !v.notBuiltIn().isEmpty()) {
+      throw ConnectorException.denied("SQL Server reads only allow known built-in functions.");
     }
     boolean needsApproval = !t.read() || !v.notBuiltIn().isEmpty();
     if (needsApproval && !ctx.approved()) {
@@ -728,11 +767,11 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     int limit = Math.max(1, Math.min(args.path("limit").asInt(DEFAULT_LIST_LIMIT), 1_000));
     String onlySchema = null;
     if (schema != null) {
-      List<Part> parts = IdentifierRules.parts(schema, mysql());
+      List<Part> parts = IdentifierRules.parts(schema, dialect);
       if (parts.size() != 1) {
         throw ConnectorException.badInput(schema + " isn't a schema name.");
       }
-      onlySchema = IdentifierRules.normalize(parts.getFirst(), mysql());
+      onlySchema = IdentifierRules.normalize(parts.getFirst(), dialect);
     }
     Allowlist allowlist = p.allowlist();
     String only = onlySchema;
@@ -768,7 +807,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
         flush(text, current, names, listing.counts());
         current = t.schema();
       }
-      names.add(IdentifierRules.quoteIfNeeded(t.name(), mysql()) + ("table".equals(t.kind()) ? "" : " (" + t.kind()
+      names.add(IdentifierRules.quoteIfNeeded(t.name(), dialect) + ("table".equals(t.kind()) ? "" : " (" + t.kind()
           + ")"));
     }
     flush(text, current, names, listing.counts());
@@ -799,7 +838,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
   private ToolResult describeTable(ToolCall call, ConnectionConfig cfg, ConnectionSettings s, SecretResolver secrets,
       ExecContext ctx) throws ConnectorException {
     String written = arguments(call, ctx).path("table").asString("");
-    TableRef table = IdentifierRules.table(written, mysql(), s.defaultSchema());
+    TableRef table = IdentifierRules.table(written, dialect, s.defaultSchema());
     if (table == null || table.schema() == null) {
       throw ConnectorException.badInput(table == null ? written + " isn't a table name: write table, schema.table or "
           + (mysql() ? "`Mixed`.`Case`." : "\"Mixed\".\"Case\".") : "Qualify " + written + " with its database: "
@@ -812,7 +851,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     Optional<ObjectNode> found = executor.read(pool, s, ctx, cfg.name(),
         (c, server, timeoutMs) -> dialect.catalog().describe(c, table));
     if (found.isEmpty()) {
-      throw ConnectorException.badInput("Table " + IdentifierRules.display(table, mysql()) + " not found on "
+      throw ConnectorException.badInput("Table " + IdentifierRules.display(table, dialect) + " not found on "
           + cfg.name() + ". Call sql_list_schemas to see the tables.");
     }
     ObjectNode d = found.get();
@@ -856,7 +895,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
    */
   @Override
   public Optional<JsonNode> describe(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, String object) {
-    ConnectionSettings s = ConnectionSettings.of(cfg, mysql());
+    ConnectionSettings s = ConnectionSettings.of(cfg, dialect);
     ObjectNode out = JsonNodeFactory.instance.objectNode();
     JsonNode meta = cfg.metadata();
     out.put("server", meta != null && meta.path("serverVersion").isString() ? meta.get("serverVersion").asString()
@@ -879,8 +918,10 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
       DatabaseSelection.selected(cfg).forEach(databases::add);
       out.put("databaseSelection", "Pass database on SQL tool calls when more than one database is selected.");
     }
-    out.put("reads", "One statement per sql_query, in a read-only transaction that is rolled back");
-    out.put("changes", mysql() ? "One statement per sql_execute, after approval"
+    out.put("reads", dialect.sqlServer()
+        ? "One validated SELECT per sql_query, always rolled back; use a SELECT-only database user for server-enforced protection"
+        : "One statement per sql_query, in a read-only transaction that is rolled back");
+    out.put("changes", mysql() || dialect.sqlServer() ? "One statement per sql_execute, after approval"
         : "Up to " + SqlRules.MAX_POSTGRES_STATEMENTS + " statements per sql_execute in one transaction, after "
         + "approval");
     if (object != null && !object.isBlank()) {
@@ -907,7 +948,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
    */
   @Override
   public HealthResult health(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
-    ConnectionSettings s = ConnectionSettings.of(cfg, mysql());
+    ConnectionSettings s = ConnectionSettings.of(cfg, dialect);
     try (Credentials login = Credentials.resolve(cfg, secrets);
          Connection c = connect(s, login, ctx)) {
       try (Statement st = c.createStatement()) {
@@ -950,7 +991,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
 
   @Override
   public boolean canRotate(ConnectionConfig cfg, String field) {
-    return ConnectionSettings.PASSWORD.equals(field) && cfg.string("/credentials/user") != null;
+    return !dialect.sqlServer() && ConnectionSettings.PASSWORD.equals(field) && cfg.string("/credentials/user") != null;
   }
 
   /**
@@ -971,13 +1012,13 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     if (next == null || next.length < 16) {
       throw ConnectorException.badInput("A new password has at least 16 characters.");
     }
-    ConnectionSettings s = ConnectionSettings.of(cfg, mysql());
+    ConnectionSettings s = ConnectionSettings.of(cfg, dialect);
     try (Credentials login = Credentials.resolve(cfg, current);
          Connection c = connect(s, login, ctx)) {
       c.setAutoCommit(true);
       dialect.changePassword(c, dialect.identify(c), login.user(), next);
     } catch (SQLException e) {
-      throw SqlErrors.of(e, mysql(), cfg.name(), ctx.env() == null ? "this environment" : ctx.env().id(),
+      throw SqlErrors.of(e, dialect, cfg.name(), ctx.env() == null ? "this environment" : ctx.env().id(),
           Duration.ofMillis(TestProbe.BUDGET_MS));
     } catch (IOException e) {
       throw ConnectorException.badInput("The CA certificate can't be used: " + e.getMessage());

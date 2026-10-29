@@ -191,6 +191,7 @@ describe('Activity line and the guide', () => {
   it('asks the kit’s question for a database, the same idea for other types, "my database" before any connection', () => {
     expect(checkPrompt(null, null)).toBe('Show me the tables in my database');
     expect(checkPrompt('postgres', 'dev-db')).toBe('Show me the tables in dev-db');
+    expect(checkPrompt('sqlserver', 'reporting')).toBe('Show me the tables in reporting');
     expect(checkPrompt('mongodb', 'orders')).toBe('Show me the collections in orders');
     expect(checkPrompt('kubernetes', 'dev-cluster')).toBe('Show me the pods in dev-cluster');
     expect(checkPrompt('logs', 'app-logs')).toBe('Show me the latest errors in app-logs');

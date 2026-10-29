@@ -471,6 +471,7 @@ export function firstRunTestText(target: string): string {
 export const POLICY_SECTION: Readonly<Record<string, string>> = {
   postgres: 'sql',
   mysql: 'sql',
+  sqlserver: 'sql',
   ssh: 'ssh',
   kubernetes: 'k8s',
   logs: 'logs',
@@ -541,7 +542,9 @@ export function policyDefaults(type: string, dev: EnvPolicy, prod: EnvPolicy, sc
       const unit = typeof props[key]?.['x-unit'] === 'string' ? (props[key]['x-unit'] as string) : null;
       const pv = p[key];
       const dv = d[key];
-      const kit = KIT_LINES[`${section}.${key}`];
+      const kit = type === 'sqlserver' && section === 'sql' && key === 'readOnlyTransactions'
+        ? { icon: 'lock', text: 'Read-only queries' }
+        : KIT_LINES[`${section}.${key}`];
       if (typeof pv === 'boolean') {
         // A switch that is on for prod: always on (a lock), or on where dev has it off.
         if (pv && (props[key]?.['readOnly'] === true || props[key]?.['const'] === true || dv !== true)) {
