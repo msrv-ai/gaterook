@@ -174,7 +174,7 @@ export interface SectionSpec {
 
 /** Connector sections in the kit's order, then the ones the kit doesn't have (Logs), then any plugin's. */
 export const CONNECTOR_SECTIONS: Readonly<Record<string, SectionSpec>> = {
-  sql: { types: ['postgres', 'mysql'], icon: 'database', noun: 'SQL' },
+  sql: { types: ['postgres', 'mysql', 'oracle'], icon: 'database', noun: 'SQL' },
   ssh: { types: ['ssh', 'ssh-logs'], icon: 'terminal', noun: 'SSH' },
   k8s: { types: ['kubernetes'], icon: 'ship-wheel', noun: 'Kubernetes' },
   cloud: { types: ['aws', 'gcp'], icon: 'cloud', noun: 'cloud' },
@@ -184,7 +184,7 @@ export const CONNECTOR_SECTIONS: Readonly<Record<string, SectionSpec>> = {
 export const CORE_SECTIONS: readonly string[] = ['masking', 'limits', 'approvals'];
 
 /** The connector type order of the catalog (Databases, Remote access, Logs, Kubernetes, Cloud, HTTP and MCP). */
-const TYPE_ORDER = ['postgres', 'mysql', 'mongodb', 'redis', 'opensearch', 'ssh', 'ssh-logs', 'gcp-logging', 'cloudwatch', 'loki', 'logs', 'kubernetes', 'gcp', 'aws', 'http', 'mcp-server'];
+const TYPE_ORDER = ['postgres', 'mysql', 'oracle', 'mongodb', 'redis', 'opensearch', 'ssh', 'ssh-logs', 'gcp-logging', 'cloudwatch', 'loki', 'logs', 'kubernetes', 'gcp', 'aws', 'http', 'mcp-server'];
 
 export function typeRank(type: string): number {
   const i = TYPE_ORDER.indexOf(type);

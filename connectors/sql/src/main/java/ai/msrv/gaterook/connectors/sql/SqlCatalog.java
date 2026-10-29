@@ -1,5 +1,6 @@
 package ai.msrv.gaterook.connectors.sql;
 
+import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.connectors.sql.IdentifierRules.TableRef;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -14,6 +15,11 @@ import tools.jackson.databind.node.ObjectNode;
  * {@code information_schema} filters by privileges itself).
  */
 interface SqlCatalog {
+
+  /** Per-call cancellation and timeout context for dialects without server-side statement timeouts. */
+  default SqlCatalog forCall(ExecContext ctx, long timeoutMs) {
+    return this;
+  }
 
   /**
    * One table or view.

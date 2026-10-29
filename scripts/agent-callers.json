@@ -9,6 +9,7 @@
     {"includeClasses": "org.bson.**"},
     {"includeClasses": "org.postgresql.**"},
     {"includeClasses": "com.mysql.**"},
+    {"includeClasses": "oracle.**"},
     {"includeClasses": "org.mariadb.**"},
     {"includeClasses": "com.google.auth.**"},
     {"includeClasses": "software.amazon.awssdk.**"}

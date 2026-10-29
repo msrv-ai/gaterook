@@ -19,7 +19,8 @@ import java.util.List;
  * <p>A <b>read</b> takes a pooled connection, makes its next transaction READ ONLY before the first statement, runs
  * the prelude (statement and lock timeouts on the server, name resolution, the read-only check) and the statement,
  * and always ends with ROLLBACK: whatever a function did inside the transaction is undone, and the session goes back
- * to the pool clean. The database is the guarantee that a read doesn't write; the classifier only chooses the route.
+ * to the pool clean. Oracle autonomous routines reached through trusted views or stored expressions are outside
+ * this transaction; database permissions remain essential in addition to the SQL classifier.
  *
  * <p>A <b>change</b> runs in a read-write transaction with the same prelude and ends with COMMIT; any error before it
  * rolls back. A connection lost during COMMIT leaves the outcome unknown, and the call says so; it is never retried.
@@ -90,12 +91,13 @@ final class SqlExecutor {
     try {
       c = pool.borrow();
     } catch (SQLException e) {
-      throw SqlErrors.of(e, dialect.mysql(), connection, env(ctx), Duration.ofMillis(timeoutMs));
+      throw SqlErrors.of(e, dialect.syntax(), connection, env(ctx), Duration.ofMillis(timeoutMs));
     }
     boolean broken = false;
     try {
       // Before the first statement: pgjdbc opens the transaction with BEGIN READ ONLY, Connector/J sets the session.
-      c.setReadOnly(readOnly);
+      // Oracle JDBC does not implement setReadOnly; its prelude uses SET TRANSACTION READ ONLY.
+      if (dialect.syntax() != SqlSyntax.ORACLE) c.setReadOnly(readOnly);
       dialect.prelude(c, pool.server(), s, timeoutMs, readOnly);
       T result = work.run(c, pool.server(), timeoutMs);
       if (!commit) {
@@ -106,12 +108,14 @@ final class SqlExecutor {
         c.commit();
       } catch (SQLException e) {
         broken = true;
-        if (SqlErrors.unreachable(e, SqlErrors.state(e))) {
+        if (SqlErrors.unreachable(e, SqlErrors.state(e), dialect.syntax())) {
           throw ConnectorException.outcomeUnknown("Outcome unknown: the connection dropped during COMMIT. Check "
               + "the data before retrying.", e);
         }
-        throw ConnectorException.resourceError("The database refused the COMMIT, so nothing changed: "
-            + SqlErrors.describe(e) + ".", e);
+        String outcome = dialect.syntax() == SqlSyntax.ORACLE
+            ? "The database refused COMMIT. Schema changes may already be committed; check the data before retrying: "
+            : "The database refused the COMMIT, so nothing changed: ";
+        throw ConnectorException.resourceError(outcome + SqlErrors.describe(e) + ".", e);
       }
       return result;
     } catch (SQLException e) {
@@ -123,10 +127,11 @@ final class SqlExecutor {
           throw ConnectorException.timeout("The call was stopped at its deadline (" + seconds(ctx.timeout())
               + ").");
         }
-        throw ConnectorException.resourceError("The call was cancelled: the statement was stopped and rolled back.",
-            e);
+        throw ConnectorException.resourceError(dialect.syntax() == SqlSyntax.ORACLE
+            ? "The call was cancelled. Schema changes may already be committed; check the data before retrying."
+            : "The call was cancelled: the statement was stopped and rolled back.", e);
       }
-      throw SqlErrors.of(e, dialect.mysql(), connection, env(ctx), Duration.ofMillis(timeoutMs));
+      throw SqlErrors.of(e, dialect.syntax(), connection, env(ctx), Duration.ofMillis(timeoutMs));
     } catch (ConnectorException | RuntimeException e) {
       if (!broken) {
         broken = !rollbackQuietly(c);
@@ -155,8 +160,9 @@ final class SqlExecutor {
 
   /** A statement of the call: escape processing off, a client-side timeout, cancelled with the call. */
   Statement statement(Connection c, ExecContext ctx, long timeoutMs, BoundSql bound) throws SQLException {
-    Statement st = create(c, "", bound, dialect.mysql());
-    st.setQueryTimeout((int) Math.max(1, (timeoutMs + 999) / 1000 + 2));
+    Statement st = create(c, "", bound, dialect.syntax());
+    long graceSeconds = dialect.syntax() == SqlSyntax.ORACLE ? 0 : 2;
+    st.setQueryTimeout((int) Math.max(1, (timeoutMs + 999) / 1000 + graceSeconds));
     Statement registered = st;
     ctx.onCancel(() -> {
       try {
@@ -173,11 +179,15 @@ final class SqlExecutor {
    * plain statement that runs the text as written ({@link #execute}).
    */
   static Statement create(Connection c, String prefix, BoundSql bound, boolean mysql) throws SQLException {
+    return create(c, prefix, bound, mysql ? SqlSyntax.MYSQL : SqlSyntax.POSTGRES);
+  }
+
+  static Statement create(Connection c, String prefix, BoundSql bound, SqlSyntax syntax) throws SQLException {
     if (bound.prepared()) {
       // No escape processing to turn off: a template can't contain {…} (NamedSql), and a prepared statement's text
       // is parsed when it is prepared.
       PreparedStatement ps = c.prepareStatement(prefix + bound.sql());
-      TemplateParams.bind(ps, bound.values(), mysql);
+      TemplateParams.bind(ps, bound.values(), syntax);
       return ps;
     }
     Statement st = c.createStatement();
@@ -204,7 +214,7 @@ final class SqlExecutor {
       ResultSet rs = st.getResultSet();
       try {
         return ResultReader.read(rs, limit, ctx.limits().maxResponseBytes(), ctx.limits().maxCellChars(),
-            dialect.mysql(), false);
+            dialect.syntax(), false);
       } finally {
         try {
           rs.close();
@@ -235,7 +245,7 @@ final class SqlExecutor {
         if (isResult) {
           try (ResultSet rs = st.getResultSet()) {
             ResultReader.Read read = ResultReader.read(rs, MAX_RETURNING, ctx.limits().maxResponseBytes(),
-                ctx.limits().maxCellChars(), dialect.mysql(), true);
+                ctx.limits().maxCellChars(), dialect.syntax(), true);
             out.add(new Applied(type, read.total(), read.table(), read.truncatedReason() != null));
           }
         } else {

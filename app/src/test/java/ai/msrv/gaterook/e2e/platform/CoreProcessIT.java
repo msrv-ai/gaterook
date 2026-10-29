@@ -129,7 +129,7 @@ class CoreProcessIT {
       try (Connection db = readOnly(home)) {
         assertThat(rows(db, "select id from connector_type where kind = 'BUILT_IN' and mac is not null order by id"))
             .containsExactly("aws", "cloudwatch", "gcp", "gcp-logging", "http", "kubernetes", "logs", "loki",
-                "mongodb", "mysql", "opensearch", "postgres", "redis", "ssh", "ssh-logs");
+                "mongodb", "mysql", "opensearch", "oracle", "postgres", "redis", "ssh", "ssh-logs");
         assertThat(rows(db, "select id from connector_type where mac is null")).isEmpty();
         assertThat(rows(db, "select env || ':' || coalesce(inherits, '-') from policy where mac is not null "
             + "order by env")).containsExactly("dev:-", "prod:-", "stage:dev");

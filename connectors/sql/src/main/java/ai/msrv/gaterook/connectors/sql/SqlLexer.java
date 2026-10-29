@@ -15,6 +15,8 @@ import java.util.Locale;
  * and doubled quotes (the prelude switches {@code NO_BACKSLASH_ESCAPES} and {@code ANSI_QUOTES} off), {@code `…`}
  * identifiers, {@code #} and {@code -- } line comments, {@code /* … *}{@code /}; {@code /*!…*}{@code /} and
  * {@code /*M!…*}{@code /} are code the server runs although every parser reads them as comments.
+ * Oracle uses standard apostrophe strings, q/nq alternative quotes, double-quoted identifiers and non-nested block
+ * comments. Both {@code /*+…*}{@code /} and {@code --+…} are executable optimizer hints.
  */
 final class SqlLexer {
 
@@ -135,7 +137,15 @@ final class SqlLexer {
   private SqlLexer() {}
 
   static Scan scan(String sql, boolean mysql) {
-    return mysql ? scanMySql(sql) : scanPostgres(sql);
+    return scan(sql, SqlSyntax.of(mysql));
+  }
+
+  static Scan scan(String sql, SqlSyntax syntax) {
+    return switch (syntax) {
+      case MYSQL -> scanMySql(sql);
+      case POSTGRES -> scanPostgres(sql);
+      case ORACLE -> scanOracle(sql);
+    };
   }
 
   // ── PostgreSQL ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -284,6 +294,77 @@ final class SqlLexer {
       out.add(new Segment(Kind.CODE, code, n));
     }
     return new Scan(sql, List.copyOf(out), unterminated);
+  }
+
+  /** Oracle strings include q'[...]' and nq'[...]'; block comments do not nest. */
+  private static Scan scanOracle(String sql) {
+    List<Segment> out = new ArrayList<>();
+    int n = sql.length();
+    int code = 0;
+    int i = 0;
+    boolean unterminated = false;
+    while (i < n) {
+      char c = sql.charAt(i);
+      int end = -1;
+      Kind kind = null;
+      int quote = oracleAlternativeQuote(sql, i);
+      if (quote >= 0) {
+        char open = sql.charAt(quote + 1);
+        char close = switch (open) {
+          case '[' -> ']';
+          case '{' -> '}';
+          case '(' -> ')';
+          case '<' -> '>';
+          default -> open;
+        };
+        int last = sql.indexOf(String.valueOf(close) + "'", quote + 2);
+        end = last < 0 || Character.isWhitespace(open) || open == '\'' ? -1 : last + 2;
+        kind = Kind.STRING;
+      } else if (c == '\'') {
+        end = quoted(sql, i, c, false);
+        kind = Kind.STRING;
+      } else if (c == '"') {
+        end = quoted(sql, i, c, false);
+        kind = Kind.QUOTED_IDENTIFIER;
+      } else if (c == '-' && i + 1 < n && sql.charAt(i + 1) == '-') {
+        end = lineEnd(sql, i);
+        kind = sql.startsWith("--+", i) ? Kind.EXECUTABLE_COMMENT : Kind.COMMENT;
+      } else if (c == '/' && i + 1 < n && sql.charAt(i + 1) == '*') {
+        int close = sql.indexOf("*/", i + 2);
+        end = close < 0 ? -1 : close + 2;
+        kind = sql.startsWith("/*+", i) ? Kind.EXECUTABLE_COMMENT : Kind.COMMENT;
+      }
+      if (kind == null) {
+        i++;
+        continue;
+      }
+      if (code < i) {
+        out.add(new Segment(Kind.CODE, code, i));
+      }
+      if (end < 0) {
+        unterminated = true;
+        end = n;
+      }
+      out.add(new Segment(kind, i, end));
+      i = end;
+      code = end;
+    }
+    if (code < n) {
+      out.add(new Segment(Kind.CODE, code, n));
+    }
+    return new Scan(sql, List.copyOf(out), unterminated);
+  }
+
+  private static int oracleAlternativeQuote(String sql, int i) {
+    if (i > 0 && (identifierPart(sql.charAt(i - 1)) || sql.charAt(i - 1) == '#')) {
+      return -1;
+    }
+    int q = i;
+    if (sql.charAt(q) == 'n' || sql.charAt(q) == 'N') {
+      q++;
+    }
+    return q + 2 < sql.length() && (sql.charAt(q) == 'q' || sql.charAt(q) == 'Q')
+        && sql.charAt(q + 1) == '\'' ? q + 1 : -1;
   }
 
   // ── Shared ──────────────────────────────────────────────────────────────────────────────────────────────────

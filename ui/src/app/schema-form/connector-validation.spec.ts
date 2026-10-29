@@ -29,6 +29,9 @@ const cases: readonly ConnectionCase[] = [
     name: `${type}: passwordless authentication with selected database`, type,
     config: { connection: { host: 'db.example.test', databases: ['orders'] }, credentials: { user: 'reader' } },
   })),
+  { name: 'Oracle Database: service name and password', type: 'oracle',
+    config: { connection: { host: 'oracle.example.test', database: 'orders.example.test' }, credentials: { user: 'READER' } },
+    secrets: { '/credentials/password': password } },
   { name: 'MongoDB: selected database without authentication', type: 'mongodb',
     config: { connection: { host: 'mongo.example.test', databases: ['orders'] } } },
   { name: 'MongoDB: selected database and password', type: 'mongodb',
@@ -208,6 +211,22 @@ describe('schema-form: minimal active connector configurations', () => {
       });
     }
   }
+
+  it('Oracle requires a service name and keeps TLS verification enabled by default', () => {
+    const form = createSchemaForm(CONNECTOR_FORMS['oracle'], {
+      idPrefix: 'oracle', current: { connection: { host: 'oracle.example.test' }, credentials: { user: 'READER' } },
+      injector: TestBed.inject(Injector),
+    });
+    const node = (pointer: string) => form.compiled.all.find((candidate) => candidate.pointer === pointer)!;
+    form.setSecret(node('/credentials/password'), password);
+    expect(form.submit()).toBe(false);
+    expect(form.invalidNodes().map((candidate) => candidate.pointer)).toEqual(['/connection/database']);
+    form.set(node('/connection/database'), 'orders.example.test');
+    expect(form.submit()).toBe(true);
+    expect(getAt(form.value(), ['connection', 'port'])).toBe(1521);
+    expect(getAt(form.value(), ['connection', 'sslMode'])).toBe('verify-full');
+    expect(getAt(form.value(), ['connection', 'databases'])).toBeNull();
+  });
 
   it('OpenSearch has no legacy log scope or field mapping inputs', () => {
     const form = createSchemaForm(CONNECTOR_FORMS['opensearch'], {

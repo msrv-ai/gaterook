@@ -295,6 +295,7 @@ describe('Add connection: what prod turns on', () => {
   const prod = policy({ sql: { readOnlyTransactions: true, statementTimeoutMs: 3000, rowLimit: 100, denyDdl: true, maxResponseKb: 512 }, approvals: { timeoutMinutes: 10, comment: 'required' } });
 
   it('reads the lines from the prod policy against dev, in the kit order and words', () => {
+    expect(policyDefaults('oracle', dev, prod, schema)).toEqual(policyDefaults('postgres', dev, prod, schema));
     expect(policyDefaults('postgres', dev, prod, schema)).toEqual([
       { icon: 'lock', text: 'Read-only transactions' },
       { icon: 'rows-3', text: 'Row limit 100 (dev: 1,000)' },

@@ -115,6 +115,9 @@ final class SqlClassifier {
       "(?i)(?<!\\b(?:INSERT|MERGE)\\s{1,64})\\bINTO\\s+TEMP(?:ORARY)?\\b");
   /** MySQL {@code @v := …} or {@code … INTO @v}: a user variable, which outlives the call in the pooled session. */
   private static final Pattern MYSQL_ASSIGNMENT = Pattern.compile("(?i):=|\\bINTO\\s+@");
+  private static final Pattern ORACLE_SEQUENCE = Pattern.compile("(?i)\\b(?:NEXTVAL|CURRVAL)\\b");
+  private static final Pattern ORACLE_PACKAGE = Pattern.compile("(?i)\\b(?:DBMS_[A-Z0-9_$#]*|UTL_[A-Z0-9_$#]*)\\s*\\.");
+  private static final Pattern ORACLE_INLINE_PLSQL = Pattern.compile("(?i)\\bWITH\\s+(?:FUNCTION|PROCEDURE)\\b");
 
   /**
    * The parser waits on its own task to stop at a deadline; without an executor every parse would start a platform
@@ -126,6 +129,11 @@ final class SqlClassifier {
   private SqlClassifier() {}
 
   static Analysis analyze(String sql, boolean mysql) {
+    return analyze(sql, SqlSyntax.of(mysql));
+  }
+
+  static Analysis analyze(String sql, SqlSyntax syntax) {
+    boolean mysql = syntax == SqlSyntax.MYSQL;
     if (sql == null || sql.isBlank()) {
       return unparsed(List.of(), "The statement is empty.");
     }
@@ -135,7 +143,7 @@ final class SqlClassifier {
     if (CCJSqlParserUtil.getNestingDepth(sql) > MAX_NESTING) {
       return tooComplex("The statement nests deeper than " + MAX_NESTING + " levels.");
     }
-    SqlLexer.Scan scan = SqlLexer.scan(sql, mysql);
+    SqlLexer.Scan scan = SqlLexer.scan(sql, syntax);
     if (scan.unterminated()) {
       return unparsed(List.of(), "A quote or comment isn't closed.");
     }
@@ -146,10 +154,10 @@ final class SqlClassifier {
     List<String> pieces = scan.statements();
     Statements statements;
     try {
-      statements = CCJSqlParserUtil.parseStatements(sql, PARSER,
+      statements = CCJSqlParserUtil.parseStatements(parserText(scan, syntax), PARSER,
           p -> p.withTimeOut(PARSE_TIMEOUT_MS).withBackslashEscapeCharacter(mysql));
     } catch (JSQLParserException | RuntimeException e) {
-      return byFirstWords(pieces, mysql);
+      return byFirstWords(pieces, syntax);
     }
     if (statements == null || statements.isEmpty()) {
       return unparsed(List.of(), "The gateway found no statement in it.");
@@ -161,8 +169,8 @@ final class SqlClassifier {
     }
     List<StatementFacts> facts = new ArrayList<>();
     for (int i = 0; i < statements.size(); i++) {
-      StatementFacts f = facts(statements.get(i), mysql);
-      String session = sessionState(pieces.get(i), mysql);
+      StatementFacts f = facts(statements.get(i), syntax);
+      String session = sessionState(pieces.get(i), syntax);
       facts.add(session == null ? f : new StatementFacts(Kind.FORBIDDEN, session, f.tables(), f.targets(),
           f.functions()));
     }
@@ -178,12 +186,12 @@ final class SqlClassifier {
   }
 
   /** The parser gave up: a known session or transaction command is FORBIDDEN, anything else UNPARSED. */
-  private static Analysis byFirstWords(List<String> pieces, boolean mysql) {
+  private static Analysis byFirstWords(List<String> pieces, SqlSyntax syntax) {
     List<StatementFacts> facts = new ArrayList<>();
     boolean forbidden = false;
     for (String piece : pieces) {
-      String word = SqlLexer.scan(piece, mysql).firstKeyword();
-      String session = sessionState(piece, mysql);
+      String word = SqlLexer.scan(piece, syntax).firstKeyword();
+      String session = sessionState(piece, syntax);
       boolean f = session != null || FORBIDDEN_FIRST_WORDS.contains(word);
       forbidden |= f;
       String type = session != null ? session : word.isEmpty() ? "statement" : word;
@@ -201,19 +209,71 @@ final class SqlClassifier {
    * or {@code null}. Transactions and sessions belong to the gateway, so these are never run.
    */
   static String sessionState(String piece, boolean mysql) {
-    SqlLexer.Scan scan = SqlLexer.scan(piece, mysql);
+    return sessionState(piece, SqlSyntax.of(mysql));
+  }
+
+  static String sessionState(String piece, SqlSyntax syntax) {
+    boolean mysql = syntax == SqlSyntax.MYSQL;
+    SqlLexer.Scan scan = SqlLexer.scan(piece, syntax);
     String code = scan.code();
     if (CREATE_TEMPORARY.matcher(code).find()) {
       return TEMPORARY_OBJECT;
     }
     String first = scan.firstKeyword();
-    if (!mysql && (first.equals("SELECT") || first.equals("WITH")) && SELECT_INTO_TEMPORARY.matcher(code).find()) {
+    if (syntax == SqlSyntax.POSTGRES && (first.equals("SELECT") || first.equals("WITH"))
+        && SELECT_INTO_TEMPORARY.matcher(code).find()) {
       return TEMPORARY_OBJECT;
+    }
+    if (syntax == SqlSyntax.ORACLE) {
+      if (FORBIDDEN_FIRST_WORDS.contains(first) || first.equals("CALL") || first.equals("EXECUTE")
+          || first.equals("EXPLAIN")) {
+        return first;
+      }
+      if (code.indexOf('@') >= 0) {
+        return "database link";
+      }
+      // Packages can expose side effects even as parameterless expressions; quoted spellings are included.
+      String names = identifierCode(scan);
+      if (ORACLE_SEQUENCE.matcher(names).find()) {
+        return "sequence state";
+      }
+      if (ORACLE_PACKAGE.matcher(names).find()) {
+        return "Oracle package call";
+      }
+      if (ORACLE_INLINE_PLSQL.matcher(code).find()) {
+        return "inline PL/SQL";
+      }
     }
     if (mysql && MYSQL_ASSIGNMENT.matcher(code).find()) {
       return VARIABLE_ASSIGNMENT;
     }
     return null;
+  }
+
+  /** Normalize alternative strings only for analysis; execution retains the original dialect text. */
+  private static String parserText(SqlLexer.Scan scan, SqlSyntax syntax) {
+    if (syntax != SqlSyntax.ORACLE) {
+      return scan.sql();
+    }
+    StringBuilder text = new StringBuilder(scan.sql().length());
+    for (SqlLexer.Segment segment : scan.segments()) {
+      String value = scan.sql().substring(segment.start(), segment.end());
+      boolean alternative = segment.kind() == SqlLexer.Kind.STRING && value.charAt(0) != '\'';
+      text.append(alternative ? "'literal'" : value);
+    }
+    return text.toString();
+  }
+
+  private static String identifierCode(SqlLexer.Scan scan) {
+    StringBuilder text = new StringBuilder();
+    for (SqlLexer.Segment segment : scan.segments()) {
+      if (segment.kind() == SqlLexer.Kind.CODE || segment.kind() == SqlLexer.Kind.QUOTED_IDENTIFIER) {
+        text.append(scan.sql(), segment.start(), segment.end());
+      } else {
+        text.append(' ');
+      }
+    }
+    return text.toString().replace('"', ' ');
   }
 
   private static Analysis unparsed(List<StatementFacts> facts, String problem) {
@@ -226,7 +286,7 @@ final class SqlClassifier {
 
   // ── One statement ───────────────────────────────────────────────────────────────────────────────────────────
 
-  private static StatementFacts facts(Statement st, boolean mysql) {
+  private static StatementFacts facts(Statement st, SqlSyntax syntax) {
     Collector c = new Collector();
     List<String> tables;
     try {
@@ -235,13 +295,17 @@ final class SqlClassifier {
       // CALL, SHOW TABLES, SET…: the parser can't list what they touch.
       tables = null;
     }
-    Kind kind = kindOf(st, c, mysql);
+    Kind kind = kindOf(st, c, syntax);
     List<String> targets = targets(st, kind, tables);
     String type = c.assignsVariable ? VARIABLE_ASSIGNMENT : type(st);
     return new StatementFacts(kind, type, tables, targets, List.copyOf(c.functions));
   }
 
   static Kind kindOf(Statement st, Collector c, boolean mysql) {
+    return kindOf(st, c, SqlSyntax.of(mysql));
+  }
+
+  static Kind kindOf(Statement st, Collector c, SqlSyntax syntax) {
     return switch (st) {
       case Values v -> Kind.READ;
       case TableStatement t -> Kind.READ;
@@ -257,7 +321,7 @@ final class SqlClassifier {
         yield c.dml > 0 || locks ? Kind.DML : Kind.READ;   // a CTE with DELETE, FOR UPDATE / FOR SHARE
       }
       case ExplainStatement e -> e.getOption(ExplainStatement.OptionType.ANALYZE) == null || e.getStatement() == null
-          ? Kind.READ : analyzedKind(e.getStatement(), mysql);
+          ? Kind.READ : analyzedKind(e.getStatement(), syntax);
       case ShowStatement s -> Kind.READ;
       case ShowTablesStatement s -> Kind.READ;
       case ShowColumnsStatement s -> Kind.READ;
@@ -287,14 +351,14 @@ final class SqlClassifier {
   }
 
   /** {@code EXPLAIN ANALYZE} runs its statement: it is what the statement is. */
-  private static Kind analyzedKind(Statement inner, boolean mysql) {
+  private static Kind analyzedKind(Statement inner, SqlSyntax syntax) {
     Collector c = new Collector();
     try {
       c.getTables(inner);
     } catch (UnsupportedOperationException e) {
       // Only the kind matters here.
     }
-    return kindOf(inner, c, mysql);
+    return kindOf(inner, c, syntax);
   }
 
   /** The tables a DML or DDL statement changes: its own target, or every table for statements the parser can't split. */

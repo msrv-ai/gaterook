@@ -8,7 +8,8 @@ import org.springframework.aot.hint.TypeReference;
 /**
  * Native-image hints of the SQL connectors; they live with the module, not in the core (ARCHITECTURE.md §2.3). The
  * drivers' own reflection is covered by the GraalVM reachability metadata repository (report 15 §4: postgresql,
- * mysql-connector-j, HikariCP); what is left is what the connector names itself.
+ * mysql-connector-j, HikariCP). Oracle JDBC includes its own native-image metadata; what is left here is what the
+ * connector names itself.
  */
 class SqlHints implements RuntimeHintsRegistrar {
 
