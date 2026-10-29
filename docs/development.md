@@ -185,6 +185,16 @@ Installer inputs and staging scripts are retained in `desktop/` and `scripts/`. 
 
 On macOS, the packaging `afterPack` hook writes `Contents/Resources/app-update.yml` from the configured update source before signing, including directory-only builds. Keep this hook when overriding packaging settings: packaging a prebuilt application does not regenerate its update configuration. An installed app missing this file cannot check for updates; install a corrected signed build manually. Adding the file to an already signed application invalidates its resource seal.
 
+The same hook adds owner-write permission to packaged resource files and directories before signing, preserving their contents, executable bits and symbolic links. JRE license files can be read-only in the source runtime; without this adjustment, Squirrel.Mac cannot remove their quarantine attributes during an update and reopens the previous version after installation fails. The source JRE is unchanged. On macOS, inspect `~/Library/Caches/ai.msrv.gaterook.desktop.ShipIt/ShipIt_stderr.log` for installation errors that occur after GateRook quits. A corrected update archive must be packaged with this hook; retrying an unchanged archive repeats the failure.
+
+Check the complete packaged app, and repeat the check on a fresh extraction of the final updater ZIP:
+
+```bash
+node desktop/scripts/verify-mac-update-permissions.mjs /path/to/GateRook.app
+```
+
+This read-only check requires POSIX file modes. It rejects real files or directories without owner-write permission, reports the relative path and mode, and does not follow symbolic links. It never repairs a signed app or changes quarantine attributes. Fix packaging inputs before signing and regenerate the archive when it fails. Signature verification, notarization, and permission validation are separate checks; none replaces an actual installation/update test.
+
 ## Troubleshooting
 
 - **Wrong Node or Java:** select the pinned Node and JDK before running npm or Maven. A stale Intel Maven installation on Apple Silicon can reference an incompatible Java executable; use a Maven 3.9+ installation with the correct `JAVA_HOME`.
