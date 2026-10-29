@@ -20,7 +20,7 @@ describe('schema-form goldens: every connector form the core serves', () => {
 
   it('covers the connector types of the catalog', () => {
     expect(Object.keys(CONNECTOR_FORMS).sort()).toEqual(
-      ['aws', 'gcp', 'gcp-logging', 'cloudwatch', 'loki', 'opensearch', 'http', 'kubernetes', 'logs', 'mcp-server', 'mongodb', 'mysql', 'oracle', 'postgres', 'redis', 'ssh', 'ssh-logs'].sort(),
+      ['aws', 'gcp', 'gcp-logging', 'cloudwatch', 'loki', 'opensearch', 'http', 'kubernetes', 'logs', 'mcp-server', 'mongodb', 'mysql', 'oracle', 'sqlserver', 'postgres', 'redis', 'ssh', 'ssh-logs'].sort(),
     );
   });
 
@@ -33,6 +33,13 @@ describe('schema-form goldens: every connector form the core serves', () => {
       for (const n of secrets) model = setAt(model, n.path, 'hunter2');
       expect(JSON.stringify(cleanValue(form, model)), type).not.toContain('hunter2');
     }
+  });
+
+  it('SQL Server: certificate verification, SQL login and dbo schema are the defaults', () => {
+    const g = CONNECTOR_GOLDENS['sqlserver'];
+    expect(g.sections).toEqual(['/connection', '/credentials', '/advanced']);
+    expect(g.defaults).toMatchObject({ connection: { port: 1433, sslMode: 'verify-full' }, advanced: { defaultSchema: 'dbo' } });
+    expect(g.fields.find((f) => f.pointer === '/credentials/password')).toMatchObject({ kind: 'secret', secret: 'value' });
   });
 
   it('PostgreSQL: Host · Port · Database share a row, the password is a value secret', () => {

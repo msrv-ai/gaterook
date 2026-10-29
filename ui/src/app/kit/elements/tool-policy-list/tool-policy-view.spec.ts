@@ -57,6 +57,7 @@ describe('tool-policy-list view (design/elements/tool-policy-list.html)', () => 
 
   it('inherits limits from the policy and keeps only stricter overrides', () => {
     const fields = limitFields('postgres');
+    expect(limitFields('sqlserver')).toEqual(fields);
     expect(fields.map((f) => f.key)).toEqual(['rowLimit', 'statementTimeoutMs', 'maxResponseKb']);
     expect(limitFields('oracle')).toEqual(fields);
     expect(inherited(fields[1], DEMO_POLICY_SECTIONS.dev)).toBe(5);

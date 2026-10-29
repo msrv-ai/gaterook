@@ -96,6 +96,7 @@ export function signInTarget(type: string): string {
     case 'postgres':
     case 'mysql':
     case 'oracle':
+    case 'sqlserver':
     case 'sql':
     case 'mongodb':
     case 'redis':

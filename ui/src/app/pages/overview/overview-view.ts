@@ -280,6 +280,7 @@ export function checkPrompt(type: string | null, name: string | null): string {
     case 'postgres':
     case 'mysql':
     case 'oracle':
+    case 'sqlserver':
     case 'sql':
       return `Show me the tables in ${name}`;
     case 'mongodb':

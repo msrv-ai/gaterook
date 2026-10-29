@@ -62,6 +62,33 @@ final class FunctionRules {
       "master_pos_wait", "source_pos_wait", "wait_for_executed_gtid_set", "wait_until_sql_thread_after_gtids",
       "master_gtid_wait");
 
+  static final List<String> SQLSERVER_DENIED = List.of(
+      "openrowset", "openquery", "opendatasource", "openxml", "xp_*", "sp_*", "fn_get_audit_file",
+      "fn_trace_gettable", "fn_xe_file_target_read_file");
+
+  /** A conservative set of SQL Server functions that do not change database or session state. */
+  static final Set<String> SQLSERVER_BUILT_IN = names(
+      "avg", "checksum_agg", "count", "count_big", "grouping", "grouping_id", "max", "min", "stdev", "stdevp",
+      "sum", "var", "varp", "string_agg", "row_number", "rank", "dense_rank", "ntile", "cume_dist",
+      "first_value", "last_value", "lag", "lead", "percent_rank", "percentile_cont", "percentile_disc",
+      "ascii", "char", "charindex", "concat", "concat_ws", "datalength", "difference", "format", "left", "len",
+      "lower", "ltrim", "nchar", "patindex", "quotename", "replace", "replicate", "reverse", "right", "rtrim",
+      "soundex", "space", "str", "string_escape", "string_split", "stuff", "substring", "translate", "trim",
+      "unicode", "upper", "abs", "acos", "asin", "atan", "atn2", "ceiling", "cos", "cot", "degrees", "exp",
+      "floor", "log", "log10", "pi", "power", "radians", "round", "sign", "sin", "sqrt", "square", "tan",
+      "cast", "convert", "try_cast", "try_convert", "parse", "try_parse", "choose", "coalesce", "iif",
+      "isnull", "nullif", "greatest", "least", "isnumeric", "isdate", "dateadd", "datediff", "datediff_big",
+      "datefromparts", "datename", "datepart", "datetrunc", "datetime2fromparts", "datetimefromparts",
+      "datetimeoffsetfromparts", "day", "eomonth", "getdate", "getutcdate", "month", "smalldatetimefromparts",
+      "switchoffset", "sysdatetime", "sysdatetimeoffset", "sysutcdatetime", "timefromparts", "todatetimeoffset",
+      "year", "isjson", "json_value", "json_query", "json_modify", "json_path_exists", "json_object", "json_array",
+      "openjson", "binary_checksum", "checksum", "hashbytes", "newid", "db_id", "db_name", "schema_id",
+      "schema_name", "object_id", "object_name", "object_schema_name", "col_length", "col_name", "type_id",
+      "type_name", "user_id", "user_name", "suser_id", "suser_sname", "original_login", "session_context",
+      "serverproperty", "databasepropertyex", "objectproperty", "objectpropertyex", "has_perms_by_name",
+      "is_member", "is_rolemember", "is_srvrolemember", "host_name", "app_name", "scope_identity",
+      "ident_current", "ident_incr", "ident_seed");
+
   /**
    * PostgreSQL built-ins known without a test: aggregates, window, string, math, date and time, JSON, arrays and the
    * catalog helpers people write in reads. Test connection replaces it with the server's own {@code pg_catalog} list.
@@ -219,6 +246,11 @@ final class FunctionRules {
     return check(functions, SqlSyntax.of(mysql), metadataBuiltIns, policyDenied, allowed);
   }
 
+  static Verdict check(List<FunctionRef> functions, SqlDialect dialect, Set<String> metadataBuiltIns,
+      List<String> policyDenied, List<String> allowed) {
+    return check(functions, dialect.syntax(), metadataBuiltIns, policyDenied, allowed);
+  }
+
   static Verdict check(List<FunctionRef> functions, SqlSyntax syntax, Set<String> metadataBuiltIns,
       List<String> policyDenied, List<String> allowed) {
     List<String> denied = new ArrayList<>();
@@ -226,6 +258,7 @@ final class FunctionRules {
     List<String> denylist = new ArrayList<>(switch (syntax) {
       case MYSQL -> MYSQL_DENIED;
       case POSTGRES -> POSTGRES_DENIED;
+      case SQLSERVER -> SQLSERVER_DENIED;
       case ORACLE -> List.of("dbms_*", "utl_*", "nextval", "currval");
     });
     policyDenied.forEach(d -> denylist.add(d.toLowerCase(Locale.ROOT)));
@@ -246,6 +279,11 @@ final class FunctionRules {
         // Neither approval nor allowedFunctions can turn a stored routine into a safe read.
         if (f.parts().size() != 1 || quoted(f.parts().getFirst()) || !ORACLE_BUILT_IN.contains(bare)) {
           denied.add(f.written());
+        }
+      } else if (syntax == SqlSyntax.SQLSERVER) {
+        // SQL Server cannot contain unknown functions in a read-only transaction; explicit allowlists do not help.
+        if (f.parts().size() != 1 || quoted(f.parts().getFirst()) || !SQLSERVER_BUILT_IN.contains(bare)) {
+          notBuiltIn.add(f.written());
         }
       } else if (!builtIn(f, syntax == SqlSyntax.MYSQL, metadataBuiltIns)
           && !allowed(f, syntax == SqlSyntax.MYSQL, allowed)) {
@@ -308,15 +346,15 @@ final class FunctionRules {
   }
 
   private static boolean quoted(String part) {
-    return part.length() >= 2 && (part.charAt(0) == '"' || part.charAt(0) == '`')
-        && part.charAt(part.length() - 1) == part.charAt(0);
+    return part.length() >= 2 && ((part.charAt(0) == '[' && part.endsWith("]"))
+        || ((part.charAt(0) == '"' || part.charAt(0) == '`') && part.charAt(part.length() - 1) == part.charAt(0)));
   }
 
   private static String unquote(String part) {
     if (!quoted(part)) {
       return part;
     }
-    char q = part.charAt(0);
+    char q = part.charAt(0) == '[' ? ']' : part.charAt(0);
     return part.substring(1, part.length() - 1).replace(String.valueOf(q) + q, String.valueOf(q));
   }
 }

@@ -305,6 +305,12 @@ describe('Add connection: what prod turns on', () => {
     ]);
   });
 
+  it('uses SQL Server limits without claiming that its transactions are read only', () => {
+    const lines = policyDefaults('sqlserver', dev, prod, schema);
+    expect(lines[0]).toEqual({ icon: 'lock', text: 'Read-only queries' });
+    expect(lines.slice(1)).toEqual(policyDefaults('postgres', dev, prod, schema).slice(1));
+  });
+
   it('uses SSH defaults and only the applicable log time-range default for SSH log files', () => {
     expect(POLICY_SECTION['ssh-logs']).toBe('ssh');
     const fields: JsonObject = { sections: {

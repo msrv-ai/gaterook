@@ -78,7 +78,7 @@ const PAGES: Record<string, { readonly label: string; readonly icon: string; rea
 
 /** The core's actions in the kit's words (verb + object), icon, hint and keywords. */
 const ACTIONS: Record<string, { readonly label: string; readonly icon: string; readonly hint: string; readonly keywords: string }> = {
-  'add-connection': { label: 'Add connection', icon: 'plus', hint: 'Database, SSH, logs, cluster', keywords: 'new resource postgres mongodb redis kubernetes' },
+  'add-connection': { label: 'Add connection', icon: 'plus', hint: 'Database, SSH, logs, cluster', keywords: 'new resource postgres mysql oracle sqlserver sql server mongodb redis kubernetes' },
   'create-endpoint': { label: 'Create endpoint', icon: 'square-plus', hint: 'New MCP URL', keywords: 'new mcp url' },
   'test-all': { label: 'Test all connections', icon: 'activity', hint: 'Check every connection', keywords: 'health check' },
   'back-up-key': { label: 'Back up master key', icon: 'key-round', hint: 'Master key', keywords: 'backup export key' },

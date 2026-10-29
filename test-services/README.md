@@ -1,6 +1,6 @@
 # Connector test services
 
-Docker Compose supplies disposable servers for connector integration tests: PostgreSQL, MySQL, MariaDB, MongoDB, Redis, Loki, OpenSearch, moto, Vault, OpenSSH, and k3s. This avoids relying on Linux x86-64 fixture binaries when testing on macOS or another Docker-capable machine.
+Docker Compose supplies disposable servers for connector integration tests: PostgreSQL, MySQL, MariaDB, SQL Server, MongoDB, Redis, Loki, OpenSearch, moto, Vault, OpenSSH, and k3s. This avoids relying on Linux x86-64 fixture binaries when testing on macOS or another Docker-capable machine.
 
 Services bind to `127.0.0.1`. Credentials are public test fixtures, and service data is disposable. Tests reset databases, users, and server settings; never point this suite at real data.
 
@@ -14,7 +14,7 @@ scripts/test-services.sh run mvn -B -ntp verify -Pservices
 scripts/test-services.sh down
 ```
 
-The default starts everything except Kubernetes and waits for health checks. Profiles are `sql`, `mongo`, `redis`, `logs`, `aws`, `vault`, `ssh`, `k8s`, and `all`:
+The default starts everything except Kubernetes and SQL Server and waits for health checks. Profiles are `sql`, `sqlserver`, `mongo`, `redis`, `logs`, `aws`, `vault`, `ssh`, `k8s`, and `all`:
 
 ```bash
 scripts/test-services.sh up sql redis
@@ -33,6 +33,7 @@ The committed [.env](.env) contains image pins, ports, and disposable passwords.
 | --- | --- | --- | --- |
 | `postgres` | PostgreSQL 16.13 with test TLS | 55432 | sql, vault |
 | `mysql`, `mariadb` | MySQL 8.4.10 / MariaDB 11.4.5 | 55306 / 55307 | sql |
+| `sqlserver` | SQL Server 2022 CU23 Developer, x86-64 image | 55433 | sqlserver |
 | `mongo`, `mongo-open`, `mongo-tls` | MongoDB 8.2.4 with auth / no auth / required TLS | 55017 / 55018 / 55019 | mongo |
 | `mongo7`, `mongo9` | MongoDB 7.0.45 / 9.0.4 | 55070 / 55090 | mongo |
 | `redis` | Redis 7.0.15, plain and TLS listeners | 55379 / 55380 | redis |
@@ -61,3 +62,20 @@ The Compose MongoDB 8.x fixture uses 8.2.4 because the original investigation fo
 The MongoDB alternate-loopback hostname test is skipped in this mode because it needs `127.0.0.2`, which is not normally provided by Docker port forwarding or macOS. `KubeApiServerIT` remains a separate envtest fixture for Linux amd64; `K3sKubeletIT` uses the Compose k3s service with a real kubelet.
 
 Use Docker Engine or Docker Desktop with Compose v2. Kubernetes requires a privileged container. The original full-service estimate was approximately 3 GB of VM memory without k3s and around 4 GB of initial downloads; actual requirements depend on images and the host. OpenSearch is configured with a 512 MB heap.
+
+## SQL Server
+
+SQL Server is opt-in because its image requires x86-64 and at least 2 GB of available memory in addition to
+other running services. The container has a 2.5 GB ceiling and the SQL Server process a 2 GB memory limit. On ARM Docker Desktop,
+Linux/amd64 emulation must be available; Microsoft supports these container images on x86-64 Linux hosts.
+The fixture uses SQL authentication, a disposable `sa` password from `.env`, and a self-signed TLS certificate.
+The tests create only their dedicated `gaterook_sqlserver_*_it` databases and login.
+
+```bash
+scripts/test-services.sh up sqlserver
+scripts/test-services.sh run mvn -B -ntp -pl connectors/sql -am verify -Pservices,sqlserver-it -Dit.test=SqlServerIT -Dfailsafe.failIfNoSpecifiedTests=false
+```
+
+The ordinary `services` Maven profile does not enable SQL Server tests. See the [connector guide](../docs/sql-server.md)
+for supported authentication and T-SQL behavior, and Microsoft's [container deployment guide](https://learn.microsoft.com/en-us/sql/linux/sql-server-linux-docker-container-deployment?view=sql-server-ver17)
+for platform requirements.

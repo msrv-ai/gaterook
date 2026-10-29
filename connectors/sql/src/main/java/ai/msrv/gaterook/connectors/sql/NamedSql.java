@@ -9,7 +9,7 @@ import java.util.Set;
  * A template's SQL with {@code :name} placeholders, compiled for a {@code PreparedStatement} (report 10 §6.6, §7.5).
  * One pass over the lexer's segments: literals, quoted names and comments are copied as they are; in code
  * {@code :name} becomes {@code ?} (a name may occur more than once), {@code ::} and {@code :=} stay; PostgreSQL's
- * {@code ?} operator becomes {@code ??}, which pgjdbc reads as a literal {@code ?}; a {@code ?} in a MySQL or Oracle template and
+ * {@code ?} operator becomes {@code ??}, which pgjdbc reads as a literal {@code ?}; a {@code ?} in a MySQL, Oracle or SQL Server template and
  * a JDBC escape {@code {…}} are errors: the driver would change the text, and what runs must be what was saved.
  *
  * <p>Verified on PostgreSQL 16: {@code (:since::timestamptz IS NULL OR created_at >= :since) … meta ? 'vip' LIMIT :lim}
@@ -20,6 +20,10 @@ record NamedSql(String jdbc, List<String> order, List<String> errors, Set<String
 
   static NamedSql compile(String sql, boolean mysql, Set<String> declared) {
     return compile(sql, SqlSyntax.of(mysql), declared);
+  }
+
+  static NamedSql compile(String sql, SqlDialect dialect, Set<String> declared) {
+    return compile(sql, dialect.syntax(), declared);
   }
 
   static NamedSql compile(String sql, SqlSyntax syntax, Set<String> declared) {
@@ -61,7 +65,7 @@ record NamedSql(String jdbc, List<String> order, List<String> errors, Set<String
         } else if (c == '?') {
           if (syntax != SqlSyntax.POSTGRES) {
             errors.add("Write :name for a parameter: a bare ? isn't allowed in a "
-                + (syntax == SqlSyntax.MYSQL ? "MySQL" : "Oracle") + " template.");
+                + (syntax == SqlSyntax.MYSQL ? "MySQL" : syntax == SqlSyntax.SQLSERVER ? "SQL Server" : "Oracle") + " template.");
             out.append('?');
           } else {
             out.append("??");

@@ -20,7 +20,9 @@ import java.util.List;
  * the prelude (statement and lock timeouts on the server, name resolution, the read-only check) and the statement,
  * and always ends with ROLLBACK: whatever a function did inside the transaction is undone, and the session goes back
  * to the pool clean. Oracle autonomous routines reached through trusted views or stored expressions are outside
- * this transaction; database permissions remain essential in addition to the SQL classifier.
+ * this transaction; database permissions remain essential in addition to the SQL classifier. SQL Server has no
+ * read-only transaction mode and relies on strict SELECT admission, known built-in functions and rollback;
+ * a SELECT-only login supplies server-enforced protection.
  *
  * <p>A <b>change</b> runs in a read-write transaction with the same prelude and ends with COMMIT; any error before it
  * rolls back. A connection lost during COMMIT leaves the outcome unknown, and the call says so; it is never retried.
@@ -76,8 +78,9 @@ final class SqlExecutor {
 
   /**
    * Plans of a change before its request exists ({@code prepare}): READ ONLY where the server allows EXPLAIN of a
-   * change in it (PostgreSQL), else a read-write transaction (MySQL refuses EXPLAIN UPDATE in READ ONLY); either way
-   * it ends with ROLLBACK. EXPLAIN without ANALYZE doesn't run the statement.
+   * change in it (PostgreSQL), else a read-write transaction (MySQL refuses EXPLAIN UPDATE in READ ONLY, and SQL
+   * Server has no read-only transactions); either way it ends with ROLLBACK. EXPLAIN without ANALYZE and SQL Server's
+   * SHOWPLAN_XML do not run the statement.
    */
   <T> T explain(SqlPools.Pool pool, ConnectionSettings s, ExecContext ctx, String connection, Work<T> work)
       throws ConnectorException {
@@ -96,8 +99,8 @@ final class SqlExecutor {
     boolean broken = false;
     try {
       // Before the first statement: pgjdbc opens the transaction with BEGIN READ ONLY, Connector/J sets the session.
-      // Oracle JDBC does not implement setReadOnly; its prelude uses SET TRANSACTION READ ONLY.
-      if (dialect.syntax() != SqlSyntax.ORACLE) c.setReadOnly(readOnly);
+      // Oracle uses SET TRANSACTION READ ONLY; SQL Server has no read-only transaction mode.
+      if (dialect.syntax() != SqlSyntax.ORACLE && !dialect.sqlServer()) c.setReadOnly(readOnly);
       dialect.prelude(c, pool.server(), s, timeoutMs, readOnly);
       T result = work.run(c, pool.server(), timeoutMs);
       if (!commit) {
@@ -161,7 +164,7 @@ final class SqlExecutor {
   /** A statement of the call: escape processing off, a client-side timeout, cancelled with the call. */
   Statement statement(Connection c, ExecContext ctx, long timeoutMs, BoundSql bound) throws SQLException {
     Statement st = create(c, "", bound, dialect.syntax());
-    long graceSeconds = dialect.syntax() == SqlSyntax.ORACLE ? 0 : 2;
+    long graceSeconds = dialect.syntax() == SqlSyntax.ORACLE || dialect.sqlServer() ? 0 : 2;
     st.setQueryTimeout((int) Math.max(1, (timeoutMs + 999) / 1000 + graceSeconds));
     Statement registered = st;
     ctx.onCancel(() -> {
@@ -180,6 +183,10 @@ final class SqlExecutor {
    */
   static Statement create(Connection c, String prefix, BoundSql bound, boolean mysql) throws SQLException {
     return create(c, prefix, bound, mysql ? SqlSyntax.MYSQL : SqlSyntax.POSTGRES);
+  }
+
+  static Statement create(Connection c, String prefix, BoundSql bound, SqlDialect dialect) throws SQLException {
+    return create(c, prefix, bound, dialect.syntax());
   }
 
   static Statement create(Connection c, String prefix, BoundSql bound, SqlSyntax syntax) throws SQLException {

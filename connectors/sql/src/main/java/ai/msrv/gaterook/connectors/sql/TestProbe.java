@@ -113,11 +113,13 @@ final class TestProbe {
       try (Connection c = dialect.driver().connect(dialect.url(s), props)) {
         props.remove("password");
         ctx.onCancel(() -> closeOnCancel(c));
-        c.setReadOnly(true);
+        if (!dialect.sqlServer()) c.setReadOnly(true);
         ServerInfo server = dialect.identify(c);
         String query = dialect.mysql()
             ? "SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME NOT IN "
                 + "('information_schema', 'mysql', 'performance_schema', 'sys') ORDER BY SCHEMA_NAME LIMIT 1001"
+            : dialect.sqlServer() ? "SELECT TOP (1001) name FROM sys.databases WHERE state = 0 "
+                + "AND database_id > 4 AND HAS_DBACCESS(name) = 1 ORDER BY name"
             : "SELECT datname FROM pg_catalog.pg_database WHERE datallowconn AND NOT datistemplate "
                 + "AND has_database_privilege(oid, 'CONNECT') ORDER BY datname LIMIT 1001";
         ObjectNode details = JsonNodeFactory.instance.objectNode();
@@ -153,9 +155,9 @@ final class TestProbe {
     }
   }
 
-  private static String discoveryDatabase(ConnectionConfig cfg) {
+  private String discoveryDatabase(ConnectionConfig cfg) {
     String database = cfg.string("/advanced/discoveryDatabase");
-    return database == null || database.isBlank() ? "postgres" : database;
+    return database == null || database.isBlank() ? (dialect.sqlServer() ? "master" : "postgres") : database;
   }
 
   private TestResult testOne(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, ConnectionSettings s) {
@@ -204,8 +206,8 @@ final class TestProbe {
   private TestResult probe(Connection c, ConnectionConfig cfg, ConnectionSettings s, String user,
       List<TestResult.Check> checks, long connectMs, long started) throws SQLException {
     // Every probe only reads; the socket timeout of the budget bounds each one.
-    if (dialect.syntax() != SqlSyntax.ORACLE) c.setReadOnly(true);
-    else {
+    if (dialect.syntax() != SqlSyntax.ORACLE && !dialect.sqlServer()) c.setReadOnly(true);
+    else if (dialect.syntax() == SqlSyntax.ORACLE) {
       c.setAutoCommit(false);
       dialect.prelude(c, dialect.identify(c), s, BUDGET_MS, true);
     }
@@ -214,7 +216,13 @@ final class TestProbe {
     long latency = latency(c);
     checks.add(new TestResult.Check("latency", true, latency, "Median of three " + dialect.pingSql()));
     SqlProbe.Tls tls = probe.tls(c, server);
-    checks.add(new TestResult.Check("tls", true, 0, tls.enabled() ? "Encrypted · " + tls.version() : "Not encrypted"));
+    boolean tlsKnown = tls != null || (dialect.sqlServer() && !"disable".equals(s.sslMode()));
+    if (tls == null) {
+      tls = new SqlProbe.Tls(!"disable".equals(s.sslMode()),
+          tlsKnown ? "TLS required by connection settings" : "Unknown: the login cannot inspect transport metadata");
+    }
+    checks.add(new TestResult.Check("tls", true, 0, !tlsKnown ? tls.version()
+        : tls.enabled() ? "Encrypted · " + tls.version() : "Not encrypted"));
     SqlProbe.Access access = probe.access(c, s, server);
     checks.add(new TestResult.Check("permissions", true, 0, access.write() == null ? "Read only" : "Can write"));
     List<String> missing = probe.missingSchemas(c, s.schemaAllowlist());
@@ -239,9 +247,12 @@ final class TestProbe {
     details.put("totalMs", ms(started));
     details.putObject("server").put("product", server.product()).put("version", server.version())
         .put("replica", access.replica());
-    details.putObject("tls").put("enabled", tls.enabled()).put("version", tls.version());
+    ObjectNode tlsDetails = details.putObject("tls").put("version", tls.version());
+    if (tlsKnown) tlsDetails.put("enabled", tls.enabled());
+    else tlsDetails.putNull("enabled");
     ObjectNode snippets = details.putObject("snippets");
     for (Hint h : hints(cfg.env(), s, access, tls, missing, server)) {
+      if (!tlsKnown && "sql.tls-off".equals(h.code())) continue;
       result = result.withHint(h);
       if ("sql.user-can-write".equals(h.code()) || "sql.superuser".equals(h.code())) {
         snippets.putObject(h.code()).put("language", "sql").put("text", probe.readOnlyUserSql(s));

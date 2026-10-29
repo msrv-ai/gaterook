@@ -36,6 +36,10 @@ final class IdentifierRules {
     return parts(text, SqlSyntax.of(mysql));
   }
 
+  static List<Part> parts(String text, SqlDialect dialect) {
+    return parts(text, dialect.syntax());
+  }
+
   static List<Part> parts(String text, SqlSyntax syntax) {
     boolean mysql = syntax == SqlSyntax.MYSQL;
     List<Part> out = new ArrayList<>();
@@ -50,8 +54,9 @@ final class IdentifierRules {
         // A trailing dot, or nothing at all: a part is missing.
         return List.of();
       }
-      if (s.charAt(i) == quote || (mysql && s.charAt(i) == '"')) {
-        char q = s.charAt(i);
+      if (s.charAt(i) == quote || (mysql && s.charAt(i) == '"')
+          || (syntax == SqlSyntax.SQLSERVER && s.charAt(i) == '[')) {
+        char q = s.charAt(i) == '[' ? ']' : s.charAt(i);
         StringBuilder name = new StringBuilder();
         int j = i + 1;
         boolean closed = false;
@@ -80,7 +85,9 @@ final class IdentifierRules {
         }
         String name = s.substring(i, j).strip();
         if ((syntax == SqlSyntax.ORACLE && !name.matches("[\\p{L}*][\\p{L}\\p{N}_$#*]*"))
-            || name.isEmpty() || name.indexOf(quote) >= 0 || name.chars().anyMatch(Character::isWhitespace)) {
+            || name.isEmpty() || name.indexOf(quote) >= 0
+            || (syntax == SqlSyntax.SQLSERVER && (name.indexOf('[') >= 0 || name.indexOf(']') >= 0))
+            || name.chars().anyMatch(Character::isWhitespace)) {
           return List.of();
         }
         out.add(new Part(name, false));
@@ -101,9 +108,13 @@ final class IdentifierRules {
     return normalize(part, SqlSyntax.of(mysql));
   }
 
+  static String normalize(Part part, SqlDialect dialect) {
+    return normalize(part, dialect.syntax());
+  }
+
   static String normalize(Part part, SqlSyntax syntax) {
     boolean mysql = syntax == SqlSyntax.MYSQL;
-    if (part.quoted() || mysql) {
+    if (part.quoted() || mysql || syntax == SqlSyntax.SQLSERVER) {
       return part.text();
     }
     return syntax == SqlSyntax.ORACLE ? part.text().toUpperCase(Locale.ROOT) : part.text().toLowerCase(Locale.ROOT);
@@ -122,12 +133,19 @@ final class IdentifierRules {
     return table(text, SqlSyntax.of(mysql), defaultSchema);
   }
 
+  static TableRef table(String text, SqlDialect dialect, String defaultSchema) {
+    return table(text, dialect.syntax(), defaultSchema);
+  }
+
   static TableRef table(String text, SqlSyntax syntax, String defaultSchema) {
     List<Part> p = parts(text, syntax);
     if (p.isEmpty() || p.size() > (syntax == SqlSyntax.POSTGRES ? 3 : 2)) {
       return null;
     }
     String name = normalize(p.getLast(), syntax);
+    if (syntax == SqlSyntax.SQLSERVER && (name.startsWith("#") || name.startsWith("@"))) {
+      return null;
+    }
     if (p.size() == 1) {
       if (syntax == SqlSyntax.POSTGRES && !p.getFirst().quoted() && name.startsWith("pg_")) {
         return new TableRef("pg_catalog", name);
@@ -142,6 +160,10 @@ final class IdentifierRules {
     return display(t, SqlSyntax.of(mysql));
   }
 
+  static String display(TableRef t, SqlDialect dialect) {
+    return display(t, dialect.syntax());
+  }
+
   static String display(TableRef t, SqlSyntax syntax) {
     return t.schema() == null ? quoteIfNeeded(t.name(), syntax)
         : quoteIfNeeded(t.schema(), syntax) + "." + quoteIfNeeded(t.name(), syntax);
@@ -152,7 +174,14 @@ final class IdentifierRules {
     return quoteIfNeeded(name, SqlSyntax.of(mysql));
   }
 
+  static String quoteIfNeeded(String name, SqlDialect dialect) {
+    return quoteIfNeeded(name, dialect.syntax());
+  }
+
   static String quoteIfNeeded(String name, SqlSyntax syntax) {
+    if (syntax == SqlSyntax.SQLSERVER) {
+      return quote(name, syntax);
+    }
     boolean mysql = syntax == SqlSyntax.MYSQL;
     boolean plain = !name.isEmpty() && (Character.isLetter(name.charAt(0)) || name.charAt(0) == '_');
     for (int i = 0; plain && i < name.length(); i++) {
@@ -169,7 +198,14 @@ final class IdentifierRules {
     return quote(name, SqlSyntax.of(mysql));
   }
 
+  static String quote(String name, SqlDialect dialect) {
+    return quote(name, dialect.syntax());
+  }
+
   static String quote(String name, SqlSyntax syntax) {
+    if (syntax == SqlSyntax.SQLSERVER) {
+      return "[" + name.replace("]", "]]") + "]";
+    }
     boolean mysql = syntax == SqlSyntax.MYSQL;
     char q = mysql ? '`' : '"';
     return q + name.replace(String.valueOf(q), String.valueOf(q) + q) + q;

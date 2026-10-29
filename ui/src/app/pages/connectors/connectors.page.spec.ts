@@ -639,6 +639,19 @@ describe('Connectors page: Templates', () => {
     expect(document.activeElement?.id).toBe('tpl-name');
   });
 
+  it('offers SQL query templates for SQL Server connections', async () => {
+    setup({
+      templateKinds: { sqlserver: ['sql-query'] },
+      rows: () => [...connectionRows(), { ...connectionRows()[0], name: 'reporting', type: 'sqlserver', typeName: 'SQL Server' }],
+    });
+    const { fixture, el } = await render();
+    el.querySelector<HTMLButtonElement>('#tab-templates')!.click();
+    await settle(fixture);
+    button(el.querySelector('#menu-new-template'), 'SQL query').click();
+    await settle(fixture);
+    expect(Array.from(el.querySelectorAll<HTMLOptionElement>('#tpl-conn option')).map((o) => o.value)).toEqual(['reporting']);
+  });
+
   it('keeps the rows and says the list may be out of date when a reload fails', async () => {
     let fail = false;
     setup({ templates: () => (fail ? Promise.reject(new ApiError('network', 0, {})) : Promise.resolve(templates())) });

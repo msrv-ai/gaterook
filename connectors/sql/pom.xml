@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  PostgreSQL, MySQL/MariaDB and Oracle Database: JdbcSqlConnector with database-specific dialects,
+  PostgreSQL, MySQL/MariaDB, Oracle Database and SQL Server: JdbcSqlConnector with database-specific dialects,
   the JSqlParser classifier, a HikariCP pool per connection and TemplateKind "sql-query". Plain JDBC, no Spring
   JdbcClient: the connector needs the transaction, setMaxRows, ResultSetMetaData and Statement.cancel().
   Spring only in the .boot subpackage. Built by step C1.
@@ -44,6 +44,10 @@
     <dependency>
       <groupId>com.oracle.database.jdbc</groupId>
       <artifactId>ojdbc17</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.microsoft.sqlserver</groupId>
+      <artifactId>mssql-jdbc</artifactId>
     </dependency>
     <dependency>
       <groupId>com.github.jsqlparser</groupId>

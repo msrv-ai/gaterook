@@ -51,7 +51,7 @@
                   <option [value]="c.name" [selected]="connection() === c.name">{{ c.name }} · {{ c.typeName }} · {{ c.env }}</option>
                 }
               </select>
-              <p class="gw-field__hint" id="tpl-conn-hint">@if (editing()) {A saved template stays on its connection. The secret stays with the connection.} @else {PostgreSQL, MySQL and Oracle Database connections. The secret stays with the connection.}</p>
+              <p class="gw-field__hint" id="tpl-conn-hint">@if (editing()) {A saved template stays on its connection. The secret stays with the connection.} @else {PostgreSQL, MySQL, Oracle Database and SQL Server connections. The secret stays with the connection.}</p>
               @if (errors().connection) {<p class="gw-field__error" id="tpl-conn-err"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().connection }}</p>}
             </div>
           </div>

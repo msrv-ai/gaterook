@@ -178,6 +178,8 @@ final class SqlQueryTemplates implements TemplateKind {
         if (!v.denied().isEmpty()) {
           errors.add(String.join(", ", v.denied()) + " isn't allowed through GateRook: it acts outside the "
               + "transaction.");
+        } else if (dialect.sqlServer() && analysis.kind() == Kind.READ && !v.notBuiltIn().isEmpty()) {
+          errors.add("SQL Server read templates only allow known built-in functions.");
         } else if (analysis.kind() == Kind.READ && !v.notBuiltIn().isEmpty()) {
           warnings.add("Calls " + String.join(", ", v.notBuiltIn()) + ", which isn't a built-in function: the tool "
               + "needs approval, and on prod it is refused.");

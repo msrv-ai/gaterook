@@ -51,6 +51,11 @@ final class ResultReader {
     return read(rs, maxRows, maxBytes, maxCellChars, SqlSyntax.of(mysql), countRest);
   }
 
+  static Read read(ResultSet rs, int maxRows, long maxBytes, int maxCellChars, SqlDialect dialect, boolean countRest)
+      throws SQLException {
+    return read(rs, maxRows, maxBytes, maxCellChars, dialect.syntax(), countRest);
+  }
+
   static Read read(ResultSet rs, int maxRows, long maxBytes, int maxCellChars, SqlSyntax syntax, boolean countRest)
       throws SQLException {
     ResultSetMetaData md = rs.getMetaData();
@@ -153,6 +158,10 @@ final class ResultReader {
       // pgjdbc says DOUBLE for money, whose text has a currency sign.
       String v = rs.getString(i);
       return v == null ? f.nullNode() : f.stringNode(v);
+    }
+    if (name.equals("datetimeoffset")) {
+      OffsetDateTime value = rs.getObject(i, OffsetDateTime.class);
+      return value == null ? f.nullNode() : text(value.toString(), maxCellChars);
     }
     switch (type) {
       case Types.TINYINT, Types.SMALLINT, Types.INTEGER -> {

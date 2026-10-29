@@ -7,12 +7,13 @@ import java.util.Locale;
 
 /**
  * The non-secret settings of one SQL connection, read from its config ({@code postgres.config.schema.json},
- * {@code mysql.config.schema.json}, {@code oracle.config.schema.json}) with the form's defaults. The core validated the config against the schema
- * before the connector sees it.
+ * {@code mysql.config.schema.json}, {@code oracle.config.schema.json}, {@code sqlserver.config.schema.json})
+ * with the form's defaults. The core validated the config against the schema before the connector sees it.
  *
- * @param database      PostgreSQL: required; MySQL: the default database, or {@code null}; Oracle: the service name
+ * @param database      PostgreSQL: required; MySQL and SQL Server: the default database, or {@code null}; Oracle: the service name
  * @param defaultSchema      where unqualified names live: PostgreSQL {@code defaultSchema} ({@code public}), MySQL
- *                           the database (or {@code null} without one); Oracle: the user or explicit schema
+ *                           the database (or {@code null} without one); Oracle: the user or explicit schema;
+ *                           SQL Server: the expected database user schema ({@code dbo})
  * @param statementTimeoutMs the connection's own statement timeout ({@code advanced.statementTimeoutMs}), 0 when it
  *                           has none: a call gets the stricter of it and the policy's (the core's limits don't
  *                           read connection settings)
@@ -24,6 +25,13 @@ record ConnectionSettings(String host, int port, String database, String sslMode
   static final String PASSWORD = "/credentials/password";
 
   static ConnectionSettings of(ConnectionConfig cfg, SqlDialect dialect) {
+    if (dialect.sqlServer()) {
+      ConnectionSettings base = of(cfg, false);
+      return new ConnectionSettings(base.host(), cfg.integer("/connection/port", 1433), base.database(),
+          base.sslMode(), base.caCertificate(), base.user(), base.poolSize(), base.connectTimeoutMs(),
+          orDefault(cfg.string("/advanced/defaultSchema"), "dbo"), base.schemaAllowlist(), List.of(),
+          false, base.statementTimeoutMs());
+    }
     if (dialect.syntax() != SqlSyntax.ORACLE) return of(cfg, dialect.mysql());
     String user = blankToNull(cfg.string("/credentials/user"));
     String schema = blankToNull(cfg.string("/advanced/defaultSchema"));
@@ -42,6 +50,10 @@ record ConnectionSettings(String host, int port, String database, String sslMode
   private static String oracleIdentifier(String name) {
     return name.startsWith("\"") && name.endsWith("\"") && name.length() >= 2
         ? name.substring(1, name.length() - 1).replace("\"\"", "\"") : name.toUpperCase(Locale.ROOT);
+  }
+
+  ConnectionSettings withDatabase(String value, SqlDialect dialect) {
+    return withDatabase(value, dialect.mysql());
   }
 
   static ConnectionSettings of(ConnectionConfig cfg, boolean mysql) {

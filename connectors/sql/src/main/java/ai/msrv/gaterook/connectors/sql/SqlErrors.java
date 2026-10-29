@@ -33,6 +33,7 @@ final class SqlErrors {
   static ConnectorException of(SQLException e, SqlSyntax syntax, String connection, String env, Duration timeout) {
     boolean mysql = syntax == SqlSyntax.MYSQL;
     boolean oracle = syntax == SqlSyntax.ORACLE;
+    boolean sqlServer = syntax == SqlSyntax.SQLSERVER;
     String state = state(e);
     int code = e.getErrorCode();
     if (e instanceof SQLTransientConnectionException && !(e.getCause() instanceof SQLException)) {
@@ -42,24 +43,34 @@ final class SqlErrors {
     if (unreachable(e, state, syntax)) {
       return ConnectorException.unavailable(reach(e, connection), e);
     }
-    if (timedOut(state, code, mysql) || (oracle && (code == 1013 || code == 30006))) {
+    if (timedOut(state, code, mysql) || (oracle && (code == 1013 || code == 30006))
+        || (sqlServer && (e instanceof java.sql.SQLTimeoutException || "HYT00".equals(state)
+            || "HYT01".equals(state) || code == 1222))) {
       return ConnectorException.resourceError("Statement timeout (" + seconds(timeout) + " on " + env
           + ") exceeded. Narrow the WHERE clause or "
-          + (oracle ? "add FETCH FIRST n ROWS ONLY." : "add LIMIT."), e);
+          + (oracle ? "add FETCH FIRST n ROWS ONLY." : sqlServer ? "use TOP." : "add LIMIT."), e);
     }
     if ((oracle && code == 1456) || "25006".equals(state) || (mysql && (code == 1792 || "S1009".equals(state)))) {
       return ConnectorException.resourceError("This statement writes, and the read-only transaction refused it: "
           + describe(e) + ". Use sql_execute for changes; a person approves them.", e);
     }
-    if ((oracle && code == 1031) || "42501".equals(state) || (mysql && (code == 1142 || code == 1143 || code == 1044 || code == 1370))) {
+    if ((oracle && code == 1031) || (sqlServer && (code == 229 || code == 230 || code == 262))
+        || "42501".equals(state) || (mysql && (code == 1142 || code == 1143 || code == 1044 || code == 1370))) {
       return ConnectorException.resourceError("The database user of " + connection + " may not do this: "
           + describe(e) + ".", e);
+    }
+    if (sqlServer && (code == 1205 || "40001".equals(state))) {
+      return ConnectorException.resourceError(describe(e) + ". The transaction was rolled back after a deadlock; retry.", e);
     }
     if ("40001".equals(state) && syntax == SqlSyntax.POSTGRES) {
       return ConnectorException.resourceError(describe(e) + ". Canceled by a conflict (a replica replaying changes, "
           + "or a concurrent transaction): retry.", e);
     }
     return ConnectorException.resourceError(describe(e), e);
+  }
+
+  static ConnectorException of(SQLException e, SqlDialect dialect, String connection, String env, Duration timeout) {
+    return of(e, dialect.syntax(), connection, env, timeout);
   }
 
   /**
@@ -110,7 +121,7 @@ final class SqlErrors {
       return true;
     }
     int code = e.getErrorCode();
-    if (code == 1045 || code == 1049 || code == 2002 || code == 2003 || code == 2006 || code == 2013) {
+    if (code == 18456 || code == 4060 || code == 1045 || code == 1049 || code == 2002 || code == 2003 || code == 2006 || code == 2013) {
       return true;
     }
     if (syntax == SqlSyntax.ORACLE && (code == 1017 || code == 28000 || code == 28001 || code == 1033

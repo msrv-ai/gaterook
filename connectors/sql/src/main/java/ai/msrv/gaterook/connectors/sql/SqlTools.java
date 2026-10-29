@@ -46,7 +46,7 @@ final class SqlTools {
             .build(),
         ToolDefinition.builder(QUERY)
             .title("Run a read-only SQL query")
-            .description("Run one SELECT in a read-only transaction. PII columns come back masked.")
+            .description("Run one validated read query and roll back its transaction. SQL Server accepts SELECT with known built-in functions. PII columns come back masked.")
             .inputSchema(schemas.load(QUERY + ".input"))
             .outputSchema(schemas.load(QUERY + ".output"))
             .annotations(Annotations.read())

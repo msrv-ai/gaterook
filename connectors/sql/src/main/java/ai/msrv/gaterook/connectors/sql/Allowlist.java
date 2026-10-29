@@ -27,6 +27,7 @@ final class Allowlist {
 
   private static final Set<String> POSTGRES_SYSTEM = Set.of("pg_catalog", "information_schema", "pg_toast");
   private static final Set<String> MYSQL_SYSTEM = Set.of("mysql", "sys", "performance_schema", "information_schema");
+  private static final Set<String> SQLSERVER_SYSTEM = Set.of("sys", "information_schema");
   private static final Set<String> ORACLE_SYSTEM = Set.of("SYS", "SYSTEM", "XDB", "CTXSYS", "MDSYS", "ORDSYS", "OUTLN",
       "DBSNMP", "AUDSYS");
 
@@ -50,6 +51,14 @@ final class Allowlist {
 
   static Allowlist of(List<String> policy, List<String> connectionSchemas, boolean mysql, List<String> databases) {
     return of(policy, connectionSchemas, SqlSyntax.of(mysql), databases);
+  }
+
+  static Allowlist of(List<String> policy, List<String> connectionSchemas, SqlDialect dialect) {
+    return of(policy, connectionSchemas, dialect.syntax(), List.of());
+  }
+
+  static Allowlist of(List<String> policy, List<String> connectionSchemas, SqlDialect dialect, List<String> databases) {
+    return of(policy, connectionSchemas, dialect.syntax(), databases);
   }
 
   static Allowlist of(List<String> policy, List<String> connectionSchemas, SqlSyntax syntax) {
@@ -142,8 +151,9 @@ final class Allowlist {
       case MYSQL -> MYSQL_SYSTEM;
       case POSTGRES -> POSTGRES_SYSTEM;
       case ORACLE -> ORACLE_SYSTEM;
+      case SQLSERVER -> SQLSERVER_SYSTEM;
     };
-    if (system.contains(syntax == SqlSyntax.MYSQL ? schema.toLowerCase(java.util.Locale.ROOT) : schema)) {
+    if (system.contains(syntax == SqlSyntax.MYSQL || syntax == SqlSyntax.SQLSERVER ? schema.toLowerCase(java.util.Locale.ROOT) : schema)) {
       return entry.equals(schema);
     }
     return Glob.text(entry).matches(schema);

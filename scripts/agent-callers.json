@@ -10,6 +10,7 @@
     {"includeClasses": "org.postgresql.**"},
     {"includeClasses": "com.mysql.**"},
     {"includeClasses": "oracle.**"},
+    {"includeClasses": "com.microsoft.sqlserver.**"},
     {"includeClasses": "org.mariadb.**"},
     {"includeClasses": "com.google.auth.**"},
     {"includeClasses": "software.amazon.awssdk.**"}

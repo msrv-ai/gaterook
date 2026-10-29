@@ -50,14 +50,15 @@ import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The SQL connector of one dialect: PostgreSQL, MySQL/MariaDB or Oracle Database (report 04, ARCHITECTURE.md §10 C1).
+ * The SQL connector of one dialect: PostgreSQL, MySQL/MariaDB, Oracle Database or SQL Server (report 04, ARCHITECTURE.md §10 C1).
  *
  * <p>The route of a call comes from {@link SqlClassifier} and {@link SqlRules} in {@link #classify}, without I/O. The
- * database enforces a READ ONLY transaction ending with ROLLBACK for every read: {@code sql_query}, introspection
+ * PostgreSQL, MySQL and Oracle enforce a READ ONLY transaction ending with ROLLBACK for every read: {@code sql_query}, introspection
  * and read templates ({@link SqlExecutor}). Oracle autonomous routines reached through views remain outside that
  * transaction, so database permissions and trusted schemas are also required. A change runs only after approval
  * ({@code ctx.approved()}), exactly as the person saw it ({@code approvedPayload}); Oracle and MySQL DDL can commit
- * implicitly.
+ * implicitly. SQL Server instead requires strictly analyzed SELECTs and known built-in functions, with rollback;
+ * a SELECT-only login supplies server-enforced protection.
  *
  * <p>{@link #execute} gets no policy, so it checks again what it can without one (defence in depth): a read is one
  * analyzed read without denied functions, and without approval only built-in ones; a change needs approval. What only
@@ -180,7 +181,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
                 shorten(call.tool() + " on " + cfg.name()))
             .withPayload(databasePayload(JsonNodeFactory.instance.objectNode().set("arguments", args), cfg, s))
             .withFacets(Map.of("tool", call.tool()))
-            .withImpact(List.of(new Field("Transaction", "Read only, always rolled back")));
+            .withImpact(List.of(new Field("Transaction", readTransaction())));
       }
     };
   }
@@ -193,7 +194,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     Map<String, String> facets = new LinkedHashMap<>();
     facets.put("statement", statementTypes(a));
     if (SqlTools.QUERY.equals(call.tool())) {
-      impact.add(new Field("Transaction", "Read only, always rolled back"));
+      impact.add(new Field("Transaction", readTransaction()));
       warnings.addAll(functionWarnings(a, cfg, s));
     } else {
       List<String> targets = SqlRules.targets(a, syntax(), s.defaultSchema());
@@ -240,7 +241,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     fields.add(new Field("Binding", "Values are bound by the driver, never pasted into the SQL"));
     List<Field> impact = new ArrayList<>();
     if (t.read()) {
-      impact.add(new Field("Transaction", "Read only, always rolled back"));
+      impact.add(new Field("Transaction", readTransaction()));
       warnings.addAll(functionWarnings(t.analysis(), cfg, s));
     } else {
       List<String> targets = SqlRules.targets(t.analysis(), syntax(), s.defaultSchema());
@@ -277,9 +278,25 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     return ConnectionSettings.of(cfg, dialect).withDatabase(database, mysql());
   }
 
-  /** Enforce the selected MySQL databases even when execute is called without the policy classifier. */
+  /** Enforce database boundaries even when execute is called without the policy classifier. */
   private void checkSelectedTables(Analysis analysis, ConnectionConfig cfg, ConnectionSettings settings)
       throws ConnectorException {
+    if (dialect.sqlServer()) {
+      for (StatementFacts statement : analysis.statements()) {
+        if (statement.tables() == null) {
+          throw ConnectorException.denied("The gateway cannot verify the SQL Server database scope.");
+        }
+        for (String name : statement.tables()) {
+          if (IdentifierRules.table(name, dialect, settings.defaultSchema()) == null) {
+            throw ConnectorException.denied("SQL Server statements must stay in the selected database. Use schema.table.");
+          }
+        }
+      }
+      if (analysis.functions().stream().anyMatch(function -> function.parts().size() > 2)) {
+        throw ConnectorException.denied("SQL Server functions must stay in the selected database.");
+      }
+      return;
+    }
     if (!mysql() || !DatabaseSelection.configured(cfg)) return;
     Allowlist scope = Allowlist.of(List.of(), settings.schemaAllowlist(), true, DatabaseSelection.selected(cfg));
     for (StatementFacts statement : analysis.statements()) {
@@ -301,9 +318,17 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     if (v.notBuiltIn().isEmpty()) {
       return List.of();
     }
+    if (dialect.sqlServer()) {
+      return List.of("SQL Server reads refuse functions outside the known built-in set: "
+          + String.join(", ", v.notBuiltIn()) + ".");
+    }
     return List.of("Calls " + String.join(", ", v.notBuiltIn()) + (v.notBuiltIn().size() == 1 ? ", which isn't a "
         + "built-in function" : ", which aren't built-in functions") + ": it may change data or act outside the "
         + "database. It still runs in a read-only transaction that is rolled back.");
+  }
+
+  private String readTransaction() {
+    return dialect.sqlServer() ? "Validated read query, always rolled back" : "Read only, always rolled back";
   }
 
   private String transaction(Analysis a) {
@@ -472,10 +497,12 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
           throw e;
         }
         int code = e.getErrorCode();
-        boolean syntax = "42601".equals(state) || (mysql() && code == 1064);
+        boolean syntax = "42601".equals(state) || (mysql() && code == 1064)
+            || (dialect.sqlServer() && (code == 102 || code == 156));
         // A missing table or column, or a user that may not do it: no statement before this one changes that.
         boolean missing = "42P01".equals(state) || "42703".equals(state) || "42883".equals(state)
-            || "42501".equals(state) || (mysql() && (code == 1146 || code == 1054 || code == 1142 || code == 1143));
+            || "42501".equals(state) || (mysql() && (code == 1146 || code == 1054 || code == 1142 || code == 1143))
+            || (dialect.sqlServer() && (code == 207 || code == 208 || code == 229));
         if (syntax || (missing && i == 0)) {
           return new Estimates(rows, warnings, "The database can't run it, so nobody was asked to approve it: "
               + SqlErrors.describe(e) + ".");
@@ -541,6 +568,9 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     if (!v.denied().isEmpty()) {
       throw ConnectorException.denied(String.join(", ", v.denied()) + " isn't allowed through GateRook.");
     }
+    if (dialect.sqlServer() && !v.notBuiltIn().isEmpty()) {
+      throw ConnectorException.denied("SQL Server reads only allow known built-in functions.");
+    }
     if (!v.notBuiltIn().isEmpty() && !ctx.approved()) {
       throw ConnectorException.denied("Not approved: " + String.join(", ", v.notBuiltIn()) + " isn't a built-in "
           + "function, so a person approves the call first.");
@@ -551,8 +581,8 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
   }
 
   /**
-   * A read as it runs, without any check of what it is: in a READ ONLY transaction that ends with ROLLBACK. The tests
-   * of that guarantee call it with statements that write, as if the classifier were off.
+   * Runs an admitted read and rolls back. PostgreSQL/MySQL additionally enforce READ ONLY; their tests call this
+   * directly with writes to verify server enforcement. SQL Server must pass the admission checks before this call.
    */
   ToolResult runRead(ConnectionConfig cfg, ConnectionSettings s, SecretResolver secrets, ExecContext ctx,
       BoundSql statement, int limit) throws ConnectorException {
@@ -575,7 +605,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
     String sql = sql(call, ctx);
     Analysis a = SqlClassifier.analyze(sql, syntax());
     checkSelectedTables(a, cfg, s);
-    if (a.tooComplex() || a.kind() == Kind.FORBIDDEN || (oracle() && !a.parsed())) {
+    if (a.tooComplex() || a.kind() == Kind.FORBIDDEN || ((oracle() || dialect.sqlServer()) && !a.parsed())) {
       throw ConnectorException.denied("This statement can't run through GateRook.");
     }
     if (a.count() > (syntax() == SqlSyntax.POSTGRES ? SqlRules.MAX_POSTGRES_STATEMENTS : 1)) {
@@ -720,6 +750,9 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
         FunctionRules.fromMetadata(cfg.metadata()), List.of(), s.allowedFunctions());
     if (!v.denied().isEmpty()) {
       throw ConnectorException.denied(String.join(", ", v.denied()) + " isn't allowed through GateRook.");
+    }
+    if (dialect.sqlServer() && t.read() && !v.notBuiltIn().isEmpty()) {
+      throw ConnectorException.denied("SQL Server reads only allow known built-in functions.");
     }
     boolean needsApproval = !t.read() || !v.notBuiltIn().isEmpty();
     if (needsApproval && !ctx.approved()) {
@@ -906,8 +939,10 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
       DatabaseSelection.selected(cfg).forEach(databases::add);
       out.put("databaseSelection", "Pass database on SQL tool calls when more than one database is selected.");
     }
-    out.put("reads", "One statement per sql_query, in a read-only transaction that is rolled back");
-    out.put("changes", (mysql() || oracle()) ? "One statement per sql_execute, after approval"
+    out.put("reads", dialect.sqlServer()
+        ? "One validated SELECT per sql_query, always rolled back; use a SELECT-only database user for server-enforced protection"
+        : "One statement per sql_query, in a read-only transaction that is rolled back");
+    out.put("changes", (mysql() || oracle() || dialect.sqlServer()) ? "One statement per sql_execute, after approval"
         : "Up to " + SqlRules.MAX_POSTGRES_STATEMENTS + " statements per sql_execute in one transaction, after "
         + "approval");
     if (object != null && !object.isBlank()) {
@@ -977,7 +1012,7 @@ public final class JdbcSqlConnector implements Connector, SecretResolver.Credent
 
   @Override
   public boolean canRotate(ConnectionConfig cfg, String field) {
-    return ConnectionSettings.PASSWORD.equals(field) && cfg.string("/credentials/user") != null;
+    return !dialect.sqlServer() && ConnectionSettings.PASSWORD.equals(field) && cfg.string("/credentials/user") != null;
   }
 
   /**

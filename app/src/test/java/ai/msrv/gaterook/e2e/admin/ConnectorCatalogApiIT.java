@@ -60,6 +60,8 @@ class ConnectorCatalogApiIT {
           "MySQL 8 and MariaDB. Read queries, schema, EXPLAIN."),
       new KitCard("Databases", "oracle", null, "Oracle Database", "database", "built-in", 4,
           "Oracle Database 19c and later. Read queries and schema."),
+      new KitCard("Databases", "sqlserver", null, "SQL Server", "database", "built-in", 4,
+          "Microsoft SQL Server. Read queries, schema, execution plans."),
       new KitCard("Databases", "mongodb", null, "MongoDB", "leaf", "built-in", 4,
           "Find, aggregate and update documents. Updates require approval by default."),
       new KitCard("Databases", "redis", null, "Redis", "layers", "built-in", 2,
@@ -135,7 +137,7 @@ class ConnectorCatalogApiIT {
 
     // Connectors › Installed: one row per type, the MCP server type isn't one (its servers are, with K5).
     List<String> installed = each(catalog.path("installed"), "id");
-    assertThat(installed).containsExactly("postgres", "mysql", "oracle", "mongodb", "redis", "opensearch", "ssh", "gcp-logging", "cloudwatch", "loki", "ssh-logs", "kubernetes",
+    assertThat(installed).containsExactly("postgres", "mysql", "oracle", "sqlserver", "mongodb", "redis", "opensearch", "ssh", "gcp-logging", "cloudwatch", "loki", "ssh-logs", "kubernetes",
         "gcp", "aws", "http");
     for (JsonNode row : catalog.path("installed")) {
       assertThat(row.path("state").asString()).isEqualTo("enabled");

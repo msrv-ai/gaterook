@@ -369,6 +369,10 @@ final class TemplateParams {
     bind(ps, values, mysql ? SqlSyntax.MYSQL : SqlSyntax.POSTGRES);
   }
 
+  static void bind(PreparedStatement ps, List<Bound> values, SqlDialect dialect) throws SQLException {
+    bind(ps, values, dialect.syntax());
+  }
+
   static void bind(PreparedStatement ps, List<Bound> values, SqlSyntax syntax) throws SQLException {
     int i = 1;
     for (Bound b : values) {
@@ -398,7 +402,11 @@ final class TemplateParams {
       case INTEGER -> Types.BIGINT;
       case NUMBER -> Types.NUMERIC;
       case BOOLEAN -> syntax == SqlSyntax.ORACLE ? Types.NUMERIC : Types.BOOLEAN;
-      case TIMESTAMP -> syntax == SqlSyntax.MYSQL ? Types.TIMESTAMP : Types.TIMESTAMP_WITH_TIMEZONE;
+      case TIMESTAMP -> switch (syntax) {
+        case MYSQL -> Types.TIMESTAMP;
+        case SQLSERVER -> microsoft.sql.Types.DATETIMEOFFSET;
+        default -> Types.TIMESTAMP_WITH_TIMEZONE;
+      };
       case DATE -> Types.DATE;
     };
   }

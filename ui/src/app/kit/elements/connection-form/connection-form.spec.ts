@@ -228,8 +228,8 @@ describe('connection form: database discovery', () => {
     expect(host.saved[0].config['credentials']).not.toHaveProperty('user');
   });
 
-  it('puts credentials before loading databases and saves multiple selected databases in one connection', async () => {
-    const { el, host, settle, load, choose } = await databaseForm();
+  it.each([['mysql', 3306], ['sqlserver', 1433]])('%s puts credentials before loading databases and saves multiple selected databases', async (type, port) => {
+    const { el, host, settle, load, choose } = await databaseForm(String(type));
     expect(el.querySelector('#cf-connection-database')).toBeNull();
     expect(el.querySelector('#cf-connection-databases')).toBeNull();
     const user = el.querySelector('#cf-credentials-user')!;
@@ -238,7 +238,7 @@ describe('connection form: database discovery', () => {
     expect(host.form().databaseSelectionValid()).toBe(false);
 
     const request = await load();
-    expect(request.value.config).toMatchObject({ connection: { host: '127.0.0.1', port: 3306 }, credentials: { user: 'pp_user' } });
+    expect(request.value.config).toMatchObject({ connection: { host: '127.0.0.1', port }, credentials: { user: 'pp_user' } });
     expect(request.value.secrets).toEqual({ '/credentials/password': { source: 'local', value: 'local-password' } });
     host.form().completeDatabaseDiscovery(request.key, discovered(['app', 'reports']));
     await settle();
