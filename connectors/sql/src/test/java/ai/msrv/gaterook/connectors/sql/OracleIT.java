@@ -14,6 +14,7 @@ import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import ai.msrv.gaterook.connectors.sql.SqlExecutor.BoundSql;
+import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -26,11 +27,11 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
+import org.junit.jupiter.api.condition.EnabledIf;
 import tools.jackson.databind.JsonNode;
 
-/** Live Oracle checks against a disposable schema; see docs/oracle.md for the required environment. */
-@EnabledIfEnvironmentVariable(named = "GW_ORACLE_HOST", matches = ".+")
+/** Live Oracle checks against Compose or an explicitly configured disposable schema; see docs/oracle.md. */
+@EnabledIf("configured")
 class OracleIT {
   private static final OracleDialect DIALECT = new OracleDialect();
   private static final Path WORK = Path.of("target", "oracle-work").toAbsolutePath();
@@ -38,22 +39,20 @@ class OracleIT {
   private static final String ORDERS = "GW_ORACLE_IT_ORDERS";
   private static final String QUOTED = "\"GateRook mixed table\"";
   private static boolean fixtureStarted;
+  private static OracleTestSettings settings;
   private final JdbcSqlConnector connector = new JdbcSqlConnector(DIALECT);
 
-  private static String required(String key) {
-    String value = System.getenv(key);
-    if (value == null || value.isBlank()) throw new IllegalStateException("Set " + key + " for the Oracle fixture.");
-    return value;
+  static boolean configured() {
+    return OracleTestSettings.configured();
   }
 
   private static ConnectionConfig cfg() {
-    return Fixtures.config("oracle", Env.DEV, required("GW_ORACLE_HOST"),
-        Integer.parseInt(System.getenv().getOrDefault("GW_ORACLE_PORT", "1521")),
-        required("GW_ORACLE_SERVICE"), required("GW_ORACLE_USER"), null, null);
+    return Fixtures.config("oracle", Env.DEV, settings.host(), settings.port(), settings.service(), settings.user(),
+        null, null);
   }
 
   private static Fixtures.Secrets secrets() {
-    return Fixtures.Secrets.password(required("GW_ORACLE_PASSWORD"));
+    return Fixtures.Secrets.password(settings.password());
   }
 
   private static Fixtures.Context ctx() {
@@ -64,26 +63,34 @@ class OracleIT {
     ConnectionSettings settings = ConnectionSettings.of(cfg(), DIALECT);
     Properties properties = DIALECT.properties(settings, WORK, 15_000);
     properties.setProperty("user", settings.user());
-    properties.setProperty("password", required("GW_ORACLE_PASSWORD"));
+    properties.setProperty("password", OracleIT.settings.password());
     return DIALECT.driver().connect(DIALECT.url(settings), properties);
   }
 
   @BeforeAll
   static void createFixture() throws Exception {
+    settings = OracleTestSettings.current();
     try (Connection c = direct(); Statement st = c.createStatement()) {
-      fixtureStarted = true;
       dropFixture(st);
-      st.execute("CREATE TABLE " + CUSTOMERS + " (ID NUMBER(10) PRIMARY KEY, EMAIL VARCHAR2(100))");
-      st.execute("CREATE TABLE " + ORDERS + " (ID NUMBER(10) PRIMARY KEY, CUSTOMER_ID NUMBER(10) "
-          + "REFERENCES " + CUSTOMERS + "(ID), STATUS VARCHAR2(20), TOTAL NUMBER(12,2), NOTE CLOB, CREATED_AT TIMESTAMP)");
-      st.execute("CREATE INDEX GW_ORACLE_IT_STATUS_IDX ON " + ORDERS + "(STATUS)");
-      st.execute("CREATE TABLE " + QUOTED + " (\"Key\" NUMBER(10) PRIMARY KEY, \"Value\" VARCHAR2(20))");
-      st.executeUpdate("INSERT INTO " + CUSTOMERS + " VALUES (1, 'reader@example.test')");
-      st.executeUpdate("INSERT INTO " + ORDERS + " VALUES (1, 1, 'pending', 120.50, 'fixture note', "
-          + "TIMESTAMP '2026-01-02 03:04:05')");
-      st.executeUpdate("INSERT INTO " + ORDERS + " VALUES (2, 1, 'paid', 42.25, NULL, "
-          + "TIMESTAMP '2026-01-03 04:05:06')");
-      st.executeUpdate("INSERT INTO " + QUOTED + " VALUES (1, 'quoted')");
+      fixtureStarted = true;
+      try {
+        st.execute("CREATE TABLE " + CUSTOMERS + " (ID NUMBER(10) PRIMARY KEY, EMAIL VARCHAR2(100))");
+        st.execute("CREATE TABLE " + ORDERS + " (ID NUMBER(10) PRIMARY KEY, CUSTOMER_ID NUMBER(10) "
+            + "REFERENCES " + CUSTOMERS + "(ID), STATUS VARCHAR2(20), TOTAL NUMBER(12,2), NOTE CLOB, CREATED_AT TIMESTAMP)");
+        st.execute("CREATE INDEX GW_ORACLE_IT_STATUS_IDX ON " + ORDERS + "(STATUS)");
+        st.execute("CREATE TABLE " + QUOTED + " (\"Key\" NUMBER(10) PRIMARY KEY, \"Value\" VARCHAR2(20))");
+        st.executeUpdate("INSERT INTO " + CUSTOMERS + " VALUES (1, 'reader@example.test')");
+        st.executeUpdate("INSERT INTO " + ORDERS + " VALUES (1, 1, 'pending', 120.50, 'fixture note', "
+            + "TIMESTAMP '2026-01-02 03:04:05')");
+        st.executeUpdate("INSERT INTO " + ORDERS + " VALUES (2, 1, 'paid', 42.25, NULL, "
+            + "TIMESTAMP '2026-01-03 04:05:06')");
+        st.executeUpdate("INSERT INTO " + QUOTED + " VALUES (1, 'quoted')");
+      } catch (Exception failure) {
+        try { dropFixture(st); }
+        catch (SQLException cleanup) { failure.addSuppressed(cleanup); }
+        fixtureStarted = false;
+        throw failure;
+      }
     }
   }
 
@@ -115,7 +122,7 @@ class OracleIT {
     TestResult tested = connector.test(cfg(), secrets(), ctx());
     assertThat(tested.ok()).as(String.valueOf(tested.error())).isTrue();
     assertThat(tested.serverVersion()).contains("Oracle");
-    assertThat(tested.identity()).isEqualTo(required("GW_ORACLE_USER").toUpperCase(java.util.Locale.ROOT));
+    assertThat(tested.identity()).isEqualTo(settings.user().toUpperCase(java.util.Locale.ROOT));
     assertThat(tested.permissions().level()).isNotEqualTo(TestResult.Level.ADMIN);
     assertThat(tested.permissions().write()).isNotEmpty();
     assertThat(connector.health(cfg(), secrets(), ctx()).state()).isEqualTo(HealthResult.State.HEALTHY);
@@ -129,7 +136,8 @@ class OracleIT {
         .isEqualTo(Classification.Kind.READ);
     JsonNode row = connector.execute(call, cfg(), secrets(), ctx()).table().rows().get(0);
     assertThat(row.get(0).asLong()).isEqualTo(1);
-    assertThat(row.get(1).asString()).isEqualTo("120.50");
+    assertThat(row.get(1).isString()).isTrue();
+    assertThat(new BigDecimal(row.get(1).asString())).isEqualByComparingTo("120.50");
     assertThat(row.get(2).asString()).isEqualTo("fixture note");
     assertThat(row.get(3).asString()).startsWith("2026-01-02T03:04:05");
     assertThat(row.get(4).asString()).isEqualTo("reader@example.test");
@@ -233,7 +241,9 @@ class OracleIT {
     long started = System.nanoTime();
     assertThatThrownBy(() -> connector.runRead(cfg(), ConnectionSettings.of(cfg(), DIALECT), secrets(),
         ctx().with(Fixtures.limits(10, Duration.ofMillis(500))),
-        BoundSql.plain("SELECT COUNT(*) FROM DUAL CONNECT BY LEVEL <= 100000000"), 10))
+        BoundSql.plain("WITH numbers AS (SELECT LEVEL AS n FROM DUAL CONNECT BY LEVEL <= 1000) "
+            + "SELECT COUNT(*) FROM numbers a CROSS JOIN numbers b CROSS JOIN numbers c "
+            + "WHERE MOD(a.n * b.n + c.n, 97) = 0"), 10))
         .isInstanceOfSatisfying(ConnectorException.class,
             e -> assertThat(e.getMessage().toLowerCase(java.util.Locale.ROOT)).contains("timeout"));
     assertThat(Duration.ofNanos(System.nanoTime() - started)).isLessThan(Duration.ofSeconds(8));

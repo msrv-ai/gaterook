@@ -20,7 +20,19 @@ Use a restricted database user and trusted schemas and views. The connector bloc
 
 ## Integration tests
 
-`OracleIT` runs only when `GW_ORACLE_HOST` is set. Use a disposable Oracle service and a separate test user with `CREATE SESSION`, `CREATE TABLE` and a small quota on its default tablespace. The tests create and remove `GW_ORACLE_IT_CUSTOMERS`, `GW_ORACLE_IT_ORDERS` and `"GateRook mixed table"` in that user's schema. They use TCP without TLS and must not run against production data.
+The Docker test suite includes a disposable Oracle service and creates the test user automatically:
+
+```bash
+scripts/test-services.sh up oracle
+scripts/test-services.sh run mvn -B -ntp -pl connectors/sql -am verify -Pservices \
+  -Dit.test=OracleIT -Dfailsafe.failIfNoSpecifiedTests=false
+```
+
+`OracleIT` reads the shared `test-services/.env` with `-Pservices` or `GW_TEST_SERVICES`. It also runs when
+`GW_ORACLE_HOST` is set explicitly; that selects the external settings below instead of the Compose settings.
+See [connector test services](../test-services/README.md) for ports, credentials, profiles and cleanup.
+
+For an external fixture, use a disposable Oracle service and a separate test user with `CREATE SESSION`, `CREATE TABLE` and a small quota on its default tablespace. The tests create and remove `GW_ORACLE_IT_CUSTOMERS`, `GW_ORACLE_IT_ORDERS` and `"GateRook mixed table"` in that user's schema. They use TCP without TLS and must not run against production data.
 
 From the repository root, with the normal Java toolchain configured:
 
