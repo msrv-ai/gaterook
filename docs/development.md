@@ -51,6 +51,25 @@ Run configurations must point to the actual application `package.json`: `$PROJEC
 
 ## Build outputs
 
+### Application version
+
+The root [`pom.xml`](../pom.xml) defines the application version once, in `<properties><revision>`.
+Change that value for the next release, then run `npm run build`. Maven modules inherit `${revision}`;
+the independently versioned connector API and design kit retain their own versions.
+
+The build synchronizes the root, UI, desktop, and bridge npm manifests and the workspace lockfile from
+that revision. These npm version fields are derived mirrors; do not bump them individually. Run
+`npm run version:sync` to refresh them without building, or `node scripts/sync-version.mjs --check`
+to check for stale mirrors. Include any updated manifests and lockfile in the version-change commit.
+Desktop builds also synchronize versions when invoked directly or by `npm start`.
+
+Use the root POM for version changes rather than overriding Maven's revision on the command line:
+the Node build reads the POM. Rebuild both Java and desktop outputs after a change. The filtered Java
+resources, bundled bridges, and Electron metadata carry this version. It appears in the sidebar,
+**Settings → About**, and the native **About GateRook** panel.
+
+### Component outputs
+
 `npm run build` runs the design generator, `mvn -B -ntp -DskipTests package`, the Angular production build, and the Electron development bundle. Tests are compiled but not run by this command.
 
 | Output | Purpose |

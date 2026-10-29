@@ -17,10 +17,11 @@
 //   node scripts/stage.mjs --platform darwin-arm64 --skip-cloudflared --out <dir>
 //
 // Missing optional parts become placeholders (README.txt saying what goes there); a missing UI or core is an error.
-import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { readApplicationVersion } from './sync-version.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -144,7 +145,10 @@ export async function stage(o, sources = {}) {
   }
 
   // Bridges: the Node bridge always (Claude Desktop extensions carry a copy the core builds), the Java ones if built.
-  copyFile(src.bridgeMjs, join(o.out, 'bridge', 'gw-bridge.mjs'));
+  const bridgeDir = join(o.out, 'bridge');
+  mkdirSync(bridgeDir, { recursive: true });
+  writeFileSync(join(bridgeDir, 'gw-bridge.mjs'),
+    readFileSync(src.bridgeMjs, 'utf8').replaceAll('@project.version@', readApplicationVersion()));
   const bridges = ['gw-bridge.mjs'];
   if (existsSync(src.bridgeNative)) {
     copyFile(src.bridgeNative, join(o.out, 'bridge', basename(src.bridgeNative)), 0o755);

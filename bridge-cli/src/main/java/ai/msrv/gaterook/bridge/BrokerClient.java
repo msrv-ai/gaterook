@@ -25,7 +25,7 @@ import java.util.concurrent.TimeoutException;
  */
 final class BrokerClient {
 
-  static final String VERSION = "0.4.1";
+  static final String VERSION = BridgeBuild.VERSION;
   static final int MAX_ANSWER = 64 * 1024;
 
   /** The broker isn't there, or didn't answer in time. */

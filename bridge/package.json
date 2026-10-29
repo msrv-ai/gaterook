@@ -23,6 +23,7 @@
     "README.md"
   ],
   "scripts": {
+    "pretest": "node ../scripts/sync-version.mjs",
     "test": "node --test \"test/**/*.test.mjs\""
   },
   "engines": {

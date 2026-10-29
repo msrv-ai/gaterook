@@ -8,7 +8,7 @@
     "sync-kit": "node ../scripts/sync-kit-assets.mjs",
     "prestart": "npm run sync-kit",
     "start": "ng serve",
-    "prebuild": "npm run sync-kit",
+    "prebuild": "node ../scripts/sync-version.mjs && npm run sync-kit",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "pretest": "npm run sync-kit",

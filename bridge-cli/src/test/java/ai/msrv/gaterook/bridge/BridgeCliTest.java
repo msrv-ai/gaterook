@@ -49,6 +49,14 @@ class BridgeCliTest {
   }
 
   @Test
+  void versionOutputMatchesTheMavenBuild() {
+    Run r = run(Map.of(), "", "--version");
+    assertThat(r.code()).isZero();
+    assertThat(r.out().strip()).isEqualTo(System.getProperty("gateway.build.version"));
+    assertThat(r.err()).isEmpty();
+  }
+
+  @Test
   void headersPrintsOnlyTheAuthorizationHeader() throws IOException {
     try (FakeBroker broker = new FakeBroker(home, r -> issued(7465, "dev", "gwb_0123456789abcdef"))) {
       Run r = run(Map.of("GW_HOME", home.toString()), "", "headers", "--endpoint", "dev", "--grant", GRANT);
@@ -59,6 +67,7 @@ class BridgeCliTest {
       assertThat(Json.string(request, "client")).isEqualTo("codex");
       assertThat(Json.string(request, "endpoint")).isEqualTo("dev");
       assertThat(Json.string(request, "grant")).isEqualTo(GRANT);
+      assertThat(Json.string(request, "bridge")).isEqualTo(System.getProperty("gateway.build.version"));
       assertThat(Json.get(request, "pid")).isInstanceOf(Long.class);
     }
   }

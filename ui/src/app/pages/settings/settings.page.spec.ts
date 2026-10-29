@@ -227,7 +227,7 @@ function configure(): void {
       { provide: OAuthApi, useValue: { grants: () => world.grants(), revoke: (id: string) => (calls.push(`revoke ${id}`), (world.grants = () => Promise.resolve([])), Promise.resolve()) } satisfies Partial<OAuthApi> },
       { provide: EventStream, useValue: events },
       { provide: DesktopBridge, useFactory: () => desktop },
-      { provide: CoreStore, useValue: { running: signal(true), instanceChanges: signal(0) } },
+      { provide: CoreStore, useValue: { running: signal(true), instanceChanges: signal(0), version: signal<string | null>(kitHealth().version) } },
       { provide: ApprovalsStore, useValue: { pendingCount: signal(3) } },
       { provide: SettingsStore, useValue: { put: () => undefined } },
       { provide: TunnelStore, useValue: { refresh: () => Promise.resolve(), stop: () => (calls.push('tunnel stop'), Promise.resolve()) } },
@@ -357,6 +357,22 @@ describe('Settings page: loading, failure, the layout', () => {
     await settle();
     expect(text($('.gw-alert--warning .gw-alert__title', el))).toBe('This page may be out of date.');
     expect($('#settings-general', el)).not.toBeNull();
+  });
+
+  it('About follows the running application version, including before it is available', async () => {
+    const core = TestBed.inject(CoreStore) as unknown as { version: ReturnType<typeof signal<string | null>> };
+    core.version.set(null);
+    const el = await render();
+    const version = () => text($('[aria-labelledby="st-about-version-t"] .gw-mono', el));
+    expect(version()).toBe('Unavailable');
+
+    core.version.set('7.3.2-rc.4');
+    await settle();
+    expect(version()).toBe('7.3.2-rc.4');
+
+    core.version.set('8.0.0');
+    await settle();
+    expect(version()).toBe('8.0.0');
   });
 });
 

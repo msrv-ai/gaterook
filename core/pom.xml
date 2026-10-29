@@ -11,7 +11,7 @@
   <parent>
     <groupId>ai.msrv.gaterook</groupId>
     <artifactId>mcp-gateway</artifactId>
-    <version>0.4.1</version>
+    <version>${revision}</version>
   </parent>
 
   <artifactId>core</artifactId>
@@ -208,6 +208,7 @@
       -->
       <resource>
         <directory>${project.basedir}/../bridge</directory>
+        <filtering>true</filtering>
         <includes>
           <include>gw-bridge.mjs</include>
         </includes>

@@ -65,10 +65,16 @@
     <section class="gw-settings-layout__section" id="settings-about" aria-labelledby="st-about-t">
       <header class="gw-section__header">
         <h2 class="gw-section__title" id="st-about-t">About</h2>
-        <p class="gw-section__description">Project author, website, source code and license.</p>
+        <p class="gw-section__description">Application version, project author, website, source code and license.</p>
       </header>
       <hr class="gw-divider">
       <div class="gw-stack">
+        <section class="gw-section" aria-labelledby="st-about-version-t">
+          <header class="gw-section__header">
+            <h3 class="gw-section__title" id="st-about-version-t">Version</h3>
+          </header>
+          <p class="gw-text-body-read"><span class="gw-mono">{{ appVersion() ?? 'Unavailable' }}</span></p>
+        </section>
         <section class="gw-section" aria-labelledby="st-about-author-t">
           <header class="gw-section__header">
             <h3 class="gw-section__title" id="st-about-author-t">Author</h3>

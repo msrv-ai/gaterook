@@ -13,9 +13,13 @@
     "bridge"
   ],
   "scripts": {
+    "version:sync": "node scripts/sync-version.mjs",
+    "pretest": "npm run version:sync",
     "test": "node --test \"scripts/*.test.mjs\"",
     "verify:design": "npm --prefix design run verify",
+    "prebuild:java": "npm run version:sync",
     "build:java": "mvn -B -ntp -DskipTests package",
+    "prebuild": "npm run version:sync",
     "build": "npm run build --prefix design && npm run build:java && npm run build -w ui && npm run build -w desktop",
     "start": "node desktop/scripts/dev.mjs",
     "dev:ui": "npm run dev -w ui --"
