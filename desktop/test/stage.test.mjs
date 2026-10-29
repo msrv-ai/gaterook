@@ -1,10 +1,13 @@
 // scripts/stage.mjs: what the installers carry, laid out as desktop/electron-builder.yml packs it.
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { parseArgs, platformKey, sqliteLibName, stage } from '../../scripts/stage.mjs';
+import { readApplicationVersion } from '../../scripts/sync-version.mjs';
 
 const dir = realpathSync(mkdtempSync(join(tmpdir(), 'gw-stage-')));
 after(() => rmSync(dir, { recursive: true, force: true }));
@@ -71,6 +74,19 @@ describe('stage.mjs', () => {
     await stage({ out, platform: 'linux-x64', core: null, jar: true, jre: null, skipCloudflared: true }, sources);
     assert.equal(readFileSync(join(out, 'core', 'app.jar'), 'utf8'), 'jar');
     assert.ok(!existsSync(join(out, 'core', 'gaterook-core')));
+  });
+
+  it('embeds the application version in the standalone Node bridge', async () => {
+    const { sources } = fakes();
+    const out = join(dir, 'out-version');
+    await stage({ out, platform: 'linux-x64', core: null, jar: true, jre: null, skipCloudflared: true },
+      { ...sources, bridgeMjs: fileURLToPath(new URL('../../bridge/gw-bridge.mjs', import.meta.url)) });
+    const bridge = join(out, 'bridge', 'gw-bridge.mjs');
+    assert.ok(!readFileSync(bridge, 'utf8').includes('@project.version@'));
+    assert.ok(!existsSync(join(out, 'bridge', 'package.json')));
+    const result = spawnSync(process.execPath, [bridge, '--version'], { encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout.trim(), readApplicationVersion());
   });
 
   it('refuses to stage without a UI or a core', async () => {

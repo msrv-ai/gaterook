@@ -14,7 +14,7 @@
   <parent>
     <groupId>ai.msrv.gaterook</groupId>
     <artifactId>mcp-gateway</artifactId>
-    <version>0.4.1</version>
+    <version>${revision}</version>
   </parent>
 
   <artifactId>plugin-host</artifactId>

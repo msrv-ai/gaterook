@@ -4,7 +4,7 @@ GateRook is a single application source tree with Maven modules and npm workspac
 
 | Path | Responsibility |
 | --- | --- |
-| `pom.xml` | Java dependency management, reactor modules, build profiles, and test configuration |
+| `pom.xml` | Application version, Java dependency management, reactor modules, build profiles, and test configuration |
 | `package.json`, `package-lock.json`, `.nvmrc` | Node toolchain, workspace dependencies, and local commands |
 | `.gitattributes` | Portable source line endings and exact-byte preservation for golden fixtures, vendored schemas, and migrations |
 | `app/` | Executable Spring Boot application, native image configuration, process and end-to-end tests |
