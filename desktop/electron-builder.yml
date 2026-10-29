@@ -11,6 +11,8 @@ directories:
   output: release
   buildResources: build
 asar: true
+# A workspace module resolves from either the repository root or the desktop directory.
+afterPack: '@gaterook/desktop/scripts/after-pack.mjs'
 files:
   - package.json
   - dist/main.cjs

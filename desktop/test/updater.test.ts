@@ -195,6 +195,19 @@ describe('explicit desktop updates', () => {
     assert.equal(installed.prepares(), 0);
   });
 
+  it('reports a missing packaged update source before loading the updater', async (t) => {
+    const resources = tempDir('updater-without-source');
+    t.after(() => resources.remove());
+    const f = fixture(t, { platform: 'darwin', resourcesPath: resources.dir });
+    await f.updates.check();
+    await f.updates.install();
+    assert.equal(f.loads(), 0);
+    assert.equal(f.driver.checks, 0);
+    assert.equal(f.driver.downloads, 0);
+    assert.equal(f.updates.current()?.state, 'error');
+    assert.equal((f.updates.current() as { message: string }).message, 'This build has no update source.');
+  });
+
   it('reports loader errors and allows a later check', async (t) => {
     let attempts = 0;
     const driver = new FakeUpdater();
