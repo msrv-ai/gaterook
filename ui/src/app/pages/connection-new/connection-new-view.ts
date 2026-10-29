@@ -471,6 +471,7 @@ export function firstRunTestText(target: string): string {
 export const POLICY_SECTION: Readonly<Record<string, string>> = {
   postgres: 'sql',
   mysql: 'sql',
+  oracle: 'sql',
   ssh: 'ssh',
   kubernetes: 'k8s',
   logs: 'logs',

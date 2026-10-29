@@ -52,7 +52,7 @@ final class TestProbe {
   }
 
   TestResult test(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
-    ConnectionSettings settings = ConnectionSettings.of(cfg, dialect.mysql());
+    ConnectionSettings settings = ConnectionSettings.of(cfg, dialect);
     if (!DatabaseSelection.configured(cfg)) return testOne(cfg, secrets, ctx, settings);
     List<String> databases = DatabaseSelection.selected(cfg);
     if (databases.isEmpty()) return TestResult.failure("sql.database", "Select at least one database.", null);
@@ -91,7 +91,10 @@ final class TestProbe {
 
   /** Discover catalogs using the login alone, before a database has been selected. */
   TestResult discoverDatabases(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) {
-    ConnectionSettings s = ConnectionSettings.of(cfg, dialect.mysql()).withDatabase(
+    if (dialect.syntax() == SqlSyntax.ORACLE) {
+      return TestResult.failure("sql.database", "Enter the Oracle service name in the connection settings.", null);
+    }
+    ConnectionSettings s = ConnectionSettings.of(cfg, dialect).withDatabase(
         dialect.mysql() ? null : discoveryDatabase(cfg), dialect.mysql());
     int budget = (int) Math.max(1, Math.min(BUDGET_MS, ctx.remaining().toMillis()));
     if (ctx.cancelled() || ctx.remaining().isZero()) {
@@ -185,7 +188,11 @@ final class TestProbe {
       checks.add(new TestResult.Check("connect", true, connectMs, "Connected to " + s.target()));
       try (c) {
         ctx.onCancel(() -> closeOnCancel(c));
-        return probe(c, cfg, s, login.user(), checks, connectMs, started);
+        try {
+          return probe(c, cfg, s, login.user(), checks, connectMs, started);
+        } finally {
+          if (dialect.syntax() == SqlSyntax.ORACLE) c.rollback();
+        }
       } catch (SQLException e) {
         return failure(e, s, login.user()).withChecks(checks);
       }
@@ -197,11 +204,15 @@ final class TestProbe {
   private TestResult probe(Connection c, ConnectionConfig cfg, ConnectionSettings s, String user,
       List<TestResult.Check> checks, long connectMs, long started) throws SQLException {
     // Every probe only reads; the socket timeout of the budget bounds each one.
-    c.setReadOnly(true);
+    if (dialect.syntax() != SqlSyntax.ORACLE) c.setReadOnly(true);
+    else {
+      c.setAutoCommit(false);
+      dialect.prelude(c, dialect.identify(c), s, BUDGET_MS, true);
+    }
     ServerInfo server = dialect.identify(c);
     SqlProbe probe = dialect.probe();
     long latency = latency(c);
-    checks.add(new TestResult.Check("latency", true, latency, "Median of three SELECT 1"));
+    checks.add(new TestResult.Check("latency", true, latency, "Median of three " + dialect.pingSql()));
     SqlProbe.Tls tls = probe.tls(c, server);
     checks.add(new TestResult.Check("tls", true, 0, tls.enabled() ? "Encrypted · " + tls.version() : "Not encrypted"));
     SqlProbe.Access access = probe.access(c, s, server);
@@ -306,12 +317,12 @@ final class TestProbe {
     };
   }
 
-  private static long latency(Connection c) throws SQLException {
+  private long latency(Connection c) throws SQLException {
     long[] runs = new long[3];
     try (Statement st = c.createStatement()) {
       for (int i = 0; i < runs.length; i++) {
         long t = System.nanoTime();
-        st.execute("SELECT 1");
+        st.execute(dialect.pingSql());
         runs[i] = ms(t);
       }
     }
@@ -341,12 +352,17 @@ final class TestProbe {
         return TestResult.failure("sql.tls", "TLS: " + tlsText(t, s) + ".", technical);
       }
     }
-    if ("28P01".equals(state) || "28000".equals(state) || code == 1045) {
+    if ("28P01".equals(state) || "28000".equals(state) || code == 1045
+        || (dialect.syntax() == SqlSyntax.ORACLE && (code == 1017 || code == 28000 || code == 28001))) {
       return TestResult.failure("sql.auth", "Password authentication failed for user " + (user == null ? "?" : user)
           + ".", technical);
     }
     if ("3D000".equals(state) || code == 1049) {
       return TestResult.failure("sql.database", "Database " + s.database() + " doesn't exist.", technical);
+    }
+    if (dialect.syntax() == SqlSyntax.ORACLE && (code == 12514 || code == 12505)) {
+      return TestResult.failure("sql.database", "Oracle service " + s.database()
+          + " is not registered with the listener. Check the service name and port.", technical);
     }
     if (state != null && state.startsWith("08")) {
       String msg = SqlErrors.firstLine(e.getMessage());

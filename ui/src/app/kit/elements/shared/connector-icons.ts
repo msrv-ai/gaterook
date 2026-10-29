@@ -5,6 +5,7 @@
 export const CONNECTOR_ICONS: Record<string, string> = {
   postgres: 'database',
   mysql: 'database',
+  oracle: 'database',
   sql: 'database',
   mongodb: 'leaf',
   redis: 'layers',
@@ -25,6 +26,7 @@ export const CONNECTOR_ICONS: Record<string, string> = {
 export const CONNECTOR_NAMES: Record<string, string> = {
   postgres: 'PostgreSQL',
   mysql: 'MySQL',
+  oracle: 'Oracle Database',
   mongodb: 'MongoDB',
   redis: 'Redis',
   opensearch: 'OpenSearch',

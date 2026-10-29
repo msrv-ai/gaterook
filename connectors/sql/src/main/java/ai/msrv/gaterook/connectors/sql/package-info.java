@@ -1,9 +1,8 @@
 /**
- * SQL connectors for PostgreSQL ({@code postgres}) and MySQL/MariaDB ({@code mysql}), report 04.
+ * SQL connectors for PostgreSQL ({@code postgres}), MySQL/MariaDB ({@code mysql}) and Oracle Database ({@code oracle}).
  *
  * <p>One {@link ai.msrv.gaterook.connectors.sql.JdbcSqlConnector} per dialect, with the same four tools. Reads run in a
- * READ ONLY transaction that always ends with ROLLBACK (the database is the guarantee); the JSqlParser classifier
- * picks the route; the account's grants are the real boundary. Step C1 implements execution; this package has the
- * final manifests.
+ * READ ONLY transaction that always ends with ROLLBACK; the JSqlParser classifier picks the route and the account's
+ * grants are the access boundary. Oracle autonomous routines invoked indirectly remain outside that transaction.
  */
 package ai.msrv.gaterook.connectors.sql;

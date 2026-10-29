@@ -109,6 +109,19 @@ async function databaseForm(type = 'mysql') {
   return { ...view, load, choose };
 }
 
+describe('connection form: Oracle Database', () => {
+  it('requires a service name without offering database discovery', async () => {
+    const { host, el, settle } = await render();
+    host.spec.set(spec('oracle'));
+    await settle();
+    expect(el.querySelector('#cf-database-load')).toBeNull();
+    const service = el.querySelector<HTMLInputElement>('#cf-connection-database')!;
+    expect(service).not.toBeNull();
+    expect(el.querySelector('label[for="cf-connection-database"]')?.textContent).toContain('Service name');
+    expect(el.querySelector<HTMLInputElement>('#cf-connection-port')?.value).toBe('1521');
+  });
+});
+
 describe('connection form: GCP setup', () => {
   it.each(['gcp-logging', 'loki', 'cloudwatch', 'opensearch'])('keeps %s fixed to its own backend without exposing a backend selector', async (type) => {
     const { el, host, settle } = await render();

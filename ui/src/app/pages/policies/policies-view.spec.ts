@@ -218,6 +218,8 @@ describe('Policies page words', () => {
     const conns = kitConnections();
     expect(envConnections('stage', conns).map((r) => r.name)).toEqual(['stage-db', 'aws-stage', 'billing-api']);
     expect(sectionConnections('sql', 'dev', conns).map((r) => r.name)).toEqual(['dev-db']);
+    const oracle = { ...conns.find((connection) => connection.type === 'postgres' && connection.env === 'dev')!, name: 'orders-oracle', type: 'oracle' };
+    expect(sectionConnections('sql', 'dev', [oracle]).map((r) => r.name)).toEqual(['orders-oracle']);
     expect(sectionConnections('k8s', 'dev', conns).map((r) => r.name)).toEqual(['dev-cluster']);
     expect(sectionConnections('ssh', 'stage', conns)).toEqual([]);
     expect(allowlistHosts(['https://billing.stage.acme.dev/v1', 'https://billing.stage.acme.dev', 'not a url'])).toEqual(['billing.stage.acme.dev']);

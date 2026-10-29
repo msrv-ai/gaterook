@@ -11,7 +11,7 @@ import tools.jackson.databind.JsonNode;
 /**
  * Which functions a read may call (report 04 §6.2, ARCHITECTURE.md §9 "SQL reads cannot write").
  *
- * <p>A READ ONLY transaction stops every write a function makes inside the database, but not what happens outside
+ * <p>For PostgreSQL and MySQL, a READ ONLY transaction stops writes a function makes inside it, but not effects outside
  * it: advisory locks, signals to other sessions, files of the server, a new connection through {@code dblink}. So:
  * <ul>
  *   <li>the <b>denylist</b> is refused wherever it appears, by name (with or without a schema, any case), plus the
@@ -23,6 +23,9 @@ import tools.jackson.databind.JsonNode;
  *       functions. Any other function makes the call one that may write: an approval on dev and stage, refused on
  *       prod.</li>
  * </ul>
+ * Oracle accepts only unquoted SQL built-ins: stored routines may use autonomous transactions whose commits survive
+ * the caller's rollback. This static check does not resolve view definitions or parameterless stored functions;
+ * database privileges remain the boundary for those indirect calls.
  */
 final class FunctionRules {
 
@@ -174,6 +177,29 @@ final class FunctionRules {
       "charset", "collation", "coercibility", "icu_version", "roles_graphml", "current_role", "is_free_lock",
       "is_used_lock", "name_const", "values", "default", "statement_digest", "statement_digest_text");
 
+  /** SQL scalar, aggregate and analytic built-ins; stored PL/SQL packages are deliberately absent. */
+  static final Set<String> ORACLE_BUILT_IN = names(
+      "abs", "acos", "asin", "atan", "atan2", "bitand", "ceil", "cos", "cosh", "exp", "floor", "ln", "log",
+      "mod", "nanvl", "power", "remainder", "round", "sign", "sin", "sinh", "sqrt", "tan", "tanh", "trunc",
+      "width_bucket", "ascii", "asciistr", "chr", "concat", "initcap", "instr", "instrb", "instrc", "instr2",
+      "instr4", "length", "lengthb", "lengthc", "length2", "length4", "lower", "lpad", "ltrim", "nchr",
+      "nls_initcap", "nls_lower", "nls_upper", "nlssort", "regexp_count", "regexp_instr", "regexp_replace",
+      "regexp_substr", "replace", "rpad", "rtrim", "soundex", "substr", "substrb", "substrc", "substr2",
+      "substr4", "translate", "trim", "unistr", "upper", "add_months", "current_date", "current_timestamp",
+      "dbtimezone", "extract", "from_tz", "last_day", "localtimestamp", "months_between", "new_time", "next_day",
+      "numtodsinterval", "numtoyminterval", "sessiontimezone", "sysdate", "systimestamp", "sys_extract_utc",
+      "to_char", "to_date", "to_dsinterval", "to_number", "to_timestamp", "to_timestamp_tz", "to_yminterval",
+      "to_binary_double", "to_binary_float", "to_clob", "to_nchar", "to_nclob", "cast", "convert", "hextoraw",
+      "rawtohex", "rawtonhex", "rowidtochar", "chartorowid", "coalesce", "decode", "greatest", "least", "nvl",
+      "nvl2", "nullif", "avg", "count", "max", "min", "sum", "median", "listagg", "stddev", "stddev_pop",
+      "stddev_samp", "variance", "var_pop", "var_samp", "corr", "covar_pop", "covar_samp", "grouping",
+      "grouping_id", "group_id", "dense_rank", "rank", "row_number", "percent_rank", "cume_dist", "ntile",
+      "lag", "lead", "first_value", "last_value", "nth_value", "percentile_cont", "percentile_disc",
+      "ratio_to_report", "regr_slope", "regr_intercept", "regr_count", "regr_r2", "regr_avgx", "regr_avgy",
+      "regr_sxx", "regr_syy", "regr_sxy", "json_array", "json_arrayagg", "json_object", "json_objectagg",
+      "json_value", "json_query", "json_serialize", "json_exists", "json_table", "standard_hash", "ora_hash",
+      "sys_context", "userenv", "uid", "user", "vsize", "dump", "sys_connect_by_path", "lnnvl");
+
   private FunctionRules() {}
 
   /** The lists above name a few functions in more than one group; a set keeps each once. */
@@ -190,9 +216,18 @@ final class FunctionRules {
    */
   static Verdict check(List<FunctionRef> functions, boolean mysql, Set<String> metadataBuiltIns,
       List<String> policyDenied, List<String> allowed) {
+    return check(functions, SqlSyntax.of(mysql), metadataBuiltIns, policyDenied, allowed);
+  }
+
+  static Verdict check(List<FunctionRef> functions, SqlSyntax syntax, Set<String> metadataBuiltIns,
+      List<String> policyDenied, List<String> allowed) {
     List<String> denied = new ArrayList<>();
     List<String> notBuiltIn = new ArrayList<>();
-    List<String> denylist = new ArrayList<>(mysql ? MYSQL_DENIED : POSTGRES_DENIED);
+    List<String> denylist = new ArrayList<>(switch (syntax) {
+      case MYSQL -> MYSQL_DENIED;
+      case POSTGRES -> POSTGRES_DENIED;
+      case ORACLE -> List.of("dbms_*", "utl_*", "nextval", "currval");
+    });
     policyDenied.forEach(d -> denylist.add(d.toLowerCase(Locale.ROOT)));
     Set<String> seen = new HashSet<>();
     for (FunctionRef f : functions) {
@@ -200,11 +235,20 @@ final class FunctionRules {
         continue;
       }
       String bare = unquote(f.parts().getLast()).toLowerCase(Locale.ROOT);
-      if (Glob.anyText(denylist, bare)) {
+      if (Glob.anyText(denylist, bare)
+          || (syntax == SqlSyntax.ORACLE && f.parts().stream()
+              .map(part -> unquote(part).toLowerCase(Locale.ROOT)).anyMatch(part -> Glob.anyText(denylist, part)))) {
         denied.add(f.written());
         continue;
       }
-      if (!builtIn(f, mysql, metadataBuiltIns) && !allowed(f, mysql, allowed)) {
+      if (syntax == SqlSyntax.ORACLE) {
+        // Autonomous PL/SQL can commit outside the read-only transaction, even when the caller rolls back.
+        // Neither approval nor allowedFunctions can turn a stored routine into a safe read.
+        if (f.parts().size() != 1 || quoted(f.parts().getFirst()) || !ORACLE_BUILT_IN.contains(bare)) {
+          denied.add(f.written());
+        }
+      } else if (!builtIn(f, syntax == SqlSyntax.MYSQL, metadataBuiltIns)
+          && !allowed(f, syntax == SqlSyntax.MYSQL, allowed)) {
         notBuiltIn.add(f.written());
       }
     }

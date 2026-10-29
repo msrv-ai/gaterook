@@ -14,9 +14,9 @@ import java.util.Properties;
  * parameters: report 04 §6.5), the settings of every call, plan estimates, introspection, the probes of Test
  * connection and password changes.
  */
-public sealed interface SqlDialect permits PostgresDialect, MySqlDialect {
+public sealed interface SqlDialect permits PostgresDialect, MySqlDialect, OracleDialect {
 
-  /** Connector type: {@code postgres} or {@code mysql}. */
+  /** Connector type: {@code postgres}, {@code mysql}, or {@code oracle}. */
   String type();
 
   /** Catalog name, e.g. "PostgreSQL". */
@@ -28,13 +28,23 @@ public sealed interface SqlDialect permits PostgresDialect, MySqlDialect {
   /** Name of the connection form under {@code connectors/sql/}, without {@code .schema.json}. */
   String configSchemaName();
 
-  /** MySQL's lexer and parser rules (backslash escapes, backticks); PostgreSQL's otherwise. */
+  /** Whether MySQL-specific driver behavior applies; use {@link #syntax()} for parsing and identifiers. */
   boolean mysql();
+
+  /** Identifier, literal and policy rules for this database. */
+  default SqlSyntax syntax() {
+    return mysql() ? SqlSyntax.MYSQL : SqlSyntax.POSTGRES;
+  }
+
+  /** A minimal query supported by the server. */
+  default String pingSql() {
+    return "SELECT 1";
+  }
 
   /** The driver itself: no {@code DriverManager} scan, no driver chosen by URL. */
   Driver driver();
 
-  /** {@code jdbc:postgresql://host:port/database}, from fields the form validated. */
+  /** A driver URL built from fields the form validated, without arbitrary JDBC properties. */
   String url(ConnectionSettings s);
 
   /**

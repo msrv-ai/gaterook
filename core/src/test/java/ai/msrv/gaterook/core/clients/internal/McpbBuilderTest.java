@@ -3,6 +3,7 @@ package ai.msrv.gaterook.core.clients.internal;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ai.msrv.gaterook.connector.api.Env;
+import ai.msrv.gaterook.core.platform.CoreBuild;
 import ai.msrv.gaterook.core.platform.LaunchSecret;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -20,8 +21,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * The Claude Desktop extension of an endpoint (report 03 §7.4): the manifest names the endpoint and the grant, never a
- * token; the ZIP holds the bridge the npm package ships; the same endpoint gives the same bytes. The app's E2E profile
- * runs {@code npx @anthropic-ai/mcpb@2.1.2 validate} on it.
+ * token; the ZIP holds the bridge with this build's version embedded; the same endpoint gives the same bytes. The app's
+ * E2E profile runs {@code npx @anthropic-ai/mcpb@2.1.2 validate} on it.
  */
 class McpbBuilderTest {
 
@@ -72,7 +73,8 @@ class McpbBuilderTest {
           StandardCharsets.UTF_8);
       assertThat(JsonMapper.builder().build().readTree(manifest)).isEqualTo(McpbBuilder.manifest(spec(Env.PROD)));
       byte[] bridge = zip.getInputStream(zip.getEntry("server/gw-bridge.mjs")).readAllBytes();
-      assertThat(bridge).isEqualTo(Files.readAllBytes(Path.of("../bridge/gw-bridge.mjs")));
+      assertThat(new String(bridge, StandardCharsets.UTF_8)).isEqualTo(
+          Files.readString(Path.of("../bridge/gw-bridge.mjs")).replace("@project.version@", CoreBuild.VERSION));
     }
   }
 
