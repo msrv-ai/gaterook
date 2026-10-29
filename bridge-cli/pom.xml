@@ -11,7 +11,7 @@
   <parent>
     <groupId>ai.msrv.gaterook</groupId>
     <artifactId>mcp-gateway</artifactId>
-    <version>0.4.0-SNAPSHOT</version>
+    <version>${revision}</version>
   </parent>
 
   <artifactId>bridge-cli</artifactId>
@@ -41,6 +41,15 @@
 
   <build>
     <finalName>gw-bridge</finalName>
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+      </resource>
+      <resource>
+        <directory>src/main/resources-filtered</directory>
+        <filtering>true</filtering>
+      </resource>
+    </resources>
     <plugins>
       <!-- `java -jar gw-bridge.jar` (the JVM fallback of the shim): Landlock and execve go through FFM. -->
       <plugin>

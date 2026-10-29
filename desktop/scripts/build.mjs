@@ -13,8 +13,10 @@ import { copyFileSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildNativeUnlock } from './build-native-unlock.mjs';
+import { syncVersions } from '../../scripts/sync-version.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+syncVersions(join(root, '..'));
 const release = process.argv.includes('--release');
 const dist = join(root, 'dist');
 rmSync(dist, { recursive: true, force: true });

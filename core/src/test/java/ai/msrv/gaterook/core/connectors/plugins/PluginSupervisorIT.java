@@ -289,13 +289,13 @@ class PluginSupervisorIT {
 
   private static Path jiraJar(String version) {
     Path p = Path.of("..", "plugins", "jira-service-desk", "target",
-        "plugins-jira-service-desk-0.4.0-SNAPSHOT-" + version + ".jar");
+        "plugins-jira-service-desk-" + System.getProperty("gateway.build.version") + "-" + version + ".jar");
     return Files.isRegularFile(p) ? p : null;
   }
 
   private static Path fixtureJar(String name) {
     Path p = Path.of("..", "plugins", "test-fixtures", "target",
-        "plugins-test-fixtures-0.4.0-SNAPSHOT-" + name + ".jar");
+        "plugins-test-fixtures-" + System.getProperty("gateway.build.version") + "-" + name + ".jar");
     return Files.isRegularFile(p) ? p : null;
   }
 

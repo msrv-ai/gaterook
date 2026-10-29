@@ -111,6 +111,8 @@ describe('gw-bridge.mjs', () => {
       const asked = core.seen.find((s) => s.url === '/internal/bridge/tokens');
       assert.equal(asked.body.client, 'claude-desktop');
       assert.equal(asked.body.grant, GRANT);
+      assert.equal(asked.body.bridge,
+        JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version);
       assert.equal(b.stderr().includes('gwb_'), false, 'no token in the logs');
     } finally {
       await b.stop();

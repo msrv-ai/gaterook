@@ -58,6 +58,11 @@ class SshCoreProcessIT {
   private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
   private static final String COMPOSE_PS = "NAME      IMAGE          STATUS\napp-api   app/api:1.42   Up 3 hours\n"
       + "app-db    postgres:16    Up 3 hours (healthy)\n";
+  private static final String ENVIRONMENT_PROBE = "printf 'os=%s\\nuser=%s\\nuid=%s\\ngroups=%s\\nshell=%s\\n' "
+      + "\"$(uname -srm)\" \"$(id -un)\" \"$(id -u)\" \"$(id -Gn)\" \"${SHELL:-}\"; "
+      + "if sudo -n true 2>/dev/null; then echo sudo=nopasswd; elif command -v sudo >/dev/null 2>&1; "
+      + "then echo sudo=password; else echo sudo=none; fi; for c in 'timeout' 'docker' 'systemctl'; "
+      + "do command -v \"$c\" >/dev/null 2>&1 && echo \"has=$c\"; done; true";
 
   private static SshServer sshd;
   private static KeyPair hostKey;
@@ -131,12 +136,29 @@ class SshCoreProcessIT {
     assertThat(second.path("serverVersion").asString()).startsWith("APACHE-SSHD-");
     assertThat(second.path("checks").toString()).contains("\"host key\"", "\"auth\"", "\"probe\"");
     // The test's one read-only probe: who the user is and which commands it has.
-    assertThat(COMMANDS).singleElement().asString().contains("id -un").contains("command -v");
+    assertThat(COMMANDS).containsExactly(ENVIRONMENT_PROBE);
     COMMANDS.clear();
 
     json(admin("POST", "/api/connections", """
         {"name":"dev-vm","type":"ssh","env":"dev","config":%s,
          "secrets":{"/credentials/password":{"source":"local","value":"%s"}}}""".formatted(pinned, PASSWORD)), 201);
+
+    // Saving a connection starts health and fact discovery. Wait for its completed metadata write before
+    // isolating the runbook command ledger; only this exact read-only probe may run during setup.
+    JsonNode stored = null;
+    long deadline = System.nanoTime() + Duration.ofSeconds(15).toNanos();
+    while (System.nanoTime() < deadline) {
+      stored = json(admin("GET", "/api/connections/dev-vm", null), 200);
+      if (stored.path("serverVersion").asString("").equals(second.path("serverVersion").asString())) {
+        break;
+      }
+      Thread.sleep(50);
+    }
+    assertThat(stored).isNotNull();
+    assertThat(stored.path("serverVersion").asString()).as("automatic SSH fact discovery completes")
+        .isEqualTo(second.path("serverVersion").asString());
+    assertThat(COMMANDS).as("only the environment probe runs after saving").containsExactly(ENVIRONMENT_PROBE);
+    COMMANDS.clear();
   }
 
   @Test
@@ -206,7 +228,8 @@ class SshCoreProcessIT {
         + "\"params\":{\"service\":\"api\"},\"note\":\"The API stopped answering\"}");
     JsonNode handle = request.at("/result/structuredContent");
     assertThat(handle.path("status").asString()).as(request.toString()).isEqualTo("pending");
-    assertThat(COMMANDS).hasSize(1);
+    assertThat(COMMANDS).as("the state-changing command cannot run before approval")
+        .containsExactly("cd '" + bin.getParent() + "' && docker compose ps");
 
     // The approver reads the exact line the host gets, and where it runs.
     String id = handle.path("handle").asString();
@@ -222,7 +245,8 @@ class SshCoreProcessIT {
         .isEqualTo("completed");
     assertThat(status.at("/result/structuredContent/result/stdout").asString())
         .isEqualTo(" Container app-api  Restarting\n");
-    assertThat(COMMANDS).last().isEqualTo("docker compose restart 'api'");
+    assertThat(COMMANDS).containsExactly("cd '" + bin.getParent() + "' && docker compose ps",
+        "docker compose restart 'api'");
   }
 
   @Test
@@ -230,7 +254,8 @@ class SshCoreProcessIT {
   void sshExecIsOffAndTheLogIsClean() throws Exception {
     JsonNode exec = call(6, "ssh_exec", "{\"connection\":\"dev-vm\",\"command\":\"id\"}");
     assertThat(exec.toString()).doesNotContain("uid=");
-    assertThat(COMMANDS).hasSize(2);
+    assertThat(COMMANDS).containsExactly("cd '" + bin.getParent() + "' && docker compose ps",
+        "docker compose restart 'api'");
 
     String log = core.coreLog();
     assertThat(log).doesNotContainPattern("Missing[A-Za-z]*Registration").doesNotContain("UnsupportedFeatureError");

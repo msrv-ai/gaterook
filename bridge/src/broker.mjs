@@ -15,9 +15,10 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
+import applicationVersion from './version.cjs';
 
 export const PROTOCOL_VERSION = 1;
-export const BROKER_VERSION = '0.4.0';
+export const BROKER_VERSION = applicationVersion;
 export const MAX_REQUEST_BYTES = 4096;
 
 const NOT_RUNNING = 'GateRook is not running. Open GateRook, then try again.';

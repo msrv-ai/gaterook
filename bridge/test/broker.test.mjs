@@ -47,8 +47,9 @@ describe('broker', () => {
 
   it('answers a ping without the core', async () => {
     const seen = core.seen.length;
+    const version = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
     assert.deepEqual(JSON.parse(await exchange(broker.path, '{"v":1,"op":"ping"}\n')),
-      { v: 1, ok: true, broker: '0.4.0' });
+      { v: 1, ok: true, broker: version });
     assert.equal(core.seen.length, seen);
     assert.equal(await ping(broker.path), true);
   });

@@ -10,6 +10,7 @@
 # Ignore accidental local dependencies and build output.
 node_modules/
 target/
+.flattened-pom.xml
 /dist/
 /build/
 /coverage/

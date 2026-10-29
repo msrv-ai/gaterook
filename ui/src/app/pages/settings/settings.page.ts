@@ -68,6 +68,7 @@ const FRAGMENT = /^(settings|st)-[a-z0-9-]+$/;
 export class SettingsPage {
   protected readonly data = inject(SettingsData);
   private readonly core = inject(CoreStore);
+  protected readonly appVersion = this.core.version;
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly doc = inject(DOCUMENT);

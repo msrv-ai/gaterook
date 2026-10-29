@@ -20,7 +20,11 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
-const VERSION = '0.4.0';
+// Maven and staging replace this token; running the source uses the synchronized workspace manifest.
+const BUILD_VERSION = '@project.version@';
+const VERSION = BUILD_VERSION.startsWith('@')
+  ? JSON.parse(fs.readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version
+  : BUILD_VERSION;
 const MAX_ANSWER = 64 * 1024 * 1024;
 const BROKER_WAIT_MS = 60_000;
 const REQUEST_WAIT_MS = 120_000;

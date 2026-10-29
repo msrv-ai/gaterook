@@ -1,5 +1,6 @@
 package ai.msrv.gaterook.core.secrets;
 
+import ai.msrv.gaterook.core.secrets.store.SecretRef;
 import java.time.Instant;
 import java.util.List;
 
@@ -15,4 +16,15 @@ import java.util.List;
  */
 public record SecretInfo(String id, String name, SecretOwner owner, String field, String ownerLabel,
     List<String> usedBy, String source, Integer version, String remoteVersion, Instant rotatedAt, String state,
-    boolean canRotate, String rotateReason, String ref, String store) {}
+    boolean canRotate, String rotateReason, String ref, String store) {
+
+  /** Whether this reference supplies a leased login, independent of the store's current connection state. */
+  public boolean dynamicReference() {
+    if (ref == null) return false;
+    try {
+      return SecretRef.parse(ref) instanceof SecretRef.Vault vault && vault.credsPath();
+    } catch (IllegalArgumentException ignored) {
+      return false;
+    }
+  }
+}

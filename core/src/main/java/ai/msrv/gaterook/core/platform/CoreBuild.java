@@ -11,7 +11,7 @@ public final class CoreBuild {
 
   private static final String PROPERTIES = "ai/msrv/gaterook/core/platform/core.properties";
 
-  /** The gateway version ({@code 0.4.0}), from a resource the build filters: the root pom is the only source. */
+  /** The gateway version from a resource the build filters: the root pom is the only source. */
   public static final String VERSION = readVersion();
 
   private CoreBuild() {}
