@@ -17,7 +17,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ui = join(dirname(fileURLToPath(import.meta.url)), '..');
 const out = join(ui, 'src/testing/connector-schemas.ts');
-const TYPES = ['postgres', 'mysql', 'oracle', 'sqlserver', 'mongodb', 'redis', 'ssh', 'ssh-logs', 'logs', 'gcp-logging', 'loki', 'cloudwatch', 'opensearch', 'kubernetes', 'gcp', 'aws', 'http', 'mcp-server'];
+const TYPES = ['postgres', 'mysql', 'oracle', 'sqlserver', 'mongodb', 'redis', 'ssh', 'ssh-logs', 'logs', 'gcp-logging', 'loki', 'cloudwatch', 'opensearch', 'elasticsearch', 'kubernetes', 'gcp', 'aws', 'http', 'mcp-server'];
 const base = process.env.GW_DEV_URL ?? 'http://127.0.0.1:4311';
 
 let schemas;

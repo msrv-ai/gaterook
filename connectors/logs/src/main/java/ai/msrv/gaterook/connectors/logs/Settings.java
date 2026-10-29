@@ -22,7 +22,7 @@ import tools.jackson.databind.JsonNode;
  */
 sealed interface Settings permits Settings.Loki, Settings.Gcp, Settings.CloudWatch, Settings.OpenSearch {
 
-  /** {@code loki | gcp-logging | cloudwatch | opensearch}, the {@code backend} of the output schema. */
+  /** {@code loki | gcp-logging | cloudwatch | opensearch | elasticsearch}, the {@code backend} of the output schema. */
   String backend();
 
   /** What people call the backend: {@code Loki}, {@code GCP Cloud Logging}. */
@@ -49,7 +49,7 @@ sealed interface Settings permits Settings.Loki, Settings.Gcp, Settings.CloudWat
     }
   }
 
-  /** Authentication of an HTTP backend (Loki, OpenSearch). */
+  /** Authentication of an HTTP backend (Loki, OpenSearch, Elasticsearch). */
   enum AuthMode { NONE, BEARER, BASIC, API_KEY, AWS_SIGV4 }
 
   /**
@@ -124,15 +124,17 @@ sealed interface Settings permits Settings.Loki, Settings.Gcp, Settings.CloudWat
   }
 
   /**
+   * Shared OpenSearch and Elasticsearch REST settings; scoped log fields apply only to legacy OpenSearch.
+   *
    * @param indices        index patterns used by the scoped log tools
    * @param awsCredentials credentials of {@code awsSigV4} (Amazon OpenSearch Service), else {@code null}
    * @param fullApi        explicitly enable REST tools with the connection user's server permissions
    */
   record OpenSearch(URI base, List<String> indices, String timestampField, String messageField, String severityField,
       List<String> labelFields, String scopeQuery, HttpAuth auth, String awsRegion, String awsService,
-      AwsSpec awsCredentials, String caCertificate, boolean fullApi) implements Settings {
-    @Override public String backend() { return "opensearch"; }
-    @Override public String title() { return "OpenSearch"; }
+      AwsSpec awsCredentials, String caCertificate, boolean fullApi, String backend) implements Settings {
+    @Override public String title() { return backend.equals("elasticsearch") ? "Elasticsearch" : "OpenSearch"; }
+    String tool(String operation) { return backend + "_" + operation; }
     @Override public String target() { return hostPort(base); }
     @Override public List<String> sources() { return indices; }
     @Override public String language() { return "Lucene query_string"; }
@@ -167,6 +169,12 @@ sealed interface Settings permits Settings.Loki, Settings.Gcp, Settings.CloudWat
         case "gcp-logging" -> gcp(c);
         case "cloudwatch" -> cloudWatch(c);
         case "opensearch" -> openSearch(c);
+        case "elasticsearch" -> {
+          if (!cfg.type().equals("elasticsearch")) {
+            throw new InvalidSettingsException("Use the dedicated Elasticsearch connector for this server.");
+          }
+          yield elasticsearch(c);
+        }
         default -> throw new InvalidSettingsException("Unknown backend \"" + backend + "\".");
       };
     } catch (InvalidSettingsException e) {
@@ -270,7 +278,17 @@ sealed interface Settings permits Settings.Loki, Settings.Gcp, Settings.CloudWat
       aws = AwsSpec.fromConfig(c, "/auth/awsCredentials", awsRegion);
     }
     return new OpenSearch(base, indices, ts, message, severity, labels, text(c, "scopeQuery", null), auth, awsRegion,
-        awsService, aws, text(c, "caCertificate", null), fullApi);
+        awsService, aws, text(c, "caCertificate", null), fullApi, "opensearch");
+  }
+
+  /** Elasticsearch shares REST transport with OpenSearch, but exposes no legacy log scope or AWS signing. */
+  private static OpenSearch elasticsearch(JsonNode c) {
+    if (!text(c, "apiAccess", "full").equals("full")) {
+      throw new InvalidSettingsException("The Elasticsearch connector uses full REST API access.");
+    }
+    HttpAuth auth = auth(c.path("auth"), "/auth", "basic", List.of("none", "basic", "apiKey", "bearer"));
+    return new OpenSearch(baseUrl(text(c, "url", null), false), List.of("*"), "@timestamp", "message", "log.level",
+        List.of(), null, auth, null, null, null, text(c, "caCertificate", null), true, "elasticsearch");
   }
 
   private static HttpAuth auth(JsonNode a, String pointer, String dflt, List<String> allowed) {

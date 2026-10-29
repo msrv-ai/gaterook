@@ -223,7 +223,7 @@ final class OpenSearchBackend implements Backend {
           r -> r.at("/version/distribution").asString("elasticsearch") + " " + r.at("/version/number").asString("?"));
       if (!"opensearch".equals(root.at("/version/distribution").asString(""))) {
         hints.add(new TestResult.Hint(TestResult.Severity.WARNING, "logs.not-opensearch", "/url",
-            "This looks like Elasticsearch, which GateRook doesn't support. Searches may still work."));
+            "This looks like Elasticsearch. Use the dedicated Elasticsearch connector for its REST API."));
       }
       version = root.at("/version/number").asString("unknown");
       probe.step("indices", () -> {
@@ -269,26 +269,26 @@ final class OpenSearchBackend implements Backend {
       return probe.failure(e);
     }
     hints.addAll(Probe.transport(s.base(), s.auth(), call.cfg().env()));
-    TestResult result = TestResult.success(dataMs, "OpenSearch " + version, identity,
+    TestResult result = TestResult.success(dataMs, s.title() + " " + version, identity,
         new TestResult.Permissions(level, "Reads " + String.join(", ", s.indices()),
             level == TestResult.Level.WRITE ? "Can write" : level == TestResult.Level.READ ? "None" : "Unknown",
             List.of(), null))
         .withChecks(probe.checks())
-        .withMetadata(JsonNodeFactory.instance.objectNode().put("serverVersion", "OpenSearch " + version));
+        .withMetadata(JsonNodeFactory.instance.objectNode().put("serverVersion", s.title() + " " + version));
     for (TestResult.Hint h : hints) {
       result = result.withHint(h);
     }
     return result;
   }
 
-  /** A general OpenSearch connection does not need log fields, matching indices or a nonempty cluster. */
+  /** A full REST connection does not need log fields, matching indices or a nonempty cluster. */
   private TestResult testApi() {
     Probe probe = new Probe(call.ctx());
     long started = System.nanoTime();
     try {
       JsonNode root = probe.step("version", () -> json(send("GET", "/", null, "cluster info"), "cluster info"),
-          r -> "OpenSearch " + r.at("/version/number").asString("unknown"));
-      String version = "OpenSearch " + root.at("/version/number").asString("unknown");
+          r -> s.title() + " " + r.at("/version/number").asString("unknown"));
+      String version = s.title() + " " + root.at("/version/number").asString("unknown");
       probe.optional("indices", () -> json(send("GET", "/_resolve/index/*?expand_wildcards=open", null,
           "index discovery"), "index discovery"), r -> r.path("indices").size() + " indices");
       TestResult result = TestResult.success((System.nanoTime() - started) / 1_000_000, version,
@@ -297,9 +297,9 @@ final class OpenSearchBackend implements Backend {
               "Unknown; writes are not tested", List.of(), null))
           .withChecks(probe.checks())
           .withMetadata(JsonNodeFactory.instance.objectNode().put("serverVersion", version).put("apiAccess", "full"))
-          .withHint(new TestResult.Hint(TestResult.Severity.INFO, "opensearch.full-api", "/apiAccess",
+          .withHint(new TestResult.Hint(TestResult.Severity.INFO, s.backend() + ".full-api", "/apiAccess",
               "Full REST access uses the server user's permissions. "
-                  + (call.cfg().type().equals("opensearch") ? "" : "Log index patterns and scopeQuery apply only "
+                  + (!call.cfg().type().equals("logs") ? "" : "Log index patterns and scopeQuery apply only "
                       + "to logs_search and logs_tail. ")
                   + "Administrative requests default to Approval; explicit endpoint "
                   + "Bypass executes them without asking."));
@@ -318,7 +318,7 @@ final class OpenSearchBackend implements Backend {
     try {
       Http.Response r = send("GET", "/", null, "the cluster info");
       if (!r.ok()) {
-        return HealthResult.unreachable("OpenSearch answered " + r.status());
+        return HealthResult.unreachable(s.title() + " answered " + r.status());
       }
       return HealthResult.healthy((System.nanoTime() - started) / 1_000_000);
     } catch (ConnectorException e) {
@@ -367,26 +367,28 @@ final class OpenSearchBackend implements Backend {
     ObjectNode out = JsonNodeFactory.instance.objectNode().put("apiAccess", "full")
         .put("scope", "Server credentials and permissions control all REST targets, including body-level indices. "
             + "Configured indices and scopeQuery restrict only logs_search and logs_tail.")
-        .put("discovery", "Use opensearch_indices to resolve index names, aliases and data streams. Use "
-            + "opensearch_query with GET /<index>/_mapping or /<index>/_settings to inspect them.")
-        .put("query", "opensearch_query accepts known REST read paths and JSON Query DSL, aggregations, mget and "
+        .put("discovery", "Use " + s.tool("indices") + " to resolve index names, aliases and data streams. Use "
+            + s.tool("query") + " with GET /<index>/_mapping or /<index>/_settings to inspect them.")
+        .put("query", s.tool("query") + " accepts known REST read paths and JSON Query DSL, aggregations, mget and "
             + "NDJSON msearch. Responses retain their original structure inside body.")
-        .put("administration", "Use opensearch_request for any REST API, including SQL/PPL, plugins, document "
+        .put("administration", "Use " + s.tool("request") + " for any REST API, including "
+            + (s.backend().equals("elasticsearch") ? "SQL, ES|QL, " : "SQL/PPL, plugins, ") + "document "
             + "writes, bulk, index settings, cluster settings, snapshots and security. Requests default to Approval; "
             + "explicit endpoint Bypass executes the prepared request without asking.")
         .put("pagination", "Use the API's own search_after, PIT, scroll, SQL cursor, composite after_key or task ID. "
-            + "Create/close server contexts and cancel tasks through opensearch_request. Narrow responses with "
+            + "Create/close server contexts and cancel tasks through " + s.tool("request") + ". Narrow responses with "
             + "size, _source and filter_path; a truncated body is incomplete.")
         .put("settings", "PUT /<index>/_settings changes dynamic index settings; PUT /_cluster/settings changes "
             + "persistent/transient cluster settings. Static node settings require server configuration and restart.");
     ArrayNode examples = out.putArray("apiExamples");
-    examples.addObject().put("tool", OpenSearchRequest.QUERY).put("method", "POST").put("path", "/products/_search")
+    examples.addObject().put("tool", s.tool("query")).put("method", "POST").put("path", "/products/_search")
         .set("body", JSON.readTree("{\"size\":10,\"query\":{\"match_all\":{}},\"aggs\":{\"categories\":{\"terms\":{\"field\":\"category.keyword\"}}}}"));
-    examples.addObject().put("tool", OpenSearchRequest.REQUEST).put("method", "PUT").put("path", "/products/_settings")
+    examples.addObject().put("tool", s.tool("request")).put("method", "PUT").put("path", "/products/_settings")
         .set("body", JSON.readTree("{\"index\":{\"number_of_replicas\":1}}"));
-    examples.addObject().put("tool", OpenSearchRequest.REQUEST).put("method", "PUT").put("path", "/_cluster/settings")
+    examples.addObject().put("tool", s.tool("request")).put("method", "PUT").put("path", "/_cluster/settings")
         .set("body", JSON.readTree("{\"persistent\":{\"indices.recovery.max_bytes_per_sec\":\"40mb\"}}"));
-    examples.addObject().put("tool", OpenSearchRequest.REQUEST).put("method", "POST").put("path", "/_plugins/_sql")
+    examples.addObject().put("tool", s.tool("request")).put("method", "POST")
+        .put("path", s.backend().equals("elasticsearch") ? "/_sql" : "/_plugins/_sql")
         .set("body", JSON.readTree("{\"query\":\"SELECT * FROM products LIMIT 10\"}"));
     return out;
   }
@@ -397,7 +399,7 @@ final class OpenSearchBackend implements Backend {
     request.checkSize(call.ctx().limits());
     OpenSearchHttp.BoundedResponse response = OpenSearchHttp.send(request(request.method(), request.path(),
         request.body(), request.contentType(), s.fullApi() ? API_SESSION_POLICY : SESSION_POLICY).build(),
-        request.body(), call.ctx(), call.ctx().limits().maxResponseBytes(), client().sslContext());
+        request.body(), call.ctx(), call.ctx().limits().maxResponseBytes(), client().sslContext(), s.title());
     ObjectNode out = JsonNodeFactory.instance.objectNode().put("status", response.status())
         .put("contentType", response.contentType()).put("truncated", response.truncated());
     if (!response.truncated() && !response.body().isBlank()) {
@@ -439,7 +441,7 @@ final class OpenSearchBackend implements Backend {
   private Http.Response send(String method, String pathAndQuery, String body, String what)
       throws ConnectorException {
     return Http.send(client(), request(method, pathAndQuery, body, "application/json", SESSION_POLICY), call.ctx(),
-        "OpenSearch " + what);
+        s.title() + " " + what);
   }
 
   private HttpRequest.Builder request(String method, String pathAndQuery, String body, String contentType,
@@ -503,23 +505,23 @@ final class OpenSearchBackend implements Backend {
     try {
       tree = JSON.readTree(r.body().isBlank() ? "{}" : r.body());
     } catch (JacksonException e) {
-      throw ConnectorException.resourceError("OpenSearch answered " + r.status() + " to " + what + " with something "
+      throw ConnectorException.resourceError(s.title() + " answered " + r.status() + " to " + what + " with something "
           + "that isn't JSON: " + Http.excerpt(r.body()), null);
     }
     if (!r.ok()) {
       String reason = tree.at("/error/root_cause/0/reason").asString(tree.at("/error/reason").asString(
           Http.excerpt(r.body())));
       throw switch (r.status()) {
-        case 400 -> ConnectorException.badInput("OpenSearch refused the query: " + Http.excerpt(reason));
-        case 401 -> ConnectorException.resourceError("OpenSearch refused the credentials: " + Http.excerpt(reason)
+        case 400 -> ConnectorException.badInput(s.title() + " refused the query: " + Http.excerpt(reason));
+        case 401 -> ConnectorException.resourceError(s.title() + " refused the credentials: " + Http.excerpt(reason)
             + ". Check them under Credentials.", null);
-        case 403 -> ConnectorException.resourceError("OpenSearch denied " + what + ": " + Http.excerpt(reason)
+        case 403 -> ConnectorException.resourceError(s.title() + " denied " + what + ": " + Http.excerpt(reason)
             + ". Give the user the read role on " + String.join(", ", s.indices()) + ".", null);
-        case 429 -> ConnectorException.resourceError("OpenSearch is overloaded (429): " + Http.excerpt(reason)
+        case 429 -> ConnectorException.resourceError(s.title() + " is overloaded (429): " + Http.excerpt(reason)
             + ". Try again in a few seconds.", null);
         default -> r.status() >= 500
-            ? ConnectorException.unavailable("OpenSearch failed (" + r.status() + "): " + Http.excerpt(reason), null)
-            : ConnectorException.resourceError("OpenSearch answered " + r.status() + ": " + Http.excerpt(reason),
+            ? ConnectorException.unavailable(s.title() + " failed (" + r.status() + "): " + Http.excerpt(reason), null)
+            : ConnectorException.resourceError(s.title() + " answered " + r.status() + ": " + Http.excerpt(reason),
                 null);
       };
     }

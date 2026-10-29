@@ -4279,6 +4279,163 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
       "path": "/connection/databases",
       "legacyPath": "/connection/database"
     }
+  },
+  "elasticsearch": {
+    "title": "Elasticsearch",
+    "required": [
+      "backend",
+      "url",
+      "auth"
+    ],
+    "properties": {
+      "backend": {
+        "type": "string",
+        "const": "elasticsearch",
+        "default": "elasticsearch"
+      },
+      "url": {
+        "type": "string",
+        "format": "uri",
+        "pattern": "^https?://[^/?#]+$",
+        "title": "Server URL",
+        "examples": [
+          "https://search.example.test:9200"
+        ],
+        "description": "Elasticsearch host, including http:// or https:// and its port."
+      },
+      "auth": {
+        "type": "object",
+        "title": "Authorization",
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "title": "Authentication",
+            "enum": [
+              "basic",
+              "apiKey",
+              "bearer",
+              "none"
+            ],
+            "default": "basic",
+            "x-enumTitles": [
+              "Username and password",
+              "API key",
+              "Bearer token",
+              "No authentication"
+            ]
+          }
+        },
+        "patternProperties": {
+          "^(username|secret)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "basic"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "username",
+                "secret"
+              ],
+              "properties": {
+                "username": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "pattern": ".*\\S.*",
+                  "title": "Username"
+                },
+                "secret": {
+                  "type": "string",
+                  "minLength": 1,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "title": "Password",
+                  "description": "Stored securely by GateRook."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "apiKey"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            },
+            "then": {
+              "required": [
+                "secret"
+              ],
+              "properties": {
+                "secret": {
+                  "type": "string",
+                  "minLength": 1,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "title": "API key",
+                  "description": "Encoded Elasticsearch API key (the encoded value returned when creating a key, or Base64 of id:api_key). Do not include the ApiKey prefix."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "bearer"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            },
+            "then": {
+              "required": [
+                "secret"
+              ],
+              "properties": {
+                "secret": {
+                  "type": "string",
+                  "minLength": 1,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "title": "Bearer token",
+                  "description": "Stored securely by GateRook."
+                }
+              }
+            }
+          }
+        ]
+      },
+      "apiAccess": {
+        "type": "string",
+        "const": "full",
+        "default": "full"
+      },
+      "caCertificate": {
+        "type": "string",
+        "maxLength": 20000,
+        "x-widget": "textarea",
+        "title": "CA certificate (PEM)",
+        "description": "Only for a private CA."
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false
   }
 };
 
@@ -10318,6 +10475,225 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
     },
     "prodDefaults": {
       "backend": "opensearch",
+      "auth": {
+        "mode": "basic"
+      },
+      "apiAccess": "full"
+    }
+  },
+  "elasticsearch": {
+    "sections": [
+      "/auth"
+    ],
+    "loose": [
+      "/backend",
+      "/url",
+      "/apiAccess",
+      "/caCertificate"
+    ],
+    "rows": {
+      "/auth": [
+        [
+          "/auth/mode"
+        ],
+        [
+          "/auth/username"
+        ],
+        [
+          "/auth/secret"
+        ],
+        [
+          "/auth/secret"
+        ],
+        [
+          "/auth/secret"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/backend",
+        "kind": "text",
+        "title": "backend",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/url",
+        "kind": "text",
+        "title": "Server URL",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/apiAccess",
+        "kind": "text",
+        "title": "apiAccess",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/caCertificate",
+        "kind": "textarea",
+        "title": "CA certificate (PEM)",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth",
+        "kind": "object",
+        "title": "Authorization",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/mode",
+        "kind": "select",
+        "title": "Authentication",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "basic",
+          "apiKey",
+          "bearer",
+          "none"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/username",
+        "kind": "text",
+        "title": "Username",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.mode in [\"basic\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/secret",
+        "kind": "secret",
+        "title": "Password",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.mode in [\"basic\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/secret",
+        "kind": "secret",
+        "title": "API key",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.mode in [\"apiKey\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/secret",
+        "kind": "secret",
+        "title": "Bearer token",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.mode in [\"bearer\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "backend": "elasticsearch",
+      "auth": {
+        "mode": "basic"
+      },
+      "apiAccess": "full"
+    },
+    "prodDefaults": {
+      "backend": "elasticsearch",
       "auth": {
         "mode": "basic"
       },

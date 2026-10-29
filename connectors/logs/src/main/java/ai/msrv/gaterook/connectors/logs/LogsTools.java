@@ -11,6 +11,7 @@ import ai.msrv.gaterook.connector.api.ToolDefinition.Risk;
 import ai.msrv.gaterook.connectors.support.SchemaResources;
 import java.util.ArrayList;
 import java.util.List;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
@@ -122,6 +123,10 @@ final class LogsTools {
 
   /** New connectors publish separate names; legacy setup previews keep existing names but show only this backend. */
   static List<ToolDefinition> forBackend(List<ToolDefinition> shared, String backend, boolean legacy) {
+    if (backend.equals("elasticsearch") && !legacy) {
+      return shared.stream().filter(tool -> tool.name().startsWith("opensearch_"))
+          .map(LogsTools::elasticsearchTool).toList();
+    }
     if (!List.of("gcp-logging", "loki", "cloudwatch", "opensearch").contains(backend)) return List.of();
     List<ToolDefinition> tools = new ArrayList<>();
     for (ToolDefinition tool : shared) {
@@ -161,6 +166,38 @@ final class LogsTools {
       }
     }
     return List.copyOf(tools);
+  }
+
+  /** Only connector-authored metadata is adapted; request payloads and server responses are never rewritten. */
+  private static ToolDefinition elasticsearchTool(ToolDefinition tool) {
+    return new ToolDefinition(elasticsearchText(tool.name()), elasticsearchText(tool.title()),
+        elasticsearchText(tool.description()), elasticsearchSchema(tool.inputSchema()),
+        elasticsearchSchema(tool.outputSchema()), tool.annotations(), tool.nature(), tool.defaultMode(),
+        tool.prodDefaultMode(), tool.resultShape(), tool.risk());
+  }
+
+  private static String elasticsearchText(String text) {
+    return text.replace("OpenSearch", "Elasticsearch").replace("opensearch_", "elasticsearch_")
+        .replace("SQL, PPL, plugin APIs", "SQL, ES|QL and other unverified APIs")
+        .replace("SQL/PPL and installed plugin APIs", "SQL, ES|QL and other server APIs");
+  }
+
+  private static JsonNode elasticsearchSchema(JsonNode schema) {
+    if (schema == null) return null;
+    JsonNode copy = schema.deepCopy();
+    adaptSchemaDescriptions(copy);
+    return copy;
+  }
+
+  private static void adaptSchemaDescriptions(JsonNode schema) {
+    if (schema instanceof ObjectNode object) {
+      if (object.path("description").isString()) {
+        object.put("description", elasticsearchText(object.path("description").asString()));
+      }
+      for (var property : object.properties()) adaptSchemaDescriptions(property.getValue());
+    } else if (schema.isArray()) {
+      for (JsonNode child : schema) adaptSchemaDescriptions(child);
+    }
   }
 
   private static String queryGuidance(String backend, boolean search) {

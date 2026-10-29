@@ -42,7 +42,7 @@ class BuiltInConnectorCatalogTest {
   private static final Map<String, Integer> TOOLS_PER_CONNECTOR = orderedMap(
       "PostgreSQL", 4, "MySQL", 4, "Oracle Database", 4, "SQL Server", 4, "MongoDB", 4, "Redis", 2, "SSH", 2, "Logs", 5, "SSH log files", 3,
       "Kubernetes", 4, "GCP", 4, "AWS", 2, "HTTP API", 2, "GCP Cloud Logging", 2, "AWS CloudWatch", 2,
-      "Loki", 2, "OpenSearch", 3);
+      "Loki", 2, "OpenSearch", 3, "Elasticsearch", 3);
 
   /** Current default modes for the connection types in BLUEPRINT §9's {@code dev} endpoint. */
   private static final Map<String, Map<String, Mode>> DEV_ENDPOINT = Map.of(
@@ -62,7 +62,8 @@ class BuiltInConnectorCatalogTest {
   private static final Map<String, String> TOOL_PREFIX = orderedMap("postgres", "sql_", "mysql", "sql_", "oracle", "sql_", "sqlserver", "sql_",
       "mongodb", "mongo_", "redis", "redis_", "ssh", "ssh_", "ssh-logs", "ssh_logs_", "logs", "logs_",
       "kubernetes", "k8s_", "gcp", "gcp_", "aws", "aws_", "http", "http_",
-      "gcp-logging", "gcp_logging_", "cloudwatch", "cloudwatch_logs_", "loki", "loki_", "opensearch", "opensearch_");
+      "gcp-logging", "gcp_logging_", "cloudwatch", "cloudwatch_logs_", "loki", "loki_", "opensearch", "opensearch_",
+      "elasticsearch", "elasticsearch_");
 
   /** Property names that hold credentials: a connection form must never show them back (ARCHITECTURE.md §9). */
   private static final Set<String> SECRET_PROPERTIES = Set.of("password", "passphrase", "privateKey", "token",
@@ -97,7 +98,7 @@ class BuiltInConnectorCatalogTest {
   @Test
   void everyConnectorModuleRegistersItsConnectorTypes() {
     assertThat(byId.keySet()).containsExactlyInAnyOrder("postgres", "mysql", "oracle", "sqlserver", "mongodb", "redis", "ssh", "logs", "ssh-logs",
-        "kubernetes", "gcp", "aws", "http", "mcp-server", "gcp-logging", "cloudwatch", "loki", "opensearch");
+        "kubernetes", "gcp", "aws", "http", "mcp-server", "gcp-logging", "cloudwatch", "loki", "opensearch", "elasticsearch");
     assertThat(connectors).hasSize(byId.size());
   }
 
@@ -190,7 +191,7 @@ class BuiltInConnectorCatalogTest {
         }
       }
     }
-    assertThat(seen).hasSize(36);
+    assertThat(seen).hasSize(39);
   }
 
   @Test

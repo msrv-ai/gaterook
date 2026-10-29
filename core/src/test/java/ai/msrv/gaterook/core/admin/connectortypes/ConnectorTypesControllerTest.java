@@ -51,19 +51,20 @@ class ConnectorTypesControllerTest {
   void compatibilityTypesRemainEditableButCannotCreateNewCategoryConnections() {
     ConnectorManifest legacy = manifest("logs", "Logs", true, ConnectorManifest.Kind.BUILT_IN);
     ConnectorManifest database = manifest("opensearch", "Databases", false, ConnectorManifest.Kind.BUILT_IN);
+    ConnectorManifest elasticsearch = manifest("elasticsearch", "Databases", false, ConnectorManifest.Kind.BUILT_IN);
     ConnectorManifest logging = manifest("gcp-logging", "Logs", false, ConnectorManifest.Kind.BUILT_IN);
-    var types = List.of(type(legacy), type(database), type(logging));
+    var types = List.of(type(legacy), type(elasticsearch), type(database), type(logging));
     when(registry.types()).thenReturn(types);
     when(registry.type("logs")).thenReturn(Optional.of(type(legacy)));
 
     var empty = controller.list(null);
     assertThat(empty.groups()).extracting(ConnectorTypesController.Group::name).containsExactly("Databases", "Logs");
     assertThat(empty.groups().getFirst().cards()).extracting(ConnectorTypesController.Card::type)
-        .containsExactly("opensearch");
+        .containsExactly("opensearch", "elasticsearch");
     assertThat(empty.groups().getLast().cards()).extracting(ConnectorTypesController.Card::type)
         .containsExactly("gcp-logging");
     assertThat(empty.installed()).extracting(ConnectorTypesController.Installed::id)
-        .containsExactly("opensearch", "gcp-logging");
+        .containsExactly("opensearch", "elasticsearch", "gcp-logging");
 
     ConnectionConfig saved = new ConnectionConfig("old", "old-logs", "logs", Env.DEV, 1,
         JSON.objectNode().put("backend", "gcp-logging"), Set.of(), null);

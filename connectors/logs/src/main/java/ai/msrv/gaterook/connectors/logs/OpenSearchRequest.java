@@ -18,7 +18,7 @@ import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.JsonNodeFactory;
 import tools.jackson.databind.node.ObjectNode;
 
-/** A canonical, local REST request. Unknown operations always use the mutation-classified request tool. */
+/** A canonical, local OpenSearch or Elasticsearch REST request. Unknown operations always use the mutation-classified request tool. */
 record OpenSearchRequest(String tool, String method, String path, String body, String contentType) {
   static final String INDICES = "opensearch_indices";
   static final String QUERY = "opensearch_query";
@@ -31,16 +31,20 @@ record OpenSearchRequest(String tool, String method, String path, String body, S
       "_stats", "_segments", "_recovery", "_shard_stores");
 
   static boolean isTool(String tool) {
-    return Set.of(INDICES, QUERY, REQUEST).contains(tool);
+    return Set.of(INDICES, QUERY, REQUEST, "elasticsearch_indices", "elasticsearch_query", "elasticsearch_request")
+        .contains(tool);
   }
 
   static OpenSearchRequest plan(ToolCall call, Settings.OpenSearch settings, Limits limits)
       throws ConnectorException {
+    if (!Set.of(settings.tool("indices"), settings.tool("query"), settings.tool("request")).contains(call.tool())) {
+      throw ConnectorException.badInput("This tool requires a matching " + settings.title() + " connection.");
+    }
     JsonNode args = call.arguments();
     if (!args.isObject()) {
-      throw ConnectorException.badInput("OpenSearch arguments must be an object.");
+      throw ConnectorException.badInput(settings.title() + " arguments must be an object.");
     }
-    if (call.tool().equals(INDICES)) {
+    if (call.tool().equals(settings.tool("indices"))) {
       String index = text(args, "index", String.join(",", settings.indices()));
       if (settings.fullApi() && !args.has("index")) {
         index = "*";
@@ -49,22 +53,22 @@ record OpenSearchRequest(String tool, String method, String path, String body, S
         throw ConnectorException.denied("Choose one of the connection's configured log index patterns.");
       }
       if (!index.matches("[a-zA-Z0-9.*_?,:-]+") || index.startsWith("-")) {
-        throw ConnectorException.badInput("index must be an OpenSearch index selector, without a URL or path.");
+        throw ConnectorException.badInput("index must be a " + settings.title() + " index selector, without a URL or path.");
       }
       String expand = text(args, "expandWildcards", "open");
       if (!Set.of("open", "closed", "hidden", "none", "all").contains(expand)) {
         throw ConnectorException.badInput("expandWildcards must be open, closed, hidden, none or all.");
       }
       // Resolve Index is structured API output and also discovers aliases and data streams.
-      return new OpenSearchRequest(INDICES, "GET", "/_resolve/index/" + encode(index)
+      return new OpenSearchRequest(call.tool(), "GET", "/_resolve/index/" + encode(index)
           + "?expand_wildcards=" + expand, null, "application/json");
     }
     if (!settings.fullApi()) {
-      throw ConnectorException.denied("Full OpenSearch API access is disabled. A person must set API access to full "
+      throw ConnectorException.denied("Full " + settings.title() + " API access is disabled. A person must set API access to full "
           + "in this connection; server permissions then control access beyond the log index patterns and filter.");
     }
-    if (!call.tool().equals(QUERY) && !call.tool().equals(REQUEST)) {
-      throw ConnectorException.badInput("Unknown OpenSearch tool " + call.tool() + ".");
+    if (!call.tool().equals(settings.tool("query")) && !call.tool().equals(settings.tool("request"))) {
+      throw ConnectorException.badInput("Unknown " + settings.title() + " tool " + call.tool() + ".");
     }
     String method = text(args, "method", "GET").toUpperCase(Locale.ROOT);
     if (!METHODS.contains(method)) {
@@ -124,9 +128,10 @@ record OpenSearchRequest(String tool, String method, String path, String body, S
     }
     OpenSearchRequest request = new OpenSearchRequest(call.tool(), method, path, body, contentType);
     request.checkSize(limits);
-    if (call.tool().equals(QUERY) && !request.knownRead()) {
-      throw ConnectorException.denied("This operation is not a known read API. Use opensearch_request with "
-          + "approval or explicitly configured Bypass. SQL, PPL and plugin APIs also use opensearch_request.");
+    if (call.tool().equals(settings.tool("query")) && !request.knownRead()) {
+      throw ConnectorException.denied("This operation is not a known read API. Use " + settings.tool("request")
+          + " with approval or explicitly configured Bypass. SQL and other unverified APIs also use "
+          + settings.tool("request") + ".");
     }
     return request;
   }
@@ -168,7 +173,7 @@ record OpenSearchRequest(String tool, String method, String path, String body, S
 
   private static void checkPath(String path) throws ConnectorException {
     if (path == null || !path.startsWith("/") || path.startsWith("//") || path.length() > 32_768) {
-      throw ConnectorException.badInput("path must start with a single / on the configured OpenSearch server.");
+      throw ConnectorException.badInput("path must start with a single / on the configured search server.");
     }
     try {
       URI uri = URI.create(path);
@@ -237,7 +242,7 @@ record OpenSearchRequest(String tool, String method, String path, String body, S
 
   void checkSize(Limits limits) throws ConnectorException {
     if (limits != null && body != null && body.getBytes(StandardCharsets.UTF_8).length > limits.maxRequestBytes()) {
-      throw ConnectorException.denied("The OpenSearch request body exceeds maxRequestBytes. Split the batch or "
+      throw ConnectorException.denied("The search request body exceeds maxRequestBytes. Split the batch or "
           + "reduce the request.");
     }
   }
@@ -256,9 +261,9 @@ record OpenSearchRequest(String tool, String method, String path, String body, S
       throws ConnectorException {
     if (payload.path("version").asInt() != 1 || !payload.path("tool").asString("").equals(call.tool())
         || !payload.path("base").asString("").equals(settings.base().toString())) {
-      throw ConnectorException.denied("The approved OpenSearch request does not match this connection and tool.");
+      throw ConnectorException.denied("The approved " + settings.title() + " request does not match this connection and tool.");
     }
-    if (call.tool().equals(INDICES)) {
+    if (call.tool().equals(settings.tool("indices"))) {
       // Index discovery is deterministic; reject approval replay if its scope changed.
       OpenSearchRequest current = plan(call, settings, limits);
       if (!current.payload(settings).equals(payload)) {

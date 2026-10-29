@@ -288,6 +288,7 @@ export function checkPrompt(type: string | null, name: string | null): string {
     case 'redis':
       return `Show me a few keys in ${name}`;
     case 'opensearch':
+    case 'elasticsearch':
       return `Show me the indices in ${name}`;
     case 'kubernetes':
       return `Show me the pods in ${name}`;

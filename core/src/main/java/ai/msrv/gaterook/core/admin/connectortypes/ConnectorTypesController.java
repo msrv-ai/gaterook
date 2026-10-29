@@ -56,7 +56,7 @@ class ConnectorTypesController {
       "HTTP and MCP");
 
   /** Built-in types in the kit's order inside their groups. */
-  static final List<String> KIT_ORDER = List.of("postgres", "mysql", "oracle", "sqlserver", "mongodb", "redis", "opensearch", "ssh",
+  static final List<String> KIT_ORDER = List.of("postgres", "mysql", "oracle", "sqlserver", "mongodb", "redis", "opensearch", "elasticsearch", "ssh",
       "gcp-logging", "cloudwatch", "loki", "logs", "ssh-logs", "kubernetes",
       "gcp", "aws", "http", "mcp-server");
 

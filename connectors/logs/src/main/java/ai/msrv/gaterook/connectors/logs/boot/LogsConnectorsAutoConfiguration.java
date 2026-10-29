@@ -50,6 +50,11 @@ public class LogsConnectorsAutoConfiguration {
     return backend("opensearch", cloud);
   }
 
+  @Bean
+  Connector elasticsearchConnector(ObjectProvider<CloudCredentials> cloud) {
+    return backend("elasticsearch", cloud);
+  }
+
   private static Connector backend(String type, ObjectProvider<CloudCredentials> cloud) {
     return new BackendConnector(type, cloud.getIfAvailable(() -> new CloudCredentials(CloudEndpoints.PRODUCTION,
         Clock.systemUTC())));
