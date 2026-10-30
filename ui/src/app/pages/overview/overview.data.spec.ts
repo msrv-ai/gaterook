@@ -4,6 +4,7 @@ import { ApiError } from '../../core/api/api-error';
 import { ApprovalsApi } from '../../core/api/approvals.api';
 import { ClientsApi } from '../../core/api/clients.api';
 import { ConnectionsApi } from '../../core/api/connections.api';
+import { EndpointSummary, EndpointsApi } from '../../core/api/endpoints.api';
 import { Overview, OverviewApi } from '../../core/api/overview.api';
 import { EventStream } from '../../core/events/event-stream';
 import { ROWS, browserSignedIn, clientsBrowserSignedIn, clientsFound, clientsInUse, devDb, firstRun, overview, setup } from './overview.fixtures';
@@ -34,6 +35,8 @@ class FakeEvents {
 let gets: ReturnType<typeof deferred<Overview>>[];
 let calls: string[];
 let clientsAnswer: () => Promise<unknown>;
+let endpointsAnswer: () => Promise<EndpointSummary[]>;
+let connectionsFail: boolean;
 let events: FakeEvents;
 
 function make(): OverviewData {
@@ -41,6 +44,8 @@ function make(): OverviewData {
   calls = [];
   events = new FakeEvents();
   clientsAnswer = () => Promise.resolve(clientsInUse());
+  endpointsAnswer = () => Promise.resolve([]);
+  connectionsFail = false;
   const overviewApi: Partial<OverviewApi> = {
     get: () => {
       const d = deferred<Overview>();
@@ -51,6 +56,7 @@ function make(): OverviewData {
   const connectionsApi: Partial<ConnectionsApi> = {
     list: () => {
       calls.push('connections');
+      if (connectionsFail) return Promise.reject(new Error('connections unavailable'));
       return Promise.resolve({ items: ROWS, facets: { health: {}, env: {}, type: {} }, total: ROWS.length });
     },
     get: (name) => {
@@ -72,6 +78,7 @@ function make(): OverviewData {
         },
       },
       { provide: ConnectionsApi, useValue: connectionsApi },
+      { provide: EndpointsApi, useValue: { list: () => { calls.push('endpoints'); return endpointsAnswer(); } } },
       { provide: EventStream, useValue: events },
     ],
   });
@@ -104,7 +111,7 @@ describe('OverviewData', () => {
       const cursor = data.clients()?.clients.find((c) => c.client === 'cursor');
       expect(cursor?.status).toBe('connected');
       expect(cursor?.links).toEqual([expect.objectContaining({ id: 'og_cursor', method: 'oauth', configPath: null, tokenName: null, lastCallAt: null })]);
-      expect(calls.sort()).toEqual(['clients', 'connections']);
+      expect(calls.sort()).toEqual(['clients', 'connections', 'endpoints']);
       expect(data.first()).toBeNull();
       data.stop();
       expect(events.handlers.get('oauth.grant.changed')?.size).toBe(0);
@@ -132,14 +139,15 @@ describe('OverviewData', () => {
     expect(gets).toHaveLength(2);
   });
 
-  it('in use: the AI apps and the connections with their endpoints; no first connection', async () => {
+  it('in use: the AI apps, endpoint list and the connections with their endpoints; no first connection', async () => {
     const data = make();
     const done = data.refresh();
     gets[0].resolve(overview());
     await done;
-    expect(calls.sort()).toEqual(['clients', 'connections']);
+    expect(calls.sort()).toEqual(['clients', 'connections', 'endpoints']);
     expect(data.clients()?.clients).toHaveLength(4);
     expect(data.connections()).toHaveLength(ROWS.length);
+    expect(data.endpoints()).toEqual([]);
     expect(data.first()).toBeNull();
   });
 
@@ -151,6 +159,7 @@ describe('OverviewData', () => {
     expect(calls.sort()).toEqual(['clients', 'connection dev-db']);
     expect(data.first()?.name).toBe('dev-db');
     expect(data.connections()).toBeNull();
+    expect(data.endpoints()).toBeNull();
   });
 
   it('first run: only the AI apps of this computer', async () => {
@@ -174,7 +183,7 @@ describe('OverviewData', () => {
     expect(calls).toEqual(['clients']);
   });
 
-  it('keeps the apps it had when their reload fails', async () => {
+  it('marks app links unavailable when their reload fails instead of claiming stale access is current', async () => {
     const data = make();
     let done = data.refresh();
     gets[0].resolve(overview());
@@ -183,7 +192,48 @@ describe('OverviewData', () => {
     done = data.refresh();
     gets[1].resolve(overview());
     await done;
-    expect(data.clients()?.clients).toHaveLength(4);
+    expect(data.clients()).toBeNull();
+  });
+
+  it('keeps overview health when endpoint or wiring requests fail and recovers on the next refresh', async () => {
+    const data = make();
+    endpointsAnswer = () => Promise.reject(new Error('endpoints unavailable'));
+    let done = data.refresh();
+    gets[0].resolve(overview());
+    await done;
+    expect(data.overview()?.health).toHaveLength(12);
+    expect(data.endpoints()).toBeNull();
+    expect(data.connections()).toHaveLength(ROWS.length);
+    expect(data.error()).toBeNull();
+
+    endpointsAnswer = () => Promise.resolve([]);
+    connectionsFail = true;
+    done = data.refresh();
+    gets[1].resolve(overview());
+    await done;
+    expect(data.endpoints()).toEqual([]);
+    expect(data.connections()).toBeNull();
+
+    connectionsFail = false;
+    done = data.refresh();
+    gets[2].resolve(overview());
+    await done;
+    expect(data.connections()).toHaveLength(ROWS.length);
+    expect(data.overview()?.health).toHaveLength(12);
+  });
+
+  it('patches grouped connection health even for a server absent from overview health', async () => {
+    const data = make();
+    const done = data.refresh();
+    gets[0].resolve(overview());
+    await done;
+    expect(data.overview()?.health.some((row) => row.name === 'github-mcp')).toBe(false);
+    const checkedAt = '2026-10-22T12:30:00Z';
+    data.patchHealth({ name: 'github-mcp', state: 'unreachable', latencyMs: null, message: 'Server unavailable', checkedAt });
+    expect(data.connections()?.find((row) => row.name === 'github-mcp')?.health).toEqual({
+      state: 'unreachable', latencyMs: null, message: 'Server unavailable', checkedAt, since: checkedAt,
+    });
+    expect(data.connections()?.find((row) => row.name === 'dev-db')?.health.state).toBe('healthy');
   });
 
   it('a failed first load is an error; a failed refresh keeps the data and marks it stale', async () => {

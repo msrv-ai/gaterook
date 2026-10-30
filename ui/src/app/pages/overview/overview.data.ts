@@ -2,7 +2,8 @@ import { DestroyRef, Injectable, inject, signal } from '@angular/core';
 import { isNotAvailable } from '../../core/api/api-error';
 import { ActionSegment, ApprovalItem, ApprovalsApi } from '../../core/api/approvals.api';
 import { ClientsApi, ClientsView } from '../../core/api/clients.api';
-import { ConnectionDetail, ConnectionRow, ConnectionsApi } from '../../core/api/connections.api';
+import { ConnectionDetail, ConnectionRow, ConnectionsApi, nextHealth } from '../../core/api/connections.api';
+import { EndpointSummary, EndpointsApi } from '../../core/api/endpoints.api';
 import { HealthRow, Overview, OverviewApi } from '../../core/api/overview.api';
 import { EventStream } from '../../core/events/event-stream';
 import { overviewState } from './overview-view';
@@ -19,6 +20,7 @@ const DELAY = { approval: 150, health: 1_000, call: 5_000, clients: 1_000 } as c
  * the merged areas:
  * - the AI apps of this computer (`/api/clients`: the guide's tiles in every state, the home screen's in use);
  * - in use, the connections with the endpoints that use them (`/api/connections`): what each connected app can use;
+ * - in use, every endpoint (`/api/endpoints`), including empty or disabled ones, for the connection groups;
  * - in setup, the first connection (`/api/connections/{name}`): its tool modes and where its secret is;
  * - the exact action of each waiting request (`/api/approvals/{id}`: the compact row shows its first line).
  *
@@ -31,6 +33,7 @@ export class OverviewData {
   private readonly approvals = inject(ApprovalsApi);
   private readonly clientsApi = inject(ClientsApi);
   private readonly connectionsApi = inject(ConnectionsApi);
+  private readonly endpointsApi = inject(EndpointsApi);
   private readonly events = inject(EventStream);
 
   private readonly overviewSignal = signal<Overview | null>(null);
@@ -39,6 +42,7 @@ export class OverviewData {
   private readonly actionsSignal = signal<ReadonlyMap<string, readonly ActionSegment[]>>(new Map());
   private readonly clientsSignal = signal<ClientsView | null>(null);
   private readonly connectionsSignal = signal<readonly ConnectionRow[] | null>(null);
+  private readonly endpointsSignal = signal<readonly EndpointSummary[] | null>(null);
   private readonly firstSignal = signal<ConnectionDetail | null>(null);
   private readonly refreshingSignal = signal(false);
 
@@ -54,6 +58,8 @@ export class OverviewData {
   readonly clients = this.clientsSignal.asReadonly();
   /** The connections with the endpoints that use them (in use only); null when not loaded. */
   readonly connections = this.connectionsSignal.asReadonly();
+  /** All endpoints, including empty ones (in use only); null when their list did not load. */
+  readonly endpoints = this.endpointsSignal.asReadonly();
   /** The first connection's detail (setup only): its tool modes on endpoints, where its secret is. */
   readonly first = this.firstSignal.asReadonly();
   readonly refreshing = this.refreshingSignal.asReadonly();
@@ -135,6 +141,10 @@ export class OverviewData {
   /** One connection's new health (an event or a test the page ran), until the next refresh. */
   patchHealth(h: Omit<HealthRow, 'type' | 'env'>): void {
     this.overviewSignal.update((o) => (o ? { ...o, health: o.health.map((r) => (r.name === h.name ? { ...r, ...h } : r)) } : o));
+    this.connectionsSignal.update((rows) => rows?.map((row) => row.name === h.name ? {
+      ...row,
+      health: nextHealth(row.health, { state: h.state, latencyMs: h.latencyMs, message: h.message, checkedAt: h.checkedAt }),
+    } : row) ?? null);
   }
 
   /** A request left the queue (decided, or it ran out of time here): off the list at once. */
@@ -154,10 +164,11 @@ export class OverviewData {
     if (this.stopped) return;
     const state = overviewState(overview);
     const firstName = overview.gettingStarted.steps.find((s) => s.id === 'connection')?.detail['name'];
-    const [actions, clients, connections, first] = await Promise.all([
+    const [actions, clients, connections, endpoints, first] = await Promise.all([
       this.loadActions(overview.waiting),
       this.loadClients(),
       state === 'in-use' ? this.connectionsApi.list().then((l) => l.items, () => null) : Promise.resolve(null),
+      state === 'in-use' ? this.endpointsApi.list().catch(() => null) : Promise.resolve(null),
       state === 'setup' && typeof firstName === 'string' ? this.connectionsApi.get(firstName).catch(() => null) : Promise.resolve(null),
     ]);
     if (this.stopped) return;
@@ -167,6 +178,7 @@ export class OverviewData {
     this.actionsSignal.set(actions);
     this.clientsSignal.set(clients);
     this.connectionsSignal.set(connections);
+    this.endpointsSignal.set(endpoints);
     this.firstSignal.set(first);
   }
 
@@ -177,7 +189,7 @@ export class OverviewData {
       return await this.clientsApi.list();
     } catch (e) {
       if (isNotAvailable(e)) this.noClientsApi = true;
-      return this.clientsSignal();
+      return null;
     }
   }
 

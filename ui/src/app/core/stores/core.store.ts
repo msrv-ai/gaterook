@@ -97,8 +97,8 @@ export class CoreStore {
   readonly running = computed(() => this.state().kind === 'running');
   readonly locked = computed(() => this.state().kind === 'locked');
   /**
-   * `127.0.0.1:7465`: the sidebar's meta line and every endpoint URL. While the core hasn't answered on it (starting,
-   * port in use), the port Electron is starting it on.
+   * `127.0.0.1:7465`: the local core address used in endpoint URLs and connection details.
+   * While the core hasn't answered on it (starting, port in use), the port Electron is starting it on.
    */
   readonly address = computed(() => {
     const s = this.stateSignal();
