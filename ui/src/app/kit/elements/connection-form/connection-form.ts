@@ -330,7 +330,8 @@ export class GwConnectionForm {
       config = removeConfigPath(config, selection.path);
       if (selection.legacyPath) config = removeConfigPath(config, selection.legacyPath);
     }
-    return JSON.stringify([this.spec().type, this.common().env, config, state.secretInputs(), state.source(),
+    // Environment labels do not change the server's database list; changed TLS defaults still change config.
+    return JSON.stringify([this.spec().type, config, state.secretInputs(), state.source(),
       this.stored().map((secret) => [secret.field, secret.version, secret.state, secret.source])]);
   }
   protected readonly databaseDiscovery = linkedSignal(() => {
