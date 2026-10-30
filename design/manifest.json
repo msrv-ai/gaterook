@@ -216,7 +216,7 @@
     {
       "name": "gw-sidebar",
       "scss": "scss/components/_shell.scss",
-      "purpose": "Navigation column (bg.sidebar, end border): logo and collapse toggle, the scrolling nav, and a footer that always shows the local core and the tunnel (gw-status, static) plus compact mono metadata: the address below the core status and the version on its own final line, with bottom padding. Metadata uses the 11px font token and wraps long values instead of truncating them. When an update is available, an optional gw-btn below the version downloads it and restarts the app only after activation.",
+      "purpose": "Navigation column (bg.sidebar, end border): logo and collapse toggle, the scrolling nav, and a footer that always shows the local core and the tunnel (gw-status, static) plus the version on its own final line in compact monospace text, with bottom padding. Metadata uses the 11px font token and wraps long values instead of truncating them. When an update is available, an optional gw-btn below the version downloads it and restarts the app only after activation.",
       "variants": [],
       "subparts": [
         "__header",

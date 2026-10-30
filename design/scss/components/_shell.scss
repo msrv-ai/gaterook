@@ -37,7 +37,7 @@
 //         </div>
 //         <div class="gw-nav__group gw-nav__group--end"><ul class="gw-nav__list">…Settings…</ul></div>
 //       </nav>
-//       <div class="gw-sidebar__footer">…core gw-status… <span class="gw-sidebar__meta">127.0.0.1:7465</span>
+//       <div class="gw-sidebar__footer">…core gw-status…
 //         …tunnel gw-status… <span class="gw-sidebar__meta">v0.4.0</span></div>
 //     </div>
 //     <main class="gw-shell__main" id="main" tabindex="-1">
@@ -74,7 +74,7 @@
 //   __body        scrolls on its own; carries .gw-nav
 //   __footer      core and tunnel gw-status (static: never gw-status--live here, a dot
 //                 that pulses on every screen forever fails WCAG 2.2.2); __meta is the
-//                 compact mono address below core status and version last, above the bottom padding
+//                 compact mono version on the final line, above the bottom padding
 //   __update      optional existing gw-btn below the version: download and restart on request
 //   __update-label / __update-message   button text and status/error; visually hidden when collapsed
 // gw-nav          the app's information architecture (BLUEPRINT §2).
