@@ -141,6 +141,10 @@ export class GwGeneralSettings {
   protected async setGeneral(key: GeneralKey, e: Event, label: string): Promise<void> {
     const input = e.target as HTMLInputElement;
     const on = input.checked;
+    if (this.desktop.windowsStore && key !== 'singleKeyShortcuts') {
+      input.checked = !on;
+      return;
+    }
     if (this.busy()) {
       // One change at a time; this one never happened.
       if (key !== 'singleKeyShortcuts') input.checked = !on;
@@ -163,7 +167,7 @@ export class GwGeneralSettings {
 
   /** Check now: Electron's updater answers through `onUpdateState`; the toast follows that answer. */
   protected async checkNow(): Promise<void> {
-    if (!this.desktop.available || this.checking() || this.update().busy || this.updates.busy()) return;
+    if (!this.desktop.available || this.desktop.windowsStore || this.checking() || this.update().busy || this.updates.busy()) return;
     this.checking.set(true);
     this.announcer.announce('Checking for updates');
     try {

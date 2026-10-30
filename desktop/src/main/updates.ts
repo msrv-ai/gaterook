@@ -44,8 +44,10 @@ export function friendlyUpdateError(message: string | undefined): string {
  * (`NsisUpdater.verifySignature` returns null) whatever the feed offers would be installed. macOS needs nothing here:
  * Squirrel.Mac refuses an update that doesn't satisfy the running app's own code signature.
  */
-export function updatesUnavailable(packaged: boolean, platform: NodeJS.Platform, updateConfig: string | null): string | null {
+export function updatesUnavailable(packaged: boolean, platform: NodeJS.Platform, updateConfig: string | null,
+  windowsStore = false): string | null {
   if (!packaged) return 'Updates come with the installed app; this is a development build.';
+  if (platform === 'win32' && windowsStore) return 'Microsoft Store manages updates for this app. Open Microsoft Store to check for updates.';
   if (platform === 'linux') return 'Automatic updates aren’t available on Linux yet. Install new versions from the releases page.';
   if (updateConfig === null) return 'This build has no update source.';
   if (platform === 'win32' && !namesPublisher(updateConfig)) {

@@ -10,6 +10,7 @@ import { IPC, type DesktopCoreState, type GeneralSettings } from '../shared/cont
 import { routeAppUrl, serveUi } from './app-protocol.ts';
 import { finishApplicationReset, hasPendingReset, requestApplicationReset, type ResetPaths } from './application-reset.ts';
 import { startTokenBroker } from './broker.ts';
+import { prepareBridgeLibraries } from './bridge-libraries.ts';
 import { callCore } from './core-client.ts';
 import { coreArgv, coreEnv } from './core-command.ts';
 import { CoreSupervisor, type ReadyCore } from './core-supervisor.ts';
@@ -71,10 +72,12 @@ export function main(): Desktop | null {
     // replace, outside the asar's integrity check.
     { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } },
   ]);
-  app.setAppUserModelId(APP_ID);
+  // MSIX activation assigns the package's AUMID. Keep that identity for taskbar grouping and notifications.
+  if (!process.windowsStore) app.setAppUserModelId(APP_ID);
   app.enableSandbox();
   // A development build doesn't claim gaterook:// for the development Electron on this machine.
-  if (!layout.dev) app.setAsDefaultProtocolClient(SCHEME);
+  // MSIX declares its protocol in the package manifest; a runtime registry entry is private to the package.
+  if (!layout.dev && !process.windowsStore) app.setAsDefaultProtocolClient(SCHEME);
 
   const desktop = new Desktop(layout, log);
   app.on('open-url', (event, url) => {
@@ -193,6 +196,7 @@ export class Desktop {
     // Use the macOS export's transparent margins so the Dock matches the visual size of neighboring apps.
     if (process.platform === 'darwin') app.dock?.setIcon(markImage(512, 'macos'));
     ensureHome(this.layout.home);
+    if (!this.layout.dev) prepareBridgeLibraries(this.layout.resources, this.layout.home, process.platform);
     const { config, problem } = readDesktopConfig(this.layout.home);
     if (problem) this.log(problem);
     this.config = config;
@@ -693,6 +697,7 @@ export class Desktop {
     handle(IPC.openClientConfig, (id) => openClientConfig(files, id));
     handle(IPC.reveal, (kind) => reveal(files, kind));
     handle(IPC.applyGeneral, (raw) => {
+      if (process.windowsStore) throw new Error('Manage startup in Windows Settings > Apps > Startup.');
       const s = (typeof raw === 'object' && raw !== null ? raw : {}) as GeneralSettings;
       this.storeLoginSettings({
         openAtLogin: typeof s.openAtLogin === 'boolean' ? s.openAtLogin : this.config.openAtLogin !== false,
