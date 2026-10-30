@@ -37,7 +37,7 @@ Observe
 Settings       Appearance, authorization, notifications, network, and data
 ```
 
-The sidebar footer shows **Core running · 127.0.0.1:7465 · v0.4.0 · Tunnel off** in the shared demo.
+The sidebar footer shows **Core running · Tunnel off · v0.4.0** in the shared demo.
 
 | Settings group | Sections |
 | --- | --- |
