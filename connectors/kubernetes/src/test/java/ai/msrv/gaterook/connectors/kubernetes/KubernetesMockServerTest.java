@@ -165,6 +165,55 @@ class KubernetesMockServerTest {
   }
 
   @Test
+  void namespacesNarrowedToNoneAreNoneNotTheWholeCluster() throws Exception {
+    // The environment's and the endpoint's lists had nothing in common: the merge left a value no name matches.
+    ToolCall all = call("tc_none", "k8s_get", "{\"kind\":\"pods\",\"allNamespaces\":true}");
+
+    Classification c = connector.classify(all, cfg, policy(Env.DEV, "{\"namespaces\":[\"\\u0000none\"]}"));
+    Classification one = connector.classify(call("k8s_get", "{\"kind\":\"pods\",\"namespace\":\"app-dev\"}"), cfg,
+        policy(Env.DEV, "{\"namespaces\":[\"\\u0000none\"]}"));
+
+    assertThat(c.kind()).isEqualTo(Classification.Kind.DENY);
+    assertThat(c.ruleId()).isEqualTo("dev.k8s.namespace-not-allowed");
+    assertThat(c.reason()).contains("No namespace is allowed");
+    assertThat(one.kind()).isEqualTo(Classification.Kind.DENY);
+    assertThat(one.reason()).contains("Namespaces: none.");
+    assertThat(api.requests).isEmpty();
+  }
+
+  @Test
+  void aNamespacedListWithoutANamespaceIsNeverSentClusterWide() {
+    KindInfo pods = Kinds.of(null).resolve("pods").orElseThrow();
+    K8sRequests.Get plan = new K8sRequests.Get(pods, null, List.of(), true, null, null, 50, null, false, false);
+
+    assertThatThrownBy(() -> GetTool.run(plan, null, cfg, ctx(Env.DEV)))
+        .isInstanceOf(ConnectorException.class).hasMessageContaining("No namespace is allowed");
+    assertThat(api.requests).isEmpty();
+  }
+
+  @Test
+  void containerEnvironmentValuesReachTheAgentMasked() throws Exception {
+    api.json("GET", "/apis/apps/v1/namespaces/app-dev/deployments/billing", """
+        {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"name":"billing","namespace":"app-dev"},
+         "spec":{"template":{"spec":{
+           "initContainers":[{"name":"migrate","env":[{"name":"DB_URL","value":"cnry-init-url"}]}],
+           "containers":[{"name":"app","env":[
+             {"name":"DB_PASSWORD","value":"cnry-env-pass"},
+             {"name":"API_KEY","valueFrom":{"secretKeyRef":{"name":"billing","key":"api-key"}}}]}]}}}}
+        """);
+    api.on("GET", "/api/v1/namespaces/app-dev/events", r -> ok("{\"kind\":\"EventList\",\"items\":[]}"));
+
+    ToolResult r = run(call("k8s_get", "{\"kind\":\"deploy\",\"name\":\"billing\"}"), ctx(Env.DEV));
+
+    assertThat(r.structuredContent().toString()).doesNotContain("cnry-env-pass", "cnry-init-url");
+    JsonNode spec = r.structuredContent().at("/object/spec/template/spec");
+    assertThat(spec.at("/containers/0/env/0/name").asString()).isEqualTo("DB_PASSWORD");
+    assertThat(spec.at("/containers/0/env/0/value").asString()).isEqualTo("‹masked›");
+    assertThat(spec.at("/containers/0/env/1/valueFrom/secretKeyRef/key").asString()).isEqualTo("api-key");
+    assertThat(spec.at("/initContainers/0/env/0/value").asString()).isEqualTo("‹masked›");
+  }
+
+  @Test
   void oneObjectComesWithItsEventsAndRollout() throws Exception {
     api.json("GET", "/apis/apps/v1/namespaces/app-dev/deployments/api", """
         {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"name":"api","namespace":"app-dev","uid":"u-42",

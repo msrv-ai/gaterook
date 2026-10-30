@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
@@ -12,12 +13,16 @@ import tools.jackson.databind.node.ObjectNode;
  * <p>For the agent: no {@code managedFields} and no {@code kubectl.kubernetes.io/last-applied-configuration} — on a
  * Secret applied with kubectl that annotation holds the plain {@code stringData} — and the values of a Secret's
  * {@code data} and {@code stringData} replaced by {@code ‹masked›} (keys stay, lengths don't show). The core doesn't
- * know that {@code data.*} of a Secret is a secret; this does.
+ * know that {@code data.*} of a Secret is a secret; this does. Containers' environment values ({@code env[*].value}
+ * of pods, pod templates and custom resources that follow them) are masked the same way: they carry passwords and
+ * tokens as often as Secrets do, and the core's masker reads the key {@code value}, not the variable's name. Names
+ * and references ({@code valueFrom}) stay.
  *
  * <p>For a diff: what {@code kubectl diff --server-side} prints (the server's own fields — resourceVersion,
  * generation, uid, creationTimestamp, status — included, so the hunks line up with kubectl's), without
  * {@code managedFields} (kubectl hides them too) and without the {@code last-applied-configuration} (kubectl would
- * show it; here it may carry a Secret's plain text, so it is never shown).
+ * show it; here it may carry a Secret's plain text, so it is never shown). Environment values stay in the diff: a
+ * person approves it, and a masked value would hide its change.
  *
  * <p>For the hash that holds an approved apply to its dry run: the diff's view without what the server changes on
  * its own (the version, the generation, timestamps, uid, status), so a controller writing the status between approval
@@ -30,8 +35,15 @@ final class ObjectNormalizer {
 
   private ObjectNormalizer() {}
 
-  /** A copy for the agent. */
+  /** A copy for the agent: the diff's view with environment values masked too. */
   static ObjectNode forAgent(JsonNode object) {
+    ObjectNode o = forDiff(object);
+    maskEnv(o);
+    return o;
+  }
+
+  /** A copy as the diff shows it, as {@code kubectl diff} lays the object out. */
+  static ObjectNode forDiff(JsonNode object) {
     ObjectNode o = ((ObjectNode) object).deepCopy();
     stripMetadata(o);
     if (isSecret(o)) {
@@ -41,14 +53,9 @@ final class ObjectNormalizer {
     return o;
   }
 
-  /** A copy as the diff shows it: the agent's view, as {@code kubectl diff} lays the object out. */
-  static ObjectNode forDiff(JsonNode object) {
-    return forAgent(object);
-  }
-
   /** A copy for the hash of an approved object: no field the server sets by itself. */
   static ObjectNode forHash(JsonNode object) {
-    ObjectNode o = forAgent(object);
+    ObjectNode o = forDiff(object);
     if (o.get("metadata") instanceof ObjectNode m) {
       m.remove(List.of("resourceVersion", "generation", "uid", "creationTimestamp", "selfLink"));
       if (m.isEmpty()) {
@@ -73,6 +80,28 @@ final class ObjectNormalizer {
       if (a.isEmpty()) {
         m.remove("annotations");
       }
+    }
+  }
+
+  /**
+   * {@code env: [{name, value}]} wherever it is: a pod's containers, init and ephemeral containers, the pod template
+   * of a workload or a job template, a custom resource's.
+   */
+  private static void maskEnv(JsonNode node) {
+    if (node instanceof ObjectNode o) {
+      for (Map.Entry<String, JsonNode> e : o.properties()) {
+        if (e.getKey().equals("env") && e.getValue() instanceof ArrayNode vars) {
+          for (JsonNode v : vars) {
+            if (v instanceof ObjectNode var && var.has("value") && !var.get("value").isNull()) {
+              var.put("value", MASK);
+            }
+          }
+        } else {
+          maskEnv(e.getValue());
+        }
+      }
+    } else if (node instanceof ArrayNode a) {
+      a.forEach(ObjectNormalizer::maskEnv);
     }
   }
 

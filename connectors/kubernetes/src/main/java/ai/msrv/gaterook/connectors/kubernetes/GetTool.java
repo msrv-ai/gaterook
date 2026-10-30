@@ -47,8 +47,8 @@ final class GetTool {
   private static ToolResult list(Get plan, K8sApi api, ConnectionConfig cfg, ExecContext ctx)
       throws ConnectorException {
     int limit = Math.max(1, Math.min(plan.limit(), Math.max(1, ctx.limits().maxRows())));
-    List<String> namespaces = plan.namespaces().isEmpty() ? java.util.Collections.singletonList(null)
-        : plan.namespaces();
+    // Only a cluster-scoped kind is listed without a namespace; a namespaced one without any lists nothing.
+    List<String> namespaces = scope(plan);
     String query = queryKey(cfg, plan);
     int start = 0;
     String serverContinue = null;
@@ -205,6 +205,17 @@ final class GetTool {
     return cursor == null ? result : result.truncated("row_limit");
   }
 
+  /** The namespaces to request: {@code [null]} (the whole collection) only for a cluster-scoped kind. */
+  private static List<String> scope(Get plan) throws ConnectorException {
+    if (!plan.kind().namespaced()) {
+      return java.util.Collections.singletonList(null);
+    }
+    if (plan.namespaces().isEmpty()) {
+      throw ConnectorException.denied("No namespace is allowed for " + plan.kind().plural() + " on this connection.");
+    }
+    return plan.namespaces();
+  }
+
   private static String where(Get plan) {
     if (plan.namespaces().isEmpty()) {
       return "";
@@ -261,7 +272,7 @@ final class GetTool {
 
   private static ToolResult object(Get plan, K8sApi api, ConnectionConfig cfg, ExecContext ctx)
       throws ConnectorException {
-    String ns = plan.namespaces().isEmpty() ? null : plan.namespaces().get(0);
+    String ns = scope(plan).get(0);
     KindInfo kind = plan.kind();
     String what = kind.display(plan.name()) + (ns == null ? "" : " in " + ns);
     JsonNode live;

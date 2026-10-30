@@ -67,7 +67,10 @@ final class K8sPolicy {
     return unrestricted || verbs.isEmpty() || verbs.contains(verb);
   }
 
-  /** The namespaces this connection may reach: the policy's list, or the connection's own namespace. */
+  /**
+   * The namespaces this connection may reach: the policy's list, or the connection's own namespace. Empty when the
+   * merged lists had no namespace in common: then none is allowed, never every one.
+   */
   List<String> namespaces() {
     return namespaces.isEmpty() ? List.of(connectionNamespace) : namespaces.stream()
         .filter(n -> !n.startsWith("\u0000")).toList();
@@ -105,7 +108,8 @@ final class K8sPolicy {
   }
 
   String namespacesText() {
-    return String.join(", ", namespaces());
+    List<String> allowed = namespaces();
+    return allowed.isEmpty() ? "none" : String.join(", ", allowed);
   }
 
   int applyMaxObjects() {
