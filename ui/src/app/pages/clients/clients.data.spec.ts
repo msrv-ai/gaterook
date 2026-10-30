@@ -103,6 +103,52 @@ function setup(): ClientsData {
 }
 
 describe('ClientsData: loading', () => {
+  it('uses only existing selected endpoints and never silently substitutes another endpoint', async () => {
+    const data = setup();
+    data.selectManualEndpoint('incident-prod');
+    await data.start();
+    expect(data.manualSlug()).toBe('incident-prod');
+    expect(calls).toContain('manual incident-prod');
+    expect(calls).not.toContain('manual dev');
+    data.selectManualEndpoint('removed-endpoint');
+    await flush();
+    expect(data.manualSlug()).toBeNull();
+    expect(data.manualEndpointMissing()).toBe(true);
+    expect(data.manual().value).toBeNull();
+    expect(calls).not.toContain('manual removed-endpoint');
+  });
+
+  it('ignores an older manual setup answer after changing the selected endpoint', async () => {
+    const data = setup();
+    await data.start();
+    let answer!: (value: ReturnType<typeof kitManual>) => void;
+    vi.spyOn(TestBed.inject(ClientsApi), 'manual').mockImplementation((slug) => slug === 'stage-readonly'
+      ? new Promise((resolve) => { answer = resolve; })
+      : Promise.resolve({ ...kitManual(), endpoint: slug }));
+    data.selectManualEndpoint('stage-readonly');
+    data.selectManualEndpoint('incident-prod');
+    await flush();
+    expect(data.manual().value?.endpoint).toBe('incident-prod');
+    answer({ ...kitManual(), endpoint: 'stage-readonly' });
+    await flush();
+    expect(data.manual().value?.endpoint).toBe('incident-prod');
+  });
+
+  it('shows manual setup while token history is still loading', async () => {
+    const data = setup();
+    await data.start();
+    let finish!: (rows: ReturnType<typeof kitTokens>) => void;
+    vi.spyOn(TestBed.inject(TokensApi), 'list').mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+    vi.spyOn(TestBed.inject(ClientsApi), 'manual').mockResolvedValue({ ...kitManual(), endpoint: 'incident-prod' });
+    data.selectManualEndpoint('incident-prod');
+    await flush();
+    expect(data.manual().value?.endpoint).toBe('incident-prod');
+    expect(data.tokens()).toEqual([]);
+    finish(kitTokens());
+    await flush();
+    expect(data.tokens()).toEqual(kitTokens());
+  });
+
   it('loads the cards, the endpoints, Codex’s entry and the manual setup; remote access stays unloaded', async () => {
     const data = setup();
     await data.start();

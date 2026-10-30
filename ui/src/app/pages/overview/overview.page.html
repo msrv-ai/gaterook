@@ -144,7 +144,11 @@
               </div>
             </li>
             <li gwGuideStep [n]="2" state="upcoming" heading="Connect your AI app">
-              <p class="gw-stepper__description">Choose the app you use and click Connect. We show what changes before anything is written, and back up any file we change.</p>
+              @if (manualSetupOnly) {
+                <p class="gw-stepper__description">Open <a class="gw-link" routerLink="/clients" fragment="cl-manual-t">Manual setup</a>, create a token for your AI app, then copy the endpoint URL and token into its MCP settings.</p>
+              } @else {
+                <p class="gw-stepper__description">Choose the app you use and click Connect. We show what changes before anything is written, and back up any file we change.</p>
+              }
               @if (guideApps().length) {
                 <div class="gw-stepper__content gw-stack gw-stack--sm">
                   <ul class="gw-grid gw-grid--2" role="list" aria-label="AI apps on this computer">
@@ -196,7 +200,11 @@
               </div>
             </li>
             <li gwGuideStep [n]="2" state="current" heading="Connect your AI app">
-              <p class="gw-stepper__description">Choose the app you use and click Connect. We show what changes before anything is written, and back up any file we change.</p>
+              @if (manualSetupOnly) {
+                <p class="gw-stepper__description">Open <a class="gw-link" routerLink="/clients" fragment="cl-manual-t">Manual setup</a>, create a token for your AI app, then copy the endpoint URL and token into its MCP settings.</p>
+              } @else {
+                <p class="gw-stepper__description">Choose the app you use and click Connect. We show what changes before anything is written, and back up any file we change.</p>
+              }
               @if (guideApps().length) {
                 <div class="gw-stepper__content">
                   <ul class="gw-grid gw-grid--2" role="list" aria-label="AI apps on this computer">
@@ -236,7 +244,9 @@
   -->
   <ng-template #appTile let-a let-level="level" let-wait="wait">
     <li gwStatusTile [level]="level" [name]="a.name" [client]="a.client" [meta]="a.meta" [endpoints]="a.endpoints" [state]="a.state" [link]="a.linked ? '/clients' : null" [fragment]="a.linked ? appAnchor(a.client) : null">
-      @if (a.action === 'connect') {
+      @if (manualSetupOnly) {
+        <a class="gw-btn gw-btn--sm" routerLink="/clients" fragment="cl-manual-t">Manual setup<span class="gw-sr-only"> for {{ a.name }}</span></a>
+      } @else if (a.action === 'connect') {
         @if (wait) {
           <button class="gw-btn gw-btn--sm" type="button" aria-disabled="true" aria-describedby="ov-first-why">Connect<span class="gw-sr-only"> {{ a.name }}</span></button>
         } @else {

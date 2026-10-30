@@ -7,7 +7,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { Broker } from '@gaterook/broker';
 import { IPC, type DesktopCoreState, type GeneralSettings } from '../shared/contract.ts';
-import { routeAppUrl, serveUi } from './app-protocol.ts';
+import { MANUAL_CLIENT_SETUP, manualClientSetupResponse, routeAppUrl, serveUi } from './app-protocol.ts';
 import { finishApplicationReset, hasPendingReset, requestApplicationReset, type ResetPaths } from './application-reset.ts';
 import { startTokenBroker } from './broker.ts';
 import { prepareBridgeLibraries } from './bridge-libraries.ts';
@@ -601,6 +601,8 @@ export class Desktop {
       }
       const route = routeAppUrl(url);
       if (route.kind === 'api') {
+        const manualOnly = manualClientSetupResponse(process.windowsStore === true, request.method, route.target);
+        if (manualOnly) return manualOnly;
         const core = this.supervisor.endpoint();
         // Only once the page got `ready` from this core: before that, the status screen owns the window.
         const open = !this.resetting && !this.fullBackupBusy && core && this.readyDeliveredFor === core.instanceNonce ? core : null;
@@ -693,7 +695,10 @@ export class Desktop {
       if (args.length) throw new Error('Google sign-in does not accept arguments.');
       return this.googleSignIn.signIn();
     });
-    handle(IPC.openMcpb, (id) => openMcpb(files, id));
+    handle(IPC.openMcpb, (id) => {
+      if (process.windowsStore) throw new Error(MANUAL_CLIENT_SETUP);
+      return openMcpb(files, id);
+    });
     handle(IPC.openClientConfig, (id) => openClientConfig(files, id));
     handle(IPC.reveal, (kind) => reveal(files, kind));
     handle(IPC.applyGeneral, (raw) => {

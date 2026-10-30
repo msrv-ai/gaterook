@@ -226,6 +226,19 @@ async function cursorConnection(method: 'oauth' | 'token' = 'oauth') {
 }
 
 describe('Endpoint detail page', () => {
+  it('keeps manual setup and token/access management in the Store Clients panel', async () => {
+    const disconnectPreview = vi.fn();
+    setup(undefined, { api: { disconnectPreview }, desktop: { available: true, windowsStore: true } });
+    const { el } = await render({ slug: 'dev', tab: 'clients' });
+    const panel = el.querySelector('#clients')!;
+    expect(panel.querySelector('[gwClientCard]')).toBeNull();
+    expect(panel.querySelector('a[href="/clients?endpoint=dev#cl-manual-t"]')).not.toBeNull();
+    expect(panel.querySelector('a[href="/endpoints/dev?tab=tokens"]')).not.toBeNull();
+    expect(text(panel)).toContain('remove the entry in the AI app yourself');
+    expect(disconnectPreview).not.toHaveBeenCalled();
+    expect(el.querySelector('#tokens [gwTokens]')).not.toBeNull();
+  });
+
   it('retries a slightly early bypass expiry read with backoff and stops after the core confirms expiry', async () => {
     setup();
     const { fixture } = await render();

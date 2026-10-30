@@ -835,3 +835,46 @@ describe('Clients page: first run and setup (kit ?state=first-run | setup)', () 
     expect($('.gw-how-it-works')).not.toBeNull();
   });
 });
+
+
+describe('Microsoft Store manual client setup', () => {
+  function storeEdition(): void {
+    Object.assign(TestBed.inject(DesktopBridge), { windowsStore: true });
+    Object.assign(TestBed.inject(ClientsApi), { manualSetupOnly: true });
+  }
+
+  it('shows URL, snippets and token management without automatic client cards or previews', async () => {
+    storeEdition();
+    const el = await render();
+    expect(el.querySelector('[data-client]')).toBeNull();
+    expect(el.querySelector('[gwHowItWorks]')).toBeNull();
+    expect(el.querySelector<HTMLElement>('#cl-manual-p')?.hidden).toBe(false);
+    expect(el.querySelector<HTMLInputElement>('#cl-man-url')?.value).toBe(kitManual().url);
+    expect(control(el, 'Create a token').getAttribute('href')).toBe('/endpoints/dev?tab=tokens');
+    expect(text(el)).toContain('remove the entry in the AI app yourself');
+    expect(text(el)).not.toContain('in one click');
+    expect(text(el)).not.toContain('chmod 600');
+    expect(control(el, 'Scan again')).toBeUndefined();
+    expect(calls.some((c) => /^(preview|connect|disconnect|remove-bridge)/.test(c))).toBe(false);
+  });
+
+  it('preserves the endpoint from an endpoint detail link and focuses manual setup', async () => {
+    storeEdition();
+    vi.spyOn(TestBed.inject(ClientsApi), 'manual').mockImplementation(async (slug) => ({ ...kitManual(), endpoint: slug, url: `http://127.0.0.1:7465/mcp/${slug}` }));
+    await TestBed.inject(Router).navigateByUrl('/clients?endpoint=incident-prod#cl-manual-t');
+    const el = await render();
+    expect(el.querySelector<HTMLInputElement>('#cl-man-url')?.value).toBe('http://127.0.0.1:7465/mcp/incident-prod');
+    expect(control(el, 'Create a token').getAttribute('href')).toBe('/endpoints/incident-prod?tab=tokens');
+    expect(document.activeElement?.id).toBe('cl-manual-t');
+  });
+
+  it('offers endpoint creation during first run instead of an empty managed client list', async () => {
+    storeEdition();
+    world.overview = () => Promise.resolve(firstRunOverview());
+    world.endpoints = () => Promise.resolve([]);
+    const el = await render();
+    expect(text(el)).toContain('No endpoint yet');
+    expect(control(el, 'Create endpoint').getAttribute('href')).toBe('/endpoints');
+    expect(el.querySelector('[data-client]')).toBeNull();
+  });
+});

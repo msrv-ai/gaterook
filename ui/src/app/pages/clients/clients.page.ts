@@ -90,12 +90,14 @@ export class ClientsPage {
   protected readonly core = inject(CoreStore);
   protected readonly time = inject(TimeService);
   private readonly desktop = inject(DesktopBridge);
+  protected readonly manualSetupOnly = this.desktop.windowsStore === true;
   private readonly toasts = inject(ToastService);
   private readonly announcer = inject(Announcer);
   private readonly doc = inject(DOCUMENT);
   private readonly route = inject(ActivatedRoute);
   private readonly injector = inject(Injector);
   private readonly fragment = toSignal(this.route.fragment, { initialValue: this.route.snapshot.fragment });
+  private readonly queryParams = toSignal(this.route.queryParamMap, { initialValue: this.route.snapshot.queryParamMap });
   protected readonly clientAnchor = (id: ClientId) => `${anchorBase(id)}-t`;
 
   /** Placeholders only when the first answer is slow. */
@@ -152,8 +154,8 @@ export class ClientsPage {
     const f = this.data.first();
     return checkPrompt(f?.type ?? null, f?.name ?? null);
   });
-  /** Manual setup stays behind "Show manual setup". */
-  protected readonly manualOpen = signal(false);
+  /** Store builds start with manual setup open; other builds keep the disclosure. */
+  protected readonly manualOpen = signal(this.manualSetupOnly);
   protected readonly anchorBase = anchorBase;
   protected readonly literalParts = literalParts;
   protected readonly statusLook = clientStatusLook;
@@ -161,6 +163,13 @@ export class ClientsPage {
   protected readonly installUrl = (c: ClientCard) => INSTALL_URL[c.client];
 
   constructor() {
+    if (this.manualSetupOnly) {
+      this.data.selectManualEndpoint(this.route.snapshot.queryParamMap.get('endpoint'));
+      effect(() => {
+        const endpoint = this.queryParams().get('endpoint');
+        untracked(() => this.data.selectManualEndpoint(endpoint));
+      });
+    }
     void this.data.start();
     const timer = setTimeout(() => this.slow.set(true), SKELETON_DELAY_MS);
     effect((onCleanup) => {
@@ -214,6 +223,11 @@ export class ClientsPage {
    * heading takes the focus, never the primary; an app without entries outside "in use" is its row; else its card.
    */
   private arrive(fragment: string): void {
+    if (this.manualSetupOnly || fragment === 'cl-manual-t') {
+      this.manualOpen.set(true);
+      this.focus('cl-manual-t');
+      return;
+    }
     const client = anchorClient(fragment);
     if (!client) return;
     if (client === 'claude-ai') return;

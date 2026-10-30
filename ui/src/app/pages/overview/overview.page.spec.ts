@@ -7,6 +7,7 @@ import { ClientsApi, ClientsView } from '../../core/api/clients.api';
 import { ConnectionsApi, TestOutcome } from '../../core/api/connections.api';
 import { Overview, OverviewApi } from '../../core/api/overview.api';
 import { TunnelState } from '../../core/api/tunnel.api';
+import { DesktopBridge } from '../../core/desktop/desktop-bridge';
 import { EventStream } from '../../core/events/event-stream';
 import { CoreStore } from '../../core/stores/core.store';
 import { TunnelStore } from '../../core/stores/tunnel.store';
@@ -154,6 +155,17 @@ const tile = (root: ParentNode, name: string) => Array.from(root.querySelectorAl
 const href = (a: Element | null) => a?.getAttribute('href') ?? null;
 
 describe('Overview page', () => {
+  it('leads Store users to manual setup without promising config edits', async () => {
+    setupPage(() => Promise.resolve(setup()));
+    Object.assign(TestBed.inject(DesktopBridge), { windowsStore: true });
+    const { el } = await render();
+    expect(text(el)).not.toContain('click Connect');
+    const links = [...el.querySelectorAll<HTMLAnchorElement>('a[href^="/clients#"]')];
+    expect(links.length).toBeGreaterThan(0);
+    expect(links.every((a) => a.getAttribute('href') === '/clients#cl-manual-t')).toBe(true);
+    expect(text(el)).toContain('copy the endpoint URL and token');
+  });
+
   it('shows nothing for a moment, then the skeleton until the core answers', async () => {
     const answer = deferred<Overview>();
     setupPage(() => answer.promise);

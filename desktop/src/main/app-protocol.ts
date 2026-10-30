@@ -92,6 +92,24 @@ export function wellFormedApiPath(raw: string): boolean {
   return raw.slice(1).split('/').every((s) => s !== '' && s !== '.' && s !== '..');
 }
 
+export const MANUAL_CLIENT_SETUP = 'Use AI apps > Manual setup to copy an endpoint URL and create a token. This Microsoft Store edition does not edit AI app configuration files.';
+
+/** Store distribution behavior, applied to validated API routes before the desktop signs them. */
+export function manualClientSetupResponse(windowsStore: boolean, method: string, target: string): Response | null {
+  if (!windowsStore || method.toUpperCase() !== 'POST') return null;
+  let path: string;
+  try {
+    path = decodeURIComponent(target.split('?')[0] ?? '');
+  } catch {
+    return null;
+  }
+  if (!/^\/api\/clients\/(?:[^/]+\/(?:connect|restore)(?:\/preview)?|links\/[^/]+\/disconnect(?:\/preview)?|claude-desktop\/remove-bridge)$/.test(path)) return null;
+  return new Response(JSON.stringify({ status: 403, title: 'Manual client setup required', detail: MANUAL_CLIENT_SETUP }), {
+    status: 403,
+    headers: { 'Content-Type': 'application/problem+json', 'Cache-Control': 'no-store' },
+  });
+}
+
 /** A fresh nonce for one load of index.html. */
 export function newNonce(random: (n: number) => Buffer = randomBytes): string {
   return random(18).toString('base64');
