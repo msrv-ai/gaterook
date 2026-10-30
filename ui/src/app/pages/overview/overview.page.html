@@ -74,31 +74,92 @@
         <p class="gw-text-small gw-fg-muted" id="ov-wait-none"><svg lucideIcon="circle-check" class="gw-icon gw-icon--sm"></svg> Nothing waits for your approval. Calls that need your approval appear here and as a desktop notification. Tools in Bypass run without asking.</p>
       }
 
-      <!-- What the AI apps can use: problems first, six visible by default, the rest behind a disclosure. -->
+      <!-- Endpoint wiring: shared connections appear in every endpoint that uses them. -->
       @let t = tiles();
       <section class="gw-section" aria-labelledby="ov-conn-title">
         <header class="gw-section__header">
           <h2 class="gw-section__title" id="ov-conn-title" tabindex="-1" #connectionsTitle>Your connections</h2>
-          <p class="gw-section__description">{{ t.description }}</p>
+          <p class="gw-section__description">@if (groups()) {Connections grouped by endpoint and the AI apps configured to use them. Shared connections appear in each endpoint.} @else {{{ t.description }}}</p>
           <div class="gw-section__actions">
+            <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/endpoints">All endpoints</a>
             <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/connections">All connections</a>
           </div>
         </header>
         <div class="gw-stack">
-          <ul class="gw-grid gw-grid--3" role="list" aria-label="Connections that need attention first">
-            @for (c of t.shown; track c.name) {
-              <ng-container *ngTemplateOutlet="connectionTile; context: { $implicit: c }" />
+          @if (groups(); as endpointGroups) {
+            @for (group of endpointGroups; track group.key; let i = $index) {
+              <section class="gw-card gw-card--muted" [attr.aria-labelledby]="'ov-group-' + i">
+                <header class="gw-card__header">
+                  <div class="gw-card__heading">
+                    <h3 class="gw-card__title" [id]="'ov-group-' + i">
+                      @if (group.endpoint; as endpoint) {
+                        <svg lucideIcon="waypoints" class="gw-icon"></svg>
+                        <a class="gw-link gw-mono gw-truncate" [title]="endpoint.slug" [routerLink]="['/endpoints', endpoint.slug]"><span class="gw-sr-only">Endpoint </span>{{ endpoint.slug }}</a>
+                      } @else {
+                        Not on an endpoint
+                      }
+                    </h3>
+                    <p class="gw-card__description">{{ group.connections.length }} {{ group.connections.length === 1 ? 'connection' : 'connections' }}@if (!group.endpoint) { · Add these connections to an endpoint to make them available to AI apps.}</p>
+                  </div>
+                  @if (group.endpoint; as endpoint) {
+                    <div class="gw-card__actions">
+                      <span class="gw-sr-only">Environment</span><span [class]="'gw-env gw-env--sm gw-env--' + endpoint.env">{{ endpoint.env }}</span>
+                      @if (endpoint.blockedReason) {
+                        <span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Needs review</span></span>
+                      } @else if (endpoint.status === 'disabled') {
+                        <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Disabled</span></span>
+                      } @else {
+                        <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Running</span></span>
+                      }
+                    </div>
+                  }
+                </header>
+                <div class="gw-card__body gw-stack">
+                  @if (group.endpoint; as endpoint) {
+                    <div class="gw-stack gw-stack--sm">
+                      <p class="gw-text-caption gw-fg-muted">AI apps</p>
+                      @if (group.apps === null) {
+                        <p class="gw-text-small gw-fg-muted">AI app connections couldn't be loaded. <a class="gw-link" routerLink="/clients">Open AI apps</a></p>
+                      } @else if (group.apps.length) {
+                        <ul class="gw-tag-list" role="list" [attr.aria-label]="'AI apps for endpoint ' + endpoint.slug">
+                          @for (app of group.apps; track app.client) {
+                            <li [class]="'gw-badge gw-badge--wrap gw-badge--' + app.state.tone">{{ app.name }} · {{ app.state.label }}</li>
+                          }
+                        </ul>
+                      } @else {
+                        <p class="gw-text-small gw-fg-muted">No AI apps linked. <a class="gw-link" routerLink="/clients">Connect an AI app</a></p>
+                      }
+                    </div>
+                  }
+                  @if (group.connections.length) {
+                    <ul class="gw-grid gw-grid--3" role="list" [attr.aria-label]="group.endpoint ? 'Connections on endpoint ' + group.endpoint.slug : 'Connections not on an endpoint'">
+                      @for (c of group.connections; track c.name) {
+                        <ng-container *ngTemplateOutlet="connectionTile; context: { $implicit: c, level: 4 }" />
+                      }
+                    </ul>
+                  } @else if (group.endpoint; as endpoint) {
+                    <p class="gw-text-small gw-fg-muted">No connections on this endpoint. <a class="gw-link" [routerLink]="['/endpoints', endpoint.slug]">Add connections</a></p>
+                  }
+                </div>
+              </section>
             }
-          </ul>
-          @if (t.more.length) {
-            <div>
-              <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [(expanded)]="moreOpen" aria-controls="ov-conn-more">{{ t.moreLabel }} <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
-            </div>
-            <ul class="gw-grid gw-grid--3" role="list" id="ov-conn-more" [attr.aria-label]="moreLabel()" [hidden]="!moreOpen()">
-              @for (c of t.more; track c.name) {
+          } @else {
+            <p class="gw-text-small gw-fg-muted" role="status">Endpoint groups couldn't be loaded. Connection health is still available. <button class="gw-btn gw-btn--link gw-btn--sm" type="button" (click)="retry()" [attr.aria-disabled]="data.refreshing() ? 'true' : null" [attr.aria-busy]="data.refreshing() ? 'true' : null">Try again</button></p>
+            <ul class="gw-grid gw-grid--3" role="list" aria-label="Connections that need attention first">
+              @for (c of t.shown; track c.name) {
                 <ng-container *ngTemplateOutlet="connectionTile; context: { $implicit: c }" />
               }
             </ul>
+            @if (t.more.length) {
+              <div>
+                <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [(expanded)]="moreOpen" aria-controls="ov-conn-more">{{ t.moreLabel }} <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
+              </div>
+              <ul class="gw-grid gw-grid--3" role="list" id="ov-conn-more" [attr.aria-label]="moreLabel()" [hidden]="!moreOpen()">
+                @for (c of t.more; track c.name) {
+                  <ng-container *ngTemplateOutlet="connectionTile; context: { $implicit: c }" />
+                }
+              </ul>
+            }
           }
         </div>
       </section>
@@ -220,9 +281,9 @@
   }
 
   <!-- A connection as a tile: the whole tile opens it; Test again (unreachable) is its own target above that link. -->
-  <ng-template #connectionTile let-c>
+  <ng-template #connectionTile let-c let-level="level">
     @let busy = testing().includes(c.name);
-    <li gwStatusTile #tile="gwStatusTile" [name]="c.name" mono [env]="c.env" [icon]="c.icon" [meta]="c.meta" [state]="c.state" [link]="['/connections', c.name]" [checking]="busy">
+    <li gwStatusTile #tile="gwStatusTile" [level]="level ?? 3" [name]="c.name" mono [env]="c.env" [icon]="c.icon" [meta]="c.meta" [state]="c.state" [link]="['/connections', c.name]" [checking]="busy">
       @if (c.retest) {
         <button class="gw-btn gw-btn--sm" type="button" (click)="testAgain(c.name)" [attr.aria-busy]="busy ? 'true' : null" [attr.aria-disabled]="busy ? 'true' : null" [attr.aria-describedby]="busy ? tile.stateId : null">@if (busy) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span> }Test again<span class="gw-sr-only"> {{ c.name }}</span></button>
       }

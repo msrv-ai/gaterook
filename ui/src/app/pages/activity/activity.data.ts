@@ -103,6 +103,7 @@ export class ActivityData {
   private readonly queryErrorSignal = signal<unknown>(null);
   private readonly refreshingSignal = signal(false);
   private readonly olderSignal = signal(false);
+  private readonly activeLoads = signal(0);
 
   /** The histogram of the range, for the query (null until loaded, or when the query isn't valid). */
   readonly histogram = this.histogramSignal.asReadonly();
@@ -121,6 +122,8 @@ export class ActivityData {
   readonly queryError = this.queryErrorSignal.asReadonly();
   readonly refreshing = this.refreshingSignal.asReadonly();
   readonly loadingOlder = this.olderSignal.asReadonly();
+  /** A refresh or a page of older records is still loading. */
+  readonly busy = computed(() => this.activeLoads() > 0);
 
   readonly zoomBucket = computed(() => {
     const z = this.zoom();
@@ -163,6 +166,10 @@ export class ActivityData {
 
   private gen = 0;
   private tracesGen = 0;
+  private changesGen = 0;
+  private callsScope: string | null = null;
+  private tracesScope: string | null = null;
+  private readonly traceDetailGen = new Map<string, number>();
   private stopped = false;
   private tracesCursor: string | null = null;
   private changesCursor: string | null = null;
@@ -187,11 +194,17 @@ export class ActivityData {
     this.unsubscribe.splice(0).forEach((u) => u());
   }
 
-  /** Everything again (Try again, the core came back): the calls, the tasks and the changes. */
-  refresh(): Promise<void> {
-    void this.loadTraces();
-    void this.loadChanges();
-    return this.loadCalls('all');
+  /** Refresh every journal; a head refresh keeps older pages when the new data still overlaps them. */
+  async refresh(kind: 'all' | 'head' = 'all'): Promise<void> {
+    await Promise.all([
+      this.loadCalls(kind),
+      this.loadTraces(kind).then(() => {
+        if (this.stopped) return;
+        const ids = new Set(this.tracesSignal().value?.map((t) => t.traceId));
+        return Promise.all([...this.traceDetailsSignal().keys()].filter((id) => ids.has(id)).map((id) => this.loadTraceDetail(id, true).catch(() => undefined)));
+      }),
+      this.loadChanges(kind),
+    ]);
   }
 
   // ── Agent calls ─────────────────────────────────────────────────────────────────────────────────────────────────
@@ -201,6 +214,7 @@ export class ActivityData {
    * `head`: Live, the newest page is merged over the listed rows instead of replacing them.
    */
   async loadCalls(kind: 'all' | 'zoom' | 'head' = 'all'): Promise<void> {
+    this.activeLoads.update((n) => n + 1);
     const gen = ++this.gen;
     const q = this.query().trim();
     const range = this.range();
@@ -208,6 +222,7 @@ export class ActivityData {
     const whole = requestWindow(range, null, now);
     const zoom = this.zoomBucket();
     const win = requestWindow(range, zoom, now);
+    const scope = JSON.stringify([q, range, zoom?.from ?? null]);
     if (kind !== 'head') this.refreshingSignal.set(true);
     try {
       const [histogram, all, facets, page] = await Promise.all([
@@ -223,14 +238,18 @@ export class ActivityData {
       this.allSignal.set(all);
       this.facetsSignal.set(facets);
       const rows = this.rowsSignal();
-      if (kind === 'head' && rows) {
-        const merged = mergeHead(page.events, rows);
+      if (kind === 'head' && rows && this.callsScope === scope) {
+        const from = Date.parse(win.from);
+        const to = win.to ? Date.parse(win.to) : Infinity;
+        const retained = rows.filter((e) => Date.parse(e.at) >= from && Date.parse(e.at) < to);
+        const merged = page.nextCursor ? mergeHead(page.events, retained) : { rows: page.events, restarted: true };
         this.rowsSignal.set(merged.rows);
-        if (merged.restarted) this.cursorSignal.set(page.nextCursor);
+        if (merged.restarted || !retained.length) this.cursorSignal.set(page.nextCursor);
       } else {
         this.rowsSignal.set(page.events);
         this.cursorSignal.set(page.nextCursor);
       }
+      this.callsScope = scope;
       this.firstRunSignal.set(firstRun);
       this.errorSignal.set(null);
       this.staleSignal.set(null);
@@ -255,6 +274,7 @@ export class ActivityData {
       }
     } finally {
       if (gen === this.gen) this.refreshingSignal.set(false);
+      this.activeLoads.update((n) => n - 1);
     }
   }
 
@@ -264,6 +284,7 @@ export class ActivityData {
     if (!cursor || this.olderSignal()) return;
     const gen = this.gen;
     this.olderSignal.set(true);
+    this.activeLoads.update((n) => n + 1);
     try {
       const page = await this.api.events({ q: this.query().trim(), ...requestWindow(this.range(), this.zoomBucket(), this.time.now()), cursor, limit: PAGE_SIZE });
       if (gen !== this.gen || this.stopped) return;
@@ -273,6 +294,7 @@ export class ActivityData {
       this.cursorSignal.set(page.nextCursor);
     } finally {
       this.olderSignal.set(false);
+      this.activeLoads.update((n) => n - 1);
     }
   }
 
@@ -305,8 +327,10 @@ export class ActivityData {
     const wait = Math.max(0, this.lastHead + LIVE_THROTTLE_MS - Date.now());
     this.liveTimer = setTimeout(() => {
       this.liveTimer = null;
+      if (!this.live() || this.stopped) return;
       this.lastHead = Date.now();
-      if (this.live() && !this.stopped) void this.loadCalls('head');
+      if (this.busy()) this.scheduleHead();
+      else void this.loadCalls('head');
     }, wait);
   }
 
@@ -317,11 +341,13 @@ export class ActivityData {
    * is in the range when one of its calls is). The core takes the range itself since step API (every page is then in
    * it, over the whole audit); an older core answers without it and the pages stop at the range's start.
    */
-  async loadTraces(): Promise<void> {
+  async loadTraces(kind: 'all' | 'head' = 'all'): Promise<void> {
+    this.activeLoads.update((n) => n + 1);
     const gen = ++this.tracesGen;
     const from = rangeBounds(this.range(), this.time.now()).from;
     const q = this.query().trim() || null;
     const window = requestWindow(this.range(), null, this.time.now());
+    const scope = JSON.stringify([q, this.range()]);
     const list: TraceRow[] = [];
     let cursor: string | null = null;
     try {
@@ -333,78 +359,111 @@ export class ActivityData {
         const oldest = list.at(-1);
         if (!cursor || (oldest && Date.parse(oldest.endedAt) < from)) break;
       }
-      this.tracesCursor = cursor;
-      this.tracesCompleteSignal.set(cursor === null || Date.parse(list.at(-1)?.endedAt ?? '') < from);
-      this.tracesSignal.set({ value: list, error: null, unavailable: false });
+      const retained = this.tracesSignal().value ?? [];
+      const ids = new Set(list.map((t) => t.traceId));
+      const overlap = kind === 'head' && this.tracesScope === scope && cursor !== null && retained.some((t) => ids.has(t.traceId));
+      if (!overlap) {
+        this.tracesCursor = cursor;
+        this.tracesCompleteSignal.set(cursor === null || Date.parse(list.at(-1)?.endedAt ?? '') < from);
+      }
+      this.tracesSignal.set({ value: overlap ? [...list, ...retained.filter((t) => !ids.has(t.traceId))] : list, error: null, unavailable: false });
+      this.tracesScope = scope;
     } catch (e) {
       if (gen !== this.tracesGen || this.stopped) return;
       this.tracesSignal.update((p) => (isNotAvailable(e) ? { value: null, error: null, unavailable: true } : p.value ? p : { value: null, error: e, unavailable: false }));
+    } finally {
+      this.activeLoads.update((n) => n - 1);
     }
   }
 
   /** "Load older tasks" past what was read: one more page. */
   async loadMoreTraces(): Promise<void> {
     if (!this.tracesCursor) return;
-    const gen = this.tracesGen;
-    const from = rangeBounds(this.range(), this.time.now()).from;
-    const page = await this.api.traces(this.query().trim() || null, this.tracesCursor, LIST_PAGE, requestWindow(this.range(), null, this.time.now()));
-    if (gen !== this.tracesGen || this.stopped) return;
-    const list = [...(this.tracesSignal().value ?? []), ...page.traces];
-    this.tracesCursor = page.nextCursor;
-    this.tracesCompleteSignal.set(page.nextCursor === null || Date.parse(list.at(-1)?.endedAt ?? '') < from);
-    this.tracesSignal.set({ value: list, error: null, unavailable: false });
+    this.activeLoads.update((n) => n + 1);
+    try {
+      const gen = this.tracesGen;
+      const from = rangeBounds(this.range(), this.time.now()).from;
+      const page = await this.api.traces(this.query().trim() || null, this.tracesCursor, LIST_PAGE, requestWindow(this.range(), null, this.time.now()));
+      if (gen !== this.tracesGen || this.stopped) return;
+      const list = [...(this.tracesSignal().value ?? []), ...page.traces];
+      this.tracesCursor = page.nextCursor;
+      this.tracesCompleteSignal.set(page.nextCursor === null || Date.parse(list.at(-1)?.endedAt ?? '') < from);
+      this.tracesSignal.set({ value: list, error: null, unavailable: false });
+    } finally {
+      this.activeLoads.update((n) => n - 1);
+    }
   }
 
   /** One task's phases and calls (once; null when the core doesn't have it). */
   async loadTraceDetail(traceId: string, force = false): Promise<TraceDetail | null> {
     const known = this.traceDetailsSignal();
     if (!force && known.has(traceId)) return known.get(traceId) ?? null;
+    const gen = (this.traceDetailGen.get(traceId) ?? 0) + 1;
+    this.traceDetailGen.set(traceId, gen);
+    this.activeLoads.update((n) => n + 1);
     try {
       const d = await this.api.trace(traceId);
-      this.traceDetailsSignal.update((m) => new Map(m).set(traceId, d));
+      if (gen === this.traceDetailGen.get(traceId) && !this.stopped) this.traceDetailsSignal.update((m) => new Map(m).set(traceId, d));
       return d;
     } catch (e) {
       if (isApiError(e) && (e.kind === 'not-found' || e.kind === 'not-available')) {
-        this.traceDetailsSignal.update((m) => new Map(m).set(traceId, null));
+        if (gen === this.traceDetailGen.get(traceId) && !this.stopped) this.traceDetailsSignal.update((m) => new Map(m).set(traceId, null));
         return null;
       }
       throw e;
+    } finally {
+      this.activeLoads.update((n) => n - 1);
     }
   }
 
   // ── Setup changes ───────────────────────────────────────────────────────────────────────────────────────────────
 
   /** The changes of the last day (and the page that reaches past it). */
-  async loadChanges(): Promise<void> {
+  async loadChanges(kind: 'all' | 'head' = 'all'): Promise<void> {
+    const gen = ++this.changesGen;
+    this.activeLoads.update((n) => n + 1);
     const since = this.time.now() - DAY_MS;
     const list: SetupChange[] = [];
     let cursor: string | null = null;
     try {
       for (let i = 0; i < MAX_PAGES; i++) {
         const page: { readonly changes: SetupChange[]; readonly nextCursor: string | null } = await this.api.changes(null, cursor, LIST_PAGE);
-        if (this.stopped) return;
+        if (gen !== this.changesGen || this.stopped) return;
         list.push(...page.changes);
         cursor = page.nextCursor;
         const oldest = list.at(-1);
         if (!cursor || (oldest && Date.parse(oldest.at) < since)) break;
       }
-      this.changesCursor = cursor;
-      this.changesCompleteSignal.set(cursor === null);
-      this.changesSignal.set({ value: list, error: null, unavailable: false });
+      const retained = this.changesSignal().value ?? [];
+      const ids = new Set(list.map((c) => c.id));
+      const overlap = kind === 'head' && cursor !== null && retained.some((c) => ids.has(c.id));
+      if (!overlap) {
+        this.changesCursor = cursor;
+        this.changesCompleteSignal.set(cursor === null);
+      }
+      this.changesSignal.set({ value: overlap ? [...list, ...retained.filter((c) => !ids.has(c.id))] : list, error: null, unavailable: false });
     } catch (e) {
-      if (this.stopped) return;
+      if (gen !== this.changesGen || this.stopped) return;
       this.changesSignal.update((p) => (isNotAvailable(e) ? { value: null, error: null, unavailable: true } : p.value ? p : { value: null, error: e, unavailable: false }));
+    } finally {
+      this.activeLoads.update((n) => n - 1);
     }
   }
 
   /** "Load older changes": the next page. */
   async loadOlderChanges(): Promise<void> {
     if (!this.changesCursor) return;
-    const page = await this.api.changes(null, this.changesCursor, LIST_PAGE);
-    if (this.stopped) return;
-    this.changesCursor = page.nextCursor;
-    this.changesCompleteSignal.set(page.nextCursor === null);
-    this.changesSignal.update((p) => ({ value: [...(p.value ?? []), ...page.changes], error: null, unavailable: false }));
+    const gen = this.changesGen;
+    this.activeLoads.update((n) => n + 1);
+    try {
+      const page = await this.api.changes(null, this.changesCursor, LIST_PAGE);
+      if (gen !== this.changesGen || this.stopped) return;
+      this.changesCursor = page.nextCursor;
+      this.changesCompleteSignal.set(page.nextCursor === null);
+      this.changesSignal.update((p) => ({ value: [...(p.value ?? []), ...page.changes], error: null, unavailable: false }));
+    } finally {
+      this.activeLoads.update((n) => n - 1);
+    }
   }
 
   // ── Saved views, retention, environments, destinations ─────────────────────────────────────────────────────────

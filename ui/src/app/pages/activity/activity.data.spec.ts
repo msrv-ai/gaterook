@@ -95,6 +95,12 @@ function setup(): ActivityData {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const of = (path: string) => requests.filter((r) => r.path === path).map((r) => r.req);
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((r) => (resolve = r));
+  return { promise, resolve };
+}
+
 describe('ActivityData', () => {
   it('reads the range: histogram, facets and the newest page; counts come from the histogram', async () => {
     const d = setup();
@@ -203,6 +209,101 @@ describe('ActivityData', () => {
     expect(d.hasOlder()).toBe(false);
   });
 
+  it('refresh waits for every journal and the previously opened task details', async () => {
+    const d = setup();
+    await d.start();
+    await d.loadTraceDetail(WAITING_TASK.traceId);
+    const pendingChanges = deferred<{ changes: SetupChange[]; nextCursor: string | null }>();
+    const pendingDetail = deferred<TraceDetail>();
+    answers.changes = () => pendingChanges.promise;
+    answers.trace = () => pendingDetail.promise;
+    let finished = false;
+    const refresh = d.refresh('head').then(() => (finished = true));
+    await sleep(0);
+    expect(d.refreshing()).toBe(false);
+    expect(d.busy()).toBe(true);
+    expect(finished).toBe(false);
+    pendingChanges.resolve({ changes: [], nextCursor: null });
+    await sleep(0);
+    expect(d.busy()).toBe(true);
+    const updated = traceDetail({ ...WAITING_TASK, status: 'ended', calls: 12 });
+    pendingDetail.resolve(updated);
+    await refresh;
+    expect(d.busy()).toBe(false);
+    expect(d.traceDetails().get(WAITING_TASK.traceId)).toEqual(updated);
+    expect(d.changes().value).toEqual([]);
+  });
+
+  it('head refresh keeps loaded older calls and their cursor, and removes calls outside the moving range', async () => {
+    const d = setup();
+    await d.start();
+    answers.events = () => Promise.resolve({ events: [call(0, 3 * HOUR, 'allowed', 'sql_query'), call(-1, 25 * HOUR, 'allowed', 'sql_query')], nextCursor: 'c2' });
+    await d.loadOlder();
+    answers.events = () => Promise.resolve({ events: [call(50, 0, 'allowed', 'sql_query'), ...kitCalls()], nextCursor: 'c1' });
+    await d.refresh('head');
+    expect(d.rows()!.map((e) => e.id)).toEqual([50, ...kitCalls().map((e) => e.id), 0]);
+    await d.loadOlder();
+    expect(of('events').at(-1)!['cursor']).toBe('c2');
+
+    answers.histogram = () => Promise.resolve(histogram());
+    answers.events = () => Promise.resolve({ events: [], nextCursor: null });
+    await d.refresh('head');
+    expect(d.rows()).toEqual([]);
+    expect(d.hasOlder()).toBe(false);
+  });
+
+  it('head refresh does not merge calls left over from a failed filter change', async () => {
+    const d = setup();
+    await d.start();
+    d.query.set('env:prod');
+    answers.events = () => Promise.reject(problem('server', 500));
+    await d.loadCalls();
+    expect(d.stale()).not.toBeNull();
+    const matching = kitCalls().slice(0, 1);
+    answers.events = () => Promise.resolve({ events: matching, nextCursor: 'filtered' });
+    await d.refresh('head');
+    expect(d.rows()).toEqual(matching);
+    await d.loadOlder();
+    expect(of('events').at(-1)!['cursor']).toBe('filtered');
+  });
+
+  it('only reloads cached details for tasks still in the current list', async () => {
+    const d = setup();
+    await d.start();
+    await d.loadTraceDetail(WAITING_TASK.traceId);
+    await d.loadTraceDetail(ENDED_TASK.traceId);
+    requests = [];
+    answers.traces = () => Promise.resolve({ traces: [ENDED_TASK], nextCursor: null });
+    await d.refresh('head');
+    expect(of('trace')).toEqual([{ id: ENDED_TASK.traceId }]);
+  });
+
+  it('Live waits for an older page to finish and then includes the trailing update', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    vi.setSystemTime(NOW);
+    try {
+      const d = setup();
+      await d.start();
+      d.live.set(true);
+      const older = deferred<EventsPage>();
+      answers.events = () => older.promise;
+      const loadingOlder = d.loadOlder();
+      events.emit('audit.call', { id: 50, callId: 'ev_50' });
+      await vi.advanceTimersByTimeAsync(LIVE_THROTTLE_MS * 2);
+      expect(of('events')).toHaveLength(2);
+      expect(d.busy()).toBe(true);
+      older.resolve({ events: [call(0, 3 * HOUR, 'allowed', 'sql_query')], nextCursor: 'c2' });
+      await loadingOlder;
+      answers.events = () => Promise.resolve({ events: [call(50, 0, 'allowed', 'sql_query'), ...kitCalls()], nextCursor: 'c1' });
+      await vi.advanceTimersByTimeAsync(LIVE_THROTTLE_MS);
+      expect(of('events')).toHaveLength(3);
+      expect(d.rows()!.map((e) => e.id)).toEqual([50, ...kitCalls().map((e) => e.id), 0]);
+      d.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('updates a listed call in place; with Live, reloads the newest calls at most once a second', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
     vi.setSystemTime(NOW);
@@ -294,6 +395,53 @@ describe('ActivityData', () => {
     await d.loadOlderChanges();
     expect(d.changes().value).toHaveLength(6);
     expect(d.changesComplete()).toBe(true);
+  });
+
+  it('head refresh preserves loaded older tasks and setup changes with their pagination cursors', async () => {
+    const d = setup();
+    answers.traces = (_q, cursor) => {
+      const n = cursor ? Number(cursor) : 0;
+      return Promise.resolve({ traces: [{ ...ENDED_TASK, traceId: `t${n}` }], nextCursor: String(n + 1) });
+    };
+    const boundary = change(1, 25 * HOUR, 'secret', 'Secret dev-db password');
+    const older = change(0, 40 * HOUR, 'secret', 'Secret dev-db password');
+    answers.changes = (cursor) => Promise.resolve(cursor ? { changes: [older], nextCursor: 'oldest' } : { changes: [boundary], nextCursor: 'older' });
+    await d.start();
+    await d.loadMoreTraces();
+    await d.loadOlderChanges();
+    await d.refresh('head');
+    expect(d.traces().value!.map((t) => t.traceId)).toEqual(['t0', 't1', 't2', 't3', 't4', 't5']);
+    expect(d.changes().value).toEqual([boundary, older]);
+    await d.loadMoreTraces();
+    await d.loadOlderChanges();
+    expect(of('traces').at(-1)!['cursor']).toBe('6');
+    expect(of('changes').at(-1)!['cursor']).toBe('oldest');
+  });
+
+  it('drops stale setup-change refresh and pagination responses', async () => {
+    const d = setup();
+    await d.start();
+    const oldRefresh = deferred<{ changes: SetupChange[]; nextCursor: string | null }>();
+    answers.changes = () => oldRefresh.promise;
+    const first = d.loadChanges();
+    const newest = change(20, 0, 'secret', 'Secret dev-db password');
+    answers.changes = () => Promise.resolve({ changes: [newest, change(1, 25 * HOUR, 'secret', 'Secret dev-db password')], nextCursor: 'older' });
+    await d.loadChanges();
+    const latest = d.changes().value;
+    oldRefresh.resolve({ changes: kitChanges(), nextCursor: null });
+    await first;
+    expect(d.changes().value).toBe(latest);
+
+    const oldPage = deferred<{ changes: SetupChange[]; nextCursor: string | null }>();
+    answers.changes = () => oldPage.promise;
+    const pagination = d.loadOlderChanges();
+    answers.changes = () => Promise.resolve({ changes: [newest], nextCursor: null });
+    await d.loadChanges();
+    oldPage.resolve({ changes: kitChanges(), nextCursor: 'outdated' });
+    await pagination;
+    expect(d.changes().value).toEqual([newest]);
+    expect(d.changesComplete()).toBe(true);
+    expect(d.busy()).toBe(false);
   });
 
   it('saves a view with the starting points, and on top of a list changed meanwhile', async () => {
