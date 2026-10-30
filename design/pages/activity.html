@@ -113,6 +113,20 @@
             <p class="gw-page-header__description">Every call an agent made through the gateway, and every change people made to its setup. Append-only, kept 365 days.</p>
           </div>
           <div class="gw-page-header__actions">
+            <button class="gw-btn" type="button" id="ac-refresh"><i class="gw-icon" data-lucide="refresh-cw" id="ac-refresh-icon"></i><span class="gw-spinner gw-spinner--sm" id="ac-refresh-spinner" aria-hidden="true" hidden></span> Refresh</button>
+            <span class="gw-sr-only" id="ac-refresh-status" role="status"></span>
+            <div class="gw-menu-host">
+              <button class="gw-btn" type="button" id="ac-refresh-interval" aria-haspopup="menu" aria-expanded="false" aria-controls="ac-refresh-menu"><i class="gw-icon" data-lucide="timer"></i> Auto-refresh: <span id="ac-refresh-value">30 s</span> <i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
+              <div class="gw-menu gw-menu--right gw-menu--wide" id="ac-refresh-menu" role="menu" aria-label="Auto-refresh interval" aria-describedby="ac-refresh-note" hidden>
+                <button class="gw-menu__item" type="button" role="menuitemradio" aria-checked="false" tabindex="-1" data-ac-refresh="0"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">Off</span></button>
+                <button class="gw-menu__item" type="button" role="menuitemradio" aria-checked="false" tabindex="-1" data-ac-refresh="5"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">5 seconds</span></button>
+                <button class="gw-menu__item" type="button" role="menuitemradio" aria-checked="false" tabindex="-1" data-ac-refresh="10"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">10 seconds</span></button>
+                <button class="gw-menu__item" type="button" role="menuitemradio" aria-checked="true" tabindex="-1" data-ac-refresh="30"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">30 seconds</span></button>
+                <button class="gw-menu__item" type="button" role="menuitemradio" aria-checked="false" tabindex="-1" data-ac-refresh="60"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">1 minute</span></button>
+                <button class="gw-menu__item" type="button" role="menuitemradio" aria-checked="false" tabindex="-1" data-ac-refresh="300"><i class="gw-icon gw-menu__check" data-lucide="check"></i><span class="gw-menu__label">5 minutes</span></button>
+                <div class="gw-menu__note" id="ac-refresh-note" aria-hidden="true">Refreshes calls, traces and setup changes. Live updates are controlled separately.</div>
+              </div>
+            </div>
             <a class="gw-btn gw-btn--ghost" href="insights.html" id="ac-insights-link"><i class="gw-icon" data-lucide="chart-column"></i> View in Insights</a>
             <div class="gw-menu-host">
               <button class="gw-btn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="ac-export"><i class="gw-icon" data-lucide="download"></i> Export <i class="gw-icon gw-icon--sm" data-lucide="chevron-down"></i></button>
@@ -837,7 +851,7 @@
                     <div class="gw-empty">
                       <span class="gw-empty__icon"><i class="gw-icon" data-lucide="activity"></i></span>
                       <h3 class="gw-empty__title">No calls yet</h3>
-                      <p class="gw-empty__text">Every call an AI app makes through the gateway shows up here within a second: who called which tool, with which arguments, what was decided and how long it took. Try a tool yourself, or <a class="gw-link" href="clients.html">connect an AI app</a> and ask it something.</p>
+                      <p class="gw-empty__text">Every call an AI app makes through the gateway is recorded here: who called which tool, with which arguments, what was decided and how long it took. Try a tool yourself, or <a class="gw-link" href="clients.html">connect an AI app</a> and ask it something.</p>
                       <div class="gw-empty__actions">
                         <a class="gw-btn gw-btn--primary" href="playground.html"><i class="gw-icon" data-lucide="flask-conical"></i> Try a tool in Playground</a>
                       </div>
@@ -2360,6 +2374,58 @@
   var traces = Array.prototype.slice.call(doc.querySelectorAll("[data-ac-trace]"));
   var boxes = Array.prototype.slice.call(facets.querySelectorAll('input[type="checkbox"]'));
   var terms = [];
+
+  // The reference keeps its fixed demo data; the app fetches all three logs without reloading the page.
+  var refreshKey = "gw-activity-refresh-seconds", refreshSeconds = 30, refreshTimer = null, refreshPending = null;
+  var refreshOptions = [0, 5, 10, 30, 60, 300];
+  try {
+    var storedRefresh = localStorage.getItem(refreshKey);
+    if (refreshOptions.some(function (seconds) { return String(seconds) === storedRefresh; })) refreshSeconds = Number(storedRefresh);
+  } catch (_) { /* Storage may be blocked; the current page still remembers the choice. */ }
+  function scheduleRefresh() {
+    clearTimeout(refreshTimer);
+    refreshTimer = refreshSeconds ? setTimeout(function () {
+      if (!doc.hidden) refreshActivity(false);
+      scheduleRefresh();
+    }, refreshSeconds * 1000) : null;
+  }
+  function showRefreshChoice() {
+    $("ac-refresh-value").textContent = refreshSeconds === 0 ? "Off" : refreshSeconds < 60 ? refreshSeconds + " s" : (refreshSeconds / 60) + " min";
+    doc.querySelectorAll("[data-ac-refresh]").forEach(function (item) {
+      item.setAttribute("aria-checked", String(Number(item.getAttribute("data-ac-refresh")) === refreshSeconds));
+    });
+    scheduleRefresh();
+  }
+  function refreshActivity(manual) {
+    if (refreshPending !== null) return;
+    var button = $("ac-refresh");
+    button.setAttribute("aria-busy", "true");
+    button.setAttribute("aria-disabled", "true");
+    button.setAttribute("aria-describedby", "ac-refresh-status");
+    $("ac-refresh-icon").setAttribute("hidden", "");
+    $("ac-refresh-spinner").hidden = false;
+    if (manual) $("ac-refresh-status").textContent = "Refreshing activity";
+    refreshPending = setTimeout(function () {
+      button.removeAttribute("aria-busy");
+      button.removeAttribute("aria-disabled");
+      button.removeAttribute("aria-describedby");
+      $("ac-refresh-icon").removeAttribute("hidden");
+      $("ac-refresh-spinner").hidden = true;
+      refreshPending = null;
+      if (manual) $("ac-refresh-status").textContent = "Activity refreshed";
+    }, 300);
+  }
+  $("ac-refresh").addEventListener("click", function () { refreshActivity(true); scheduleRefresh(); });
+  $("ac-refresh-menu").addEventListener("click", function (event) {
+    var item = event.target.closest("[data-ac-refresh]");
+    if (!item) return;
+    refreshSeconds = Number(item.getAttribute("data-ac-refresh"));
+    try { localStorage.setItem(refreshKey, String(refreshSeconds)); } catch (_) { /* Keep the current choice. */ }
+    showRefreshChoice();
+  });
+  window.addEventListener("pagehide", function () { clearTimeout(refreshTimer); });
+  window.addEventListener("pageshow", scheduleRefresh);
+  showRefreshChoice();
 
   // Calls with a full record on this page; every other call opens the summary drawer.
   var DRAWERS = { ev_2b9f0c14: "ev-a", ev_d40e7a93: "ev-d", ev_5a8c31f7: "ev-k" };
