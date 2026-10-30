@@ -188,6 +188,24 @@ class OpenSearchApiTest {
   }
 
   @ParameterizedTest
+  @ValueSource(strings = {"/_ingest/pipeline/_simulate", "/_index_template/_simulate", "/_scripts/_execute",
+      "/_search/pipeline/_simulate"})
+  void anActionAfterAPipelineOrTemplatePathIsNoNameToRead(String path) {
+    // GET may carry a body: the simulated pipeline's processors (painless scripts included) would run unapproved.
+    ObjectNode args = TestCtx.JSON.createObjectNode().put("method", "GET").put("path", path);
+    args.putObject("body").putObject("pipeline").putArray("processors");
+    ToolCall call = Configs.call("opensearch_query", args.toString());
+    assertThat(connector.classify(call, full, Configs.policy(Env.DEV, TestCtx.dev())).kind())
+        .isEqualTo(Classification.Kind.DENY);
+    assertThat(connector.classify(Configs.call("opensearch_request", args.toString()), full,
+        Configs.policy(Env.DEV, TestCtx.dev())).kind()).isEqualTo(Classification.Kind.MUTATION);
+    ToolCall named = Configs.call("opensearch_query", "{\"path\":\"/_ingest/pipeline/logs-default\"}");
+    assertThat(connector.classify(named, full, Configs.policy(Env.DEV, TestCtx.dev())).kind())
+        .isEqualTo(Classification.Kind.READ);
+    assertThat(server.getRequestCount()).isZero();
+  }
+
+  @ParameterizedTest
   @ValueSource(strings = {"/_plugins/_sql", "/_plugins/_ppl", "/_plugins/_ml/agents/id/_execute",
       "/_plugins/custom/_search", "/products/_delete_by_query", "/_reindex"})
   void unprovenQueriesRequireTheRequestTool(String path) {
