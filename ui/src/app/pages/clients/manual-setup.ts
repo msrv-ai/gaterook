@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input } from '@an
 import { RouterLink } from '@angular/router';
 import { ManualSetup } from '../../core/api/clients.api';
 import { TokenRow } from '../../core/api/endpoints.api';
+import { DesktopBridge } from '../../core/desktop/desktop-bridge';
 import { TimeService } from '../../core/time/time.service';
 import { GwCodeBlock } from '../../code/code-block';
 import { GwCopy } from '../../kit/copy';
@@ -75,12 +76,13 @@ import { expiresIn, otherPaths, snippetLang, snippetTabs } from './clients-view'
 })
 export class GwManualSetup {
   private readonly time = inject(TimeService);
+  private readonly manualSetupOnly = inject(DesktopBridge).windowsStore === true;
 
   readonly manual = input.required<ManualSetup>();
   /** Named tokens set up by hand on the endpoint (`handTokens`). */
   readonly hand = input<readonly TokenRow[]>([]);
 
-  protected readonly tabs = computed(() => snippetTabs(this.manual()));
+  protected readonly tabs = computed(() => snippetTabs(this.manual(), this.manualSetupOnly));
   protected readonly others = computed(() => otherPaths(this.manual()));
   protected readonly transport = computed(() => (this.manual().transport === 'streamable-http' ? 'Streamable HTTP' : this.manual().transport));
   protected readonly lang = snippetLang;

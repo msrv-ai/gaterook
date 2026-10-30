@@ -12,7 +12,7 @@ import { tempDir } from './helpers.ts';
 describe('starting the core', () => {
   it('passes -X/-D flags only, never a secret, and no -XX to the native binary', () => {
     const { file, args } = coreArgv({ kind: 'native', binary: '/r/core/gaterook-core', libDir: '/r/core' },
-      { home: '/h/.gaterook', resources: '/r' });
+      { home: '/h/.gaterook', resources: '/r', platform: 'darwin' });
     assert.equal(file, '/r/core/gaterook-core');
     assert.deepEqual(args, ['-Xmx384m', '-Dorg.sqlite.lib.path=/r/core', `-Djava.io.tmpdir=${join('/h/.gaterook', 'tmp')}`,
       '-Dgateway.home=/h/.gaterook', '-Dgateway.resources=/r']);
@@ -27,6 +27,29 @@ describe('starting the core', () => {
     assert.deepEqual(args.slice(-2), ['-jar', '/repo/app/target/app.jar']);
     assert.ok(args.includes('-Dgateway.clients.bridge-jar=/repo/bridge-cli/target/gw-bridge.jar'));
     assert.ok(!args.some((a) => a.startsWith('-Dgateway.resources')));
+  });
+
+  it('pins Windows core and plugin-host selector sockets without changing the parent environment', () => {
+    const options = { home: '/h/.gaterook', resources: '/r', platform: 'win32' as const };
+    const property = `-Djdk.net.unixdomain.tmpdir=${join(options.home, 'tmp')}`;
+    const source = Object.freeze({ TEMP: '/other/temp', TMP: '/other/tmp' });
+    const env = coreEnv(source, false, options);
+    assert.equal(env['TEMP'], join(options.home, 'tmp'));
+    assert.equal(env['TMP'], env['TEMP'], 'plugin-host JVMs inherit the core TEMP/TMP');
+    assert.deepEqual(source, { TEMP: '/other/temp', TMP: '/other/tmp' });
+    const native = coreArgv({ kind: 'native', binary: '/r/core/gaterook-core.exe', libDir: '/r/core' }, options);
+    assert.ok(native.args.includes(property));
+    assert.ok(!native.args.some((arg) => arg.startsWith('-XX')));
+    const jar = coreArgv({ kind: 'jar', java: '/jdk/bin/java.exe', jar: '/r/core/app.jar' }, options);
+    assert.ok(jar.args.indexOf(property) >= 0 && jar.args.indexOf(property) < jar.args.indexOf('-jar'));
+    for (const platform of ['darwin', 'linux'] as const) {
+      const other = coreArgv({ kind: 'native', binary: '/r/core/gaterook-core', libDir: '/r/core' }, { ...options, platform });
+      assert.ok(!other.args.some((arg) => arg.startsWith('-Djdk.net.unixdomain.tmpdir=')));
+      const otherEnv = coreEnv(source, false, { ...options, platform });
+      assert.equal(otherEnv['TEMP'], source.TEMP);
+      assert.equal(otherEnv['TMP'], source.TMP);
+    }
+    assert.equal(coreEnv(source, false)['TEMP'], source.TEMP, 'non-core callers keep their existing temporary directory');
   });
 
   it('closes the JVM fallback to attaching programs, as report 12 §6 asks', () => {

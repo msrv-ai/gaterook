@@ -8,12 +8,14 @@
   <div class="gw-page-header__row">
     <div class="gw-page-header__heading">
       <h1 class="gw-page-header__title">AI apps</h1>
-      @if (description(); as d) {
+      @if (manualSetupOnly) {
+        <p class="gw-page-header__description">Set up AI apps with an endpoint URL and a token. Add the configuration in the AI app yourself; this Microsoft Store edition does not edit its configuration files.</p>
+      } @else if (description(); as d) {
         <p class="gw-page-header__description">@for (part of literalParts(d.text, d.literals); track $index) {@if (part.code) {<span class="gw-mono">{{ part.text }}</span>} @else {{{ part.text }}}}</p>
       } @else if (stageKnown()) {
         <p class="gw-page-header__description">Connect AI apps to an endpoint in one click. You see the exact change to an app's config before anything is written, and Disconnect takes it back.</p>
       }
-      @if (cards().length) {
+      @if (!manualSetupOnly && cards().length) {
         <div class="gw-page-header__meta">
           @for (c of counts(); track c.text) {
             <span class="gw-status gw-status--{{ c.tone }}"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ c.text }}</span></span>
@@ -28,7 +30,9 @@
       }
     </div>
     <div class="gw-page-header__actions">
+      @if (!manualSetupOnly) {
       <button class="gw-btn" type="button" [attr.aria-busy]="data.scanning() === 'page' ? 'true' : null" [attr.aria-disabled]="data.scanning() ? 'true' : null" (click)="scan('page')">@if (data.scanning() === 'page') {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="refresh-cw" class="gw-icon"></svg>} Scan again</button>
+      }
       @if (st === 'first-run') {
         <!-- First run: the page's only primary; Connect waits for a connection. -->
         <a class="gw-btn gw-btn--primary" routerLink="/connections/new"><svg lucideIcon="plus" class="gw-icon"></svg> Add connection</a>
@@ -38,7 +42,7 @@
 </header>
 
 <!-- How it works stays collapsed initially; the user's choice is remembered. -->
-@if (st === 'in-use' && stageKnown()) {
+@if (!manualSetupOnly && st === 'in-use' && stageKnown()) {
 <section gwHowItWorks [level]="2" [expanded]="false" summary="Connect writes one entry into the app's config, with a backup first. The app gets the tools of one endpoint and never a secret." stepsLabel="What one-click Connect does" persist="clients-how-it-works">
   <li gwHowItWorksStep icon="scan-search" heading="We find the AI app">Claude Desktop, Codex, Cursor and Antigravity are found by the config files they keep on this computer.</li>
   <li gwHowItWorksStep icon="file-diff" heading="Show what changes">You see the exact diff of the config file, for example <code class="gw-code">~/.cursor/mcp.json</code>, before anything is written.</li>
@@ -61,6 +65,7 @@
 }
 
 <!-- ─────────────── On this computer (elements/client-card.html) ─────────────── -->
+@if (!manualSetupOnly) {
 <section class="gw-section" aria-labelledby="cl-local-t" [attr.aria-busy]="loading() ? 'true' : null">
   <header class="gw-section__header">
     <h2 class="gw-section__title" id="cl-local-t">On this computer</h2>
@@ -139,6 +144,7 @@
     </div>
   }
 </section>
+}
 
 <ng-template #card let-c>
   @let s = data.connectState(c.client);
@@ -246,14 +252,18 @@
 </ng-template>
 
 <!-- ─────────────── Manual setup: Inspector and anything else (none in first run; collapsed initially) ─────────────── -->
-@if (st !== 'first-run') {
+@if (manualSetupOnly || st !== 'first-run') {
 <section class="gw-section" aria-labelledby="cl-manual-t">
   <header class="gw-section__header">
     <h2 class="gw-section__title" id="cl-manual-t">Manual setup</h2>
+    @if (manualSetupOnly) {
+      <p class="gw-section__description">Create one token per AI app under Endpoints › Tokens, then copy the endpoint URL and token into the app's MCP settings. To disconnect it, revoke its token or client access under Endpoints › Tokens and remove the entry in the AI app yourself. Browser sign-ins can be revoked under <a class="gw-link" routerLink="/settings/authorization">Settings › Authorization</a>.</p>
+    } @else {
     <p class="gw-section__description">For MCP Inspector, scripts and any app not listed above: point it at the endpoint URL and give it a token.</p>
       <div class="gw-section__actions">
         <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [(expanded)]="manualOpen" aria-controls="cl-manual-p">Show manual setup<span class="gw-sr-only"> for MCP Inspector and other apps</span> <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button>
       </div>
+    }
   </header>
   @if (data.manual().value; as m) {
     <div gwManualSetup id="cl-manual-p" [hidden]="!manualOpen()" [manual]="m" [hand]="hand()"></div>
@@ -266,6 +276,8 @@
         <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retry()">Try again</button></div>
       </div>
     </div>
+  } @else if (data.manualEndpointMissing()) {
+    <p class="gw-text-small gw-fg-secondary">This endpoint is no longer available. <a class="gw-link" routerLink="/endpoints">Choose an endpoint</a> to set up your AI app.</p>
   } @else if (data.endpoints().value && !data.manualSlug()) {
     <div class="gw-card">
       <div class="gw-empty">

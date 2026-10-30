@@ -325,8 +325,9 @@ export interface SnippetTab {
  * The snippet tabs of the manual setup from the core's snippets (`GET /api/clients/manual`): MCP Inspector (its
  * commands), JSON (an `mcpServers` file — Inspector's config holds the token, never its command line), TOML.
  */
-export function snippetTabs(manual: ManualSetup): SnippetTab[] {
-  const of = (langs: string[]) => manual.snippets.filter((s) => langs.includes(s.language));
+export function snippetTabs(manual: ManualSetup, manualSetupOnly = false): SnippetTab[] {
+  const of = (langs: string[]) => manual.snippets.filter((s) => langs.includes(s.language)).map((s) =>
+    manualSetupOnly && s.id === 'inspector-config' ? { ...s, title: 'gw-inspector.json (keep private: it holds the token)' } : s);
   const entry = `gaterook-${manual.endpoint}`;
   const json = of(['json']);
   const tabs: SnippetTab[] = [
@@ -351,7 +352,9 @@ export function snippetTabs(manual: ManualSetup): SnippetTab[] {
       label: 'TOML',
       icon: 'file-code',
       snippets: of(['toml']),
-      caption: literalParts('For apps configured through a config.toml. Codex itself connects in one click above, with no token in the file.', ['config.toml']),
+      caption: literalParts(manualSetupOnly
+        ? 'For apps configured through a config.toml. Paste your token in place of the placeholder and keep the file private.'
+        : 'For apps configured through a config.toml. Codex itself connects in one click above, with no token in the file.', ['config.toml']),
     },
   ];
   return tabs.filter((t) => t.snippets.length);

@@ -7,9 +7,10 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { Broker } from '@gaterook/broker';
 import { IPC, type DesktopCoreState, type GeneralSettings } from '../shared/contract.ts';
-import { routeAppUrl, serveUi } from './app-protocol.ts';
+import { MANUAL_CLIENT_SETUP, manualClientSetupResponse, routeAppUrl, serveUi } from './app-protocol.ts';
 import { finishApplicationReset, hasPendingReset, requestApplicationReset, type ResetPaths } from './application-reset.ts';
 import { startTokenBroker } from './broker.ts';
+import { prepareBridgeLibraries } from './bridge-libraries.ts';
 import { callCore } from './core-client.ts';
 import { coreArgv, coreEnv } from './core-command.ts';
 import { CoreSupervisor, type ReadyCore } from './core-supervisor.ts';
@@ -71,10 +72,12 @@ export function main(): Desktop | null {
     // replace, outside the asar's integrity check.
     { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } },
   ]);
-  app.setAppUserModelId(APP_ID);
+  // MSIX activation assigns the package's AUMID. Keep that identity for taskbar grouping and notifications.
+  if (!process.windowsStore) app.setAppUserModelId(APP_ID);
   app.enableSandbox();
   // A development build doesn't claim gaterook:// for the development Electron on this machine.
-  if (!layout.dev) app.setAsDefaultProtocolClient(SCHEME);
+  // MSIX declares its protocol in the package manifest; a runtime registry entry is private to the package.
+  if (!layout.dev && !process.windowsStore) app.setAsDefaultProtocolClient(SCHEME);
 
   const desktop = new Desktop(layout, log);
   app.on('open-url', (event, url) => {
@@ -171,7 +174,7 @@ export class Desktop {
       ports: () => ({ port: this.config.port, publicPort: this.config.publicPort }),
       command: () => {
         const { file, args } = coreArgv(layout.core, { home: layout.home, resources: layout.resources, bridgeJar: layout.bridgeJar });
-        return { file, args, env: coreEnv(process.env, layout.dev) };
+        return { file, args, env: coreEnv(process.env, layout.dev, { home: layout.home }) };
       },
       fileKey: () => this.prepareFileKey(),
       log: (line) => log(line),
@@ -193,6 +196,7 @@ export class Desktop {
     // Use the macOS export's transparent margins so the Dock matches the visual size of neighboring apps.
     if (process.platform === 'darwin') app.dock?.setIcon(markImage(512, 'macos'));
     ensureHome(this.layout.home);
+    if (!this.layout.dev) prepareBridgeLibraries(this.layout.resources, this.layout.home, process.platform);
     const { config, problem } = readDesktopConfig(this.layout.home);
     if (problem) this.log(problem);
     this.config = config;
@@ -597,6 +601,8 @@ export class Desktop {
       }
       const route = routeAppUrl(url);
       if (route.kind === 'api') {
+        const manualOnly = manualClientSetupResponse(process.windowsStore === true, request.method, route.target);
+        if (manualOnly) return manualOnly;
         const core = this.supervisor.endpoint();
         // Only once the page got `ready` from this core: before that, the status screen owns the window.
         const open = !this.resetting && !this.fullBackupBusy && core && this.readyDeliveredFor === core.instanceNonce ? core : null;
@@ -689,10 +695,14 @@ export class Desktop {
       if (args.length) throw new Error('Google sign-in does not accept arguments.');
       return this.googleSignIn.signIn();
     });
-    handle(IPC.openMcpb, (id) => openMcpb(files, id));
+    handle(IPC.openMcpb, (id) => {
+      if (process.windowsStore) throw new Error(MANUAL_CLIENT_SETUP);
+      return openMcpb(files, id);
+    });
     handle(IPC.openClientConfig, (id) => openClientConfig(files, id));
     handle(IPC.reveal, (kind) => reveal(files, kind));
     handle(IPC.applyGeneral, (raw) => {
+      if (process.windowsStore) throw new Error('Manage startup in Windows Settings > Apps > Startup.');
       const s = (typeof raw === 'object' && raw !== null ? raw : {}) as GeneralSettings;
       this.storeLoginSettings({
         openAtLogin: typeof s.openAtLogin === 'boolean' ? s.openAtLogin : this.config.openAtLogin !== false,
@@ -767,7 +777,7 @@ export class Desktop {
       helper = new CoreSupervisor({ version: app.getVersion(), home: validatorHome, ports: () => ({ port, publicPort }),
         command: () => {
           const command = coreArgv(this.layout.core, { home: validatorHome, resources: this.layout.resources, bridgeJar: this.layout.bridgeJar });
-          return { ...command, env: coreEnv(process.env, false) };
+          return { ...command, env: coreEnv(process.env, false, { home: validatorHome }) };
         },
         fileKey: () => this.prepareFileKey(), log: () => undefined, restartDelaysMs: [],
       });

@@ -33,6 +33,7 @@ export class GwEndpointClients {
   private readonly store = inject(EndpointsStore);
   private readonly toasts = inject(ToastService);
   private readonly desktop = inject(DesktopBridge);
+  protected readonly manualSetupOnly = this.desktop.windowsStore === true;
   private readonly clientsApi = inject(ClientsApi);
 
   readonly slug = input.required<string>();

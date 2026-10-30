@@ -154,6 +154,16 @@ const button = (root: ParentNode, name: string) =>
   Array.from(root.querySelectorAll<HTMLElement>('button, a')).find((b) => text(b) === name || text(b).startsWith(`${name} `)) ?? null;
 
 describe('Welcome page', () => {
+  it('explains manual client setup for the Store edition', async () => {
+    setup();
+    Object.assign(TestBed.inject(DesktopBridge), { windowsStore: true });
+    const { el } = await render();
+    const panel = el.querySelector('#ob-panel-4')!;
+    expect(text(panel)).toContain('does not edit AI app configuration files');
+    expect(text(panel)).not.toContain('where the backup goes');
+    expect(panel.querySelector('a[href="/clients#cl-manual-t"]')).not.toBeNull();
+  });
+
   it('renders the kit first run from the core answers', async () => {
     setup();
     const { el } = await render();
