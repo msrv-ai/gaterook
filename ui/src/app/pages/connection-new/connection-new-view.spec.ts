@@ -331,6 +331,17 @@ describe('Add connection: what prod turns on', () => {
     expect(policyDefaults('mcp', dev, prod, schema)).toEqual([{ icon: 'hourglass', text: 'Approval timeout 10 min, a comment is required to approve' }]);
     expect(policyDefaults('mcp', dev, dev, schema)).toEqual([]);
   });
+
+  it('describes an optional log cap against an unlimited default', () => {
+    const fields: JsonObject = { sections: { logs: { properties: {
+      maxRangeHours: { type: 'integer', title: 'Longest time range', 'x-unit': 'h', 'x-stricter': 'min-positive' },
+    } } } };
+    const unlimited = policy({ logs: { maxRangeHours: 0 } });
+    const capped = policy({ logs: { maxRangeHours: 24 } });
+    expect(policyDefaults('logs', unlimited, capped, fields).map((line) => line.text))
+      .toEqual(['Longest time range 24 h (dev: no limit)']);
+    expect(policyDefaults('logs', capped, unlimited, fields)).toEqual([]);
+  });
 });
 
 describe('Connection: edit view', () => {

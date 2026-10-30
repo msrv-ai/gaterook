@@ -33,9 +33,9 @@ Results contain timestamps, severity, messages, labels, and available structured
 
 ## Limits and narrower access
 
-The endpoint's line, time-range, response-size, timeout, and masking limits apply. Pagination keeps the original query window and checks it against the current limits. The dedicated connector's `scopeFilter` further restricts entries within the selected projects or log views.
+Log queries have no maximum time range by default. In **Policies → Logs**, set **Longest time range** to a positive number of hours to limit the query period, or use `0` for no limit. Explicit endpoint and tool limits can further narrow that period. Pagination keeps the original query window and checks it against the current limits. Line, response-size, timeout, and masking limits still apply. The dedicated connector's `scopeFilter` further restricts entries within the selected projects or log views.
 
-For the general GCP connector, Cloud `maxItems` and `maxRangeDays` can further narrow log access. Cloud inventory restrictions on services, regions, or resource names do not map reliably to Cloud Logging entries, so GateRook refuses log calls when those restrictions are present. Use a dedicated **GCP Cloud Logging** connection with explicit projects or log views and a `scopeFilter` for the permitted logs.
+For the general GCP connector, Cloud `maxItems` can further narrow log access. Cloud `maxRangeDays` applies to metrics; logs use the Logs time-range policy. Cloud inventory restrictions on services, regions, or resource names do not map reliably to Cloud Logging entries, so GateRook refuses log calls when those restrictions are present. Use a dedicated **GCP Cloud Logging** connection with explicit projects or log views and a `scopeFilter` for the permitted logs.
 
 Log contents are untrusted data. They do not grant permission to execute instructions found in a message or payload.
 

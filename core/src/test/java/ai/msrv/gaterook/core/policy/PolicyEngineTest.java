@@ -313,6 +313,40 @@ class PolicyEngineTest {
     }
   }
 
+  @Test
+  void optionalLogRangesCanBeNarrowedByConnectionEndpointAndTool() {
+    ObjectNode schema = JSON.createObjectNode().put("type", "object").put("x-policy-section", "logs");
+    schema.putObject("properties").putObject("maxRangeHours").put("type", "integer").put("minimum", 0)
+        .put("default", 0).put("x-stricter", "min-positive");
+    ObjectNode configSchema = JSON.createObjectNode().put("type", "object");
+    configSchema.putObject("properties").putObject("maxRangeHours").put("type", "integer")
+        .put("x-stricter", "min-positive");
+    ConnectorManifest logs = ConnectorManifest.builder("logs", "1.0.0", ConnectorManifest.Kind.BUILT_IN)
+        .policySchema(schema).configSchema(configSchema).build();
+    StubPolicies configured = new StubPolicies(logs);
+    PolicyEngine scoped = new PolicyEngine(configured);
+    for (Env env : Env.values()) {
+      assertThat(configured.limits(env).maxRange()).as(env.id()).isNull();
+    }
+    assertThat(scoped.view(timeoutPair(logs, null, null), null).limits().maxRange()).isNull();
+
+    JsonNode unlimited = JSON.createObjectNode().put("maxRangeHours", 0);
+    JsonNode day = JSON.createObjectNode().put("maxRangeHours", 24);
+    JsonNode halfDay = JSON.createObjectNode().put("maxRangeHours", 12);
+    ConnectionConfig connection = new ConnectionConfig("cn_1", "resource", "logs", Env.DEV, 1,
+        JSON.createObjectNode().put("maxRangeHours", 72), Set.of(), null);
+    assertThat(scoped.view(timeoutPair(logs, null, unlimited), connection).limits().maxRange())
+        .isEqualTo(Duration.ofHours(72));
+    assertThat(scoped.view(timeoutPair(logs, day, unlimited), connection).limits().maxRange())
+        .isEqualTo(Duration.ofHours(24));
+    assertThat(scoped.view(timeoutPair(logs, day, halfDay), connection).limits().maxRange())
+        .isEqualTo(Duration.ofHours(12));
+
+    configured.explicit.putObject("logs").put("maxRangeHours", 6);
+    assertThat(scoped.view(timeoutPair(logs, unlimited, unlimited), connection).limits().maxRange())
+        .isEqualTo(Duration.ofHours(6));
+  }
+
   private static ConnectorManifest timeoutManifest(String id, String section) {
     ObjectNode schema = JSON.createObjectNode().put("type", "object").put("x-policy-section", section);
     ObjectNode properties = schema.putObject("properties");

@@ -10,6 +10,8 @@ On DEV and STAGE, you can temporarily bypass approval for a method on one connec
 
 Connect your services to GateRook, then choose which connections and tools each AI app can use. GateRook sits between your services and AI apps, keeps credentials local, and applies your access rules to tool calls.
 
+Log queries have no maximum time range by default in any environment. To set one, open **Policies → Logs → Longest time range** and enter the number of hours; `0` means no time limit. Existing explicit limits remain in effect. Line counts, response sizes, and request deadlines still apply.
+
 ![Diagram showing MySQL, MongoDB, OpenSearch, and Redis connected through GateRook to Claude Desktop, Codex, Cursor, and Antigravity.](docs/images/gaterook-gateway.png)
 
 ## Application overview

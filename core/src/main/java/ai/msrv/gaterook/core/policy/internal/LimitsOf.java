@@ -36,6 +36,7 @@ public final class LimitsOf {
     if ("http".equals(section)) {
       toolTimeout = Math.min(toolTimeout, http.path("toolTimeoutSeconds").asLong(Long.MAX_VALUE));
     }
+    long maxRangeHours = logs.path("maxRangeHours").asLong(0);
     return new Limits(
         sql.path("rowLimit").asInt(prod ? 100 : 1_000),
         limits.path("logLines").asInt(prod ? 200 : 1_000),
@@ -47,7 +48,7 @@ public final class LimitsOf {
         Duration.ofMillis(sql.path("statementTimeoutMs").asLong(prod ? 3_000 : 5_000)),
         Duration.ofSeconds(ssh.path("commandTimeoutSeconds").asLong(30)),
         Duration.ofSeconds(toolTimeout),
-        Duration.ofHours(logs.path("maxRangeHours").asLong(prod ? 24 : 168)));
+        maxRangeHours == 0 ? null : Duration.ofHours(maxRangeHours));
   }
 
   /** The per-minute rate limits of the Limits section: per principal and per principal × tool. */

@@ -15,7 +15,7 @@ import java.time.Duration;
  * @param statementTimeout 5 s · 3 s
  * @param commandTimeout   30 s
  * @param toolTimeout      dev/stage 30 s · prod 5 s; connector-specific limits may be lower
- * @param maxRange         logs/metrics: 168 h · 24 h
+ * @param maxRange         maximum log query duration; {@code null} means unrestricted (the default)
  */
 public record Limits(int maxRows, int maxLines, long maxResponseBytes, long maxRequestBytes, long maxOutputBytes,
     long maxStderrBytes, int maxCellChars, Duration statementTimeout, Duration commandTimeout,

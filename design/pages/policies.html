@@ -523,10 +523,10 @@
                     <div class="gw-field">
                       <label class="gw-field__label" for="pd-logs-range">Longest time range</label>
                       <div class="gw-input-group">
-                        <input class="gw-input" id="pd-logs-range" type="text" inputmode="numeric" autocomplete="off" value="168" aria-describedby="pd-logs-range-hint">
+                        <input class="gw-input" id="pd-logs-range" type="text" inputmode="numeric" autocomplete="off" value="0" aria-describedby="pd-logs-range-hint">
                         <span class="gw-input-group__affix">h</span>
                       </div>
-                      <p class="gw-field__hint" id="pd-logs-range-hint">A search further back is cut to this range.</p>
+                      <p class="gw-field__hint" id="pd-logs-range-hint">0 means no time limit. Set a number of hours to deny searches with longer ranges.</p>
                     </div>
                     <div class="gw-field">
                       <label class="gw-field__label" for="pd-logs-limit">Entries per call by default</label>
@@ -1060,7 +1060,7 @@
                     </div>
                   </div>
                   <dl class="gw-kv">
-                    <div class="gw-kv__row"><dt class="gw-kv__key">Longest time range</dt><dd class="gw-kv__value gw-tabular">168 h <span class="gw-fg-muted">· inherited from dev</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Longest time range</dt><dd class="gw-kv__value gw-tabular">no limit <span class="gw-fg-muted">· inherited from dev</span></dd></div>
                     <div class="gw-kv__row"><dt class="gw-kv__key">Entries per call by default</dt><dd class="gw-kv__value gw-tabular">100 <span class="gw-fg-muted">· inherited from dev</span></dd></div>
                     <div class="gw-kv__row"><dt class="gw-kv__key">Longest wait of logs_tail</dt><dd class="gw-kv__value gw-tabular">8 s <span class="gw-fg-muted">· inherited from dev</span></dd></div>
                   </dl>
@@ -1268,7 +1268,7 @@
               <div class="gw-toolbar__start">
                 <dl class="gw-kv gw-kv--inline">
                   <div class="gw-kv__row"><dt class="gw-kv__key">Applies to</dt><dd class="gw-kv__value"><code class="gw-code">prod-replica</code> <code class="gw-code">prod-vm</code> <code class="gw-code">prod-logs</code></dd></div>
-                  <div class="gw-kv__row"><dt class="gw-kv__key">Values</dt><dd class="gw-kv__value">24 prod defaults · 2 set on prod</dd></div>
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Values</dt><dd class="gw-kv__value">23 prod defaults · 2 set on prod</dd></div>
                 </dl>
               </div>
               <div class="gw-toolbar__end">
@@ -1547,10 +1547,10 @@
                     <div class="gw-field">
                       <label class="gw-field__label" for="pp-logs-range">Longest time range</label>
                       <div class="gw-input-group">
-                        <input class="gw-input" id="pp-logs-range" type="text" inputmode="numeric" autocomplete="off" placeholder="24" value="24" aria-describedby="pp-logs-range-hint">
+                        <input class="gw-input" id="pp-logs-range" type="text" inputmode="numeric" autocomplete="off" placeholder="0" value="0" aria-describedby="pp-logs-range-hint">
                         <span class="gw-input-group__affix">h</span>
                       </div>
-                      <p class="gw-field__hint" id="pp-logs-range-hint">Prod default · dev: 168 h</p>
+                      <p class="gw-field__hint" id="pp-logs-range-hint">0 means no time limit. Set a number of hours to deny searches with longer ranges.</p>
                     </div>
                     <div class="gw-field">
                       <label class="gw-field__label" for="pp-logs-limit">Entries per call by default</label>
