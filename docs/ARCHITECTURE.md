@@ -273,7 +273,7 @@ New OAuth sign-ins and their access and refresh tokens last up to 184 days from 
 
 Desktop notices originate from core events; the OS notification exposes Review/Deny, not unconditional approval. Slack uses Socket Mode and Telegram uses polling, so neither requires an inbound webhook. Pairing binds the intended user and channel.
 
-Remote approval is unavailable for production, required-comment cases, incomplete/truncated actions, unsafe or suspicious text, and other ineligible states. Channel messages exclude unverified agent notes. Actions bind to the stored request/digest, expire, and recheck policy. Flood controls and decision deduplication avoid repeated or stale interactions.
+Remote approval is unavailable for production, required-comment cases, incomplete/truncated actions, unsafe or suspicious text, actions with characters beyond printable ASCII (a chat client renders them without the app's highlighting), and other ineligible states. Channel messages exclude unverified agent notes. Actions bind to the stored request/digest, expire, and recheck policy. Flood controls and decision deduplication avoid repeated or stale interactions.
 
 ### 7.5 Plugins, catalog, and external MCP servers
 

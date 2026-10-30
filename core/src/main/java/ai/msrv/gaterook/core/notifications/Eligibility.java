@@ -13,7 +13,8 @@ import java.util.Objects;
  *   <li>the whole action fits the message (Slack ≤ {@value #SLACK_ACTION_LIMIT} characters, Telegram's whole message
  *       ≤ {@value #TELEGRAM_MESSAGE_LIMIT}) and nothing of it was left out;</li>
  *   <li>the masker found nothing that looks like a secret in it;</li>
- *   <li>no hidden characters and no letters that pass for others ({@code ActionInspector});</li>
+ *   <li>no hidden characters and no letters that pass for others ({@code ActionInspector}), and nothing beyond
+ *       printable ASCII;</li>
  *   <li>no flood: more than {@value #FLOOD_PER_MINUTE} new requests a minute turn the channel into one digest message;</li>
  *   <li>the request still waits for a person.</li>
  * </ol>
@@ -114,6 +115,23 @@ public final class Eligibility {
     if (a.confusables() > 0) {
       return "Contains letters that look like others. Review in the app.";
     }
+    if (!plainAscii(a.text())) {
+      return "Contains characters beyond plain ASCII. Review in the app.";
+    }
     return null;
+  }
+
+  /**
+   * Printable ASCII and line breaks only. A chat client draws the rest with its own fonts and no highlighting, so an
+   * action the window would mark can look ordinary there.
+   */
+  static boolean plainAscii(String text) {
+    for (int i = 0; i < text.length(); i++) {
+      char c = text.charAt(i);
+      if ((c < 0x20 || c > 0x7E) && c != '\n' && c != '\r') {
+        return false;
+      }
+    }
+    return true;
   }
 }
