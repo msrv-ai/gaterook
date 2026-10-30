@@ -68,8 +68,12 @@ public class ClientsConfiguration {
     if (sandboxed) {
       log.info("Clients are looked for in {} (not this user's home)", userHome);
     }
+    // The desktop supplies this JVM property explicitly. Environment/config files cannot downgrade its decision.
+    String storeProperty = System.getProperty("gateway.clients.windows-store");
+    boolean windowsStore = Boolean.parseBoolean(storeProperty != null ? storeProperty
+        : release ? "false" : environment.getProperty("gateway.clients.windows-store", "false"));
     return new ClientEnvironment(os, userHome, home, resources == null || resources.isBlank() ? null
-        : Path.of(resources), System.getenv(), sandboxed, ClientEnvironment.readHostname(System.getenv()));
+        : Path.of(resources), System.getenv(), sandboxed, ClientEnvironment.readHostname(System.getenv()), windowsStore);
   }
 
   /**

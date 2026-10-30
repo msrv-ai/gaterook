@@ -13,6 +13,8 @@ export type CoreCommand =
 export interface CoreArgsOptions {
   readonly home: string;
   readonly platform?: NodeJS.Platform;
+  /** Package identity comes from Electron, never from the renderer or an environment variable. */
+  readonly windowsStore?: boolean;
   /** The app's bundle (`process.resourcesPath`), or null in a development run without one. */
   readonly resources: string | null;
   /** Development only: the Java bridge jar the core's `gw-bridge` shim points at. */
@@ -26,6 +28,7 @@ export function coreArgv(cmd: CoreCommand, o: CoreArgsOptions): { file: string; 
     // in the app-owned directory too, outside AppData virtualization in packaged Windows applications.
     ...((o.platform ?? process.platform) === 'win32' ? [`-Djdk.net.unixdomain.tmpdir=${join(o.home, 'tmp')}`] : []),
     `-Dgateway.home=${o.home}`,
+    `-Dgateway.clients.windows-store=${(o.platform ?? process.platform) === 'win32' && (o.windowsStore ?? process.windowsStore === true)}`,
     ...(o.resources ? [`-Dgateway.resources=${o.resources}`] : []),
   ];
   switch (cmd.kind) {

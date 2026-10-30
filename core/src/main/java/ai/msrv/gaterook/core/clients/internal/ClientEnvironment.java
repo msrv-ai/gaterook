@@ -42,6 +42,7 @@ public final class ClientEnvironment {
   private final Path resources;
   private final Map<String, String> variables;
   private final boolean sandboxed;
+  private final boolean windowsStore;
   private final String hostname;
 
   /**
@@ -50,12 +51,18 @@ public final class ClientEnvironment {
    */
   public ClientEnvironment(Os os, Path userHome, Path gatewayHome, Path resources, Map<String, String> variables,
       boolean sandboxed, String hostname) {
+    this(os, userHome, gatewayHome, resources, variables, sandboxed, hostname, false);
+  }
+
+  public ClientEnvironment(Os os, Path userHome, Path gatewayHome, Path resources, Map<String, String> variables,
+      boolean sandboxed, String hostname, boolean windowsStore) {
     this.os = Objects.requireNonNull(os, "os");
     this.userHome = userHome.toAbsolutePath().normalize();
     this.gatewayHome = gatewayHome.toAbsolutePath().normalize();
     this.resources = resources;
     this.variables = sandboxed ? Map.of() : Map.copyOf(variables);
     this.sandboxed = sandboxed;
+    this.windowsStore = windowsStore;
     this.hostname = hostname;
   }
 
@@ -77,6 +84,11 @@ public final class ClientEnvironment {
 
   public boolean sandboxed() {
     return sandboxed;
+  }
+
+  /** Whether the desktop launched this core with Windows package write virtualization. */
+  public boolean windowsStore() {
+    return windowsStore;
   }
 
   /** A variable of the process; never in a sandboxed environment. */

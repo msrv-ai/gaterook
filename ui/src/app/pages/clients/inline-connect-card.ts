@@ -62,7 +62,10 @@ let nextId = 0;
         @if (busy()) {
           <p class="gw-sr-only" [id]="uid + '-busy'">{{ browserOnly() ? 'Opening browser sign-in' : connecting() ? 'Writing the change' : 'Preparing the exact change' }}</p>
         }
-        <button class="gw-btn gw-btn--primary" type="button" [attr.aria-busy]="connecting() ? 'true' : null" [attr.aria-disabled]="busy() ? 'true' : null" [attr.aria-describedby]="describedBy()" (click)="onConnect()">@if (connecting()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="plug-zap" class="gw-icon"></svg>} Connect {{ card().name }}</button>
+        @if (unavailable()) {
+          <p class="gw-text-small gw-fg-secondary" [id]="uid + '-unavailable'">Automatic setup is unavailable for this app.</p>
+        }
+        <button class="gw-btn gw-btn--primary" type="button" [attr.aria-busy]="connecting() ? 'true' : null" [attr.aria-disabled]="busy() || unavailable() ? 'true' : null" [attr.aria-describedby]="describedBy()" (click)="onConnect()">@if (connecting()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="plug-zap" class="gw-icon"></svg>} Connect {{ card().name }}</button>
       </div>
     </footer>
     }
@@ -102,10 +105,11 @@ export class GwInlineConnectCard {
   protected readonly via = computed(() => this.browserOnly() ? { text: 'Sign in through the browser', mono: false } : viaText(this.card()));
   protected readonly headingId = computed(() => `${this.anchor() ?? this.uid}-t`);
   protected readonly busy = computed(() => (!this.browserOnly() && this.loading()) || this.connecting());
+  protected readonly unavailable = computed(() => this.card().methods.length === 0);
   /** Connect's description: why it waits, and the endpoint's warnings (prod) the flow shows under its select. */
   protected readonly describedBy = computed(() => {
     const flow = this.flow();
-    const ids = [this.busy() ? `${this.uid}-busy` : null, flow?.warnings().length ? flow.warningsId() : null].filter(Boolean);
+    const ids = [this.busy() ? `${this.uid}-busy` : null, this.unavailable() ? `${this.uid}-unavailable` : null, flow?.warnings().length ? flow.warningsId() : null].filter(Boolean);
     return ids.length ? ids.join(' ') : null;
   });
 
@@ -126,7 +130,7 @@ export class GwInlineConnectCard {
 
   /** Starts browser sign-in directly, or writes the reviewed change for a config-based method. */
   protected onConnect(): void {
-    if (this.busy()) return;
+    if (this.busy() || this.unavailable()) return;
     const request = this.flow()?.request();
     if (!request) return; // the token name is invalid: its field says why
     if (this.browserOnly()) {

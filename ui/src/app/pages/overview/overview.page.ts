@@ -5,7 +5,6 @@ import { GwCodeBlock } from '../../code/code-block';
 import { isApiError } from '../../core/api/api-error';
 import { ApprovalItem } from '../../core/api/approvals.api';
 import { ConnectionsApi } from '../../core/api/connections.api';
-import { DesktopBridge } from '../../core/desktop/desktop-bridge';
 import { CoreStore } from '../../core/stores/core.store';
 import { TimeService } from '../../core/time/time.service';
 import { Announcer } from '../../kit/announcer';
@@ -74,8 +73,7 @@ export class OverviewPage {
 
   private readonly connectionsTitle = viewChild<ElementRef<HTMLElement>>('connectionsTitle');
 
-  protected readonly manualSetupOnly = inject(DesktopBridge).windowsStore === true;
-  protected readonly appAnchor = (client: Parameters<typeof appAnchor>[0]) => this.manualSetupOnly ? 'cl-manual-t' : appAnchor(client);
+  protected readonly appAnchor = appAnchor;
 
   /** Placeholders only when the first answer is slow. */
   protected readonly slow = signal(false);

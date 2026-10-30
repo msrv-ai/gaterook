@@ -280,7 +280,6 @@ export class ClientsData {
    * Read once per link; `force` after a drift event, when the file may have changed.
    */
   private async loadEntries(force: boolean): Promise<void> {
-    if (this.clientsApi.manualSetupOnly) return;
     const links = this.cards().flatMap((c) => c.links.filter((l) => l.method === 'helper' && l.status === 'connected'));
     const known = this.entriesSignal();
     const wanted = links.filter((l) => force || !known.has(l.id));

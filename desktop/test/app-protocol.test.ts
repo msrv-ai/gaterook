@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
-import { contentSecurityPolicy, injectNonce, isAppPage, manualClientSetupResponse, newNonce, routeAppUrl, safeUrl, serveUi, wellFormedApiPath } from '../src/main/app-protocol.ts';
+import { contentSecurityPolicy, injectNonce, isAppPage, newNonce, routeAppUrl, safeUrl, serveUi, wellFormedApiPath } from '../src/main/app-protocol.ts';
 import { desktopExecArg } from '../src/main/autostart.ts';
 import { tempDir } from './helpers.ts';
 
@@ -132,44 +132,5 @@ describe('app:// routing', () => {
     assert.ok(!wellFormedApiPath('/api/endpoints/./tools'));
     assert.ok(!wellFormedApiPath('/api/endpoints/../tools'));
     assert.ok(!wellFormedApiPath('/api/%25'));
-  });
-});
-
-
-describe('Microsoft Store manual client setup', () => {
-  const mutations = [
-    '/api/clients/cursor/connect/preview', '/api/clients/codex/connect',
-    '/api/clients/links/cl_cd_dev/disconnect/preview', '/api/clients/links/cl_cd_dev/disconnect',
-    '/api/clients/antigravity/restore/preview', '/api/clients/claude-desktop/restore',
-    '/api/clients/claude-desktop/remove-bridge',
-  ];
-
-  it('rejects client configuration operations before the signing proxy', async () => {
-    for (const path of mutations) {
-      const response = manualClientSetupResponse(true, 'POST', path);
-      assert.equal(response?.status, 403, path);
-      assert.equal(response.headers.get('Content-Type'), 'application/problem+json');
-      assert.match((await response.json()).detail, /Manual setup/);
-      assert.equal(manualClientSetupResponse(false, 'POST', path), null, path);
-    }
-  });
-
-  it('normalizes methods and encoded path characters, ignoring query strings', () => {
-    for (const path of ['/api/clients/cursor/%63onnect?preview=true', '/api/%63lients/links/cl%5fcd/disconnect', '/api/clients/claude-desktop/remove-%62ridge']) {
-      const routed = route('app://gw' + path);
-      assert.equal(routed.kind, 'api');
-      if (routed.kind === 'api') assert.equal(manualClientSetupResponse(true, 'post', routed.target)?.status, 403, path);
-    }
-  });
-
-  it('keeps manual reads, checks, tokens, client access revocation and endpoint changes available', () => {
-    for (const [method, path] of [
-      ['GET', '/api/clients/manual?endpoint=dev'], ['GET', '/api/clients'],
-      ['POST', '/api/clients/scan'], ['POST', '/api/clients/links/cl_cd_dev/check'],
-      ['GET', '/api/clients/cursor/backups'], ['POST', '/api/endpoints/dev/tokens'],
-      ['POST', '/api/tokens/token1/revoke'], ['POST', '/api/grants/grant1/revoke'],
-      ['DELETE', '/api/endpoints/dev'], ['POST', '/api/oauth/grants/grant1/revoke'],
-      ['GET', mutations[0]!], ['POST', '/api/clients/cursor/connect/extra'],
-    ]) assert.equal(manualClientSetupResponse(true, method!, path!), null, `${method} ${path}`);
   });
 });

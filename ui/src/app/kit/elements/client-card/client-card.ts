@@ -147,6 +147,7 @@ export class GwClientCard {
   private readonly flow = viewChild<GwClientConnectFlow>('flow');
 
   protected readonly c = computed(() => this.card());
+  protected readonly setupUnavailable = computed(() => this.card().methods.length === 0);
   protected readonly state = computed(() => (this.failure() ? 'error' : this.card().status));
   protected readonly look = computed(() => clientStatusLook(this.state()));
   protected readonly via = computed(() => viaText(this.card()));
@@ -235,6 +236,7 @@ export class GwClientCard {
 
   /** Opens Connect (also Try again after a failure). */
   openConnect(opener?: HTMLElement | null): void {
+    if (this.setupUnavailable()) return;
     this.flow()?.changesExpanded.set(false);
     this.connectStart.emit(this.card().client);
     this.connectDialog()?.open(opener ?? undefined);
