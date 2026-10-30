@@ -290,7 +290,7 @@ describe('connection form: database discovery', () => {
     expect(host.form().databaseSelectionValid()).toBe(false);
   });
 
-  it.each(['mysql', 'postgres'])('keeps %s database choices when only the environment changes', async (type) => {
+  it.each(['mysql', 'postgres', 'sqlserver'])('keeps %s database choices when only the environment changes', async (type) => {
     const { el, host, settle, load, choose } = await databaseForm(type);
     const request = await load();
     host.form().completeDatabaseDiscovery(request.key, discovered(['app', 'reports']));
@@ -321,7 +321,7 @@ describe('connection form: database discovery', () => {
     expect(host.form().value().env).toBe('prod');
   });
 
-  it('requires discovery again when production defaults change the actual connection settings', async () => {
+  it('refreshes databases automatically when production defaults change the connection settings', async () => {
     const { el, host, settle, load, choose } = await databaseForm('mongodb');
     const request = await load();
     host.form().completeDatabaseDiscovery(request.key, discovered(['app']));
@@ -333,8 +333,64 @@ describe('connection form: database discovery', () => {
     el.querySelector<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
     await settle();
     expect(host.form().value().config['connection']).toMatchObject({ tls: true });
+    expect(host.discoveries).toHaveLength(2);
+    const refreshed = host.discoveries[1];
+    expect(refreshed.value).toMatchObject({ env: 'prod', config: { connection: { tls: true, databases: ['app'] } } });
     expect(host.form().databaseSelectionValid()).toBe(false);
+    await settle();
+    expect(el.querySelector('#cf-database-error')).toBeNull();
+    expect(el.querySelector('#cf-database-status')!.textContent).toContain('Connecting and loading databases');
+    expect(el.querySelector('button[type="submit"]')!.getAttribute('aria-disabled')).toBe('true');
+    el.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+    expect(host.saved).toHaveLength(0);
     expect(host.form().completeDatabaseDiscovery(request.key, discovered(['stale']))).toBe(false);
+    expect(host.form().completeDatabaseDiscovery(refreshed.key, discovered(['app', 'reports']))).toBe(true);
+    await settle();
+    expect(host.form().databaseSelectionValid()).toBe(true);
+    expect(el.querySelector<HTMLInputElement>('#cf-database-0')!.checked).toBe(true);
+    expect(host.discoveries).toHaveLength(2);
+
+    el.querySelector<HTMLInputElement>('input[name="cf-env"][value="stage"]')!.click();
+    await settle();
+    expect(host.discoveries).toHaveLength(3);
+    host.form().completeDatabaseDiscovery(host.discoveries[2].key, discovered(['reports']));
+    await settle();
+    expect(host.form().databaseSelectionValid()).toBe(false);
+    await settle();
+    expect(el.querySelector('#cf-database-error')!.textContent).toContain('Remove databases that are no longer available');
+  });
+
+  it('restarts in-flight database discovery when environment defaults change', async () => {
+    const { el, host, settle, load, choose } = await databaseForm('mongodb');
+    const request = await load();
+    el.querySelector<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
+    await settle();
+    expect(host.discoveries).toHaveLength(2);
+    expect(host.form().completeDatabaseDiscovery(request.key, discovered(['stale']))).toBe(false);
+    expect(host.form().completeDatabaseDiscovery(host.discoveries[1].key, discovered(['app']))).toBe(true);
+    await settle();
+    await choose('app');
+    expect(host.form().databaseSelectionValid()).toBe(true);
+  });
+
+  it('does not start discovery on an environment change before loading or after connection edits', async () => {
+    const { el, host, settle, load, choose } = await databaseForm('mongodb');
+    el.querySelector<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
+    await settle();
+    expect(host.discoveries).toHaveLength(0);
+    const request = await load();
+    host.form().completeDatabaseDiscovery(request.key, discovered(['app']));
+    await settle();
+    await choose('app');
+    const address = el.querySelector<HTMLInputElement>('#cf-connection-host')!;
+    address.value = 'other.example.test';
+    address.dispatchEvent(new Event('input', { bubbles: true }));
+    await settle();
+    el.querySelector<HTMLInputElement>('input[name="cf-env"][value="dev"]')!.click();
+    await settle();
+    expect(host.discoveries).toHaveLength(1);
+    expect(host.form().databaseSelectionValid()).toBe(false);
   });
 
   it('retains legacy saved selections, including unavailable databases, without requiring discovery to save an edit', async () => {
@@ -424,6 +480,11 @@ describe('connection form: database discovery', () => {
     await settle();
     el.querySelector<HTMLInputElement>('#cf-database-0')!.click();
     await settle();
+    el.querySelector<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
+    await settle();
+    expect(host.discoveries).toHaveLength(1);
+    expect(host.form().databaseSelectionValid()).toBe(true);
+    expect(host.form().value().env).toBe('prod');
     expect(host.form().value().config).toEqual({ host: 'analytics.internal', port: 8443, user: 'default', databases: ['analytics'] });
   });
 });

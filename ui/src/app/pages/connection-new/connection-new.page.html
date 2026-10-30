@@ -291,10 +291,10 @@
           @if (m === 'edit') {
             <p class="gw-form__note"><svg lucideIcon="info" class="gw-icon"></svg>Applies from the next call</p>
             <button class="gw-btn" type="button" (click)="discard()">Discard</button>
-            <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="saving() ? 'true' : null" [attr.aria-disabled]="saving() ? 'true' : null">@if (saving()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Save changes<span class="gw-sr-only"> to {{ name() }}</span></button>
+            <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="saving() ? 'true' : null" [attr.aria-disabled]="saving() || form()?.databaseLoading() ? 'true' : null" [attr.aria-describedby]="form()?.databaseLoading() ? 'cf-database-status' : null">@if (saving()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}Save changes<span class="gw-sr-only"> to {{ name() }}</span></button>
           } @else {
             <button class="gw-btn gw-btn--ghost" type="button" (click)="go(1)"><svg lucideIcon="arrow-left" class="gw-icon"></svg> Back</button>
-            <button class="gw-btn gw-btn--primary" type="submit">Continue<span class="gw-sr-only"> to test</span> <svg lucideIcon="arrow-right" class="gw-icon"></svg></button>
+            <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-disabled]="form()?.databaseLoading() ? 'true' : null" [attr.aria-describedby]="form()?.databaseLoading() ? 'cf-database-status' : null">Continue<span class="gw-sr-only"> to test</span> <svg lucideIcon="arrow-right" class="gw-icon"></svg></button>
           }
         </div>
       </form>
