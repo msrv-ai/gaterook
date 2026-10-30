@@ -1,6 +1,6 @@
 {
   "name": "gaterook",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "private": true,
   "description": "GateRook: a desktop MCP gateway with scoped access and human-reviewed infrastructure changes.",
   "packageManager": "npm@11.19.1",

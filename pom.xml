@@ -53,7 +53,7 @@
 
   <properties>
     <!-- Application version: change this value for the next release. -->
-    <revision>0.4.3</revision>
+    <revision>0.4.4</revision>
     <java.version>25</java.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
