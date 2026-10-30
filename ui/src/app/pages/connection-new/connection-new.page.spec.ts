@@ -719,6 +719,40 @@ describe('Add connection: wizard', () => {
     expect(core.created[0].config['connection']).not.toHaveProperty('database');
   });
 
+  it.each([false, true])('saves selected databases after switching to prod without reloading (tested in dev: %s)', async (testInDev) => {
+    const p = await open('/connections/new#step-2');
+    await p.type('cf-name', 'prod-db');
+    await p.type('cf-connection-host', 'db.example.test');
+    await p.type('cf-credentials-user', 'reader');
+    await p.type('cf-credentials-password', 'local-password');
+    p.button('Load databases').click();
+    await p.settle();
+    p.q<HTMLInputElement>('#cf-database-0')!.click();
+    await p.settle();
+    if (testInDev) {
+      p.button('Continue', p.q('#cf-form')!).click();
+      await p.settle();
+      p.button('Back', p.q('#step-3')!).click();
+      await p.settle();
+    }
+
+    p.q<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
+    await p.settle();
+    p.button('Continue', p.q('#cf-form')!).click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-3']);
+    expect(core.discoveries).toHaveLength(1);
+    expect(core.tests.map((request) => request.env)).toEqual(testInDev ? ['dev', 'prod'] : ['prod']);
+    expect(core.tests.at(-1)!.config['connection']).toMatchObject({ databases: ['app'] });
+
+    p.button('Continue', p.q('#step-3')!).click();
+    await p.settle();
+    p.button('Save connection', p.q('#step-4')!).click();
+    await p.settle();
+    expect(core.created).toHaveLength(1);
+    expect(core.created[0]).toMatchObject({ env: 'prod', config: { connection: { databases: ['app'] } } });
+  });
+
   it('ignores late discovery after the host changes and keeps Continue on Configure until refreshed', async () => {
     const p = await open('/connections/new#step-2');
     await p.type('cf-name', 'qa-db');

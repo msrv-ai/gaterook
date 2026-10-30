@@ -290,6 +290,53 @@ describe('connection form: database discovery', () => {
     expect(host.form().databaseSelectionValid()).toBe(false);
   });
 
+  it.each(['mysql', 'postgres'])('keeps %s database choices when only the environment changes', async (type) => {
+    const { el, host, settle, load, choose } = await databaseForm(type);
+    const request = await load();
+    host.form().completeDatabaseDiscovery(request.key, discovered(['app', 'reports']));
+    await settle();
+    await choose('app');
+
+    for (const env of ['stage', 'prod', 'dev']) {
+      el.querySelector<HTMLInputElement>(`input[name="cf-env"][value="${env}"]`)!.click();
+      await settle();
+      expect(host.form().databaseSelectionValid()).toBe(true);
+      expect(el.querySelector('#cf-database-load')!.textContent).toContain('Reload databases');
+      expect(el.querySelector<HTMLInputElement>('#cf-database-0')!.checked).toBe(true);
+      expect(el.querySelector<HTMLInputElement>('#cf-database-1')!.value).toBe('reports');
+      expect(host.form().value().env).toBe(env);
+    }
+    expect(host.discoveries).toHaveLength(1);
+  });
+
+  it('accepts in-flight database discovery after an environment-only change', async () => {
+    const { el, host, settle, load, choose } = await databaseForm();
+    const request = await load();
+    el.querySelector<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
+    await settle();
+    expect(host.form().completeDatabaseDiscovery(request.key, discovered(['app']))).toBe(true);
+    await settle();
+    await choose('app');
+    expect(host.form().databaseSelectionValid()).toBe(true);
+    expect(host.form().value().env).toBe('prod');
+  });
+
+  it('requires discovery again when production defaults change the actual connection settings', async () => {
+    const { el, host, settle, load, choose } = await databaseForm('mongodb');
+    const request = await load();
+    host.form().completeDatabaseDiscovery(request.key, discovered(['app']));
+    await settle();
+    await choose('app');
+    expect(host.form().databaseSelectionValid()).toBe(true);
+    expect(host.form().value().config['connection']).toMatchObject({ tls: false });
+
+    el.querySelector<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
+    await settle();
+    expect(host.form().value().config['connection']).toMatchObject({ tls: true });
+    expect(host.form().databaseSelectionValid()).toBe(false);
+    expect(host.form().completeDatabaseDiscovery(request.key, discovered(['stale']))).toBe(false);
+  });
+
   it('retains legacy saved selections, including unavailable databases, without requiring discovery to save an edit', async () => {
     const { el, host, settle, load } = await databaseForm();
     host.mode.set('edit');
