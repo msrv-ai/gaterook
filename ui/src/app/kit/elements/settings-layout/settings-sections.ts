@@ -25,7 +25,6 @@ export const SETTINGS_GROUPS: readonly SettingsNavGroup[] = [
     label: 'Security',
     items: [
       { id: 'authorization', label: 'Authorization', icon: 'shield-check' },
-      { id: 'users', label: 'Users & roles', icon: 'users' },
     ],
   },
   {

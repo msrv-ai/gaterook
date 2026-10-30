@@ -332,12 +332,11 @@ describe('Settings page: loading, failure, the layout', () => {
   it('the local settings sections in kit order, with the header and Desktop mode', async () => {
     const el = await render();
     expect(text($('h1', el))).toBe('Settings');
-    expect(text($('.gw-page-header__meta', el))).toBe('Desktop mode One local user, no sign-in. Team settings show how server mode works.');
+    expect(text($('.gw-page-header__meta', el))).toBe('Desktop mode One local user, no sign-in.');
     expect($$('.gw-settings-layout__content > .gw-settings-layout__section', el).map((s) => s.id)).toEqual([
       'settings-general',
       'settings-appearance',
       'settings-authorization',
-      'settings-users',
       'settings-notifications',
       'settings-approval-rules',
       'settings-local-api',
