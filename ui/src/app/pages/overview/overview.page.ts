@@ -22,6 +22,7 @@ import {
   appAnchor,
   checkPrompt,
   connectionTiles,
+  endpointConnectionGroups,
   guideAppTile,
   homeAppTiles,
   modesWords,
@@ -40,8 +41,8 @@ export const SKELETON_DELAY_MS = 300;
  *
  * - **In use** — an AI app is connected. Waiting for your approval at the top, the quick-access zone (compact
  *   requests, soonest auto-deny first, Review opens the exact action in Approvals; a quiet line when none waits);
- *   Your connections as status tiles, problems first and six visible by default (Test again on an unreachable one), the
- *   rest behind "N more connections"; AI apps as tiles (an app found and not connected first, with Connect);
+ *   Your connections grouped by endpoint with its AI apps and all connection status tiles, problems first
+ *   (Test again on an unreachable one); AI apps as tiles (an app found and not connected first, with Connect);
  *   one line about Activity.
  * - **First run** — no connection yet: a three-step guide (`gw-stepper --guide`): Add your first connection (the
  *   page's one primary), Connect your AI app (the apps of this computer; Connect waits, `aria-disabled` with the
@@ -98,6 +99,9 @@ export class OverviewPage {
   });
 
   protected readonly tiles = computed(() => connectionTiles(this.overview()?.health ?? []));
+  protected readonly groups = computed(() => endpointConnectionGroups(
+    this.overview()?.health ?? [], this.data.connections(), this.data.endpoints(), this.data.clients()?.clients ?? null,
+  ));
   protected readonly moreOpen = signal(false);
   protected readonly moreLabel = computed(() => {
     const more = this.tiles().more;
