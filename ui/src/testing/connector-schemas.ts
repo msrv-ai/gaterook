@@ -399,21 +399,26 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           "port": true,
           "uri": true,
           "tls": {
-            "type": "boolean",
+            "type": [
+              "boolean",
+              "string"
+            ],
             "title": "Connection type",
             "default": false,
             "x-env-default": {
               "prod": true
             },
             "enum": [
+              "auto",
               false,
               true
             ],
             "x-enumTitles": [
+              "Auto",
               "Without TLS",
               "TLS"
             ],
-            "description": "TLS verifies the server certificate and host name. In connection string mode, TLS settings in the string also apply."
+            "description": "Auto detects TLS before signing in and uses an unencrypted connection only when the server supports it. TLS verifies the certificate and host name. Explicit connection-string TLS settings still apply."
           },
           "caCertificate": {
             "type": "string",
@@ -5986,6 +5991,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "mono": false,
         "unit": null,
         "options": [
+          "auto",
           false,
           true
         ],

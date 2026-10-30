@@ -23,9 +23,11 @@ class MongoConfigSchemaTest {
       "{\"host\":\"mongo.example.test\"}",
       "{\"mode\":\"host\",\"host\":\"mongo.example.test\",\"port\":27017,\"tls\":true}",
       "{\"mode\":\"host\",\"host\":\"::1\",\"port\":27018,\"tls\":false}",
+      "{\"mode\":\"host\",\"host\":\"mongo.example.test\",\"tls\":\"auto\"}",
       "{\"uri\":\"mongodb://mongo.example.test:27017/orders?replicaSet=rs0\"}",
       "{\"uri\":\"mongodb+srv://cluster.example.test/orders?retryWrites=false\"}",
-      "{\"mode\":\"uri\",\"uri\":\"mongodb://one.example.test,two.example.test/orders\",\"tls\":true}"
+      "{\"mode\":\"uri\",\"uri\":\"mongodb://one.example.test,two.example.test/orders\",\"tls\":true}",
+      "{\"mode\":\"uri\",\"uri\":\"mongodb://one.example.test,two.example.test/orders\",\"tls\":\"auto\"}"
   })
   void acceptsStructuredAndLegacyAddresses(String connection) {
     assertThat(SCHEMA.validate(Fixtures.json("{\"connection\":" + connection + "}"))).isEmpty();
@@ -44,7 +46,8 @@ class MongoConfigSchemaTest {
       "{\"mode\":\"uri\",\"uri\":\"https://mongo.example.test\"}",
       "{\"mode\":\"uri\",\"uri\":42}",
       "{\"mode\":\"other\",\"host\":\"mongo.example.test\"}",
-      "{\"mode\":\"host\",\"host\":\"mongo.example.test\",\"tls\":\"true\"}"
+      "{\"mode\":\"host\",\"host\":\"mongo.example.test\",\"tls\":\"true\"}",
+      "{\"mode\":\"host\",\"host\":\"mongo.example.test\",\"tls\":\"AUTO\"}"
   })
   void requiresAnAddressForTheSelectedMode(String connection) {
     assertThat(SCHEMA.validate(Fixtures.json("{\"connection\":" + connection + "}"))).isNotEmpty();

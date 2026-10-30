@@ -3,6 +3,7 @@ package ai.msrv.gaterook.connectors.mongodb;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoCredential;
+import com.mongodb.MongoTimeoutException;
 import com.mongodb.ReadPreference;
 import com.mongodb.spi.dns.DnsClient;
 import ai.msrv.gaterook.connectors.support.Pem;
@@ -33,7 +34,13 @@ final class ClientSettings {
    */
   static MongoClientSettings build(MongoSettings s, MongoLogin login, DnsClient dns, Duration serverSelection,
       Duration readTimeout) {
+    long started = System.nanoTime();
     ConnectionString cs = new ConnectionString(s.uri(), dns);
+    MongoSettings resolved = AutoTls.resolve(s, serverSelection);
+    Duration selectionBudget = s.autoTls() ? serverSelection.minusNanos(System.nanoTime() - started) : serverSelection;
+    if (selectionBudget.isNegative() || selectionBudget.isZero()) {
+      throw new MongoTimeoutException("No time remained to connect after determining the MongoDB connection type.");
+    }
     MongoClientSettings.Builder b = MongoClientSettings.builder()
         .applyConnectionString(cs)
         .applicationName(APPLICATION)
@@ -41,14 +48,14 @@ final class ClientSettings {
         .uuidRepresentation(UuidRepresentation.STANDARD)
         .retryWrites(false)
         .dnsClient(dns)
-        .applyToClusterSettings(c -> c.serverSelectionTimeout(serverSelection.toMillis(), TimeUnit.MILLISECONDS))
+        .applyToClusterSettings(c -> c.serverSelectionTimeout(Math.max(1, selectionBudget.toMillis()), TimeUnit.MILLISECONDS))
         .applyToSocketSettings(c -> c.connectTimeout((int) CONNECT_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)
             .readTimeout((int) readTimeout.toMillis(), TimeUnit.MILLISECONDS))
         .applyToConnectionPoolSettings(p -> p.maxSize(s.poolSize()).minSize(0)
             .maxConnectionIdleTime(60, TimeUnit.SECONDS).maxWaitTime(POOL_WAIT.toMillis(), TimeUnit.MILLISECONDS))
         .applyToSslSettings(t -> {
-          t.enabled(s.tls());
-          if (s.tls()) {
+          t.enabled(resolved.tls());
+          if (resolved.tls()) {
             t.context(sslContext(s)).invalidHostNameAllowed(s.allowInvalidHostnames());
           }
         });

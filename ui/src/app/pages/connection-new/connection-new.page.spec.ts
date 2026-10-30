@@ -761,15 +761,23 @@ describe('Add connection: wizard', () => {
     expect(core.created[0]).toMatchObject({ env: 'prod', config: { connection: { databases: ['app'] } } });
   });
 
-  it('refreshes selected MongoDB databases with production settings before testing and saving', async () => {
+  it.each([false, 'auto'])('refreshes selected MongoDB databases with production settings before testing and saving (initial TLS: %s)', async (initialTls) => {
     mongoDb();
     const p = await open('/connections/new#step-2');
     await p.type('cf-name', 'prod-mongo');
     await p.type('cf-connection-host', 'mongo.example.test');
     await p.type('cf-credentials-user', 'reader');
     await p.type('cf-credentials-password', 'local-password');
+    if (initialTls === 'auto') {
+      const tls = p.q<HTMLSelectElement>('#cf-connection-tls')!;
+      tls.value = 'auto';
+      tls.dispatchEvent(new Event('change', { bubbles: true }));
+      await p.settle();
+    }
+    const productionTls = initialTls === 'auto' ? 'auto' : true;
     p.button('Load databases').click();
     await p.settle();
+    expect(core.discoveries[0].config['connection']).toMatchObject({ tls: initialTls });
     p.q<HTMLInputElement>('#cf-database-0')!.click();
     await p.settle();
     p.button('Continue', p.q('#cf-form')!).click();
@@ -783,7 +791,7 @@ describe('Add connection: wizard', () => {
     await p.settle();
     expect(core.discoveries).toHaveLength(2);
     expect(core.discoveries[1]).toMatchObject({ type: 'mongodb', env: 'prod', config: {
-      connection: { host: 'mongo.example.test', databases: ['app'], tls: true, readPreference: 'secondaryPreferred' },
+      connection: { host: 'mongo.example.test', databases: ['app'], tls: productionTls, readPreference: 'secondaryPreferred' },
     } });
     expect(p.q('#cf-database-load')!.getAttribute('aria-busy')).toBe('true');
     expect(text(p.q('#cf-database-status'))).toContain('Connecting and loading databases');
@@ -807,14 +815,14 @@ describe('Add connection: wizard', () => {
     await p.settle();
     expect(p.visible()).toEqual(['step-3']);
     expect(core.tests.map((request) => request.env)).toEqual(['dev', 'prod']);
-    expect(core.tests[1].config['connection']).toMatchObject({ databases: ['app'], tls: true });
+    expect(core.tests[1].config['connection']).toMatchObject({ databases: ['app'], tls: productionTls });
     p.button('Continue', p.q('#step-3')!).click();
     await p.settle();
     p.button('Save connection', p.q('#step-4')!).click();
     await p.settle();
     expect(core.created).toHaveLength(1);
     expect(core.created[0]).toMatchObject({ type: 'mongodb', env: 'prod', config: {
-      connection: { databases: ['app'], tls: true, readPreference: 'secondaryPreferred' },
+      connection: { databases: ['app'], tls: productionTls, readPreference: 'secondaryPreferred' },
     } });
   });
 

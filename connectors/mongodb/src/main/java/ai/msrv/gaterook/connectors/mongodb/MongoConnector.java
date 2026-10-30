@@ -331,6 +331,10 @@ public final class MongoConnector implements Connector {
     }
     try (MongoLogin login = MongoLogin.resolve(s, secrets);
          MongoClientCache.Lease lease = clients.acquire(cfg, s, login, readTimeout(limits))) {
+      maxTime = Math.min(maxTime, ctx.remaining().toMillis() - 100);
+      if (maxTime <= 0) {
+        throw ConnectorException.timeout("No time was left for the query on " + cfg.name() + ".");
+      }
       MongoClient client = lease.client();
       try {
         return run(client, call.tool(), cfg, s, args, n, (int) maxTime, limits, ctx);

@@ -54,6 +54,69 @@ class MongoSettingsTest {
     assertThat(explicit.tls()).isFalse();
   }
 
+  @Test
+  void autoIsExplicitAndStartsWithTlsInEveryEnvironment() {
+    for (Env env : Env.values()) {
+      MongoSettings s = MongoSettings.of(Fixtures.config(env,
+          "{\"connection\":{\"host\":\"localhost\",\"tls\":\"auto\"}}"));
+      assertThat(s.usable()).isTrue();
+      assertThat(s.autoTls()).isTrue();
+      assertThat(s.tls()).isTrue();
+      assertThat(s.withTls(false).tls()).isFalse();
+      assertThat(s.withTls(false).autoTls()).isFalse();
+    }
+  }
+
+  @Test
+  void autoHonorsExplicitUriTlsAndSrvDefaults() {
+    for (String option : List.of("tls=true", "ssl=true", "tls=false&ssl=true", "ssl=false", "tls=false")) {
+      MongoSettings s = MongoSettings.of(Fixtures.config(Env.PROD,
+          "{\"connection\":{\"uri\":\"mongodb://localhost/orders?" + option + "\",\"tls\":\"auto\"}}"));
+      assertThat(s.usable()).as(option).isTrue();
+      assertThat(s.autoTls()).as(option).isFalse();
+      assertThat(s.tls()).as(option).isEqualTo(!option.contains("false"));
+    }
+    MongoSettings srv = MongoSettings.of(Fixtures.config(Env.DEV,
+        "{\"connection\":{\"uri\":\"mongodb+srv://cluster.example.test/orders\",\"tls\":\"auto\"}}"));
+    assertThat(srv.usable()).isTrue();
+    assertThat(srv.autoTls()).isFalse();
+    assertThat(srv.tls()).isTrue();
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"tls=1", "tls=", "ssl=enabled", "ssl=bogus"})
+  void autoRefusesUnrecognizedExplicitUriTlsValuesBeforeProbing(String option) {
+    MongoSettings settings = MongoSettings.of(Fixtures.config(Env.DEV,
+        "{\"connection\":{\"uri\":\"mongodb://localhost/orders?" + option + "\",\"tls\":\"auto\"}}"));
+    assertThat(settings.usable()).isFalse();
+    assertThat(settings.problems()).extracting(MongoSettings.Problem::field).containsExactly("/connection/uri");
+  }
+
+  @Test
+  void autoNeverBypassesAConnectionStringProxy() {
+    String uri = "mongodb://localhost/orders?proxyHost=proxy.example.test&proxyPort=1080";
+    MongoSettings auto = MongoSettings.of(Fixtures.config(Env.DEV,
+        "{\"connection\":{\"uri\":\"" + uri + "\",\"tls\":\"auto\"}}"));
+    assertThat(auto.usable()).isFalse();
+    assertThat(auto.problemText()).contains("Auto detection isn't available through a proxy");
+    for (String choice : List.of("true", "false", "\"auto\"")) {
+      MongoSettings pinned = MongoSettings.of(Fixtures.config(Env.DEV,
+          "{\"connection\":{\"uri\":\"" + uri + "&tls=true\",\"tls\":" + choice + "}}"));
+      assertThat(pinned.usable()).isTrue();
+      assertThat(pinned.autoTls()).isFalse();
+      assertThat(pinned.tls()).isTrue();
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"\"true\"", "\"AUTO\"", "42", "null"})
+  void malformedConnectionTypesAreRejected(String value) {
+    MongoSettings s = MongoSettings.of(Fixtures.config(Env.DEV,
+        "{\"connection\":{\"host\":\"localhost\",\"tls\":" + value + "}}"));
+    assertThat(s.usable()).isFalse();
+    assertThat(s.problems()).extracting(MongoSettings.Problem::field).containsExactly("/connection/tls");
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {"::1", "[::1]", "2001:db8::4", "::ffff:127.0.0.1"})
   void ipv6HostsAreBracketedForTheDriver(String host) {

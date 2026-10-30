@@ -21,10 +21,11 @@ import tools.jackson.databind.JsonNode;
  * @param parsed           its parts, {@code null} when it doesn't parse
  * @param tls              TLS for every connection: the form's setting (on by default on prod), the connection
  *                         string's {@code tls=true}, or {@code mongodb+srv://} without {@code tls=false}
+ * @param autoTls          detect the transport before sending credentials, unless the URI already determines it
  * @param readPreference   the form's, else {@code secondaryPreferred} on prod and {@code primary} elsewhere
  * @param maxTimeMs        the connection's own query time limit, or {@code null} (the environment's applies)
  */
-record MongoSettings(Env env, String uri, MongoUri parsed, boolean tls, String caCertificate,
+record MongoSettings(Env env, String uri, MongoUri parsed, boolean tls, boolean autoTls, String caCertificate,
     boolean allowInvalidHostnames, String readPreference, String user, String authSource, String mechanism,
     List<String> namespaceAllowlist, List<String> databases, Integer maxTimeMs, int poolSize, int serverSelectionTimeoutMs,
     List<Problem> problems) {
@@ -89,7 +90,12 @@ record MongoSettings(Env env, String uri, MongoUri parsed, boolean tls, String c
         problems.add(new Problem(uriMode ? "/connection/uri" : "/connection/host", e.getMessage()));
       }
     }
-    boolean formTls = cfg.bool("/connection/tls", env == Env.PROD);
+    JsonNode tlsValue = cfg.config().at("/connection/tls");
+    boolean autoTls = tlsValue.isString() && "auto".equals(tlsValue.asString());
+    if (!tlsValue.isMissingNode() && !tlsValue.isBoolean() && !autoTls) {
+      problems.add(new Problem("/connection/tls", "Choose Auto, Without TLS or TLS."));
+    }
+    boolean formTls = autoTls || cfg.bool("/connection/tls", env == Env.PROD);
     boolean tls = formTls;
     String formReadPreference = cfg.string("/connection/readPreference");
     String readPreference = formReadPreference != null ? formReadPreference
@@ -126,12 +132,24 @@ record MongoSettings(Env env, String uri, MongoUri parsed, boolean tls, String c
             + uriReadPreference + " and Read preference says " + readPreference + ": make them the same."));
       }
       String uriTls = parsed.option("tls") != null ? parsed.option("tls") : parsed.option("ssl");
-      if ("false".equalsIgnoreCase(uriTls) && formTls) {
+      if (autoTls && uriTls != null && !"true".equalsIgnoreCase(uriTls) && !"false".equalsIgnoreCase(uriTls)) {
+        problems.add(new Problem("/connection/uri", "The connection string must use tls=true or tls=false"
+            + " (or ssl=true or ssl=false)."));
+      }
+      if ("false".equalsIgnoreCase(uriTls) && formTls && !autoTls) {
         problems.add(new Problem("/connection/tls", "The connection string says tls=false and Connection type is TLS: "
             + "make them the same."));
       }
       if ("true".equalsIgnoreCase(uriTls) || (parsed.srv() && uriTls == null)) {
         tls = true;
+        autoTls = false;
+      } else if (autoTls && "false".equalsIgnoreCase(uriTls)) {
+        tls = false;
+        autoTls = false;
+      }
+      if (autoTls && (parsed.option("proxyHost") != null || parsed.option("proxyPort") != null)) {
+        problems.add(new Problem("/connection/tls", "Auto detection isn't available through a proxy. Choose"
+            + " TLS or Without TLS, or set tls=true or tls=false in the connection string."));
       }
     }
     boolean allowInvalidHostnames = cfg.bool("/connection/allowInvalidHostnames", false);
@@ -193,7 +211,7 @@ record MongoSettings(Env env, String uri, MongoUri parsed, boolean tls, String c
       problems.add(new Problem("/credentials/mechanism", "Mechanism none sends no user: clear User, or choose "
           + "a mechanism."));
     }
-    return new MongoSettings(env, uri, parsed, tls, ca, allowInvalidHostnames, readPreference, user, authSource,
+    return new MongoSettings(env, uri, parsed, tls, autoTls, ca, allowInvalidHostnames, readPreference, user, authSource,
         mechanism, List.copyOf(allowlist), List.copyOf(databases), maxTimeMs, poolSize, serverSelection,
         List.copyOf(problems));
   }
@@ -241,6 +259,13 @@ record MongoSettings(Env env, String uri, MongoUri parsed, boolean tls, String c
 
   boolean usable() {
     return problems.isEmpty();
+  }
+
+  /** The transport resolved for this client, without changing the saved Auto setting. */
+  MongoSettings withTls(boolean enabled) {
+    return new MongoSettings(env, uri, parsed, enabled, false, caCertificate, allowInvalidHostnames,
+        readPreference, user, authSource, mechanism, namespaceAllowlist, databases, maxTimeMs, poolSize,
+        serverSelectionTimeoutMs, problems);
   }
 
   /** The sole selected database, or the legacy connection string's default when no selection is stored. */
