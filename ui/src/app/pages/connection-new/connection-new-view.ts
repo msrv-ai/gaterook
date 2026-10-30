@@ -552,7 +552,10 @@ export function policyDefaults(type: string, dev: EnvPolicy, prod: EnvPolicy, sc
           out.push(kit ?? { icon: iconFor(key, title), text: title });
         }
       } else if (typeof pv === 'number' && typeof dv === 'number' && pv !== dv) {
-        out.push(kit ?? { icon: iconFor(key, title), text: `${title} ${amount(pv, unit, title)} (dev: ${amount(dv, unit, title)})` });
+        const unlimitedAtZero = props[key]?.['x-stricter'] === 'min-positive';
+        if (unlimitedAtZero && pv === 0) continue;
+        const devAmount = unlimitedAtZero && dv === 0 ? 'no limit' : amount(dv, unit, title);
+        out.push(kit ?? { icon: iconFor(key, title), text: `${title} ${amount(pv, unit, title)} (dev: ${devAmount})` });
       } else if (Array.isArray(pv) && pv.length && !sameJson(pv, dv)) {
         const values = pv.filter((x): x is string => typeof x === 'string');
         out.push(kit ?? { icon: iconFor(key, title), text: `${title}: ${values.join(', ')}`, literals: values });

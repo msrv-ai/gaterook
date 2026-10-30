@@ -31,6 +31,20 @@ class StricterMergeTest {
   }
 
   @Test
+  void positiveLimitsTreatZeroAsUnrestrictedAndCannotRelaxAnExistingCap() {
+    assertThat(merge("min-positive", "0", "24")).isEqualTo("24");
+    assertThat(merge("min-positive", "24", "0")).isEqualTo("24");
+    assertThat(merge("min-positive", "0", "0")).isEqualTo("0");
+    assertThat(merge("min-positive", "24", "12")).isEqualTo("12");
+    assertThat(merge("min-positive", "24", "48")).isEqualTo("24");
+    assertThat(merge("min-positive", null, "24")).isEqualTo("24");
+    assertThat(merge("min-positive", "24", "-1")).isEqualTo("24");
+    assertThat(merge("min-positive", "24", "\"12\"")).isEqualTo("24");
+    assertThat(StricterMerge.atLeastAsStrict("min-positive", j("0"), j("24"))).isTrue();
+    assertThat(StricterMerge.atLeastAsStrict("min-positive", j("24"), j("0"))).isFalse();
+  }
+
+  @Test
   void booleansProtectOrPermitByTheirOp() {
     assertThat(merge("or", "true", "false")).as("a protection stays on").isEqualTo("true");
     assertThat(merge("or", "false", "true")).isEqualTo("true");

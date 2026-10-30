@@ -107,11 +107,10 @@ final class CloudLogs implements AutoCloseable {
   }
 
   private static Limits limits(Limits original, GcpPolicy policy) {
-    Duration range = Duration.ofDays(policy.maxRangeDays());
-    if (original.maxRange().compareTo(range) < 0) range = original.maxRange();
     return new Limits(original.maxRows(), Math.min(original.maxLines(), policy.maxItems()),
         original.maxResponseBytes(), original.maxRequestBytes(), original.maxOutputBytes(), original.maxStderrBytes(),
-        original.maxCellChars(), original.statementTimeout(), original.commandTimeout(), original.toolTimeout(), range);
+        original.maxCellChars(), original.statementTimeout(), original.commandTimeout(), original.toolTimeout(),
+        original.maxRange());
   }
 
   /** Retains core authorization, cancellation, credential tainting and handles while narrowing the log limits. */

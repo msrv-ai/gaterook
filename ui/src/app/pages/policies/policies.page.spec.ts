@@ -368,6 +368,51 @@ describe('Policies page', () => {
     expect(document.activeElement).toBe($(el, '#prod'));
   });
 
+  it('starts with unlimited log ranges and can save a cap beyond a year or remove it', async () => {
+    setup();
+    const { fixture, el } = await render('prod');
+    const range = () => $<HTMLInputElement>(el, '#pp-logs-maxRangeHours');
+    expect(range().value).toBe('0');
+    expect(text($(el, '#pp-logs-maxRangeHours-hint'))).toContain('0 means no time limit.');
+
+    type(range(), '17520');
+    await settle(fixture);
+    $(el, '#pp-form button[type="submit"]').click();
+    await settle(fixture);
+    expect(updates()).toEqual(['update prod {"sections":{"logs":{"maxRangeHours":17520}},"version":2}']);
+    expect(range().value).toBe('17,520');
+
+    type(range(), '0');
+    await settle(fixture);
+    expect(text($(el, '#pp-unsaved'))).toContain('17,520 h to no limit');
+    $(el, '#pp-form button[type="submit"]').click();
+    await settle(fixture);
+    expect(updates()[1]).toBe('update prod {"sections":{"logs":{"maxRangeHours":null}},"version":3}');
+    expect(range().value).toBe('0');
+  });
+
+  it('keeps the log time limit editable with only a GCP connection', async () => {
+    setup();
+    const sample = kitConnections().find((connection) => connection.env === 'prod')!;
+    const connection = { ...sample, type: 'gcp', name: 'production-logs' };
+    vi.spyOn(TestBed.inject(ConnectionsApi), 'list').mockResolvedValue({
+      items: [connection], facets: { health: {}, env: {}, type: {} }, total: 1,
+    });
+    const { fixture, el } = await render('prod');
+    const section = $(el, '#prod-logs');
+    expect(section.querySelector('.gw-empty')).toBeNull();
+    const range = $<HTMLInputElement>(section, '#pp-logs-maxRangeHours');
+    expect(range).not.toBeNull();
+    expect(range.value).toBe('0');
+    expect(range.disabled).toBe(false);
+
+    type(range, '36');
+    await settle(fixture);
+    $(el, '#pp-form button[type="submit"]').click();
+    await settle(fixture);
+    expect(updates()).toEqual(['update prod {"sections":{"logs":{"maxRangeHours":36}},"version":2}']);
+  });
+
   it('checks numbers before saving and puts the keyboard on the first wrong one', async () => {
     setup();
     const { fixture, el } = await render('dev');

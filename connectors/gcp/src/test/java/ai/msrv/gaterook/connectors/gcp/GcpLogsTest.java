@@ -170,20 +170,36 @@ class GcpLogsTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"logs_search", "logs_tail"})
-  void cloudAndCallTimeRangesAreBothEnforced(String tool) {
+  void logTimeRangesAreIndependentOfTheCloudMetricsRange(String tool) {
     ObjectNode args = TestCtx.JSON.createObjectNode().put("query", GKE_QUERY);
     args.put(tool.equals("logs_search") ? "from" : "since", "-2d");
     Classification cloudRange = connector.classify(call(tool, args), CFG,
         policy("{\"maxRangeDays\":1}", limits(1000, Duration.ofDays(7))));
+    assertThat(cloudRange.kind()).as(cloudRange.reason()).isEqualTo(Classification.Kind.READ);
+
+    args.put(tool.equals("logs_search") ? "from" : "since", "-730d");
+    Classification unlimitedRange = connector.classify(call(tool, args), CFG,
+        policy("{\"maxRangeDays\":1}", limits(1000, null)));
+    assertThat(unlimitedRange.kind()).as(unlimitedRange.reason()).isEqualTo(Classification.Kind.READ);
+
     args.put(tool.equals("logs_search") ? "from" : "since", "-3h");
     Classification callRange = connector.classify(call(tool, args), CFG,
         policy("{\"maxRangeDays\":14}", limits(1000, Duration.ofHours(2))));
-
-    for (Classification result : List.of(cloudRange, callRange)) {
-      assertThat(result.kind()).as(result.reason()).isEqualTo(Classification.Kind.DENY);
-      assertThat(result.ruleId()).endsWith(".range");
-    }
+    assertThat(callRange.kind()).as(callRange.reason()).isEqualTo(Classification.Kind.DENY);
+    assertThat(callRange.ruleId()).endsWith(".range");
     assertThat(google.requests).isEmpty();
+  }
+
+  @Test
+  void executesAMultiYearLogSearchWithoutAMetricsRangeCap() throws Exception {
+    Limits unlimited = limits(1000, null);
+    Instant start = NOW.minus(Duration.ofDays(730));
+    ToolCall call = call("logs_search", search(GKE_QUERY).put("from", start.toString()));
+
+    ToolResult result = execute(call, policy("{\"maxRangeDays\":1}", unlimited), context().with(unlimited));
+
+    assertThat(requestBody().path("filter").asString()).contains("timestamp>=\"" + start + "\"");
+    assertThat(result.structuredContent().path("count").asInt()).isEqualTo(1);
   }
 
   @Test

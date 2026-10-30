@@ -13,6 +13,7 @@ import tools.jackson.databind.node.JsonNodeFactory;
  * may narrow a value of the environment's policy, by the key's {@code x-stricter}:
  * <ul>
  *   <li>{@code min} / {@code max}: the smaller / larger number (timeouts and row limits shrink);</li>
+ *   <li>{@code min-positive}: the smaller positive number, with zero meaning unrestricted;</li>
  *   <li>{@code intersect}: what both lists allow; an empty list means "no restriction" (allowlists);</li>
  *   <li>{@code union}: everything either list names (denylists, masked fields);</li>
  *   <li>{@code and}: true only if both are (a permission such as {@code allowExec});</li>
@@ -33,6 +34,7 @@ public final class StricterMerge {
       // Nothing to narrow: only an op that can only add restrictions may introduce a value.
       return switch (op == null ? "" : op) {
         case "min", "max", "intersect", "union", "or" -> candidate;
+        case "min-positive" -> candidate.isNumber() && candidate.decimalValue().signum() >= 0 ? candidate : current;
         default -> current;
       };
     }
@@ -41,6 +43,7 @@ public final class StricterMerge {
           ? candidate : current) : current;
       case "max" -> numbers(current, candidate) ? (candidate.decimalValue().compareTo(current.decimalValue()) > 0
           ? candidate : current) : current;
+      case "min-positive" -> minPositive(current, candidate);
       case "and" -> booleans(current, candidate)
           ? JsonNodeFactory.instance.booleanNode(current.asBoolean() && candidate.asBoolean()) : current;
       case "or" -> booleans(current, candidate)
@@ -55,6 +58,14 @@ public final class StricterMerge {
   public static boolean atLeastAsStrict(String op, JsonNode current, JsonNode candidate) {
     JsonNode merged = merge(op, current, candidate);
     return merged != null && merged.equals(candidate);
+  }
+
+  private static JsonNode minPositive(JsonNode current, JsonNode candidate) {
+    if (!numbers(current, candidate) || candidate.decimalValue().signum() <= 0) {
+      return current;
+    }
+    return current.decimalValue().signum() == 0 || candidate.decimalValue().compareTo(current.decimalValue()) < 0
+        ? candidate : current;
   }
 
   private static JsonNode intersect(JsonNode current, JsonNode candidate) {

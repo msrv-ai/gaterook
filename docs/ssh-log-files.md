@@ -115,7 +115,9 @@ For every record in a period, omit `query` and `levels`:
 }
 ```
 
-Time filtering uses the **event timestamp in the record**, not the file's modification time. `from` is inclusive and `to` is exclusive. Both accept ISO-8601 with a UTC offset or relative values such as `-15m`, `-1h`, `now-2d` and `now`. A supplied `from` defaults `to` to now. A supplied `to` without `from` selects the maximum allowed range ending at `to`. Omitting both disables time filtering.
+Time filtering uses the **event timestamp in the record**, not the file's modification time. `from` is inclusive and `to` is exclusive. Both accept ISO-8601 with a UTC offset or relative values such as `-15m`, `-1h`, `now-2d` and `now`. A supplied `from` defaults `to` to now. A supplied `to` without `from` includes all earlier timestamps by default. Omitting both disables time filtering.
+
+Log queries have no maximum time range by default. In **Policies → Logs**, set **Longest time range** to a positive number of hours to limit the query period, or use `0` for no limit. Explicit endpoint and tool limits can further narrow that period. With a configured limit, a supplied `to` without `from` selects the maximum allowed range ending at `to`. Line, scan-size, response-size, and timeout limits still apply.
 
 Omit both `file` and `files` on `ssh_logs_search` to scan the whole configured allowlist. Entries follow selected-file order and physical byte order within a page, not a global timestamp sort. A tail scan visits files in reverse selection order and moves towards older file positions. Selecting multiple files does not establish which one contains the newest timestamps.
 
