@@ -40,6 +40,50 @@ class BridgeShimInstallerTest {
   }
 
   @Test
+  void aBundleUnderASharedDirectoryRunsACopyInThePersonsOwnBin() throws IOException {
+    assumeTrue(FileSystems.getDefault().supportedFileAttributeViews().contains("posix"));
+    // An AppImage mounts its bundle in /tmp: once it's unmounted, another account could create the same path.
+    Path shared = Files.createDirectories(dir.resolve("tmp"));
+    Files.setPosixFilePermissions(shared, PosixFilePermissions.fromString("rwxrwxrwx"));
+    Path resources = Files.createDirectories(shared.resolve(".mount_GateRk1/resources"));
+    Path nativeBridge = Files.createDirectories(resources.resolve("bridge")).resolve("gw-bridge");
+    Files.writeString(nativeBridge, "#!/bin/sh\necho bridge\n");
+    Path home = dir.resolve("home/.gaterook");
+    ClientEnvironment env = new ClientEnvironment(Os.LINUX, dir.resolve("home"), home, resources, Map.of(), true,
+        "laptop");
+
+    BridgeShimInstaller.Target target = BridgeShimInstaller.target(env, null, null);
+    Path shim = BridgeShimInstaller.install(env, target);
+
+    Path copy = home.resolve("bin/gw-bridge-native");
+    assertThat(target.argv()).containsExactly(copy.toString());
+    assertThat(Files.readString(shim)).endsWith("exec '" + copy + "' \"$@\"\n").doesNotContain(shared.toString());
+    assertThat(Files.readString(copy)).isEqualTo("#!/bin/sh\necho bridge\n");
+    assertThat(PosixFilePermissions.toString(Files.getPosixFilePermissions(copy))).isEqualTo("rwx------");
+    // The bundle's JRE stays in the shared directory: it is never run from there.
+    Files.delete(nativeBridge);
+    Files.writeString(resources.resolve("bridge/gw-bridge.jar"), "jar");
+    Files.writeString(Files.createDirectories(resources.resolve("jre/bin")).resolve("java"), "java");
+    assertThat(BridgeShimInstaller.target(env, null, null).present()).isFalse();
+  }
+
+  @Test
+  void aBundleInAPrivateDirectoryRunsInPlace() throws IOException {
+    assumeTrue(FileSystems.getDefault().supportedFileAttributeViews().contains("posix"));
+    assumeTrue(!BridgeShimInstaller.underSharedDirectory(dir), "the temporary folder is itself shared");
+    Path resources = Files.createDirectories(dir.resolve("opt/GateRook/resources"));
+    Path nativeBridge = Files.createDirectories(resources.resolve("bridge")).resolve("gw-bridge");
+    Files.writeString(nativeBridge, "bridge");
+    ClientEnvironment env = new ClientEnvironment(Os.LINUX, dir, dir.resolve(".gaterook"), resources, Map.of(), true,
+        "laptop");
+
+    BridgeShimInstaller.Target target = BridgeShimInstaller.target(env, null, null);
+
+    assertThat(target.argv()).containsExactly(nativeBridge.toString());
+    assertThat(target.copyFrom()).isNull();
+  }
+
+  @Test
   void theWindowsShimWritesAPercentSignTwice() {
     // A batch file expands %…% inside quotes too: C:\Users\a%b would lose its %b.
     ClientEnvironment env = new ClientEnvironment(Os.WINDOWS, Path.of("C:\\Users\\a%b"),

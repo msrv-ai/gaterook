@@ -8,6 +8,7 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.List;
 import java.util.Optional;
@@ -19,11 +20,24 @@ import java.util.Optional;
  * {@code gw-bridge} of the app's bundle; the bundle's JRE with {@code gw-bridge.jar}; in a development run the jar
  * named by {@code gateway.clients.bridge-jar} on this JVM. It exports {@code GW_HOME}, so the bridge finds the broker
  * of this gateway home. Without any of them it says so and fails (exit 1), which the client shows.
+ *
+ * <p>A bundle under a directory anyone may write to (an AppImage is a mount in {@code /tmp} that goes away when the app
+ * quits) is never run by its path: another account could create that path once it's gone, and the person's clients
+ * would run what it put there. The shim runs a copy of the native bridge in the person's own 0700 {@code bin} instead,
+ * refreshed at every start; the JRE of such a bundle isn't used.
  */
 public final class BridgeShimInstaller {
 
-  /** The program the shim runs. */
-  public record Target(List<String> argv) {
+  /**
+   * The program the shim runs.
+   *
+   * @param copyFrom the native bridge to copy to {@code argv[0]} before the shim is written, or {@code null}
+   */
+  public record Target(List<String> argv, Path copyFrom) {
+
+    public Target(List<String> argv) {
+      this(argv, null);
+    }
 
     public boolean present() {
       return !argv.isEmpty();
@@ -43,12 +57,14 @@ public final class BridgeShimInstaller {
     if (resources.isPresent()) {
       Path bridge = resources.get().resolve("bridge");
       Path nativeBridge = bridge.resolve(env.os() == Os.WINDOWS ? "gw-bridge.exe" : "gw-bridge");
+      boolean shared = env.os() != Os.WINDOWS && underSharedDirectory(resources.get());
       if (Files.isRegularFile(nativeBridge)) {
-        return new Target(List.of(nativeBridge.toString()));
+        return shared ? new Target(List.of(nativeCopy(env).toString()), nativeBridge)
+            : new Target(List.of(nativeBridge.toString()));
       }
       Path jre = resources.get().resolve("jre").resolve("bin").resolve(env.os() == Os.WINDOWS ? "java.exe" : "java");
       Path jar = bridge.resolve("gw-bridge.jar");
-      if (Files.isRegularFile(jre) && Files.isRegularFile(jar)) {
+      if (!shared && Files.isRegularFile(jre) && Files.isRegularFile(jar)) {
         return new Target(javaArgv(jre, jar));
       }
     }
@@ -57,6 +73,29 @@ public final class BridgeShimInstaller {
       return new Target(javaArgv(java, devJar.toAbsolutePath().normalize()));
     }
     return new Target(List.of());
+  }
+
+  /** {@code ~/.gaterook/bin/gw-bridge-native}: the copy a bundle in a shared directory is run through. */
+  static Path nativeCopy(ClientEnvironment env) {
+    return env.shim().resolveSibling("gw-bridge-native");
+  }
+
+  /**
+   * Whether {@code path}, or any directory above it, is one other accounts may write to ({@code /tmp}, sticky bit or
+   * not): a name there can be taken over once its owner's file or mount is gone. What can't be checked counts as
+   * shared.
+   */
+  static boolean underSharedDirectory(Path path) {
+    try {
+      for (Path p = path.toRealPath(); p != null; p = p.getParent()) {
+        if (Files.getPosixFilePermissions(p).contains(PosixFilePermission.OTHERS_WRITE)) {
+          return true;
+        }
+      }
+      return false;
+    } catch (IOException | UnsupportedOperationException e) {
+      return true;
+    }
   }
 
   /**
@@ -109,6 +148,18 @@ public final class BridgeShimInstaller {
   public static Path install(ClientEnvironment env, Target target) throws IOException {
     Path shim = env.shim();
     GatewayPaths.ownerOnlyDirectory(shim.getParent());
+    if (target.copyFrom() != null) {
+      // The copy first: the shim never points at a file that isn't there yet.
+      Path copy = Path.of(target.argv().getFirst());
+      Path tmp = Files.createTempFile(copy.getParent(), "." + copy.getFileName(), ".tmp");
+      try {
+        Files.copy(target.copyFrom(), tmp, StandardCopyOption.REPLACE_EXISTING);
+        Files.setPosixFilePermissions(tmp, PosixFilePermissions.fromString("rwx------"));
+        Files.move(tmp, copy, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+      } finally {
+        Files.deleteIfExists(tmp);
+      }
+    }
     writeAtomically(shim, script(env, target).getBytes(StandardCharsets.UTF_8), true);
     if (env.os() == Os.WINDOWS && target.present() && target.argv().size() == 1
         && target.argv().getFirst().endsWith(".exe")) {
