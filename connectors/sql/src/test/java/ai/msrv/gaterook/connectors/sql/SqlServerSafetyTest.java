@@ -27,7 +27,9 @@ class SqlServerSafetyTest {
       "SELECT * FROM OPENJSON(N'[1,2]')",
       ";WITH values_cte AS (SELECT 1 AS value) SELECT * FROM values_cte",
       "SELECT 1 /* outer /* nested */ still comment */",
-      "SELECT @@VERSION"
+      "SELECT @@VERSION",
+      "SELECT COUNT(*) OVER (PARTITION BY LOWER(status) ORDER BY id) FROM dbo.orders",
+      "SELECT * FROM (VALUES (1, N'a')) AS v(id, name)"
   })
   void ordinaryReadsAreRecognized(String sql) {
     assertThat(query(sql, null, null).kind()).as(sql).isEqualTo(Classification.Kind.READ);
@@ -110,6 +112,16 @@ class SqlServerSafetyTest {
     assertThat(query("SELECT pg_catalog.nextval('seq')", null, null).kind()).isEqualTo(Classification.Kind.DENY);
     assertThat(query("SELECT [dbo].[xp_cmdshell]('command')", null, advanced).kind())
         .isEqualTo(Classification.Kind.DENY);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {
+      "SELECT COUNT(*) OVER (PARTITION BY dbo.custom_function(id)) FROM dbo.orders",
+      "SELECT COUNT(*) OVER (PARTITION BY xp_cmdshell('dir')) FROM dbo.orders",
+      "SELECT SUM(id) OVER (ORDER BY dbo.custom_function(id)) FROM dbo.orders"
+  })
+  void callsInEveryExpressionPositionMeetTheFunctionRules(String sql) {
+    assertThat(query(sql, null, null).kind()).as(sql).isEqualTo(Classification.Kind.DENY);
   }
 
   @Test
