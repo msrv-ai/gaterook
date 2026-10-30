@@ -626,8 +626,8 @@ describe('Connectors page: Templates', () => {
     expect(text(name)).toBe('orders_by_status(status, since), edit template orders_by_status');
   });
 
-  it('shows the empty state with New SQL query when there is no template', async () => {
-    setup({ templates: () => Promise.resolve([]), templateKinds: { postgres: ['sql-query'] } });
+  it('offers New SQL query when Oracle is the connector providing templates', async () => {
+    setup({ templates: () => Promise.resolve([]), templateKinds: { oracle: ['sql-query'] } });
     const { fixture, el } = await render();
     el.querySelector<HTMLButtonElement>('#tab-templates')!.click();
     await settle(fixture);
@@ -637,6 +637,19 @@ describe('Connectors page: Templates', () => {
     await settle(fixture);
     expect(text(el.querySelector('#tpl-title'))).toBe('New template');
     expect(document.activeElement?.id).toBe('tpl-name');
+  });
+
+  it('offers SQL query templates for SQL Server connections', async () => {
+    setup({
+      templateKinds: { sqlserver: ['sql-query'] },
+      rows: () => [...connectionRows(), { ...connectionRows()[0], name: 'reporting', type: 'sqlserver', typeName: 'SQL Server' }],
+    });
+    const { fixture, el } = await render();
+    el.querySelector<HTMLButtonElement>('#tab-templates')!.click();
+    await settle(fixture);
+    button(el.querySelector('#menu-new-template'), 'SQL query').click();
+    await settle(fixture);
+    expect(Array.from(el.querySelectorAll<HTMLOptionElement>('#tpl-conn option')).map((o) => o.value)).toEqual(['reporting']);
   });
 
   it('keeps the rows and says the list may be out of date when a reload fails', async () => {
@@ -657,7 +670,7 @@ describe('Connectors page: Templates', () => {
     const { el } = await render();
     const item = button(el.querySelector('#menu-new-template'), 'SQL query');
     expect(item.getAttribute('aria-disabled')).toBe('true');
-    expect(text(item.querySelector('.gw-menu__hint'))).toBe('This build’s PostgreSQL and MySQL connectors don’t offer SQL query templates yet.');
+    expect(text(item.querySelector('.gw-menu__hint'))).toBe('No installed SQL connector offers query templates.');
     expect(button(el.querySelector('#menu-new-template'), 'SSH runbook').getAttribute('aria-disabled')).toBe('true');
   });
 

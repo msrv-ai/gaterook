@@ -37,7 +37,10 @@ final class Tail {
     long gapBefore = 0;
     if (r.cursor() != null) {
       state = Cursors.openTail(ctx, r.cursor(), cfg.id(), queryKey);
-      long horizon = now - Math.min(Cursors.TAIL_HORIZON.toNanos(), ctx.limits().maxRange().toNanos());
+      Duration catchUp = Cursors.TAIL_HORIZON;
+      Duration maxRange = ctx.limits().maxRange();
+      if (maxRange != null && maxRange.compareTo(catchUp) < 0) catchUp = maxRange;
+      long horizon = now - catchUp.toNanos();
       if (state.lastNs() < horizon) {
         // An old cursor would read a long backlog in tiny pages: start an hour back and say what may be missing.
         state = new Cursors.TailState(horizon, Set.of());

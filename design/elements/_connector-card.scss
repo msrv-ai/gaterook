@@ -55,10 +55,11 @@
 //           Unsigned: gw-badge --warning + shield-alert.
 //   Built-in connectors carry ONE badge, "Built-in" (gw-badge --neutral +
 //           package): kind and trust are the same fact (ships with the core).
-//           The Logs back ends (Loki, GCP Cloud Logging, AWS CloudWatch,
-//           OpenSearch) are built in: "Built-in Logs · 2 tools", never a plugin.
+//           Loki, GCP Cloud Logging, AWS CloudWatch, OpenSearch and Elasticsearch
+//           are separate built-in connectors with their own tools.
 //   Tool counts are the product's, the same on every surface: PostgreSQL 4,
-//           MySQL 4, MongoDB 2, Redis 2, SSH 2, each Logs back end 2,
+//           MySQL 4, MongoDB 2, Redis 2, OpenSearch 3, Elasticsearch 3, SSH 2,
+//           each log connector 2,
 //           Kubernetes 4, GCP 4, AWS 2, HTTP API 2; plugins and MCP servers
 //           say theirs (Jira Service Desk 5, ClickHouse 6, RabbitMQ 4, github-mcp 26).
 //   Version mono, "v" prefix, sr-only "Version " before it.

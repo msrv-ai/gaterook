@@ -36,8 +36,12 @@ class SmokeDescriptorTest {
       JsonNode c = touch.path("connection");
       String type = c.path("type").asString();
       Env env = Env.of(c.path("env").asString());
-      JdbcSqlConnector connector = new JdbcSqlConnector(type.equals("mysql") ? new MySqlDialect()
-          : new PostgresDialect());
+      JdbcSqlConnector connector = new JdbcSqlConnector(switch (type) {
+        case "mysql" -> new MySqlDialect();
+        case "oracle" -> new OracleDialect();
+        case "sqlserver" -> new SqlServerDialect();
+        default -> new PostgresDialect();
+      });
       ConnectionConfig cfg = new ConnectionConfig("smoke-" + touch.path("name").asString(), "dev-db", type, env, 1,
           c.path("config"), Set.of(ConnectionSettings.PASSWORD), null);
       Fixtures.Secrets secrets = Fixtures.Secrets.password(c.at("/secrets/~1credentials~1password").asString());
@@ -57,6 +61,6 @@ class SmokeDescriptorTest {
       connector.close();
       checked++;
     }
-    assertThat(checked).isEqualTo(2);
+    assertThat(checked).isEqualTo(4);
   }
 }

@@ -64,6 +64,11 @@ final class TestCtx implements ExecContext {
         Duration.ofSeconds(30), Duration.ofSeconds(5), Duration.ofHours(24));
   }
 
+  static Limits withRange(Limits l, Duration maxRange) {
+    return new Limits(l.maxRows(), l.maxLines(), l.maxResponseBytes(), l.maxRequestBytes(), l.maxOutputBytes(),
+        l.maxStderrBytes(), l.maxCellChars(), l.statementTimeout(), l.commandTimeout(), l.toolTimeout(), maxRange);
+  }
+
   static TestCtx of() {
     return new TestCtx(Env.DEV, dev(), Clock.systemUTC(), Duration.ofSeconds(10), null, (k, n) -> true,
         new Handles(Clock.systemUTC()));

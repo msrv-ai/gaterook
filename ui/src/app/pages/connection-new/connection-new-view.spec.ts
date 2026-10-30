@@ -295,6 +295,7 @@ describe('Add connection: what prod turns on', () => {
   const prod = policy({ sql: { readOnlyTransactions: true, statementTimeoutMs: 3000, rowLimit: 100, denyDdl: true, maxResponseKb: 512 }, approvals: { timeoutMinutes: 10, comment: 'required' } });
 
   it('reads the lines from the prod policy against dev, in the kit order and words', () => {
+    expect(policyDefaults('oracle', dev, prod, schema)).toEqual(policyDefaults('postgres', dev, prod, schema));
     expect(policyDefaults('postgres', dev, prod, schema)).toEqual([
       { icon: 'lock', text: 'Read-only transactions' },
       { icon: 'rows-3', text: 'Row limit 100 (dev: 1,000)' },
@@ -302,6 +303,12 @@ describe('Add connection: what prod turns on', () => {
       { icon: 'ban', text: 'No DDL: CREATE, ALTER, DROP, TRUNCATE are refused', literals: ['CREATE', 'ALTER', 'DROP', 'TRUNCATE'] },
       { icon: 'hourglass', text: 'Approval timeout 10 min, a comment is required to approve' },
     ]);
+  });
+
+  it('uses SQL Server limits without claiming that its transactions are read only', () => {
+    const lines = policyDefaults('sqlserver', dev, prod, schema);
+    expect(lines[0]).toEqual({ icon: 'lock', text: 'Read-only queries' });
+    expect(lines.slice(1)).toEqual(policyDefaults('postgres', dev, prod, schema).slice(1));
   });
 
   it('uses SSH defaults and only the applicable log time-range default for SSH log files', () => {
@@ -323,6 +330,17 @@ describe('Add connection: what prod turns on', () => {
   it('only lists what differs: a type without a policy section gets the approvals line alone', () => {
     expect(policyDefaults('mcp', dev, prod, schema)).toEqual([{ icon: 'hourglass', text: 'Approval timeout 10 min, a comment is required to approve' }]);
     expect(policyDefaults('mcp', dev, dev, schema)).toEqual([]);
+  });
+
+  it('describes an optional log cap against an unlimited default', () => {
+    const fields: JsonObject = { sections: { logs: { properties: {
+      maxRangeHours: { type: 'integer', title: 'Longest time range', 'x-unit': 'h', 'x-stricter': 'min-positive' },
+    } } } };
+    const unlimited = policy({ logs: { maxRangeHours: 0 } });
+    const capped = policy({ logs: { maxRangeHours: 24 } });
+    expect(policyDefaults('logs', unlimited, capped, fields).map((line) => line.text))
+      .toEqual(['Longest time range 24 h (dev: no limit)']);
+    expect(policyDefaults('logs', capped, unlimited, fields)).toEqual([]);
   });
 });
 

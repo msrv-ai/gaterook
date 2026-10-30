@@ -121,13 +121,13 @@ record SshLogQuery(List<String> files, boolean tail, int maxLines, long scanByte
       if ((start != null && start.isBlank()) || (end != null && end.isBlank())) {
         throw ConnectorException.badInput("Time filters must contain an offset timestamp or relative time.");
       }
-      Duration maxRange = limits == null ? Duration.ofHours(168) : limits.maxRange();
-      if (maxRange == null || maxRange.isNegative() || maxRange.isZero()) maxRange = Duration.ofHours(1);
+      Duration maxRange = limits == null ? null : limits.maxRange();
+      if (maxRange != null && (maxRange.isNegative() || maxRange.isZero())) maxRange = Duration.ofHours(1);
       try {
         to = end == null ? anchor : TimeArg.parse(end, anchor);
-        from = start == null ? to.minus(maxRange) : TimeArg.parse(start, anchor);
-        if (!from.isBefore(to)) throw ConnectorException.badInput("from must be earlier than to.");
-        if (Duration.between(from, to).compareTo(maxRange) > 0) {
+        from = start == null ? (maxRange == null ? null : to.minus(maxRange)) : TimeArg.parse(start, anchor);
+        if (from != null && !from.isBefore(to)) throw ConnectorException.badInput("from must be earlier than to.");
+        if (maxRange != null && Duration.between(from, to).compareTo(maxRange) > 0) {
           throw ConnectorException.badInput("The time range exceeds this connection's maximum range. Narrow from/to.");
         }
       } catch (TimeArg.InvalidTimeException | DateTimeException | ArithmeticException e) {
@@ -160,12 +160,12 @@ record SshLogQuery(List<String> files, boolean tail, int maxLines, long scanByte
   }
 
   boolean timeFiltered() {
-    return from != null;
+    return from != null || to != null;
   }
 
   boolean matches(SshLogParser.Parsed record) {
-    if (timeFiltered() && (record.timestamp() == null || record.timestamp().isBefore(from)
-        || !record.timestamp().isBefore(to))) return false;
+    if (timeFiltered() && (record.timestamp() == null || from != null && record.timestamp().isBefore(from)
+        || to != null && !record.timestamp().isBefore(to))) return false;
     if (!levels.isEmpty() && (record.level() == null || !levels.contains(record.level()))) return false;
     if (needle == null) return true;
     if (expression != null) return expression.matcher(record.text()).find();

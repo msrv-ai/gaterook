@@ -115,7 +115,6 @@
     <!-- gw-status belongs to component group B. Static on purpose: no gw-status--live in the shell (WCAG 2.2.2) -->
     <div class="gw-sidebar__footer">
       <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Core running</span></span>
-      <span class="gw-sidebar__meta">127.0.0.1:7465</span>
       <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off</span></span>
       <span class="gw-sidebar__meta">v0.4.0</span>
     </div>
@@ -162,7 +161,7 @@
                 <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="package"></i></span>
                 <span class="gw-how-it-works__arrow gw-fg-muted" aria-hidden="true"><i class="gw-icon gw-icon--sm" data-lucide="chevron-right"></i></span>
                 <p class="gw-how-it-works__title gw-text-h3"><span class="gw-counter" aria-hidden="true">1</span>Built-in</p>
-                <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">SQL, MongoDB, Redis, OpenSearch, SSH, log services, Kubernetes, clouds and HTTP ship with the core. Add a connection and go.</p>
+                <p class="gw-how-it-works__text gw-text-small gw-fg-secondary">SQL, MongoDB, Redis, OpenSearch, Elasticsearch, SSH, log services, Kubernetes, clouds and HTTP ship with the core. Add a connection and go.</p>
               </li>
               <li class="gw-how-it-works__step">
                 <span class="gw-icon-tile gw-icon-tile--brand gw-how-it-works__icon"><i class="gw-icon" data-lucide="file-code"></i></span>
@@ -182,7 +181,7 @@
 
       <div class="gw-tabs">
         <div class="gw-tabs__list" role="tablist" aria-label="Connectors">
-          <button class="gw-tabs__tab" type="button" role="tab" id="tab-installed" aria-selected="true" aria-controls="installed"><i class="gw-icon" data-lucide="package-check"></i> Installed <span class="gw-tabs__count">15<span class="gw-sr-only"> connectors</span></span></button>
+          <button class="gw-tabs__tab" type="button" role="tab" id="tab-installed" aria-selected="true" aria-controls="installed"><i class="gw-icon" data-lucide="package-check"></i> Installed <span class="gw-tabs__count">16<span class="gw-sr-only"> connectors</span></span></button>
           <button class="gw-tabs__tab" type="button" role="tab" id="tab-catalog" aria-selected="false" aria-controls="catalog" tabindex="-1"><i class="gw-icon" data-lucide="library"></i> Catalog <span class="gw-tabs__count">5<span class="gw-sr-only"> connectors</span></span></button>
           <button class="gw-tabs__tab" type="button" role="tab" id="tab-templates" aria-selected="false" aria-controls="templates" tabindex="-1"><i class="gw-icon" data-lucide="file-code"></i> Templates <span class="gw-tabs__count">7<span class="gw-sr-only"> templates</span></span></button>
           <button class="gw-tabs__tab" type="button" role="tab" id="tab-mcp" aria-selected="false" aria-controls="mcp-servers" tabindex="-1"><i class="gw-icon" data-lucide="plug"></i> MCP servers <span class="gw-tabs__count">1<span class="gw-sr-only"> server</span></span></button>
@@ -331,6 +330,32 @@
                   <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
                     <span class="gw-connector-card__tools gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="wrench"></i>3 tools</span>
                     <a class="gw-btn gw-btn--sm" href="connection-new.html?type=opensearch">Add connection<span class="gw-sr-only"> for OpenSearch</span></a>
+                  </footer>
+                </article>
+              </li>
+              <li>
+                <article class="gw-card gw-connector-card" aria-labelledby="ci-es-t">
+                  <header class="gw-card__header">
+                    <div class="gw-connector-card__identity">
+                      <span class="gw-icon-tile gw-icon-tile--lg"><i class="gw-icon gw-icon--lg" data-lucide="database"></i></span>
+                      <div class="gw-card__heading">
+                        <h3 class="gw-card__title" id="ci-es-t">Elasticsearch</h3>
+                        <p class="gw-connector-card__meta">
+                          <span class="gw-badge gw-badge--neutral"><i class="gw-icon gw-badge__icon" data-lucide="package"></i>Built-in</span>
+                          <span class="gw-text-caption gw-fg-muted"><span class="gw-sr-only">Version </span><span class="gw-mono">v0.4.0</span></span>
+                        </p>
+                      </div>
+                    </div>
+                  </header>
+                  <div class="gw-card__body gw-connector-card__body">
+                    <div class="gw-stack gw-stack--sm">
+                      <p class="gw-text-small gw-fg-secondary">Search indices with JSON Query DSL. Administration waits for approval.</p>
+                      <p class="gw-text-caption gw-fg-muted">No connections yet</p>
+                    </div>
+                  </div>
+                  <footer class="gw-card__footer gw-card__footer--split gw-connector-card__footer">
+                    <span class="gw-connector-card__tools gw-text-caption gw-fg-muted"><i class="gw-icon gw-icon--sm" data-lucide="wrench"></i>3 tools</span>
+                    <a class="gw-btn gw-btn--sm" href="connection-new.html?type=elasticsearch">Add connection<span class="gw-sr-only"> for Elasticsearch</span></a>
                   </footer>
                 </article>
               </li>

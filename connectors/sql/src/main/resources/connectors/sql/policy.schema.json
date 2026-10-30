@@ -10,8 +10,8 @@
       "const": true,
       "default": true,
       "readOnly": true,
-      "title": "Run queries in a read-only transaction",
-      "description": "Always on: every read runs in a READ ONLY transaction that ends with ROLLBACK."
+      "title": "Keep query calls read-only",
+      "description": "Always on: reads end with ROLLBACK. PostgreSQL, MySQL and Oracle enforce READ ONLY transactions; SQL Server enforces strict SELECT validation and needs a SELECT-only login for server-enforced protection."
     },
     "statementTimeoutMs": {
       "type": "integer",

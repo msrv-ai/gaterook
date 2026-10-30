@@ -366,17 +366,28 @@ final class TemplateParams {
 
   /** Binds every value with its JDBC type; NULL with the type too. */
   static void bind(PreparedStatement ps, List<Bound> values, boolean mysql) throws SQLException {
+    bind(ps, values, mysql ? SqlSyntax.MYSQL : SqlSyntax.POSTGRES);
+  }
+
+  static void bind(PreparedStatement ps, List<Bound> values, SqlDialect dialect) throws SQLException {
+    bind(ps, values, dialect.syntax());
+  }
+
+  static void bind(PreparedStatement ps, List<Bound> values, SqlSyntax syntax) throws SQLException {
     int i = 1;
     for (Bound b : values) {
       if (b.value() == null) {
-        ps.setNull(i++, sqlType(b.type(), mysql));
+        ps.setNull(i++, sqlType(b.type(), syntax));
         continue;
       }
       switch (b.value()) {
         case String s -> ps.setString(i, s);
         case Long n -> ps.setLong(i, n);
         case BigDecimal n -> ps.setBigDecimal(i, n);
-        case Boolean v -> ps.setBoolean(i, v);
+        case Boolean v -> {
+          if (syntax == SqlSyntax.ORACLE) ps.setInt(i, v ? 1 : 0);
+          else ps.setBoolean(i, v);
+        }
         case OffsetDateTime t -> ps.setObject(i, t);
         case LocalDate d -> ps.setObject(i, d);
         default -> throw new SQLException("Unsupported template value " + b.value().getClass().getSimpleName());
@@ -385,13 +396,17 @@ final class TemplateParams {
     }
   }
 
-  private static int sqlType(Type type, boolean mysql) {
+  private static int sqlType(Type type, SqlSyntax syntax) {
     return switch (type) {
       case STRING, ENUM -> Types.VARCHAR;
       case INTEGER -> Types.BIGINT;
       case NUMBER -> Types.NUMERIC;
-      case BOOLEAN -> Types.BOOLEAN;
-      case TIMESTAMP -> mysql ? Types.TIMESTAMP : Types.TIMESTAMP_WITH_TIMEZONE;
+      case BOOLEAN -> syntax == SqlSyntax.ORACLE ? Types.NUMERIC : Types.BOOLEAN;
+      case TIMESTAMP -> switch (syntax) {
+        case MYSQL -> Types.TIMESTAMP;
+        case SQLSERVER -> microsoft.sql.Types.DATETIMEOFFSET;
+        default -> Types.TIMESTAMP_WITH_TIMEZONE;
+      };
       case DATE -> Types.DATE;
     };
   }

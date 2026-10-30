@@ -1,10 +1,11 @@
 # Real servers for the integration tests of the connectors (test-services/README.md). Everything listens on 127.0.0.1
-# only, keeps its data in memory (a restart is a fresh server) and uses the tags, ports and test passwords of .env.
+# only and uses the tags, ports and test passwords of .env. Most data is in memory; Oracle uses its disposable
+# container filesystem. Removing the containers resets all database data.
 #
 #   scripts/test-services.sh up sql redis      # or: docker compose -f test-services/docker-compose.yml --profile sql up -d --wait
 #   mvn -B -ntp verify -Pservices              # the ITs connect here instead of starting their own servers
 #
-# Profiles: sql · mongo · redis · logs · aws · vault · ssh · k8s · all
+# Profiles: sql · oracle · sqlserver · mongo · redis · logs · aws · vault · ssh · k8s · all
 name: gw-test
 
 x-health: &health
@@ -78,6 +79,53 @@ services:
       - "127.0.0.1:${GW_MARIADB_PORT}:3306"
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      <<: *health
+
+  # Oracle Free includes FREEPDB1 on both amd64 and arm64. Keep its large datafiles in the container layer:
+  # they are removed with the container, without consuming the Docker VM's RAM as a data tmpfs would.
+  oracle:
+    image: ghcr.io/gvenzl/oracle-free:${GW_ORACLE_TAG}
+    container_name: gw-test-oracle
+    profiles: [sql, oracle, all]
+    mem_limit: 2g
+    shm_size: 1g
+    entrypoint: ["/bin/bash", "/opt/gaterook-test/start.sh"]
+    environment:
+      ORACLE_PASSWORD: ${GW_ORACLE_ADMIN_PASSWORD}
+      GW_ORACLE_SERVICE: ${GW_ORACLE_SERVICE}
+      GW_ORACLE_USER: ${GW_ORACLE_USER}
+      GW_ORACLE_PASSWORD: ${GW_ORACLE_PASSWORD}
+    volumes:
+      - ./oracle/start.sh:/opt/gaterook-test/start.sh:ro
+      - ./oracle/init-user.sh:/container-entrypoint-initdb.d/001-init-user.sh:ro
+      - ./oracle/healthcheck.sh:/opt/gaterook-test/healthcheck.sh:ro
+    ports:
+      - "127.0.0.1:${GW_ORACLE_PORT}:1521"
+    healthcheck:
+      test: ["CMD", "/bin/bash", "/opt/gaterook-test/healthcheck.sh"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 120s
+
+  # SQL Server has only x86-64 Linux images. Keep this opt-in on ARM hosts.
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:${GW_SQLSERVER_TAG}
+    container_name: gw-test-sqlserver
+    platform: linux/amd64
+    mem_limit: 2560m
+    profiles: [sqlserver, all]
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${GW_SQLSERVER_PASSWORD}
+      MSSQL_MEMORY_LIMIT_MB: 2048
+    tmpfs:
+      - /var/opt/mssql:uid=10001,gid=0
+    ports:
+      - "127.0.0.1:${GW_SQLSERVER_PORT}:1433"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' -b -o /dev/null"]
       <<: *health
 
   # ── MongoDB ─────────────────────────────────────────────────────────────────────────────────────────────────
@@ -288,6 +336,25 @@ services:
       - /usr/share/opensearch/data:uid=1000,gid=1000
     ports:
       - "127.0.0.1:${GW_OPENSEARCH_PORT}:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs 'http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=1s'"]
+      <<: *health
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${GW_ELASTICSEARCH_TAG}
+    container_name: gw-test-elasticsearch
+    profiles: [logs, all]
+    environment:
+      discovery.type: single-node
+      cluster.name: gw-elasticsearch-it
+      cluster.routing.allocation.disk.threshold_enabled: "false"
+      xpack.security.enabled: "false"
+      xpack.ml.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    tmpfs:
+      - /usr/share/elasticsearch/data:uid=1000,gid=0
+    ports:
+      - "127.0.0.1:${GW_ELASTICSEARCH_PORT}:9200"
     healthcheck:
       test: ["CMD-SHELL", "curl -fs 'http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=1s'"]
       <<: *health

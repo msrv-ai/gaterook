@@ -23,7 +23,7 @@ import { ConnectionNewPage } from './connection-new.page';
 /**
  * Add connection against the kit's page script (design/pages/connection-new.html): the four steps with their focus
  * and announcements, what the test shows, the endpoints a connection may join, Save, the duplicate and the edit view
- * with its dialogs. The admin API is faked at the service level with PostgreSQL and the real OpenSearch schema.
+ * with its dialogs. The admin API is faked at the service level with canonical connector schemas.
  */
 
 const NOW = Date.parse('2026-10-22T14:30:00+02:00');
@@ -444,6 +444,14 @@ async function toTest(p: Awaited<ReturnType<typeof open>>, host = 'db.dev.intern
   await p.settle();
 }
 
+function mongoDb(): void {
+  core.spec = { ...structuredClone(SPEC), type: 'mongodb', name: 'MongoDB', schema: CONNECTOR_FORMS['mongodb'] };
+  core.catalog = { groups: [{ name: 'Databases', cards: [{ ...structuredClone(CATALOG.groups[0].cards[0]),
+    type: 'mongodb', name: 'MongoDB', connections: 0,
+  }] }], installed: [] };
+  core.nextTest = outcome({ ok: true, serverVersion: 'MongoDB 8.0', identity: 'reader' });
+}
+
 /** The Logs catalog preset and canonical connector schema used by the OpenSearch Configure page. */
 function openSearch(): void {
   core.spec = {
@@ -475,6 +483,60 @@ function cloudLogging(): void {
     presetConfig: { backend: 'gcp-logging' }, tools: 2, connections: 0,
   }] }], installed: [] };
 }
+
+describe('Redis production connections', () => {
+  it('tests and saves Without TLS with a warning and no confirmation', async () => {
+    core.spec = { ...structuredClone(SPEC), type: 'redis', name: 'Redis', schema: CONNECTOR_FORMS['redis'] };
+    core.catalog = { groups: [{ name: 'Databases', cards: [{
+      ...structuredClone(CATALOG.groups[0].cards[0]), type: 'redis', name: 'Redis', tools: 1, connections: 0,
+    }] }], installed: [] };
+    core.configuredTools = [tool({ name: 'redis_get', description: 'Read a Redis value.' })];
+    const warning = 'TLS is off: the password and the values travel in clear text.';
+    core.nextTest = outcome({
+      ok: true, latencyMs: 3, serverVersion: 'Redis 7.2',
+      hints: [{ severity: 'warning', code: 'redis.tls-off', field: 'connection.tls', text: warning, snippet: null }],
+    });
+
+    const p = await open('/connections/new#step-2');
+    await p.type('cf-name', 'prod-cache');
+    await p.type('cf-connection-host', 'cache.example.test');
+    await p.type('cf-credentials-password', 'redis-test-password');
+    p.q<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
+    await p.settle();
+
+    const tls = p.q<HTMLSelectElement>('#cf-connection-tls')!;
+    expect(tls.tagName).toBe('SELECT');
+    expect(tls.closest('[hidden]')).toBeNull();
+    expect(tls.value).toBe('true');
+    tls.value = 'false';
+    tls.dispatchEvent(new Event('change', { bubbles: true }));
+    await p.settle();
+    expect(tls.selectedOptions[0].textContent).toBe('Without TLS');
+
+    p.button('Continue', p.q('#cf-form')!).click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-3']);
+    expect(core.tests).toHaveLength(1);
+    expect(core.tests[0]).toMatchObject({
+      type: 'redis', env: 'prod', config: { connection: { host: 'cache.example.test', tls: false } },
+    });
+    expect(text(p.q('#step-3 .gw-status'))).toContain('Connected');
+    expect(text(p.q('#step-3 .gw-alert--warning'))).toBe(warning);
+    expect(p.q('#step-3 .gw-alert--danger')).toBeNull();
+    expect(document.querySelector('dialog[open]')).toBeNull();
+
+    p.button('Continue', p.q('#step-3')!).click();
+    await p.settle();
+    const save = p.button('Save connection', p.q('#step-4')!);
+    expect(save.getAttribute('aria-disabled')).toBeNull();
+    save.click();
+    await p.settle();
+    expect(core.created).toHaveLength(1);
+    expect(core.created[0]).toMatchObject({
+      name: 'prod-cache', type: 'redis', env: 'prod', config: { connection: { host: 'cache.example.test', tls: false } },
+    });
+  });
+});
 
 describe('connection-specific tool preview', () => {
   const gcpTools = [
@@ -717,6 +779,142 @@ describe('Add connection: wizard', () => {
     expect(core.created).toHaveLength(1);
     expect(core.created[0].config['connection']).toMatchObject({ databases: ['app', 'reports'] });
     expect(core.created[0].config['connection']).not.toHaveProperty('database');
+  });
+
+  it.each([false, true])('saves selected databases after switching to prod without reloading (tested in dev: %s)', async (testInDev) => {
+    const p = await open('/connections/new#step-2');
+    await p.type('cf-name', 'prod-db');
+    await p.type('cf-connection-host', 'db.example.test');
+    await p.type('cf-credentials-user', 'reader');
+    await p.type('cf-credentials-password', 'local-password');
+    p.button('Load databases').click();
+    await p.settle();
+    p.q<HTMLInputElement>('#cf-database-0')!.click();
+    await p.settle();
+    if (testInDev) {
+      p.button('Continue', p.q('#cf-form')!).click();
+      await p.settle();
+      p.button('Back', p.q('#step-3')!).click();
+      await p.settle();
+    }
+
+    p.q<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
+    await p.settle();
+    p.button('Continue', p.q('#cf-form')!).click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-3']);
+    expect(core.discoveries).toHaveLength(1);
+    expect(core.tests.map((request) => request.env)).toEqual(testInDev ? ['dev', 'prod'] : ['prod']);
+    expect(core.tests.at(-1)!.config['connection']).toMatchObject({ databases: ['app'] });
+
+    p.button('Continue', p.q('#step-3')!).click();
+    await p.settle();
+    p.button('Save connection', p.q('#step-4')!).click();
+    await p.settle();
+    expect(core.created).toHaveLength(1);
+    expect(core.created[0]).toMatchObject({ env: 'prod', config: { connection: { databases: ['app'] } } });
+  });
+
+  it.each([false, 'auto'])('refreshes selected MongoDB databases with production settings before testing and saving (initial TLS: %s)', async (initialTls) => {
+    mongoDb();
+    const p = await open('/connections/new#step-2');
+    await p.type('cf-name', 'prod-mongo');
+    await p.type('cf-connection-host', 'mongo.example.test');
+    await p.type('cf-credentials-user', 'reader');
+    await p.type('cf-credentials-password', 'local-password');
+    if (initialTls === 'auto') {
+      const tls = p.q<HTMLSelectElement>('#cf-connection-tls')!;
+      tls.value = 'auto';
+      tls.dispatchEvent(new Event('change', { bubbles: true }));
+      await p.settle();
+    }
+    const productionTls = initialTls === 'auto' ? 'auto' : true;
+    p.button('Load databases').click();
+    await p.settle();
+    expect(core.discoveries[0].config['connection']).toMatchObject({ tls: initialTls });
+    p.q<HTMLInputElement>('#cf-database-0')!.click();
+    await p.settle();
+    p.button('Continue', p.q('#cf-form')!).click();
+    await p.settle();
+    p.button('Back', p.q('#step-3')!).click();
+    await p.settle();
+
+    let answer!: (value: TestOutcome) => void;
+    core.pendingDiscovery = new Promise((resolve) => { answer = resolve; });
+    p.q<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
+    await p.settle();
+    expect(core.discoveries).toHaveLength(2);
+    expect(core.discoveries[1]).toMatchObject({ type: 'mongodb', env: 'prod', config: {
+      connection: { host: 'mongo.example.test', databases: ['app'], tls: productionTls, readPreference: 'secondaryPreferred' },
+    } });
+    expect(p.q('#cf-database-load')!.getAttribute('aria-busy')).toBe('true');
+    expect(text(p.q('#cf-database-status'))).toContain('Connecting and loading databases');
+    expect(p.q('#cf-database-error')).toBeNull();
+    expect(p.button('Continue', p.q('#cf-form')!).getAttribute('aria-disabled')).toBe('true');
+    expect(p.button('Continue', p.q('#cf-form')!).getAttribute('aria-describedby')).toBe('cf-database-status');
+    p.button('Continue', p.q('#cf-form')!).click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-2']);
+    expect(core.tests.map((request) => request.env)).toEqual(['dev']);
+    expect(text(p.q('#cf-form'))).not.toContain('Load databases with the current connection settings');
+
+    core.pendingDiscovery = null;
+    answer(outcome({ ok: true, details: { databases: ['app', 'reports'] } }));
+    await p.settle();
+    expect(p.q<HTMLInputElement>('#cf-database-0')!.checked).toBe(true);
+    expect(core.discoveries).toHaveLength(2);
+    expect(p.button('Continue', p.q('#cf-form')!).getAttribute('aria-disabled')).toBeNull();
+    expect(p.button('Continue', p.q('#cf-form')!).getAttribute('aria-describedby')).toBeNull();
+    p.button('Continue', p.q('#cf-form')!).click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-3']);
+    expect(core.tests.map((request) => request.env)).toEqual(['dev', 'prod']);
+    expect(core.tests[1].config['connection']).toMatchObject({ databases: ['app'], tls: productionTls });
+    p.button('Continue', p.q('#step-3')!).click();
+    await p.settle();
+    p.button('Save connection', p.q('#step-4')!).click();
+    await p.settle();
+    expect(core.created).toHaveLength(1);
+    expect(core.created[0]).toMatchObject({ type: 'mongodb', env: 'prod', config: {
+      connection: { databases: ['app'], tls: productionTls, readPreference: 'secondaryPreferred' },
+    } });
+  });
+
+  it('shows a failed MongoDB environment refresh without retrying until requested', async () => {
+    mongoDb();
+    const p = await open('/connections/new#step-2');
+    await p.type('cf-name', 'prod-mongo');
+    await p.type('cf-connection-host', 'mongo.example.test');
+    await p.type('cf-credentials-user', 'reader');
+    await p.type('cf-credentials-password', 'local-password');
+    p.button('Load databases').click();
+    await p.settle();
+    p.q<HTMLInputElement>('#cf-database-0')!.click();
+    await p.settle();
+
+    core.nextDiscovery = outcome({ error: { code: 'mongo.tls', message: 'The TLS certificate could not be verified.', technical: null } });
+    p.q<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
+    await p.settle();
+    expect(core.discoveries).toHaveLength(2);
+    expect(text(p.q('#cf-form'))).toContain('The TLS certificate could not be verified.');
+    expect(p.q<HTMLInputElement>('#cf-database-0')!.checked).toBe(true);
+    await p.type('cf-name', 'prod-mongo-reader');
+    p.button('Continue', p.q('#cf-form')!).click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-2']);
+    expect(core.discoveries).toHaveLength(2);
+    expect(core.tests).toEqual([]);
+    expect(core.created).toEqual([]);
+
+    core.nextDiscovery = outcome({ ok: true, details: { databases: ['app', 'reports'] } });
+    p.button('Load databases').click();
+    await p.settle();
+    expect(core.discoveries).toHaveLength(3);
+    expect(p.q<HTMLInputElement>('#cf-database-0')!.checked).toBe(true);
+    p.button('Continue', p.q('#cf-form')!).click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-3']);
+    expect(core.tests[0].env).toBe('prod');
   });
 
   it('ignores late discovery after the host changes and keeps Continue on Configure until refreshed', async () => {

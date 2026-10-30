@@ -1,5 +1,6 @@
 import { ClientCard, ClientId } from '../../core/api/clients.api';
 import { ConnectionRow, ConnectionUsedBy, StoredSecret } from '../../core/api/connections.api';
+import { EndpointSummary } from '../../core/api/endpoints.api';
 import { HealthRow, Overview, OverviewStats } from '../../core/api/overview.api';
 import { TunnelState } from '../../core/api/tunnel.api';
 import { Env } from '../../core/api/types';
@@ -103,10 +104,7 @@ function stateParts(tiles: readonly ConnectionTile[]): string[] {
 }
 
 export function connectionTiles(rows: readonly HealthRow[]): ConnectionTiles {
-  const tiles = rows
-    .map((r, i) => ({ t: connectionTile(r), i }))
-    .sort((a, b) => TONE_RANK[a.t.state.tone] - TONE_RANK[b.t.state.tone] || (ENV_RANK[a.t.env] ?? 3) - (ENV_RANK[b.t.env] ?? 3) || a.i - b.i)
-    .map((x) => x.t);
+  const tiles = sortedConnectionTiles(rows);
   const problems = tiles.filter((t) => t.state.tone === 'danger' || t.state.tone === 'warning').length;
   const visible = Math.max(DEFAULT_VISIBLE_CONNECTIONS, problems);
   const shown = tiles.slice(0, visible);
@@ -126,6 +124,78 @@ export function connectionTiles(rows: readonly HealthRow[]): ConnectionTiles {
     moreLabel,
     description: `${counted}. The tag shows each one's environment: dev, stage or prod.`,
   };
+}
+
+function sortedConnectionTiles(rows: readonly HealthRow[]): ConnectionTile[] {
+  return rows
+    .map((r, i) => ({ t: connectionTile(r), i }))
+    .sort((a, b) => TONE_RANK[a.t.state.tone] - TONE_RANK[b.t.state.tone] || (ENV_RANK[a.t.env] ?? 3) - (ENV_RANK[b.t.env] ?? 3) || a.i - b.i)
+    .map((x) => x.t);
+}
+
+/** One AI app's access to one endpoint; its other links cannot change this state. */
+export interface EndpointApp {
+  readonly client: string;
+  readonly name: string;
+  readonly state: TileState;
+}
+
+/** Every connection wired to an endpoint, or the separate group of unwired connections. */
+export interface EndpointConnectionGroup {
+  readonly key: string;
+  readonly endpoint: EndpointSummary | null;
+  readonly connections: readonly ConnectionTile[];
+  /** Null means app information did not load; an empty array means no known app links. */
+  readonly apps: readonly EndpointApp[] | null;
+}
+
+/**
+ * The endpoint list owns the groups, including empty and disabled endpoints. Wiring owns membership, so a shared
+ * connection appears in each endpoint. Overview health includes live event/test updates; the connections list
+ * supplies health for a newly added connection or an external MCP server absent from Overview's health rows.
+ */
+export function endpointConnectionGroups(
+  health: readonly HealthRow[],
+  connections: readonly ConnectionRow[] | null,
+  endpoints: readonly EndpointSummary[] | null,
+  clients: readonly ClientCard[] | null,
+): EndpointConnectionGroup[] | null {
+  if (connections === null || endpoints === null) return null;
+  const knownEndpoints = new Set(endpoints.map((endpoint) => endpoint.slug));
+  // Separate API snapshots can straddle an endpoint change. Keep the flat list until membership is complete.
+  if (connections.some((row) => row.usedBy.some((slug) => !knownEndpoints.has(slug)))) return null;
+  const latest = new Map(health.map((row) => [row.name, row]));
+  const tiles = (rows: readonly ConnectionRow[]) => sortedConnectionTiles(rows.map((row): HealthRow => ({
+    name: row.name,
+    type: row.type,
+    env: row.env,
+    typeLabel: row.typeLabel || row.typeName,
+    host: row.host,
+    ...row.health,
+    ...latest.get(row.name),
+  })));
+  const groups: EndpointConnectionGroup[] = endpoints.map((endpoint) => ({
+    key: `endpoint:${endpoint.slug}`,
+    endpoint,
+    connections: tiles(connections.filter((row) => row.usedBy.includes(endpoint.slug))),
+    apps: clients === null ? null : endpointApps(endpoint.slug, clients),
+  }));
+  const unassigned = connections.filter((row) => row.usedBy.length === 0);
+  if (unassigned.length) groups.push({ key: 'unassigned', endpoint: null, connections: tiles(unassigned), apps: [] });
+  return groups;
+}
+
+function endpointApps(endpoint: string, clients: readonly ClientCard[]): EndpointApp[] {
+  return clients.flatMap((card): EndpointApp[] => {
+    const links = card.links.filter((link) => link.endpoint === endpoint && link.status !== 'revoked');
+    if (!links.length) return [];
+    const state: TileState = links.some((link) => link.status === 'connected')
+      ? { tone: 'success', label: 'Connected' }
+      : links.some((link) => link.status === 'needs-restart')
+        ? { tone: 'warning', label: 'Needs restart' }
+        : { tone: 'danger', label: 'Needs repair' };
+    return [{ client: card.client, name: card.name, state }];
+  });
 }
 
 /** What one Test again found for a connection. */
@@ -279,6 +349,8 @@ export function checkPrompt(type: string | null, name: string | null): string {
   switch (type) {
     case 'postgres':
     case 'mysql':
+    case 'oracle':
+    case 'sqlserver':
     case 'sql':
       return `Show me the tables in ${name}`;
     case 'mongodb':
@@ -286,6 +358,7 @@ export function checkPrompt(type: string | null, name: string | null): string {
     case 'redis':
       return `Show me a few keys in ${name}`;
     case 'opensearch':
+    case 'elasticsearch':
       return `Show me the indices in ${name}`;
     case 'kubernetes':
       return `Show me the pods in ${name}`;

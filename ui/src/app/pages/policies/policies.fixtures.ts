@@ -283,14 +283,11 @@ const SCHEMA = {
         maxRangeHours: {
           type: 'integer',
           title: 'Longest time range',
-          minimum: 1,
-          maximum: 8760,
-          default: 168,
+          minimum: 0,
+          maximum: 2562047788015,
+          default: 0,
           'x-unit': 'h',
-          'x-stricter': 'min',
-          'x-env-default': {
-            prod: 24,
-          },
+          'x-stricter': 'min-positive',
         },
         defaultLimit: {
           type: 'integer',
@@ -696,7 +693,7 @@ const POLICIES = {
         denyPrivileged: false,
       },
       logs: {
-        maxRangeHours: 168,
+        maxRangeHours: 0,
         defaultLimit: 100,
         maxTailWaitSeconds: 8,
       },
@@ -866,7 +863,7 @@ const POLICIES = {
         denyPrivileged: false,
       },
       logs: {
-        maxRangeHours: 168,
+        maxRangeHours: 0,
         defaultLimit: 100,
         maxTailWaitSeconds: 8,
       },
@@ -1015,7 +1012,7 @@ const POLICIES = {
         denyPrivileged: true,
       },
       logs: {
-        maxRangeHours: 24,
+        maxRangeHours: 0,
         defaultLimit: 50,
         maxTailWaitSeconds: 3,
       },

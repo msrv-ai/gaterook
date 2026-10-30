@@ -73,8 +73,8 @@
                   @if (s.approval; as a) {
                     <div class="gw-kv__row"><dt class="gw-kv__key">{{ a.key }}</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><svg lucideIcon="user-check" class="gw-icon"></svg>Approval</span> <span class="gw-text-caption gw-fg-muted"><span [gwHintParts]="a.caption"></span></span></dd></div>
                   }
-                  <!-- ARCHITECTURE §8.6.3: a lock, not a checkbox — reads always run READ ONLY and end with ROLLBACK. -->
-                  <div class="gw-kv__row"><dt class="gw-kv__key">Run queries in a read-only transaction</dt><dd class="gw-kv__value"><span class="gw-badge"><svg lucideIcon="lock" class="gw-icon gw-badge__icon"></svg>Always on</span> <span class="gw-text-caption gw-fg-muted"><span class="gw-mono">sql_query</span> opens READ ONLY transactions, so the database refuses a SELECT that calls a function that writes</span></dd></div>
+                  <!-- Read protection is fixed: dialect-specific admission checks and rollback cannot be disabled. -->
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Keep query calls read-only</dt><dd class="gw-kv__value"><span class="gw-badge"><svg lucideIcon="lock" class="gw-icon gw-badge__icon"></svg>Always on</span> <span class="gw-text-caption gw-fg-muted">PostgreSQL, MySQL and Oracle use READ ONLY transactions. SQL Server validates <span class="gw-mono">sql_query</span> and rolls it back; use a SELECT-only login for database-enforced protection.</span></dd></div>
                 </dl>
                 <div class="gw-form__row">
                   @if (has('sql.statementTimeoutMs')) {

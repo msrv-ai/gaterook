@@ -5,6 +5,17 @@
       <p class="gw-page-header__description">Every call an agent made through the gateway, and every change people made to its setup. Append-only, kept {{ kept() }}.</p>
     </div>
     <div class="gw-page-header__actions">
+      <button class="gw-btn" id="ac-refresh" type="button" (click)="refresh()" [attr.aria-busy]="data.busy() ? 'true' : null" [attr.aria-disabled]="data.busy() ? 'true' : null" [attr.aria-describedby]="data.busy() ? 'ac-refresh-status' : null">@if (data.busy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="refresh-cw" class="gw-icon"></svg>} Refresh</button>
+      <span class="gw-sr-only" id="ac-refresh-status" role="status">{{ data.busy() ? 'Refreshing activity' : '' }}</span>
+      <div class="gw-menu-host">
+        <button class="gw-btn" id="ac-refresh-interval" type="button" aria-haspopup="menu" [gwMenuTrigger]="refreshMenu"><svg lucideIcon="timer" class="gw-icon"></svg> Auto-refresh: {{ refreshLabel() }} <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm"></svg></button>
+        <div class="gw-menu gw-menu--right gw-menu--wide" gwMenu #refreshMenu="gwMenu" id="ac-refresh-menu" role="menu" aria-label="Auto-refresh interval" aria-describedby="ac-refresh-note" hidden (picked)="onRefreshInterval($event)">
+          @for (option of refreshOptions; track option.seconds) {
+            <button class="gw-menu__item" type="button" role="menuitemradio" tabindex="-1" [attr.data-value]="option.seconds" [attr.aria-checked]="refreshSeconds() === option.seconds"><svg lucideIcon="check" class="gw-icon gw-menu__check"></svg><span class="gw-menu__label">{{ option.label }}</span></button>
+          }
+          <div class="gw-menu__note" id="ac-refresh-note">Refreshes calls, traces and setup changes. Live updates are controlled separately.</div>
+        </div>
+      </div>
       <a class="gw-btn gw-btn--ghost" routerLink="/insights" [queryParams]="{ q: data.query() || null, range: insightsRange() }" id="ac-insights-link"><svg lucideIcon="chart-column" class="gw-icon"></svg> View in Insights</a>
       <div class="gw-menu-host">
         <button class="gw-btn" type="button" aria-haspopup="menu" [gwMenuTrigger]="exportMenu"><svg lucideIcon="download" class="gw-icon"></svg> Export <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm"></svg></button>
@@ -111,7 +122,7 @@
             <div class="gw-empty">
               <span class="gw-empty__icon"><svg lucideIcon="activity" class="gw-icon"></svg></span>
               <h3 class="gw-empty__title">No calls yet</h3>
-              <p class="gw-empty__text">Every call an AI app makes through the gateway shows up here within a second: who called which tool, with which arguments, what was decided and how long it took. Try a tool yourself, or <a class="gw-link" routerLink="/clients">connect an AI app</a> and ask it something.</p>
+              <p class="gw-empty__text">Every call an AI app makes through the gateway is recorded here: who called which tool, with which arguments, what was decided and how long it took. Try a tool yourself, or <a class="gw-link" routerLink="/clients">connect an AI app</a> and ask it something.</p>
               <div class="gw-empty__actions">
                 <a class="gw-btn gw-btn--primary" routerLink="/playground"><svg lucideIcon="flask-conical" class="gw-icon"></svg> Try a tool in Playground</a>
               </div>

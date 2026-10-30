@@ -16,14 +16,15 @@ const RESULT: SearchResult = {
   endpoints: [{ slug: 'dev', env: 'dev', route: '/endpoints/dev' }],
 };
 
-it('names concrete connectors in search and presents OpenSearch as a database', () => {
+it('names concrete connectors in search and presents search connectors as databases', () => {
   const result: SearchResult = { ...RESULT, connections: [
     { name: 'search-db', type: 'opensearch', env: 'dev', route: '/connections/search-db' },
+    { name: 'elastic-db', type: 'elasticsearch', env: 'dev', route: '/connections/elastic-db' },
     { name: 'cloud-logs', type: 'gcp-logging', env: 'dev', route: '/connections/cloud-logs' },
   ] };
   const rows = paletteOptions(result, { pending: 0, address: '127.0.0.1:7465' }).filter((row) => row.group === 'connections');
   expect(rows.map((row) => [row.label, row.hint, row.icon])).toEqual([
-    ['search-db', 'OpenSearch', 'database'], ['cloud-logs', 'GCP Cloud Logging', 'scroll-text'],
+    ['search-db', 'OpenSearch', 'database'], ['elastic-db', 'Elasticsearch', 'database'], ['cloud-logs', 'GCP Cloud Logging', 'scroll-text'],
   ]);
 });
 

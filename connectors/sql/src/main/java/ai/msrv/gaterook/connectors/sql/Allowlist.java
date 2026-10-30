@@ -27,16 +27,19 @@ final class Allowlist {
 
   private static final Set<String> POSTGRES_SYSTEM = Set.of("pg_catalog", "information_schema", "pg_toast");
   private static final Set<String> MYSQL_SYSTEM = Set.of("mysql", "sys", "performance_schema", "information_schema");
+  private static final Set<String> SQLSERVER_SYSTEM = Set.of("sys", "information_schema");
+  private static final Set<String> ORACLE_SYSTEM = Set.of("SYS", "SYSTEM", "XDB", "CTXSYS", "MDSYS", "ORDSYS", "OUTLN",
+      "DBSNMP", "AUDSYS");
 
   private record Entry(String schema, String table) {}
 
-  private final boolean mysql;
+  private final SqlSyntax syntax;
   private final List<Entry> tables;
   private final List<Entry> schemas;
   private final Set<String> databases;
 
-  private Allowlist(boolean mysql, List<Entry> tables, List<Entry> schemas, List<String> databases) {
-    this.mysql = mysql;
+  private Allowlist(SqlSyntax syntax, List<Entry> tables, List<Entry> schemas, List<String> databases) {
+    this.syntax = syntax;
     this.tables = tables;
     this.schemas = schemas;
     this.databases = Set.copyOf(databases);
@@ -47,14 +50,30 @@ final class Allowlist {
   }
 
   static Allowlist of(List<String> policy, List<String> connectionSchemas, boolean mysql, List<String> databases) {
+    return of(policy, connectionSchemas, SqlSyntax.of(mysql), databases);
+  }
+
+  static Allowlist of(List<String> policy, List<String> connectionSchemas, SqlDialect dialect) {
+    return of(policy, connectionSchemas, dialect.syntax(), List.of());
+  }
+
+  static Allowlist of(List<String> policy, List<String> connectionSchemas, SqlDialect dialect, List<String> databases) {
+    return of(policy, connectionSchemas, dialect.syntax(), databases);
+  }
+
+  static Allowlist of(List<String> policy, List<String> connectionSchemas, SqlSyntax syntax) {
+    return of(policy, connectionSchemas, syntax, List.of());
+  }
+
+  static Allowlist of(List<String> policy, List<String> connectionSchemas, SqlSyntax syntax, List<String> databases) {
     List<Entry> tables = new ArrayList<>();
     for (String raw : policy) {
-      List<Part> parts = IdentifierRules.parts(raw, mysql);
+      List<Part> parts = IdentifierRules.parts(raw, syntax);
       if (parts.size() == 1) {
-        tables.add(new Entry(IdentifierRules.normalize(parts.getFirst(), mysql), "*"));
+        tables.add(new Entry(IdentifierRules.normalize(parts.getFirst(), syntax), "*"));
       } else if (parts.size() == 2) {
-        tables.add(new Entry(IdentifierRules.normalize(parts.get(0), mysql),
-            IdentifierRules.normalize(parts.get(1), mysql)));
+        tables.add(new Entry(IdentifierRules.normalize(parts.get(0), syntax),
+            IdentifierRules.normalize(parts.get(1), syntax)));
       } else {
         // Not a name (or the merge's "nothing in common" marker): it matches nothing, and still restricts.
         tables.add(new Entry("\u0000", "\u0000"));
@@ -62,11 +81,12 @@ final class Allowlist {
     }
     List<Entry> schemas = new ArrayList<>();
     for (String raw : connectionSchemas) {
-      List<Part> parts = IdentifierRules.parts(raw, mysql);
-      String schema = parts.isEmpty() ? "\u0000" : IdentifierRules.normalize(parts.getFirst(), mysql);
+      List<Part> parts = IdentifierRules.parts(raw, syntax);
+      String schema = parts.isEmpty() ? "\u0000" : IdentifierRules.normalize(parts.getFirst(), syntax);
       schemas.add(new Entry(schema, "*"));
     }
-    return new Allowlist(mysql, List.copyOf(tables), List.copyOf(schemas), mysql ? databases : List.of());
+    return new Allowlist(syntax, List.copyOf(tables), List.copyOf(schemas),
+        syntax == SqlSyntax.MYSQL ? databases : List.of());
   }
 
   /** Whether anything is restricted: then statements whose tables the gateway can't name are refused. */
@@ -78,7 +98,7 @@ final class Allowlist {
     if (t == null) {
       return !restricted();
     }
-    if (mysql && t.schema() == null && "dual".equalsIgnoreCase(t.name())) {
+    if (syntax == SqlSyntax.MYSQL && t.schema() == null && "dual".equalsIgnoreCase(t.name())) {
       return true;
     }
     if (!restricted()) {
@@ -127,7 +147,13 @@ final class Allowlist {
     if (schema == null) {
       return false;
     }
-    if ((mysql ? MYSQL_SYSTEM : POSTGRES_SYSTEM).contains(mysql ? schema.toLowerCase(java.util.Locale.ROOT) : schema)) {
+    Set<String> system = switch (syntax) {
+      case MYSQL -> MYSQL_SYSTEM;
+      case POSTGRES -> POSTGRES_SYSTEM;
+      case ORACLE -> ORACLE_SYSTEM;
+      case SQLSERVER -> SQLSERVER_SYSTEM;
+    };
+    if (system.contains(syntax == SqlSyntax.MYSQL || syntax == SqlSyntax.SQLSERVER ? schema.toLowerCase(java.util.Locale.ROOT) : schema)) {
       return entry.equals(schema);
     }
     return Glob.text(entry).matches(schema);

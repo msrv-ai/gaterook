@@ -11,6 +11,7 @@ import {
   lowerFirst,
   meter,
   numberError,
+  numberText,
   optionsFor,
   paramParts,
   placeholderFor,
@@ -54,6 +55,17 @@ function change(env: Env, values: Record<string, string | boolean | JsonValue[]>
 }
 
 describe('Policies page words', () => {
+  it('explains unlimited log ranges and names an optional cap in hours', () => {
+    const range = info('logs', 'maxRangeHours');
+    expect(numberText(range, 0)).toBe('no limit');
+    expect(numberText(range, 36)).toBe('36 h');
+    expect(hint('dev', 'logs', 'maxRangeHours')).toBe('0 means no time limit. Set a number of hours to deny searches with longer ranges.');
+    expect(hint('prod', 'logs', 'maxRangeHours')).toContain('0 means no time limit.');
+    expect(hint('stage', 'logs', 'maxRangeHours')).toBe('Inherited from dev: no limit. 0 means no time limit.');
+    expect(changePhrase(range, 0, 36)).toBe('longest time range no limit to 36 h');
+    expect(changePhrase(range, 36, 0)).toBe('longest time range 36 h to no limit');
+  });
+
   it('says what a dev setting does, as the kit does on the base environment', () => {
     expect(hint('dev', 'sql', 'statementTimeoutMs')).toBe('The database cancels slower statements.');
     expect(hint('dev', 'sql', 'allowlist', { connections: ['dev-db'] })).toBe('Agents see and query only these. schema.* allows a whole schema.');
@@ -115,7 +127,7 @@ describe('Policies page words', () => {
     const p = kitPolicies();
     expect(valuesSummary(p, schemas, 'dev')).toBe('4 set on dev · base for stage');
     expect(valuesSummary(p, schemas, 'stage')).toBe('3 stage defaults · 6 set on stage · 32 inherited from dev');
-    expect(valuesSummary(p, schemas, 'prod')).toBe('24 prod defaults · 2 set on prod');
+    expect(valuesSummary(p, schemas, 'prod')).toBe('23 prod defaults · 2 set on prod');
   });
 
   it('puts unsaved changes in one line, and the saved ones in a toast', () => {
@@ -218,6 +230,8 @@ describe('Policies page words', () => {
     const conns = kitConnections();
     expect(envConnections('stage', conns).map((r) => r.name)).toEqual(['stage-db', 'aws-stage', 'billing-api']);
     expect(sectionConnections('sql', 'dev', conns).map((r) => r.name)).toEqual(['dev-db']);
+    const oracle = { ...conns.find((connection) => connection.type === 'postgres' && connection.env === 'dev')!, name: 'orders-oracle', type: 'oracle' };
+    expect(sectionConnections('sql', 'dev', [oracle]).map((r) => r.name)).toEqual(['orders-oracle']);
     expect(sectionConnections('k8s', 'dev', conns).map((r) => r.name)).toEqual(['dev-cluster']);
     expect(sectionConnections('ssh', 'stage', conns)).toEqual([]);
     expect(allowlistHosts(['https://billing.stage.acme.dev/v1', 'https://billing.stage.acme.dev', 'not a url'])).toEqual(['billing.stage.acme.dev']);
@@ -236,11 +250,11 @@ describe('Policies page words', () => {
       .toBeLessThan(envConnections('dev', all).findIndex((row) => row.type === 'logs'));
   });
 
-  it('applies log policies to concrete log connectors and keeps OpenSearch separate', () => {
+  it('applies log policies to connectors with log tools and keeps search databases separate', () => {
     const sample = kitConnections().find((connection) => connection.type === 'logs' && connection.env === 'dev')!;
-    const all = ['gcp-logging', 'cloudwatch', 'loki', 'opensearch'].map((type) => ({ ...sample, name: type, type }));
-    expect(sectionConnections('logs', 'dev', all).map((row) => row.type)).toEqual(['gcp-logging', 'cloudwatch', 'loki']);
-    expect(envConnections('dev', all).map((row) => row.type)).toEqual(['opensearch', 'gcp-logging', 'cloudwatch', 'loki']);
+    const all = ['gcp-logging', 'cloudwatch', 'loki', 'opensearch', 'elasticsearch', 'gcp'].map((type) => ({ ...sample, name: type, type }));
+    expect(sectionConnections('logs', 'dev', all).map((row) => row.type)).toEqual(['gcp-logging', 'cloudwatch', 'loki', 'gcp']);
+    expect(envConnections('dev', all).map((row) => row.type)).toEqual(['opensearch', 'elasticsearch', 'gcp-logging', 'cloudwatch', 'loki', 'gcp']);
   });
 
   it('asks for a number in range, in the unit the field shows', () => {

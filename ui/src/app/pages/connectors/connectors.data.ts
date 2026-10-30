@@ -180,7 +180,7 @@ export class ConnectorsData {
 
   /** The types whose connectors may offer templates (SQL queries, SSH runbooks, OpenAPI imports). */
   private async loadTemplateKinds(): Promise<ReadonlyMap<string, readonly string[]>> {
-    const types = ['postgres', 'mysql', 'ssh', 'http'];
+    const types = ['postgres', 'mysql', 'oracle', 'sqlserver', 'ssh', 'http'];
     const answers = await Promise.allSettled(types.map((t) => this.typesApi.get(t)));
     const kinds = new Map<string, string[]>();
     answers.forEach((a, i) => {

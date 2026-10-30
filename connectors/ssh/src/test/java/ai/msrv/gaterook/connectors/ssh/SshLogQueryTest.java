@@ -93,6 +93,38 @@ class SshLogQueryTest {
   }
 
   @Test
+  void unlimitedTimeRangesAcceptMultipleYearsAndStillRejectReversedBounds() throws Exception {
+    Limits defaults = TestCtx.devLimits();
+    Limits unlimited = new Limits(defaults.maxRows(), defaults.maxLines(), defaults.maxResponseBytes(),
+        defaults.maxRequestBytes(), defaults.maxOutputBytes(), defaults.maxStderrBytes(), defaults.maxCellChars(),
+        defaults.statementTimeout(), defaults.commandTimeout(), defaults.toolTimeout(), null);
+    for (Limits limits : new Limits[] {unlimited, null}) {
+      var historical = query("ssh_logs_search", "{\"from\":\"-730d\"}", limits);
+      assertThat(historical.from()).isEqualTo(NOW.minus(Duration.ofDays(730)));
+      assertThat(historical.to()).isEqualTo(NOW);
+      assertThat(historical.matches(historical.parseRecord("2025-01-01T00:00:00Z INFO included"))).isTrue();
+      assertThatThrownBy(() -> query("ssh_logs_search", "{\"from\":\"now\",\"to\":\"-1h\"}", limits))
+          .isInstanceOf(ConnectorException.class).hasMessageContaining("from must be earlier than to");
+    }
+  }
+
+  @Test
+  void unlimitedToOnlyFiltersKeepAnOpenStartAndExcludeMissingOrLaterTimestamps() throws Exception {
+    var before = query("ssh_logs_search", "{\"to\":\"-1h\"}", null);
+    assertThat(before.from()).isNull();
+    assertThat(before.to()).isEqualTo(NOW.minusSeconds(3600));
+    assertThat(before.timeFiltered()).isTrue();
+    assertThat(before.matches(before.parseRecord("2001-01-01T00:00:00Z INFO old event"))).isTrue();
+    assertThat(before.matches(before.parseRecord("2026-10-28T12:59:59Z INFO included"))).isTrue();
+    assertThat(before.matches(before.parseRecord("2026-10-28T13:00:00Z INFO excluded"))).isFalse();
+    assertThat(before.matches(before.parseRecord("2026-10-28T14:00:00Z INFO later"))).isFalse();
+    assertThat(before.matches(before.parseRecord("INFO timestamp unavailable"))).isFalse();
+    assertThat(before.queryHash()).isNotEqualTo(query("ssh_logs_search", "{}", null).queryHash());
+    assertThat(before.queryHash())
+        .isEqualTo(query("ssh_logs_search", "{\"to\":\"-1h\",\"cursor\":\"handle\"}", null).queryHash());
+  }
+
+  @Test
   void excludesMissingInvalidOrMaskedTimestampsOnlyWhenFilteringByTime() throws Exception {
     var timed = query("{\"from\":\"-1h\"}");
     for (String line : new String[] {"at example.Service.run(Service.java:42)", "{\"timestamp\":\"[masked]\"}",

@@ -393,7 +393,7 @@ public final class WireCodec {
         n.path("maxOutputBytes").asLong(256 * 1024), n.path("maxStderrBytes").asLong(64 * 1024),
         n.path("maxCellChars").asInt(8192), duration(n.get("statementTimeoutMs"), 5_000),
         duration(n.get("commandTimeoutMs"), 30_000), duration(n.get("toolTimeoutMs"), 10_000),
-        duration(n.get("maxRangeMs"), 168L * 3_600_000));
+        rangeDuration(n.get("maxRangeMs")));
   }
 
   public static ObjectNode policy(PolicyView p) {
@@ -567,5 +567,11 @@ public final class WireCodec {
 
   private static Duration duration(JsonNode n, long dflt) {
     return Duration.ofMillis(n == null || n.isNull() ? dflt : n.asLong(dflt));
+  }
+
+  /** Zero keeps the numeric wire format while representing an unrestricted log time range. */
+  private static Duration rangeDuration(JsonNode n) {
+    Duration range = duration(n, 0);
+    return range.isZero() ? null : range;
   }
 }

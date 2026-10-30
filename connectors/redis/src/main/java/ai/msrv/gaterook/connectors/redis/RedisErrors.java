@@ -101,8 +101,8 @@ final class RedisErrors {
       }
       if (c instanceof GuardedSocketFactory.TlsHandshakeTimeoutException) {
         return new Problem("redis.tls", ConnectorException.Kind.TIMEOUT, "TLS: " + s.hostPort() + " didn't answer the "
-            + "TLS handshake within " + seconds(s.commandTimeoutMs()) + ". If this port doesn't speak TLS, turn off "
-            + "Use TLS.");
+            + "TLS handshake within " + seconds(s.commandTimeoutMs()) + ". If this port doesn't speak TLS, choose "
+            + "Without TLS under Connection type.");
       }
       if (c instanceof SocketTimeoutException t) {
         boolean connecting = t.getMessage() != null && t.getMessage().toLowerCase(Locale.ROOT).contains("connect");
@@ -119,7 +119,7 @@ final class RedisErrors {
     if (e instanceof JedisConnectionException && (m.contains("Unexpected end of stream")
         || m.contains("Connection reset"))) {
       return new Problem("redis.closed", ConnectorException.Kind.RESOURCE_UNAVAILABLE, s.hostPort()
-          + " closed the connection." + (s.tls() ? "" : " If this is a TLS port, turn on Use TLS."));
+          + " closed the connection." + (s.tls() ? "" : " If this is a TLS port, choose TLS under Connection type."));
     }
     return new Problem("redis.unreachable", ConnectorException.Kind.RESOURCE_UNAVAILABLE, "Can't talk to "
         + s.hostPort() + ": " + firstLine(m.isEmpty() ? e.getClass().getSimpleName() : m));
@@ -139,7 +139,7 @@ final class RedisErrors {
     }
     if (all.contains("Unsupported or unrecognized SSL message") || all.contains("plaintext")) {
       return new Problem("redis.tls", ConnectorException.Kind.RESOURCE_ERROR, "TLS: " + s.hostPort()
-          + " doesn't speak TLS. Turn off Use TLS, or use the server's TLS port.");
+          + " doesn't speak TLS. Choose Without TLS under Connection type, or use the server's TLS port.");
     }
     return new Problem("redis.tls", ConnectorException.Kind.RESOURCE_ERROR, "TLS failed with " + s.hostPort() + ": "
         + firstLine(e instanceof SSLHandshakeException && e.getMessage() != null ? e.getMessage() : all));

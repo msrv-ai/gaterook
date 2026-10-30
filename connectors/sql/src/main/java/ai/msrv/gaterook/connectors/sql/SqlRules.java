@@ -36,7 +36,7 @@ final class SqlRules {
   static final int MAX_POSTGRES_STATEMENTS = 20;
 
   /** The policy of one call. */
-  record SqlPolicy(PolicyView view, boolean mysql, boolean denyDdl, Allowlist allowlist, List<String> deniedFunctions,
+  record SqlPolicy(PolicyView view, SqlSyntax syntax, boolean denyDdl, Allowlist allowlist, List<String> deniedFunctions,
       List<String> allowedFunctions, Set<String> builtIns, String defaultSchema) {
 
     static SqlPolicy of(PolicyView view, ConnectionConfig cfg, boolean mysql) {
@@ -44,11 +44,31 @@ final class SqlRules {
     }
 
     static SqlPolicy of(PolicyView view, ConnectionConfig cfg, boolean mysql, ConnectionSettings s) {
+      return of(view, cfg, SqlSyntax.of(mysql), s);
+    }
+
+    static SqlPolicy of(PolicyView view, ConnectionConfig cfg, SqlDialect dialect) {
+      return of(view, cfg, dialect.syntax(), ConnectionSettings.of(cfg, dialect));
+    }
+
+    static SqlPolicy of(PolicyView view, ConnectionConfig cfg, SqlDialect dialect, ConnectionSettings s) {
+      return of(view, cfg, dialect.syntax(), s);
+    }
+
+    static SqlPolicy of(PolicyView view, ConnectionConfig cfg, SqlSyntax syntax, ConnectionSettings s) {
       Env env = view.env() == null ? cfg.env() : view.env();
-      return new SqlPolicy(view, mysql, view.flag("denyDdl", env != Env.DEV),
-          Allowlist.of(view.strings("allowlist"), s.schemaAllowlist(), mysql, DatabaseSelection.selected(cfg)),
+      return new SqlPolicy(view, syntax, view.flag("denyDdl", env != Env.DEV),
+          Allowlist.of(view.strings("allowlist"), s.schemaAllowlist(), syntax, DatabaseSelection.selected(cfg)),
           view.strings("deniedFunctions"),
           s.allowedFunctions(), FunctionRules.fromMetadata(cfg.metadata()), s.defaultSchema());
+    }
+
+    boolean mysql() {
+      return syntax == SqlSyntax.MYSQL;
+    }
+
+    boolean sqlServer() {
+      return syntax == SqlSyntax.SQLSERVER;
     }
 
     boolean prod() {
@@ -99,8 +119,8 @@ final class SqlRules {
     if (common != null) {
       return common;
     }
-    if (p.mysql() && a.count() > 1) {
-      return Classification.deny(p.rule("multi-statement"), "MySQL runs one statement per sql_execute; this has "
+    if (p.syntax() != SqlSyntax.POSTGRES && a.count() > 1) {
+      return Classification.deny(p.rule("multi-statement"), (p.mysql() ? "MySQL" : p.sqlServer() ? "SQL Server" : "Oracle") + " runs one statement per sql_execute; this has "
           + a.count() + ".", "Send them one by one, each waits for approval.");
     }
     if (a.count() > MAX_POSTGRES_STATEMENTS) {
@@ -108,7 +128,7 @@ final class SqlRules {
           + " statements in one transaction; this has " + a.count() + ".", "Split the change.");
     }
     if (a.kind() == Kind.UNPARSED) {
-      if (p.denyDdl() || p.allowlist().restricted()) {
+      if (p.sqlServer() || p.denyDdl() || p.allowlist().restricted()) {
         return Classification.deny(p.rule("unparsed"), detail(a) + " The gateway couldn't analyze it, and on "
             + p.env() + " it checks " + (p.denyDdl() ? "that no statement changes the schema" : "which tables a "
             + "statement uses") + ".", "Rewrite it in plain SQL.");
@@ -156,8 +176,11 @@ final class SqlRules {
 
   /** {@code sql_describe_table}: the table must be on the allowlist. */
   static Classification describe(TableRef table, SqlPolicy p) {
-    if (table != null && !p.allowlist().allows(table)) {
-      return notAllowed(IdentifierRules.display(table, p.mysql()), p);
+    if (p.sqlServer() && table == null) {
+      return Classification.deny(p.rule("table-not-allowed"), "Use a table in the selected database.", "Use schema.table.");
+    }
+    if (table != null && !oracleDual(table, p) && !p.allowlist().allows(table)) {
+      return notAllowed(IdentifierRules.display(table, p.syntax()), p);
     }
     return Classification.read();
   }
@@ -166,6 +189,10 @@ final class SqlRules {
 
   /** Too complex, transaction and session control, denied functions: refused for every tool. */
   private static Classification common(Analysis a, SqlPolicy p, String tool) {
+    if (p.syntax() == SqlSyntax.ORACLE && a.kind() == Kind.UNPARSED) {
+      return Classification.deny(p.rule("unparsed"), "Oracle statements must be fully analyzed before they run.",
+          "Use a single supported SQL statement without PL/SQL or optimizer hints.");
+    }
     if (a.tooComplex()) {
       return Classification.deny(p.rule("too-complex"), a.problem(), "Simplify the statement.");
     }
@@ -182,11 +209,15 @@ final class SqlRules {
         return Classification.deny(p.rule("forbidden"), reason, forbiddenHint(s));
       }
     }
-    FunctionRules.Verdict v = FunctionRules.check(a.functions(), p.mysql(), p.builtIns(), p.deniedFunctions(),
+    FunctionRules.Verdict v = FunctionRules.check(a.functions(), p.syntax(), p.builtIns(), p.deniedFunctions(),
         p.allowedFunctions());
     if (!v.denied().isEmpty()) {
       return Classification.deny(p.rule("function-denied"), String.join(", ", v.denied()) + " isn't allowed through "
           + "GateRook: it acts outside the transaction.", null);
+    }
+    if (p.sqlServer() && a.functions().stream().anyMatch(f -> f.parts().size() > 2)) {
+      return Classification.deny(p.rule("function-denied"), "A SQL Server function must stay in the selected database.",
+          "Use schema.function and select the database with the database argument.");
     }
     return null;
   }
@@ -204,7 +235,7 @@ final class SqlRules {
 
   /** Every table of every statement on the allowlist; a statement whose tables can't be named fails a restriction. */
   private static Classification tables(Analysis a, SqlPolicy p) {
-    if (!p.allowlist().restricted()) {
+    if (!p.allowlist().restricted() && !p.sqlServer()) {
       return null;
     }
     for (StatementFacts s : a.statements()) {
@@ -217,13 +248,31 @@ final class SqlRules {
           // MySQL's FROM DUAL names no table.
           continue;
         }
-        TableRef t = IdentifierRules.table(name, p.mysql(), p.defaultSchema());
+        TableRef t = IdentifierRules.table(name, p.syntax(), p.defaultSchema());
+        if (p.sqlServer() && t == null) {
+          return Classification.deny(p.rule("table-not-allowed"), "SQL Server table names must stay in the selected "
+              + "database: " + name + ".", "Use schema.table and select the database with the database argument.");
+        }
+        if (p.sqlServer() && p.allowlist().restricted() && !"dbo".equals(p.defaultSchema())
+            && IdentifierRules.parts(name, p.syntax()).size() == 1) {
+          return Classification.deny(p.rule("table-not-allowed"), "Qualify " + name + " with its schema: SQL Server "
+              + "can fall back from the user's default schema to dbo.", "Use schema.table.");
+        }
+        if (s.kind() == Kind.READ && oracleDual(t, p)) {
+          // SYS.DUAL is a real table: only reads bypass an application-schema allowlist.
+          continue;
+        }
         if (t == null || !p.allowlist().allows(t)) {
-          return notAllowed(t == null ? name : IdentifierRules.display(t, p.mysql()), p);
+          return notAllowed(t == null ? name : IdentifierRules.display(t, p.syntax()), p);
         }
       }
     }
     return null;
+  }
+
+  private static boolean oracleDual(TableRef table, SqlPolicy p) {
+    return p.syntax() == SqlSyntax.ORACLE && table != null && "SYS".equals(table.schema())
+        && "DUAL".equals(table.name());
   }
 
   private static Classification notAllowed(String table, SqlPolicy p) {
@@ -233,12 +282,17 @@ final class SqlRules {
 
   /** Reads call built-in functions; another function may change data, so a person decides (refused on prod). */
   private static Classification functions(Analysis a, SqlPolicy p, String tool) {
-    FunctionRules.Verdict v = FunctionRules.check(a.functions(), p.mysql(), p.builtIns(), p.deniedFunctions(),
+    FunctionRules.Verdict v = FunctionRules.check(a.functions(), p.syntax(), p.builtIns(), p.deniedFunctions(),
         p.allowedFunctions());
     if (v.notBuiltIn().isEmpty()) {
       return Classification.read();
     }
     String names = String.join(", ", v.notBuiltIn());
+    if (p.sqlServer()) {
+      return Classification.deny(p.rule("function-not-built-in"), names + " cannot run as a SQL Server read: "
+          + "SQL Server has no read-only transactions to contain an unknown function.",
+          "Use supported built-in functions.");
+    }
     if (p.prod()) {
       return Classification.deny(p.rule("function-not-built-in"), names + (v.notBuiltIn().size() == 1 ? " isn't a "
           + "built-in function" : " aren't built-in functions") + ", and on prod " + tool + " runs only built-in "
@@ -288,14 +342,22 @@ final class SqlRules {
 
   /** The tables a change targets, resolved, for "Target table" in the request. */
   static List<String> targets(Analysis a, boolean mysql, String defaultSchema) {
+    return targets(a, SqlSyntax.of(mysql), defaultSchema);
+  }
+
+  static List<String> targets(Analysis a, SqlDialect dialect, String defaultSchema) {
+    return targets(a, dialect.syntax(), defaultSchema);
+  }
+
+  static List<String> targets(Analysis a, SqlSyntax syntax, String defaultSchema) {
     List<String> out = new ArrayList<>();
     for (StatementFacts s : a.statements()) {
       if (s.kind() == Kind.READ || s.targets() == null) {
         continue;
       }
       for (String name : s.targets()) {
-        TableRef t = IdentifierRules.table(name, mysql, defaultSchema);
-        String shown = t == null ? name : t.name().equals(name) ? name : IdentifierRules.display(t, mysql);
+        TableRef t = IdentifierRules.table(name, syntax, defaultSchema);
+        String shown = t == null ? name : t.name().equals(name) ? name : IdentifierRules.display(t, syntax);
         if (!out.contains(shown)) {
           out.add(shown);
         }

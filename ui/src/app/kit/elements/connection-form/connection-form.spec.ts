@@ -109,8 +109,21 @@ async function databaseForm(type = 'mysql') {
   return { ...view, load, choose };
 }
 
+describe('connection form: Oracle Database', () => {
+  it('requires a service name without offering database discovery', async () => {
+    const { host, el, settle } = await render();
+    host.spec.set(spec('oracle'));
+    await settle();
+    expect(el.querySelector('#cf-database-load')).toBeNull();
+    const service = el.querySelector<HTMLInputElement>('#cf-connection-database')!;
+    expect(service).not.toBeNull();
+    expect(el.querySelector('label[for="cf-connection-database"]')?.textContent).toContain('Service name');
+    expect(el.querySelector<HTMLInputElement>('#cf-connection-port')?.value).toBe('1521');
+  });
+});
+
 describe('connection form: GCP setup', () => {
-  it.each(['gcp-logging', 'loki', 'cloudwatch', 'opensearch'])('keeps %s fixed to its own backend without exposing a backend selector', async (type) => {
+  it.each(['gcp-logging', 'loki', 'cloudwatch', 'opensearch', 'elasticsearch'])('keeps %s fixed to its own backend without exposing a backend selector', async (type) => {
     const { el, host, settle } = await render();
     host.spec.set(spec(type));
     await settle();
@@ -124,13 +137,26 @@ describe('connection form: GCP setup', () => {
     } else {
       expect(el.querySelector('#cf-project-load')).toBeNull();
     }
-    if (type === 'opensearch') {
+    if (['opensearch', 'elasticsearch'].includes(type)) {
       expect(host.form().value().config['apiAccess']).toBe('full');
       for (const field of ['apiAccess', 'indices', 'scopeQuery', 'timestampField']) {
         expect(el.querySelector(`#cf-${field}`)).toBeNull();
       }
       expect(el.querySelector('#cf-url')).not.toBeNull();
     }
+  });
+
+  it('shows Elasticsearch API key authentication without AWS credential fields', async () => {
+    const { el, host, settle } = await render();
+    host.spec.set(spec('elasticsearch'));
+    host.config.set({ url: 'https://elastic.example.test:9200', auth: { mode: 'apiKey' } });
+    await settle();
+    const mode = el.querySelector<HTMLSelectElement>('#cf-auth-mode')!;
+    expect([...mode.options].map((option) => option.value)).toEqual(['basic', 'apiKey', 'bearer', 'none']);
+    expect(el.querySelector('#cf-auth-secret')).not.toBeNull();
+    expect(el.querySelector('#cf-auth-username')).toBeNull();
+    expect(el.querySelector('#cf-auth-awsRegion')).toBeNull();
+    expect(el.querySelector('#cf-caCertificate')).not.toBeNull();
   });
 
   it('shows the scope format and local sign-in instructions, then submits after correcting a bare project ID', async () => {
@@ -215,8 +241,8 @@ describe('connection form: database discovery', () => {
     expect(host.saved[0].config['credentials']).not.toHaveProperty('user');
   });
 
-  it('puts credentials before loading databases and saves multiple selected databases in one connection', async () => {
-    const { el, host, settle, load, choose } = await databaseForm();
+  it.each([['mysql', 3306], ['sqlserver', 1433]])('%s puts credentials before loading databases and saves multiple selected databases', async (type, port) => {
+    const { el, host, settle, load, choose } = await databaseForm(String(type));
     expect(el.querySelector('#cf-connection-database')).toBeNull();
     expect(el.querySelector('#cf-connection-databases')).toBeNull();
     const user = el.querySelector('#cf-credentials-user')!;
@@ -225,7 +251,7 @@ describe('connection form: database discovery', () => {
     expect(host.form().databaseSelectionValid()).toBe(false);
 
     const request = await load();
-    expect(request.value.config).toMatchObject({ connection: { host: '127.0.0.1', port: 3306 }, credentials: { user: 'pp_user' } });
+    expect(request.value.config).toMatchObject({ connection: { host: '127.0.0.1', port }, credentials: { user: 'pp_user' } });
     expect(request.value.secrets).toEqual({ '/credentials/password': { source: 'local', value: 'local-password' } });
     host.form().completeDatabaseDiscovery(request.key, discovered(['app', 'reports']));
     await settle();
@@ -261,6 +287,109 @@ describe('connection form: database discovery', () => {
     ssl.value = 'require';
     ssl.dispatchEvent(new Event('change', { bubbles: true }));
     await settle();
+    expect(host.form().databaseSelectionValid()).toBe(false);
+  });
+
+  it.each(['mysql', 'postgres', 'sqlserver'])('keeps %s database choices when only the environment changes', async (type) => {
+    const { el, host, settle, load, choose } = await databaseForm(type);
+    const request = await load();
+    host.form().completeDatabaseDiscovery(request.key, discovered(['app', 'reports']));
+    await settle();
+    await choose('app');
+
+    for (const env of ['stage', 'prod', 'dev']) {
+      el.querySelector<HTMLInputElement>(`input[name="cf-env"][value="${env}"]`)!.click();
+      await settle();
+      expect(host.form().databaseSelectionValid()).toBe(true);
+      expect(el.querySelector('#cf-database-load')!.textContent).toContain('Reload databases');
+      expect(el.querySelector<HTMLInputElement>('#cf-database-0')!.checked).toBe(true);
+      expect(el.querySelector<HTMLInputElement>('#cf-database-1')!.value).toBe('reports');
+      expect(host.form().value().env).toBe(env);
+    }
+    expect(host.discoveries).toHaveLength(1);
+  });
+
+  it('accepts in-flight database discovery after an environment-only change', async () => {
+    const { el, host, settle, load, choose } = await databaseForm();
+    const request = await load();
+    el.querySelector<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
+    await settle();
+    expect(host.form().completeDatabaseDiscovery(request.key, discovered(['app']))).toBe(true);
+    await settle();
+    await choose('app');
+    expect(host.form().databaseSelectionValid()).toBe(true);
+    expect(host.form().value().env).toBe('prod');
+  });
+
+  it('refreshes databases automatically when production defaults change the connection settings', async () => {
+    const { el, host, settle, load, choose } = await databaseForm('mongodb');
+    const request = await load();
+    host.form().completeDatabaseDiscovery(request.key, discovered(['app']));
+    await settle();
+    await choose('app');
+    expect(host.form().databaseSelectionValid()).toBe(true);
+    expect(host.form().value().config['connection']).toMatchObject({ tls: false });
+
+    el.querySelector<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
+    await settle();
+    expect(host.form().value().config['connection']).toMatchObject({ tls: true });
+    expect(host.discoveries).toHaveLength(2);
+    const refreshed = host.discoveries[1];
+    expect(refreshed.value).toMatchObject({ env: 'prod', config: { connection: { tls: true, databases: ['app'] } } });
+    expect(host.form().databaseSelectionValid()).toBe(false);
+    await settle();
+    expect(el.querySelector('#cf-database-error')).toBeNull();
+    expect(el.querySelector('#cf-database-status')!.textContent).toContain('Connecting and loading databases');
+    expect(el.querySelector('button[type="submit"]')!.getAttribute('aria-disabled')).toBe('true');
+    el.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await settle();
+    expect(host.saved).toHaveLength(0);
+    expect(host.form().completeDatabaseDiscovery(request.key, discovered(['stale']))).toBe(false);
+    expect(host.form().completeDatabaseDiscovery(refreshed.key, discovered(['app', 'reports']))).toBe(true);
+    await settle();
+    expect(host.form().databaseSelectionValid()).toBe(true);
+    expect(el.querySelector<HTMLInputElement>('#cf-database-0')!.checked).toBe(true);
+    expect(host.discoveries).toHaveLength(2);
+
+    el.querySelector<HTMLInputElement>('input[name="cf-env"][value="stage"]')!.click();
+    await settle();
+    expect(host.discoveries).toHaveLength(3);
+    host.form().completeDatabaseDiscovery(host.discoveries[2].key, discovered(['reports']));
+    await settle();
+    expect(host.form().databaseSelectionValid()).toBe(false);
+    await settle();
+    expect(el.querySelector('#cf-database-error')!.textContent).toContain('Remove databases that are no longer available');
+  });
+
+  it('restarts in-flight database discovery when environment defaults change', async () => {
+    const { el, host, settle, load, choose } = await databaseForm('mongodb');
+    const request = await load();
+    el.querySelector<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
+    await settle();
+    expect(host.discoveries).toHaveLength(2);
+    expect(host.form().completeDatabaseDiscovery(request.key, discovered(['stale']))).toBe(false);
+    expect(host.form().completeDatabaseDiscovery(host.discoveries[1].key, discovered(['app']))).toBe(true);
+    await settle();
+    await choose('app');
+    expect(host.form().databaseSelectionValid()).toBe(true);
+  });
+
+  it('does not start discovery on an environment change before loading or after connection edits', async () => {
+    const { el, host, settle, load, choose } = await databaseForm('mongodb');
+    el.querySelector<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
+    await settle();
+    expect(host.discoveries).toHaveLength(0);
+    const request = await load();
+    host.form().completeDatabaseDiscovery(request.key, discovered(['app']));
+    await settle();
+    await choose('app');
+    const address = el.querySelector<HTMLInputElement>('#cf-connection-host')!;
+    address.value = 'other.example.test';
+    address.dispatchEvent(new Event('input', { bubbles: true }));
+    await settle();
+    el.querySelector<HTMLInputElement>('input[name="cf-env"][value="dev"]')!.click();
+    await settle();
+    expect(host.discoveries).toHaveLength(1);
     expect(host.form().databaseSelectionValid()).toBe(false);
   });
 
@@ -351,6 +480,11 @@ describe('connection form: database discovery', () => {
     await settle();
     el.querySelector<HTMLInputElement>('#cf-database-0')!.click();
     await settle();
+    el.querySelector<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
+    await settle();
+    expect(host.discoveries).toHaveLength(1);
+    expect(host.form().databaseSelectionValid()).toBe(true);
+    expect(host.form().value().env).toBe('prod');
     expect(host.form().value().config).toEqual({ host: 'analytics.internal', port: 8443, user: 'default', databases: ['analytics'] });
   });
 });
@@ -369,7 +503,9 @@ describe('connection form: MongoDB connection settings', () => {
     expect(el.querySelector('#cf-connection-uri')).toBeNull();
     expect(el.querySelector<HTMLInputElement>('#cf-credentials-password')!.type).toBe('password');
     expect(tls.value).toBe('false');
-    expect([...tls.options].map((option) => option.value)).toEqual(['false', 'true']);
+    expect([...tls.options].map((option) => [option.value, option.textContent])).toEqual([
+      ['auto', 'Auto'], ['false', 'Without TLS'], ['true', 'TLS'],
+    ]);
     expect(tls.closest('[hidden]')).toBeNull();
     expect(advanced.hidden).toBe(true);
     for (const id of ['cf-credentials-authSource', 'cf-credentials-mechanism']) {
@@ -390,6 +526,59 @@ describe('connection form: MongoDB connection settings', () => {
     el.querySelector<HTMLButtonElement>('[aria-controls="cf-advanced-body"]')!.click();
     await settle();
     expect(advanced.hidden).toBe(false);
+  });
+
+  it('invalidates database discovery when choosing Auto and keeps Auto through environment changes', async () => {
+    const { el, host, settle, load, choose } = await databaseForm('mongodb');
+    const plain = await load();
+    host.form().completeDatabaseDiscovery(plain.key, discovered(['app']));
+    await settle();
+    await choose('app');
+    const tls = el.querySelector<HTMLSelectElement>('#cf-connection-tls')!;
+    tls.value = 'auto';
+    tls.dispatchEvent(new Event('change', { bubbles: true }));
+    await settle();
+    expect(host.form().value().config['connection']).toMatchObject({ tls: 'auto', databases: ['app'] });
+    expect(host.form().databaseSelectionValid()).toBe(false);
+    expect(host.form().completeDatabaseDiscovery(plain.key, discovered(['stale']))).toBe(false);
+
+    const automatic = await load();
+    expect(automatic.value.config['connection']).toMatchObject({ tls: 'auto' });
+    host.form().completeDatabaseDiscovery(automatic.key, discovered(['app']));
+    await settle();
+    expect(host.form().databaseSelectionValid()).toBe(true);
+    el.querySelector<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
+    await settle();
+    expect(tls.value).toBe('auto');
+    expect(host.discoveries).toHaveLength(3);
+    const production = host.discoveries[2];
+    expect(production.value).toMatchObject({ env: 'prod', config: {
+      connection: { tls: 'auto', readPreference: 'secondaryPreferred', databases: ['app'] },
+    } });
+    host.form().completeDatabaseDiscovery(production.key, discovered(['app']));
+    await settle();
+    expect(host.form().databaseSelectionValid()).toBe(true);
+    expect(el.querySelector<HTMLInputElement>('#cf-database-0')!.checked).toBe(true);
+  });
+
+  it('preserves an explicit Auto setting in a saved URI when edited and reset', async () => {
+    const { el, host, settle } = await render();
+    const uri = 'mongodb+srv://cluster.example.test/orders?tls=true';
+    host.spec.set(spec('mongodb'));
+    host.mode.set('edit');
+    host.env.set('prod');
+    host.config.set({ connection: { uri, tls: 'auto', databases: ['orders'] } });
+    await settle();
+    const tls = el.querySelector<HTMLSelectElement>('#cf-connection-tls')!;
+    expect(tls.value).toBe('auto');
+    expect(host.form().value().config['connection']).toMatchObject({ mode: 'uri', uri, tls: 'auto' });
+    tls.value = 'false';
+    tls.dispatchEvent(new Event('change', { bubbles: true }));
+    await settle();
+    host.form().reset();
+    await settle();
+    expect(tls.value).toBe('auto');
+    expect(host.form().value().config['connection']).toMatchObject({ uri, tls: 'auto', databases: ['orders'] });
   });
 
   it('switches between host and URI inputs without sending settings from the hidden mode', async () => {
@@ -457,6 +646,44 @@ describe('connection form: MongoDB connection settings', () => {
     await settle();
     expect(el.querySelector<HTMLSelectElement>('#cf-connection-tls')!.value).toBe('true');
     expect(host.form().value().config['connection']).toMatchObject({ mode: 'host', port: 27017, tls: true });
+  });
+});
+
+describe('connection form: Redis transport', () => {
+  it('shows the TLS choice outside Advanced and describes the prod default as a default', async () => {
+    const { el, host, settle } = await render();
+    const redis = spec('redis');
+    host.spec.set({ ...redis, envDefaults: { prod: [{ pointer: '/connection/tls', title: 'Connection type', from: false, to: true }], stage: [] } });
+    host.env.set('prod');
+    await settle();
+
+    const tls = el.querySelector<HTMLSelectElement>('#cf-connection-tls')!;
+    expect(tls.value).toBe('true');
+    expect([...tls.options].map((option) => [option.textContent?.trim(), option.disabled])).toEqual([
+      ['Without TLS', false], ['TLS', false],
+    ]);
+    expect(tls.closest('[hidden]')).toBeNull();
+    expect(el.querySelector<HTMLElement>('#cf-advanced-body')!.hidden).toBe(true);
+    expect(el.querySelector('#cf-prod')!.textContent).toContain('Connection type: TLS (default)');
+  });
+
+  it('preserves a saved production connection without TLS when editing and resetting', async () => {
+    const { el, host, settle } = await render();
+    host.spec.set(spec('redis'));
+    host.mode.set('edit');
+    host.env.set('prod');
+    host.config.set({ connection: { host: 'cache.example.test', tls: false } });
+    await settle();
+
+    const tls = el.querySelector<HTMLSelectElement>('#cf-connection-tls')!;
+    expect(tls.value).toBe('false');
+    tls.value = 'true';
+    tls.dispatchEvent(new Event('change', { bubbles: true }));
+    await settle();
+    host.form().reset();
+    await settle();
+    expect(tls.value).toBe('false');
+    expect(host.form().value().config['connection']).toMatchObject({ tls: false });
   });
 });
 

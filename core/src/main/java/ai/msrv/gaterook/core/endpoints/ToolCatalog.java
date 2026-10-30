@@ -214,6 +214,8 @@ public class ToolCatalog {
   }
 
   private static Duration min(Duration a, Duration b) {
+    if (a == null) return b;
+    if (b == null) return a;
     return a.compareTo(b) <= 0 ? a : b;
   }
 

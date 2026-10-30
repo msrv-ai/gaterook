@@ -56,7 +56,7 @@ describe('connection test: Google sign-in', () => {
     expect(usesGoogleAdc('logs', { backend: 'gcp-logging', credentials: { source: 'serviceAccountKey' } })).toBe(false);
     expect(usesGoogleAdc('logs', { backend: 'cloudwatch', credentials: { source: 'adc' } })).toBe(false);
     expect(usesGoogleAdc('aws', { credentials: { source: 'adc' } })).toBe(false);
-    for (const type of ['loki', 'cloudwatch', 'opensearch']) {
+    for (const type of ['loki', 'cloudwatch', 'opensearch', 'elasticsearch']) {
       expect(usesGoogleAdc(type, { credentials: { source: 'adc' } })).toBe(false);
     }
     expect(usesGoogleAdc('gcp', {})).toBe(false);

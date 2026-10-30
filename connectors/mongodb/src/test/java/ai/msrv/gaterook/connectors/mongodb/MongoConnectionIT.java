@@ -14,6 +14,7 @@ import ai.msrv.gaterook.connector.api.TestResult.Hint;
 import ai.msrv.gaterook.connector.api.TestResult.Severity;
 import ai.msrv.gaterook.connector.api.ToolResult;
 import java.security.PublicKey;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.AfterAll;
@@ -124,6 +125,63 @@ class MongoConnectionIT {
       assertThat(found.structuredContent().path("returned").asInt()).isEqualTo(1);
       assertThat(secrets.handedOut).containsOnly(MongoSettings.PASSWORD);
     }
+  }
+
+  @Test
+  void autoDiscoversTestsAndReadsBothTransportsWithoutChangingTheSavedChoice() throws Exception {
+    for (LocalMongod server : List.of(auth, tls)) {
+      ObjectNode config = Fixtures.json("""
+          {"connection":{"host":"127.0.0.1","tls":"auto"},"credentials":{"user":"gw_ro"}}
+          """);
+      ObjectNode connection = (ObjectNode) config.path("connection");
+      connection.put("port", server.port);
+      if (server == tls) {
+        connection.put("caCertificate", server.caCertificate());
+      }
+      Fixtures.Secrets secrets = Fixtures.Secrets.password(LocalMongod.password("gw_ro"));
+      ConnectionConfig draft = Fixtures.config("auto-" + server.port, Env.PROD, config.toString(), 1);
+      TestResult discovery = connector.discoverDatabases(draft, secrets, Fixtures.Context.of(Env.PROD));
+      assertThat(discovery.ok()).as(String.valueOf(discovery.error())).isTrue();
+      assertThat(discovery.details().path("databases").toString()).isEqualTo("[\"orders\"]");
+      assertThat(discovery.details().at("/tls/enabled").asBoolean()).isEqualTo(server == tls);
+      assertThat(codes(discovery).contains("mongo.tls-off")).isEqualTo(server != tls);
+
+      connection.putArray("databases").add("orders");
+      ConnectionConfig selected = Fixtures.config("auto-" + server.port, Env.PROD, config.toString(), 2);
+      assertThat(connector.health(selected, secrets, Fixtures.Context.of(Env.PROD)).state())
+          .isEqualTo(HealthResult.State.HEALTHY);
+      TestResult tested = connector.test(selected, secrets, Fixtures.Context.of(Env.PROD));
+      assertThat(tested.ok()).as(String.valueOf(tested.error())).isTrue();
+      assertThat(tested.details().at("/tls/enabled").asBoolean()).isEqualTo(server == tls);
+      ToolResult found = connector.execute(Fixtures.call("mongo_find", "{\"collection\":\"orders\",\"limit\":1}"),
+          selected, secrets, Fixtures.Context.of(Env.PROD));
+      assertThat(found.structuredContent().path("returned").asInt()).isEqualTo(1);
+      assertThat(connector.health(selected, secrets, Fixtures.Context.of(Env.PROD)).state())
+          .isEqualTo(HealthResult.State.HEALTHY);
+      assertThat(selected.config().at("/connection/tls").asString()).isEqualTo("auto");
+    }
+  }
+
+  @Test
+  void autoDoesNotDowngradeUntrustedCertificatesOrExplicitTlsChoices() {
+    TestResult certificate = test(cfg(tls, Env.DEV, "gw_ro", "\"tls\":\"auto\"", null), "gw_ro");
+    assertThat(certificate.ok()).isFalse();
+    assertThat(certificate.error().code()).isEqualTo("mongo.tls");
+    assertThat(certificate.error().message()).contains("certificate isn't trusted");
+
+    ConnectionConfig explicit = Fixtures.config(Env.DEV,
+        "{\"connection\":{\"uri\":\"" + auth.uri("orders") + "?tls=true\",\"tls\":\"auto\"},"
+            + "\"credentials\":{\"user\":\"gw_ro\"},\"advanced\":{\"serverSelectionTimeoutMs\":1000}}");
+    assertThat(test(explicit, "gw_ro").ok()).isFalse();
+    assertThat(MongoSettings.of(explicit).autoTls()).isFalse();
+  }
+
+  @Test
+  void autoCanDetectAnotherSeedAfterAnUnreachableSeed() {
+    MongoSettings settings = MongoSettings.of(Fixtures.config(Env.DEV,
+        "{\"connection\":{\"uri\":\"mongodb://127.0.0.1:1,127.0.0.1:" + auth.port
+            + "/orders\",\"tls\":\"auto\"}}"));
+    assertThat(AutoTls.resolve(settings, Duration.ofSeconds(2)).tls()).isFalse();
   }
 
   @Test

@@ -34,6 +34,7 @@ final class MongoClientCache implements AutoCloseable {
   private final Factory factory;
   private final Supplier<Instant> clock;
   private final Map<String, Entry> entries = new ConcurrentHashMap<>();
+  private final Map<String, Object> pendingBuilds = new java.util.HashMap<>();
   private ScheduledThreadPoolExecutor sweeper;
   private boolean closed;
 
@@ -106,39 +107,73 @@ final class MongoClientCache implements AutoCloseable {
    * needed. {@code login} stays the caller's.
    */
   Lease acquire(ConnectionConfig cfg, MongoSettings settings, MongoLogin login, Duration readTimeout) {
-    Entry stale = null;
-    Entry entry;
+    Object build = new Object();
     synchronized (this) {
       if (closed) {
         throw new IllegalStateException("The MongoDB connector is closed");
       }
       Entry current = entries.get(cfg.id());
-      if (current != null && current.configVersion == cfg.version() && current.login.equals(login)
-          && current.readTimeout.compareTo(readTimeout) >= 0 && !expiring(current.login)) {
+      if (reusable(current, cfg, login, readTimeout)) {
         current.inFlight.incrementAndGet();
         return new Lease(current, true);
       }
-      MongoLogin owned = new MongoLogin(login.user(), login.password().clone(), login.version(), login.notAfter());
-      MongoClient client;
-      try {
-        client = factory.create(settings, owned, readTimeout);
-      } catch (RuntimeException e) {
-        owned.close();
-        throw e;
+      pendingBuilds.put(cfg.id(), build);
+    }
+
+    // Auto TLS may contact the server. A slow connection must not block other connections' cache access.
+    MongoLogin owned = new MongoLogin(login.user(), login.password().clone(), login.version(), login.notAfter());
+    Entry candidate;
+    try {
+      candidate = new Entry(cfg.version(), owned, readTimeout, factory.create(settings, owned, readTimeout));
+    } catch (RuntimeException | Error e) {
+      owned.close();
+      synchronized (this) {
+        pendingBuilds.remove(cfg.id(), build);
       }
-      entry = new Entry(cfg.version(), owned, readTimeout, client);
-      entry.inFlight.incrementAndGet();
-      stale = entries.put(cfg.id(), entry);
-      startSweeper();
+      throw e;
+    }
+
+    Entry stale = null;
+    Entry entry = candidate;
+    boolean rejected;
+    synchronized (this) {
+      rejected = closed;
+      Entry current = entries.get(cfg.id());
+      if (!rejected) {
+        if (reusable(current, cfg, login, readTimeout)) {
+          entry = current;
+        } else if (pendingBuilds.get(cfg.id()) == build
+            && (current == null || current.configVersion <= cfg.version())) {
+          stale = entries.put(cfg.id(), candidate);
+          startSweeper();
+        } else {
+          // A newer request or drop won the race. This call may finish, but must not repopulate the cache.
+          candidate.retired = true;
+        }
+        entry.inFlight.incrementAndGet();
+      }
+      pendingBuilds.remove(cfg.id(), build);
     }
     retire(stale);
+    if (rejected || entry != candidate) {
+      retire(candidate);
+    }
+    if (rejected) {
+      throw new IllegalStateException("The MongoDB connector is closed");
+    }
     return new Lease(entry, true);
+  }
+
+  private boolean reusable(Entry entry, ConnectionConfig cfg, MongoLogin login, Duration readTimeout) {
+    return entry != null && !entry.retired && entry.configVersion == cfg.version() && entry.login.equals(login)
+        && entry.readTimeout.compareTo(readTimeout) >= 0 && !expiring(entry.login);
   }
 
   /** The connection changed or went: its client goes once its calls end. */
   void drop(String connectionId) {
     Entry e;
     synchronized (this) {
+      pendingBuilds.remove(connectionId);
       e = entries.remove(connectionId);
     }
     retire(e);
@@ -216,6 +251,7 @@ final class MongoClientCache implements AutoCloseable {
       closed = true;
       all = new ArrayList<>(entries.values());
       entries.clear();
+      pendingBuilds.clear();
       if (sweeper != null) {
         sweeper.shutdownNow();
         sweeper = null;

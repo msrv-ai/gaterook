@@ -35,6 +35,7 @@ export interface KeySchema {
   readonly 'x-env-default'?: { readonly [env: string]: JsonValue };
   readonly 'x-inherit'?: boolean;
   readonly 'x-unit'?: string;
+  readonly 'x-stricter'?: string;
   readonly 'x-confirm'?: string;
   readonly 'x-forbidden-env-values'?: { readonly [env: string]: readonly JsonValue[] };
 }

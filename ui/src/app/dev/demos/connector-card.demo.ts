@@ -54,7 +54,7 @@ import { GwLiveNote, liveRead } from '../live';
     <section class="gw-section" aria-labelledby="s-picker">
       <header class="gw-section__header">
         <h2 class="gw-section__title" id="s-picker">Picker: Add connection, step 1</h2>
-        <p class="gw-section__description">Radio cards grouped by category, as in step 1 of Add connection. One radio group across all categories, so arrow keys move through every type. Built-in types say so with their tool count (the Logs back ends Loki, GCP Cloud Logging, AWS CloudWatch and OpenSearch are built in, not plugins); installed plugins and templates carry their kind and trust badges. A catalog plugin that is not installed yet (ClickHouse) stays visible and focusable but unavailable: <code class="gw-code">aria-disabled</code>, its reason in the description.</p>
+        <p class="gw-section__description">Radio cards grouped by category, as in step 1 of Add connection. One radio group across all categories, so arrow keys move through every type. Built-in types say so with their tool count (Loki, GCP Cloud Logging, AWS CloudWatch, OpenSearch and Elasticsearch are separate built-in connectors with their own tools); installed plugins and templates carry their kind and trust badges. A catalog plugin that is not installed yet (ClickHouse) stays visible and focusable but unavailable: <code class="gw-code">aria-disabled</code>, its reason in the description.</p>
       </header>
       @if (catalog.value(); as c) {
         <fieldset gwConnectorPicker [groups]="c.groups" [(value)]="picked"></fieldset>

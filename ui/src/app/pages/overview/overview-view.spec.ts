@@ -1,4 +1,5 @@
-import { HEALTH, ROWS, card, clientsFound, clientsInUse, firstRun, health, link, overview, setup, tunnelOff } from './overview.fixtures';
+import { EndpointSummary } from '../../core/api/endpoints.api';
+import { HEALTH, ROWS, card, clientsFound, clientsInUse, firstRun, health, link, overview, row, setup, tunnelOff } from './overview.fixtures';
 import {
   activityLine,
   appAnchor,
@@ -7,6 +8,7 @@ import {
   claudeAiTile,
   connectionTile,
   connectionTiles,
+  endpointConnectionGroups,
   guideAppTile,
   homeAppTiles,
   modesWords,
@@ -106,6 +108,78 @@ describe('Your connections', () => {
   });
 });
 
+describe('Connections by endpoint', () => {
+  function endpoint(slug: string, over: Partial<EndpointSummary> = {}): EndpointSummary {
+    return {
+      slug, description: null, url: `http://127.0.0.1:7467/mcp/${slug}`, env: 'dev', access: 'standard', status: 'running',
+      tools: { read: 1, approval: 1, off: 0 }, connections: { total: 0, byEnv: {} }, health: {}, approvalsWaiting: 0,
+      clients: [], tokens: { active: 0, expiringSoon: 0 }, published: false, blockedReason: null, version: 1,
+      risk: { state: 'none', underlying: null, present: [], ingredients: { privateData: 'absent', untrustedContent: 'absent', externalChannel: 'absent' }, sources: [], published: false, dismissed: null },
+      ...over,
+    };
+  }
+
+  it('groups by endpoint wiring, repeats shared connections, and retains empty, disabled and unwired groups', () => {
+    const endpoints = [endpoint('dev'), endpoint('review', { status: 'disabled' }), endpoint('empty')];
+    const connections = [row('shared-db', 'dev', ['dev', 'review']), row('dev-only', 'dev', ['dev']), row('unwired', 'stage', [])];
+    const groups = endpointConnectionGroups([], connections, endpoints, [])!;
+    expect(groups.map((group) => [group.key, group.connections.map((connection) => connection.name)])).toEqual([
+      ['endpoint:dev', ['shared-db', 'dev-only']],
+      ['endpoint:review', ['shared-db']],
+      ['endpoint:empty', []],
+      ['unassigned', ['unwired']],
+    ]);
+    expect(groups[1].endpoint?.status).toBe('disabled');
+    expect(groups[3].endpoint).toBeNull();
+    expect(endpointConnectionGroups([], [], [], [])).toEqual([]);
+  });
+
+  it('shows every connection, problems first, with updated overview health and row-health fallback', () => {
+    const connections = Array.from({ length: 8 }, (_, i) => row(`connection-${i}`, 'dev', ['dev']));
+    connections.push({ ...row('new-server', 'dev', ['dev']), type: 'mcp', typeName: 'MCP server', health: { state: 'degraded', latencyMs: 2400, message: null, checkedAt: null } });
+    const updated = [health('connection-7', 'unreachable', { host: 'db.dev.example:5432' })];
+    const group = endpointConnectionGroups(updated, connections, [endpoint('dev')], [])![0];
+    expect(group.connections).toHaveLength(9);
+    expect(group.connections.slice(0, 2).map((connection) => [connection.name, connection.state.label])).toEqual([
+      ['connection-7', 'Unreachable'], ['new-server', 'Slow · 2.4 s'],
+    ]);
+    expect(group.connections[0].retest).toBe(true);
+    expect(group.connections[1].meta).toEqual([{ text: 'MCP server' }]);
+    const healthy = endpointConnectionGroups([health('connection-7', 'healthy')], connections, [endpoint('dev')], [])![0];
+    expect(healthy.connections.find((connection) => connection.name === 'connection-7')?.state.label).toBe('Healthy');
+  });
+
+  it('uses each endpoint link state, deduplicates app access and never treats revoked access as connected', () => {
+    const apps = [
+      card('codex', 'Codex', 'error', [link('codex', 'dev', 'dev'), link('codex', 'dev', 'dev', { id: 'oauth-codex', method: 'oauth' }), link('codex', 'review', 'dev', { status: 'needs-repair' })]),
+      card('cursor', 'Cursor', 'connected', [link('cursor', 'dev', 'dev', { status: 'needs-restart' }), link('cursor', 'review', 'dev')]),
+      card('claude-desktop', 'Claude Desktop', 'connected', [link('claude-desktop', 'dev', 'dev', { status: 'revoked' }), link('claude-desktop', 'review', 'dev')]),
+      card('antigravity', 'Antigravity', 'error', [link('antigravity', 'dev', 'dev', { status: 'removed-outside' })]),
+    ];
+    const groups = endpointConnectionGroups([], [], [endpoint('dev'), endpoint('review')], apps)!;
+    expect(groups[0].apps).toEqual([
+      { client: 'codex', name: 'Codex', state: { tone: 'success', label: 'Connected' } },
+      { client: 'cursor', name: 'Cursor', state: { tone: 'warning', label: 'Needs restart' } },
+      { client: 'antigravity', name: 'Antigravity', state: { tone: 'danger', label: 'Needs repair' } },
+    ]);
+    expect(groups[1].apps?.map((app) => [app.client, app.state.label])).toEqual([
+      ['codex', 'Needs repair'], ['cursor', 'Connected'], ['claude-desktop', 'Connected'],
+    ]);
+  });
+
+  it('distinguishes unavailable wiring, endpoints and apps from successful empty responses', () => {
+    expect(endpointConnectionGroups(HEALTH, null, [endpoint('dev')], [])).toBeNull();
+    expect(endpointConnectionGroups(HEALTH, ROWS, null, [])).toBeNull();
+    expect(endpointConnectionGroups([], [], [endpoint('dev')], null)?.[0].apps).toBeNull();
+    expect(endpointConnectionGroups([], [], [endpoint('dev')], [])?.[0].apps).toEqual([]);
+  });
+
+  it('falls back when endpoint and wiring snapshots disagree instead of silently dropping a connection', () => {
+    expect(endpointConnectionGroups([], [row('new-db', 'dev', ['new-endpoint'])], [endpoint('dev')], [])).toBeNull();
+    expect(endpointConnectionGroups([], [row('shared-db', 'dev', ['dev', 'new-endpoint'])], [endpoint('dev')], [])).toBeNull();
+  });
+});
+
 describe('AI apps', () => {
   it('names each app’s card on AI apps as the kit does (#cl-<app>-t)', () => {
     expect(['claude-desktop', 'codex', 'cursor', 'antigravity', 'claude-ai'].map(appAnchor)).toEqual(['cl-cd-t', 'cl-cx-t', 'cl-cu-t', 'cl-ag-t', 'cl-ai-t']);
@@ -191,6 +265,7 @@ describe('Activity line and the guide', () => {
   it('asks the kit’s question for a database, the same idea for other types, "my database" before any connection', () => {
     expect(checkPrompt(null, null)).toBe('Show me the tables in my database');
     expect(checkPrompt('postgres', 'dev-db')).toBe('Show me the tables in dev-db');
+    expect(checkPrompt('sqlserver', 'reporting')).toBe('Show me the tables in reporting');
     expect(checkPrompt('mongodb', 'orders')).toBe('Show me the collections in orders');
     expect(checkPrompt('kubernetes', 'dev-cluster')).toBe('Show me the pods in dev-cluster');
     expect(checkPrompt('logs', 'app-logs')).toBe('Show me the latest errors in app-logs');
@@ -198,6 +273,7 @@ describe('Activity line and the guide', () => {
       expect(checkPrompt(type, 'app-logs')).toBe('Show me the latest errors in app-logs');
     }
     expect(checkPrompt('opensearch', 'search-db')).toBe('Show me the indices in search-db');
+    expect(checkPrompt('elasticsearch', 'elastic-db')).toBe('Show me the indices in elastic-db');
     expect(checkPrompt('ssh', 'dev-vm')).toBe('Show me what you can see in dev-vm');
   });
 

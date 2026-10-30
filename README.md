@@ -10,6 +10,8 @@ On DEV and STAGE, you can temporarily bypass approval for a method on one connec
 
 Connect your services to GateRook, then choose which connections and tools each AI app can use. GateRook sits between your services and AI apps, keeps credentials local, and applies your access rules to tool calls.
 
+Log queries have no maximum time range by default in any environment. To set one, open **Policies → Logs → Longest time range** and enter the number of hours; `0` means no time limit. Existing explicit limits remain in effect. Line counts, response sizes, and request deadlines still apply.
+
 ![Diagram showing MySQL, MongoDB, OpenSearch, and Redis connected through GateRook to Claude Desktop, Codex, Cursor, and Antigravity.](docs/images/gaterook-gateway.png)
 
 ## Application overview
@@ -83,6 +85,8 @@ For the full connector integration suite, follow [the Docker test-services guide
 | [Product decisions](docs/DECISIONS.md) | Accepted product and engineering decisions, with implementation caveats |
 | [Research](docs/research/README.md) | Protocol, client, connector, security, native-image, and plugin-host investigations |
 | [Development](docs/development.md) | Toolchains, build/run commands, tests, native builds, and troubleshooting |
+| [Oracle Database](docs/oracle.md) | Service connections, TLS, schema access, queries and Oracle-specific limits |
+| [SQL Server](docs/sql-server.md) | SQL authentication, database selection, permissions, and T-SQL limits |
 | [GCP logs](docs/gcp-logs.md) | Logs Explorer filters, GKE logs, credentials, scopes, and endpoint access |
 | [SSH log files](docs/ssh-log-files.md) | Remote file selection, searching, latest records, time ranges, and continuation |
 | [Repository layout](docs/repository-layout.md) | Source directories and their responsibilities |

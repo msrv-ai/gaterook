@@ -1,8 +1,8 @@
 {
   "area": "sql",
   "module": "connectors/sql",
-  "connectorTypes": ["postgres", "mysql"],
-  "description": "Touches of the SQL connectors for the native smoke (report 15 §6): JSqlParser, both drivers and the pool in the image. The first two need no server; the third needs a PostgreSQL (fixture postgres: local binaries, TLS with a self-signed certificate for localhost) and exercises the reflective SSL factory and Hikari.",
+  "connectorTypes": ["postgres", "mysql", "oracle", "sqlserver"],
+  "description": "Touches of the SQL connectors for the native smoke (report 15 §6): JSqlParser, all four drivers and the pool in the image. The driver refusal and classification checks need no server; the TLS check needs a PostgreSQL (fixture postgres: local binaries, TLS with a self-signed certificate for localhost) and exercises the reflective SSL factory and Hikari.",
   "touches": [
     {
       "name": "classify-without-io",
@@ -21,6 +21,24 @@
         "secrets": {"/credentials/password": "smoke-only-0001"}},
       "test": true,
       "expect": {"ok": false, "errorCode": "sql.refused"}
+    },
+    {
+      "name": "oracle-driver-refused",
+      "connection": {"type": "oracle", "env": "dev",
+        "config": {"connection": {"host": "127.0.0.1", "port": 1, "database": "FREEPDB1", "sslMode": "disable"},
+                   "credentials": {"user": "GW_READER"}},
+        "secrets": {"/credentials/password": "smoke-only-0001"}},
+      "test": true,
+      "expect": {"ok": false, "errorCode": "sql.refused"}
+    },
+    {
+      "name": "sqlserver-driver-refused",
+      "connection": {"type": "sqlserver", "env": "dev",
+        "config": {"connection": {"host": "127.0.0.1", "port": 1, "database": "app", "sslMode": "disable"},
+                   "credentials": {"user": "gw_reader"}},
+        "secrets": {"/credentials/password": "smoke-only-0001"}},
+      "test": true,
+      "expect": {"ok": false, "errorCode": "sql.connect"}
     },
     {
       "name": "postgres-read-over-tls",

@@ -119,7 +119,6 @@
          <span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel on</span></span> -->
     <div class="gw-sidebar__footer">
       <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Core running</span></span>
-      <span class="gw-sidebar__meta">127.0.0.1:7465</span>
       <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off</span></span>
       <span class="gw-sidebar__meta">v0.4.0</span>
     </div>
@@ -185,8 +184,8 @@
                 <div class="gw-form__rows">
                   <dl class="gw-kv gw-kv--dense">
                     <div class="gw-kv__row"><dt class="gw-kv__key">INSERT, UPDATE, DELETE, DDL</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">unless Bypass · rule <code class="gw-code">dev.sql.write-approval</code></span></dd></div>
-                    <!-- A lock, not a checkbox: reads always run READ ONLY and end with ROLLBACK, on every environment. -->
-                    <div class="gw-kv__row"><dt class="gw-kv__key">Run queries in a read-only transaction</dt><dd class="gw-kv__value"><span class="gw-badge"><i class="gw-icon gw-badge__icon" data-lucide="lock"></i>Always on</span> <span class="gw-text-caption gw-fg-muted"><span class="gw-mono">sql_query</span> opens READ ONLY transactions, so the database refuses a SELECT that calls a function that writes</span></dd></div>
+                    <!-- Read protection is fixed: dialect-specific admission checks and rollback cannot be disabled. -->
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Keep query calls read-only</dt><dd class="gw-kv__value"><span class="gw-badge"><i class="gw-icon gw-badge__icon" data-lucide="lock"></i>Always on</span> <span class="gw-text-caption gw-fg-muted">PostgreSQL, MySQL and Oracle use READ ONLY transactions. SQL Server validates <span class="gw-mono">sql_query</span> and rolls it back; use a SELECT-only login for database-enforced protection.</span></dd></div>
                   </dl>
                   <div class="gw-form__row">
                     <div class="gw-field">
@@ -524,10 +523,10 @@
                     <div class="gw-field">
                       <label class="gw-field__label" for="pd-logs-range">Longest time range</label>
                       <div class="gw-input-group">
-                        <input class="gw-input" id="pd-logs-range" type="text" inputmode="numeric" autocomplete="off" value="168" aria-describedby="pd-logs-range-hint">
+                        <input class="gw-input" id="pd-logs-range" type="text" inputmode="numeric" autocomplete="off" value="0" aria-describedby="pd-logs-range-hint">
                         <span class="gw-input-group__affix">h</span>
                       </div>
-                      <p class="gw-field__hint" id="pd-logs-range-hint">A search further back is cut to this range.</p>
+                      <p class="gw-field__hint" id="pd-logs-range-hint">0 means no time limit. Set a number of hours to deny searches with longer ranges.</p>
                     </div>
                     <div class="gw-field">
                       <label class="gw-field__label" for="pd-logs-limit">Entries per call by default</label>
@@ -767,7 +766,7 @@
                 <div class="gw-form__rows">
                   <dl class="gw-kv gw-kv--dense">
                     <div class="gw-kv__row"><dt class="gw-kv__key">INSERT, UPDATE, DELETE</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">unless Bypass · rule <code class="gw-code">stage.sql.write-approval</code></span></dd></div>
-                    <div class="gw-kv__row"><dt class="gw-kv__key">Run queries in a read-only transaction</dt><dd class="gw-kv__value"><span class="gw-badge"><i class="gw-icon gw-badge__icon" data-lucide="lock"></i>Always on</span> <span class="gw-text-caption gw-fg-muted"><span class="gw-mono">sql_query</span> opens READ ONLY transactions, so the database refuses a SELECT that calls a function that writes</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Keep query calls read-only</dt><dd class="gw-kv__value"><span class="gw-badge"><i class="gw-icon gw-badge__icon" data-lucide="lock"></i>Always on</span> <span class="gw-text-caption gw-fg-muted">PostgreSQL, MySQL and Oracle use READ ONLY transactions. SQL Server validates <span class="gw-mono">sql_query</span> and rolls it back; use a SELECT-only login for database-enforced protection.</span></dd></div>
                   </dl>
                   <div class="gw-form__row">
                     <div class="gw-field">
@@ -1061,7 +1060,7 @@
                     </div>
                   </div>
                   <dl class="gw-kv">
-                    <div class="gw-kv__row"><dt class="gw-kv__key">Longest time range</dt><dd class="gw-kv__value gw-tabular">168 h <span class="gw-fg-muted">· inherited from dev</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Longest time range</dt><dd class="gw-kv__value gw-tabular">no limit <span class="gw-fg-muted">· inherited from dev</span></dd></div>
                     <div class="gw-kv__row"><dt class="gw-kv__key">Entries per call by default</dt><dd class="gw-kv__value gw-tabular">100 <span class="gw-fg-muted">· inherited from dev</span></dd></div>
                     <div class="gw-kv__row"><dt class="gw-kv__key">Longest wait of logs_tail</dt><dd class="gw-kv__value gw-tabular">8 s <span class="gw-fg-muted">· inherited from dev</span></dd></div>
                   </dl>
@@ -1269,7 +1268,7 @@
               <div class="gw-toolbar__start">
                 <dl class="gw-kv gw-kv--inline">
                   <div class="gw-kv__row"><dt class="gw-kv__key">Applies to</dt><dd class="gw-kv__value"><code class="gw-code">prod-replica</code> <code class="gw-code">prod-vm</code> <code class="gw-code">prod-logs</code></dd></div>
-                  <div class="gw-kv__row"><dt class="gw-kv__key">Values</dt><dd class="gw-kv__value">24 prod defaults · 2 set on prod</dd></div>
+                  <div class="gw-kv__row"><dt class="gw-kv__key">Values</dt><dd class="gw-kv__value">23 prod defaults · 2 set on prod</dd></div>
                 </dl>
               </div>
               <div class="gw-toolbar__end">
@@ -1289,7 +1288,7 @@
                 <div class="gw-form__rows">
                   <dl class="gw-kv gw-kv--dense">
                     <div class="gw-kv__row"><dt class="gw-kv__key">INSERT, UPDATE, DELETE</dt><dd class="gw-kv__value"><span class="gw-mode gw-mode--approval"><i class="gw-icon" data-lucide="user-check"></i>Approval</span> <span class="gw-text-caption gw-fg-muted">unless Bypass · rule <code class="gw-code">prod.sql.write-approval</code></span></dd></div>
-                    <div class="gw-kv__row"><dt class="gw-kv__key">Run queries in a read-only transaction</dt><dd class="gw-kv__value"><span class="gw-badge"><i class="gw-icon gw-badge__icon" data-lucide="lock"></i>Always on</span> <span class="gw-text-caption gw-fg-muted"><span class="gw-mono">sql_query</span> opens READ ONLY transactions, so the database refuses a SELECT that calls a function that writes</span></dd></div>
+                    <div class="gw-kv__row"><dt class="gw-kv__key">Keep query calls read-only</dt><dd class="gw-kv__value"><span class="gw-badge"><i class="gw-icon gw-badge__icon" data-lucide="lock"></i>Always on</span> <span class="gw-text-caption gw-fg-muted">PostgreSQL, MySQL and Oracle use READ ONLY transactions. SQL Server validates <span class="gw-mono">sql_query</span> and rolls it back; use a SELECT-only login for database-enforced protection.</span></dd></div>
                   </dl>
                   <div class="gw-form__row">
                     <div class="gw-field">
@@ -1548,10 +1547,10 @@
                     <div class="gw-field">
                       <label class="gw-field__label" for="pp-logs-range">Longest time range</label>
                       <div class="gw-input-group">
-                        <input class="gw-input" id="pp-logs-range" type="text" inputmode="numeric" autocomplete="off" placeholder="24" value="24" aria-describedby="pp-logs-range-hint">
+                        <input class="gw-input" id="pp-logs-range" type="text" inputmode="numeric" autocomplete="off" placeholder="0" value="0" aria-describedby="pp-logs-range-hint">
                         <span class="gw-input-group__affix">h</span>
                       </div>
-                      <p class="gw-field__hint" id="pp-logs-range-hint">Prod default · dev: 168 h</p>
+                      <p class="gw-field__hint" id="pp-logs-range-hint">0 means no time limit. Set a number of hours to deny searches with longer ranges.</p>
                     </div>
                     <div class="gw-field">
                       <label class="gw-field__label" for="pp-logs-limit">Entries per call by default</label>

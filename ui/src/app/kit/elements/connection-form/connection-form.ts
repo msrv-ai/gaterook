@@ -95,10 +95,13 @@ export function signInTarget(type: string): string {
   switch (type) {
     case 'postgres':
     case 'mysql':
+    case 'oracle':
+    case 'sqlserver':
     case 'sql':
     case 'mongodb':
     case 'redis':
     case 'opensearch':
+    case 'elasticsearch':
       return 'the database';
     case 'ssh':
     case 'ssh-logs':
@@ -327,13 +330,15 @@ export class GwConnectionForm {
       config = removeConfigPath(config, selection.path);
       if (selection.legacyPath) config = removeConfigPath(config, selection.legacyPath);
     }
-    return JSON.stringify([this.spec().type, this.common().env, config, state.secretInputs(), state.source(),
+    // Environment labels do not change the server's database list; changed TLS defaults still change config.
+    return JSON.stringify([this.spec().type, config, state.secretInputs(), state.source(),
       this.stored().map((secret) => [secret.field, secret.version, secret.state, secret.source])]);
   }
   protected readonly databaseDiscovery = linkedSignal(() => {
     this.databaseKey();
     return null as DatabaseDiscovery | null;
   });
+  readonly databaseLoading = computed(() => this.databaseDiscovery()?.state === 'loading');
   protected readonly databaseSearch = signal('');
   protected readonly selectedDatabases = computed(() => {
     const selection = this.databaseSelection();
@@ -349,6 +354,7 @@ export class GwConnectionForm {
       .filter((choice) => String(choice.name).toLocaleLowerCase().includes(query));
   });
   protected readonly databaseError = computed(() => {
+    if (this.databaseLoading()) return null;
     const node = this.state().compiled.all.find((field) => field.pointer === this.databaseSelection()?.pointer);
     return (node ? this.state().error(node) : null) ?? (this.submitted() ? this.databaseProblem() : null);
   });
@@ -369,6 +375,7 @@ export class GwConnectionForm {
   }
 
   databaseSelectionValid(): boolean {
+    if (this.databaseLoading()) return false;
     const problem = this.databaseProblem();
     if (!problem) return true;
     this.submitted.set(true);
@@ -418,9 +425,17 @@ export class GwConnectionForm {
     // The secret field's buttons and placeholders name the connection as it is typed.
     effect(() => {
       const s = this.state();
-      s.subject.set(this.common().name);
+      const common = this.common();
+      s.subject.set(common.name);
       // Picking another env moves the untouched defaults and enforces that env's locks (x-env-default, x-forbidden-env).
-      s.setEnv(this.common().env);
+      untracked(() => {
+        const discovery = this.databaseDiscovery();
+        s.setEnv(common.env);
+        // Refresh an existing discovery when those defaults change the connection, preserving its selected databases.
+        if ((discovery?.state === 'ready' || discovery?.state === 'loading') && discovery.key !== this.databaseKey()) {
+          this.loadDatabases();
+        }
+      });
     });
     effect(() => {
       const metadata = this.metadata();
@@ -571,6 +586,8 @@ export class GwConnectionForm {
       const node = this.state().compiled.all.find((n) => n.pointer === c.pointer);
       const unit = node?.unit ?? null;
       const icon = defaultIcon(c);
+      const option = node?.options.find((o) => o.value === c.to);
+      if (typeof c.to === 'boolean' && option) return { icon, text: `${c.title}: ${option.title} (default)` };
       if (typeof c.to === 'boolean') return { icon, text: c.to ? c.title : `${c.title}: off` };
       const from = c.from === null || c.from === undefined ? '' : ` (dev: ${formatValue(c.from, unit)})`;
       return { icon, text: `${c.title} ${formatValue(c.to, unit)}${from}` };
@@ -622,7 +639,7 @@ export class GwConnectionForm {
   protected readonly validationSummary = computed(() => {
     if (!this.submitted()) return null;
     return this.nameError() ?? this.invalidFields().map((node) => this.state().error(node))[0]
-      ?? this.databaseProblem() ?? this.files()?.problem();
+      ?? (this.databaseLoading() ? null : this.databaseProblem()) ?? this.files()?.problem();
   });
 
   fileSelectionValid(): boolean {
@@ -642,7 +659,7 @@ export class GwConnectionForm {
 
   protected onSubmit(event: Event): void {
     event.preventDefault();
-    if (this.busy()) return;
+    if (this.busy() || this.databaseLoading()) return;
     this.submitted.set(true);
     untracked(() => this.commonForm().markAsTouched());
     const fieldsOk = this.state().submit();

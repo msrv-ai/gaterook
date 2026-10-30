@@ -471,6 +471,8 @@ export function firstRunTestText(target: string): string {
 export const POLICY_SECTION: Readonly<Record<string, string>> = {
   postgres: 'sql',
   mysql: 'sql',
+  oracle: 'sql',
+  sqlserver: 'sql',
   ssh: 'ssh',
   kubernetes: 'k8s',
   logs: 'logs',
@@ -541,14 +543,19 @@ export function policyDefaults(type: string, dev: EnvPolicy, prod: EnvPolicy, sc
       const unit = typeof props[key]?.['x-unit'] === 'string' ? (props[key]['x-unit'] as string) : null;
       const pv = p[key];
       const dv = d[key];
-      const kit = KIT_LINES[`${section}.${key}`];
+      const kit = type === 'sqlserver' && section === 'sql' && key === 'readOnlyTransactions'
+        ? { icon: 'lock', text: 'Read-only queries' }
+        : KIT_LINES[`${section}.${key}`];
       if (typeof pv === 'boolean') {
         // A switch that is on for prod: always on (a lock), or on where dev has it off.
         if (pv && (props[key]?.['readOnly'] === true || props[key]?.['const'] === true || dv !== true)) {
           out.push(kit ?? { icon: iconFor(key, title), text: title });
         }
       } else if (typeof pv === 'number' && typeof dv === 'number' && pv !== dv) {
-        out.push(kit ?? { icon: iconFor(key, title), text: `${title} ${amount(pv, unit, title)} (dev: ${amount(dv, unit, title)})` });
+        const unlimitedAtZero = props[key]?.['x-stricter'] === 'min-positive';
+        if (unlimitedAtZero && pv === 0) continue;
+        const devAmount = unlimitedAtZero && dv === 0 ? 'no limit' : amount(dv, unit, title);
+        out.push(kit ?? { icon: iconFor(key, title), text: `${title} ${amount(pv, unit, title)} (dev: ${devAmount})` });
       } else if (Array.isArray(pv) && pv.length && !sameJson(pv, dv)) {
         const values = pv.filter((x): x is string => typeof x === 'string');
         out.push(kit ?? { icon: iconFor(key, title), text: `${title}: ${values.join(', ')}`, literals: values });

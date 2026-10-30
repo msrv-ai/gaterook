@@ -43,11 +43,17 @@ class JdbcSqlConnectorTest {
   }
 
   @Test
-  void bothDialectsPublishTheSameFourTools() {
+  void allDialectsPublishTheSameFourTools() {
     assertThat(postgres.manifest().tools()).extracting(ToolDefinition::name)
         .containsExactly("sql_list_schemas", "sql_describe_table", "sql_query", "sql_execute");
     // Same schemas, so one endpoint with PostgreSQL and MySQL merges them (ARCHITECTURE.md §5 step 4).
     assertThat(mysql.manifest().tools()).isEqualTo(postgres.manifest().tools());
+    try (JdbcSqlConnector sqlServer = new JdbcSqlConnector(new SqlServerDialect())) {
+      assertThat(sqlServer.manifest().tools()).isEqualTo(postgres.manifest().tools());
+      assertThat(sqlServer.manifest().configSchema().at("/properties/connection/properties/port/default").asInt())
+          .isEqualTo(1433);
+      assertThat(sqlServer.templateKinds().getFirst().connectionTypes()).containsExactly("sqlserver");
+    }
     assertThat(mysql.manifest().id()).isEqualTo("mysql");
     assertThat(mysql.manifest().configSchema().at("/properties/connection/properties/port/default").asInt())
         .isEqualTo(3306);

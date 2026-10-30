@@ -11,7 +11,7 @@ import tools.jackson.databind.JsonNode;
 /**
  * Which functions a read may call (report 04 §6.2, ARCHITECTURE.md §9 "SQL reads cannot write").
  *
- * <p>A READ ONLY transaction stops every write a function makes inside the database, but not what happens outside
+ * <p>For PostgreSQL and MySQL, a READ ONLY transaction stops writes a function makes inside it, but not effects outside
  * it: advisory locks, signals to other sessions, files of the server, a new connection through {@code dblink}. So:
  * <ul>
  *   <li>the <b>denylist</b> is refused wherever it appears, by name (with or without a schema, any case), plus the
@@ -23,6 +23,9 @@ import tools.jackson.databind.JsonNode;
  *       functions. Any other function makes the call one that may write: an approval on dev and stage, refused on
  *       prod.</li>
  * </ul>
+ * Oracle accepts only unquoted SQL built-ins: stored routines may use autonomous transactions whose commits survive
+ * the caller's rollback. This static check does not resolve view definitions or parameterless stored functions;
+ * database privileges remain the boundary for those indirect calls.
  */
 final class FunctionRules {
 
@@ -58,6 +61,33 @@ final class FunctionRules {
       "get_lock", "release_lock", "release_all_locks", "load_file", "benchmark", "sys_exec", "sys_eval",
       "master_pos_wait", "source_pos_wait", "wait_for_executed_gtid_set", "wait_until_sql_thread_after_gtids",
       "master_gtid_wait");
+
+  static final List<String> SQLSERVER_DENIED = List.of(
+      "openrowset", "openquery", "opendatasource", "openxml", "xp_*", "sp_*", "fn_get_audit_file",
+      "fn_trace_gettable", "fn_xe_file_target_read_file");
+
+  /** A conservative set of SQL Server functions that do not change database or session state. */
+  static final Set<String> SQLSERVER_BUILT_IN = names(
+      "avg", "checksum_agg", "count", "count_big", "grouping", "grouping_id", "max", "min", "stdev", "stdevp",
+      "sum", "var", "varp", "string_agg", "row_number", "rank", "dense_rank", "ntile", "cume_dist",
+      "first_value", "last_value", "lag", "lead", "percent_rank", "percentile_cont", "percentile_disc",
+      "ascii", "char", "charindex", "concat", "concat_ws", "datalength", "difference", "format", "left", "len",
+      "lower", "ltrim", "nchar", "patindex", "quotename", "replace", "replicate", "reverse", "right", "rtrim",
+      "soundex", "space", "str", "string_escape", "string_split", "stuff", "substring", "translate", "trim",
+      "unicode", "upper", "abs", "acos", "asin", "atan", "atn2", "ceiling", "cos", "cot", "degrees", "exp",
+      "floor", "log", "log10", "pi", "power", "radians", "round", "sign", "sin", "sqrt", "square", "tan",
+      "cast", "convert", "try_cast", "try_convert", "parse", "try_parse", "choose", "coalesce", "iif",
+      "isnull", "nullif", "greatest", "least", "isnumeric", "isdate", "dateadd", "datediff", "datediff_big",
+      "datefromparts", "datename", "datepart", "datetrunc", "datetime2fromparts", "datetimefromparts",
+      "datetimeoffsetfromparts", "day", "eomonth", "getdate", "getutcdate", "month", "smalldatetimefromparts",
+      "switchoffset", "sysdatetime", "sysdatetimeoffset", "sysutcdatetime", "timefromparts", "todatetimeoffset",
+      "year", "isjson", "json_value", "json_query", "json_modify", "json_path_exists", "json_object", "json_array",
+      "openjson", "binary_checksum", "checksum", "hashbytes", "newid", "db_id", "db_name", "schema_id",
+      "schema_name", "object_id", "object_name", "object_schema_name", "col_length", "col_name", "type_id",
+      "type_name", "user_id", "user_name", "suser_id", "suser_sname", "original_login", "session_context",
+      "serverproperty", "databasepropertyex", "objectproperty", "objectpropertyex", "has_perms_by_name",
+      "is_member", "is_rolemember", "is_srvrolemember", "host_name", "app_name", "scope_identity",
+      "ident_current", "ident_incr", "ident_seed");
 
   /**
    * PostgreSQL built-ins known without a test: aggregates, window, string, math, date and time, JSON, arrays and the
@@ -174,6 +204,29 @@ final class FunctionRules {
       "charset", "collation", "coercibility", "icu_version", "roles_graphml", "current_role", "is_free_lock",
       "is_used_lock", "name_const", "values", "default", "statement_digest", "statement_digest_text");
 
+  /** SQL scalar, aggregate and analytic built-ins; stored PL/SQL packages are deliberately absent. */
+  static final Set<String> ORACLE_BUILT_IN = names(
+      "abs", "acos", "asin", "atan", "atan2", "bitand", "ceil", "cos", "cosh", "exp", "floor", "ln", "log",
+      "mod", "nanvl", "power", "remainder", "round", "sign", "sin", "sinh", "sqrt", "tan", "tanh", "trunc",
+      "width_bucket", "ascii", "asciistr", "chr", "concat", "initcap", "instr", "instrb", "instrc", "instr2",
+      "instr4", "length", "lengthb", "lengthc", "length2", "length4", "lower", "lpad", "ltrim", "nchr",
+      "nls_initcap", "nls_lower", "nls_upper", "nlssort", "regexp_count", "regexp_instr", "regexp_replace",
+      "regexp_substr", "replace", "rpad", "rtrim", "soundex", "substr", "substrb", "substrc", "substr2",
+      "substr4", "translate", "trim", "unistr", "upper", "add_months", "current_date", "current_timestamp",
+      "dbtimezone", "extract", "from_tz", "last_day", "localtimestamp", "months_between", "new_time", "next_day",
+      "numtodsinterval", "numtoyminterval", "sessiontimezone", "sysdate", "systimestamp", "sys_extract_utc",
+      "to_char", "to_date", "to_dsinterval", "to_number", "to_timestamp", "to_timestamp_tz", "to_yminterval",
+      "to_binary_double", "to_binary_float", "to_clob", "to_nchar", "to_nclob", "cast", "convert", "hextoraw",
+      "rawtohex", "rawtonhex", "rowidtochar", "chartorowid", "coalesce", "decode", "greatest", "least", "nvl",
+      "nvl2", "nullif", "avg", "count", "max", "min", "sum", "median", "listagg", "stddev", "stddev_pop",
+      "stddev_samp", "variance", "var_pop", "var_samp", "corr", "covar_pop", "covar_samp", "grouping",
+      "grouping_id", "group_id", "dense_rank", "rank", "row_number", "percent_rank", "cume_dist", "ntile",
+      "lag", "lead", "first_value", "last_value", "nth_value", "percentile_cont", "percentile_disc",
+      "ratio_to_report", "regr_slope", "regr_intercept", "regr_count", "regr_r2", "regr_avgx", "regr_avgy",
+      "regr_sxx", "regr_syy", "regr_sxy", "json_array", "json_arrayagg", "json_object", "json_objectagg",
+      "json_value", "json_query", "json_serialize", "json_exists", "json_table", "standard_hash", "ora_hash",
+      "sys_context", "userenv", "uid", "user", "vsize", "dump", "sys_connect_by_path", "lnnvl");
+
   private FunctionRules() {}
 
   /** The lists above name a few functions in more than one group; a set keeps each once. */
@@ -190,9 +243,24 @@ final class FunctionRules {
    */
   static Verdict check(List<FunctionRef> functions, boolean mysql, Set<String> metadataBuiltIns,
       List<String> policyDenied, List<String> allowed) {
+    return check(functions, SqlSyntax.of(mysql), metadataBuiltIns, policyDenied, allowed);
+  }
+
+  static Verdict check(List<FunctionRef> functions, SqlDialect dialect, Set<String> metadataBuiltIns,
+      List<String> policyDenied, List<String> allowed) {
+    return check(functions, dialect.syntax(), metadataBuiltIns, policyDenied, allowed);
+  }
+
+  static Verdict check(List<FunctionRef> functions, SqlSyntax syntax, Set<String> metadataBuiltIns,
+      List<String> policyDenied, List<String> allowed) {
     List<String> denied = new ArrayList<>();
     List<String> notBuiltIn = new ArrayList<>();
-    List<String> denylist = new ArrayList<>(mysql ? MYSQL_DENIED : POSTGRES_DENIED);
+    List<String> denylist = new ArrayList<>(switch (syntax) {
+      case MYSQL -> MYSQL_DENIED;
+      case POSTGRES -> POSTGRES_DENIED;
+      case SQLSERVER -> SQLSERVER_DENIED;
+      case ORACLE -> List.of("dbms_*", "utl_*", "nextval", "currval");
+    });
     policyDenied.forEach(d -> denylist.add(d.toLowerCase(Locale.ROOT)));
     Set<String> seen = new HashSet<>();
     for (FunctionRef f : functions) {
@@ -200,11 +268,25 @@ final class FunctionRules {
         continue;
       }
       String bare = unquote(f.parts().getLast()).toLowerCase(Locale.ROOT);
-      if (Glob.anyText(denylist, bare)) {
+      if (Glob.anyText(denylist, bare)
+          || (syntax == SqlSyntax.ORACLE && f.parts().stream()
+              .map(part -> unquote(part).toLowerCase(Locale.ROOT)).anyMatch(part -> Glob.anyText(denylist, part)))) {
         denied.add(f.written());
         continue;
       }
-      if (!builtIn(f, mysql, metadataBuiltIns) && !allowed(f, mysql, allowed)) {
+      if (syntax == SqlSyntax.ORACLE) {
+        // Autonomous PL/SQL can commit outside the read-only transaction, even when the caller rolls back.
+        // Neither approval nor allowedFunctions can turn a stored routine into a safe read.
+        if (f.parts().size() != 1 || quoted(f.parts().getFirst()) || !ORACLE_BUILT_IN.contains(bare)) {
+          denied.add(f.written());
+        }
+      } else if (syntax == SqlSyntax.SQLSERVER) {
+        // SQL Server cannot contain unknown functions in a read-only transaction; explicit allowlists do not help.
+        if (f.parts().size() != 1 || quoted(f.parts().getFirst()) || !SQLSERVER_BUILT_IN.contains(bare)) {
+          notBuiltIn.add(f.written());
+        }
+      } else if (!builtIn(f, syntax == SqlSyntax.MYSQL, metadataBuiltIns)
+          && !allowed(f, syntax == SqlSyntax.MYSQL, allowed)) {
         notBuiltIn.add(f.written());
       }
     }
@@ -264,15 +346,15 @@ final class FunctionRules {
   }
 
   private static boolean quoted(String part) {
-    return part.length() >= 2 && (part.charAt(0) == '"' || part.charAt(0) == '`')
-        && part.charAt(part.length() - 1) == part.charAt(0);
+    return part.length() >= 2 && ((part.charAt(0) == '[' && part.endsWith("]"))
+        || ((part.charAt(0) == '"' || part.charAt(0) == '`') && part.charAt(part.length() - 1) == part.charAt(0)));
   }
 
   private static String unquote(String part) {
     if (!quoted(part)) {
       return part;
     }
-    char q = part.charAt(0);
+    char q = part.charAt(0) == '[' ? ']' : part.charAt(0);
     return part.substring(1, part.length() - 1).replace(String.valueOf(q) + q, String.valueOf(q));
   }
 }

@@ -48,6 +48,16 @@ final class ResultReader {
    */
   static Read read(ResultSet rs, int maxRows, long maxBytes, int maxCellChars, boolean mysql, boolean countRest)
       throws SQLException {
+    return read(rs, maxRows, maxBytes, maxCellChars, SqlSyntax.of(mysql), countRest);
+  }
+
+  static Read read(ResultSet rs, int maxRows, long maxBytes, int maxCellChars, SqlDialect dialect, boolean countRest)
+      throws SQLException {
+    return read(rs, maxRows, maxBytes, maxCellChars, dialect.syntax(), countRest);
+  }
+
+  static Read read(ResultSet rs, int maxRows, long maxBytes, int maxCellChars, SqlSyntax syntax, boolean countRest)
+      throws SQLException {
     ResultSetMetaData md = rs.getMetaData();
     int n = md.getColumnCount();
     List<ToolResult.Column> columns = new ArrayList<>(n);
@@ -56,8 +66,8 @@ final class ResultReader {
     for (int i = 1; i <= n; i++) {
       types[i - 1] = md.getColumnType(i);
       typeNames[i - 1] = md.getColumnTypeName(i) == null ? "" : md.getColumnTypeName(i);
-      columns.add(new ToolResult.Column(md.getColumnLabel(i), typeNames[i - 1], origin(md, i, Part.SCHEMA, mysql),
-          origin(md, i, Part.TABLE, mysql), origin(md, i, Part.COLUMN, mysql)));
+      columns.add(new ToolResult.Column(md.getColumnLabel(i), typeNames[i - 1], origin(md, i, Part.SCHEMA, syntax),
+          origin(md, i, Part.TABLE, syntax), origin(md, i, Part.COLUMN, syntax)));
     }
     ArrayNode rows = JsonNodeFactory.instance.arrayNode();
     String truncated = null;
@@ -72,7 +82,7 @@ final class ResultReader {
       ArrayNode row = rows.addArray();
       total++;
       for (int i = 1; i <= n; i++) {
-        JsonNode cell = cell(rs, i, types[i - 1], typeNames[i - 1], maxCellChars, mysql);
+        JsonNode cell = cell(rs, i, types[i - 1], typeNames[i - 1], maxCellChars, syntax);
         row.add(cell);
         bytes += cell.isString() ? cell.asString().length() + 2L : 8L;
       }
@@ -92,12 +102,12 @@ final class ResultReader {
   private enum Part { SCHEMA, TABLE, COLUMN }
 
   /** pgjdbc: base schema, table and column (an alias is followed); Connector/J: database, original table and column. */
-  private static String origin(ResultSetMetaData md, int i, Part part, boolean mysql) {
+  private static String origin(ResultSetMetaData md, int i, Part part, SqlSyntax syntax) {
     try {
       String v;
-      if (mysql) {
+      if (syntax != SqlSyntax.POSTGRES) {
         v = switch (part) {
-          case SCHEMA -> md.getCatalogName(i);
+          case SCHEMA -> syntax == SqlSyntax.MYSQL ? md.getCatalogName(i) : md.getSchemaName(i);
           case TABLE -> md.getTableName(i);
           case COLUMN -> md.getColumnName(i);
         };
@@ -118,8 +128,23 @@ final class ResultReader {
   /** A typed value, or the server's text where the type's own getter can't say it (NaN numerics, money). */
   static JsonNode cell(ResultSet rs, int i, int type, String typeName, int maxCellChars, boolean mysql)
       throws SQLException {
+    return cell(rs, i, type, typeName, maxCellChars, SqlSyntax.of(mysql));
+  }
+
+  static JsonNode cell(ResultSet rs, int i, int type, String typeName, int maxCellChars, SqlSyntax syntax)
+      throws SQLException {
     try {
-      return typed(rs, i, type, typeName.toLowerCase(Locale.ROOT), maxCellChars, mysql);
+      if (syntax == SqlSyntax.ORACLE) {
+        if (type == oracle.jdbc.OracleTypes.TIMESTAMPTZ || type == Types.TIMESTAMP_WITH_TIMEZONE) {
+          OffsetDateTime value = rs.getObject(i, OffsetDateTime.class);
+          return value == null ? JsonNodeFactory.instance.nullNode() : text(value.toString(), maxCellChars);
+        }
+        if (type == oracle.jdbc.OracleTypes.TIMESTAMPLTZ || type == Types.TIMESTAMP || type == Types.DATE) {
+          LocalDateTime value = rs.getObject(i, LocalDateTime.class);
+          return value == null ? JsonNodeFactory.instance.nullNode() : text(value.toString(), maxCellChars);
+        }
+      }
+      return typed(rs, i, type, typeName.toLowerCase(Locale.ROOT), maxCellChars, syntax == SqlSyntax.MYSQL);
     } catch (SQLException | ArithmeticException | IllegalArgumentException e) {
       String v = rs.getString(i);
       return v == null ? JsonNodeFactory.instance.nullNode() : text(v, maxCellChars);
@@ -133,6 +158,10 @@ final class ResultReader {
       // pgjdbc says DOUBLE for money, whose text has a currency sign.
       String v = rs.getString(i);
       return v == null ? f.nullNode() : f.stringNode(v);
+    }
+    if (name.equals("datetimeoffset")) {
+      OffsetDateTime value = rs.getObject(i, OffsetDateTime.class);
+      return value == null ? f.nullNode() : text(value.toString(), maxCellChars);
     }
     switch (type) {
       case Types.TINYINT, Types.SMALLINT, Types.INTEGER -> {

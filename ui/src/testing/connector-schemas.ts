@@ -399,21 +399,26 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           "port": true,
           "uri": true,
           "tls": {
-            "type": "boolean",
+            "type": [
+              "boolean",
+              "string"
+            ],
             "title": "Connection type",
             "default": false,
             "x-env-default": {
               "prod": true
             },
             "enum": [
+              "auto",
               false,
               true
             ],
             "x-enumTitles": [
+              "Auto",
               "Without TLS",
               "TLS"
             ],
-            "description": "TLS verifies the server certificate and host name. In connection string mode, TLS settings in the string also apply."
+            "description": "Auto detects TLS before signing in and uses an unencrypted connection only when the server supports it. TLS verifies the certificate and host name. Explicit connection-string TLS settings still apply."
           },
           "caCertificate": {
             "type": "string",
@@ -656,12 +661,20 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           },
           "tls": {
             "type": "boolean",
-            "title": "Use TLS",
+            "title": "Connection type",
             "default": false,
             "x-env-default": {
               "prod": true
             },
-            "x-section": "/advanced"
+            "enum": [
+              false,
+              true
+            ],
+            "x-enumTitles": [
+              "Without TLS",
+              "TLS"
+            ],
+            "description": "TLS is enabled by default on prod. Without TLS is also allowed; on stage and prod, the connection test warns that traffic is not encrypted."
           },
           "tlsVerify": {
             "type": "string",
@@ -3962,6 +3975,480 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
         ]
       }
     }
+  },
+  "oracle": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "x-card": {
+      "description": "Oracle Database 19c and later. Read queries and schema."
+    },
+    "additionalProperties": false,
+    "required": [
+      "connection",
+      "credentials"
+    ],
+    "properties": {
+      "connection": {
+        "type": "object",
+        "title": "Connection",
+        "description": "Where the core reaches the database. It connects from this machine, so your VPN and hosts file apply.",
+        "additionalProperties": false,
+        "required": [
+          "host",
+          "port",
+          "database"
+        ],
+        "properties": {
+          "host": {
+            "type": "string",
+            "title": "Host",
+            "maxLength": 253,
+            "pattern": "^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$|^\\d{1,3}(?:\\.\\d{1,3}){3}$|^\\[[0-9A-Fa-f:.]+\\]$"
+          },
+          "port": {
+            "type": "integer",
+            "title": "Port",
+            "minimum": 1,
+            "maximum": 65535,
+            "default": 1521
+          },
+          "database": {
+            "type": "string",
+            "title": "Service name",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_$#.-]{0,254}$",
+            "description": "The Oracle service name, such as FREEPDB1. A SID or TNS alias is not supported."
+          },
+          "sslMode": {
+            "type": "string",
+            "title": "SSL mode",
+            "enum": [
+              "disable",
+              "verify-ca",
+              "verify-full"
+            ],
+            "default": "verify-full",
+            "x-enumTitles": [
+              "Off (TCP)",
+              "Verify the CA (TCPS)",
+              "Verify the CA and host name (TCPS)"
+            ],
+            "description": "TCPS requires a TLS listener on the selected port. Verify-full checks the certificate and host name.",
+            "x-section": "/advanced"
+          },
+          "caCertificate": {
+            "type": "string",
+            "title": "CA certificate (PEM)",
+            "x-section": "/advanced",
+            "maxLength": 20000,
+            "x-widget": "textarea",
+            "description": "For a private CA with verify-ca or verify-full. Empty: the system trust store."
+          }
+        }
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "x-gateway-secret": "login",
+        "additionalProperties": false,
+        "required": [
+          "user"
+        ],
+        "properties": {
+          "user": {
+            "type": "string",
+            "title": "User",
+            "maxLength": 128,
+            "description": "Use a user that can only read wherever you can. The test below shows what it may do.",
+            "minLength": 1
+          },
+          "password": {
+            "type": "string",
+            "title": "Password",
+            "description": "The Oracle database password.",
+            "writeOnly": true,
+            "format": "password"
+          }
+        }
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "CA certificate, timeouts, pool and schema allowlist. Policies can tighten limits per environment.",
+        "properties": {
+          "statementTimeoutMs": {
+            "type": "integer",
+            "title": "Statement timeout",
+            "minimum": 100,
+            "maximum": 600000,
+            "x-unit": "ms",
+            "x-stricter": "min",
+            "description": "The driver cancels slower statements. Empty: the environment policy."
+          },
+          "poolSize": {
+            "type": "integer",
+            "title": "Pool size",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 2,
+            "x-unit": "connections"
+          },
+          "schemaAllowlist": {
+            "type": "array",
+            "title": "Schema allowlist",
+            "uniqueItems": true,
+            "maxItems": 100,
+            "x-stricter": "intersect",
+            "items": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          "connectTimeoutMs": {
+            "type": "integer",
+            "title": "Connect timeout",
+            "minimum": 1000,
+            "maximum": 30000,
+            "default": 5000,
+            "x-unit": "ms"
+          },
+          "defaultSchema": {
+            "type": "string",
+            "title": "Default schema",
+            "maxLength": 130,
+            "pattern": "^(?:[A-Za-z][A-Za-z0-9_$#]{0,127}|\"(?:[^\"\\u0000]|\"\")+\")$",
+            "description": "Empty: the authenticated user. Unquoted names use uppercase; double-quote a case-sensitive name."
+          }
+        }
+      }
+    }
+  },
+  "sqlserver": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "x-card": {
+      "description": "Microsoft SQL Server. Read queries, schema, execution plans."
+    },
+    "additionalProperties": false,
+    "required": [
+      "connection",
+      "credentials"
+    ],
+    "properties": {
+      "connection": {
+        "type": "object",
+        "title": "Connection",
+        "description": "Where the core reaches the database. It connects from this machine, so your VPN and hosts file apply.",
+        "additionalProperties": false,
+        "required": [
+          "host",
+          "port"
+        ],
+        "properties": {
+          "host": {
+            "type": "string",
+            "title": "Host",
+            "maxLength": 253,
+            "pattern": "^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$|^\\d{1,3}(?:\\.\\d{1,3}){3}$|^\\[[0-9A-Fa-f:.]+\\]$"
+          },
+          "port": {
+            "type": "integer",
+            "title": "Port",
+            "minimum": 1,
+            "maximum": 65535,
+            "default": 1433
+          },
+          "database": {
+            "type": "string",
+            "title": "Database",
+            "pattern": "^[^\\u0000]{1,128}$",
+            "description": "The default database. Empty: the login default database."
+          },
+          "databases": {
+            "type": "array",
+            "title": "Databases",
+            "minItems": 1,
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[^\\u0000]+$"
+            },
+            "description": "Only these databases are available through this connection."
+          },
+          "sslMode": {
+            "type": "string",
+            "title": "SSL mode",
+            "enum": [
+              "verify-full",
+              "require",
+              "disable"
+            ],
+            "default": "verify-full",
+            "x-enumTitles": [
+              "Verify the CA and host name (verify-full)",
+              "Encrypt, don't verify (require)",
+              "Off unless required by server (disable)"
+            ],
+            "description": "Verify-full encrypts the connection and validates the server certificate and host name. Require encrypts without certificate verification.",
+            "x-section": "/advanced"
+          },
+          "caCertificate": {
+            "type": "string",
+            "title": "CA certificate (PEM)",
+            "x-section": "/advanced",
+            "maxLength": 20000,
+            "x-widget": "textarea",
+            "description": "For a private CA with verify-full. Empty: the system trust store."
+          }
+        }
+      },
+      "credentials": {
+        "type": "object",
+        "title": "Credentials",
+        "x-gateway-secret": "login",
+        "additionalProperties": false,
+        "required": [
+          "user",
+          "password"
+        ],
+        "properties": {
+          "user": {
+            "type": "string",
+            "title": "User",
+            "maxLength": 128,
+            "description": "SQL Server login. Prefer a login with SELECT permission only; Windows and Microsoft Entra authentication are not supported.",
+            "minLength": 1
+          },
+          "password": {
+            "type": "string",
+            "title": "Password",
+            "description": "The password for this SQL Server login.",
+            "writeOnly": true,
+            "format": "password",
+            "minLength": 1
+          }
+        }
+      },
+      "advanced": {
+        "type": "object",
+        "title": "Advanced",
+        "x-collapsed": true,
+        "additionalProperties": false,
+        "description": "CA certificate, timeouts, pool and schema allowlist. Policies can tighten limits per environment.",
+        "properties": {
+          "statementTimeoutMs": {
+            "type": "integer",
+            "title": "Statement timeout",
+            "minimum": 100,
+            "maximum": 600000,
+            "x-unit": "ms",
+            "x-stricter": "min",
+            "description": "Statements exceeding this limit are cancelled. Empty: the environment policy."
+          },
+          "poolSize": {
+            "type": "integer",
+            "title": "Pool size",
+            "minimum": 1,
+            "maximum": 10,
+            "default": 2,
+            "x-unit": "connections"
+          },
+          "schemaAllowlist": {
+            "type": "array",
+            "title": "Schema allowlist",
+            "uniqueItems": true,
+            "maxItems": 100,
+            "x-stricter": "intersect",
+            "items": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          "connectTimeoutMs": {
+            "type": "integer",
+            "title": "Connect timeout",
+            "minimum": 1000,
+            "maximum": 30000,
+            "default": 5000,
+            "x-unit": "ms"
+          },
+          "defaultSchema": {
+            "type": "string",
+            "title": "Default schema",
+            "default": "dbo",
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[^\\u0000]+$",
+            "description": "Must match the database user's default schema. Qualify table names when using another schema."
+          }
+        }
+      }
+    },
+    "x-database-selection": {
+      "path": "/connection/databases",
+      "legacyPath": "/connection/database"
+    }
+  },
+  "elasticsearch": {
+    "title": "Elasticsearch",
+    "required": [
+      "backend",
+      "url",
+      "auth"
+    ],
+    "properties": {
+      "backend": {
+        "type": "string",
+        "const": "elasticsearch",
+        "default": "elasticsearch"
+      },
+      "url": {
+        "type": "string",
+        "format": "uri",
+        "pattern": "^https?://[^/?#]+$",
+        "title": "Server URL",
+        "examples": [
+          "https://search.example.test:9200"
+        ],
+        "description": "Elasticsearch host, including http:// or https:// and its port."
+      },
+      "auth": {
+        "type": "object",
+        "title": "Authorization",
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "title": "Authentication",
+            "enum": [
+              "basic",
+              "apiKey",
+              "bearer",
+              "none"
+            ],
+            "default": "basic",
+            "x-enumTitles": [
+              "Username and password",
+              "API key",
+              "Bearer token",
+              "No authentication"
+            ]
+          }
+        },
+        "patternProperties": {
+          "^(username|secret)$": {}
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "basic"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "username",
+                "secret"
+              ],
+              "properties": {
+                "username": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "pattern": ".*\\S.*",
+                  "title": "Username"
+                },
+                "secret": {
+                  "type": "string",
+                  "minLength": 1,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "title": "Password",
+                  "description": "Stored securely by GateRook."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "apiKey"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            },
+            "then": {
+              "required": [
+                "secret"
+              ],
+              "properties": {
+                "secret": {
+                  "type": "string",
+                  "minLength": 1,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "title": "API key",
+                  "description": "Encoded Elasticsearch API key (the encoded value returned when creating a key, or Base64 of id:api_key). Do not include the ApiKey prefix."
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "bearer"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            },
+            "then": {
+              "required": [
+                "secret"
+              ],
+              "properties": {
+                "secret": {
+                  "type": "string",
+                  "minLength": 1,
+                  "writeOnly": true,
+                  "x-gateway-secret": "value",
+                  "format": "password",
+                  "title": "Bearer token",
+                  "description": "Stored securely by GateRook."
+                }
+              }
+            }
+          }
+        ]
+      },
+      "apiAccess": {
+        "type": "string",
+        "const": "full",
+        "default": "full"
+      },
+      "caCertificate": {
+        "type": "string",
+        "maxLength": 20000,
+        "x-widget": "textarea",
+        "title": "CA certificate (PEM)",
+        "description": "Only for a private CA."
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": false
   }
 };
 
@@ -4698,6 +5185,659 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       }
     }
   },
+  "oracle": {
+    "sections": [
+      "/connection",
+      "/credentials",
+      "/advanced"
+    ],
+    "loose": [],
+    "rows": {
+      "/connection": [
+        [
+          "/connection/host",
+          "/connection/port"
+        ],
+        [
+          "/connection/database"
+        ]
+      ],
+      "/credentials": [
+        [
+          "/credentials/user"
+        ],
+        [
+          "/credentials/password"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/connection/sslMode"
+        ],
+        [
+          "/connection/caCertificate"
+        ],
+        [
+          "/advanced/statementTimeoutMs",
+          "/advanced/poolSize"
+        ],
+        [
+          "/advanced/schemaAllowlist"
+        ],
+        [
+          "/advanced/connectTimeoutMs"
+        ],
+        [
+          "/advanced/defaultSchema"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/connection",
+        "kind": "object",
+        "title": "Connection",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/host",
+        "kind": "text",
+        "title": "Host",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/port",
+        "kind": "number",
+        "title": "Port",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/database",
+        "kind": "text",
+        "title": "Service name",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": "login",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/user",
+        "kind": "text",
+        "title": "User",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/password",
+        "kind": "secret",
+        "title": "Password",
+        "required": false,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/sslMode",
+        "kind": "select",
+        "title": "SSL mode",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "disable",
+          "verify-ca",
+          "verify-full"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/caCertificate",
+        "kind": "textarea",
+        "title": "CA certificate (PEM)",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/statementTimeoutMs",
+        "kind": "number",
+        "title": "Statement timeout",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "ms",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/poolSize",
+        "kind": "number",
+        "title": "Pool size",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "connections",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/schemaAllowlist",
+        "kind": "tags",
+        "title": "Schema allowlist",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/connectTimeoutMs",
+        "kind": "number",
+        "title": "Connect timeout",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "ms",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/defaultSchema",
+        "kind": "text",
+        "title": "Default schema",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "connection": {
+        "port": 1521,
+        "sslMode": "verify-full"
+      },
+      "credentials": {},
+      "advanced": {
+        "poolSize": 2,
+        "connectTimeoutMs": 5000
+      }
+    },
+    "prodDefaults": {
+      "connection": {
+        "port": 1521,
+        "sslMode": "verify-full"
+      },
+      "credentials": {},
+      "advanced": {
+        "poolSize": 2,
+        "connectTimeoutMs": 5000
+      }
+    }
+  },
+  "sqlserver": {
+    "sections": [
+      "/connection",
+      "/credentials",
+      "/advanced"
+    ],
+    "loose": [],
+    "rows": {
+      "/connection": [
+        [
+          "/connection/host",
+          "/connection/port"
+        ],
+        [
+          "/connection/database"
+        ],
+        [
+          "/connection/databases"
+        ]
+      ],
+      "/credentials": [
+        [
+          "/credentials/user"
+        ],
+        [
+          "/credentials/password"
+        ]
+      ],
+      "/advanced": [
+        [
+          "/connection/sslMode"
+        ],
+        [
+          "/connection/caCertificate"
+        ],
+        [
+          "/advanced/statementTimeoutMs",
+          "/advanced/poolSize"
+        ],
+        [
+          "/advanced/schemaAllowlist"
+        ],
+        [
+          "/advanced/connectTimeoutMs"
+        ],
+        [
+          "/advanced/defaultSchema"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/connection",
+        "kind": "object",
+        "title": "Connection",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/host",
+        "kind": "text",
+        "title": "Host",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/port",
+        "kind": "number",
+        "title": "Port",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/database",
+        "kind": "text",
+        "title": "Database",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/databases",
+        "kind": "tags",
+        "title": "Databases",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials",
+        "kind": "object",
+        "title": "Credentials",
+        "required": true,
+        "secret": "login",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/user",
+        "kind": "text",
+        "title": "User",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/credentials/password",
+        "kind": "secret",
+        "title": "Password",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced",
+        "kind": "object",
+        "title": "Advanced",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/sslMode",
+        "kind": "select",
+        "title": "SSL mode",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "verify-full",
+          "require",
+          "disable"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/caCertificate",
+        "kind": "textarea",
+        "title": "CA certificate (PEM)",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/statementTimeoutMs",
+        "kind": "number",
+        "title": "Statement timeout",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "ms",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/poolSize",
+        "kind": "number",
+        "title": "Pool size",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "connections",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/schemaAllowlist",
+        "kind": "tags",
+        "title": "Schema allowlist",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/connectTimeoutMs",
+        "kind": "number",
+        "title": "Connect timeout",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": "ms",
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/advanced/defaultSchema",
+        "kind": "text",
+        "title": "Default schema",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "connection": {
+        "port": 1433,
+        "sslMode": "verify-full"
+      },
+      "credentials": {},
+      "advanced": {
+        "poolSize": 2,
+        "connectTimeoutMs": 5000,
+        "defaultSchema": "dbo"
+      }
+    },
+    "prodDefaults": {
+      "connection": {
+        "port": 1433,
+        "sslMode": "verify-full"
+      },
+      "credentials": {},
+      "advanced": {
+        "poolSize": 2,
+        "connectTimeoutMs": 5000,
+        "defaultSchema": "dbo"
+      }
+    }
+  },
   "mongodb": {
     "sections": [
       "/connection",
@@ -4859,6 +5999,7 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "mono": false,
         "unit": null,
         "options": [
+          "auto",
           false,
           true
         ],
@@ -5156,6 +6297,9 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         [
           "/connection/host",
           "/connection/port"
+        ],
+        [
+          "/connection/tls"
         ]
       ],
       "/credentials": [
@@ -5169,9 +6313,6 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       "/advanced": [
         [
           "/connection/database"
-        ],
-        [
-          "/connection/tls"
         ],
         [
           "/connection/tlsVerify"
@@ -5246,6 +6387,27 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "when": [],
         "multiline": false,
         "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/tls",
+        "kind": "select",
+        "title": "Connection type",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          false,
+          true
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {
+          "prod": true
+        },
         "prodForbidden": null,
         "optionsFrom": null,
         "confirm": null
@@ -5326,24 +6488,6 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "when": [],
         "multiline": false,
         "envDefault": {},
-        "prodForbidden": null,
-        "optionsFrom": null,
-        "confirm": null
-      },
-      {
-        "pointer": "/connection/tls",
-        "kind": "checkbox",
-        "title": "Use TLS",
-        "required": false,
-        "secret": null,
-        "mono": false,
-        "unit": null,
-        "options": [],
-        "when": [],
-        "multiline": false,
-        "envDefault": {
-          "prod": true
-        },
         "prodForbidden": null,
         "optionsFrom": null,
         "confirm": null
@@ -9348,6 +10492,225 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
     },
     "prodDefaults": {
       "backend": "opensearch",
+      "auth": {
+        "mode": "basic"
+      },
+      "apiAccess": "full"
+    }
+  },
+  "elasticsearch": {
+    "sections": [
+      "/auth"
+    ],
+    "loose": [
+      "/backend",
+      "/url",
+      "/apiAccess",
+      "/caCertificate"
+    ],
+    "rows": {
+      "/auth": [
+        [
+          "/auth/mode"
+        ],
+        [
+          "/auth/username"
+        ],
+        [
+          "/auth/secret"
+        ],
+        [
+          "/auth/secret"
+        ],
+        [
+          "/auth/secret"
+        ]
+      ]
+    },
+    "fields": [
+      {
+        "pointer": "/backend",
+        "kind": "text",
+        "title": "backend",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/url",
+        "kind": "text",
+        "title": "Server URL",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/apiAccess",
+        "kind": "text",
+        "title": "apiAccess",
+        "required": false,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/caCertificate",
+        "kind": "textarea",
+        "title": "CA certificate (PEM)",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth",
+        "kind": "object",
+        "title": "Authorization",
+        "required": true,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/mode",
+        "kind": "select",
+        "title": "Authentication",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          "basic",
+          "apiKey",
+          "bearer",
+          "none"
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/username",
+        "kind": "text",
+        "title": "Username",
+        "required": true,
+        "secret": null,
+        "mono": true,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.mode in [\"basic\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/secret",
+        "kind": "secret",
+        "title": "Password",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.mode in [\"basic\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/secret",
+        "kind": "secret",
+        "title": "API key",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.mode in [\"apiKey\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/auth/secret",
+        "kind": "secret",
+        "title": "Bearer token",
+        "required": true,
+        "secret": "value",
+        "mono": false,
+        "unit": null,
+        "options": [],
+        "when": [
+          "auth.mode in [\"bearer\"]"
+        ],
+        "multiline": false,
+        "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      }
+    ],
+    "defaults": {
+      "backend": "elasticsearch",
+      "auth": {
+        "mode": "basic"
+      },
+      "apiAccess": "full"
+    },
+    "prodDefaults": {
+      "backend": "elasticsearch",
       "auth": {
         "mode": "basic"
       },

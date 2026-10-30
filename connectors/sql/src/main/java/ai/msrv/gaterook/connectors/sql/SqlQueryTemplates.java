@@ -152,14 +152,14 @@ final class SqlQueryTemplates implements TemplateKind {
     List<TemplateParams.Param> params = TemplateParams.parse(definition.path("params"), errors);
     Set<String> declared = new LinkedHashSet<>();
     params.forEach(p -> declared.add(p.name()));
-    NamedSql named = NamedSql.compile(sql, dialect.mysql(), declared);
+    NamedSql named = NamedSql.compile(sql, dialect.syntax(), declared);
     errors.addAll(named.errors());
     for (String p : declared) {
       if (!named.used().contains(p)) {
         warnings.add("Parameter :" + p + " isn't used in the SQL.");
       }
     }
-    Analysis analysis = SqlClassifier.analyze(sql.isBlank() ? "SELECT 1" : sql, dialect.mysql());
+    Analysis analysis = SqlClassifier.analyze(sql.isBlank() ? "SELECT 1" : sql, dialect.syntax());
     boolean readsOnly = false;
     if (errors.isEmpty()) {
       if (analysis.tooComplex() || analysis.kind() == Kind.UNPARSED) {
@@ -172,12 +172,14 @@ final class SqlQueryTemplates implements TemplateKind {
         errors.add(Character.toUpperCase(type.charAt(0)) + type.substring(1) + " isn't allowed in a template: "
             + "GateRook runs every call in its own transaction and session.");
       } else {
-        FunctionRules.Verdict v = FunctionRules.check(analysis.functions(), dialect.mysql(),
+        FunctionRules.Verdict v = FunctionRules.check(analysis.functions(), dialect.syntax(),
             FunctionRules.fromMetadata(runsOn == null ? null : runsOn.metadata()), List.of(),
-            runsOn == null ? List.of() : ConnectionSettings.of(runsOn, dialect.mysql()).allowedFunctions());
+            runsOn == null ? List.of() : ConnectionSettings.of(runsOn, dialect).allowedFunctions());
         if (!v.denied().isEmpty()) {
           errors.add(String.join(", ", v.denied()) + " isn't allowed through GateRook: it acts outside the "
               + "transaction.");
+        } else if (dialect.sqlServer() && analysis.kind() == Kind.READ && !v.notBuiltIn().isEmpty()) {
+          errors.add("SQL Server read templates only allow known built-in functions.");
         } else if (analysis.kind() == Kind.READ && !v.notBuiltIn().isEmpty()) {
           warnings.add("Calls " + String.join(", ", v.notBuiltIn()) + ", which isn't a built-in function: the tool "
               + "needs approval, and on prod it is refused.");
@@ -197,7 +199,7 @@ final class SqlQueryTemplates implements TemplateKind {
   @Override
   public ActionPreview preview(JsonNode definition, ObjectNode arguments, ConnectionConfig runsOn) {
     Compiled c = compileDefinition(definition, runsOn);
-    ConnectionSettings s = ConnectionSettings.of(runsOn, dialect.mysql());
+    ConnectionSettings s = ConnectionSettings.of(runsOn, dialect);
     if (c.errors().isEmpty()) {
       try {
         s = s.withDatabase(DatabaseSelection.resolve(runsOn, definition.path("database").asString(null)), dialect.mysql());

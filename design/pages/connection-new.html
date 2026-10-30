@@ -104,7 +104,6 @@
     <!-- gw-status belongs to component group B. Static on purpose: no gw-status--live in the shell (WCAG 2.2.2) -->
     <div class="gw-sidebar__footer">
       <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Core running</span></span>
-      <span class="gw-sidebar__meta">127.0.0.1:7465</span>
       <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off</span></span>
       <span class="gw-sidebar__meta">v0.4.0</span>
     </div>
@@ -248,6 +247,13 @@
                   <span class="gw-choice-card__title" id="pk-os-t">OpenSearch</span>
                   <span class="gw-choice-card__description" id="pk-os-d">Search indices with JSON Query DSL. Administration waits for approval.</span>
                   <span class="gw-choice-card__meta" id="pk-os-m">Built-in · 3 tools</span>
+                </label>
+                <label class="gw-choice-card gw-connector-card__option">
+                  <input class="gw-choice-card__input" type="radio" name="connector-type" value="elasticsearch" aria-labelledby="pk-es-t" aria-describedby="pk-es-d pk-es-m">
+                  <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="database"></i></span>
+                  <span class="gw-choice-card__title" id="pk-es-t">Elasticsearch</span>
+                  <span class="gw-choice-card__description" id="pk-es-d">Search indices with JSON Query DSL. Administration waits for approval.</span>
+                  <span class="gw-choice-card__meta" id="pk-es-m">Built-in · 3 tools</span>
                 </label>
                 <label class="gw-choice-card gw-connector-card__option">
                   <input class="gw-choice-card__input" type="radio" name="connector-type" value="clickhouse" aria-disabled="true" aria-labelledby="pk-ch-t" aria-describedby="pk-ch-d pk-ch-m">

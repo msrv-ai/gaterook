@@ -134,6 +134,8 @@ afterEach(() => {
   document.body.innerHTML = '';
   TestBed.inject(ToastService).clear();
   localStorage.clear();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 const text = (el: Element | null | undefined) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
@@ -160,13 +162,123 @@ async function open(url = '/activity') {
 
 async function settle(harness: RouterTestingHarness): Promise<void> {
   for (let i = 0; i < 8; i++) {
-    await new Promise((r) => setTimeout(r));
+    if (vi.isFakeTimers()) await vi.advanceTimersByTimeAsync(1);
+    else await new Promise((r) => setTimeout(r));
     harness.detectChanges();
   }
   await harness.fixture.whenStable();
 }
 
 describe('Activity page', () => {
+  it('refreshes calls, traces and setup changes without losing the query, range or selected tab', async () => {
+    const { el, settle, router } = await open('/activity?q=client:codex&range=1h&view=changes');
+    const changes = deferred<{ changes: SetupChange[]; nextCursor: string | null }>();
+    core.events = async () => ({ events: [call(99, 1_000, 'allowed', 'sql_query')], nextCursor: null });
+    core.changes = () => changes.promise;
+    requests = [];
+    const refresh = el.querySelector<HTMLButtonElement>('#ac-refresh')!;
+    refresh.click();
+    await settle();
+    expect(of('events')).toHaveLength(1);
+    expect(of('events')[0]).toMatchObject({ q: 'client:codex', from: new Date(NOW - HOUR).toISOString() });
+    expect(of('traces')).toHaveLength(1);
+    expect(of('changes')).toHaveLength(1);
+    expect(refresh.getAttribute('aria-busy')).toBe('true');
+    expect(refresh.getAttribute('aria-disabled')).toBe('true');
+    expect(text(el.querySelector('#ac-refresh-status'))).toBe('Refreshing activity');
+    refresh.click();
+    await settle();
+    expect(of('events')).toHaveLength(1);
+    changes.resolve({ changes: kitChanges(), nextCursor: null });
+    await settle();
+    expect(refresh.hasAttribute('aria-busy')).toBe(false);
+    expect(refresh.hasAttribute('aria-disabled')).toBe(false);
+    expect(el.querySelector('#ac-events tr[data-event="99"]')).not.toBeNull();
+    expect(el.querySelector<HTMLElement>('#ac-panel-changes')!.hidden).toBe(false);
+    expect(router.url).toBe('/activity?q=client:codex&range=1h&view=changes');
+  });
+
+  it('offers a 30-second default and remembers a selected interval across visits', async () => {
+    const { el, settle, harness } = await open();
+    const trigger = el.querySelector<HTMLButtonElement>('#ac-refresh-interval')!;
+    expect(text(trigger)).toBe('Auto-refresh: 30 s');
+    trigger.click();
+    await settle();
+    const options = Array.from(el.querySelectorAll<HTMLButtonElement>('#ac-refresh-menu [role="menuitemradio"]'));
+    expect(options.map(text)).toEqual(['Off', '5 seconds', '10 seconds', '30 seconds', '1 minute', '5 minutes']);
+    expect(options.filter((option) => option.getAttribute('aria-checked') === 'true').map(text)).toEqual(['30 seconds']);
+    options[4].click();
+    await settle();
+    expect(text(trigger)).toBe('Auto-refresh: 1 min');
+    expect(localStorage.getItem('gw-activity-refresh-seconds')).toBe('60');
+    expect(document.activeElement).toBe(trigger);
+    await harness.navigateByUrl('/elsewhere');
+    await harness.navigateByUrl('/activity');
+    await settle();
+    expect(text(harness.routeNativeElement!.querySelector('#ac-refresh-interval'))).toBe('Auto-refresh: 1 min');
+  });
+
+  it.each(['', 'invalid', '-5', '1', '999999'])('falls back to 30 seconds for an invalid stored interval (%s)', async (stored) => {
+    localStorage.setItem('gw-activity-refresh-seconds', stored);
+    const { el } = await open();
+    expect(text(el.querySelector('#ac-refresh-interval'))).toBe('Auto-refresh: 30 s');
+  });
+
+  it('polls at the selected interval, waits for a slow refresh and cancels when turned off', async () => {
+    localStorage.setItem('gw-activity-refresh-seconds', '0');
+    const { el, settle, harness } = await open();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const trigger = el.querySelector<HTMLButtonElement>('#ac-refresh-interval')!;
+    trigger.click();
+    await settle();
+    el.querySelector<HTMLButtonElement>('#ac-refresh-menu [data-value="5"]')!.click();
+    await settle();
+    requests = [];
+    const answer = deferred<EventsPage>();
+    core.events = () => answer.promise;
+    await vi.advanceTimersByTimeAsync(4_900);
+    expect(of('events')).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(of('events')).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(of('events')).toHaveLength(1);
+    answer.resolve({ events: kitCalls(), nextCursor: null });
+    await settle();
+    await vi.advanceTimersByTimeAsync(4_900);
+    expect(of('events')).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(of('events')).toHaveLength(2);
+    trigger.click();
+    await settle();
+    el.querySelector<HTMLButtonElement>('#ac-refresh-menu [data-value="0"]')!.click();
+    await settle();
+    expect(localStorage.getItem('gw-activity-refresh-seconds')).toBe('0');
+    expect(text(trigger)).toBe('Auto-refresh: Off');
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(of('events')).toHaveLength(2);
+    harness.fixture.destroy();
+  });
+
+  it('does not poll a hidden page and removes its timer on destruction', async () => {
+    localStorage.setItem('gw-activity-refresh-seconds', '0');
+    const { el, settle, harness } = await open();
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    el.querySelector<HTMLButtonElement>('#ac-refresh-interval')!.click();
+    await settle();
+    el.querySelector<HTMLButtonElement>('#ac-refresh-menu [data-value="5"]')!.click();
+    await settle();
+    requests = [];
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(of('events')).toHaveLength(0);
+    visibility.mockReturnValue('visible');
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(of('events')).toHaveLength(1);
+    harness.fixture.destroy();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(of('events')).toHaveLength(1);
+  });
+
   it('shows nothing for a moment, then placeholders, then the calls', async () => {
     const answer = deferred<EventsPage>();
     core.events = () => answer.promise;

@@ -303,7 +303,9 @@
     @if (backLabel()) {
       <button class="gw-btn gw-btn--ghost" type="button" (click)="back.emit()">{{ backLabel() }}</button>
     }
-    <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="busy() ? 'true' : null">
+    <button class="gw-btn gw-btn--primary" type="submit" [attr.aria-busy]="busy() ? 'true' : null"
+      [attr.aria-disabled]="busy() || databaseLoading() ? 'true' : null"
+      [attr.aria-describedby]="databaseLoading() ? p + '-database-status' : null">
       @if (busy()) {
         <span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>
       }

@@ -72,6 +72,7 @@ export function keyInfo(schemas: PolicySchemas, section: string, key: string): K
 /** A number with its unit: "5 s", "1,000 rows", "120 calls per min". */
 export function numberText(info: KeyInfo, value: JsonValue | undefined): string {
   if (typeof value !== 'number') return 'none';
+  if (value === 0 && info.ks['x-stricter'] === 'min-positive') return 'no limit';
   const n = formatNumber(value / info.display.scale);
   return info.display.unit ? `${n} ${info.display.unit}` : n;
 }
@@ -267,6 +268,9 @@ export function changePhrase(info: KeyInfo, from: JsonValue | undefined, to: Jso
     }
     case 'number': {
       if (typeof from === 'number' && typeof to === 'number') {
+        if (info.ks['x-stricter'] === 'min-positive' && (from === 0 || to === 0)) {
+          return `${noun} ${numberText(info, from)} to ${numberText(info, to)}`;
+        }
         const unit = info.display.unit ? ` ${info.display.unit}` : '';
         return `${noun} ${formatNumber(from / info.display.scale)} to ${formatNumber(to / info.display.scale)}${unit}`;
       }

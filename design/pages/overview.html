@@ -12,7 +12,7 @@
 <!--
   OVERVIEW · the home screen, as little noise as possible, in three states (see the comment at the top of
   .gw-page). In use: Waiting for your approval (quick access, only while requests wait) → Your connections
-  (status-tile, problems first) → AI apps (status-tile, 2 × 2) → one line about Activity. First run / setup:
+  (endpoint groups with AI apps and status tiles, problems first) → AI apps (status-tile, 2 × 2) → one line about Activity. First run / setup:
   a gw-stepper --guide card (Add a connection → Connect your AI app → Check that it works).
   First run's Add connection opens the wizard's first-run state (connection-new.html?state=first-run).
   Links into AI apps carry the demo state (clients.html?state=setup#cl-<app>-t, ?state=first-run#cl-ag-t; the app
@@ -115,7 +115,6 @@
     <!-- gw-status belongs to component group B. Static on purpose: no gw-status--live in the shell (WCAG 2.2.2) -->
     <div class="gw-sidebar__footer">
       <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Core running</span></span>
-      <span class="gw-sidebar__meta">127.0.0.1:7465</span>
       <span class="gw-status gw-status--neutral"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Tunnel off</span></span>
       <span class="gw-sidebar__meta">v0.4.0</span>
     </div>
@@ -128,7 +127,7 @@
         OVERVIEW · the home screen, as little noise as possible. Three states; the app renders one,
         this reference page shows all three (overview.html?state=first-run | setup, or the line at the bottom):
           in use     Waiting for your approval (quick access, only while requests wait; a quiet line when none)
-                     → Your connections (status-tile, problems first, six shown + "N more")
+                     → Your connections (endpoint groups with AI apps, all connection tiles shown, problems first)
                      → AI apps (status-tile, 2 × 2) → one line about Activity
           first-run  nothing set up: a gw-stepper --guide card, 1 Add a connection · 2 Connect your AI app · 3 Check that it works
           setup      a connection exists, no AI app yet: step 1 done, step 2 current
@@ -216,126 +215,215 @@
       </section>
       <p class="gw-text-small gw-fg-muted" id="ov-wait-none" data-ov-show="in-use" hidden><i class="gw-icon gw-icon--sm" data-lucide="circle-check"></i> Nothing waits for your approval. When an AI app asks to change data, the request appears here and as a desktop notification.</p>
 
-      <!-- What the AI apps can use: six shown by default, problems first and never folded; the rest behind one disclosure. -->
+      <!-- Connections are grouped by endpoint; shared connections appear in each endpoint that uses them.
+           Existing kit components only: muted cards, status tiles, grids, badges, statuses, and links. -->
       <section class="gw-section" aria-labelledby="ov-conn-title" data-ov-show="in-use">
         <header class="gw-section__header">
           <h2 class="gw-section__title" id="ov-conn-title">Your connections</h2>
-          <p class="gw-section__description">12 connections: 10 healthy, 1 slow, 1 unreachable. The tag shows each one's environment: dev, stage or prod.</p>
+          <p class="gw-section__description">Connections grouped by endpoint and the AI apps configured to use them. Shared connections appear in each endpoint.</p>
           <div class="gw-section__actions">
+            <a class="gw-btn gw-btn--ghost gw-btn--sm" href="endpoints.html">All endpoints</a>
             <a class="gw-btn gw-btn--ghost gw-btn--sm" href="connections.html">All connections</a>
           </div>
         </header>
         <div class="gw-stack">
-          <ul class="gw-grid gw-grid--3" role="list" aria-label="Connections that need attention first">
-            <li class="gw-card gw-card--interactive gw-status-tile">
-              <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="globe"></i></span>
-              <div class="gw-status-tile__main">
-                <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=billing-api">billing-api</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></h3>
-                <p class="gw-text-caption gw-fg-muted">HTTP API · <span class="gw-mono">billing.stage.acme.dev</span></p>
+          <section class="gw-card gw-card--muted" aria-labelledby="ov-endpoint-dev">
+            <header class="gw-card__header">
+              <div class="gw-card__heading">
+                <h3 class="gw-card__title" id="ov-endpoint-dev"><i class="gw-icon" data-lucide="waypoints"></i><a class="gw-link gw-mono gw-truncate" title="dev" href="endpoint-detail.html?endpoint=dev">dev</a></h3>
+                <p class="gw-card__description">8 connections</p>
               </div>
-              <div class="gw-status-tile__end">
-                <span class="gw-status gw-status--danger" id="ov-retest-state"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Unreachable</span></span>
-                <button class="gw-btn gw-btn--sm" type="button" id="ov-retest">Test again<span class="gw-sr-only"> billing-api</span></button>
+              <div class="gw-card__actions"><span class="gw-sr-only">environment</span><span class="gw-env gw-env--sm gw-env--dev">dev</span> <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Running</span></span></div>
+            </header>
+            <div class="gw-card__body gw-stack">
+              <div class="gw-stack gw-stack--sm">
+                <p class="gw-text-small gw-fg-muted">AI apps</p>
+                <ul class="gw-tag-list" role="list" aria-label="AI apps connected to dev">
+                  <li class="gw-badge gw-badge--success gw-badge--sm gw-badge--wrap">Claude Desktop · Connected</li>
+                  <li class="gw-badge gw-badge--success gw-badge--sm gw-badge--wrap">Codex · Connected</li>
+                </ul>
               </div>
-            </li>
-            <li class="gw-card gw-card--interactive gw-status-tile">
-              <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="layers"></i></span>
-              <div class="gw-status-tile__main">
-                <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=cache-redis">cache-redis</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></h3>
-                <p class="gw-text-caption gw-fg-muted gw-truncate">Redis 7</p>
+              <ul class="gw-grid gw-grid--3" role="list" aria-label="Connections on dev">
+                <li class="gw-card gw-card--interactive gw-status-tile">
+                  <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="globe"></i></span>
+                  <div class="gw-status-tile__main">
+                    <h4 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=billing-api">billing-api</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></h4>
+                    <p class="gw-text-caption gw-fg-muted">HTTP API · <span class="gw-mono">billing.stage.acme.dev</span></p>
+                  </div>
+                  <div class="gw-status-tile__end">
+                    <span class="gw-status gw-status--danger" id="ov-retest-state-dev" data-ov-retest-state><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Unreachable</span></span>
+                    <button class="gw-btn gw-btn--sm" type="button" data-ov-retest aria-describedby="ov-retest-state-dev">Test again<span class="gw-sr-only"> billing-api</span></button>
+                  </div>
+                </li>
+                <li class="gw-card gw-card--interactive gw-status-tile">
+                  <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="layers"></i></span>
+                  <div class="gw-status-tile__main">
+                    <h4 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=cache-redis">cache-redis</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></h4>
+                    <p class="gw-text-caption gw-fg-muted gw-truncate">Redis 7</p>
+                  </div>
+                  <div class="gw-status-tile__end">
+                    <span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Slow · 1.8 s</span></span>
+                  </div>
+                </li>
+                <li class="gw-card gw-card--interactive gw-status-tile">
+                  <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="scroll-text"></i></span>
+                  <div class="gw-status-tile__main">
+                    <h4 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=app-logs">app-logs</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></h4>
+                    <p class="gw-text-caption gw-fg-muted gw-truncate">Loki logs</p>
+                  </div>
+                  <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+                </li>
+                <li class="gw-card gw-card--interactive gw-status-tile">
+                  <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="ship-wheel"></i></span>
+                  <div class="gw-status-tile__main">
+                    <h4 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=dev-cluster">dev-cluster</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></h4>
+                    <p class="gw-text-caption gw-fg-muted gw-truncate">Kubernetes · namespace app-dev</p>
+                  </div>
+                  <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+                </li>
+                <li class="gw-card gw-card--interactive gw-status-tile">
+                  <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="database"></i></span>
+                  <div class="gw-status-tile__main">
+                    <h4 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=dev-db">dev-db</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></h4>
+                    <p class="gw-text-caption gw-fg-muted gw-truncate">PostgreSQL 16</p>
+                  </div>
+                  <div class="gw-status-tile__end">
+                    <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span>
+                  </div>
+                </li>
+                <li class="gw-card gw-card--interactive gw-status-tile">
+                  <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="terminal"></i></span>
+                  <div class="gw-status-tile__main">
+                    <h4 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=dev-vm">dev-vm</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></h4>
+                    <p class="gw-text-caption gw-fg-muted gw-truncate">SSH server</p>
+                  </div>
+                  <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+                </li>
+                <li class="gw-card gw-card--interactive gw-status-tile">
+                  <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="leaf"></i></span>
+                  <div class="gw-status-tile__main">
+                    <h4 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=orders-mongo">orders-mongo</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></h4>
+                    <p class="gw-text-caption gw-fg-muted gw-truncate">MongoDB</p>
+                  </div>
+                  <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+                </li>
+                <li class="gw-card gw-card--interactive gw-status-tile">
+                  <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="cloud"></i></span>
+                  <div class="gw-status-tile__main">
+                    <h4 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=aws-stage">aws-stage</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></h4>
+                    <p class="gw-text-caption gw-fg-muted gw-truncate">AWS · eu-central-1</p>
+                  </div>
+                  <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+                </li>
+              </ul>
+            </div>
+          </section>
+          <section class="gw-card gw-card--muted" aria-labelledby="ov-endpoint-stage-readonly">
+            <header class="gw-card__header">
+              <div class="gw-card__heading">
+                <h3 class="gw-card__title" id="ov-endpoint-stage-readonly"><i class="gw-icon" data-lucide="waypoints"></i><a class="gw-link gw-mono gw-truncate" title="stage-readonly" href="endpoint-detail.html?endpoint=stage-readonly">stage-readonly</a></h3>
+                <p class="gw-card__description">3 connections</p>
               </div>
-              <div class="gw-status-tile__end">
-                <span class="gw-status gw-status--warning"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Slow · 1.8 s</span></span>
+              <div class="gw-card__actions"><span class="gw-sr-only">environment</span><span class="gw-env gw-env--sm gw-env--stage">stage</span> <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Running</span></span></div>
+            </header>
+            <div class="gw-card__body gw-stack">
+              <p class="gw-text-small gw-fg-muted">No AI apps linked. <a class="gw-link" href="clients.html">Connect an AI app</a>.</p>
+              <ul class="gw-grid gw-grid--3" role="list" aria-label="Connections on stage-readonly">
+                <li class="gw-card gw-card--interactive gw-status-tile">
+                  <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="globe"></i></span>
+                  <div class="gw-status-tile__main">
+                    <h4 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=billing-api">billing-api</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></h4>
+                    <p class="gw-text-caption gw-fg-muted">HTTP API · <span class="gw-mono">billing.stage.acme.dev</span></p>
+                  </div>
+                  <div class="gw-status-tile__end">
+                    <span class="gw-status gw-status--danger" id="ov-retest-state-stage-readonly" data-ov-retest-state><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Unreachable</span></span>
+                    <button class="gw-btn gw-btn--sm" type="button" data-ov-retest aria-describedby="ov-retest-state-stage-readonly">Test again<span class="gw-sr-only"> billing-api</span></button>
+                  </div>
+                </li>
+                <li class="gw-card gw-card--interactive gw-status-tile">
+                  <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="cloud"></i></span>
+                  <div class="gw-status-tile__main">
+                    <h4 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=aws-stage">aws-stage</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></h4>
+                    <p class="gw-text-caption gw-fg-muted gw-truncate">AWS · eu-central-1</p>
+                  </div>
+                  <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+                </li>
+                <li class="gw-card gw-card--interactive gw-status-tile">
+                  <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="database"></i></span>
+                  <div class="gw-status-tile__main">
+                    <h4 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=stage-db">stage-db</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></h4>
+                    <p class="gw-text-caption gw-fg-muted gw-truncate">PostgreSQL 16</p>
+                  </div>
+                  <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+                </li>
+              </ul>
+            </div>
+          </section>
+          <section class="gw-card gw-card--muted" aria-labelledby="ov-endpoint-incident-prod">
+            <header class="gw-card__header">
+              <div class="gw-card__heading">
+                <h3 class="gw-card__title" id="ov-endpoint-incident-prod"><i class="gw-icon" data-lucide="waypoints"></i><a class="gw-link gw-mono gw-truncate" title="incident-prod" href="endpoint-detail.html?endpoint=incident-prod">incident-prod</a></h3>
+                <p class="gw-card__description">3 connections</p>
               </div>
-            </li>
-            <li class="gw-card gw-card--interactive gw-status-tile">
-              <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="database"></i></span>
-              <div class="gw-status-tile__main">
-                <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=dev-db">dev-db</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></h3>
-                <p class="gw-text-caption gw-fg-muted gw-truncate">PostgreSQL 16</p>
+              <div class="gw-card__actions"><span class="gw-sr-only">environment</span><span class="gw-env gw-env--sm gw-env--prod">prod</span> <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Running</span></span></div>
+            </header>
+            <div class="gw-card__body gw-stack">
+              <div class="gw-stack gw-stack--sm">
+                <p class="gw-text-small gw-fg-muted">AI apps</p>
+                <ul class="gw-tag-list" role="list" aria-label="AI apps connected to incident-prod">
+                  <li class="gw-badge gw-badge--success gw-badge--sm gw-badge--wrap">Claude Desktop · Connected</li>
+                </ul>
               </div>
-              <div class="gw-status-tile__end">
-                <span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span>
+              <ul class="gw-grid gw-grid--3" role="list" aria-label="Connections on incident-prod">
+                <li class="gw-card gw-card--interactive gw-status-tile">
+                  <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="scroll-text"></i></span>
+                  <div class="gw-status-tile__main">
+                    <h4 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=prod-logs">prod-logs</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--prod gw-env--sm">prod</span></h4>
+                    <p class="gw-text-caption gw-fg-muted gw-truncate">GCP Cloud Logging</p>
+                  </div>
+                  <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+                </li>
+                <li class="gw-card gw-card--interactive gw-status-tile">
+                  <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="database"></i></span>
+                  <div class="gw-status-tile__main">
+                    <h4 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=prod-replica">prod-replica</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--prod gw-env--sm">prod</span></h4>
+                    <p class="gw-text-caption gw-fg-muted gw-truncate">PostgreSQL read replica</p>
+                  </div>
+                  <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+                </li>
+                <li class="gw-card gw-card--interactive gw-status-tile">
+                  <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="terminal"></i></span>
+                  <div class="gw-status-tile__main">
+                    <h4 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=prod-vm">prod-vm</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--prod gw-env--sm">prod</span></h4>
+                    <p class="gw-text-caption gw-fg-muted gw-truncate">SSH server · runbooks only</p>
+                  </div>
+                  <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+                </li>
+              </ul>
+            </div>
+          </section>
+          <section class="gw-card gw-card--muted" aria-labelledby="ov-unassigned">
+            <header class="gw-card__header">
+              <div class="gw-card__heading">
+                <h3 class="gw-card__title" id="ov-unassigned">Not on an endpoint</h3>
+                <p class="gw-card__description">1 connection</p>
               </div>
-            </li>
-            <li class="gw-card gw-card--interactive gw-status-tile">
-              <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="leaf"></i></span>
-              <div class="gw-status-tile__main">
-                <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=orders-mongo">orders-mongo</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></h3>
-                <p class="gw-text-caption gw-fg-muted gw-truncate">MongoDB</p>
-              </div>
-              <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
-            </li>
-            <li class="gw-card gw-card--interactive gw-status-tile">
-              <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="ship-wheel"></i></span>
-              <div class="gw-status-tile__main">
-                <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=dev-cluster">dev-cluster</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></h3>
-                <p class="gw-text-caption gw-fg-muted gw-truncate">Kubernetes · namespace app-dev</p>
-              </div>
-              <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
-            </li>
-            <li class="gw-card gw-card--interactive gw-status-tile">
-              <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="terminal"></i></span>
-              <div class="gw-status-tile__main">
-                <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=dev-vm">dev-vm</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></h3>
-                <p class="gw-text-caption gw-fg-muted gw-truncate">SSH server</p>
-              </div>
-              <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
-            </li>
-          </ul>
-          <div>
-            <button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" data-gw-toggle aria-expanded="false" aria-controls="ov-conn-more">6 more connections, all healthy <i class="gw-icon gw-icon--sm gw-btn__chevron" data-lucide="chevron-down"></i></button>
-          </div>
-          <ul class="gw-grid gw-grid--3" role="list" id="ov-conn-more" aria-label="More connections, all healthy" hidden>
-            <li class="gw-card gw-card--interactive gw-status-tile">
-              <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="scroll-text"></i></span>
-              <div class="gw-status-tile__main">
-                <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=app-logs">app-logs</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></h3>
-                <p class="gw-text-caption gw-fg-muted gw-truncate">Loki logs</p>
-              </div>
-              <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
-            </li>
-            <li class="gw-card gw-card--interactive gw-status-tile">
-              <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="database"></i></span>
-              <div class="gw-status-tile__main">
-                <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=stage-db">stage-db</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></h3>
-                <p class="gw-text-caption gw-fg-muted gw-truncate">PostgreSQL 16</p>
-              </div>
-              <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
-            </li>
-            <li class="gw-card gw-card--interactive gw-status-tile">
-              <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="cloud"></i></span>
-              <div class="gw-status-tile__main">
-                <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=aws-stage">aws-stage</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--stage gw-env--sm">stage</span></h3>
-                <p class="gw-text-caption gw-fg-muted gw-truncate">AWS · eu-central-1</p>
-              </div>
-              <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
-            </li>
-            <li class="gw-card gw-card--interactive gw-status-tile">
-              <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="database"></i></span>
-              <div class="gw-status-tile__main">
-                <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=prod-replica">prod-replica</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--prod gw-env--sm">prod</span></h3>
-                <p class="gw-text-caption gw-fg-muted gw-truncate">PostgreSQL read replica</p>
-              </div>
-              <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
-            </li>
-            <li class="gw-card gw-card--interactive gw-status-tile">
-              <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="scroll-text"></i></span>
-              <div class="gw-status-tile__main">
-                <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=prod-logs">prod-logs</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--prod gw-env--sm">prod</span></h3>
-                <p class="gw-text-caption gw-fg-muted gw-truncate">GCP Cloud Logging</p>
-              </div>
-              <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
-            </li>
-            <li class="gw-card gw-card--interactive gw-status-tile">
-              <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="terminal"></i></span>
-              <div class="gw-status-tile__main">
-                <h3 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=prod-vm">prod-vm</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--prod gw-env--sm">prod</span></h3>
-                <p class="gw-text-caption gw-fg-muted gw-truncate">SSH server · runbooks only</p>
-              </div>
-              <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
-            </li>
-          </ul>
+              <a class="gw-btn gw-btn--ghost gw-btn--sm" href="endpoints.html">Manage endpoints</a>
+            </header>
+            <div class="gw-card__body gw-stack">
+              <p class="gw-text-small gw-fg-muted">Add these connections to an endpoint so your AI apps can use them.</p>
+              <ul class="gw-grid gw-grid--3" role="list" aria-label="Connections not on an endpoint">
+                <li class="gw-card gw-card--interactive gw-status-tile">
+                  <span class="gw-icon-tile gw-icon-tile--neutral" aria-hidden="true"><i class="gw-icon" data-lucide="plug"></i></span>
+                  <div class="gw-status-tile__main">
+                    <h4 class="gw-status-tile__title gw-text-ui"><a class="gw-card__link gw-mono" href="connection-new.html?edit=github-mcp">github-mcp</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--dev gw-env--sm">dev</span></h4>
+                    <p class="gw-text-caption gw-fg-muted gw-truncate">External MCP server</p>
+                  </div>
+                  <div class="gw-status-tile__end"><span class="gw-status gw-status--success"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Healthy</span></span></div>
+                </li>
+              </ul>
+            </div>
+          </section>
         </div>
       </section>
 
@@ -779,34 +867,37 @@
     });
   }
 
-  // ── Test again ──
-  var retest = doc.getElementById("ov-retest");
-  var stateEl = doc.getElementById("ov-retest-state");
-  if (retest && stateEl) {
-    var before = stateEl.outerHTML;
+  // ── Test again: the same connection stays in sync across endpoint groups. ──
+  var retests = Array.from(doc.querySelectorAll("[data-ov-retest]"));
+  var states = Array.from(doc.querySelectorAll("[data-ov-retest-state]"));
+  var originalStates = states.map(function (el) { return el.outerHTML; });
+  retests.forEach(function (retest) {
     retest.addEventListener("click", function () {
       if (retest.getAttribute("aria-busy") === "true") return;
-      var spinner = doc.createElement("span");
-      spinner.className = "gw-spinner gw-spinner--sm";
-      spinner.setAttribute("aria-hidden", "true");
-      retest.insertBefore(spinner, retest.firstChild);
-      retest.setAttribute("aria-busy", "true");
-      retest.setAttribute("aria-disabled", "true");
-      var checking = doc.getElementById("ov-retest-state");
-      checking.outerHTML = '<span class="gw-status gw-status--checking" id="ov-retest-state" role="status"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span><span class="gw-status__label">Checking…<span class="gw-sr-only"> billing-api</span></span></span>';
-      retest.setAttribute("aria-describedby", "ov-retest-state");
+      retests.forEach(function (button) {
+        var spinner = doc.createElement("span");
+        spinner.className = "gw-spinner gw-spinner--sm";
+        spinner.setAttribute("aria-hidden", "true");
+        button.insertBefore(spinner, button.firstChild);
+        button.setAttribute("aria-busy", "true");
+        button.setAttribute("aria-disabled", "true");
+      });
+      states.forEach(function (el) {
+        doc.getElementById(el.id).outerHTML = '<span class="gw-status gw-status--checking" id="' + el.id + '" data-ov-retest-state role="status"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span><span class="gw-status__label">Checking…<span class="gw-sr-only"> billing-api</span></span></span>';
+      });
       setTimeout(function () {
-        spinner.remove();
-        retest.removeAttribute("aria-busy");
-        retest.removeAttribute("aria-disabled");
-        retest.removeAttribute("aria-describedby");
-        doc.getElementById("ov-retest-state").outerHTML = before;
+        retests.forEach(function (button) {
+          button.querySelector(".gw-spinner").remove();
+          button.removeAttribute("aria-busy");
+          button.removeAttribute("aria-disabled");
+        });
+        states.forEach(function (el, index) { doc.getElementById(el.id).outerHTML = originalStates[index]; });
         if (window.gwToast) {
           window.gwToast({ title: "billing-api is still unreachable", body: "billing.stage.acme.dev did not answer. Check the VPN or the host, then test again.", tone: "danger" });
         }
       }, 1600);
     });
-  }
+  });
 })();
 </script>
 </body>

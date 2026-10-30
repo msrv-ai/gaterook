@@ -27,32 +27,50 @@ final class SqlErrors {
 
   /** The failure of a statement on {@code connection} (a name the agent knows) as a connector error. */
   static ConnectorException of(SQLException e, boolean mysql, String connection, String env, Duration timeout) {
+    return of(e, mysql ? SqlSyntax.MYSQL : SqlSyntax.POSTGRES, connection, env, timeout);
+  }
+
+  static ConnectorException of(SQLException e, SqlSyntax syntax, String connection, String env, Duration timeout) {
+    boolean mysql = syntax == SqlSyntax.MYSQL;
+    boolean oracle = syntax == SqlSyntax.ORACLE;
+    boolean sqlServer = syntax == SqlSyntax.SQLSERVER;
     String state = state(e);
     int code = e.getErrorCode();
     if (e instanceof SQLTransientConnectionException && !(e.getCause() instanceof SQLException)) {
       return ConnectorException.resourceError(connection + " is busy: every connection of its pool is in use. Try "
           + "again.", e);
     }
-    if (unreachable(e, state)) {
+    if (unreachable(e, state, syntax)) {
       return ConnectorException.unavailable(reach(e, connection), e);
     }
-    if (timedOut(state, code, mysql)) {
+    if (timedOut(state, code, mysql) || (oracle && (code == 1013 || code == 30006))
+        || (sqlServer && (e instanceof java.sql.SQLTimeoutException || "HYT00".equals(state)
+            || "HYT01".equals(state) || code == 1222))) {
       return ConnectorException.resourceError("Statement timeout (" + seconds(timeout) + " on " + env
-          + ") exceeded. Narrow the WHERE clause or add LIMIT.", e);
+          + ") exceeded. Narrow the WHERE clause or "
+          + (oracle ? "add FETCH FIRST n ROWS ONLY." : sqlServer ? "use TOP." : "add LIMIT."), e);
     }
-    if ("25006".equals(state) || (mysql && (code == 1792 || "S1009".equals(state)))) {
+    if ((oracle && code == 1456) || "25006".equals(state) || (mysql && (code == 1792 || "S1009".equals(state)))) {
       return ConnectorException.resourceError("This statement writes, and the read-only transaction refused it: "
           + describe(e) + ". Use sql_execute for changes; a person approves them.", e);
     }
-    if ("42501".equals(state) || (mysql && (code == 1142 || code == 1143 || code == 1044 || code == 1370))) {
+    if ((oracle && code == 1031) || (sqlServer && (code == 229 || code == 230 || code == 262))
+        || "42501".equals(state) || (mysql && (code == 1142 || code == 1143 || code == 1044 || code == 1370))) {
       return ConnectorException.resourceError("The database user of " + connection + " may not do this: "
           + describe(e) + ".", e);
     }
-    if ("40001".equals(state) && !mysql) {
+    if (sqlServer && (code == 1205 || "40001".equals(state))) {
+      return ConnectorException.resourceError(describe(e) + ". The transaction was rolled back after a deadlock; retry.", e);
+    }
+    if ("40001".equals(state) && syntax == SqlSyntax.POSTGRES) {
       return ConnectorException.resourceError(describe(e) + ". Canceled by a conflict (a replica replaying changes, "
           + "or a concurrent transaction): retry.", e);
     }
     return ConnectorException.resourceError(describe(e), e);
+  }
+
+  static ConnectorException of(SQLException e, SqlDialect dialect, String connection, String env, Duration timeout) {
+    return of(e, dialect.syntax(), connection, env, timeout);
   }
 
   /**
@@ -94,12 +112,21 @@ final class SqlErrors {
 
   /** The connection is gone or never came up: class 08, authentication, shutdown, a network exception below. */
   static boolean unreachable(SQLException e, String state) {
+    return unreachable(e, state, SqlSyntax.MYSQL);
+  }
+
+  static boolean unreachable(SQLException e, String state, SqlSyntax syntax) {
     if (state != null && (state.startsWith("08") || state.equals("28P01") || state.equals("28000")
         || state.equals("57P01") || state.equals("57P02") || state.equals("57P03") || state.equals("3D000"))) {
       return true;
     }
     int code = e.getErrorCode();
-    if (code == 1045 || code == 1049 || code == 2002 || code == 2003 || code == 2006 || code == 2013) {
+    if (code == 18456 || code == 4060 || code == 1045 || code == 1049 || code == 2002 || code == 2003 || code == 2006 || code == 2013) {
+      return true;
+    }
+    if (syntax == SqlSyntax.ORACLE && (code == 1017 || code == 28000 || code == 28001 || code == 1033
+        || code == 1034 || code == 1089 || code == 1090 || code == 3113 || code == 3114 || code == 3135
+        || code == 12154 || code == 12514 || code == 12541 || code == 17002 || code == 17008 || code == 17410)) {
       return true;
     }
     for (Throwable t = e; t != null; t = t.getCause()) {

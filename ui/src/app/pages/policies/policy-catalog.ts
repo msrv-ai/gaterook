@@ -174,17 +174,17 @@ export interface SectionSpec {
 
 /** Connector sections in the kit's order, then the ones the kit doesn't have (Logs), then any plugin's. */
 export const CONNECTOR_SECTIONS: Readonly<Record<string, SectionSpec>> = {
-  sql: { types: ['postgres', 'mysql'], icon: 'database', noun: 'SQL' },
+  sql: { types: ['postgres', 'mysql', 'oracle', 'sqlserver'], icon: 'database', noun: 'SQL' },
   ssh: { types: ['ssh', 'ssh-logs'], icon: 'terminal', noun: 'SSH' },
   k8s: { types: ['kubernetes'], icon: 'ship-wheel', noun: 'Kubernetes' },
   cloud: { types: ['aws', 'gcp'], icon: 'cloud', noun: 'cloud' },
   http: { types: ['http'], icon: 'globe', noun: 'HTTP' },
-  logs: { types: ['gcp-logging', 'cloudwatch', 'loki', 'logs', 'ssh-logs'], icon: 'scroll-text', noun: 'logs' },
+  logs: { types: ['gcp-logging', 'cloudwatch', 'loki', 'logs', 'ssh-logs', 'gcp'], icon: 'scroll-text', noun: 'logs' },
 };
 export const CORE_SECTIONS: readonly string[] = ['masking', 'limits', 'approvals'];
 
 /** The connector type order of the catalog (Databases, Remote access, Logs, Kubernetes, Cloud, HTTP and MCP). */
-const TYPE_ORDER = ['postgres', 'mysql', 'mongodb', 'redis', 'opensearch', 'ssh', 'ssh-logs', 'gcp-logging', 'cloudwatch', 'loki', 'logs', 'kubernetes', 'gcp', 'aws', 'http', 'mcp-server'];
+const TYPE_ORDER = ['postgres', 'mysql', 'oracle', 'sqlserver', 'mongodb', 'redis', 'opensearch', 'elasticsearch', 'ssh', 'ssh-logs', 'gcp-logging', 'cloudwatch', 'loki', 'logs', 'kubernetes', 'gcp', 'aws', 'http', 'mcp-server'];
 
 export function typeRank(type: string): number {
   const i = TYPE_ORDER.indexOf(type);
@@ -424,7 +424,12 @@ export const FIELDS: Readonly<Record<string, FieldSpec>> = {
   'http.maxResponseKb': { label: 'Max response size', noun: 'max response size', describe: () => [t('Bigger responses are cut and marked truncated.')] },
   'http.toolTimeoutSeconds': { label: 'Request timeout', noun: 'request timeout', describe: () => [t('The request is cancelled after this.')] },
   'http.maxRequestKb': { label: 'Max request body', noun: 'max request body', describe: () => [t('A bigger body is denied before it is sent.')] },
-  'logs.maxRangeHours': { label: 'Longest time range', noun: 'longest time range', describe: () => [t('A search further back is cut to this range.')] },
+  'logs.maxRangeHours': {
+    label: 'Longest time range',
+    noun: 'longest time range',
+    describe: () => [t('0 means no time limit. Set a number of hours to deny searches with longer ranges.')],
+    note: () => [t('0 means no time limit.')],
+  },
   'logs.defaultLimit': { label: 'Entries per call by default', noun: 'entries per call', describe: () => [t('When the agent asks for no limit. Log lines per call in Limits caps every call.')] },
   'logs.maxTailWaitSeconds': { label: 'Longest tail wait', noun: 'tail wait', describe: () => [t('How long one call waits for new lines.')] },
   'masking.pii': {

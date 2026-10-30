@@ -38,12 +38,20 @@
         },
         "tls": {
           "type": "boolean",
-          "title": "Use TLS",
+          "title": "Connection type",
           "default": false,
           "x-env-default": {
             "prod": true
           },
-          "x-section": "/advanced"
+          "enum": [
+            false,
+            true
+          ],
+          "x-enumTitles": [
+            "Without TLS",
+            "TLS"
+          ],
+          "description": "TLS is enabled by default on prod. Without TLS is also allowed; on stage and prod, the connection test warns that traffic is not encrypted."
         },
         "tlsVerify": {
           "type": "string",

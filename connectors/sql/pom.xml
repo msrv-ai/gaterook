@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  PostgreSQL and MySQL/MariaDB (report 04, report 10 §6.6): JdbcSqlConnector with PostgresDialect and MySqlDialect,
+  PostgreSQL, MySQL/MariaDB, Oracle Database and SQL Server: JdbcSqlConnector with database-specific dialects,
   the JSqlParser classifier, a HikariCP pool per connection and TemplateKind "sql-query". Plain JDBC, no Spring
   JdbcClient: the connector needs the transaction, setMaxRows, ResultSetMetaData and Statement.cancel().
   Spring only in the .boot subpackage. Built by step C1.
@@ -42,6 +42,14 @@
       <artifactId>mysql-connector-j</artifactId>
     </dependency>
     <dependency>
+      <groupId>com.oracle.database.jdbc</groupId>
+      <artifactId>ojdbc17</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.microsoft.sqlserver</groupId>
+      <artifactId>mssql-jdbc</artifactId>
+    </dependency>
+    <dependency>
       <groupId>com.github.jsqlparser</groupId>
       <artifactId>jsqlparser</artifactId>
     </dependency>
@@ -74,7 +82,8 @@
     <plugins>
       <!--
         *IT against real servers: PostgreSQL 16 from local binaries (skipped without them), MySQL 8.4 and MariaDB 11.4
-        only with -Pmysql-it (tag mysql-it; downloads into ~/.cache/mcp-gateway-test/sql, SHA-256 checked).
+        with -Pmysql-it (tag mysql-it; downloads into ~/.cache/mcp-gateway-test/sql, SHA-256 checked), or Docker-backed
+        services including Oracle with -Pservices. Oracle also accepts an explicit GW_ORACLE_HOST fixture.
       -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

@@ -262,7 +262,42 @@ class CursorPagingTest {
   }
 
   @Test
-  void anHourOldTailCursorStartsAnHourBackAndSaysEntriesMayBeMissing() throws Exception {
+  void unlimitedSearchPagesKeepTheWholeRangeAndHonorALaterExplicitCap() throws Exception {
+    FakeLoki loki = new FakeLoki(42, () -> Long.MAX_VALUE);
+    server.setDispatcher(loki);
+    server.start();
+    for (int year : new int[] {2024, 2025, 2026}) {
+      loki.add("api", nanos(Instant.parse(year + "-10-22T12:00:00Z")), "year-" + year);
+    }
+    LogsConnector connector = new LogsConnector(cloud, Clock.systemUTC());
+    ConnectionConfig cfg = Configs.loki(server.url("/").toString());
+    TestSecrets secrets = new TestSecrets().with("/auth/secret", "t");
+    TestCtx ctx = TestCtx.of().with(TestCtx.withRange(TestCtx.dev(), null));
+    JsonNode first = connector.execute(Configs.call("logs_search", """
+        {"query":"{app=\\"api\\"}","from":"2023-10-22T12:00:00Z","to":"2026-10-22T12:30:00Z","limit":1}
+        """), cfg, secrets, ctx).structuredContent();
+    assertThat(first.at("/entries/0/message").asString()).isEqualTo("year-2026");
+    String firstCursor = first.path("nextCursor").asString();
+    String cursor = firstCursor;
+    for (int year : new int[] {2025, 2024}) {
+      JsonNode next = connector.execute(Configs.call("logs_search",
+          "{\"query\":\"{app=\\\"api\\\"}\",\"limit\":1,\"cursor\":\"" + cursor + "\"}"), cfg, secrets,
+          ctx.next()).structuredContent();
+      assertThat(next.path("from").asString()).isEqualTo("2023-10-22T12:00:00Z");
+      assertThat(next.at("/entries/0/message").asString()).isEqualTo("year-" + year);
+      cursor = next.path("nextCursor").isNull() ? null : next.path("nextCursor").asString();
+    }
+    assertThat(cursor).isNull();
+    int sent = loki.requests.size();
+    assertThatThrownBy(() -> connector.execute(Configs.call("logs_search",
+        "{\"query\":\"{app=\\\"api\\\"}\",\"cursor\":\"" + firstCursor + "\"}"), cfg, secrets,
+        ctx.with(TestCtx.prod()))).hasMessageContaining("cursor's time range");
+    assertThat(loki.requests).hasSize(sent);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void anHourOldTailCursorStartsAnHourBackAndSaysEntriesMayBeMissing(boolean unlimited) throws Exception {
     TestCtx.MovingClock clock = new TestCtx.MovingClock(Instant.parse("2026-10-22T12:00:00Z"));
     FakeLoki loki = new FakeLoki(10, () -> nanos(clock.instant()));
     server.setDispatcher(loki);
@@ -271,6 +306,7 @@ class CursorPagingTest {
     ConnectionConfig cfg = Configs.loki(server.url("/").toString());
     TestSecrets secrets = new TestSecrets().with("/auth/secret", "t");
     TestCtx ctx = TestCtx.of().clock(clock);
+    if (unlimited) ctx = ctx.with(TestCtx.withRange(ctx.limits(), null));
     String cursor = connector.execute(Configs.call("logs_tail", "{\"query\":\"{app=\\\"api\\\"}\",\"wait\":0}"),
         cfg, secrets, ctx.next()).structuredContent().path("nextCursor").asString();
     clock.advance(Duration.ofHours(3));

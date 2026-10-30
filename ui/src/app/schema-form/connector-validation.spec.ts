@@ -20,7 +20,7 @@ const serviceAccountKey = JSON.stringify({ type: 'service_account', project_id: 
   client_email: 'reader@example-project.iam.gserviceaccount.com', private_key: 'test-only-private-key' });
 const sshConnection = { host: 'ssh.example.test', username: 'reader' };
 const cases: readonly ConnectionCase[] = [
-  ...['postgres', 'mysql'].map((type) => ({
+  ...['postgres', 'mysql', 'sqlserver'].map((type) => ({
     name: `${type}: selected database and password`, type,
     config: { connection: { host: 'db.example.test', databases: ['orders'] }, credentials: { user: 'reader' } },
     secrets: { '/credentials/password': password },
@@ -29,6 +29,9 @@ const cases: readonly ConnectionCase[] = [
     name: `${type}: passwordless authentication with selected database`, type,
     config: { connection: { host: 'db.example.test', databases: ['orders'] }, credentials: { user: 'reader' } },
   })),
+  { name: 'Oracle Database: service name and password', type: 'oracle',
+    config: { connection: { host: 'oracle.example.test', database: 'orders.example.test' }, credentials: { user: 'READER' } },
+    secrets: { '/credentials/password': password } },
   { name: 'MongoDB: selected database without authentication', type: 'mongodb',
     config: { connection: { host: 'mongo.example.test', databases: ['orders'] } } },
   { name: 'MongoDB: selected database and password', type: 'mongodb',
@@ -128,6 +131,17 @@ const cases: readonly ConnectionCase[] = [
   { name: 'OpenSearch connector: basic authentication without log inputs', type: 'opensearch',
     config: { url: 'https://search.example.test:9200', auth: { mode: 'basic', username: 'reader' } },
     secrets: { '/auth/secret': password } },
+  { name: 'Elasticsearch connector: fixed full API access without log inputs', type: 'elasticsearch',
+    config: { url: 'https://elastic.example.test:9200', auth: { mode: 'none' } } },
+  { name: 'Elasticsearch connector: basic authentication', type: 'elasticsearch',
+    config: { url: 'https://elastic.example.test:9200', auth: { mode: 'basic', username: 'reader' } },
+    secrets: { '/auth/secret': password } },
+  { name: 'Elasticsearch connector: encoded API key', type: 'elasticsearch',
+    config: { url: 'https://elastic.example.test:9200', auth: { mode: 'apiKey' } },
+    secrets: { '/auth/secret': 'aWQ6dGVzdC1vbmx5LWtleQ==' } },
+  { name: 'Elasticsearch connector: bearer token', type: 'elasticsearch',
+    config: { url: 'https://elastic.example.test:9200', auth: { mode: 'bearer' } },
+    secrets: { '/auth/secret': 'test-only-token' } },
   { name: 'Loki: no authentication', type: 'logs',
     config: { backend: 'loki', url: 'https://loki.example.test', auth: { mode: 'none' } } },
   { name: 'Loki: bearer token without a username', type: 'logs',
@@ -200,18 +214,34 @@ describe('schema-form: minimal active connector configurations', () => {
         expect(valid, errors.join('\n')).toBe(true);
         expect(errors).toEqual([]);
         expect(form.value()).toMatchObject(sample.config);
-        if (['gcp-logging', 'loki', 'cloudwatch', 'opensearch'].includes(sample.type)) {
+        if (['gcp-logging', 'loki', 'cloudwatch', 'opensearch', 'elasticsearch'].includes(sample.type)) {
           expect(getAt(form.value(), ['backend'])).toBe(sample.type);
         }
-        if (sample.type === 'opensearch') expect(getAt(form.value(), ['apiAccess'])).toBe('full');
+        if (['opensearch', 'elasticsearch'].includes(sample.type)) expect(getAt(form.value(), ['apiAccess'])).toBe('full');
         expect(Object.keys(form.secretInputs()).sort()).toEqual(Object.keys(sample.secrets ?? {}).sort());
       });
     }
   }
 
-  it('OpenSearch has no legacy log scope or field mapping inputs', () => {
-    const form = createSchemaForm(CONNECTOR_FORMS['opensearch'], {
-      idPrefix: 'opensearch', current: { url: 'https://search.example.test:9200', auth: { mode: 'none' } },
+  it('Oracle requires a service name and keeps TLS verification enabled by default', () => {
+    const form = createSchemaForm(CONNECTOR_FORMS['oracle'], {
+      idPrefix: 'oracle', current: { connection: { host: 'oracle.example.test' }, credentials: { user: 'READER' } },
+      injector: TestBed.inject(Injector),
+    });
+    const node = (pointer: string) => form.compiled.all.find((candidate) => candidate.pointer === pointer)!;
+    form.setSecret(node('/credentials/password'), password);
+    expect(form.submit()).toBe(false);
+    expect(form.invalidNodes().map((candidate) => candidate.pointer)).toEqual(['/connection/database']);
+    form.set(node('/connection/database'), 'orders.example.test');
+    expect(form.submit()).toBe(true);
+    expect(getAt(form.value(), ['connection', 'port'])).toBe(1521);
+    expect(getAt(form.value(), ['connection', 'sslMode'])).toBe('verify-full');
+    expect(getAt(form.value(), ['connection', 'databases'])).toBeNull();
+  });
+
+  it.each(['opensearch', 'elasticsearch'])('%s has no legacy log scope or field mapping inputs', (type) => {
+    const form = createSchemaForm(CONNECTOR_FORMS[type], {
+      idPrefix: type, current: { url: 'https://search.example.test:9200', auth: { mode: 'none' } },
       injector: TestBed.inject(Injector),
     });
     const legacyFields = ['indices', 'scopeQuery', 'timestampField', 'messageField', 'severityField', 'labelFields', 'advanced'];
@@ -268,7 +298,7 @@ describe('schema-form: minimal active connector configurations', () => {
     expect(form.secretInputs()).toEqual({});
   });
 
-  for (const type of ['postgres', 'mysql']) {
+  for (const type of ['postgres', 'mysql', 'sqlserver']) {
     it(`${type}: a dynamic Vault role supplies the username`, () => {
       const form = createSchemaForm(CONNECTOR_FORMS[type], {
         idPrefix: 'dynamic', current: { connection: { host: 'db.example.test', databases: ['orders'] } },
@@ -323,6 +353,11 @@ describe('schema-form: minimal active connector configurations', () => {
     { name: 'Redis host', type: 'redis', config: {}, pointer: '/connection/host' },
     { name: 'PostgreSQL username', type: 'postgres',
       config: { connection: { host: 'db.example.test', databases: ['orders'] } }, pointer: '/credentials/user' },
+    { name: 'SQL Server username', type: 'sqlserver',
+      config: { connection: { host: 'db.example.test', databases: ['orders'] } }, pointer: '/credentials/user' },
+    { name: 'SQL Server password', type: 'sqlserver',
+      config: { connection: { host: 'db.example.test', databases: ['orders'] }, credentials: { user: 'reader' } },
+      pointer: '/credentials/password' },
     { name: 'SSH password', type: 'ssh', config: { connection: sshConnection, credentials: { method: 'password' } },
       pointer: '/credentials/password' },
     { name: 'SSH private key file', type: 'ssh', config: { connection: sshConnection, credentials: { method: 'privateKeyFile' } },
@@ -342,6 +377,12 @@ describe('schema-form: minimal active connector configurations', () => {
       config: { region: 'eu-central-1', credentials: { source: 'profile', profile: 'example' } }, pointer: '/logGroups' },
     { name: 'OpenSearch connector basic username', type: 'opensearch',
       config: { url: 'https://search.example.test:9200', auth: { mode: 'basic' } }, pointer: '/auth/username' },
+    { name: 'Elasticsearch connector URL', type: 'elasticsearch',
+      config: { auth: { mode: 'none' } }, pointer: '/url' },
+    { name: 'Elasticsearch connector basic username', type: 'elasticsearch',
+      config: { url: 'https://elastic.example.test:9200', auth: { mode: 'basic' } }, pointer: '/auth/username' },
+    { name: 'Elasticsearch connector API key', type: 'elasticsearch',
+      config: { url: 'https://elastic.example.test:9200', auth: { mode: 'apiKey' } }, pointer: '/auth/secret' },
     { name: 'OpenSearch scoped log indices', type: 'logs',
       config: { backend: 'opensearch', url: 'https://search.example.test:9200', apiAccess: 'logs', auth: { mode: 'none' } },
       pointer: '/indices' },

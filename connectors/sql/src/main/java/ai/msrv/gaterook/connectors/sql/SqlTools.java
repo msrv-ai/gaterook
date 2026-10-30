@@ -9,7 +9,7 @@ import ai.msrv.gaterook.connectors.support.SchemaResources;
 import java.util.List;
 
 /**
- * The four tools both SQL dialects publish (report 04 §3, kit endpoint-detail). PostgreSQL and MySQL share names and
+ * The four tools all SQL dialects publish (report 04 §3, kit endpoint-detail). The connectors share names and
  * schemas on purpose: the core merges same-named tools of different types on one endpoint when the schemas are
  * equal up to the {@code connection} enum (ARCHITECTURE.md §5 step 4).
  */
@@ -46,7 +46,7 @@ final class SqlTools {
             .build(),
         ToolDefinition.builder(QUERY)
             .title("Run a read-only SQL query")
-            .description("Run one SELECT in a read-only transaction. PII columns come back masked.")
+            .description("Run one validated read query and roll back its transaction. SQL Server accepts SELECT with known built-in functions. PII columns come back masked.")
             .inputSchema(schemas.load(QUERY + ".input"))
             .outputSchema(schemas.load(QUERY + ".output"))
             .annotations(Annotations.read())

@@ -57,7 +57,9 @@ describe('tool-policy-list view (design/elements/tool-policy-list.html)', () => 
 
   it('inherits limits from the policy and keeps only stricter overrides', () => {
     const fields = limitFields('postgres');
+    expect(limitFields('sqlserver')).toEqual(fields);
     expect(fields.map((f) => f.key)).toEqual(['rowLimit', 'statementTimeoutMs', 'maxResponseKb']);
+    expect(limitFields('oracle')).toEqual(fields);
     expect(inherited(fields[1], DEMO_POLICY_SECTIONS.dev)).toBe(5);
     expect(inherited(fields[0], DEMO_POLICY_SECTIONS.prod)).toBe(100);
     expect(overridden(fields[0], { rowLimit: 200 })).toBe(200);
@@ -70,6 +72,8 @@ describe('tool-policy-list view (design/elements/tool-policy-list.html)', () => 
     for (const type of ['gcp-logging', 'cloudwatch', 'loki']) {
       expect(limitFields(type).map((f) => f.key)).toEqual(['logLines', 'toolTimeoutSeconds', 'maxResponseKb']);
     }
-    expect(limitFields('opensearch').map((f) => f.key)).toEqual(['toolTimeoutSeconds', 'maxResponseKb']);
+    for (const type of ['opensearch', 'elasticsearch']) {
+      expect(limitFields(type).map((f) => f.key)).toEqual(['toolTimeoutSeconds', 'maxResponseKb']);
+    }
   });
 });

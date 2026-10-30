@@ -38,6 +38,7 @@ import { GwIcon } from '../../kit/icons';
 import { GwMenu, GwMenuTrigger, MenuPick } from '../../kit/menu';
 import { GwTabs } from '../../kit/tabs';
 import { GwSortRow, SortChange } from '../../kit/table';
+import { safeStorage } from '../../kit/storage';
 import { ToastService } from '../../kit/toast.service';
 import { ActivityData } from './activity.data';
 import {
@@ -80,6 +81,20 @@ export const SKELETON_DELAY_MS = 300;
 /** Tasks shown at first and added by each "Load older tasks". */
 export const TRACE_PAGE = 20;
 const DAY_MS = 86_400_000;
+const REFRESH_STORAGE_KEY = 'gw-activity-refresh-seconds';
+const REFRESH_OPTIONS = [
+  { seconds: 0, label: 'Off', short: 'Off' },
+  { seconds: 5, label: '5 seconds', short: '5 s' },
+  { seconds: 10, label: '10 seconds', short: '10 s' },
+  { seconds: 30, label: '30 seconds', short: '30 s' },
+  { seconds: 60, label: '1 minute', short: '1 min' },
+  { seconds: 300, label: '5 minutes', short: '5 min' },
+] as const;
+
+function savedRefreshSeconds(): number {
+  const stored = safeStorage.get(REFRESH_STORAGE_KEY);
+  return REFRESH_OPTIONS.find((option) => String(option.seconds) === stored)?.seconds ?? 30;
+}
 
 const NO_ANSWER = 'The core didn’t answer. Try again.';
 
@@ -87,8 +102,9 @@ const NO_ANSWER = 'The core didn’t answer. Try again.';
  * Activity (design/pages/activity.html; ARCHITECTURE.md §6 activity, §8.4 "activity"): every call an agent made
  * through the gateway, and every change made to its setup. Append-only.
  *
- * - Header: View in Insights (with the query) and Export — a CSV or JSONL file through the desktop's save dialog (the
- *   core writes it; outside the desktop app the items say why they are unavailable) or Send to SIEM… (a destination
+ * - Header: Refresh, a remembered auto-refresh interval, View in Insights (with the query) and Export — a CSV or
+ *   JSONL file through the desktop's save dialog (the core writes it; outside the desktop app the items say why they
+ *   are unavailable) or Send to SIEM… (a destination
  *   of Settings › Audit and retention; before step K5 the dialog says it isn't available yet).
  * - Agent calls: the log-explorer (query → tags, range, Live, saved views, facets, histogram by decision; a bar zooms
  *   into its hour) over Events and Traces.
@@ -174,6 +190,9 @@ export class ActivityPage implements OnInit {
   protected readonly slow = signal(false);
   protected readonly sort = signal<Sort>(NEWEST_FIRST);
   protected readonly filtered = computed(() => this.data.query().trim().length > 0);
+  protected readonly refreshOptions = REFRESH_OPTIONS;
+  protected readonly refreshSeconds = signal(savedRefreshSeconds());
+  protected readonly refreshLabel = computed(() => REFRESH_OPTIONS.find((option) => option.seconds === this.refreshSeconds())!.short);
 
   // ── Agent calls ─────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -292,6 +311,30 @@ export class ActivityPage implements OnInit {
     // Placeholders only when the first answer takes longer than 300 ms (each part shows them while it has nothing).
     const timer = setTimeout(() => this.slow.set(true), SKELETON_DELAY_MS);
     inject(DestroyRef).onDestroy(() => clearTimeout(timer));
+
+    // Wait for each refresh to finish before scheduling another; stop polling when the page is destroyed.
+    effect((onCleanup) => {
+      const seconds = this.refreshSeconds();
+      const running = this.core.running();
+      if (!seconds || !running) return;
+      let cancelled = false;
+      let refreshTimer: ReturnType<typeof setTimeout>;
+      const schedule = () => {
+        if (!cancelled) refreshTimer = setTimeout(() => void poll(), seconds * 1_000);
+      };
+      const poll = async () => {
+        try {
+          if (document.visibilityState !== 'hidden' && !this.data.busy()) await this.data.refresh('head');
+        } finally {
+          schedule();
+        }
+      };
+      schedule();
+      onCleanup(() => {
+        cancelled = true;
+        clearTimeout(refreshTimer);
+      });
+    });
 
     // A link with a query while the page is open (a trace's Show N calls, the palette, another page).
     effect(() => {
@@ -425,7 +468,18 @@ export class ActivityPage implements OnInit {
   }
 
   protected retry(): void {
-    void this.data.refresh();
+    if (!this.data.busy()) void this.data.refresh();
+  }
+
+  protected refresh(): void {
+    if (!this.data.busy()) void this.data.refresh('head');
+  }
+
+  protected onRefreshInterval(pick: MenuPick): void {
+    const seconds = Number(pick.value);
+    if (!REFRESH_OPTIONS.some((option) => option.seconds === seconds)) return;
+    this.refreshSeconds.set(seconds);
+    safeStorage.set(REFRESH_STORAGE_KEY, String(seconds));
   }
 
   // ── Tabs ────────────────────────────────────────────────────────────────────────────────────────────────────────
