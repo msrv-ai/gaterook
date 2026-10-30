@@ -89,6 +89,7 @@ let events: FakeEvents;
 let desktop: {
   available: boolean;
   platform: string;
+  windowsStore: boolean;
   saveFile: (purpose: string) => Promise<string | null>;
   revealInFolder: (kind: string) => Promise<void>;
   applyGeneral: (v: object) => Promise<void>;
@@ -117,6 +118,7 @@ function configure(): void {
   desktop = {
     available: false,
     platform: 'web',
+    windowsStore: false,
     saveFile: () => Promise.resolve(null),
     revealInFolder: (kind) => (calls.push(`reveal ${kind}`), Promise.resolve()),
     applyGeneral: (v) => (calls.push(`apply ${JSON.stringify(v)}`), Promise.resolve()),
@@ -376,6 +378,21 @@ describe('Settings page: loading, failure, the layout', () => {
 });
 
 describe('Settings page: General', () => {
+  it('directs MSIX startup and updates to Windows without offering ineffective app switches', async () => {
+    desktop.available = true;
+    desktop.platform = 'win32';
+    desktop.windowsStore = true;
+    const el = await render();
+    expect($('#st-login', el)).toBeNull();
+    expect($('#st-minimized', el)).toBeNull();
+    expect($('#st-updates', el)).toBeNull();
+    expect($('#st-update-check', el)).toBeNull();
+    expect(text($('#st-store-startup', el)!)).toContain('Windows Settings > Apps > Startup');
+    expect(text($('#st-store-updates', el)!)).toContain('Open Microsoft Store');
+    expect($('#st-single-keys', el)).not.toBeNull();
+    expect(calls.filter((call) => call.startsWith('apply ') || call === 'put general')).toEqual([]);
+  });
+
   it('shows shared update progress and announces a manual check without downloading', async () => {
     desktop.available = true;
     let push!: (state: UpdateState) => void;

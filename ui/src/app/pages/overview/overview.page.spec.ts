@@ -8,6 +8,7 @@ import { ConnectionRow, ConnectionsApi, TestOutcome } from '../../core/api/conne
 import { EndpointSummary, EndpointsApi } from '../../core/api/endpoints.api';
 import { Overview, OverviewApi } from '../../core/api/overview.api';
 import { TunnelState } from '../../core/api/tunnel.api';
+import { DesktopBridge } from '../../core/desktop/desktop-bridge';
 import { EventStream } from '../../core/events/event-stream';
 import { CoreStore } from '../../core/stores/core.store';
 import { TunnelStore } from '../../core/stores/tunnel.store';
@@ -161,6 +162,15 @@ const tile = (root: ParentNode, name: string) => Array.from(root.querySelectorAl
 const href = (a: Element | null) => a?.getAttribute('href') ?? null;
 
 describe('Overview page', () => {
+  it('leads Store users to the selected client setup card', async () => {
+    setupPage(() => Promise.resolve(setup()));
+    Object.assign(TestBed.inject(DesktopBridge), { windowsStore: true });
+    const { el } = await render();
+    expect(text(el)).toContain('click Connect');
+    expect(el.querySelector('a[href="/clients#cl-cd-t"]')).not.toBeNull();
+    expect(el.querySelector('a[href="/clients#cl-manual-t"]')).toBeNull();
+  });
+
   it('shows nothing for a moment, then the skeleton until the core answers', async () => {
     const answer = deferred<Overview>();
     setupPage(() => answer.promise);
@@ -256,11 +266,25 @@ describe('Overview page', () => {
       expect(text(groups[0].querySelector('.gw-tag-list'))).toContain('Codex · Connected');
       expect(text(groups[2].querySelector('.gw-tag-list'))).toBe('Claude Desktop · Connected');
       expect(text(groups[1])).toContain('No AI apps linked.');
+      expect(href(byText(groups[1], 'a', 'Connect an AI app'))).toBe('/clients?endpoint=stage-readonly');
       expect(text(groups[3])).toContain('github-mcp');
       // The same unhealthy connection stays visible first in both endpoint groups.
       for (const group of groups.slice(0, 2)) {
         expect(text(group.querySelector('.gw-status-tile__title'))).toBe('billing-api environment stage');
         expect(href(tile(group, 'billing-api')!.querySelector('.gw-card__link'))).toBe('/connections/billing-api');
+      }
+    });
+
+    it.each([false, true])('keeps each Store endpoint selected in client setup when AI app lookup fails: %s', async (lookupFails) => {
+      setupPage(undefined, () => lookupFails ? Promise.reject(new Error('Unavailable')) : Promise.resolve(clientsFound()));
+      Object.assign(TestBed.inject(DesktopBridge), { windowsStore: true });
+      endpointsAnswer = () => Promise.resolve([endpoint('default'), endpoint('reporting')]);
+      connectionsAnswer = () => Promise.resolve([{ ...ROWS[0], usedBy: ['default', 'reporting'] }]);
+      const { el } = await render();
+      const groups = el.querySelectorAll('section[aria-labelledby="ov-conn-title"] section.gw-card');
+      expect(groups).toHaveLength(2);
+      for (const [index, slug] of ['default', 'reporting'].entries()) {
+        expect(href(byText(groups[index], 'a', lookupFails ? 'Open AI apps' : 'Connect an AI app'))).toBe(`/clients?endpoint=${slug}`);
       }
     });
 
@@ -282,6 +306,7 @@ describe('Overview page', () => {
       const { el } = await render();
       const section = el.querySelector('section[aria-labelledby="ov-conn-title"]')!;
       expect(text(section)).toContain("AI app connections couldn't be loaded.");
+      expect(href(byText(section, 'a', 'Open AI apps'))).toBe('/clients?endpoint=dev');
       expect(text(section)).not.toContain('No AI apps linked.');
       expect(section.querySelectorAll('.gw-status-tile')).toHaveLength(15);
     });

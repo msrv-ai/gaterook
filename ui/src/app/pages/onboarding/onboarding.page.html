@@ -267,7 +267,7 @@
             <div class="gw-card__body">
               <div class="gw-stack">
                 @if (isDone(3)) {
-                  <ng-container *ngTemplateOutlet="doneAlert; context: { $implicit: doneLines()[3], action: 'Connect another AI app', route: '/clients', fragment: null }" />
+                  <ng-container *ngTemplateOutlet="doneAlert; context: { $implicit: doneLines()[3], action: 'Connect another AI app', route: '/clients' }" />
                 }
                 <!-- Cursor's three ways in, per ARCHITECTURE §8.6.2: a token in its file, the browser sign-in or the bridge. -->
                 <p class="gw-text-body-read">Before anything is written, you see the exact change to the AI app's config and where the backup goes. Claude Desktop and Codex get a short-lived token on the fly, so no token sits in their config. Cursor keeps a token in plain text in <span class="gw-mono">~/.cursor/mcp.json</span>, or signs in through the browser or goes through the bridge instead.</p>

@@ -143,7 +143,13 @@ export class ClientsData {
     () => publishedEndpoint(this.tunnel(), this.endpointList()) ?? (this.stage() === 'setup' ? (this.first()?.endpoint ?? null) : null),
   );
   /** The endpoint the manual setup is about. */
-  readonly manualSlug = computed(() => manualEndpoint(this.endpointList()));
+  private readonly requestedManualEndpoint = signal<string | null>(null);
+  private manualLoad = 0;
+  readonly manualSlug = computed(() => {
+    const requested = this.requestedManualEndpoint();
+    return requested ? (this.endpointList().some((e) => e.slug === requested) ? requested : null) : manualEndpoint(this.endpointList());
+  });
+  readonly manualEndpointMissing = computed(() => !!this.requestedManualEndpoint() && this.endpointsSignal().value !== null && !this.manualSlug());
 
   /** Whether the cards have answered (the page shows placeholders until then). */
   readonly loaded = computed(() => this.isSettled(this.clientsSignal()));
@@ -450,19 +456,31 @@ export class ClientsData {
 
   // ── Manual setup ──────────────────────────────────────────────────────────────────────────────────────────────
 
+  selectManualEndpoint(slug: string | null): void {
+    if (slug === this.requestedManualEndpoint()) return;
+    this.requestedManualEndpoint.set(slug);
+    this.manualSignal.set(EMPTY);
+    this.tokensSignal.set([]);
+    void this.loadManual();
+  }
+
   private async loadManual(): Promise<void> {
+    const generation = ++this.manualLoad;
     const slug = this.manualSlug();
     if (!slug) {
       this.manualSignal.set({ value: null, error: null, unavailable: false });
       return;
     }
+    const manual = signal(this.manualSignal());
     await Promise.all([
-      this.part(this.manualSignal, () => this.clientsApi.manual(slug), []),
+      this.part(manual, () => this.clientsApi.manual(slug), []).then(() => {
+        if (!this.stopped && generation === this.manualLoad) this.manualSignal.set(manual());
+      }),
       this.tokensApi.list(slug).then(
-        (rows) => {
-          if (!this.stopped) this.tokensSignal.set(rows);
+        (tokens) => {
+          if (!this.stopped && generation === this.manualLoad) this.tokensSignal.set(tokens);
         },
-        () => undefined, // without tokens the footer line just goes
+        () => undefined, // Token history must not prevent copying the endpoint URL and snippets.
       ),
     ]);
   }

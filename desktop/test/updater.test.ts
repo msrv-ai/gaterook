@@ -69,6 +69,19 @@ function fixture(t: TestContext, overrides: Partial<UpdatesOptions> = {}) {
 }
 
 describe('explicit desktop updates', () => {
+  it('never loads or installs an external updater for MSIX, even with an embedded signed feed', async (t) => {
+    const f = fixture(t, { windowsStore: true });
+    f.updates.schedule();
+    await f.updates.check();
+    await f.updates.install();
+    assert.equal(f.loads(), 0);
+    assert.equal(f.driver.checks, 0);
+    assert.equal(f.driver.downloads, 0);
+    assert.equal(f.driver.installs, 0);
+    assert.equal(f.prepares(), 0);
+    assert.match((f.updates.current() as { message: string }).message, /Microsoft Store manages updates/);
+  });
+
   it('checks metadata without downloading or installing and retains signed stable release restrictions', async (t) => {
     const f = fixture(t);
     await Promise.all([f.updates.check(), f.updates.check()]);

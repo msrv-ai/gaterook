@@ -113,6 +113,16 @@ To start over, open **Settings → General → Reset GateRook**, type `RESET`, a
 
 An interrupted reset is retried before the core starts on the next launch. The reset targets GateRook-owned paths in the selected home and its Electron session; unrelated files in a development home are retained. On macOS it deletes only that home's native unlock Keychain item. Shared OS safe-storage entries are retained because other homes may use them.
 
+## Windows Store client integration
+
+The MSIX desktop supports the same reviewed **Connect** flow for shared user-profile files. Claude Desktop uses an endpoint-specific MCPB under `~/.gaterook/clients/claude-desktop`; GateRook opens the bundle and Claude asks the user to install it. Codex uses `~/.codex/config.toml` (or `CODEX_HOME`) with the headers helper. Cursor uses `~/.cursor/mcp.json`, with its browser installation link as an OAuth alternative for non-production endpoints. Creating a bundle or opening an installation dialog does not establish a connection: the client must finish installation and use its access.
+
+Default MSIX virtualization redirects new AppData files, while ordinary user-writable locations outside AppData remain shared. The core rejects Claude's configuration-file fallback and any client, runtime, or backup path that resolves into AppData, including redirected folders and symlinks/junctions. It checks again when applying a preview. This behavior does not require disabling virtualization. See [Microsoft's virtualization rules](https://learn.microsoft.com/en-us/windows/msix/desktop/flexible-virtualization) and [Claude Desktop extensions](https://www.anthropic.com/research/desktop-extensions).
+
+Electron supplies `gateway.clients.windows-store` from its actual Windows package identity. UI visibility alone is not the policy boundary. On Windows, the Codex shim and stdio clients run the exported `~/.gaterook/bin/gw-bridge.exe` with its adjacent runtime DLLs; they do not depend on access to GateRook's private `WindowsApps` installation. MCPB and helper configurations contain grant identifiers rather than bearer tokens. Production access retains its existing broker confirmation and revocation behavior.
+
+For acceptance, use a disposable Windows profile and a real MSIX launch. Inspect created configuration from an unpackaged process, test first-time creation and preservation of unrelated entries, then complete installation and an MCP request in each client. Also check a custom `CODEX_HOME` under AppData, path redirection between preview and confirmation, and client disconnection. JVM integration tests and a successful exported-helper launch do not replace those client tests.
+
 ## Full backup and restore
 
 In the desktop app, open **Settings → Backup → Create full backup**. Enter and repeat a unique passphrase of 12–1,024 characters, then save the `.grbackup` file outside the GateRook data folder. Store a copy away from this computer and keep the passphrase separately, for example in a password manager. GateRook cannot recover a forgotten passphrase. Creating the backup briefly stops and restarts the gateway to capture local plugin files; active calls may be interrupted.
@@ -184,6 +194,16 @@ Windows outputs use `.exe`. Native runtime libraries must remain next to the exe
 Installer inputs and staging scripts are retained in `desktop/` and `scripts/`. Packaging also requires a plugin-host JRE (`scripts/jlink.sh`), platform binaries, and staged resources. Signing, notarization, release credentials, and publication are separate concerns. Do not treat a successful JVM build as installer validation or run publishing commands as part of local setup.
 
 On macOS, the packaging `afterPack` hook writes `Contents/Resources/app-update.yml` from the configured update source before signing, including directory-only builds. Keep this hook when overriding packaging settings: packaging a prebuilt application does not regenerate its update configuration. An installed app missing this file cannot check for updates; install a corrected signed build manually. Adding the file to an already signed application invalidates its resource seal.
+
+The same hook adds owner-write permission to packaged resource files and directories before signing, preserving their contents, executable bits and symbolic links. JRE license files can be read-only in the source runtime; without this adjustment, Squirrel.Mac cannot remove their quarantine attributes during an update and reopens the previous version after installation fails. The source JRE is unchanged. On macOS, inspect `~/Library/Caches/ai.msrv.gaterook.desktop.ShipIt/ShipIt_stderr.log` for installation errors that occur after GateRook quits. A corrected update archive must be packaged with this hook; retrying an unchanged archive repeats the failure.
+
+Check the complete packaged app, and repeat the check on a fresh extraction of the final updater ZIP:
+
+```bash
+node desktop/scripts/verify-mac-update-permissions.mjs /path/to/GateRook.app
+```
+
+This read-only check requires POSIX file modes. It rejects real files or directories without owner-write permission, reports the relative path and mode, and does not follow symbolic links. It never repairs a signed app or changes quarantine attributes. Fix packaging inputs before signing and regenerate the archive when it fails. Signature verification, notarization, and permission validation are separate checks; none replaces an actual installation/update test.
 
 ## Troubleshooting
 

@@ -226,6 +226,42 @@ async function cursorConnection(method: 'oauth' | 'token' = 'oauth') {
 }
 
 describe('Endpoint detail page', () => {
+  it('offers managed client cards on the selected endpoint in the Store Clients panel', async () => {
+    const disconnectPreview = vi.fn();
+    setup(undefined, { api: { list: () => Promise.resolve(clientsView()), disconnectPreview }, desktop: { available: true, windowsStore: true } });
+    const { el } = await render({ slug: 'dev', tab: 'clients' });
+    const panel = el.querySelector('#clients')!;
+    expect(panel.querySelector('[gwClientCard]')).not.toBeNull();
+    expect(panel.querySelector('a[href="/clients?endpoint=dev"]')).not.toBeNull();
+    expect(text(panel)).toContain('Disconnect');
+    expect(text(panel)).not.toContain('remove the entry in the AI app yourself');
+    expect(disconnectPreview).not.toHaveBeenCalled();
+    expect(el.querySelector('#tokens [gwTokens]')).not.toBeNull();
+  });
+
+  it('opens a Claude extension from the Store endpoint panel and waits for installation', async () => {
+    const request: ConnectRequest = { endpoint: 'dev', method: 'mcpb' };
+    const result = connected('claude-desktop', request);
+    const claude = kitClients().clients.find((client) => client.client === 'claude-desktop')!;
+    const openMcpb = vi.fn().mockResolvedValue(undefined);
+    setup(undefined, {
+      api: {
+        list: () => Promise.resolve({ ...clientsView(), clients: [{ ...claude, status: 'detected', links: [], methods: claude.methods.filter((method) => method.id === 'mcpb') }] }),
+        connectPreview: () => Promise.resolve(previewFor('claude-desktop', request)),
+        connect: () => Promise.resolve(result),
+      },
+      desktop: { available: true, windowsStore: true, openMcpb },
+    });
+    const { fixture, el } = await render({ slug: 'dev', tab: 'clients' });
+    button(el.querySelector('#clients')!, 'Connect Claude Desktop').click();
+    await settle(fixture);
+    openDialog()!.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    await settle(fixture);
+    expect(openMcpb).toHaveBeenCalledWith(result.link.id);
+    expect(toasts().at(-1)).toMatchObject({ tone: 'info', title: 'Finish connecting Claude Desktop' });
+    expect(toasts().at(-1)?.body).toContain('Confirm Install');
+  });
+
   it('retries a slightly early bypass expiry read with backoff and stops after the core confirms expiry', async () => {
     setup();
     const { fixture } = await render();

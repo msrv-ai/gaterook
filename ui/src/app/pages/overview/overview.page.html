@@ -119,7 +119,7 @@
                     <div class="gw-stack gw-stack--sm">
                       <p class="gw-text-caption gw-fg-muted">AI apps</p>
                       @if (group.apps === null) {
-                        <p class="gw-text-small gw-fg-muted">AI app connections couldn't be loaded. <a class="gw-link" routerLink="/clients">Open AI apps</a></p>
+                        <p class="gw-text-small gw-fg-muted">AI app connections couldn't be loaded. <a class="gw-link" routerLink="/clients" [queryParams]="{ endpoint: endpoint.slug }">Open AI apps</a></p>
                       } @else if (group.apps.length) {
                         <ul class="gw-tag-list" role="list" [attr.aria-label]="'AI apps for endpoint ' + endpoint.slug">
                           @for (app of group.apps; track app.client) {
@@ -127,7 +127,7 @@
                           }
                         </ul>
                       } @else {
-                        <p class="gw-text-small gw-fg-muted">No AI apps linked. <a class="gw-link" routerLink="/clients">Connect an AI app</a></p>
+                        <p class="gw-text-small gw-fg-muted">No AI apps linked. <a class="gw-link" routerLink="/clients" [queryParams]="{ endpoint: endpoint.slug }">Connect an AI app</a></p>
                       }
                     </div>
                   }

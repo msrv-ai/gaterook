@@ -29,6 +29,8 @@ export interface UpdatesOptions {
   /** Recover the desktop if launching the installer fails after its services have stopped. */
   readonly installFailed: (message: string) => void;
   readonly platform?: NodeJS.Platform;
+  /** MSIX packages receive updates through Microsoft Store, never an external installer. */
+  readonly windowsStore?: boolean;
   readonly loadUpdater?: () => Promise<UpdateDriver>;
 }
 
@@ -63,7 +65,8 @@ export class Updates {
   constructor(o: UpdatesOptions) {
     this.o = o;
     this.platform = o.platform ?? process.platform;
-    this.unavailable = updatesUnavailable(o.packaged, this.platform, o.packaged ? updateConfig(o.resourcesPath) : null);
+    this.unavailable = updatesUnavailable(o.packaged, this.platform, o.packaged ? updateConfig(o.resourcesPath) : null,
+      o.windowsStore ?? process.windowsStore === true);
   }
 
   current(): UpdateState | null {

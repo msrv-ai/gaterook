@@ -56,7 +56,7 @@
       } @else if (c().status === 'not-installed') {
         <a class="gw-btn gw-btn--link gw-btn--sm" [href]="installUrl()" target="_blank" rel="noopener noreferrer">How to install<span class="gw-sr-only"> {{ c().name }} (opens in your browser)</span><svg lucideIcon="external-link" class="gw-icon gw-icon--sm"></svg></a>
       } @else {
-        <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="dialog" (click)="openConnect($any($event.currentTarget))"><svg lucideIcon="plug-zap" class="gw-icon gw-icon--sm"></svg>Connect<span class="gw-sr-only"> {{ c().name }}</span></button>
+        <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="dialog" [attr.aria-disabled]="setupUnavailable() ? 'true' : null" [attr.aria-describedby]="setupUnavailable() ? uid + '-unavailable' : null" (click)="openConnect($any($event.currentTarget))"><svg lucideIcon="plug-zap" class="gw-icon gw-icon--sm"></svg>Connect<span class="gw-sr-only"> {{ c().name }}</span></button>
       }
     </div>
   </div>
@@ -248,7 +248,7 @@
           @if (hasConfig()) {
             <ng-container [ngTemplateOutlet]="openConfigButton" />
           }
-          <button class="gw-btn" [class.gw-btn--primary]="alone()" [class.gw-btn--sm]="!alone()" type="button" aria-haspopup="dialog" (click)="openConnect($any($event.currentTarget))"><svg lucideIcon="plug-zap" class="gw-icon" [class.gw-icon--sm]="!alone()"></svg>Connect<span class="gw-sr-only"> {{ c().name }}</span></button>
+          <button class="gw-btn" [class.gw-btn--primary]="alone()" [class.gw-btn--sm]="!alone()" type="button" aria-haspopup="dialog" [attr.aria-disabled]="setupUnavailable() ? 'true' : null" [attr.aria-describedby]="setupUnavailable() ? uid + '-unavailable' : null" (click)="openConnect($any($event.currentTarget))"><svg lucideIcon="plug-zap" class="gw-icon" [class.gw-icon--sm]="!alone()"></svg>Connect<span class="gw-sr-only"> {{ c().name }}</span></button>
         </div>
       </footer>
     }
@@ -289,13 +289,17 @@
               <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" aria-haspopup="dialog" (click)="askDisconnect(l, $any($event.currentTarget))">Disconnect<span class="gw-sr-only"> {{ c().name }}</span></button>
             }
           }
-          <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="dialog" (click)="openConnect($any($event.currentTarget))"><svg lucideIcon="refresh-cw" class="gw-icon gw-icon--sm"></svg>{{ failure() ? 'Try again' : 'Connect again' }}<span class="gw-sr-only"> to connect {{ c().name }}</span></button>
+          <button class="gw-btn gw-btn--sm" type="button" aria-haspopup="dialog" [attr.aria-disabled]="setupUnavailable() ? 'true' : null" [attr.aria-describedby]="setupUnavailable() ? uid + '-unavailable' : null" (click)="openConnect($any($event.currentTarget))"><svg lucideIcon="refresh-cw" class="gw-icon gw-icon--sm"></svg>{{ failure() ? 'Try again' : 'Connect again' }}<span class="gw-sr-only"> to connect {{ c().name }}</span></button>
         </div>
       </footer>
     }
   }
 
   </ng-template>
+}
+
+@if (setupUnavailable()) {
+  <p class="gw-text-small gw-fg-secondary" [id]="uid + '-unavailable'">Automatic setup is unavailable for this app. @for (warning of c().warnings; track $index) {{{ warning }} }</p>
 }
 
 <!-- Connect: the exact change before anything is written. Initial focus: the endpoint select. -->

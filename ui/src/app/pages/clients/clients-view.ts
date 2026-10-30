@@ -185,7 +185,7 @@ export function connectToast(card: ClientCard, request: ConnectRequest | null, p
   switch (result.link.method) {
     case 'mcpb':
       return {
-        title,
+        title: `Finish connecting ${card.name}`,
         body: opened
           ? `${card.name} opens its install dialog for the extension: click Install. It lists the tools in the next new chat.`
           : `Open ${result.mcpbPath ?? 'the extension'} in ${card.name} to install it; it lists the tools in the next new chat.`,
@@ -227,7 +227,7 @@ export function bridgeRemovedToast(card: ClientCard, result: BridgeRemoved): Sai
 /** The toast after Add endpoint of Claude Desktop's bridge (kit: "stage-readonly added to Claude Desktop"). */
 export function endpointAddedToast(card: ClientCard, endpoint: string, result: ConnectResult, opened: boolean): Said {
   return {
-    title: `${endpoint} added to ${card.name}`,
+    title: `Install ${endpoint} in ${card.name}`,
     body: opened
       ? `${card.name} opens its install dialog for the extension: click Install. It lists the tools in the next new chat.`
       : `Open ${result.mcpbPath ?? 'the extension'} in ${card.name} to install it; it lists the tools in the next new chat.`,

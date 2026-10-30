@@ -266,6 +266,8 @@
         <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retry()">Try again</button></div>
       </div>
     </div>
+  } @else if (data.manualEndpointMissing()) {
+    <p class="gw-text-small gw-fg-secondary">This endpoint is no longer available. <a class="gw-link" routerLink="/endpoints">Choose an endpoint</a> to set up your AI app.</p>
   } @else if (data.endpoints().value && !data.manualSlug()) {
     <div class="gw-card">
       <div class="gw-empty">
