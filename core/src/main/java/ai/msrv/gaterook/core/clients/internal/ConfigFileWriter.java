@@ -31,6 +31,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 /**
@@ -67,11 +68,17 @@ public final class ConfigFileWriter {
 
   private final Path backupsRoot;
   private final Clock clock;
+  private final Consumer<Path> pathGuard;
 
   /** @param backupsRoot {@code ~/.gaterook/backups} */
   public ConfigFileWriter(Path backupsRoot, Clock clock) {
+    this(backupsRoot, clock, ignored -> { });
+  }
+
+  public ConfigFileWriter(Path backupsRoot, Clock clock, Consumer<Path> pathGuard) {
     this.backupsRoot = Objects.requireNonNull(backupsRoot, "backupsRoot");
     this.clock = Objects.requireNonNull(clock, "clock");
+    this.pathGuard = Objects.requireNonNull(pathGuard, "pathGuard");
   }
 
   /** Reads {@code file} for a preview; a missing file is an empty snapshot. */
@@ -111,7 +118,12 @@ public final class ConfigFileWriter {
    * @throws StaleFileException the file isn't what {@code before} read any more
    */
   public Written write(Snapshot before, String content, String client, boolean tokenInside) throws IOException {
+    pathGuard.accept(before.path());
+    pathGuard.accept(before.realPath());
+    pathGuard.accept(backupsRoot);
+    pathGuard.accept(backupsRoot.resolve(client));
     Path real = realPath(before.path());
+    pathGuard.accept(real);
     Snapshot now = read(before.path());
     if (!now.sha256().equals(before.sha256()) || !real.equals(before.realPath())) {
       throw new StaleFileException(real);
@@ -122,12 +134,14 @@ public final class ConfigFileWriter {
       boolean secretBefore = holdsToken(now.content());
       backup = nextFree(real.resolveSibling(real.getFileName() + ".bak-" + LocalDate.now(clock.withZone(
           ZoneId.systemDefault()))));
+      pathGuard.accept(backup);
       Files.copy(real, backup, StandardCopyOption.COPY_ATTRIBUTES);
       if (secretBefore) {
         ownerOnly(backup);
       }
       appBackup = appBackup(client, real, now.content());
     }
+    pathGuard.accept(real);
     Files.createDirectories(real.getParent());
     Path tmp = Files.createTempFile(real.getParent(), "." + real.getFileName(), ".mcpgw.tmp");
     try {
@@ -142,6 +156,8 @@ public final class ConfigFileWriter {
         Set<PosixFilePermission> mode = !now.exists() || tokenInside ? OWNER_FILE : now.permissions();
         Files.setPosixFilePermissions(tmp, mode);
       }
+      pathGuard.accept(real);
+      pathGuard.accept(tmp);
       move(tmp, real);
     } finally {
       Files.deleteIfExists(tmp);
@@ -153,10 +169,13 @@ public final class ConfigFileWriter {
   /** Copies the current content into {@code backups/<client>/<time>-<name>} (0600) and keeps the newest 20. */
   Path appBackup(String client, Path real, String content) throws IOException {
     Path dir = backupsRoot.resolve(client);
+    pathGuard.accept(backupsRoot);
+    pathGuard.accept(dir);
     GatewayPaths.ownerOnlyDirectory(backupsRoot);
     GatewayPaths.ownerOnlyDirectory(dir);
     String stamp = ZonedDateTime.now(clock.withZone(ZoneId.systemDefault())).format(STAMP);
     Path target = nextFree(dir.resolve(stamp + "-" + real.getFileName()));
+    pathGuard.accept(target);
     // Owner-only from its first byte: the copy may hold a token.
     if (posix()) {
       Files.createFile(target, PosixFilePermissions.asFileAttribute(OWNER_FILE));
@@ -192,7 +211,9 @@ public final class ConfigFileWriter {
       all = new ArrayList<>(s.filter(Files::isRegularFile).sorted(Comparator.comparing(Path::getFileName)).toList());
     }
     while (all.size() > KEEP_BACKUPS) {
-      Files.deleteIfExists(all.removeFirst());
+      Path file = all.removeFirst();
+      pathGuard.accept(file);
+      Files.deleteIfExists(file);
     }
   }
 

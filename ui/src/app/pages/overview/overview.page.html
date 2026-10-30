@@ -119,7 +119,7 @@
                     <div class="gw-stack gw-stack--sm">
                       <p class="gw-text-caption gw-fg-muted">AI apps</p>
                       @if (group.apps === null) {
-                        <p class="gw-text-small gw-fg-muted">AI app connections couldn't be loaded. <a class="gw-link" routerLink="/clients" [queryParams]="manualSetupOnly ? { endpoint: endpoint.slug } : null" [fragment]="manualSetupOnly ? 'cl-manual-t' : undefined">{{ manualSetupOnly ? 'Manual setup' : 'Open AI apps' }}</a></p>
+                        <p class="gw-text-small gw-fg-muted">AI app connections couldn't be loaded. <a class="gw-link" routerLink="/clients" [queryParams]="{ endpoint: endpoint.slug }">Open AI apps</a></p>
                       } @else if (group.apps.length) {
                         <ul class="gw-tag-list" role="list" [attr.aria-label]="'AI apps for endpoint ' + endpoint.slug">
                           @for (app of group.apps; track app.client) {
@@ -127,7 +127,7 @@
                           }
                         </ul>
                       } @else {
-                        <p class="gw-text-small gw-fg-muted">No AI apps linked. <a class="gw-link" routerLink="/clients" [queryParams]="manualSetupOnly ? { endpoint: endpoint.slug } : null" [fragment]="manualSetupOnly ? 'cl-manual-t' : undefined">{{ manualSetupOnly ? 'Manual setup' : 'Connect an AI app' }}</a></p>
+                        <p class="gw-text-small gw-fg-muted">No AI apps linked. <a class="gw-link" routerLink="/clients" [queryParams]="{ endpoint: endpoint.slug }">Connect an AI app</a></p>
                       }
                     </div>
                   }
@@ -205,11 +205,7 @@
               </div>
             </li>
             <li gwGuideStep [n]="2" state="upcoming" heading="Connect your AI app">
-              @if (manualSetupOnly) {
-                <p class="gw-stepper__description">Open <a class="gw-link" routerLink="/clients" fragment="cl-manual-t">Manual setup</a>, create a token for your AI app, then copy the endpoint URL and token into its MCP settings.</p>
-              } @else {
-                <p class="gw-stepper__description">Choose the app you use and click Connect. We show what changes before anything is written, and back up any file we change.</p>
-              }
+              <p class="gw-stepper__description">Choose the app you use and click Connect. We show what changes before anything is written, and back up any file we change.</p>
               @if (guideApps().length) {
                 <div class="gw-stepper__content gw-stack gw-stack--sm">
                   <ul class="gw-grid gw-grid--2" role="list" aria-label="AI apps on this computer">
@@ -261,11 +257,7 @@
               </div>
             </li>
             <li gwGuideStep [n]="2" state="current" heading="Connect your AI app">
-              @if (manualSetupOnly) {
-                <p class="gw-stepper__description">Open <a class="gw-link" routerLink="/clients" fragment="cl-manual-t">Manual setup</a>, create a token for your AI app, then copy the endpoint URL and token into its MCP settings.</p>
-              } @else {
-                <p class="gw-stepper__description">Choose the app you use and click Connect. We show what changes before anything is written, and back up any file we change.</p>
-              }
+              <p class="gw-stepper__description">Choose the app you use and click Connect. We show what changes before anything is written, and back up any file we change.</p>
               @if (guideApps().length) {
                 <div class="gw-stepper__content">
                   <ul class="gw-grid gw-grid--2" role="list" aria-label="AI apps on this computer">
@@ -305,9 +297,7 @@
   -->
   <ng-template #appTile let-a let-level="level" let-wait="wait">
     <li gwStatusTile [level]="level" [name]="a.name" [client]="a.client" [meta]="a.meta" [endpoints]="a.endpoints" [state]="a.state" [link]="a.linked ? '/clients' : null" [fragment]="a.linked ? appAnchor(a.client) : null">
-      @if (manualSetupOnly) {
-        <a class="gw-btn gw-btn--sm" routerLink="/clients" fragment="cl-manual-t">Manual setup<span class="gw-sr-only"> for {{ a.name }}</span></a>
-      } @else if (a.action === 'connect') {
+      @if (a.action === 'connect') {
         @if (wait) {
           <button class="gw-btn gw-btn--sm" type="button" aria-disabled="true" aria-describedby="ov-first-why">Connect<span class="gw-sr-only"> {{ a.name }}</span></button>
         } @else {

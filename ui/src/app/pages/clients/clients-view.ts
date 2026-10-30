@@ -185,7 +185,7 @@ export function connectToast(card: ClientCard, request: ConnectRequest | null, p
   switch (result.link.method) {
     case 'mcpb':
       return {
-        title,
+        title: `Finish connecting ${card.name}`,
         body: opened
           ? `${card.name} opens its install dialog for the extension: click Install. It lists the tools in the next new chat.`
           : `Open ${result.mcpbPath ?? 'the extension'} in ${card.name} to install it; it lists the tools in the next new chat.`,
@@ -227,7 +227,7 @@ export function bridgeRemovedToast(card: ClientCard, result: BridgeRemoved): Sai
 /** The toast after Add endpoint of Claude Desktop's bridge (kit: "stage-readonly added to Claude Desktop"). */
 export function endpointAddedToast(card: ClientCard, endpoint: string, result: ConnectResult, opened: boolean): Said {
   return {
-    title: `${endpoint} added to ${card.name}`,
+    title: `Install ${endpoint} in ${card.name}`,
     body: opened
       ? `${card.name} opens its install dialog for the extension: click Install. It lists the tools in the next new chat.`
       : `Open ${result.mcpbPath ?? 'the extension'} in ${card.name} to install it; it lists the tools in the next new chat.`,
@@ -325,9 +325,8 @@ export interface SnippetTab {
  * The snippet tabs of the manual setup from the core's snippets (`GET /api/clients/manual`): MCP Inspector (its
  * commands), JSON (an `mcpServers` file — Inspector's config holds the token, never its command line), TOML.
  */
-export function snippetTabs(manual: ManualSetup, manualSetupOnly = false): SnippetTab[] {
-  const of = (langs: string[]) => manual.snippets.filter((s) => langs.includes(s.language)).map((s) =>
-    manualSetupOnly && s.id === 'inspector-config' ? { ...s, title: 'gw-inspector.json (keep private: it holds the token)' } : s);
+export function snippetTabs(manual: ManualSetup): SnippetTab[] {
+  const of = (langs: string[]) => manual.snippets.filter((s) => langs.includes(s.language));
   const entry = `gaterook-${manual.endpoint}`;
   const json = of(['json']);
   const tabs: SnippetTab[] = [
@@ -352,9 +351,7 @@ export function snippetTabs(manual: ManualSetup, manualSetupOnly = false): Snipp
       label: 'TOML',
       icon: 'file-code',
       snippets: of(['toml']),
-      caption: literalParts(manualSetupOnly
-        ? 'For apps configured through a config.toml. Paste your token in place of the placeholder and keep the file private.'
-        : 'For apps configured through a config.toml. Codex itself connects in one click above, with no token in the file.', ['config.toml']),
+      caption: literalParts('For apps configured through a config.toml. Codex itself connects in one click above, with no token in the file.', ['config.toml']),
     },
   ];
   return tabs.filter((t) => t.snippets.length);

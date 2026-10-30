@@ -15,7 +15,7 @@ describe('starting the core', () => {
       { home: '/h/.gaterook', resources: '/r', platform: 'darwin' });
     assert.equal(file, '/r/core/gaterook-core');
     assert.deepEqual(args, ['-Xmx384m', '-Dorg.sqlite.lib.path=/r/core', `-Djava.io.tmpdir=${join('/h/.gaterook', 'tmp')}`,
-      '-Dgateway.home=/h/.gaterook', '-Dgateway.resources=/r']);
+      '-Dgateway.home=/h/.gaterook', '-Dgateway.clients.windows-store=false', '-Dgateway.resources=/r']);
     assert.ok(args.every((a) => a.startsWith('-X') || a.startsWith('-D')));
     assert.ok(!args.some((a) => a.startsWith('-XX')));
   });
@@ -27,6 +27,24 @@ describe('starting the core', () => {
     assert.deepEqual(args.slice(-2), ['-jar', '/repo/app/target/app.jar']);
     assert.ok(args.includes('-Dgateway.clients.bridge-jar=/repo/bridge-cli/target/gw-bridge.jar'));
     assert.ok(!args.some((a) => a.startsWith('-Dgateway.resources')));
+  });
+
+  it('passes the Store client policy to native, JVM and custom cores only on Windows', () => {
+    const commands = [
+      { kind: 'native', binary: '/r/core/gaterook-core.exe', libDir: '/r/core' },
+      { kind: 'jar', java: '/r/jre/bin/java.exe', jar: '/r/core/app.jar' },
+      { kind: 'custom', argv: ['test-core'] },
+    ] as const;
+    for (const command of commands) {
+      for (const platform of ['win32', 'darwin', 'linux'] as const) {
+        for (const windowsStore of [true, false]) {
+          const { args } = coreArgv(command, { home: '/h', resources: '/r', platform, windowsStore });
+          const policy = `-Dgateway.clients.windows-store=${platform === 'win32' && windowsStore}`;
+          assert.deepEqual(args.filter((arg) => arg.startsWith('-Dgateway.clients.windows-store=')), [policy]);
+          if (command.kind === 'jar') assert.ok(args.indexOf(policy) < args.indexOf('-jar'));
+        }
+      }
+    }
   });
 
   it('pins Windows core and plugin-host selector sockets without changing the parent environment', () => {

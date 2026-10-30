@@ -1,19 +1,8 @@
 @let ep = slug();
-@if (manualSetupOnly) {
-<header class="gw-section__header">
-  <h2 class="gw-section__title" id="ep-clients-title">Set up AI apps with {{ ep }}</h2>
-  <p class="gw-section__description">Copy this endpoint's URL and a token into your AI app's MCP settings. This Microsoft Store edition does not edit AI app configuration files. To disconnect an app, revoke its token or client access under Tokens, then remove the entry in the AI app yourself.</p>
-  <div class="gw-section__actions">
-    <a class="gw-btn gw-btn--sm" routerLink="/clients" [queryParams]="{ endpoint: ep }" fragment="cl-manual-t">Manual setup</a>
-    <a class="gw-btn gw-btn--sm" [routerLink]="['/endpoints', ep]" [queryParams]="{ tab: 'tokens' }">Manage tokens and access</a>
-    <a class="gw-btn gw-btn--link gw-btn--sm" routerLink="/settings/authorization">Manage browser sign-ins</a>
-  </div>
-</header>
-} @else {
 <header class="gw-section__header">
   <h2 class="gw-section__title" id="ep-clients-title">AI apps using {{ ep }}</h2>
   <p class="gw-section__description">Each one gets the tools of {{ ep }} and nothing else. Disconnect removes its config entry and revokes its access.</p>
-  <div class="gw-section__actions"><a class="gw-btn gw-btn--sm" routerLink="/clients"><svg lucideIcon="app-window" class="gw-icon gw-icon--sm"></svg>All AI apps</a></div>
+  <div class="gw-section__actions"><a class="gw-btn gw-btn--sm" routerLink="/clients" [queryParams]="{ endpoint: ep }"><svg lucideIcon="app-window" class="gw-icon gw-icon--sm"></svg>All AI apps</a></div>
 </header>
 
 @switch (data.clientsState()) {
@@ -61,10 +50,9 @@
           <span class="gw-empty__icon"><svg lucideIcon="app-window" class="gw-icon"></svg></span>
           <h3 class="gw-empty__title">No AI app uses {{ ep }} yet</h3>
           <p class="gw-empty__text">GateRook found no Claude Desktop, Codex, Cursor or Antigravity on this computer. Install one, then connect it from AI apps; or issue a token under Tokens for any other app.</p>
-          <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" routerLink="/clients"><svg lucideIcon="app-window" class="gw-icon gw-icon--sm"></svg>All AI apps</a></div>
+          <div class="gw-empty__actions"><a class="gw-btn gw-btn--sm" routerLink="/clients" [queryParams]="{ endpoint: ep }"><svg lucideIcon="app-window" class="gw-icon gw-icon--sm"></svg>All AI apps</a></div>
         </div>
       </div>
     }
   }
-}
 }

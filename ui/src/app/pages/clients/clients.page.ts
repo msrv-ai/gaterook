@@ -90,7 +90,6 @@ export class ClientsPage {
   protected readonly core = inject(CoreStore);
   protected readonly time = inject(TimeService);
   private readonly desktop = inject(DesktopBridge);
-  protected readonly manualSetupOnly = this.desktop.windowsStore === true;
   private readonly toasts = inject(ToastService);
   private readonly announcer = inject(Announcer);
   private readonly doc = inject(DOCUMENT);
@@ -113,7 +112,13 @@ export class ClientsPage {
   protected readonly counts = computed(() => headerCounts(this.cards()));
   protected readonly expandedApps = signal<ReadonlySet<string>>(new Set());
   protected readonly none = computed(() => this.cards().length > 0 && noClients(this.cards()));
-  protected readonly endpoints = this.data.endpointList;
+  /** A link from an endpoint keeps that endpoint first in each Connect review. */
+  protected readonly endpoints = computed(() => {
+    const endpoints = this.data.endpointList();
+    const requested = this.queryParams().get('endpoint');
+    const selected = endpoints.find((endpoint) => endpoint.slug === requested);
+    return selected ? [selected, ...endpoints.filter((endpoint) => endpoint !== selected)] : endpoints;
+  });
   protected readonly hand = computed(() => handTokens(this.data.tokens(), this.cards()));
   protected readonly scannedAt = computed(() => this.data.clients().value?.scannedAt ?? null);
 
@@ -154,8 +159,8 @@ export class ClientsPage {
     const f = this.data.first();
     return checkPrompt(f?.type ?? null, f?.name ?? null);
   });
-  /** Store builds start with manual setup open; other builds keep the disclosure. */
-  protected readonly manualOpen = signal(this.manualSetupOnly);
+  /** Manual setup remains available behind its disclosure. */
+  protected readonly manualOpen = signal(false);
   protected readonly anchorBase = anchorBase;
   protected readonly literalParts = literalParts;
   protected readonly statusLook = clientStatusLook;
@@ -163,13 +168,11 @@ export class ClientsPage {
   protected readonly installUrl = (c: ClientCard) => INSTALL_URL[c.client];
 
   constructor() {
-    if (this.manualSetupOnly) {
-      this.data.selectManualEndpoint(this.route.snapshot.queryParamMap.get('endpoint'));
-      effect(() => {
-        const endpoint = this.queryParams().get('endpoint');
-        untracked(() => this.data.selectManualEndpoint(endpoint));
-      });
-    }
+    this.data.selectManualEndpoint(this.route.snapshot.queryParamMap.get('endpoint'));
+    effect(() => {
+      const endpoint = this.queryParams().get('endpoint');
+      untracked(() => this.data.selectManualEndpoint(endpoint));
+    });
     void this.data.start();
     const timer = setTimeout(() => this.slow.set(true), SKELETON_DELAY_MS);
     effect((onCleanup) => {
@@ -223,7 +226,7 @@ export class ClientsPage {
    * heading takes the focus, never the primary; an app without entries outside "in use" is its row; else its card.
    */
   private arrive(fragment: string): void {
-    if (this.manualSetupOnly || fragment === 'cl-manual-t') {
+    if (fragment === 'cl-manual-t') {
       this.manualOpen.set(true);
       this.focus('cl-manual-t');
       return;
@@ -344,8 +347,15 @@ export class ClientsPage {
       }
       this.focus(null, card.client);
       const opened = done.result.link.method === 'mcpb' && this.desktopApp;
-      if (opened) await this.desktop.openMcpb(done.result.link.id);
-      this.toasts.show({ tone: 'success', ...connectToast(card, request, done.preview, done.result, opened) });
+      if (opened) {
+        try {
+          await this.desktop.openMcpb(done.result.link.id);
+        } catch (e) {
+          this.toasts.show({ tone: 'danger', title: 'The extension could not be opened', body: `${errorSentence(e)} Open ${done.result.mcpbPath ?? 'the generated extension'} in Claude Desktop to install it.` });
+          return;
+        }
+      }
+      this.toasts.show({ tone: done.result.link.method === 'mcpb' ? 'info' : 'success', ...connectToast(card, request, done.preview, done.result, opened) });
     } finally {
       this.connecting.set(null);
     }
@@ -355,8 +365,15 @@ export class ClientsPage {
     try {
       const result = await this.data.addEndpoint(card, endpoint);
       const opened = this.desktopApp;
-      if (opened) await this.desktop.openMcpb(result.link.id);
-      this.toasts.show({ tone: 'success', ...endpointAddedToast(card, endpoint, result, opened) });
+      if (opened) {
+        try {
+          await this.desktop.openMcpb(result.link.id);
+        } catch (e) {
+          this.toasts.show({ tone: 'danger', title: 'The extension could not be opened', body: `${errorSentence(e)} Open ${result.mcpbPath ?? 'the generated extension'} in Claude Desktop to install it.` });
+          return;
+        }
+      }
+      this.toasts.show({ tone: 'info', ...endpointAddedToast(card, endpoint, result, opened) });
     } catch (e) {
       this.toasts.show({ tone: 'danger', title: `${endpoint} wasn't added to ${card.name}`, body: errorSentence(e) });
     }

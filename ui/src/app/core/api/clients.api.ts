@@ -1,5 +1,4 @@
 import { Injectable, inject } from '@angular/core';
-import { DesktopBridge } from '../desktop/desktop-bridge';
 import { ApiClient } from './api-client';
 import { isApiError } from './api-error';
 import { Diff, DiffLine } from './approvals.api';
@@ -232,11 +231,6 @@ export function toKitDiff(d: ClientDiff): Diff {
 @Injectable({ providedIn: 'root' })
 export class ClientsApi {
   private readonly api = inject(ApiClient);
-  readonly manualSetupOnly = inject(DesktopBridge).windowsStore === true;
-
-  private manualSetupRequired<T>(): Promise<T> {
-    return Promise.reject(new Error('Use AI apps > Manual setup to copy an endpoint URL and create a token. This Microsoft Store edition does not edit AI app configuration files.'));
-  }
 
   list(): Promise<ClientsView> {
     return this.api.get('/api/clients');
@@ -248,7 +242,6 @@ export class ClientsApi {
 
   /** 422 with {@link ConfigEditProblem} fields when the file can't be edited safely. */
   connectPreview(client: ClientId, request: ConnectRequest): Promise<ConnectPreview> {
-    if (this.manualSetupOnly) return this.manualSetupRequired();
     return this.api.post(ApiClient.path`/api/clients/${client}/connect/preview`, request);
   }
 
@@ -258,17 +251,14 @@ export class ClientsApi {
 
   /** 409 when the file changed after the preview: preview again. Claude Desktop answers the `.mcpb` path. */
   connect(client: ClientId, previewId: string, body: WithReason = {}): Promise<ConnectResult> {
-    if (this.manualSetupOnly) return this.manualSetupRequired();
     return this.api.post(ApiClient.path`/api/clients/${client}/connect`, { previewId, ...body });
   }
 
   disconnectPreview(linkId: string): Promise<ConnectPreview> {
-    if (this.manualSetupOnly) return this.manualSetupRequired();
     return this.api.post(ApiClient.path`/api/clients/links/${linkId}/disconnect/preview`);
   }
 
   disconnect(linkId: string, previewId: string, body: WithReason = {}): Promise<DisconnectResult> {
-    if (this.manualSetupOnly) return this.manualSetupRequired();
     return this.api.post(ApiClient.path`/api/clients/links/${linkId}/disconnect`, { previewId, ...body });
   }
 
@@ -281,17 +271,14 @@ export class ClientsApi {
   }
 
   restorePreview(client: ClientId, backupId: string): Promise<ConnectPreview> {
-    if (this.manualSetupOnly) return this.manualSetupRequired();
     return this.api.post(ApiClient.path`/api/clients/${client}/restore/preview`, { backupId });
   }
 
   restore(client: ClientId, previewId: string, body: WithReason = {}): Promise<{ readonly client: ClientId; readonly path: string; readonly backupId: string }> {
-    if (this.manualSetupOnly) return this.manualSetupRequired();
     return this.api.post(ApiClient.path`/api/clients/${client}/restore`, { previewId, ...body });
   }
 
   removeClaudeBridge(): Promise<BridgeRemoved> {
-    if (this.manualSetupOnly) return this.manualSetupRequired();
     return this.api.post('/api/clients/claude-desktop/remove-bridge');
   }
 

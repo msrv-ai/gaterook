@@ -13,19 +13,13 @@ function setup(windowsStore: boolean) {
 }
 
 describe('ClientsApi distribution behavior', () => {
-  it('rejects Store config previews and mutations without sending a request', async () => {
+  it('surfaces core installation refusals instead of claiming the client is connected', async () => {
     const { api, http } = setup(true);
-    const requests = [
-      () => api.connectPreview('cursor', { endpoint: 'dev', method: 'token' }),
-      () => api.connect('cursor', 'preview'),
-      () => api.disconnectPreview('link'), () => api.disconnect('link', 'preview'),
-      () => api.restorePreview('codex', 'backup'), () => api.restore('codex', 'preview'),
-      () => api.removeClaudeBridge(),
-    ];
-    expect(api.manualSetupOnly).toBe(true);
-    for (const request of requests) await expect(request()).rejects.toThrow(/Manual setup/);
-    expect(http.post).not.toHaveBeenCalled();
-    expect(http.get).not.toHaveBeenCalled();
+    const failure = new Error('Use the Claude Desktop extension in this distribution.');
+    http.post.mockRejectedValueOnce(failure);
+    await expect(api.connectPreview('claude-desktop', { endpoint: 'dev', method: 'config-bridge' })).rejects.toBe(failure);
+    expect(http.post).toHaveBeenCalledWith('/api/clients/claude-desktop/connect/preview', { endpoint: 'dev', method: 'config-bridge' });
+    expect(http.post).toHaveBeenCalledTimes(1);
   });
 
   it('keeps Store manual setup, read-only client discovery and checks available', async () => {
@@ -40,9 +34,11 @@ describe('ClientsApi distribution behavior', () => {
     expect(http.post).toHaveBeenCalledWith('/api/clients/scan');
   });
 
-  it('preserves configuration changes in other desktop distributions', async () => {
-    const { api, http } = setup(false);
+  it.each([false, true])('sends client setup operations to the core in Store mode: %s', async (windowsStore) => {
+    const { api, http } = setup(windowsStore);
     const request = { endpoint: 'dev', method: 'token' as const };
+    await api.connectPreview('claude-desktop', { endpoint: 'dev', method: 'mcpb' });
+    await api.connectPreview('codex', { endpoint: 'dev', method: 'helper' });
     await api.connectPreview('cursor', request);
     await api.connect('cursor', 'preview');
     await api.disconnectPreview('link');
@@ -51,6 +47,7 @@ describe('ClientsApi distribution behavior', () => {
     await api.restore('codex', 'preview');
     await api.removeClaudeBridge();
     expect(http.post.mock.calls.map(([path]) => path)).toEqual([
+      '/api/clients/claude-desktop/connect/preview', '/api/clients/codex/connect/preview',
       '/api/clients/cursor/connect/preview', '/api/clients/cursor/connect',
       '/api/clients/links/link/disconnect/preview', '/api/clients/links/link/disconnect',
       '/api/clients/codex/restore/preview', '/api/clients/codex/restore',

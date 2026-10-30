@@ -168,6 +168,7 @@ export class GwClientConnectFlow {
   /** The page: what Connect starts with, in one line. */
   protected readonly intro = computed(() => {
     const name = this.card().name;
+    if (!this.card().methods.length) return 'Automatic setup is unavailable for this app. Review the warning below.';
     if (this.browserOnly()) return 'Choose an endpoint, then open Cursor in your browser to add it and sign in.';
     if (!this.showSelect()) {
       // The setup review (kit): the endpoint is named above, so the line says what Connect does.
@@ -180,7 +181,7 @@ export class GwClientConnectFlow {
       : 'Found on this computer. Pick an endpoint, then check the change; nothing is written until you connect.';
   });
   /** The page: the core's warnings about the chosen endpoint (prod), under its select; the select points at them. */
-  readonly warnings = computed(() => (this.page() ? (this.current()?.warnings ?? []) : []));
+  readonly warnings = computed(() => (this.page() ? [...new Set([...this.card().warnings, ...(this.current()?.warnings ?? [])])] : []));
   readonly warningsId = computed(() => `${this.idPrefix()}-warn`);
   /**
    * The core's notes. The page says some of them already, once: the token line in the token step, and what the chosen
@@ -216,7 +217,7 @@ export class GwClientConnectFlow {
   readonly request = computed<ConnectRequest | null>(() => {
     const endpoint = this.endpoint();
     const method = this.method();
-    if (!endpoint || !method) return null;
+    if (!endpoint || !method || !this.methods().offered.some((offered) => offered.id === method)) return null;
     if (method === 'token') {
       return this.tokenValid() ? { endpoint, method, token: { name: this.tokenName(), ttlDays: this.ttlDays() } } : null;
     }
