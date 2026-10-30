@@ -22,7 +22,7 @@ describe('MongoDB form compatibility', () => {
     expect(current).toEqual({ connection: { uri }, credentials: { authSource: 'users' } });
   });
 
-  it.each([true, false])('keeps an explicit TLS setting of %s', (tls) => {
+  it.each([true, false, 'auto'])('keeps an explicit TLS setting of %s', (tls) => {
     const current = { connection: { uri: 'mongodb+srv://cluster.example.test/orders', tls } };
     expect(mongodbFormConfig('mongodb', current, 'prod')!['connection']).toEqual({ ...current.connection, mode: 'uri' });
   });

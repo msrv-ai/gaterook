@@ -1,6 +1,7 @@
 package ai.msrv.gaterook.connectors.mongodb;
 
 import com.mongodb.MongoCommandException;
+import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoException;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
@@ -79,8 +80,10 @@ final class MongoProbe {
       List<TestResult.Check> checks = new ArrayList<>();
       MongoClient client;
       try {
-        client = MongoClients.create(ClientSettings.build(s, login, dns,
-            Duration.ofMillis(Math.min(s.serverSelectionTimeoutMs(), budget)), Duration.ofMillis(budget)));
+        MongoClientSettings settings = ClientSettings.build(s, login, dns,
+            Duration.ofMillis(Math.min(s.serverSelectionTimeoutMs(), budget)), Duration.ofMillis(budget));
+        s = s.withTls(settings.getSslSettings().isEnabled());
+        client = MongoClients.create(settings);
       } catch (MongoException | IllegalArgumentException e) {
         return MongoErrors.test(e, s, null);
       }

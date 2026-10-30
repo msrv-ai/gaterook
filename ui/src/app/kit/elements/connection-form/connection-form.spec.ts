@@ -503,7 +503,9 @@ describe('connection form: MongoDB connection settings', () => {
     expect(el.querySelector('#cf-connection-uri')).toBeNull();
     expect(el.querySelector<HTMLInputElement>('#cf-credentials-password')!.type).toBe('password');
     expect(tls.value).toBe('false');
-    expect([...tls.options].map((option) => option.value)).toEqual(['false', 'true']);
+    expect([...tls.options].map((option) => [option.value, option.textContent])).toEqual([
+      ['auto', 'Auto'], ['false', 'Without TLS'], ['true', 'TLS'],
+    ]);
     expect(tls.closest('[hidden]')).toBeNull();
     expect(advanced.hidden).toBe(true);
     for (const id of ['cf-credentials-authSource', 'cf-credentials-mechanism']) {
@@ -524,6 +526,59 @@ describe('connection form: MongoDB connection settings', () => {
     el.querySelector<HTMLButtonElement>('[aria-controls="cf-advanced-body"]')!.click();
     await settle();
     expect(advanced.hidden).toBe(false);
+  });
+
+  it('invalidates database discovery when choosing Auto and keeps Auto through environment changes', async () => {
+    const { el, host, settle, load, choose } = await databaseForm('mongodb');
+    const plain = await load();
+    host.form().completeDatabaseDiscovery(plain.key, discovered(['app']));
+    await settle();
+    await choose('app');
+    const tls = el.querySelector<HTMLSelectElement>('#cf-connection-tls')!;
+    tls.value = 'auto';
+    tls.dispatchEvent(new Event('change', { bubbles: true }));
+    await settle();
+    expect(host.form().value().config['connection']).toMatchObject({ tls: 'auto', databases: ['app'] });
+    expect(host.form().databaseSelectionValid()).toBe(false);
+    expect(host.form().completeDatabaseDiscovery(plain.key, discovered(['stale']))).toBe(false);
+
+    const automatic = await load();
+    expect(automatic.value.config['connection']).toMatchObject({ tls: 'auto' });
+    host.form().completeDatabaseDiscovery(automatic.key, discovered(['app']));
+    await settle();
+    expect(host.form().databaseSelectionValid()).toBe(true);
+    el.querySelector<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
+    await settle();
+    expect(tls.value).toBe('auto');
+    expect(host.discoveries).toHaveLength(3);
+    const production = host.discoveries[2];
+    expect(production.value).toMatchObject({ env: 'prod', config: {
+      connection: { tls: 'auto', readPreference: 'secondaryPreferred', databases: ['app'] },
+    } });
+    host.form().completeDatabaseDiscovery(production.key, discovered(['app']));
+    await settle();
+    expect(host.form().databaseSelectionValid()).toBe(true);
+    expect(el.querySelector<HTMLInputElement>('#cf-database-0')!.checked).toBe(true);
+  });
+
+  it('preserves an explicit Auto setting in a saved URI when edited and reset', async () => {
+    const { el, host, settle } = await render();
+    const uri = 'mongodb+srv://cluster.example.test/orders?tls=true';
+    host.spec.set(spec('mongodb'));
+    host.mode.set('edit');
+    host.env.set('prod');
+    host.config.set({ connection: { uri, tls: 'auto', databases: ['orders'] } });
+    await settle();
+    const tls = el.querySelector<HTMLSelectElement>('#cf-connection-tls')!;
+    expect(tls.value).toBe('auto');
+    expect(host.form().value().config['connection']).toMatchObject({ mode: 'uri', uri, tls: 'auto' });
+    tls.value = 'false';
+    tls.dispatchEvent(new Event('change', { bubbles: true }));
+    await settle();
+    host.form().reset();
+    await settle();
+    expect(tls.value).toBe('auto');
+    expect(host.form().value().config['connection']).toMatchObject({ uri, tls: 'auto', databases: ['orders'] });
   });
 
   it('switches between host and URI inputs without sending settings from the hidden mode', async () => {
