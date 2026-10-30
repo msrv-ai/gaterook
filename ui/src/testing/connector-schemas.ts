@@ -656,12 +656,20 @@ export const CONNECTOR_FORMS: Readonly<Record<string, JsonObject>> = {
           },
           "tls": {
             "type": "boolean",
-            "title": "Use TLS",
+            "title": "Connection type",
             "default": false,
             "x-env-default": {
               "prod": true
             },
-            "x-section": "/advanced"
+            "enum": [
+              false,
+              true
+            ],
+            "x-enumTitles": [
+              "Without TLS",
+              "TLS"
+            ],
+            "description": "TLS is enabled by default on prod. Without TLS is also allowed; on stage and prod, the connection test warns that traffic is not encrypted."
           },
           "tlsVerify": {
             "type": "string",
@@ -6283,6 +6291,9 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         [
           "/connection/host",
           "/connection/port"
+        ],
+        [
+          "/connection/tls"
         ]
       ],
       "/credentials": [
@@ -6296,9 +6307,6 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
       "/advanced": [
         [
           "/connection/database"
-        ],
-        [
-          "/connection/tls"
         ],
         [
           "/connection/tlsVerify"
@@ -6373,6 +6381,27 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "when": [],
         "multiline": false,
         "envDefault": {},
+        "prodForbidden": null,
+        "optionsFrom": null,
+        "confirm": null
+      },
+      {
+        "pointer": "/connection/tls",
+        "kind": "select",
+        "title": "Connection type",
+        "required": false,
+        "secret": null,
+        "mono": false,
+        "unit": null,
+        "options": [
+          false,
+          true
+        ],
+        "when": [],
+        "multiline": false,
+        "envDefault": {
+          "prod": true
+        },
         "prodForbidden": null,
         "optionsFrom": null,
         "confirm": null
@@ -6453,24 +6482,6 @@ export const CONNECTOR_GOLDENS: Readonly<Record<string, FormGolden>> = {
         "when": [],
         "multiline": false,
         "envDefault": {},
-        "prodForbidden": null,
-        "optionsFrom": null,
-        "confirm": null
-      },
-      {
-        "pointer": "/connection/tls",
-        "kind": "checkbox",
-        "title": "Use TLS",
-        "required": false,
-        "secret": null,
-        "mono": false,
-        "unit": null,
-        "options": [],
-        "when": [],
-        "multiline": false,
-        "envDefault": {
-          "prod": true
-        },
         "prodForbidden": null,
         "optionsFrom": null,
         "confirm": null

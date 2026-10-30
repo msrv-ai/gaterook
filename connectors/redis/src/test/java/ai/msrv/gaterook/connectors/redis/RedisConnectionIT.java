@@ -236,7 +236,9 @@ class RedisConnectionIT {
     TestResult prod = test(cfg(open, null).env(Env.PROD).tls(false, null, null).build(), new TestSecrets());
     assertThat(prod.ok()).isTrue();
     assertThat(hint(prod, "redis.no-password").severity()).isEqualTo(Severity.DANGER);
-    assertThat(codes(prod)).contains("redis.tls-off");
+    assertThat(hint(prod, "redis.tls-off").severity()).isEqualTo(Severity.WARNING);
+    assertThat(hint(prod, "redis.tls-off").field()).isEqualTo("connection.tls");
+    assertThat(prod.details().path("tls").asBoolean()).isFalse();
   }
 
   @Test
@@ -277,13 +279,13 @@ class RedisConnectionIT {
         .advanced("commandTimeoutMs", 500).build(), TestSecrets.password(LocalRedis.DEFAULT_PASSWORD));
     assertThat(tlsOnPlain.error().code()).isEqualTo("redis.tls");
     assertThat(tlsOnPlain.error().message()).isEqualTo("TLS: localhost:" + primary.port + " didn't answer the TLS "
-        + "handshake within 0.5 s. If this port doesn't speak TLS, turn off Use TLS.");
+        + "handshake within 0.5 s. If this port doesn't speak TLS, choose Without TLS under Connection type.");
 
     TestResult plainOnTls = test(Configs.redis("127.0.0.1", primary.tlsPort).build(),
         TestSecrets.password(LocalRedis.DEFAULT_PASSWORD));
     assertThat(plainOnTls.ok()).isFalse();
     assertThat(plainOnTls.error().code()).as("%s", plainOnTls.error()).isEqualTo("redis.closed");
-    assertThat(plainOnTls.error().message()).endsWith("If this is a TLS port, turn on Use TLS.");
+    assertThat(plainOnTls.error().message()).endsWith("If this is a TLS port, choose TLS under Connection type.");
   }
 
   @Test

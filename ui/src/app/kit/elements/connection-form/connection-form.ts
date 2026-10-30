@@ -586,6 +586,8 @@ export class GwConnectionForm {
       const node = this.state().compiled.all.find((n) => n.pointer === c.pointer);
       const unit = node?.unit ?? null;
       const icon = defaultIcon(c);
+      const option = node?.options.find((o) => o.value === c.to);
+      if (typeof c.to === 'boolean' && option) return { icon, text: `${c.title}: ${option.title} (default)` };
       if (typeof c.to === 'boolean') return { icon, text: c.to ? c.title : `${c.title}: off` };
       const from = c.from === null || c.from === undefined ? '' : ` (dev: ${formatValue(c.from, unit)})`;
       return { icon, text: `${c.title} ${formatValue(c.to, unit)}${from}` };

@@ -23,7 +23,7 @@ import { ConnectionNewPage } from './connection-new.page';
 /**
  * Add connection against the kit's page script (design/pages/connection-new.html): the four steps with their focus
  * and announcements, what the test shows, the endpoints a connection may join, Save, the duplicate and the edit view
- * with its dialogs. The admin API is faked at the service level with PostgreSQL and the real OpenSearch schema.
+ * with its dialogs. The admin API is faked at the service level with canonical connector schemas.
  */
 
 const NOW = Date.parse('2026-10-22T14:30:00+02:00');
@@ -483,6 +483,60 @@ function cloudLogging(): void {
     presetConfig: { backend: 'gcp-logging' }, tools: 2, connections: 0,
   }] }], installed: [] };
 }
+
+describe('Redis production connections', () => {
+  it('tests and saves Without TLS with a warning and no confirmation', async () => {
+    core.spec = { ...structuredClone(SPEC), type: 'redis', name: 'Redis', schema: CONNECTOR_FORMS['redis'] };
+    core.catalog = { groups: [{ name: 'Databases', cards: [{
+      ...structuredClone(CATALOG.groups[0].cards[0]), type: 'redis', name: 'Redis', tools: 1, connections: 0,
+    }] }], installed: [] };
+    core.configuredTools = [tool({ name: 'redis_get', description: 'Read a Redis value.' })];
+    const warning = 'TLS is off: the password and the values travel in clear text.';
+    core.nextTest = outcome({
+      ok: true, latencyMs: 3, serverVersion: 'Redis 7.2',
+      hints: [{ severity: 'warning', code: 'redis.tls-off', field: 'connection.tls', text: warning, snippet: null }],
+    });
+
+    const p = await open('/connections/new#step-2');
+    await p.type('cf-name', 'prod-cache');
+    await p.type('cf-connection-host', 'cache.example.test');
+    await p.type('cf-credentials-password', 'redis-test-password');
+    p.q<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
+    await p.settle();
+
+    const tls = p.q<HTMLSelectElement>('#cf-connection-tls')!;
+    expect(tls.tagName).toBe('SELECT');
+    expect(tls.closest('[hidden]')).toBeNull();
+    expect(tls.value).toBe('true');
+    tls.value = 'false';
+    tls.dispatchEvent(new Event('change', { bubbles: true }));
+    await p.settle();
+    expect(tls.selectedOptions[0].textContent).toBe('Without TLS');
+
+    p.button('Continue', p.q('#cf-form')!).click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-3']);
+    expect(core.tests).toHaveLength(1);
+    expect(core.tests[0]).toMatchObject({
+      type: 'redis', env: 'prod', config: { connection: { host: 'cache.example.test', tls: false } },
+    });
+    expect(text(p.q('#step-3 .gw-status'))).toContain('Connected');
+    expect(text(p.q('#step-3 .gw-alert--warning'))).toBe(warning);
+    expect(p.q('#step-3 .gw-alert--danger')).toBeNull();
+    expect(document.querySelector('dialog[open]')).toBeNull();
+
+    p.button('Continue', p.q('#step-3')!).click();
+    await p.settle();
+    const save = p.button('Save connection', p.q('#step-4')!);
+    expect(save.getAttribute('aria-disabled')).toBeNull();
+    save.click();
+    await p.settle();
+    expect(core.created).toHaveLength(1);
+    expect(core.created[0]).toMatchObject({
+      name: 'prod-cache', type: 'redis', env: 'prod', config: { connection: { host: 'cache.example.test', tls: false } },
+    });
+  });
+});
 
 describe('connection-specific tool preview', () => {
   const gcpTools = [

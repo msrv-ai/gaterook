@@ -594,6 +594,44 @@ describe('connection form: MongoDB connection settings', () => {
   });
 });
 
+describe('connection form: Redis transport', () => {
+  it('shows the TLS choice outside Advanced and describes the prod default as a default', async () => {
+    const { el, host, settle } = await render();
+    const redis = spec('redis');
+    host.spec.set({ ...redis, envDefaults: { prod: [{ pointer: '/connection/tls', title: 'Connection type', from: false, to: true }], stage: [] } });
+    host.env.set('prod');
+    await settle();
+
+    const tls = el.querySelector<HTMLSelectElement>('#cf-connection-tls')!;
+    expect(tls.value).toBe('true');
+    expect([...tls.options].map((option) => [option.textContent?.trim(), option.disabled])).toEqual([
+      ['Without TLS', false], ['TLS', false],
+    ]);
+    expect(tls.closest('[hidden]')).toBeNull();
+    expect(el.querySelector<HTMLElement>('#cf-advanced-body')!.hidden).toBe(true);
+    expect(el.querySelector('#cf-prod')!.textContent).toContain('Connection type: TLS (default)');
+  });
+
+  it('preserves a saved production connection without TLS when editing and resetting', async () => {
+    const { el, host, settle } = await render();
+    host.spec.set(spec('redis'));
+    host.mode.set('edit');
+    host.env.set('prod');
+    host.config.set({ connection: { host: 'cache.example.test', tls: false } });
+    await settle();
+
+    const tls = el.querySelector<HTMLSelectElement>('#cf-connection-tls')!;
+    expect(tls.value).toBe('false');
+    tls.value = 'true';
+    tls.dispatchEvent(new Event('change', { bubbles: true }));
+    await settle();
+    host.form().reset();
+    await settle();
+    expect(tls.value).toBe('false');
+    expect(host.form().value().config['connection']).toMatchObject({ tls: false });
+  });
+});
+
 describe('connection form: MySQL transport defaults', () => {
   it('selects Auto and enables public key retrieval for a new connection', async () => {
     const { el, host, settle } = await render();

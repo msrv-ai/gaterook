@@ -1427,6 +1427,8 @@ The schema-driven Configure step of Add connection (PostgreSQL demo), also the f
 
 MongoDB starts with Host and port (27017 by default). Connect using offers Connection string as an alternative, including SRV and multiple hosts; existing URI connections open in that mode. Connection type is a native select for Without TLS or TLS, with URI TLS settings still applying in connection string mode. User and Password stay in Credentials. Auth database and Mechanism belong to the initially collapsed Advanced section, alongside certificate, read preference and query settings. Switching address modes preserves entered values while submitting only the active mode's fields.
 
+Redis also shows Connection type in the main Connection section, with Without TLS and TLS choices. Prod starts with TLS selected, but Without TLS remains available. A successful production connection test without TLS shows a warning and still allows saving. Certificate verification and the CA certificate remain in Advanced.
+
 [SCSS](elements/_connection-form.scss) · [Interactive demo](elements/connection-form.html)
 
 **Composes:**
