@@ -174,7 +174,7 @@ export class Desktop {
       ports: () => ({ port: this.config.port, publicPort: this.config.publicPort }),
       command: () => {
         const { file, args } = coreArgv(layout.core, { home: layout.home, resources: layout.resources, bridgeJar: layout.bridgeJar });
-        return { file, args, env: coreEnv(process.env, layout.dev) };
+        return { file, args, env: coreEnv(process.env, layout.dev, { home: layout.home }) };
       },
       fileKey: () => this.prepareFileKey(),
       log: (line) => log(line),
@@ -777,7 +777,7 @@ export class Desktop {
       helper = new CoreSupervisor({ version: app.getVersion(), home: validatorHome, ports: () => ({ port, publicPort }),
         command: () => {
           const command = coreArgv(this.layout.core, { home: validatorHome, resources: this.layout.resources, bridgeJar: this.layout.bridgeJar });
-          return { ...command, env: coreEnv(process.env, false) };
+          return { ...command, env: coreEnv(process.env, false, { home: validatorHome }) };
         },
         fileKey: () => this.prepareFileKey(), log: () => undefined, restartDelaysMs: [],
       });

@@ -12,6 +12,7 @@ export type CoreCommand =
 
 export interface CoreArgsOptions {
   readonly home: string;
+  readonly platform?: NodeJS.Platform;
   /** The app's bundle (`process.resourcesPath`), or null in a development run without one. */
   readonly resources: string | null;
   /** Development only: the Java bridge jar the core's `gw-bridge` shim points at. */
@@ -21,6 +22,9 @@ export interface CoreArgsOptions {
 export function coreArgv(cmd: CoreCommand, o: CoreArgsOptions): { file: string; args: string[] } {
   const common = [
     `-Djava.io.tmpdir=${join(o.home, 'tmp')}`,
+    // Windows prefers TEMP over java.io.tmpdir for the JDK selector's Unix-domain socket. Keep that socket
+    // in the app-owned directory too, outside AppData virtualization in packaged Windows applications.
+    ...((o.platform ?? process.platform) === 'win32' ? [`-Djdk.net.unixdomain.tmpdir=${join(o.home, 'tmp')}`] : []),
     `-Dgateway.home=${o.home}`,
     ...(o.resources ? [`-Dgateway.resources=${o.resources}`] : []),
   ];
@@ -75,7 +79,7 @@ export const CORE_ENV_ALLOWLIST: readonly string[] = [
 /** Development builds pass these on too (the demo world of BLUEPRINT §9). */
 export const DEV_ENV_PASSTHROUGH: readonly string[] = ['GW_DEMO'];
 
-export function coreEnv(source: NodeJS.ProcessEnv, dev: boolean): Record<string, string> {
+export function coreEnv(source: NodeJS.ProcessEnv, dev: boolean, options?: Pick<CoreArgsOptions, 'home' | 'platform'>): Record<string, string> {
   const env: Record<string, string> = {};
   for (const name of [...CORE_ENV_ALLOWLIST, ...(dev ? DEV_ENV_PASSTHROUGH : [])]) {
     const value = source[name];
@@ -84,5 +88,11 @@ export function coreEnv(source: NodeJS.ProcessEnv, dev: boolean): Record<string,
   // A GUI app on macOS starts with a bare PATH; the core finds node/java for MCP servers through $SHELL itself.
   if (!env['PATH']) env['PATH'] = process.platform === 'win32' ? 'C:\\Windows\\System32' : '/usr/bin:/bin:/usr/sbin:/sbin';
   if (!env['LANG'] && process.platform !== 'win32') env['LANG'] = 'en_US.UTF-8';
+  // Plugin-host JVMs inherit TEMP/TMP from the core and use them for their own selector sockets.
+  // Change only this child environment; the desktop and the user's environment keep their existing values.
+  if (options && (options.platform ?? process.platform) === 'win32') {
+    env['TEMP'] = join(options.home, 'tmp');
+    env['TMP'] = env['TEMP'];
+  }
   return env;
 }
