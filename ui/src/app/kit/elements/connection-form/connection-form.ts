@@ -338,6 +338,7 @@ export class GwConnectionForm {
     this.databaseKey();
     return null as DatabaseDiscovery | null;
   });
+  readonly databaseLoading = computed(() => this.databaseDiscovery()?.state === 'loading');
   protected readonly databaseSearch = signal('');
   protected readonly selectedDatabases = computed(() => {
     const selection = this.databaseSelection();
@@ -353,6 +354,7 @@ export class GwConnectionForm {
       .filter((choice) => String(choice.name).toLocaleLowerCase().includes(query));
   });
   protected readonly databaseError = computed(() => {
+    if (this.databaseLoading()) return null;
     const node = this.state().compiled.all.find((field) => field.pointer === this.databaseSelection()?.pointer);
     return (node ? this.state().error(node) : null) ?? (this.submitted() ? this.databaseProblem() : null);
   });
@@ -373,6 +375,7 @@ export class GwConnectionForm {
   }
 
   databaseSelectionValid(): boolean {
+    if (this.databaseLoading()) return false;
     const problem = this.databaseProblem();
     if (!problem) return true;
     this.submitted.set(true);
@@ -422,9 +425,17 @@ export class GwConnectionForm {
     // The secret field's buttons and placeholders name the connection as it is typed.
     effect(() => {
       const s = this.state();
-      s.subject.set(this.common().name);
+      const common = this.common();
+      s.subject.set(common.name);
       // Picking another env moves the untouched defaults and enforces that env's locks (x-env-default, x-forbidden-env).
-      s.setEnv(this.common().env);
+      untracked(() => {
+        const discovery = this.databaseDiscovery();
+        s.setEnv(common.env);
+        // Refresh an existing discovery when those defaults change the connection, preserving its selected databases.
+        if ((discovery?.state === 'ready' || discovery?.state === 'loading') && discovery.key !== this.databaseKey()) {
+          this.loadDatabases();
+        }
+      });
     });
     effect(() => {
       const metadata = this.metadata();
@@ -626,7 +637,7 @@ export class GwConnectionForm {
   protected readonly validationSummary = computed(() => {
     if (!this.submitted()) return null;
     return this.nameError() ?? this.invalidFields().map((node) => this.state().error(node))[0]
-      ?? this.databaseProblem() ?? this.files()?.problem();
+      ?? (this.databaseLoading() ? null : this.databaseProblem()) ?? this.files()?.problem();
   });
 
   fileSelectionValid(): boolean {
@@ -646,7 +657,7 @@ export class GwConnectionForm {
 
   protected onSubmit(event: Event): void {
     event.preventDefault();
-    if (this.busy()) return;
+    if (this.busy() || this.databaseLoading()) return;
     this.submitted.set(true);
     untracked(() => this.commonForm().markAsTouched());
     const fieldsOk = this.state().submit();

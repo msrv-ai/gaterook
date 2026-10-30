@@ -444,6 +444,14 @@ async function toTest(p: Awaited<ReturnType<typeof open>>, host = 'db.dev.intern
   await p.settle();
 }
 
+function mongoDb(): void {
+  core.spec = { ...structuredClone(SPEC), type: 'mongodb', name: 'MongoDB', schema: CONNECTOR_FORMS['mongodb'] };
+  core.catalog = { groups: [{ name: 'Databases', cards: [{ ...structuredClone(CATALOG.groups[0].cards[0]),
+    type: 'mongodb', name: 'MongoDB', connections: 0,
+  }] }], installed: [] };
+  core.nextTest = outcome({ ok: true, serverVersion: 'MongoDB 8.0', identity: 'reader' });
+}
+
 /** The Logs catalog preset and canonical connector schema used by the OpenSearch Configure page. */
 function openSearch(): void {
   core.spec = {
@@ -751,6 +759,100 @@ describe('Add connection: wizard', () => {
     await p.settle();
     expect(core.created).toHaveLength(1);
     expect(core.created[0]).toMatchObject({ env: 'prod', config: { connection: { databases: ['app'] } } });
+  });
+
+  it('refreshes selected MongoDB databases with production settings before testing and saving', async () => {
+    mongoDb();
+    const p = await open('/connections/new#step-2');
+    await p.type('cf-name', 'prod-mongo');
+    await p.type('cf-connection-host', 'mongo.example.test');
+    await p.type('cf-credentials-user', 'reader');
+    await p.type('cf-credentials-password', 'local-password');
+    p.button('Load databases').click();
+    await p.settle();
+    p.q<HTMLInputElement>('#cf-database-0')!.click();
+    await p.settle();
+    p.button('Continue', p.q('#cf-form')!).click();
+    await p.settle();
+    p.button('Back', p.q('#step-3')!).click();
+    await p.settle();
+
+    let answer!: (value: TestOutcome) => void;
+    core.pendingDiscovery = new Promise((resolve) => { answer = resolve; });
+    p.q<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
+    await p.settle();
+    expect(core.discoveries).toHaveLength(2);
+    expect(core.discoveries[1]).toMatchObject({ type: 'mongodb', env: 'prod', config: {
+      connection: { host: 'mongo.example.test', databases: ['app'], tls: true, readPreference: 'secondaryPreferred' },
+    } });
+    expect(p.q('#cf-database-load')!.getAttribute('aria-busy')).toBe('true');
+    expect(text(p.q('#cf-database-status'))).toContain('Connecting and loading databases');
+    expect(p.q('#cf-database-error')).toBeNull();
+    expect(p.button('Continue', p.q('#cf-form')!).getAttribute('aria-disabled')).toBe('true');
+    expect(p.button('Continue', p.q('#cf-form')!).getAttribute('aria-describedby')).toBe('cf-database-status');
+    p.button('Continue', p.q('#cf-form')!).click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-2']);
+    expect(core.tests.map((request) => request.env)).toEqual(['dev']);
+    expect(text(p.q('#cf-form'))).not.toContain('Load databases with the current connection settings');
+
+    core.pendingDiscovery = null;
+    answer(outcome({ ok: true, details: { databases: ['app', 'reports'] } }));
+    await p.settle();
+    expect(p.q<HTMLInputElement>('#cf-database-0')!.checked).toBe(true);
+    expect(core.discoveries).toHaveLength(2);
+    expect(p.button('Continue', p.q('#cf-form')!).getAttribute('aria-disabled')).toBeNull();
+    expect(p.button('Continue', p.q('#cf-form')!).getAttribute('aria-describedby')).toBeNull();
+    p.button('Continue', p.q('#cf-form')!).click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-3']);
+    expect(core.tests.map((request) => request.env)).toEqual(['dev', 'prod']);
+    expect(core.tests[1].config['connection']).toMatchObject({ databases: ['app'], tls: true });
+    p.button('Continue', p.q('#step-3')!).click();
+    await p.settle();
+    p.button('Save connection', p.q('#step-4')!).click();
+    await p.settle();
+    expect(core.created).toHaveLength(1);
+    expect(core.created[0]).toMatchObject({ type: 'mongodb', env: 'prod', config: {
+      connection: { databases: ['app'], tls: true, readPreference: 'secondaryPreferred' },
+    } });
+  });
+
+  it('shows a failed MongoDB environment refresh without retrying until requested', async () => {
+    mongoDb();
+    const p = await open('/connections/new#step-2');
+    await p.type('cf-name', 'prod-mongo');
+    await p.type('cf-connection-host', 'mongo.example.test');
+    await p.type('cf-credentials-user', 'reader');
+    await p.type('cf-credentials-password', 'local-password');
+    p.button('Load databases').click();
+    await p.settle();
+    p.q<HTMLInputElement>('#cf-database-0')!.click();
+    await p.settle();
+
+    core.nextDiscovery = outcome({ error: { code: 'mongo.tls', message: 'The TLS certificate could not be verified.', technical: null } });
+    p.q<HTMLInputElement>('input[name="cf-env"][value="prod"]')!.click();
+    await p.settle();
+    expect(core.discoveries).toHaveLength(2);
+    expect(text(p.q('#cf-form'))).toContain('The TLS certificate could not be verified.');
+    expect(p.q<HTMLInputElement>('#cf-database-0')!.checked).toBe(true);
+    await p.type('cf-name', 'prod-mongo-reader');
+    p.button('Continue', p.q('#cf-form')!).click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-2']);
+    expect(core.discoveries).toHaveLength(2);
+    expect(core.tests).toEqual([]);
+    expect(core.created).toEqual([]);
+
+    core.nextDiscovery = outcome({ ok: true, details: { databases: ['app', 'reports'] } });
+    p.button('Load databases').click();
+    await p.settle();
+    expect(core.discoveries).toHaveLength(3);
+    expect(p.q<HTMLInputElement>('#cf-database-0')!.checked).toBe(true);
+    p.button('Continue', p.q('#cf-form')!).click();
+    await p.settle();
+    expect(p.visible()).toEqual(['step-3']);
+    expect(core.tests[0].env).toBe('prod');
   });
 
   it('ignores late discovery after the host changes and keeps Continue on Configure until refreshed', async () => {
