@@ -84,13 +84,41 @@ final class RedisValues {
       return value(b);
     }
     cut[0] = true;
-    Optional<String> t = utf8(c.head());
+    return cutElement(c.head(), c.omitted());
+  }
+
+  /**
+   * An element read through {@link BoundedConnection}: a whole one as {@link #element(byte[], int, boolean[])} shows
+   * it, the head of a longer one cut the same way, with the bytes left out counted from its whole length.
+   */
+  static JsonNode element(Object reply, int maxBytes, boolean[] cut) {
+    if (!(reply instanceof BoundedConnection.Cut c)) {
+      byte[] b = Replies.bytes(reply);
+      return element(b == null ? new byte[0] : b, maxBytes, cut);
+    }
+    cut[0] = true;
+    byte[] head = withoutPartialCharacter(java.util.Arrays.copyOf(c.head(), Math.min(maxBytes, c.head().length)));
+    return cutElement(head, c.length() - head.length);
+  }
+
+  /** A field name read through {@link BoundedConnection}: a cut one ends with the marker a cut element has. */
+  static String field(Object reply) {
+    if (reply instanceof BoundedConnection.Cut c) {
+      byte[] head = withoutPartialCharacter(c.head());
+      return field(head) + "…‹truncated " + String.format(java.util.Locale.US, "%,d", c.length() - head.length)
+          + " bytes›";
+    }
+    byte[] b = Replies.bytes(reply);
+    return field(b == null ? new byte[0] : b);
+  }
+
+  private static JsonNode cutElement(byte[] head, long omitted) {
+    Optional<String> t = utf8(head);
     if (t.isPresent()) {
-      return JSON.stringNode(t.get() + "…‹truncated " + String.format(java.util.Locale.US, "%,d", c.omitted())
+      return JSON.stringNode(t.get() + "…‹truncated " + String.format(java.util.Locale.US, "%,d", omitted)
           + " bytes›");
     }
-    return JSON.objectNode().put("$base64", Base64.getEncoder().encodeToString(c.head()))
-        .put("truncatedBytes", c.omitted());
+    return JSON.objectNode().put("$base64", Base64.getEncoder().encodeToString(head)).put("truncatedBytes", omitted);
   }
 
   /**

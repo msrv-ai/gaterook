@@ -654,6 +654,44 @@ class RedisIT {
   }
 
   @Test
+  void largeElementsAreReadWithoutHoldingThemWhole() throws Exception {
+    byte[] big = "z".repeat(2 * 1024 * 1024).getBytes(StandardCharsets.UTF_8);
+    List<String> keys = List.of("cache:huge-list", "cache:huge-hash", "cache:huge-set", "cache:huge-zset",
+        "cache:huge-stream");
+    try (Jedis admin = redis.admin()) {
+      for (int i = 0; i < 12; i++) {
+        byte[] element = java.util.Arrays.copyOf(big, big.length);
+        element[0] = (byte) ('a' + i);
+        admin.rpush(keys.get(0).getBytes(StandardCharsets.UTF_8), element);
+        admin.hset(keys.get(1).getBytes(StandardCharsets.UTF_8), ("f" + i).getBytes(StandardCharsets.UTF_8), element);
+        admin.sadd(keys.get(2).getBytes(StandardCharsets.UTF_8), element);
+        admin.zadd(keys.get(3).getBytes(StandardCharsets.UTF_8), i, element);
+        admin.xadd(keys.get(4).getBytes(StandardCharsets.UTF_8), XAddParams.xAddParams(),
+            Map.of("v".getBytes(StandardCharsets.UTF_8), element));
+      }
+    }
+    var threads = (com.sun.management.ThreadMXBean) java.lang.management.ManagementFactory.getThreadMXBean();
+    String marker = String.format(java.util.Locale.US, "…‹truncated %,d bytes›", big.length - 8 * 1024);
+    try {
+      ConnectionConfig c = cfg().build();
+      get(c, "{\"key\":\"cache:str\"}");
+      for (String key : keys) {
+        long before = threads.getCurrentThreadAllocatedBytes();
+        JsonNode read = get(c, "{\"key\":\"" + key + "\"}").structuredContent();
+        long allocated = threads.getCurrentThreadAllocatedBytes() - before;
+        assertThat(allocated).as("%s: 24 MiB on the server", key).isLessThan(8L * 1024 * 1024);
+        assertThat(read.path("returned").asInt()).as(key).isEqualTo(12);
+        assertThat(read.path("truncated").asBoolean()).as(key).isTrue();
+        assertThat(read.path("value").toString()).as(key).contains(marker);
+      }
+    } finally {
+      try (Jedis admin = redis.admin()) {
+        admin.del(keys.toArray(String[]::new));
+      }
+    }
+  }
+
+  @Test
   void describeSaysWhatTheServerIsAndWhichPrefixesTheAgentMayRead() throws Exception {
     ConnectionConfig c = cfg().advanced("keyDenylist", new String[] {"session:*", "*token*"}).build();
     JsonNode d = connector.describe(c, TestSecrets.password(LocalRedis.DEFAULT_PASSWORD), TestCtx.of(), null)

@@ -51,7 +51,8 @@ final class RedisDescribe {
     String cursor = "0";
     int rounds = 0;
     do {
-      List<Object> reply = Replies.list(s.call(Cmd.SCAN, ScanLoop.scanArgs(cursor, pattern, null, 500)));
+      List<Object> reply = Replies.list(s.read(ScanLoop.MAX_KEY_BYTES, Cmd.SCAN,
+          ScanLoop.scanArgs(cursor, pattern, null, 500)));
       cursor = Replies.text(reply.isEmpty() ? null : reply.get(0));
       for (Object o : Replies.list(reply.size() > 1 ? reply.get(1) : null)) {
         byte[] k = Replies.bytes(o);

@@ -26,6 +26,8 @@ import tools.jackson.databind.node.ObjectNode;
 final class ScanLoop {
 
   static final int MAX_ITERATIONS = 50;
+  /** Key names longer than this aren't listed: a cut name names another key. */
+  static final int MAX_KEY_BYTES = 64 * 1024;
   static final Duration SCAN_BUDGET = Duration.ofSeconds(2);
   private static final JsonNodeFactory JSON = JsonNodeFactory.instance;
 
@@ -44,7 +46,8 @@ final class ScanLoop {
     boolean cutBySize = false;
     do {
       int want = Math.clamp(budget.elements() - keys.size(), 10, 1_000);
-      List<Object> reply = Replies.list(s.call(Cmd.SCAN, scanArgs(cursor, r.pattern(), r.type(), want)));
+      List<Object> reply = Replies.list(s.read(MAX_KEY_BYTES, Cmd.SCAN, scanArgs(cursor, r.pattern(), r.type(),
+          want)));
       iterations++;
       String next = Replies.text(reply.isEmpty() ? null : reply.get(0));
       List<byte[]> batch = new ArrayList<>();

@@ -21,6 +21,9 @@ import tools.jackson.databind.node.ObjectNode;
  * bounded read for the type — never a command whose cost grows with the value ({@code HGETALL}, {@code SMEMBERS},
  * {@code LRANGE 0 -1}). Binary API only: keys and values stay bytes until {@link RedisValues} decides how to show
  * them. A key that changed its type between {@code TYPE} and the read ({@code WRONGTYPE}) is read once more.
+ *
+ * <p>Element counts are bounded, element sizes aren't: each value read keeps only as many bytes of an element as the
+ * answer can show ({@link RedisSession#read}), however large the element is on the server.
  */
 final class RedisReads {
 
@@ -126,8 +129,16 @@ final class RedisReads {
     long max = Math.min(s.settings().maxValueBytes(), budget.bytes());
     byte[] value;
     boolean truncated = false;
-    if (len <= max) {
-      value = Replies.bytes(s.call(Cmd.GET, key));
+    Object whole = len <= max ? s.read((int) max, Cmd.GET, key) : null;
+    if (whole instanceof BoundedConnection.Cut c) {
+      // The value grew between STRLEN and GET: only its head, as for a long value.
+      value = RedisValues.withoutPartialCharacter(c.head());
+      truncated = true;
+      notes.add(String.format(Locale.US, "The value is %,d bytes; these are the first %,d.", c.length(),
+          value.length));
+      len = c.length();
+    } else if (len <= max) {
+      value = Replies.bytes(whole);
       if (value == null) {
         value = new byte[0];
       }
@@ -154,14 +165,14 @@ final class RedisReads {
     boolean cutCell = false;
     for (int i = 0; i < MAX_SCAN_ITERATIONS; i++) {
       int want = Math.clamp(budget.elements() - returned, 1, 1_000);
-      List<Object> reply = Replies.list(s.call(scan, key, cursor, "COUNT", want));
+      List<Object> reply = Replies.list(s.read(budget.cellBytes(), scan, key, cursor, "COUNT", want));
       String nextCursor = Replies.text(reply.isEmpty() ? null : reply.get(0));
       List<Object> items = Replies.list(reply.size() > 1 ? reply.get(1) : null);
       int step = hash ? 2 : 1;
       long batchBytes = 0;
       for (int j = 0; j + step - 1 < items.size(); j += step) {
         for (int k = 0; k < step; k++) {
-          byte[] b = Replies.bytes(items.get(j + k));
+          byte[] b = Replies.head(items.get(j + k));
           batchBytes += Math.min(b == null ? 0 : b.length, budget.cellBytes()) + Budget.OVERHEAD;
         }
       }
@@ -175,9 +186,9 @@ final class RedisReads {
       boolean[] cut = new boolean[1];
       int kept = 0;
       for (int j = 0; j + step - 1 < items.size(); j += step) {
-        byte[] first = Replies.bytes(items.get(j));
+        byte[] first = Replies.head(items.get(j));
         long cost = Math.min(first == null ? 0 : first.length, budget.cellBytes()) + Budget.OVERHEAD;
-        byte[] second = hash ? Replies.bytes(items.get(j + 1)) : null;
+        byte[] second = hash ? Replies.head(items.get(j + 1)) : null;
         if (hash) {
           cost += Math.min(second == null ? 0 : second.length, budget.cellBytes()) + Budget.OVERHEAD;
         }
@@ -186,10 +197,9 @@ final class RedisReads {
         }
         bytes += cost;
         if (hash) {
-          fields.set(RedisValues.field(first == null ? new byte[0] : first),
-              RedisValues.element(second == null ? new byte[0] : second, budget.cellBytes(), cut));
+          fields.set(RedisValues.field(items.get(j)), RedisValues.element(items.get(j + 1), budget.cellBytes(), cut));
         } else {
-          members.add(RedisValues.element(first == null ? new byte[0] : first, budget.cellBytes(), cut));
+          members.add(RedisValues.element(items.get(j), budget.cellBytes(), cut));
         }
         kept++;
       }
@@ -222,19 +232,19 @@ final class RedisReads {
     long length = Replies.integer(s.call(Cmd.LLEN, key), 0);
     long offset = offset(position);
     int n = budget.elements();
-    List<Object> items = Replies.list(s.call(Cmd.LRANGE, key, offset, offset + n - 1));
+    List<Object> items = Replies.list(s.read(budget.cellBytes(), Cmd.LRANGE, key, offset, offset + n - 1));
     ArrayNode out = JSON.arrayNode();
     boolean[] cut = new boolean[1];
     long bytes = 0;
     int kept = 0;
     for (Object o : items) {
-      byte[] b = Replies.bytes(o);
+      byte[] b = Replies.head(o);
       long cost = Math.min(b == null ? 0 : b.length, budget.cellBytes()) + Budget.OVERHEAD;
       if (kept > 0 && bytes + cost > budget.bytes()) {
         break;
       }
       bytes += cost;
-      out.add(RedisValues.element(b == null ? new byte[0] : b, budget.cellBytes(), cut));
+      out.add(RedisValues.element(o, budget.cellBytes(), cut));
       kept++;
     }
     long next = offset + kept;
@@ -246,20 +256,21 @@ final class RedisReads {
     long length = Replies.integer(s.call(Cmd.ZCARD, key), 0);
     long offset = offset(position);
     int n = budget.elements();
-    List<Object> items = Replies.list(s.call(Cmd.ZRANGE, key, offset, offset + n - 1, "WITHSCORES"));
+    List<Object> items = Replies.list(s.read(budget.cellBytes(), Cmd.ZRANGE, key, offset, offset + n - 1,
+        "WITHSCORES"));
     ArrayNode out = JSON.arrayNode();
     boolean[] cut = new boolean[1];
     long bytes = 0;
     int kept = 0;
     for (int i = 0; i + 1 < items.size(); i += 2) {
-      byte[] member = Replies.bytes(items.get(i));
+      byte[] member = Replies.head(items.get(i));
       long cost = Math.min(member == null ? 0 : member.length, budget.cellBytes()) + 2L * Budget.OVERHEAD;
       if (kept > 0 && bytes + cost > budget.bytes()) {
         break;
       }
       bytes += cost;
       ObjectNode e = out.addObject();
-      e.set("member", RedisValues.element(member == null ? new byte[0] : member, budget.cellBytes(), cut));
+      e.set("member", RedisValues.element(items.get(i), budget.cellBytes(), cut));
       e.set("score", score(Replies.text(items.get(i + 1))));
       kept++;
     }
@@ -273,7 +284,8 @@ final class RedisReads {
     long length = Replies.integer(s.call(Cmd.XLEN, key), 0);
     int n = budget.elements();
     String end = position == null || position.isEmpty() ? "+" : before(position);
-    List<Object> entries = end == null ? List.of() : Replies.list(s.call(Cmd.XREVRANGE, key, end, "-", "COUNT", n));
+    List<Object> entries = end == null ? List.of()
+        : Replies.list(s.read(budget.cellBytes(), Cmd.XREVRANGE, key, end, "-", "COUNT", n));
     ArrayNode out = JSON.arrayNode();
     boolean[] cut = new boolean[1];
     long bytes = 0;
@@ -285,7 +297,7 @@ final class RedisReads {
       List<Object> kv = Replies.list(entry.size() > 1 ? entry.get(1) : null);
       long cost = Budget.OVERHEAD + (id == null ? 0 : id.length());
       for (Object x : kv) {
-        byte[] b = Replies.bytes(x);
+        byte[] b = Replies.head(x);
         cost += Math.min(b == null ? 0 : b.length, budget.cellBytes()) + Budget.OVERHEAD;
       }
       if (kept > 0 && bytes + cost > budget.bytes()) {
@@ -296,10 +308,7 @@ final class RedisReads {
       e.put("id", id);
       ObjectNode fields = e.putObject("fields");
       for (int i = 0; i + 1 < kv.size(); i += 2) {
-        byte[] f = Replies.bytes(kv.get(i));
-        byte[] v = Replies.bytes(kv.get(i + 1));
-        fields.set(RedisValues.field(f == null ? new byte[0] : f),
-            RedisValues.element(v == null ? new byte[0] : v, budget.cellBytes(), cut));
+        fields.set(RedisValues.field(kv.get(i)), RedisValues.element(kv.get(i + 1), budget.cellBytes(), cut));
       }
       last = id;
       kept++;
@@ -318,7 +327,14 @@ final class RedisReads {
           + "a call reads.", memory, max));
       return new Page(null, null, 0, true, null);
     }
-    byte[] raw = Replies.bytes(s.call(Cmd.JSON_GET, key));
+    Object reply = s.read((int) max, Cmd.JSON_GET, key);
+    if (reply instanceof BoundedConnection.Cut c) {
+      // It grew since MEMORY USAGE: a cut document isn't JSON any more.
+      notes.add(String.format(Locale.US, "This JSON document is %,d bytes, more than the %,d bytes a call reads.",
+          c.length(), max));
+      return new Page(null, null, 0, true, null);
+    }
+    byte[] raw = Replies.bytes(reply);
     if (raw == null) {
       return new Page(JSON.nullNode(), null, 0, false, null);
     }
