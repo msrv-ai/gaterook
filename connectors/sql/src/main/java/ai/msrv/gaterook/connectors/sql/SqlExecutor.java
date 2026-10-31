@@ -212,8 +212,11 @@ final class SqlExecutor {
       throws SQLException {
     try (Statement st = statement(c, ctx, timeoutMs, bound)) {
       st.setMaxRows(limit + 1);
-      // PostgreSQL: a cursor (autoCommit is off); MySQL: rows streamed one by one, not buffered whole.
-      st.setFetchSize(dialect.mysql() ? Integer.MIN_VALUE : Math.min(limit + 1, 200));
+      // PostgreSQL: a cursor (autoCommit is off) of batches small enough for its result buffer
+      // (PostgresDialect.RESULT_BUFFER); MySQL: rows streamed one by one, not buffered whole.
+      st.setFetchSize(dialect.mysql() ? Integer.MIN_VALUE
+          : Math.min(limit + 1, dialect.syntax() == SqlSyntax.POSTGRES ? 50 : 200));
+      fieldSize(st, ctx.limits().maxCellChars());
       boolean rows = execute(st, "", bound);
       if (!rows) {
         return null;
@@ -229,6 +232,22 @@ final class SqlExecutor {
           // MySQL reads the rest of a streamed result on close; the transaction ends with ROLLBACK anyway.
         }
       }
+    }
+  }
+
+  /**
+   * SQL Server ({@code SET TEXTSIZE}) and Oracle cut long values at the server, so a cell never travels whole only to
+   * be cut here. Connector/J keeps the number and nothing more; pgjdbc would cut copies the reader doesn't make
+   * (ResultReader reads PostgreSQL's text from the row's own bytes, and keeps a binary value's true length).
+   */
+  private void fieldSize(Statement st, int maxCellChars) {
+    if (dialect.syntax() == SqlSyntax.POSTGRES) {
+      return;
+    }
+    try {
+      st.setMaxFieldSize(ResultReader.fieldSize(maxCellChars));
+    } catch (SQLException | RuntimeException ignored) {
+      // A driver that doesn't take the limit: the reader's own bounds still hold.
     }
   }
 

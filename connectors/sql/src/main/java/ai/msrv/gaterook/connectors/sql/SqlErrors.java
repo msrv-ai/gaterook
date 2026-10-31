@@ -40,6 +40,12 @@ final class SqlErrors {
       return ConnectorException.resourceError(connection + " is busy: every connection of its pool is in use. Try "
           + "again.", e);
     }
+    if (syntax == SqlSyntax.POSTGRES && mentions(e, "maxResultBuffer")) {
+      // pgjdbc's wording, before the broken connection it leaves behind reads as the server being unreachable.
+      return ConnectorException.resourceError("The rows of this result take more than "
+          + (PostgresDialect.RESULT_BUFFER >> 20) + " MiB, more than one call reads from " + connection
+          + ". Select fewer or smaller columns (left(column, 2000) for long text), or fewer rows.", e);
+    }
     if (unreachable(e, state, syntax)) {
       return ConnectorException.unavailable(reach(e, connection), e);
     }
@@ -175,6 +181,20 @@ final class SqlErrors {
       return "The database refused the login of " + connection + ": " + firstLine(e.getMessage()) + ".";
     }
     return connection + " isn't reachable: " + describe(e) + ".";
+  }
+
+  private static boolean mentions(SQLException e, String text) {
+    for (Throwable t = e; t != null; t = t.getCause()) {
+      if (t.getMessage() != null && t.getMessage().contains(text)) {
+        return true;
+      }
+    }
+    for (SQLException next = e.getNextException(); next != null; next = next.getNextException()) {
+      if (next.getMessage() != null && next.getMessage().contains(text)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   static String state(SQLException e) {

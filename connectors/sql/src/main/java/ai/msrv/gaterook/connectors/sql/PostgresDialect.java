@@ -56,6 +56,9 @@ public final class PostgresDialect implements SqlDialect {
     return false;
   }
 
+  /** The most bytes of rows one call's transaction receives from PostgreSQL (SqlErrors explains the refusal). */
+  static final long RESULT_BUFFER = 32L * 1024 * 1024;
+
   @Override
   public Driver driver() {
     return new org.postgresql.Driver();
@@ -75,6 +78,10 @@ public final class PostgresDialect implements SqlDialect {
     p.setProperty("loginTimeout", Integer.toString(connectSeconds));
     p.setProperty("socketTimeout", Integer.toString(Math.max(1, socketTimeoutMs / 1000)));
     p.setProperty("tcpKeepAlive", "true");
+    // pgjdbc buffers every row of a fetch whole, so a wide row or a huge value takes the gateway's memory before
+    // the reader can cut it: the rows of one transaction (one call) stop at this many bytes with a clear error. The
+    // count restarts with each BEGIN, which pgjdbc sends as a simple query.
+    p.setProperty("maxResultBuffer", Long.toString(RESULT_BUFFER));
     // setReadOnly(true) becomes BEGIN READ ONLY (not a session setting that a pooled connection could keep).
     p.setProperty("readOnlyMode", "transaction");
     // No Kerberos or GSS encryption probing: the form has user and password only.

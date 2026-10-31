@@ -94,6 +94,26 @@ class MongoIT {
   }
 
   @Test
+  void aDocumentTheServerBuildsOfHundredsOfThousandsOfFieldsIsNeverBuiltHere() throws Exception {
+    var threads = (com.sun.management.ThreadMXBean) java.lang.management.ManagementFactory.getThreadMXBean();
+    run("mongo_find", "{\"collection\":\"orders\",\"limit\":1}");
+
+    long before = threads.getCurrentThreadAllocatedBytes();
+    ToolResult r = run("mongo_aggregate", "{\"collection\":\"orders\",\"pipeline\":[{\"$limit\":1},"
+        + "{\"$replaceWith\":{\"$arrayToObject\":{\"$map\":{\"input\":{\"$range\":[0,300000]},"
+        + "\"in\":{\"k\":{\"$toString\":\"$$this\"},\"v\":1}}}}}]}");
+    long allocated = threads.getCurrentThreadAllocatedBytes() - before;
+
+    assertThat(r.structuredContent().path("returned").asInt()).isZero();
+    assertThat(r.structuredContent().path("truncatedReason").asString()).isEqualTo("size_limit");
+    assertThat(r.structuredContent().path("warnings").toString()).contains("larger than the size limit");
+    // The server's own expression memory limit stops a million; 300,000 fields are 3.6 MB of BSON, which built whole
+    // took some 60 MB.
+    assertThat(allocated).as("the driver holds the document once; nothing is built from it")
+        .isLessThan(32L * 1024 * 1024);
+  }
+
+  @Test
   void findReadsExtendedJsonAndAnswersRelaxedWithExactInt64() throws Exception {
     ToolResult r = run("mongo_find", "{\"collection\":\"orders\",\"filter\":\"{created_at: {$gte: "
         + "ISODate('2026-10-22T00:00:00Z')}}\"}");
