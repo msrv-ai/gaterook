@@ -9,6 +9,7 @@ import ai.msrv.gaterook.core.platform.MaskPolicy;
 import ai.msrv.gaterook.core.platform.Masker;
 import ai.msrv.gaterook.core.platform.Taint;
 import ai.msrv.gaterook.core.policy.PolicyService;
+import java.util.List;
 import java.util.Locale;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
@@ -24,6 +25,14 @@ public class Calls {
 
   /** {@code _meta} key a client may name its task with (the trace's title, unverified). */
   public static final String META_TASK = "ai.msrv.gaterook/task";
+
+  /** The audit keeps this much of a task's name. */
+  static final int MAX_TASK = 512;
+
+  /** The audit keeps a call's masked arguments whole up to this many characters of JSON; beyond, a preview. */
+  static final int MAX_STORED_ARGUMENTS = 32 * 1024;
+
+  static final int ARGUMENTS_PREVIEW = 8 * 1024;
 
   private final Masker masker;
   private final PolicyService policies;
@@ -49,16 +58,59 @@ public class Calls {
     }
     JsonNode task = r.env().meta().path(META_TASK);
     if (task.isString() && !task.asString().isBlank()) {
-      facets.put("task", masker.text(task.asString(), new Taint(), policies.maskPolicy(maskEnv)).text());
+      facets.put("task", cut(masker.text(task.asString(), new Taint(), policies.maskPolicy(maskEnv)).text(),
+          MAX_TASK));
     }
     if (extraFacets != null) {
       facets.setAll(extraFacets);
     }
+    String sha256 = arguments == null ? null : CanonicalJson.sha256Hex(arguments);
     return new AuditWriter.Call(callId, r.snapshot().slug(), tool, toolKey, connection, env, r.caller(),
-        client(r.caller().clientHint(), r.env().clientInfo()), r.env().clientInfo() == null
-            || !r.env().clientInfo().isObject() ? null : r.env().clientInfo(), r.env().version(), r.span().traceId(),
-        r.span().spanId(), r.span().fromClient() || facets.has("task"), masked,
-        arguments == null ? null : CanonicalJson.sha256Hex(arguments), facets);
+        client(r.caller().clientHint(), r.env().clientInfo()), clientInfo(r.env().clientInfo()), r.env().version(),
+        r.span().traceId(), r.span().spanId(), r.span().fromClient() || facets.has("task"),
+        storedArguments(masked, sha256), sha256, facets);
+  }
+
+  /**
+   * What the audit keeps of a client's self-description: its name, title and version, each cut short. The rest of
+   * whatever object it sent isn't kept: the audit's rows stay for a year, and a client could send as much as a body
+   * holds with every call.
+   */
+  static JsonNode clientInfo(JsonNode sent) {
+    if (sent == null || !sent.isObject()) {
+      return null;
+    }
+    ObjectNode kept = JsonNodeFactory.instance.objectNode();
+    for (String field : List.of("name", "title", "version")) {
+      JsonNode v = sent.get(field);
+      if (v != null && v.isString()) {
+        kept.put(field, cut(v.asString(), field.equals("version") ? 32 : 64));
+      }
+    }
+    return kept;
+  }
+
+  /**
+   * The masked arguments as the audit keeps them: whole up to {@value #MAX_STORED_ARGUMENTS} characters of their
+   * JSON; a longer call's are their size, their hash (the same one the row has) and their first
+   * {@value #ARGUMENTS_PREVIEW} characters.
+   */
+  static JsonNode storedArguments(JsonNode masked, String sha256) {
+    if (masked == null) {
+      return null;
+    }
+    String text = CanonicalJson.text(masked);
+    if (text.length() <= MAX_STORED_ARGUMENTS) {
+      return masked;
+    }
+    ObjectNode cut = JsonNodeFactory.instance.objectNode();
+    cut.putObject("‹truncated›").put("chars", text.length()).put("sha256", sha256)
+        .put("preview", text.substring(0, ARGUMENTS_PREVIEW) + "…");
+    return cut;
+  }
+
+  private static String cut(String s, int max) {
+    return s.length() <= max ? s : s.substring(0, max - 1) + "…";
   }
 
   /**

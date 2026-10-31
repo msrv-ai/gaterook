@@ -382,4 +382,16 @@ class McpNotificationsIT {
       assertThat(reader.isAlive()).as("SSE reader stopped").isFalse();
     }
   }
+
+  @Test
+  void aTokenHoldsAtMostTwoStreamsAtOnceAndAThirdClosesTheOldest() throws Exception {
+    Endpoint endpoint = endpoint("transport-streams");
+    try (Stream first = open(endpoint); Stream second = open(endpoint); Stream third = open(endpoint)) {
+      // The server learns of a dropped client only at its next write, so a reconnecting client takes the place of
+      // the principal's oldest stream instead of waiting for a heartbeat to free it.
+      first.awaitClosed();
+      second.assertQuiet();
+      third.assertQuiet();
+    }
+  }
 }

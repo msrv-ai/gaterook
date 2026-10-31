@@ -20,6 +20,8 @@ public final class JsonRpc {
   public static final int HEADER_MISMATCH = -32020;
   public static final int MISSING_CAPABILITY = -32021;
   public static final int UNSUPPORTED_VERSION = -32022;
+  /** The principal sent more request bodies this hour than its budget allows, or holds too many streams. */
+  public static final int OVER_BUDGET = -32023;
 
   private JsonRpc() {}
 

@@ -149,7 +149,7 @@ Replacement requires the typed `RESTORE` confirmation and a native confirmation 
 ## 5. Call flow
 
 1. **Guard ingress before dispatch.** The local listener permits only defined local routes. The public listener permits only the published endpoint and required OAuth metadata/authorization routes. Reject unexpected hosts, origins, encoded path tricks, oversized bodies, and browser-origin requests.
-2. **Authenticate before interpreting the RPC.** Resolve the principal from the token hash and check expiry, revocation, endpoint, client/grant relationship, and ingress. Public requests accept only OAuth tokens with the matching public resource audience. A local named token cannot authenticate through a tunnel.
+2. **Authenticate before interpreting the RPC.** Resolve the principal from the token hash and check expiry, revocation, endpoint, client/grant relationship, and ingress, before any of the body is read. Public requests accept only OAuth tokens with the matching public resource audience. A local named token cannot authenticate through a tunnel. A principal's request bodies count against an hourly budget (32 MiB by default; 429 beyond it), and the audit keeps of each call the client's name, title and version cut short, the task's first 512 characters, and the masked arguments up to 32 KiB of JSON (beyond that, their size, hash and a preview).
 3. **Resolve the protocol revision.** Check modern metadata and corresponding headers for consistency; otherwise negotiate/interpret the supported legacy revision. Reject malformed or unsupported combinations. Notifications return HTTP 202.
 4. **Load an immutable endpoint snapshot.** It contains connections, tool modes, effective policy, templates, and pinned extension definitions. Only exposed pairs appear in the wire catalog.
 5. **Validate tool arguments.** Enforce the input schema with bounded depth, subschema count, and validation work. Unknown/off tools are not callable.
@@ -168,7 +168,7 @@ invalidate the endpoint snapshot, each stream compares the published catalog has
 `notifications/tools/list_changed` when tool definitions change, including connection enums. Changes that leave
 the catalog unchanged do not send further notifications. Authentication and endpoint availability are checked before each
 notification and heartbeat; disconnected streams are released, and shutdown closes subscriptions before waiting
-for HTTP requests. The stream has no replay IDs; its initial notification refreshes changes missed while disconnected.
+for HTTP requests. A token or grant holds at most two streams: a third closes its oldest, so a client reconnecting after a drop the gateway has not noticed yet gets through; the gateway holds 64 in all and refuses more with 429. The stream has no replay IDs; its initial notification refreshes changes missed while disconnected.
 Both stdio bridges forward these notifications. Modern requests retain their existing
 TTL-based discovery; `subscriptions/listen` is not implemented.
 
