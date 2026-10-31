@@ -2890,6 +2890,8 @@
         "gw-stepper",
         "gw-form",
         "gw-file-drop",
+        "gw-segmented",
+        "gw-textarea",
         "gw-table",
         "gw-checkbox",
         "gw-btn / gw-btn-group",

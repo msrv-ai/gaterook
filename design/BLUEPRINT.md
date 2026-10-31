@@ -293,11 +293,13 @@ Three modes of one screen plus a first-run demo state, picked from the URL (the 
 
 A four-step wizard reached from the HTTP API connection form or Connectors → Templates: API description, Connection, Review tools, and Ready. Accept an OpenAPI 3.0/3.1 file, public HTTPS URL, or pasted YAML/JSON. Create with AI collects a website, optional documentation URL, and required functions, then offers prefilled Claude Desktop, Codex, and Cursor prompts and a copy fallback. The user sends the prompt and returns with the generated file; the prompt contains no connection credentials.
 
+File import and Create with AI both show an Upload file / Paste YAML or JSON segmented control next to the result input. Paste opens a labelled code text area without leaving the AI prompt. Switching input methods retains the pasted text; only the selected input is submitted.
+
 Connection reuses the canonical connection form and asks the user to review server and authentication suggestions. Review lists operation names, methods, paths, access modes, and explicit skip reasons, with filtering and selection up to 200 operations. State-changing GET/HEAD operations can be promoted to approval. A prefix change requires refreshing the preview. Saving creates the connection and template; a template error retains the connection for retry. Ready links to endpoint access configuration and templates without enabling tools automatically.
 
 **Compositions:** `connection-form`.
 
-**Components:** `gw-stepper`, `gw-form`, `gw-field`, `gw-input`, `gw-textarea`, `gw-select`, `gw-file-drop`, `gw-card`, `gw-alert`, `gw-code-block`, `gw-toolbar`, `gw-table`, `gw-table-wrap`, `gw-checkbox`, `gw-mode`, `gw-btn`, `gw-stack`.
+**Components:** `gw-stepper`, `gw-form`, `gw-field`, `gw-input`, `gw-textarea`, `gw-segmented`, `gw-select`, `gw-file-drop`, `gw-card`, `gw-alert`, `gw-code-block`, `gw-toolbar`, `gw-table`, `gw-table-wrap`, `gw-checkbox`, `gw-mode`, `gw-btn`, `gw-stack`.
 
 ### Connectors · GateRook
 

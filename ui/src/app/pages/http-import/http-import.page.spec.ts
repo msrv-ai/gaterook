@@ -71,6 +71,32 @@ describe('HTTP API import', () => {
     await fixture.whenStable();
   }
 
+  it.each(['ai', 'file'])('imports pasted contents in %s mode and retains text when switching inputs', async source => {
+    page.changeSource(source);
+    page.fileBlob.set('previous-file');
+    fixture.detectChanges();
+    const choose = (method: string) => {
+      (fixture.nativeElement.querySelector(`input[name="http-input-method"][value="${method}"]`) as HTMLInputElement).click();
+      fixture.detectChanges();
+    };
+    choose('text');
+    const yaml = "openapi: 3.1.0\ninfo: {title: Example, version: '1'}\npaths: {}\n";
+    const field = fixture.nativeElement.querySelector('#http-spec-text') as HTMLTextAreaElement;
+    field.value = yaml;
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+    fixture.detectChanges();
+    expect(page.source()).toBe(source);
+    expect(fixture.nativeElement.querySelector('input[type="file"]')).toBeNull();
+    choose('file');
+    expect(fixture.nativeElement.querySelector('input[type="file"]')).not.toBeNull();
+    choose('text');
+    expect((fixture.nativeElement.querySelector('#http-spec-text') as HTMLTextAreaElement).value).toBe(yaml);
+    (fixture.nativeElement.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await fixture.whenStable();
+    expect(api.inspectOpenApi).toHaveBeenCalledExactlyOnceWith({ text: yaml });
+    expect(page.step()).toBe(2);
+  });
+
   it('previews from the inspected snapshot without persisting or passing credentials to the parser', async () => {
     await review();
     expect(api.parseOpenApi).toHaveBeenCalledWith(expect.objectContaining({ blob: inspection.blob, draft: { name: value.name, env: value.env, config: value.config } }));

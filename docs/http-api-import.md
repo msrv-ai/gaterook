@@ -12,7 +12,7 @@ Cursor first shows **Create chat with prompt**. Review that dialog and choose **
 
 The prompt asks the AI to find an existing specification first, then use official documentation, authorized source code, or observed requests. The AI needs access to those sources and suitable browser or code tools. It must report missing evidence, preserve unsupported authentication requirements, and avoid inventing endpoints. A website alone cannot establish every API operation, required field, or permission.
 
-Return to GateRook and upload the resulting `openapi.yaml`. The current flow uses a file handoff; it does not receive the file automatically from an AI app. No skill installation is required. Only the website, documentation URL, and function description you enter go into the prompt. Do not put credentials in those fields; enter credentials in GateRook's connection form.
+Return to GateRook and choose **Upload file** or **Paste YAML or JSON** below the AI prompt. You can upload `openapi.yaml` or paste its complete contents into the text area without Markdown code fences. Switching back and forth preserves the pasted text. The current flow uses a manual handoff; it does not receive the result automatically from an AI app. No skill installation is required. Only the website, documentation URL, and function description you enter go into the prompt. Do not put credentials in those fields; enter credentials in GateRook's connection form.
 
 ## Review and save
 

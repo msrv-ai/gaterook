@@ -50,7 +50,7 @@
           @if (source() === 'ai') {
             <div class="gw-field"><label class="gw-field__label" for="http-website">Website URL</label><input class="gw-input" id="http-website" type="url" placeholder="https://example.com" [value]="website()" (input)="website.set(value($event))"></div>
             <div class="gw-field"><label class="gw-field__label" for="http-documentation">API documentation URL <span class="gw-text-caption">Optional</span></label><input class="gw-input" id="http-documentation" type="url" [value]="documentation()" (input)="documentation.set(value($event))"></div>
-            <div class="gw-field"><label class="gw-field__label" for="http-goal">What should the tools do?</label><textarea class="gw-textarea" id="http-goal" rows="3" maxlength="1200" placeholder="Read customers and create support requests" [value]="goal()" (input)="goal.set(value($event))" aria-describedby="http-ai-hint"></textarea><p class="gw-field__hint" id="http-ai-hint">These URLs and instructions are sent to your AI app. Do not include credentials or private data. Review and send the prompt there, then bring the generated file back here.</p></div>
+            <div class="gw-field"><label class="gw-field__label" for="http-goal">What should the tools do?</label><textarea class="gw-textarea" id="http-goal" rows="3" maxlength="1200" placeholder="Read customers and create support requests" [value]="goal()" (input)="goal.set(value($event))" aria-describedby="http-ai-hint"></textarea><p class="gw-field__hint" id="http-ai-hint">These URLs and instructions are sent to your AI app. Do not include credentials or private data. Review and send the prompt there, then upload the result or paste its YAML or JSON below.</p></div>
             <div class="gw-btn-group" role="group" aria-label="Prepare API description">
               <button class="gw-btn" type="button" [disabled]="!desktop.aiPromptAvailable" (click)="launch('claude')">Open Claude Desktop</button>
               <button class="gw-btn" type="button" [disabled]="!desktop.aiPromptAvailable" (click)="launch('codex')">Open Codex</button>
@@ -62,6 +62,13 @@
             @if (prompt()) { <gw-code-block lang="Text" [text]="prompt()" filename="API discovery prompt" copyLabel="prompt" regionLabel="Generated API discovery prompt" /> }
           }
           @if (source() === 'file' || source() === 'ai') {
+            <fieldset class="gw-segmented">
+              <legend class="gw-sr-only">OpenAPI input method</legend>
+              <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="http-input-method" value="file" [checked]="inputMethod() === 'file'" (change)="changeInputMethod('file')"><span class="gw-segmented__label">Upload file</span></label>
+              <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="http-input-method" value="text" [checked]="inputMethod() === 'text'" (change)="changeInputMethod('text')"><span class="gw-segmented__label">Paste YAML or JSON</span></label>
+            </fieldset>
+          }
+          @if (documentSource() === 'file') {
             <label class="gw-file-drop" [gwFileDropMaxBytes]="20971520" (fileChange)="pickFile($event)" (tooLarge)="pickFile($event)">
               <input class="gw-file-drop__input" type="file" accept=".json,.yaml,.yml" aria-describedby="http-file-hint">
               <span class="gw-file-drop__icon"><svg lucideIcon="upload" class="gw-icon gw-icon--lg"></svg></span>
@@ -69,10 +76,10 @@
               <span class="gw-file-drop__hint" id="http-file-hint">OpenAPI 3.0 or 3.1 · YAML or JSON · Up to 20 MB · Local references only</span>
             </label>
             @if (reading()) { <p role="status">Reading the file…</p> }
-          } @else if (source() === 'url') {
+          } @else if (documentSource() === 'url') {
             <div class="gw-field"><label class="gw-field__label" for="http-spec-url">OpenAPI document URL</label><input class="gw-input gw-input--mono" id="http-spec-url" type="url" [value]="url()" (input)="url.set(value($event))" placeholder="https://api.example.com/openapi.json" aria-describedby="http-url-hint"><p class="gw-field__hint" id="http-url-hint">A public HTTPS document. For authenticated or private documentation, download and import the file. Credentials are not sent to this URL.</p></div>
           } @else {
-            <div class="gw-field"><label class="gw-field__label" for="http-spec-text">OpenAPI YAML or JSON</label><textarea class="gw-textarea gw-textarea--code" id="http-spec-text" rows="12" spellcheck="false" [value]="text()" (input)="text.set(value($event))"></textarea></div>
+            <div class="gw-field"><label class="gw-field__label" for="http-spec-text">OpenAPI YAML or JSON</label><textarea class="gw-textarea gw-textarea--code" id="http-spec-text" rows="12" spellcheck="false" autocapitalize="off" [value]="text()" (input)="text.set(value($event))" aria-describedby="http-text-hint"></textarea><p class="gw-field__hint" id="http-text-hint">Paste the complete file contents, without Markdown code fences. OpenAPI 3.0 or 3.1 · Up to 20 MB · Local references only.</p></div>
           }
           <div class="gw-field"><label class="gw-field__label" for="http-existing">Connection</label><select class="gw-select" id="http-existing" [value]="existing()" (change)="existing.set(value($event))"><option value="">Create a new HTTP API connection</option>@for (c of connections(); track c.name) { <option [value]="c.name">{{ c.name }} · {{ c.env }}</option> }</select></div>
         </div>

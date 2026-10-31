@@ -40,6 +40,8 @@ export class HttpImportPage {
   readonly existing = signal('');
   readonly detail = signal<ConnectionDetail | null>(null);
   readonly source = signal('file');
+  readonly inputMethod = signal<'file' | 'text'>('file');
+  readonly documentSource = computed(() => this.source() === 'ai' || this.source() === 'file' ? this.inputMethod() : this.source());
   readonly text = signal('');
   readonly url = signal('');
   readonly fileBlob = signal('');
@@ -108,6 +110,14 @@ export class HttpImportPage {
     this.errors.set([]);
   }
 
+  changeInputMethod(value: 'file' | 'text'): void {
+    this.fileRead++;
+    this.reading.set(false);
+    this.fileBlob.set('');
+    this.inputMethod.set(value);
+    this.errors.set([]);
+  }
+
   async pickFile(file: File | null): Promise<void> {
     const run = ++this.fileRead;
     this.reading.set(false);
@@ -134,10 +144,10 @@ export class HttpImportPage {
       const prompt = apiImportPrompt(this.website(), this.documentation(), this.goal());
       this.prompt.set(prompt);
       if (client === 'copy') {
-        this.notice.set(await this.clipboard.write(prompt) ? 'Prompt copied. Send it to your AI app, then import the resulting file.' : 'Could not copy. Select and copy the prompt below.');
+        this.notice.set(await this.clipboard.write(prompt) ? 'Prompt copied. Send it to your AI app, then upload the result or paste its YAML or JSON below.' : 'Could not copy. Select and copy the prompt below.');
       } else {
         await this.desktop.openAiPrompt(client, prompt);
-        this.notice.set('Review and send the prompt in your AI app, then return here with openapi.yaml.');
+        this.notice.set('Review and send the prompt in your AI app, then upload openapi.yaml or paste its contents below.');
       }
     } catch (e) { this.fail(e); }
   }
@@ -149,7 +159,7 @@ export class HttpImportPage {
     this.errors.set([]);
     this.parsed.set(null);
     try {
-      const request = this.source() === 'url' ? { url: this.url() } : this.source() === 'text' ? { text: this.text() } : { blob: this.fileBlob() };
+      const request = this.documentSource() === 'url' ? { url: this.url() } : this.documentSource() === 'text' ? { text: this.text() } : { blob: this.fileBlob() };
       const result = await this.api.inspectOpenApi(request);
       if (this.destroy.destroyed) return;
       if (!result.ok || !result.blob || !result.info) { this.errors.set(result.errors); this.focus('#http-errors'); return; }

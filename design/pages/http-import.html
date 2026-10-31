@@ -148,9 +148,15 @@
               <div class="gw-field"><label class="gw-field__label" for="source-mode">How would you like to describe this API?</label><select class="gw-select" id="source-mode"><option>Import an OpenAPI file</option><option>Import from a URL</option><option>Paste YAML or JSON</option><option selected>Create with AI</option></select></div>
               <div class="gw-field"><label class="gw-field__label" for="website">Website URL</label><input class="gw-input" id="website" type="url" value="https://billing.stage.acme.dev"></div>
               <div class="gw-field"><label class="gw-field__label" for="documentation">API documentation URL <span class="gw-text-caption">Optional</span></label><input class="gw-input" id="documentation" type="url" placeholder="https://example.com/docs/api"></div>
-              <div class="gw-field"><label class="gw-field__label" for="goal">What should the tools do?</label><textarea class="gw-textarea" id="goal" rows="3" aria-describedby="ai-hint">List invoices and create refunds.</textarea><p class="gw-field__hint" id="ai-hint">These URLs and instructions are sent to your AI app. Do not include credentials or private data. Review and send the prompt there, then bring the generated file back here.</p></div>
+              <div class="gw-field"><label class="gw-field__label" for="goal">What should the tools do?</label><textarea class="gw-textarea" id="goal" rows="3" aria-describedby="ai-hint">List invoices and create refunds.</textarea><p class="gw-field__hint" id="ai-hint">These URLs and instructions are sent to your AI app. Do not include credentials or private data. Review and send the prompt there, then upload the result or paste its YAML or JSON below.</p></div>
               <div class="gw-btn-group" role="group" aria-label="Prepare API description"><button class="gw-btn" type="button">Open Claude Desktop</button><button class="gw-btn" type="button">Open Codex</button><button class="gw-btn" type="button">Open Cursor</button><button class="gw-btn" type="button">Copy prompt</button></div>
-              <label class="gw-file-drop" data-state="idle"><input class="gw-file-drop__input" type="file" accept=".yaml,.yml,.json" aria-describedby="file-hint"><span class="gw-file-drop__icon"><i class="gw-icon gw-icon--lg" data-lucide="upload"></i></span><span class="gw-file-drop__title" data-gw-file-name>Drop an OpenAPI file here or choose a file</span><span class="gw-file-drop__hint" id="file-hint">OpenAPI 3.0 or 3.1 · YAML or JSON · Up to 20 MB · Local references only</span></label>
+              <fieldset class="gw-segmented">
+                <legend class="gw-sr-only">OpenAPI input method</legend>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="input-method" value="file" checked><span class="gw-segmented__label">Upload file</span></label>
+                <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="input-method" value="text"><span class="gw-segmented__label">Paste YAML or JSON</span></label>
+              </fieldset>
+              <label class="gw-file-drop" id="import-file" data-state="idle"><input class="gw-file-drop__input" type="file" accept=".yaml,.yml,.json" aria-describedby="file-hint"><span class="gw-file-drop__icon"><i class="gw-icon gw-icon--lg" data-lucide="upload"></i></span><span class="gw-file-drop__title" data-gw-file-name>Drop an OpenAPI file here or choose a file</span><span class="gw-file-drop__hint" id="file-hint">OpenAPI 3.0 or 3.1 · YAML or JSON · Up to 20 MB · Local references only</span></label>
+              <div class="gw-field" id="import-text" hidden><label class="gw-field__label" for="spec-text">OpenAPI YAML or JSON</label><textarea class="gw-textarea gw-textarea--code" id="spec-text" rows="12" spellcheck="false" autocapitalize="off" aria-describedby="text-hint"></textarea><p class="gw-field__hint" id="text-hint">Paste the complete file contents, without Markdown code fences. OpenAPI 3.0 or 3.1 · Up to 20 MB · Local references only.</p></div>
               <div class="gw-field"><label class="gw-field__label" for="connection">Connection</label><select class="gw-select" id="connection"><option>Create a new HTTP API connection</option><option>billing-api · stage</option></select></div>
             </div></fieldset>
             <div class="gw-form__actions"><p class="gw-form__note">Nothing is saved until you review and save the tools.</p><a class="gw-btn gw-btn--primary" href="http-import.html?state=review">Read API description</a></div>
@@ -302,6 +308,12 @@
 <script src="../vendor/lucide/lucide.min.js"></script>
 <script src="../assets/kit.js"></script>
 <script>
+document.querySelectorAll('input[name="input-method"]').forEach(input => {
+  input.addEventListener('change', () => {
+    document.getElementById('import-file').hidden = input.value !== 'file';
+    document.getElementById('import-text').hidden = input.value !== 'text';
+  });
+});
 if (new URLSearchParams(location.search).get('state') === 'review') {
   document.getElementById('import-source').hidden = true;
   document.getElementById('import-review').hidden = false;
