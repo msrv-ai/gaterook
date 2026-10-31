@@ -65,7 +65,6 @@ describe('HTTP API import', () => {
   async function review(): Promise<void> {
     page.source.set('url'); page.url.set('https://api.example.com/openapi.yaml');
     await page.inspect();
-    page.authConfirmed.set(true);
     await page.review(structuredClone(value));
     fixture.detectChanges();
     await fixture.whenStable();
@@ -99,6 +98,8 @@ describe('HTTP API import', () => {
 
   it('previews from the inspected snapshot without persisting or passing credentials to the parser', async () => {
     await review();
+    expect(page.step()).toBe(3);
+    expect(page.errors()).toEqual([]);
     expect(api.parseOpenApi).toHaveBeenCalledWith(expect.objectContaining({ blob: inspection.blob, draft: { name: value.name, env: value.env, config: value.config } }));
     expect(JSON.stringify(api.parseOpenApi.mock.calls)).not.toContain('private-test-token');
     expect(connections.create).not.toHaveBeenCalled();
@@ -145,12 +146,7 @@ describe('HTTP API import', () => {
     expect(page.errors().join()).toContain('no longer available');
   });
 
-  it('requires authentication review and reports invalid files without advancing', async () => {
-    await page.inspect();
-    await page.review(value);
-    expect(api.parseOpenApi).not.toHaveBeenCalled();
-    expect(page.errors().join()).toContain('Confirm');
-    page.go(1);
+  it('reports invalid files without advancing', async () => {
     api.inspectOpenApi.mockResolvedValueOnce({ ok: false, errors: ['External references are not supported.'] });
     await page.inspect();
     expect(page.step()).toBe(1);

@@ -65,7 +65,6 @@ export class HttpImportPage {
   readonly savedWarnings = signal<readonly string[]>([]);
   readonly savedTemplate = signal<Template | null>(null);
   readonly testResult = signal<TestOutcome | null>(null);
-  readonly authConfirmed = signal(false);
   readonly rows = computed(() => {
     const q = this.filter().trim().toLowerCase();
     return (this.parsed()?.operations ?? []).filter(o => `${o.name} ${o.method} ${o.path} ${o.summary} ${o.tags.join(' ')}`.toLowerCase().includes(q));
@@ -176,7 +175,6 @@ export class HttpImportPage {
         if (detail.type !== 'http' || !detail.verified) throw new Error('Choose a verified HTTP API connection.');
         this.detail.set(detail);
       }
-      this.authConfirmed.set(false);
       this.testResult.set(null);
       this.step.set(2);
       this.focus('#http-step-title');
@@ -186,7 +184,6 @@ export class HttpImportPage {
 
   async review(value?: ConnectionFormValue): Promise<void> {
     if (this.busy()) return;
-    if (!this.authConfirmed()) { this.errors.set(['Confirm the server and authentication settings before continuing.']); this.focus('#http-auth-confirm'); return; }
     if (value) this.draft.set(value);
     const refreshing = this.step() === 3;
     this.busy.set(true);

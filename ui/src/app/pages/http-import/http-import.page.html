@@ -102,7 +102,6 @@
         </div></div>
       }
       <div class="gw-field"><label class="gw-field__label" for="http-prefix">Tool prefix</label><input class="gw-input gw-input--mono" id="http-prefix" maxlength="16" pattern="[a-z][a-z0-9]{0,15}" [value]="prefix()" (input)="prefix.set(value($event))" [disabled]="busy()" aria-describedby="http-prefix-hint"><p class="gw-field__hint" id="http-prefix-hint">A unique prefix helps distinguish tools from different APIs, for example billing_get_customer.</p></div>
-      <label class="gw-checkbox"><input class="gw-checkbox__input" id="http-auth-confirm" type="checkbox" [checked]="authConfirmed()" (change)="authConfirmed.set($any($event.target).checked)"><span class="gw-checkbox__control" aria-hidden="true"></span><span class="gw-checkbox__label">I have reviewed the server and authentication settings</span></label>
       @if (detail(); as c) {
         <p>Use <strong>{{ c.name }}</strong> · {{ c.env }}. <a [routerLink]="['/connections', c.name]">Edit connection settings</a></p>
         <p>Base URLs: <code class="gw-code">{{ c.config['baseUrls'] }}</code>. Authentication: <span class="gw-mono">{{ $any(c.config['auth'])?.type || 'none' }}</span>.</p>

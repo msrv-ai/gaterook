@@ -295,7 +295,7 @@ A four-step wizard reached from the HTTP API connection form or Connectors → T
 
 File import and Create with AI both show an Upload file / Paste YAML or JSON segmented control next to the result input. Paste opens a labelled code text area without leaving the AI prompt. Switching input methods retains the pasted text; only the selected input is submitted.
 
-Connection reuses the canonical connection form and asks the user to review server and authentication suggestions. Review lists operation names, methods, paths, access modes, and explicit skip reasons, with filtering and selection up to 200 operations. State-changing GET/HEAD operations can be promoted to approval. A prefix change requires refreshing the preview. Saving creates the connection and template; a template error retains the connection for retry. Ready links to endpoint access configuration and templates without enabling tools automatically.
+Connection reuses the canonical connection form and displays server and authentication suggestions. Review tools advances to operation selection after form validation. Review lists operation names, methods, paths, access modes, and explicit skip reasons, with filtering and selection up to 200 operations. State-changing GET/HEAD operations can be promoted to approval. A prefix change requires refreshing the preview. Saving creates the connection and template; a template error retains the connection for retry. Ready links to endpoint access configuration and templates without enabling tools automatically.
 
 **Compositions:** `connection-form`.
 
