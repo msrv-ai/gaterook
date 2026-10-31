@@ -14,12 +14,15 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -384,12 +387,42 @@ public final class CloudCredentials implements AutoCloseable {
     Path file = adcFile();
     try {
       BasicFileAttributes attributes = Files.readAttributes(file, BasicFileAttributes.class);
-      return new AdcFile(file, attributes.fileKey(), attributes.lastModifiedTime(), attributes.size());
+      Object fileKey = attributes.fileKey();
+      // Windows exposes no file key and can preserve all timestamps when replacing a file.
+      String fingerprint = fileKey == null ? adcFingerprint(file, attributes.size()) : null;
+      return new AdcFile(file, fileKey, attributes.lastModifiedTime(), attributes.size(), fingerprint);
     } catch (NoSuchFileException e) {
       throw ConnectorException.unavailable("No Google sign-in on this computer. Run gcloud auth "
           + "application-default login, then test again.", null);
     } catch (IOException e) {
       throw ConnectorException.unavailable("Can't read the Google sign-in at " + file + ": " + e.getMessage(), e);
+    }
+  }
+
+  private static String adcFingerprint(Path file, long expectedSize) throws IOException {
+    MessageDigest digest;
+    try {
+      digest = MessageDigest.getInstance("SHA-256");
+    } catch (NoSuchAlgorithmException e) {
+      throw new IllegalStateException("SHA-256 is unavailable", e);
+    }
+    byte[] buffer = new byte[8192];
+    try (var input = Files.newInputStream(file)) {
+      long remaining = expectedSize;
+      while (remaining > 0) {
+        int read = input.read(buffer, 0, (int) Math.min(buffer.length, remaining));
+        if (read < 0) {
+          throw new IOException("The Google sign-in file changed while being read; try again.");
+        }
+        digest.update(buffer, 0, read);
+        remaining -= read;
+      }
+      if (input.read() != -1) {
+        throw new IOException("The Google sign-in file changed while being read; try again.");
+      }
+      return HexFormat.of().formatHex(digest.digest());
+    } finally {
+      java.util.Arrays.fill(buffer, (byte) 0);
     }
   }
 
@@ -692,8 +725,8 @@ public final class CloudCredentials implements AutoCloseable {
     volatile Instant lastExpiry;
   }
 
-  /** Only file metadata identifies the ADC revision; no credential bytes enter the cache key. */
-  private record AdcFile(Path path, Object fileKey, FileTime modified, long size) {}
+  /** Metadata and a fallback one-way fingerprint identify the revision; no credential bytes enter the cache key. */
+  private record AdcFile(Path path, Object fileKey, FileTime modified, long size, String fingerprint) {}
 
   private record GcpEntry(Owner owner, GcpSpec spec, GoogleCredentials credentials, IssuedClock issued, AdcFile adc) {}
 

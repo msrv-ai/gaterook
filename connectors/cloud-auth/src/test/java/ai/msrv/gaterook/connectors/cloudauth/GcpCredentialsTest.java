@@ -8,9 +8,12 @@ import ai.msrv.gaterook.connector.api.ConnectorException;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URI;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributeView;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.security.KeyPairGenerator;
 import java.time.Clock;
@@ -153,6 +156,35 @@ class GcpCredentialsTest {
 
     assertThat(after).isNotSameAs(before);
     assertThat(server.takeRequest(5, TimeUnit.SECONDS).getBody().utf8()).contains("refresh_token=new-login");
+  }
+
+  @Test
+  void reloadsAdcWithoutAFileKeyEvenWhenAllFileMetadataIsPreserved() throws Exception {
+    // ZIP filesystems, like Windows, expose no file key. Keep every available timestamp unchanged as well.
+    try (var filesystem = FileSystems.newFileSystem(URI.create("jar:" + dir.resolve("adc.zip").toUri()),
+        Map.of("create", "true"))) {
+      Path adc = Files.writeString(filesystem.getPath("/adc.json"), userSignIn("old-login"));
+      BasicFileAttributes beforeAttributes = Files.readAttributes(adc, BasicFileAttributes.class);
+      assertThat(beforeAttributes.fileKey()).isNull();
+      cloud = new CloudCredentials(endpoints(adc), Clock.systemUTC());
+      GcpSpec spec = new GcpSpec(GcpSpec.Source.ADC, null, null, List.of(), 900, null);
+      GoogleCredentials before = cloud.gcp(OWNER, spec, List.of(CloudCredentials.CLOUD_PLATFORM), new FakeSecrets());
+
+      Files.writeString(adc, userSignIn("new-login"));
+      Files.getFileAttributeView(adc, BasicFileAttributeView.class).setTimes(beforeAttributes.lastModifiedTime(),
+          beforeAttributes.lastAccessTime(), beforeAttributes.creationTime());
+      BasicFileAttributes afterAttributes = Files.readAttributes(adc, BasicFileAttributes.class);
+      assertThat(afterAttributes.fileKey()).isNull();
+      assertThat(afterAttributes.size()).isEqualTo(beforeAttributes.size());
+      assertThat(afterAttributes.lastModifiedTime()).isEqualTo(beforeAttributes.lastModifiedTime());
+      assertThat(afterAttributes.creationTime()).isEqualTo(beforeAttributes.creationTime());
+      GoogleCredentials after = cloud.gcp(OWNER, spec, List.of(CloudCredentials.CLOUD_PLATFORM), new FakeSecrets());
+
+      assertThat(after).isNotSameAs(before);
+      assertThat(cloud.gcp(OWNER, spec, List.of(CloudCredentials.CLOUD_PLATFORM), new FakeSecrets())).isSameAs(after);
+      CloudCredentials.requestMetadata(after, URI.create("https://logging.googleapis.com/"), t -> { });
+      assertThat(server.takeRequest(5, TimeUnit.SECONDS).getBody().utf8()).contains("refresh_token=new-login");
+    }
   }
 
   @Test
