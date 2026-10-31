@@ -9,6 +9,7 @@ import ai.msrv.gaterook.connector.api.SecretResolver;
 import ai.msrv.gaterook.connector.api.SecretUnavailableException;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.PublicKey;
@@ -30,6 +31,24 @@ import tools.jackson.databind.node.ObjectNode;
 final class Fixtures {
 
   private Fixtures() {}
+
+  static String javaExecutable() {
+    return Path.of(System.getProperty("java.home"), "bin",
+        System.getProperty("os.name").startsWith("Windows") ? "java.exe" : "java").toString();
+  }
+
+  static Process sleepingProcess() throws IOException {
+    return new ProcessBuilder(javaExecutable(), "-cp", System.getProperty("java.class.path"),
+        Sleeper.class.getName()).start();
+  }
+
+  public static final class Sleeper {
+    private Sleeper() {}
+
+    public static void main(String[] args) throws InterruptedException {
+      Thread.sleep(Duration.ofMinutes(10));
+    }
+  }
 
   static ObjectNode object(String json) {
     return (ObjectNode) Texts.JSON.readTree(json);

@@ -60,7 +60,9 @@ class ResultsAndLogTest {
     }
     String text = Files.readString(file);
     assertThat(text).doesNotContain("S3cr3t").contains(ServerLog.MASK);
-    assertThat(PosixFilePermissions.toString(Files.getPosixFilePermissions(file))).isEqualTo("rw-------");
+    if (Files.getFileStore(file).supportsFileAttributeView("posix")) {
+      assertThat(PosixFilePermissions.toString(Files.getPosixFilePermissions(file))).isEqualTo("rw-------");
+    }
   }
 
   /**

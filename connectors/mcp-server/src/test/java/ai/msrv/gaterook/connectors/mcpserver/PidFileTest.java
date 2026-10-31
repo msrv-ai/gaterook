@@ -20,8 +20,8 @@ class PidFileTest {
 
   @Test
   void aServerStartedBeforeTheCleanUpKeepsRunningAndTheOrphansStillStop() throws Exception {
-    Process orphan = new ProcessBuilder("sleep", "600").start();
-    Process fresh = new ProcessBuilder("sleep", "600").start();
+    Process orphan = Fixtures.sleepingProcess();
+    Process fresh = Fixtures.sleepingProcess();
     try {
       Path file = home.resolve("run/mcp-pids.json");
       Files.createDirectories(file.getParent());

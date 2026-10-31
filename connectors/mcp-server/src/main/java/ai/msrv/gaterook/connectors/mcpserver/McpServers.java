@@ -44,6 +44,7 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
   private final ConnectorManifest type;
   private final Map<String, Supervisor> supervisors = new ConcurrentHashMap<>();
   private final Map<String, ServerLog> logs = new ConcurrentHashMap<>();
+  private final java.util.Set<Thread> closingSessions = ConcurrentHashMap.newKeySet();
   private volatile Host host;
   private volatile PidFile pids;
   private volatile Launcher launcher;
@@ -211,6 +212,23 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
         break;
       }
     }
+    // Supervisor.stop schedules the actual session close; wait for those workers too before releasing logs.
+    long deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos();
+    while (!closingSessions.isEmpty()) {
+      long remaining = deadline - System.nanoTime();
+      if (remaining <= 0) {
+        LOG.log(System.Logger.Level.WARNING, "MCP session shutdown did not finish within 10 seconds");
+        break;
+      }
+      Thread worker = closingSessions.stream().findFirst().orElse(null);
+      if (worker == null) break;
+      try {
+        worker.join(Duration.ofNanos(remaining));
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        break;
+      }
+    }
     logs.values().forEach(ServerLog::close);
   }
 
@@ -311,7 +329,15 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
 
   @Override
   public void close(Session session) {
-    Thread.ofVirtual().name("mcp-stop-" + session.server.name()).start(() -> session.close(pids()));
+    Thread worker = Thread.ofVirtual().name("mcp-stop-" + session.server.name()).unstarted(() -> {
+      try {
+        session.close(pids());
+      } finally {
+        closingSessions.remove(Thread.currentThread());
+      }
+    });
+    closingSessions.add(worker);
+    worker.start();
   }
 
   @Override
