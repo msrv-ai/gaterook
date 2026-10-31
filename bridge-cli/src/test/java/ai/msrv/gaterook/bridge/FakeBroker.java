@@ -10,10 +10,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
 
-/** A broker on a Unix socket in a test home: records requests, answers with {@code answer}. */
+/** A broker using the platform's production transport: records requests and answers with {@code answer}. */
 final class FakeBroker implements AutoCloseable {
 
   final Path home;
@@ -21,10 +22,23 @@ final class FakeBroker implements AutoCloseable {
   final List<Object> requests = new CopyOnWriteArrayList<>();
   private final ServerSocketChannel server;
   private final Thread thread;
+  private final WindowsTestPipe windowsPipe;
 
   FakeBroker(Path home, Function<Object, String> answer) throws IOException {
     this.home = home;
     Files.createDirectories(home.resolve("run"));
+    if (System.getProperty("os.name").startsWith("Windows")) {
+      socket = Path.of("\\\\.\\pipe\\gaterook-test-" + UUID.randomUUID());
+      windowsPipe = new WindowsTestPipe(socket.toString(), request -> {
+        requests.add(request);
+        return answer.apply(request);
+      });
+      server = null;
+      thread = null;
+      Files.writeString(home.resolve("run/broker.json"), "{\"v\":1,\"path\":" + Json.quote(socket.toString()) + "}");
+      return;
+    }
+    windowsPipe = null;
     this.socket = home.resolve("run").resolve("test.sock");
     Files.deleteIfExists(socket);
     server = ServerSocketChannel.open(StandardProtocolFamily.UNIX);
@@ -55,6 +69,10 @@ final class FakeBroker implements AutoCloseable {
 
   @Override
   public void close() throws IOException {
+    if (windowsPipe != null) {
+      windowsPipe.close();
+      return;
+    }
     server.close();
     thread.interrupt();
     Files.deleteIfExists(socket);
