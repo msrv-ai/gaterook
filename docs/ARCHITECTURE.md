@@ -285,7 +285,7 @@ Database plugins may implement `Connector.discoverDatabases`, transported as `co
 
 The catalog verifies an Ed25519 signature over raw index bytes plus sequence, expiry, revocations, artifact size, and SHA-256. Updates cannot roll back trusted sequence state. Unsigned plugin installation requires an explicit high-risk review. Public catalog examples contain placeholders, not operational signing keys.
 
-External MCP servers run with pinned dependencies, cleared environments, scoped secret injection, supervision, and snapshots of their advertised tools. Definition changes require review; reserved built-in/core names cannot be impersonated. Remote HTTP servers use controlled egress. Upstream instructions and read-only claims are not trusted policy, and upstream OAuth is deferred.
+External MCP servers run with pinned dependencies, cleared environments, scoped secret injection, supervision, and snapshots of their advertised tools. Where the OS sandbox is available (Landlock on Linux, `sandbox-exec` on macOS) a server reads the system and the home minus GateRook's data and the credential folders, and writes only its work folder, the temporary folders and the package caches, so nothing it plants (a login item, a shell profile) runs outside it later; on Linux with Landlock ABI 6 it is also scoped out of abstract Unix sockets and signals. Definition changes require review; reserved built-in/core names cannot be impersonated. Remote HTTP servers use controlled egress. Upstream instructions and read-only claims are not trusted policy, and upstream OAuth is deferred.
 
 ## 8. Angular UI and design kit
 
