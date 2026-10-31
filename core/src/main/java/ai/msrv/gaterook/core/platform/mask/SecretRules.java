@@ -3,7 +3,7 @@ package ai.msrv.gaterook.core.platform.mask;
 import java.util.List;
 
 /**
- * The 16 secret rules of the masker (report 12 §7.7; patterns after gitleaks, MIT). Each guards its regex with
+ * The 18 secret rules of the masker (report 12 §7.7; patterns after gitleaks, MIT). Each guards its regex with
  * literals; groups keep the non-secret part readable so the agent still understands what it got
  * ({@code PASSWORD ‹masked›}, {@code postgres://app:‹masked›@db.dev.internal}).
  */
@@ -56,11 +56,22 @@ public final class SecretRules {
       TextRule.of("url-credentials",
           "([A-Za-z][A-Za-z0-9+.-]{1,30}://[^\\s/:@?#'\"]{1,256}:)" + NOT_MASKED + "([^\\s/@?#'\"]{1,256})(@)", 2, 31, 560,
           "://"),
+      // The name may be the end of a longer one (PGPASSWORD, DB_PASS, SPRING_DATASOURCE_PASSWORD); PASS alone only
+      // after an underscore, so that "pass: true" of a test report stays.
       TextRule.of("kv-password",
-          "(?i)(?<![a-z])(password|passwd|pwd|secret|client_secret|api[_-]?key|access[_-]?token|auth[_-]?token"
-              + "|refresh[_-]?token|private[_-]?key)([\"']?\\s*[=:]\\s*)([\"']?)" + NOT_MASKED
-              + "([^\\s\"',;&}<>]{3,})", 4, 8, 4200,
+          "(?i)(?<![a-z0-9_.-])[a-z0-9_.-]{0,40}?(password|passwd|pwd|_pass|secret|client_secret|api[_-]?key"
+              + "|access[_-]?token|auth[_-]?token|refresh[_-]?token|private[_-]?key)([\"']?\\s*[=:]\\s*)([\"']?)"
+              + NOT_MASKED + "([^\\s\"',;&}<>]{3,})", 4, 48, 4200,
           "pass", "pwd", "secret", "api_key", "apikey", "api-key", "token", "private"),
+      TextRule.of("xml-password",
+          "(?i)<([a-z0-9_.:-]*(?:password|passwd|pwd|secret|api[_-]?key|access[_-]?token|auth[_-]?token"
+              + "|refresh[_-]?token|private[_-]?key|token))>\\s*" + NOT_MASKED + "([^<\\s][^<]{2,}?)\\s*</\\1>", 2, 48, 4200,
+          "password>", "passwd>", "pwd>", "secret>", "key>", "token>"),
+      // Passwords on a command line: redis-cli -a, mysql -p (attached), sshpass -p, and --password with a space.
+      TextRule.of("cli-password",
+          "(?i)(?<![a-z0-9_-])(redis-cli(?:\\s+[^\\s;&|]+){0,20}?\\s+-a\\s+|mysql(?:admin|dump|sh)?(?:\\s+[^\\s;&|]+){0,20}?"
+              + "\\s+-p|sshpass\\s+-p\\s*|--password\\s+)" + NOT_MASKED + "([^\\s\"';&|]{3,})", 2, 0, 1200,
+          "redis-cli", "mysql", "sshpass", "--password"),
       TextRule.of("sql-password",
           "(?i)(?<![a-z])(password|identified\\s+by)(\\s+|\\s*=\\s*)" + NOT_MASKED
               + "('(?:[^']|'')*'|\"(?:[^\"]|\"\")*\")", 3, 0, 4200,

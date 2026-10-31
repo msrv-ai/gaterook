@@ -27,10 +27,13 @@ import tools.jackson.databind.node.ObjectNode;
  * and string cells; numbers and binary nodes are checked by their text against the taint and personal data. Each
  * goes through, in order:
  * <ol>
- *   <li>the call's {@link Taint}: every stored secret handed out and every derived credential, in their encodings;</li>
+ *   <li>the call's {@link Taint}: every stored secret handed out and every derived credential, in their encodings,
+ *       and the start of one that a connector's cut left before its marker;</li>
+ *   <li>the {@link SecretFingerprints} of the process: every secret any call has been handed since start-up, so one
+ *       connection's password is masked in another connection's data;</li>
  *   <li>sensitive keys of JSON objects ({@code password}, {@code client_secret}, {@code authorization}, …) and the
  *       policy's "Always mask these fields";</li>
- *   <li>the 16 secret rules, each behind a literal prefilter;</li>
+ *   <li>the 18 secret rules, each behind a literal prefilter;</li>
  *   <li>entropy: long random-looking tokens nobody declared;</li>
  *   <li>personal data of the policy (email, phone, card, IBAN).</li>
  * </ol>
@@ -44,7 +47,22 @@ public final class Masker {
   /** What replaces a secret, everywhere. */
   public static final String MASK = "‹masked›";
 
-  private static final Masker STANDARD = new Masker();
+  /** How every connector's cut of a long value begins ({@code …‹truncated 12 chars›}, {@code …‹256 bytes›}). */
+  static final String CUT_MARK = "…‹";
+
+  private static final Masker STANDARD = new Masker(SecretFingerprints.process());
+
+  private final SecretFingerprints fingerprints;
+
+  /** A masker over the process's fingerprints, like {@link #standard()}. */
+  public Masker() {
+    this(SecretFingerprints.process());
+  }
+
+  /** A masker over {@code fingerprints} alone. */
+  Masker(SecretFingerprints fingerprints) {
+    this.fingerprints = fingerprints;
+  }
 
   /** Exact sensitive key names, normalized (lower case, no {@code -} or {@code _}). */
   private static final Set<String> SENSITIVE_KEYS = Set.of("password", "passwd", "pwd", "secret", "clientsecret",
@@ -83,14 +101,14 @@ public final class Masker {
 
   /** Masks one text, e.g. a {@code content[].text} or an approval's action for a channel. */
   public MaskedText text(String text, Taint taint, MaskPolicy policy) {
-    Pass pass = new Pass(taint, policy);
+    Pass pass = new Pass(fingerprints, taint, policy);
     String out = pass.string(text);
     return new MaskedText(out, pass.outcome());
   }
 
   /** A masked copy of {@code tree}: arguments for the audit, {@code structuredContent}. */
   public MaskedTree tree(JsonNode tree, Taint taint, MaskPolicy policy) {
-    Pass pass = new Pass(taint, policy);
+    Pass pass = new Pass(fingerprints, taint, policy);
     JsonNode out = pass.node(tree, new ArrayList<>(), false);
     return new MaskedTree(out, pass.outcome());
   }
@@ -101,7 +119,7 @@ public final class Masker {
    * policy's fields are masked whole) and {@code meta}. The returned result carries {@code maskedCount}.
    */
   public MaskedResult result(ToolResult result, Taint taint, MaskPolicy policy) {
-    Pass pass = new Pass(taint, policy);
+    Pass pass = new Pass(fingerprints, taint, policy);
     List<ToolResult.Content> content = new ArrayList<>(result.content().size());
     for (ToolResult.Content c : result.content()) {
       // A resource link reaches the agent as much as a text does: a presigned URL carries the STS session token.
@@ -126,7 +144,7 @@ public final class Masker {
     if (message == null || message.isEmpty()) {
       return message;
     }
-    return new Pass(null, MaskPolicy.SECRETS_ONLY).string(message);
+    return new Pass(fingerprints, null, MaskPolicy.SECRETS_ONLY).string(message);
   }
 
   /**
@@ -145,7 +163,7 @@ public final class Masker {
     if (value == null || value.isEmpty()) {
       return Optional.empty();
     }
-    Pass pass = new Pass(null, entropy ? MaskPolicy.SECRETS_ONLY : new MaskPolicy(false, Set.of(), List.of()));
+    Pass pass = new Pass(fingerprints, null, entropy ? MaskPolicy.SECRETS_ONLY : new MaskPolicy(false, Set.of(), List.of()));
     pass.string(value);
     return pass.counter.byRule().keySet().stream().findFirst();
   }
@@ -225,6 +243,7 @@ public final class Masker {
     private static final int MAX_CLEAN_NAMES = 4096;
     private static final Set<MaskPolicy.Pii> CARDS = Set.of(MaskPolicy.Pii.CARD);
 
+    final SecretFingerprints fingerprints;
     final Taint taint;
     final MaskPolicy policy;
     final MaskCounter counter = new MaskCounter();
@@ -234,11 +253,13 @@ public final class Masker {
     final Set<String> cleanNames = new HashSet<>();
     int fields;
 
-    Pass(Taint taint, MaskPolicy policy) {
+    Pass(SecretFingerprints fingerprints, Taint taint, MaskPolicy policy) {
+      this.fingerprints = fingerprints;
       this.taint = taint;
       this.policy = policy;
       this.fieldPatterns = policy.fields().stream().map(f -> f.split("\\.", -1)).toList();
-      this.scalars = (taint != null && !taint.isEmpty()) || policy.pii().contains(MaskPolicy.Pii.CARD);
+      this.scalars = (taint != null && !taint.isEmpty()) || !fingerprints.isEmpty()
+          || policy.pii().contains(MaskPolicy.Pii.CARD);
     }
 
     Outcome outcome() {
@@ -258,6 +279,7 @@ public final class Masker {
       if (taint != null && !taint.isEmpty()) {
         out = maskTaint(out);
       }
+      out = fingerprints.mask(out, MASK, counter);
       out = SecretRules.apply(out, MASK, counter);
       if (entropy) {
         out = EntropyDetector.apply(out, MASK, counter);
@@ -272,9 +294,26 @@ public final class Masker {
     }
 
     private String maskTaint(String value) {
-      if (!taint.occursIn(value)) {
-        return value;
+      String out = value;
+      if (taint.occursIn(value)) {
+        out = maskForms(out);
       }
+      // A connector's cut (…‹truncated 12 chars›, …‹256 bytes›) can fall inside a secret: the start that is left
+      // right before the marker is masked when it is long enough to be more than a coincidence.
+      int mark = out.indexOf(CUT_MARK);
+      while (mark > 0) {
+        int prefix = taint.cutPrefix(out, mark);
+        if (prefix > 0) {
+          out = out.substring(0, mark - prefix) + MASK + out.substring(mark);
+          counter.hit("stored-secret");
+          mark = mark - prefix + MASK.length();
+        }
+        mark = out.indexOf(CUT_MARK, mark + 1);
+      }
+      return out;
+    }
+
+    private String maskForms(String value) {
       String out = value;
       for (char[] form : taint.forms()) {
         int at = indexOf(out, form, 0);
@@ -382,6 +421,7 @@ public final class Masker {
       if (taint != null && !taint.isEmpty()) {
         out = maskTaint(out);
       }
+      out = fingerprints.mask(out, MASK, counter);
       if (text.length() >= 13 && policy.pii().contains(MaskPolicy.Pii.CARD)) {
         out = PiiRules.apply(out, CARDS, MASK, counter);
       }

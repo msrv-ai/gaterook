@@ -11,6 +11,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -20,15 +21,19 @@ import java.util.Map;
  * them, and their usual encodings, by {@code ‹masked›} before anything leaves the call: the result, the audit row,
  * Playground, notifications and logs.
  *
- * <p>Forms kept per value: raw, Base64 and Base64url (without padding, so padded echoes match too), URL-encoded the
- * ways common libraries do it ({@link URLEncoder} with {@code +} or {@code %20} for a space, RFC 3986 that keeps only
- * {@code A-Za-z0-9-._~}, JavaScript's {@code encodeURIComponent} that also keeps {@code !*'()}), JSON-escaped the ways
- * common serializers do it ({@link #JSON_STYLES}: minimal, <code>&#92;uXXXX</code> for non-ASCII in either case,
- * <code>&#92;/</code>, HTML-safe <code>&#92;u003c</code>), and Base64 of {@code user:password} for logins; binary
- * values without a text form ({@link #addBytes}): Base64, Base64url and hex. Identical forms are kept once, so a value
- * without special characters costs the masker one form, not a dozen. Forms shorter than {@value #MIN_LENGTH}
- * characters are ignored: masking every {@code "on"} of a result would destroy it. Partial or hashed echoes are not
- * caught (report 12 §9, residual risk).
+ * <p>Forms kept per value: raw, upper and lower case, reversed; Base64 and Base64url (without padding, so padded
+ * echoes match too) at every alignment — the value may follow one or two other bytes in what was encoded, and its
+ * last incomplete group may be shared with what follows, so the groups it fills alone are a form of their own; hex in
+ * both cases; URL-encoded the ways common libraries do it ({@link URLEncoder} with {@code +} or {@code %20} for a
+ * space, RFC 3986 that keeps only {@code A-Za-z0-9-._~}, JavaScript's {@code encodeURIComponent} that also keeps
+ * {@code !*'()}), JSON-escaped the ways common serializers do it ({@link #JSON_STYLES}: minimal,
+ * <code>&#92;uXXXX</code> for non-ASCII in either case, <code>&#92;/</code>, HTML-safe <code>&#92;u003c</code>), and
+ * Base64 of {@code user:password} for logins; binary values without a text form ({@link #addBytes}): Base64,
+ * Base64url and hex. Identical forms are kept once, so a value without special characters costs the masker a few
+ * forms, not dozens. Forms shorter than {@value #MIN_LENGTH} characters are ignored: masking every {@code "on"} of a
+ * result would destroy it. A value cut by a connector's limit shows as the start of a form before a cut marker:
+ * {@link #cutPrefix} finds such a start of {@value #MIN_PREFIX} characters or more. A secret the agent can transform
+ * at the server (substrings, arithmetic on characters, other encodings) isn't caught (report 12 §9, residual risk).
  *
  * <p>Values are held as {@code char[]} and zeroed by {@link #clear()} when the call ends. Thread-safe: a connector may
  * add values from several threads of one call.
@@ -37,6 +42,9 @@ public final class Taint {
 
   /** Shorter forms are not tracked. */
   public static final int MIN_LENGTH = 4;
+
+  /** The shortest start of a form that counts before a cut marker ({@link #cutPrefix}). */
+  public static final int MIN_PREFIX = 8;
 
   /** How one JSON serializer escapes a string between its quotes. */
   record JsonStyle(String name, boolean asciiOnly, boolean upperHex, boolean escapeSlash, String htmlChars) {}
@@ -68,17 +76,27 @@ public final class Taint {
     }
     char[] raw = toChars(value);
     addForm(raw);
+    String text = new String(raw);
+    addForm(text.toUpperCase(Locale.ROOT).toCharArray());
+    addForm(text.toLowerCase(Locale.ROOT).toCharArray());
+    addForm(new StringBuilder(text).reverse().toString().toCharArray());
     byte[] utf8 = utf8(raw);
     try {
       addForm(Base64.getEncoder().withoutPadding().encodeToString(utf8).toCharArray());
       addForm(Base64.getUrlEncoder().withoutPadding().encodeToString(utf8).toCharArray());
+      for (int offset = 0; offset < 3; offset++) {
+        addForm(base64Groups(Base64.getEncoder(), utf8, offset));
+        addForm(base64Groups(Base64.getUrlEncoder(), utf8, offset));
+      }
+      char[] hex = HexFormat.of().formatHex(utf8).toCharArray();
+      addForm(hex);
+      addForm(new String(hex).toUpperCase(Locale.ROOT).toCharArray());
       addForm(percentEncoded(utf8, RFC_3986_KEPT, "%20"));
       addForm(percentEncoded(utf8, RFC_3986_KEPT, "+"));
       addForm(percentEncoded(utf8, URI_COMPONENT_KEPT, "%20"));
     } finally {
       Arrays.fill(utf8, (byte) 0);
     }
-    String text = new String(raw);
     String form = URLEncoder.encode(text, StandardCharsets.UTF_8);
     addForm(form.toCharArray());
     addForm(form.replace("+", "%20").toCharArray());
@@ -157,6 +175,34 @@ public final class Taint {
       }
     }
     return false;
+  }
+
+  /**
+   * How many characters before {@code end} in {@code text} are the start of a form, {@value #MIN_PREFIX} or more
+   * and never a whole form (those {@link #occursIn} finds): what a connector's cut left of a secret, right before
+   * its cut marker. The longest such start; 0 when there is none.
+   */
+  public int cutPrefix(String text, int end) {
+    int longest = 0;
+    for (char[] form : index.sorted) {
+      int max = Math.min(form.length - 1, end);
+      for (int length = max; length > Math.max(longest, MIN_PREFIX - 1); length--) {
+        if (startsWithFormPrefix(text, end - length, form, length)) {
+          longest = length;
+          break;
+        }
+      }
+    }
+    return longest;
+  }
+
+  private static boolean startsWithFormPrefix(String text, int at, char[] form, int length) {
+    for (int j = 0; j < length; j++) {
+      if (text.charAt(at + j) != form[j]) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /** Compared char by char: a {@code String} copy of a form would keep the secret beyond {@link #clear()}. */
@@ -251,6 +297,25 @@ public final class Taint {
       Arrays.fill(buffer.array(), (byte) 0);
     }
     return out;
+  }
+
+  /**
+   * The Base64 of {@code bytes} as it reads when {@code offset} (0, 1 or 2) other bytes were encoded before them:
+   * the characters of the 3-byte groups the value fills by itself. The first group's characters that mix in the
+   * other bytes and the last group's that would mix in what follows are left out; an empty result is dropped.
+   */
+  private static char[] base64Groups(Base64.Encoder encoder, byte[] bytes, int offset) {
+    byte[] shifted = new byte[offset + bytes.length];
+    System.arraycopy(bytes, 0, shifted, offset, bytes.length);
+    try {
+      String all = encoder.withoutPadding().encodeToString(shifted);
+      int groups = shifted.length / 3;
+      int from = offset == 0 ? 0 : offset == 1 ? 2 : 3;
+      int to = groups * 4;
+      return to > from ? all.substring(from, to).toCharArray() : new char[0];
+    } finally {
+      Arrays.fill(shifted, (byte) 0);
+    }
   }
 
   /** Percent-encoding of UTF-8 {@code bytes} that keeps letters, digits and {@code kept}. */

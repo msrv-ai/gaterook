@@ -3,6 +3,7 @@ package ai.msrv.gaterook.core.secrets;
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.SecretResolver;
 import ai.msrv.gaterook.connector.api.SecretUnavailableException;
+import ai.msrv.gaterook.core.platform.SecretFingerprints;
 import ai.msrv.gaterook.core.platform.Taint;
 import ai.msrv.gaterook.core.secrets.internal.persistence.SecretKind;
 import ai.msrv.gaterook.core.secrets.store.LeaseManager;
@@ -70,9 +71,11 @@ public final class ScopedSecretResolver implements SecretResolver, AutoCloseable
     LocalSecretValue value = new LocalSecretValue(resolved.plaintext(), resolved.version());
     if (value.chars().length > 0) {
       taint.add(CharBuffer.wrap(value.chars()));
+      SecretFingerprints.process().learnValue(CharBuffer.wrap(value.chars()));
     } else {
       // Not UTF-8 (a keystore, a keytab): no text view, but its encodings can still be echoed.
       taint.addBytes(value.bytes());
+      SecretFingerprints.process().learnBytes(value.bytes());
     }
     remember(value);
     return value;
@@ -135,6 +138,7 @@ public final class ScopedSecretResolver implements SecretResolver, AutoCloseable
     }
     LocalSecretValue secret = new LocalSecretValue(password, resolved.version());
     taint.addLogin(username, CharBuffer.wrap(secret.chars()));
+    SecretFingerprints.process().learnLogin(username, CharBuffer.wrap(secret.chars()));
     Login login = new Login(username, secret, resolved.version(), null);
     remember(login);
     return login;

@@ -554,6 +554,8 @@ public class SecretService {
     try {
       LeaseManager.Login login = resolution.login(p, call(taint));
       taint.addLogin(login.username(), java.nio.CharBuffer.wrap(login.password()));
+      ai.msrv.gaterook.core.platform.SecretFingerprints.process().learnLogin(login.username(),
+          java.nio.CharBuffer.wrap(login.password()));
       return login;
     } catch (StoreException e) {
       throw new ai.msrv.gaterook.connector.api.SecretUnavailableException(e.getMessage(), null);
@@ -579,6 +581,8 @@ public class SecretService {
       }
       StoreResolution.DraftLease lease = resolution.issueDraft(storeId, v, call(taint));
       taint.addLogin(lease.username(), java.nio.CharBuffer.wrap(lease.password()));
+      ai.msrv.gaterook.core.platform.SecretFingerprints.process().learnLogin(lease.username(),
+          java.nio.CharBuffer.wrap(lease.password()));
       return lease;
     } catch (StoreException | ai.msrv.gaterook.core.platform.ProblemException e) {
       throw new ai.msrv.gaterook.connector.api.SecretUnavailableException(field + " can't be resolved: "

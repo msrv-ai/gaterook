@@ -362,7 +362,7 @@ The application follows the kit's first-run, setup, and in-use Overview composit
 
 | Invariant | Enforcement and verification |
 | --- | --- |
-| Agents do not receive configured secrets | Scoped resolution, taint registration, masking, write-only DTOs, canary-leak tests, and test-log scanning |
+| Agents do not receive configured secrets | Scoped resolution, taint registration, masking of handed-out secrets in their encodings (Base64 at any alignment, URL and JSON escapes, hex, case, reversed) and of a cut secret's start, keyed fingerprints of every secret handed out since start-up so that one connection's secret is masked in another's data, credential spellings in text, write-only DTOs, canary-leak tests, and test-log scanning. Masking does not catch a secret the agent transforms at the server (substrings, character arithmetic, other encodings), one shorter than four characters, or one no call has been handed since the process started |
 | Mutations require approval unless Bypass is explicitly enabled | Policy truth table, read-only endpoint restrictions, prepared payloads, core-authorized context access rules, audit and end-to-end execution tests |
 | Reviewed action equals executed action | Canonical persistence, digests/MACs, version rechecks, compare-and-set transition, and action/execution hashes |
 | Approval cannot be forged through MCP | No approval form field; bound continuation state; navigation-only links; principal-scoped handles |
