@@ -17,7 +17,7 @@ import java.util.Optional;
  * The stable launcher client configs point at (report 03 §1, ARCHITECTURE.md §7.2): {@code ~/.gaterook/bin/gw-bridge}
  * ({@code gw-bridge.cmd} on Windows), rewritten atomically at every start of the core, so that a moved or updated app,
  * or an AppImage mounted elsewhere, never breaks Codex's helper or a stdio entry. It runs, in this order: the native
- * {@code gw-bridge} of the app's bundle; the bundle's JRE with {@code gw-bridge.jar}; in a development run the jar
+ * {@code gw-bridge} of the app's bundle (its exported copy on Windows); the bundle's JRE with {@code gw-bridge.jar}; in a development run the jar
  * named by {@code gateway.clients.bridge-jar} on this JVM. It exports {@code GW_HOME}, so the bridge finds the broker
  * of this gateway home. Without any of them it says so and fails (exit 1), which the client shows.
  *
@@ -160,18 +160,25 @@ public final class BridgeShimInstaller {
         Files.deleteIfExists(tmp);
       }
     }
-    writeAtomically(shim, script(env, target).getBytes(StandardCharsets.UTF_8), true);
+    Target launcher = target;
     if (env.os() == Os.WINDOWS && target.present() && target.argv().size() == 1
         && target.argv().getFirst().endsWith(".exe")) {
       Path copy = env.bridgeExecutable();
-      Path tmp = Files.createTempFile(copy.getParent(), ".gw-bridge", ".tmp");
-      try {
-        Files.copy(Path.of(target.argv().getFirst()), tmp, StandardCopyOption.REPLACE_EXISTING);
-        Files.move(tmp, copy, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-      } finally {
-        Files.deleteIfExists(tmp);
+      Path source = Path.of(target.argv().getFirst());
+      // An external client cannot assume access to WindowsApps. Both stdio clients and Codex's headers shim
+      // use the exported executable, with its DLLs provisioned by the desktop. Keep an identical live copy.
+      if (!Files.isRegularFile(copy) || Files.mismatch(source, copy) != -1) {
+        Path tmp = Files.createTempFile(copy.getParent(), ".gw-bridge", ".tmp");
+        try {
+          Files.copy(source, tmp, StandardCopyOption.REPLACE_EXISTING);
+          Files.move(tmp, copy, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        } finally {
+          Files.deleteIfExists(tmp);
+        }
       }
+      launcher = new Target(List.of(copy.toString()));
     }
+    writeAtomically(shim, script(env, launcher).getBytes(StandardCharsets.UTF_8), true);
     return shim;
   }
 

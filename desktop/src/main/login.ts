@@ -34,6 +34,11 @@ export function applyLoginItem(s: LoginSettings, dev: boolean, log: Logger): voi
     log(`open at login ${s.openAtLogin ? 'on' : 'off'}, start hidden ${s.startHidden ? 'on' : 'off'}: not applied in a development build`);
     return;
   }
+  if (process.platform === 'win32' && process.windowsStore) {
+    // A packaged startup task belongs to Windows Settings; Run registry entries are virtualized by MSIX.
+    log('startup is managed in Windows Settings > Apps > Startup');
+    return;
+  }
   if (process.platform === 'linux') {
     linuxAutostart(s);
     return;

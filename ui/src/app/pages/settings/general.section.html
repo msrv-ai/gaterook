@@ -10,43 +10,51 @@
       <p class="gw-form__description">The core runs only while the app runs, so agents reach your endpoints only then.</p>
     </header>
     <div class="gw-form__rows">
-      <div class="gw-switch">
-        <input class="gw-switch__input" type="checkbox" role="switch" id="st-login" [checked]="openAtLogin()" [attr.aria-busy]="busy() === 'openAtLogin' ? 'true' : null" aria-describedby="st-login-hint" (change)="setGeneral('openAtLogin', $event, 'Start GateRook when you sign in')">
-        <span class="gw-switch__control" aria-hidden="true"></span>
-        <label class="gw-switch__label" for="st-login">Start GateRook when you sign in</label>
-        <p class="gw-switch__hint" id="st-login-hint">Claude Desktop and Codex can call your endpoints as soon as you sign in to this computer.</p>
-      </div>
-      <div class="gw-switch">
-        <input class="gw-switch__input" type="checkbox" role="switch" id="st-minimized" [checked]="startHidden()" [attr.aria-busy]="busy() === 'startHidden' ? 'true' : null" aria-describedby="st-minimized-hint" (change)="setGeneral('startHidden', $event, 'Start minimized')">
-        <span class="gw-switch__control" aria-hidden="true"></span>
-        <label class="gw-switch__label" for="st-minimized">Start minimized</label>
-        <p class="gw-switch__hint" id="st-minimized-hint">Opens in the menu bar on macOS and in the system tray on Windows and Linux. The icon shows how many requests wait for you.</p>
-      </div>
+      @if (desktop.windowsStore) {
+        <p class="gw-text-small gw-fg-secondary" id="st-store-startup">Manage startup in Windows Settings &gt; Apps &gt; Startup. Find GateRook there to choose whether it starts when you sign in.</p>
+      } @else {
+        <div class="gw-switch">
+          <input class="gw-switch__input" type="checkbox" role="switch" id="st-login" [checked]="openAtLogin()" [attr.aria-busy]="busy() === 'openAtLogin' ? 'true' : null" aria-describedby="st-login-hint" (change)="setGeneral('openAtLogin', $event, 'Start GateRook when you sign in')">
+          <span class="gw-switch__control" aria-hidden="true"></span>
+          <label class="gw-switch__label" for="st-login">Start GateRook when you sign in</label>
+          <p class="gw-switch__hint" id="st-login-hint">Claude Desktop and Codex can call your endpoints as soon as you sign in to this computer.</p>
+        </div>
+        <div class="gw-switch">
+          <input class="gw-switch__input" type="checkbox" role="switch" id="st-minimized" [checked]="startHidden()" [attr.aria-busy]="busy() === 'startHidden' ? 'true' : null" aria-describedby="st-minimized-hint" (change)="setGeneral('startHidden', $event, 'Start minimized')">
+          <span class="gw-switch__control" aria-hidden="true"></span>
+          <label class="gw-switch__label" for="st-minimized">Start minimized</label>
+          <p class="gw-switch__hint" id="st-minimized-hint">Opens in the menu bar on macOS and in the system tray on Windows and Linux. The icon shows how many requests wait for you.</p>
+        </div>
+      }
     </div>
   </section>
 
   <section class="gw-form__section" aria-labelledby="st-updates-t">
     <header class="gw-form__section-header">
       <h3 class="gw-form__legend" id="st-updates-t">Updates</h3>
-      <p class="gw-form__description">Signed releases from GitHub. Choose Update and restart in the sidebar to download an update and restart the app.</p>
+      <p class="gw-form__description">@if (desktop.windowsStore) {Microsoft Store manages updates for this app.} @else {Signed releases from GitHub. Choose Update and restart in the sidebar to download an update and restart the app.}</p>
     </header>
     <div class="gw-form__rows">
-      <div class="gw-switch">
-        <input class="gw-switch__input" type="checkbox" role="switch" id="st-updates" [checked]="autoUpdate()" [attr.aria-busy]="busy() === 'autoUpdate' ? 'true' : null" aria-describedby="st-updates-hint" (change)="setGeneral('autoUpdate', $event, 'Check for updates automatically')">
-        <span class="gw-switch__control" aria-hidden="true"></span>
-        <label class="gw-switch__label" for="st-updates">Check for updates automatically</label>
-        <p class="gw-switch__hint" id="st-updates-hint">Once a day. Updates download and restart the app only when you choose.</p>
-      </div>
-      @let u = update();
-      <div class="gw-settings-layout__inline">
-        @if (u.tone === 'checking') {
-          <span class="gw-status gw-status--checking" role="status"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span><span class="gw-status__label">{{ u.label }}</span></span>
-        } @else {
-          <span class="gw-status gw-status--{{ u.tone }}"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ u.label }}@if (u.version) { <span class="gw-mono">{{ u.version }}</span>}</span></span>
-        }
-        <button class="gw-btn gw-btn--sm" type="button" id="st-update-check" [attr.aria-disabled]="!desktop.available || u.busy ? 'true' : null" [attr.aria-busy]="u.busy ? 'true' : null" aria-describedby="st-update-checked" (click)="checkNow()">@if (u.busy) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="refresh-cw" class="gw-icon gw-icon--sm"></svg>} Check now</button>
-        <p class="gw-text-caption gw-fg-muted" id="st-update-checked">@if (!desktop.available) {The desktop app checks for updates; this window runs outside it.} @else if (u.error) {{{ u.error }}} @else if (u.lastCheckedAt) {Last checked <time [attr.datetime]="time.iso(u.lastCheckedAt)" [attr.title]="time.absolute(u.lastCheckedAt)">{{ time.relative(u.lastCheckedAt) }}</time>} @else {Not checked yet}</p>
-      </div>
+      @if (desktop.windowsStore) {
+        <p class="gw-text-small gw-fg-secondary" id="st-store-updates">Open Microsoft Store to check for updates and manage automatic updates.</p>
+      } @else {
+        <div class="gw-switch">
+          <input class="gw-switch__input" type="checkbox" role="switch" id="st-updates" [checked]="autoUpdate()" [attr.aria-busy]="busy() === 'autoUpdate' ? 'true' : null" aria-describedby="st-updates-hint" (change)="setGeneral('autoUpdate', $event, 'Check for updates automatically')">
+          <span class="gw-switch__control" aria-hidden="true"></span>
+          <label class="gw-switch__label" for="st-updates">Check for updates automatically</label>
+          <p class="gw-switch__hint" id="st-updates-hint">Once a day. Updates download and restart the app only when you choose.</p>
+        </div>
+        @let u = update();
+        <div class="gw-settings-layout__inline">
+          @if (u.tone === 'checking') {
+            <span class="gw-status gw-status--checking" role="status"><span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span><span class="gw-status__label">{{ u.label }}</span></span>
+          } @else {
+            <span class="gw-status gw-status--{{ u.tone }}"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ u.label }}@if (u.version) { <span class="gw-mono">{{ u.version }}</span>}</span></span>
+          }
+          <button class="gw-btn gw-btn--sm" type="button" id="st-update-check" [attr.aria-disabled]="!desktop.available || u.busy ? 'true' : null" [attr.aria-busy]="u.busy ? 'true' : null" aria-describedby="st-update-checked" (click)="checkNow()">@if (u.busy) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="refresh-cw" class="gw-icon gw-icon--sm"></svg>} Check now</button>
+          <p class="gw-text-caption gw-fg-muted" id="st-update-checked">@if (!desktop.available) {The desktop app checks for updates; this window runs outside it.} @else if (u.error) {{{ u.error }}} @else if (u.lastCheckedAt) {Last checked <time [attr.datetime]="time.iso(u.lastCheckedAt)" [attr.title]="time.absolute(u.lastCheckedAt)">{{ time.relative(u.lastCheckedAt) }}</time>} @else {Not checked yet}</p>
+        </div>
+      }
     </div>
   </section>
 

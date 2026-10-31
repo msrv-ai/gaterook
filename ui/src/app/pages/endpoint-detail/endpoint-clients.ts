@@ -112,6 +112,20 @@ export class GwEndpointClients {
     if (!previewId) return;
     try {
       const result = await this.data.connect(card.client, previewId);
+      if (result.link.method === 'mcpb') {
+        if (this.desktop.available) {
+          try {
+            await this.desktop.openMcpb(result.link.id);
+          } catch (e) {
+            this.toasts.show({ tone: 'danger', title: 'The extension could not be opened', body: `${e instanceof Error ? e.message : NO_ANSWER} Open ${result.mcpbPath ?? 'the generated extension'} in Claude Desktop to install it.` });
+            return;
+          }
+        }
+        this.toasts.show({ tone: 'info', title: 'Finish connecting Claude Desktop', body: this.desktop.available
+          ? 'Confirm Install in Claude Desktop. The connection status updates when the extension connects.'
+          : `Open ${result.mcpbPath ?? 'the generated extension'} in Claude Desktop to install it.` });
+        return;
+      }
       const t = connectedToast(card.name, request?.endpoint ?? this.slug(), result.notes);
       this.toasts.show({ tone: t.tone, title: t.title, body: t.body });
     } catch (e) {

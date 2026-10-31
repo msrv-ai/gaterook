@@ -17,7 +17,6 @@ import { GwGeneralSettings } from './general.section';
 import { GwLocalApiSettings } from './local-api.section';
 import { GwNotificationsSettings } from './notifications.section';
 import { SettingsData } from './settings.data';
-import { GwUsersSettings } from './users.section';
 
 /** The first render waits this long before it shows placeholders (kit: "when it takes longer than 300 ms"). */
 export const SKELETON_DELAY_MS = 300;
@@ -53,7 +52,6 @@ const FRAGMENT = /^(settings|st)-[a-z0-9-]+$/;
     GwGeneralSettings,
     GwAppearanceSettings,
     GwAuthorizationSettings,
-    GwUsersSettings,
     GwNotificationsSettings,
     GwApprovalRulesSettings,
     GwLocalApiSettings,

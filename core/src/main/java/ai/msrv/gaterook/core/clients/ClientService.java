@@ -31,6 +31,7 @@ import ai.msrv.gaterook.core.clients.internal.ConfigFileWriter.Snapshot;
 import ai.msrv.gaterook.core.clients.internal.DiffService;
 import ai.msrv.gaterook.core.clients.internal.JsonEntryEditor;
 import ai.msrv.gaterook.core.clients.internal.McpbBuilder;
+import ai.msrv.gaterook.core.clients.internal.StoreClientPolicy;
 import ai.msrv.gaterook.core.clients.internal.TomlBlockEditor;
 import ai.msrv.gaterook.core.clients.internal.persistence.ClientKind;
 import ai.msrv.gaterook.core.clients.internal.persistence.ClientLinkEntity;
@@ -134,6 +135,7 @@ public class ClientService {
   private final LocalListener listener;
   private final ClientEnvironment env;
   private final ConfigFileWriter writer;
+  private final StoreClientPolicy storePolicy;
   private final EventBus events;
   private final SetupChangeRecorder setupChanges;
   private final Clock clock;
@@ -153,7 +155,8 @@ public class ClientService {
     this.catalog = catalog;
     this.listener = listener;
     this.env = env;
-    this.writer = new ConfigFileWriter(env.backups(), clock);
+    this.storePolicy = new StoreClientPolicy(env);
+    this.writer = new ConfigFileWriter(env.backups(), clock, storePolicy::path);
     this.events = events;
     this.setupChanges = setupChanges;
     this.clock = clock;
@@ -229,7 +232,17 @@ public class ClientService {
       warnings.add("Update Codex: versions before " + Codex.HELPER_SINCE + " ignore http_headers_helper and connect "
           + "without a token.");
     }
-    List<Method> methods = a.methods().stream().map(m -> method(a.kind(), m)).toList();
+    List<Method> methods = new ArrayList<>();
+    for (LinkMethod m : a.methods()) {
+      try {
+        storePolicy.method(a.kind(), m);
+        storePolicy.runtime();
+        storePolicy.path(m == LinkMethod.MCPB ? env.mcpbDirectory() : d.configPath());
+        methods.add(method(a.kind(), m));
+      } catch (ProblemException ex) {
+        if (!warnings.contains(ex.getMessage())) warnings.add(ex.getMessage());
+      }
+    }
     return new Card(a.kind().id(), a.displayName(), status, text, d.configPath().toString(),
         env.display(d.configPath()), d.installed(), d.evidence(), d.version(), List.copyOf(warnings), methods, mine);
   }
@@ -401,6 +414,9 @@ public class ClientService {
       throw ProblemException.unprocessable("Not offered for " + a.displayName(), a.displayName() + " can't be "
           + "connected with " + r.method() + ".", "/method");
     }
+    storePolicy.method(client, method);
+    storePolicy.runtime();
+    storePolicy.path(method == LinkMethod.MCPB ? env.mcpbDirectory() : a.configPath(env));
     if (e.env() == Env.PROD && (method == LinkMethod.TOKEN || method == LinkMethod.OAUTH)) {
       throw ProblemException.unprocessable("Not on a prod endpoint", method == LinkMethod.TOKEN
           ? "Use the bridge or sign-in for prod: a token in a file outlives the incident."
@@ -408,6 +424,7 @@ public class ClientService {
     }
     Optional<ClientLinkEntity> existing = readTx.execute(s -> links.findByClientAndRemovedAtIsNull(client).stream()
         .filter(l -> l.getEndpointId().equals(e.id())).findFirst());
+    existing.ifPresent(this::guardLinkMutation);
     boolean repair = existing.isPresent();
     String grantId = null;
     String label = null;
@@ -453,6 +470,7 @@ public class ClientService {
     }
     Path file = a.configPath(env);
     Snapshot snapshot = ConfigFileWriter.read(file);
+    storePolicy.snapshot(snapshot);
     String before = snapshot.exists() ? snapshot.content() : "";
     String name = existing.map(ClientLinkEntity::getEntryName).orElseGet(() -> entryName(client, before, e.slug()));
     EntryValues values = new EntryValues(e.slug(), url, grantId, method == LinkMethod.TOKEN
@@ -494,6 +512,7 @@ public class ClientService {
   private Preview previewMcpb(ClientAdapter a, EndpointService.Summary e, String grantId, String label, boolean repair,
       Optional<ClientLinkEntity> existing, List<String> notes, List<String> warnings) {
     Path target = env.mcpbDirectory().resolve(McpbBuilder.fileName(e.slug()));
+    storePolicy.path(target);
     McpbBuilder.Spec spec = new McpbBuilder.Spec(e.slug(), e.env(), grantId, CoreBuild.VERSION, tools(e.slug()),
         env.brokerInfo(), env.os().nodePlatform());
     String manifest = McpbBuilder.manifestText(spec);
@@ -542,6 +561,9 @@ public class ClientService {
     Plan plan = take(previewId, PlanKind.CONNECT, client);
     ClientAdapter a = ClientAdapter.of(client);
     stillAsPreviewed(plan);
+    storePolicy.method(client, plan.method());
+    storePolicy.runtime();
+    storePolicy.snapshot(plan.snapshot());
     if (plan.method() == LinkMethod.MCPB) {
       return connectMcpb(a, plan);
     }
@@ -561,6 +583,7 @@ public class ClientService {
     }
     ConfigFileWriter.Written written;
     try {
+      storePolicy.snapshot(plan.snapshot());
       written = writer.write(plan.snapshot(), content, client.id(), a.tokenInFile(plan.method()));
     } catch (ConfigFileWriter.StaleFileException ex) {
       revokeQuietly(issued);
@@ -609,6 +632,7 @@ public class ClientService {
 
   private Connected connectMcpb(ClientAdapter a, Plan plan) {
     Path target = env.mcpbDirectory().resolve(McpbBuilder.fileName(plan.slug()));
+    storePolicy.path(target);
     try {
       McpbBuilder.write(target, plan.mcpb());
     } catch (IOException ex) {
@@ -682,11 +706,20 @@ public class ClientService {
     }
   }
 
+  /** Persisted paths also need checking: an older installation may have written into AppData. */
+  private void guardLinkMutation(ClientLinkEntity link) {
+    storePolicy.method(link.getClient(), link.getMethod());
+    storePolicy.runtime();
+    if (link.getConfigPath() != null) storePolicy.path(Path.of(link.getConfigPath()));
+    if (link.getBackupPath() != null) storePolicy.path(Path.of(link.getBackupPath()));
+  }
+
   // ── Disconnect ──────────────────────────────────────────────────────────────────────────────────────────────
 
   /** {@code POST /api/clients/links/{id}/disconnect/preview}: the reverse edit; nothing is written. */
   public Preview previewDisconnect(String linkId) {
     ClientLinkEntity l = activeLink(linkId);
+    guardLinkMutation(l);
     String slug = slugOf(l);
     Env envOf = endpointEnv(l);
     List<String> notes = new ArrayList<>();
@@ -701,6 +734,7 @@ public class ClientService {
           + "revoked now, so it stops working on its next call.");
     } else if (l.getConfigPath() != null) {
       snapshot = ConfigFileWriter.read(Path.of(l.getConfigPath()));
+      storePolicy.snapshot(snapshot);
       String before = snapshot.exists() ? snapshot.content() : null;
       Optional<JsonNode> entry = before == null ? Optional.empty() : entryOf(l, before);
       if (entry.isPresent() && ours(entry.get(), slug, l.getGrantId())) {
@@ -736,6 +770,8 @@ public class ClientService {
   }
 
   private Disconnected disconnect(ClientLinkEntity l, Snapshot snapshot, String after, String reason) {
+    guardLinkMutation(l);
+    storePolicy.snapshot(snapshot);
     List<String> notes = new ArrayList<>();
     boolean removed = false;
     if (l.getMethod() == LinkMethod.MCPB) {
@@ -785,11 +821,15 @@ public class ClientService {
 
   /** {@code POST /api/clients/claude-desktop/remove-bridge}: every access of Claude Desktop ends, files go. */
   public BridgeRemoved removeBridge() {
+    List<ClientLinkEntity> active = readTx.execute(s -> links.findByClientAndRemovedAtIsNull(ClientKind.CLAUDE_DESKTOP));
+    // Check every destination before changing any link or access in a mixed legacy installation.
+    storePolicy.runtime();
+    active.forEach(this::guardLinkMutation);
     List<String> revoked = new ArrayList<>();
     List<String> files = new ArrayList<>();
     List<String> notes = new ArrayList<>();
     int rejected = 0;
-    for (ClientLinkEntity l : readTx.execute(s -> links.findByClientAndRemovedAtIsNull(ClientKind.CLAUDE_DESKTOP))) {
+    for (ClientLinkEntity l : active) {
       Snapshot snapshot = null;
       String after = null;
       if (l.getMethod() == LinkMethod.CONFIG_BRIDGE && l.getConfigPath() != null) {
@@ -990,6 +1030,9 @@ public class ClientService {
   /** {@code POST /api/clients/{client}/restore/preview {backupId}}: the current file → the copy. */
   public Preview previewRestore(String clientId, String backupId) {
     ClientKind client = client(clientId);
+    storePolicy.method(client, LinkMethod.CONFIG_BRIDGE);
+    storePolicy.runtime();
+    storePolicy.path(ClientAdapter.of(client).configPath(env));
     Path copy = backupFile(client, backupId);
     String content;
     try {
@@ -999,6 +1042,7 @@ public class ClientService {
     }
     Path file = ClientAdapter.of(client).configPath(env);
     Snapshot snapshot = ConfigFileWriter.read(file);
+    storePolicy.snapshot(snapshot);
     FileChange change = new FileChange(file.toString(), env.display(file), snapshot.realPath().toString(),
         snapshot.exists(), "restore", view(DiffService.diff(masked(snapshot.exists() ? snapshot.content() : null),
             masked(content))),
@@ -1017,6 +1061,10 @@ public class ClientService {
   public Restored restore(String clientId, String previewId) {
     ClientKind client = client(clientId);
     Plan plan = take(previewId, PlanKind.RESTORE, client);
+    storePolicy.method(client, LinkMethod.CONFIG_BRIDGE);
+    storePolicy.runtime();
+    storePolicy.snapshot(plan.snapshot());
+    storePolicy.path(backupFile(client, plan.backupId()));
     try {
       writer.write(plan.snapshot(), plan.content(), client.id(), ConfigFileWriter.holdsToken(plan.content()));
     } catch (ConfigFileWriter.StaleFileException ex) {
@@ -1036,6 +1084,7 @@ public class ClientService {
       throw ProblemException.notFound("Backup not found", "There is no backup " + backupId + ".");
     }
     Path p = writer.backupsOf(client.id()).resolve(backupId);
+    storePolicy.path(p);
     if (!Files.isRegularFile(p, LinkOption.NOFOLLOW_LINKS)) {
       throw ProblemException.notFound("Backup not found", "There is no backup " + backupId + ".");
     }
@@ -1060,6 +1109,7 @@ public class ClientService {
     }
     for (Path p : candidates) {
       try {
+        storePolicy.path(p);
         if (Files.size(p) > ConfigFileWriter.MAX_BYTES) {
           continue;
         }
@@ -1119,6 +1169,7 @@ public class ClientService {
     if (l.getMethod() != LinkMethod.MCPB || l.getConfigPath() == null) {
       throw ProblemException.notFound("No extension", "This entry has no extension file.");
     }
+    guardLinkMutation(l);
     try {
       Path real = Path.of(l.getConfigPath()).toRealPath();
       Path dir = env.mcpbDirectory().toRealPath();
@@ -1363,6 +1414,7 @@ public class ClientService {
       return false;
     }
     Path p = Path.of(path).toAbsolutePath().normalize();
+    storePolicy.path(p);
     if (!env.mcpbDirectory().toAbsolutePath().normalize().equals(p.getParent())
         || !p.getFileName().toString().matches("gaterook-[a-z0-9-]+\\.mcpb") || Files.isSymbolicLink(p)) {
       log.warn("Didn't delete {}: it isn't an extension GateRook built", env.display(p));
@@ -1381,6 +1433,8 @@ public class ClientService {
 
   private void rollbackFile(Plan plan, ConfigFileWriter.Written written) {
     try {
+      storePolicy.snapshot(plan.snapshot());
+      storePolicy.path(written.realPath());
       Snapshot now = ConfigFileWriter.read(plan.snapshot().path());
       if (now.sha256().equals(written.sha256())) {
         if (plan.snapshot().exists()) {

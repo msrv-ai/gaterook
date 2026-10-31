@@ -835,3 +835,92 @@ describe('Clients page: first run and setup (kit ?state=first-run | setup)', () 
     expect($('.gw-how-it-works')).not.toBeNull();
   });
 });
+
+
+describe('Microsoft Store client setup', () => {
+  function storeEdition(): void {
+    Object.assign(TestBed.inject(DesktopBridge), { available: true, windowsStore: true });
+  }
+
+  it('offers client cards and scanning while keeping manual setup as a collapsed fallback', async () => {
+    storeEdition();
+    const el = await render();
+    expect(card('Claude Desktop')).not.toBeNull();
+    expect(card('Codex')).not.toBeNull();
+    expect(card('Cursor')).not.toBeNull();
+    expect(el.querySelector('[gwHowItWorks]')).not.toBeNull();
+    expect(el.querySelector<HTMLElement>('#cl-manual-p')?.hidden).toBe(true);
+    expect(control(el, 'Scan again')).toBeDefined();
+    expect(calls.some((c) => /^(connect |disconnect |remove-bridge)/.test(c))).toBe(false);
+  });
+
+  it('preserves the endpoint from an endpoint detail link for manual fallback', async () => {
+    storeEdition();
+    vi.spyOn(TestBed.inject(ClientsApi), 'manual').mockImplementation(async (slug) => ({ ...kitManual(), endpoint: slug, url: `http://127.0.0.1:7465/mcp/${slug}` }));
+    await TestBed.inject(Router).navigateByUrl('/clients?endpoint=incident-prod#cl-manual-t');
+    const el = await render();
+    expect(el.querySelector<HTMLInputElement>('#cl-man-url')?.value).toBe('http://127.0.0.1:7465/mcp/incident-prod');
+    expect(control(el, 'Create a token').getAttribute('href')).toBe('/endpoints/incident-prod?tab=tokens');
+    expect(document.activeElement?.id).toBe('cl-manual-t');
+  });
+
+  it('preselects the linked endpoint in Connect and surfaces a core refusal without writing', async () => {
+    storeEdition();
+    world.preview = () => Promise.reject(problem(403, { title: 'Setup unavailable', status: 403, detail: 'Use a configuration path outside AppData.' }));
+    await TestBed.inject(Router).navigateByUrl('/clients?endpoint=incident-prod#cl-cu-t');
+    await render();
+    const cursor = card('Cursor');
+    expect(calls).toContain('preview cursor incident-prod config-bridge');
+    expect(text(cursor)).toContain('Use a configuration path outside AppData.');
+    expect(calls.some((c) => c.startsWith('connect '))).toBe(false);
+  });
+
+  it('disables automatic setup and shows the core explanation when no safe method is offered', async () => {
+    storeEdition();
+    world.list = async () => ({ ...foundClients(), clients: foundClients().clients.map((client) => client.client === 'codex'
+      ? { ...client, methods: [], warnings: ['Move CODEX_HOME outside AppData to connect this client.'] }
+      : client) });
+    await render();
+    const codex = await expandCard('Codex');
+    const connect = control(codex, 'Connect Codex');
+    expect(connect.getAttribute('aria-disabled')).toBe('true');
+    expect(text(codex)).toContain('Move CODEX_HOME outside AppData');
+    await click(connect);
+    expect(calls.some((call) => /^(preview|connect) codex/.test(call))).toBe(false);
+  });
+
+  it.each([false, true])('opens the Claude bundle and keeps installation pending when opening fails: %s', async (openFails) => {
+    storeEdition();
+    const pending = connected('claude-desktop', { endpoint: 'dev', method: 'mcpb' });
+    const result = { ...pending, link: { ...pending.link, status: 'needs-restart' as const, statusText: 'Install the extension in Claude Desktop' } };
+    let saved = false;
+    world.list = async () => ({ ...foundClients(), clients: foundClients().clients.map((client) => client.client === 'claude-desktop'
+      ? { ...client, methods: client.methods.filter((method) => method.id === 'mcpb'), links: saved ? [result.link] : [], status: saved ? 'needs-restart' as const : client.status }
+      : client) });
+    vi.spyOn(TestBed.inject(ClientsApi), 'connect').mockImplementation(async () => { saved = true; return result; });
+    const open = vi.spyOn(TestBed.inject(DesktopBridge), 'openMcpb');
+    if (openFails) open.mockRejectedValueOnce(new Error('Claude Desktop has no file association.'));
+    await render();
+    const claude = await expandCard('Claude Desktop');
+    expect(calls).toContain('preview claude-desktop dev mcpb');
+    expect(text(claude)).not.toContain('Bridge entry in claude_desktop_config.json');
+    await click(control(claude, 'Connect Claude Desktop'));
+    expect(open).toHaveBeenCalledWith(result.link.id);
+    expect(toasts().at(-1)?.title).toBe(openFails ? 'The extension could not be opened' : 'Finish connecting Claude Desktop');
+    expect(text(card('Claude Desktop'))).toContain('Install the extension in Claude Desktop');
+    expect(toasts().some((toast) => toast.title === 'Claude Desktop connected to dev')).toBe(false);
+  });
+
+  it('keeps first-run client choices unavailable until a connection exists', async () => {
+    storeEdition();
+    world.overview = () => Promise.resolve(firstRunOverview());
+    world.list = () => Promise.resolve(foundClients());
+    world.endpoints = () => Promise.resolve([]);
+    const el = await render();
+    const connect = control(el, 'Connect Claude Desktop');
+    expect(connect.getAttribute('aria-disabled')).toBe('true');
+    expect(control(el, 'Add connection').getAttribute('href')).toBe('/connections/new');
+    expect(el.querySelector('#cl-manual-p')).toBeNull();
+    expect(calls.some((c) => c.startsWith('connect '))).toBe(false);
+  });
+});

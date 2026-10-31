@@ -94,4 +94,23 @@ class BridgeShimInstallerTest {
     assertThat(script).contains("C:\\Users\\a%%b\\.gaterook\"\r\n").doesNotContain("a%b")
         .contains("\"C:\\Program Files\\GateRook\\100%%\\gw-bridge.exe\" %*\r\n");
   }
+
+  @Test
+  void windowsClientsRunTheExportedBridgeInsteadOfThePackagePrivateExecutable() throws IOException {
+    Path resources = Files.createDirectories(dir.resolve("WindowsApps/package/resources/bridge"));
+    Path source = Files.writeString(resources.resolve("gw-bridge.exe"), "native bridge bytes");
+    ClientEnvironment env = new ClientEnvironment(Os.WINDOWS, dir, dir.resolve("user home/.gaterook"),
+        resources.getParent(), Map.of(), true, "laptop");
+    BridgeShimInstaller.Target target = new BridgeShimInstaller.Target(List.of(source.toString()));
+    Path shim = BridgeShimInstaller.install(env, target);
+    assertThat(Files.readString(env.bridgeExecutable())).isEqualTo("native bridge bytes");
+    assertThat(Files.readString(shim)).contains("\"" + env.bridgeExecutable() + "\" %*\r\n")
+        .doesNotContain("WindowsApps");
+    var originalTime = Files.getLastModifiedTime(env.bridgeExecutable());
+    BridgeShimInstaller.install(env, target);
+    assertThat(Files.getLastModifiedTime(env.bridgeExecutable())).isEqualTo(originalTime);
+    Files.writeString(source, "updated bridge bytes");
+    BridgeShimInstaller.install(env, target);
+    assertThat(Files.readString(env.bridgeExecutable())).isEqualTo("updated bridge bytes");
+  }
 }

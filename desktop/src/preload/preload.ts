@@ -28,6 +28,7 @@ const platform = process.platform === 'darwin' || process.platform === 'win32' ?
 
 const gwDesktop = {
   platform,
+  windowsStore: platform === 'win32' && process.windowsStore === true,
   setNativeTheme(theme: 'system' | 'light' | 'dark'): void {
     ipcRenderer.send(IPC.setNativeTheme, String(theme));
   },

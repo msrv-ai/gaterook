@@ -89,7 +89,7 @@ describe('Clients view: Connect and Disconnect toasts', () => {
     );
     // Without the desktop app, the person opens the extension file.
     expect(connectToast(claudeDesktop, mcpb, null, connected('claude-desktop', mcpb), false).body).toContain('Open /Users/maria/.gaterook/clients/claude-desktop/gaterook-stage-readonly.mcpb in Claude Desktop');
-    expect(endpointAddedToast(claudeDesktop, 'stage-readonly', connected('claude-desktop', mcpb), true).title).toBe('stage-readonly added to Claude Desktop');
+    expect(endpointAddedToast(claudeDesktop, 'stage-readonly', connected('claude-desktop', mcpb), true).title).toBe('Install stage-readonly in Claude Desktop');
   });
 
   it('says what Disconnect and Remove bridge took back', () => {

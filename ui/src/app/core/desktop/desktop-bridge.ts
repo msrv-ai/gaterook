@@ -92,6 +92,8 @@ export interface FullBackupResult {
 /** What Electron's preload exposes as `window.gwDesktop` (§7.1): no secrets; paths only from an explicit key selection. */
 export interface GwDesktop {
   readonly platform: 'darwin' | 'win32' | 'linux';
+  /** True for MSIX packages whose startup and updates are managed by Windows. */
+  readonly windowsStore?: boolean;
   setNativeTheme(theme: 'system' | 'light' | 'dark'): void;
   openExternal(url: string): Promise<void>;
   /** Shows a save dialog in main; resolves the one-time `saveToken` for the core, or null when cancelled. */
@@ -167,6 +169,7 @@ export class DesktopBridge {
 
   /** The OS, for `gw-titlebar--mac`; `web` in a browser. */
   readonly platform: GwDesktop['platform'] | 'web' = this.desktop?.platform ?? 'web';
+  readonly windowsStore = this.platform === 'win32' && this.desktop?.windowsStore === true;
 
   setNativeTheme(theme: 'system' | 'light' | 'dark'): void {
     this.desktop?.setNativeTheme(theme);
