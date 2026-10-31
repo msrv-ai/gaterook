@@ -163,6 +163,11 @@ class StdioServersTest {
       // The Windows process runtime supplies these even when ProcessBuilder's environment is cleared.
       names.remove("SystemRoot");
       names.remove("PROCESSOR_ARCHITECTURE");
+      if (System.getenv("WINELOADER") != null) {
+        // Wine injects these fixed loader variables even when the child environment starts empty.
+        names.removeAll(Set.of("SystemDrive", "WINECONFIGDIR", "WINEDATADIR", "WINEDLLDIR0",
+            "WINEHOMEDIR", "WINELOADER", "WINEUSERLOCALE", "WINEUSERNAME"));
+      }
     }
     assertThat(names).contains("PATH", "HOME", "FAKE_TOKEN").doesNotContain("CORE_ONLY_SECRET")
         .isSubsetOf("PATH", "HOME", "USER", "LOGNAME", "SHELL", "TERM", "LANG", "NPM_CONFIG_UPDATE_NOTIFIER",
