@@ -125,10 +125,11 @@ class SiemSenderTest {
       await(() -> siem.messages().size() == 4, "four messages");
       assertThat(siem.messages()).allSatisfy(m -> assertThat(m.clientCertificate()).isTrue());
 
-      // TLS 1.3 reports a refused client certificate after the handshake: the sender waits for it.
+      // TLS 1.3 can report refusal as a TLS alert or an OS socket reset after the handshake.
       SiemSender without = sender(siem, siem.caPem(), null, null);
       assertThatThrownBy(() -> without.send(batch())).isInstanceOf(ExportException.class)
-          .hasMessageContaining("TLS failed");
+          .hasCauseInstanceOf(java.io.IOException.class)
+          .hasMessageContaining("Couldn't send to 127.0.0.1:" + siem.port());
       assertThat(siem.messages()).hasSize(4);
     }
   }

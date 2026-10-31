@@ -30,7 +30,7 @@ class BridgeShimInstallerTest {
     BridgeShimInstaller.Target bridge = new BridgeShimInstaller.Target(List.of("/opt/app/bridge/gw-bridge"));
     String script = BridgeShimInstaller.script(env, bridge);
     assertThat(script).startsWith("#!/bin/sh\n")
-        .contains("GW_HOME='" + dir + "/it'\\''s home/.gaterook'; export GW_HOME\n")
+        .contains("GW_HOME='" + home.toString().replace("'", "'\\''") + "'; export GW_HOME\n")
         .endsWith("exec '/opt/app/bridge/gw-bridge' \"$@\"\n");
     assumeTrue(FileSystems.getDefault().supportedFileAttributeViews().contains("posix"));
     Path shim = BridgeShimInstaller.install(env, bridge);
