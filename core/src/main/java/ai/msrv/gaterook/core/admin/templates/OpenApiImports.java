@@ -1,6 +1,8 @@
 package ai.msrv.gaterook.core.admin.templates;
 
 import ai.msrv.gaterook.connector.api.ConnectorException;
+import ai.msrv.gaterook.connector.api.ConnectionConfig;
+import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.ExecContext;
 import ai.msrv.gaterook.connector.api.TemplateKind;
 import ai.msrv.gaterook.connectors.support.TemplateImporter;
@@ -20,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 import okhttp3.HttpUrl;
 import org.springframework.beans.factory.ObjectProvider;
@@ -61,11 +64,35 @@ class OpenApiImports {
     this.importers = importers;
   }
 
+  private TemplateImporter importer() {
+    return importers.orderedStream().filter(i -> i.kind().equals("openapi")).findFirst()
+        .orElseThrow(() -> ApiRequestException.unprocessable("OpenAPI import unavailable",
+            "No connector of this build imports OpenAPI files.", "/kind"));
+  }
+
+  TemplatesController.Inspected inspect(String url, String blob, String text) {
+    Fetched fetched = fetch(url, blob, text, null);
+    TemplateImporter.Inspection result = importer().inspectDocument(fetched.bytes());
+    boolean ok = result.errors().isEmpty() && result.info() != null;
+    return new TemplatesController.Inspected(ok, ok ? Base64.getEncoder().encodeToString(fetched.bytes()) : null,
+        result.info(), result.errors());
+  }
+
+  TemplateImporter.Result parseDraft(TemplatesController.OpenApiDraft draft, String blob, JsonNode options) {
+    if (draft.config() == null || !draft.config().isObject() || draft.name() == null || draft.name().isBlank()) {
+      throw ApiRequestException.unprocessable("Configuration missing", "Configure the HTTP connection first.", "/draft");
+    }
+    Env env;
+    try { env = Env.of(draft.env()); }
+    catch (RuntimeException e) { throw ApiRequestException.unprocessable("Invalid environment", "Choose dev, stage or prod.", "/draft/env"); }
+    ConnectionConfig config = new ConnectionConfig("openapi-draft", draft.name(), "http", env, 0,
+        draft.config(), Set.of(), null);
+    return importer().importDocument(fetch(null, blob, null, null).bytes(), config, withReserved(options));
+  }
+
   /** The importer's proposal for a document of {@code connection}. */
   TemplateImporter.Result parse(String connection, String url, String blob, String text, JsonNode options) {
-    TemplateImporter importer = importers.orderedStream().filter(i -> i.kind().equals("openapi")).findFirst()
-        .orElseThrow(() -> ApiRequestException.unprocessable("OpenAPI import unavailable", "No connector of this "
-            + "build imports OpenAPI files.", "/kind"));
+    TemplateImporter importer = importer();
     if (connection == null || connection.isBlank()) {
       throw ApiRequestException.unprocessable("Connection missing", "Pick the HTTP connection the tools run on.",
           "/connection");
@@ -133,7 +160,7 @@ class OpenApiImports {
   private byte[] download(String url, ConnectionConfigs.Stored runsOn) {
     HttpUrl current = httpsUrl(url);
     List<Cidr> ranges = new ArrayList<>();
-    for (String cidr : policies.allowedPrivateRanges(runsOn.config().env(), runsOn.name())) {
+    for (String cidr : runsOn == null ? List.<String>of() : policies.allowedPrivateRanges(runsOn.config().env(), runsOn.name())) {
       ranges.add(Cidr.parse(cidr));
     }
     AddressPolicy policy = AddressPolicy.builder().neverLoopback().allowPrivate(ranges)

@@ -150,6 +150,14 @@ final class OpenApiImport {
       tags.add(ToolText.clean(t.asString(""), 64));
     }
     String nature = method.equals("GET") || method.equals("HEAD") ? "read" : "mutation";
+    if (!RequestPlanner.METHODS.contains(method)) {
+      return new Entry(opKey, method, path, operationId, summary, tags, nature, null,
+          method + " operations are not supported");
+    }
+    if (op.has("servers") || item.has("servers")) {
+      return new Entry(opKey, method, path, operationId, summary, tags, nature, null,
+          "operation-specific servers: move this operation to a document with its server at the root");
+    }
     String skipped = null;
     schemas.resetCount();
     schemas.spend(Math.min(path.length(), MAX_PATH + 1L));

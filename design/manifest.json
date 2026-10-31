@@ -2876,6 +2876,30 @@
         "Master-key loss: retain a separate copy; secrets cannot be recovered without it.",
         "BLUEPRINT sections 3 (native desktop core) and 6 (core-starting/status-screen)."
       ]
+    },
+    {
+      "html": "pages/http-import.html",
+      "title": "Import HTTP API",
+      "purpose": "OpenAPI file, URL, text or AI-assisted discovery; connection credentials, operation selection and explicit endpoint access. The review state is ?state=review.",
+      "elements": [
+        "connection-form"
+      ],
+      "components": [
+        "gw-page",
+        "gw-page-header",
+        "gw-stepper",
+        "gw-form",
+        "gw-file-drop",
+        "gw-table",
+        "gw-checkbox",
+        "gw-btn / gw-btn-group",
+        "gw-alert"
+      ],
+      "spec": [
+        "OpenAPI 3.0 and 3.1; up to 20 MB and 200 selected operations.",
+        "AI app links prefill a reviewed prompt. Credentials stay in GateRook.",
+        "Unsupported serialization, authentication and server overrides have visible skip reasons."
+      ]
     }
   ]
 }

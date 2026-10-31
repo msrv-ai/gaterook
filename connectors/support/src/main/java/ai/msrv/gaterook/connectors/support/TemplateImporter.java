@@ -31,6 +31,13 @@ public interface TemplateImporter {
    */
   Result importDocument(byte[] document, ConnectionConfig runsOn, JsonNode options);
 
+  /** Reads non-secret setup suggestions before a connection exists. No I/O or persistence. */
+  default Inspection inspectDocument(byte[] document) {
+    return new Inspection(null, List.of("This importer does not offer document inspection."));
+  }
+
+  record Inspection(JsonNode info, List<String> errors) {}
+
   /**
    * One operation of the document.
    *

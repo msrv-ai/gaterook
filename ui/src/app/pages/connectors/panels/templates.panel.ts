@@ -81,7 +81,7 @@ export class GwTemplatesPanel {
       sql: reason('sql-query', 'No installed SQL connector offers query templates.'),
       // These kinds have no editor in this build of the app (only SQL queries do): said as it is, never faked.
       ssh: kinds?.has('ssh-runbook') ? 'This build of the app has no runbook editor yet.' : reason('ssh-runbook', 'This build’s SSH connector doesn’t offer runbooks yet.'),
-      openapi: kinds?.has('openapi') ? 'This build of the app has no OpenAPI import yet.' : reason('openapi', 'This build’s HTTP API connector can’t import OpenAPI files yet.'),
+      openapi: reason('openapi', 'This build’s HTTP API connector can’t import OpenAPI files yet.'),
     };
   });
 

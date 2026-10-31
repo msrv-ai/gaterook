@@ -221,6 +221,13 @@
         <p class="gw-section__description">@if (databaseSetup()) {Enter the server and credentials, load its databases, then choose which ones agents may use.} @else {Enter the connection details and credentials, then review its environment and advanced settings.}</p>
       }
     </header>
+    @if (spec()?.type === 'http') {
+      <div class="gw-card"><div class="gw-card__body gw-stack">
+        <p><strong>Create tools from an API description</strong></p>
+        <p>Import an OpenAPI file, or ask Claude Desktop, Codex or Cursor to prepare one from a website.</p>
+        <div><a class="gw-btn" routerLink="/connections/http-import" [queryParams]="m === 'edit' ? { connection: name() } : {}">Import OpenAPI or create with AI</a></div>
+      </div></div>
+    }
     @if (specState() === 'error') {
       <div class="gw-alert gw-alert--danger" role="alert">
         <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>

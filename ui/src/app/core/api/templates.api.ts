@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { ApiClient } from './api-client';
 import { ApprovalAction, LabelledText } from './approvals.api';
-import { Iso, JsonObject, JsonValue, WithReason } from './types';
+import { Env, Iso, JsonObject, JsonValue, WithReason } from './types';
 
 export type TemplateKind = 'sql-query' | 'ssh-runbook' | 'openapi';
 
@@ -86,6 +86,56 @@ export interface CreateTemplateRequest extends WithReason {
   readonly catalogRef?: string | null;
 }
 
+export interface OpenApiSource {
+  readonly url?: string;
+  readonly text?: string;
+  readonly blob?: string;
+}
+
+export interface OpenApiInspection {
+  readonly ok: boolean;
+  readonly blob: string | null;
+  readonly info: {
+    readonly title: string;
+    readonly openapi: string;
+    readonly sha256: string;
+    readonly servers: string[];
+    readonly authentication: { readonly name: string; readonly type: string; readonly supported: boolean; readonly config?: JsonObject }[];
+  } | null;
+  readonly errors: string[];
+}
+
+export interface OpenApiOperation {
+  readonly opKey: string;
+  readonly name: string | null;
+  readonly method: string;
+  readonly path: string;
+  readonly summary: string;
+  readonly tags: string[];
+  readonly nature: string;
+  readonly selected: boolean;
+  readonly skipped: string | null;
+}
+
+export interface OpenApiParseRequest extends OpenApiSource {
+  readonly connection?: string;
+  readonly draft?: { readonly name: string; readonly env: Env; readonly config: JsonObject };
+  readonly name?: string;
+  readonly prefix?: string;
+  readonly server?: string;
+  readonly select?: string[];
+}
+
+export interface OpenApiParsed {
+  readonly ok: boolean;
+  readonly definition: JsonObject | null;
+  readonly operations: OpenApiOperation[];
+  readonly info: JsonObject | null;
+  readonly errors: string[];
+  readonly warnings: string[];
+  readonly source: { readonly kind: string; readonly url: string | null; readonly bytes: number; readonly sha256: string | null };
+}
+
 @Injectable({ providedIn: 'root' })
 export class TemplatesApi {
   private readonly api = inject(ApiClient);
@@ -133,8 +183,12 @@ export class TemplatesApi {
     return this.api.delete(ApiClient.path`/api/templates/${id}`, body);
   }
 
-  /** OpenAPI import (C9): 422 until the HTTP connector supports it. */
-  parseOpenApi(request: { readonly connection: string; readonly url?: string; readonly blob?: string }): Promise<TemplateCompile> {
+  /** Inspect one snapshot of a document before creating a connection. */
+  inspectOpenApi(request: OpenApiSource): Promise<OpenApiInspection> {
+    return this.api.post('/api/templates/openapi/inspect', request);
+  }
+
+  parseOpenApi(request: OpenApiParseRequest): Promise<OpenApiParsed> {
     return this.api.post('/api/templates/openapi/parse', request);
   }
 }

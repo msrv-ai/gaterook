@@ -96,6 +96,7 @@ export interface GwDesktop {
   readonly windowsStore?: boolean;
   setNativeTheme(theme: 'system' | 'light' | 'dark'): void;
   openExternal(url: string): Promise<void>;
+  openAiPrompt(client: 'claude' | 'codex' | 'cursor', prompt: string): Promise<void>;
   /** Shows a save dialog in main; resolves the one-time `saveToken` for the core, or null when cancelled. */
   saveFile(purpose: string): Promise<string | null>;
   openFile(purpose: string): Promise<string | null>;
@@ -164,6 +165,7 @@ export class DesktopBridge {
 
   /** Also false when a browser UI connects to an older desktop shell. */
   readonly privateKeyPickerAvailable = typeof this.desktop?.choosePrivateKeyFile === 'function';
+  readonly aiPromptAvailable = typeof this.desktop?.openAiPrompt === 'function';
   readonly googleSignInAvailable = typeof this.desktop?.signInToGoogle === 'function';
   readonly fullBackupAvailable = typeof this.desktop?.createFullBackup === 'function' && typeof this.desktop?.restoreFullBackup === 'function';
 
@@ -181,6 +183,11 @@ export class DesktopBridge {
   }
 
   /** The `saveToken` for a file chosen in main's dialog; null when cancelled or outside Electron. */
+  async openAiPrompt(client: 'claude' | 'codex' | 'cursor', prompt: string): Promise<void> {
+    if (!this.aiPromptAvailable) throw new Error('Opening AI apps requires the current desktop app. Use Copy prompt instead.');
+    await this.desktop!.openAiPrompt(client, prompt);
+  }
+
   async saveFile(purpose: string): Promise<string | null> {
     return this.desktop ? this.desktop.saveFile(purpose) : null;
   }
