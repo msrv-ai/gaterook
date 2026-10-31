@@ -149,6 +149,14 @@ record RedisSettings(String host, int port, int database, List<Integer> database
     return listed(key) && !denied(key);
   }
 
+  /**
+   * Whether the lists can hide keys at all. Listings say only this, never how many keys they hid: a count over a
+   * pattern the agent chooses spells hidden names out a prefix at a time.
+   */
+  boolean filtersKeys() {
+    return !keyAllowlist.isEmpty() || !keyDenylist.isEmpty();
+  }
+
   /** The words for a key the lists hide: which list did it. */
   String whyNotAllowed(byte[] key) {
     if (denied(key)) {

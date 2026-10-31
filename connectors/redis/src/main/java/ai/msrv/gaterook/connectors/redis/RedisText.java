@@ -64,10 +64,8 @@ final class RedisText {
         out.append("  ").append(k.path("ttlMs").isNumber() ? "ttl " + ttl(k.path("ttlMs").asLong()) : "persistent");
       }
     }
-    int hidden = s.path("hiddenByPolicy").asInt();
-    if (hidden > 0) {
-      out.append(String.format(Locale.US, "\n%,d key%s hidden by the connection's key lists.", hidden,
-          hidden == 1 ? "" : "s"));
+    if (s.path("keyListsApply").asBoolean()) {
+      out.append("\nThe connection's key lists apply: keys they exclude are left out, and not counted.");
     }
     notes(out, s);
     if (s.path("nextCursor").isString()) {

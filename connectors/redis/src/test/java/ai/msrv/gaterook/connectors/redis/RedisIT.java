@@ -371,7 +371,10 @@ class RedisIT {
       assertThat(k.path("key").asString()).doesNotStartWith("session:").doesNotContain("token")
           .doesNotStartWith("bulk:");
     }
-    assertThat(all.path("hiddenByPolicy").asInt()).isPositive();
+    assertThat(all.path("keyListsApply").asBoolean()).isTrue();
+    assertThat(all.has("hiddenByPolicy")).isFalse();
+    assertThat(scan(cfg().build(), "{\"pattern\":\"cache:str\"}").structuredContent().path("keyListsApply")
+        .asBoolean()).as("a connection without key lists").isFalse();
     assertThatThrownBy(() -> get(deny, "{\"key\":\"session:1\"}"))
         .isInstanceOfSatisfying(ConnectorException.class,
             e -> assertThat(e.kind()).isEqualTo(ConnectorException.Kind.DENIED));
@@ -619,6 +622,38 @@ class RedisIT {
   }
 
   @Test
+  void aPatternOverHiddenKeysAnswersLikeAPatternOverNoKeys() throws Exception {
+    ConnectionConfig c = cfg().advanced("keyDenylist", new String[] {"session:*"}).build();
+    try (Jedis admin = redis.admin()) {
+      admin.set("session:9f3ab27c41d0", "x");
+      admin.set("session:5be1093aa8f2", "y");
+    }
+    try {
+      hiddenKeysAnswerLikeNoKeys(c);
+    } finally {
+      try (Jedis admin = redis.admin()) {
+        admin.del("session:9f3ab27c41d0", "session:5be1093aa8f2");
+      }
+    }
+  }
+
+  private void hiddenKeysAnswerLikeNoKeys(ConnectionConfig c) throws Exception {
+    for (String pattern : List.of("session:*", "session:9*", "session:9f3ab27c41d0", "session:[0-4]*")) {
+      JsonNode hidden = scan(c, "{\"pattern\":\"" + pattern + "\",\"count\":1000}").structuredContent();
+      assertThat(hidden.path("keys")).as(pattern).isEmpty();
+      assertThat(hidden.has("hiddenByPolicy")).as(pattern).isFalse();
+      JsonNode nothing = scan(c, "{\"pattern\":\"absent:*\",\"count\":1000}").structuredContent();
+      for (String field : List.of("returned", "complete", "keyListsApply", "notes", "truncated")) {
+        assertThat(hidden.path(field)).as(pattern + " " + field).isEqualTo(nothing.path(field));
+      }
+      JsonNode described = connector.describe(c, TestSecrets.password(LocalRedis.DEFAULT_PASSWORD), TestCtx.of(),
+          pattern).orElseThrow();
+      assertThat(described.path("sampled").asInt()).as(pattern).isZero();
+      assertThat(described.has("hiddenByPolicy")).as(pattern).isFalse();
+    }
+  }
+
+  @Test
   void describeSaysWhatTheServerIsAndWhichPrefixesTheAgentMayRead() throws Exception {
     ConnectionConfig c = cfg().advanced("keyDenylist", new String[] {"session:*", "*token*"}).build();
     JsonNode d = connector.describe(c, TestSecrets.password(LocalRedis.DEFAULT_PASSWORD), TestCtx.of(), null)
@@ -628,7 +663,8 @@ class RedisIT {
     assertThat(d.path("mode").asString()).isEqualTo("standalone");
     assertThat(d.path("role").asString()).isEqualTo("master");
     assertThat(d.path("keys").asLong()).isGreaterThan(5_000);
-    assertThat(d.path("sampled").asInt() + d.path("hiddenByPolicy").asInt()).isEqualTo(RedisDescribe.SAMPLE);
+    assertThat(d.path("sampled").asInt()).isEqualTo(RedisDescribe.SAMPLE);
+    assertThat(d.has("hiddenByPolicy")).isFalse();
     assertThat(d.path("prefixes").toString()).contains("\"prefix\":\"bulk:\"").doesNotContain("session:");
     assertThat(d.path("keyDenylist").toString()).isEqualTo("[\"session:*\",\"*token*\"]");
 

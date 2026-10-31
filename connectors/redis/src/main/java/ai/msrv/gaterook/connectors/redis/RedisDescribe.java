@@ -13,8 +13,8 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * Redis' part of {@code describe_connection} (report 05 §3.7): {@code HELLO} (server, version, mode, role, modules),
  * {@code DBSIZE}, the database and a histogram of key prefixes (up to the first {@code :}) over the first 1,000 keys
- * {@code SCAN} returns — only keys the connection lets agents read, the others are counted, not named. {@code object}
- * narrows the histogram to keys matching a glob.
+ * {@code SCAN} returns that the connection lets agents read; the others are neither named nor counted
+ * ({@link RedisSettings#filtersKeys}). {@code object} narrows the histogram to keys matching a glob.
  */
 final class RedisDescribe {
 
@@ -48,7 +48,6 @@ final class RedisDescribe {
     }
     Map<String, Integer> prefixes = new HashMap<>();
     int sampled = 0;
-    int hidden = 0;
     String cursor = "0";
     int rounds = 0;
     do {
@@ -56,18 +55,14 @@ final class RedisDescribe {
       cursor = Replies.text(reply.isEmpty() ? null : reply.get(0));
       for (Object o : Replies.list(reply.size() > 1 ? reply.get(1) : null)) {
         byte[] k = Replies.bytes(o);
-        if (k == null || sampled + hidden >= SAMPLE) {
-          continue;
-        }
-        if (!settings.keyAllowed(k)) {
-          hidden++;
+        if (k == null || sampled >= SAMPLE || !settings.keyAllowed(k)) {
           continue;
         }
         sampled++;
         prefixes.merge(prefix(k), 1, Integer::sum);
       }
       rounds++;
-    } while (cursor != null && !cursor.equals("0") && sampled + hidden < SAMPLE && rounds < ScanLoop.MAX_ITERATIONS);
+    } while (cursor != null && !cursor.equals("0") && sampled < SAMPLE && rounds < ScanLoop.MAX_ITERATIONS);
     ArrayNode histogram = out.putArray("prefixes");
     prefixes.entrySet().stream()
         .sorted(Map.Entry.<String, Integer>comparingByValue(Comparator.reverseOrder()).thenComparing(Map.Entry.comparingByKey()))
@@ -75,7 +70,6 @@ final class RedisDescribe {
         .forEach(e -> histogram.addObject().put("prefix", e.getKey()).put("keys", e.getValue()));
     out.put("pattern", pattern);
     out.put("sampled", sampled);
-    out.put("hiddenByPolicy", hidden);
     if (!settings.keyAllowlist().isEmpty()) {
       ArrayNode allow = out.putArray("keyAllowlist");
       settings.keyAllowlist().forEach(g -> allow.add(g.pattern()));

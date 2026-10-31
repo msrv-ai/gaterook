@@ -20,7 +20,8 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * <p>Keys outside the connection's allowlist or in its denylist are dropped here, before anything else is sent about
  * them: ACL key patterns don't limit {@code SCAN}, so a user restricted to {@code ~cache:*} still sees every key name
- * (report 05 §3.5). {@code details} adds {@code TYPE} and {@code PTTL} of the kept keys in one round trip.
+ * (report 05 §3.5). They aren't counted either ({@link RedisSettings#filtersKeys}). {@code details} adds {@code TYPE}
+ * and {@code PTTL} of the kept keys in one round trip.
  */
 final class ScanLoop {
 
@@ -38,7 +39,6 @@ final class ScanLoop {
     long budgetNanos = Math.min(SCAN_BUDGET.toNanos(), Math.max(0, ctx.remaining().toNanos() - 500_000_000L));
     List<byte[]> keys = new ArrayList<>();
     List<String> notes = new ArrayList<>();
-    int hidden = 0;
     int iterations = 0;
     long bytes = 0;
     boolean cutBySize = false;
@@ -48,16 +48,10 @@ final class ScanLoop {
       iterations++;
       String next = Replies.text(reply.isEmpty() ? null : reply.get(0));
       List<byte[]> batch = new ArrayList<>();
-      int batchHidden = 0;
       for (Object o : Replies.list(reply.size() > 1 ? reply.get(1) : null)) {
         byte[] k = Replies.bytes(o);
-        if (k == null) {
-          continue;
-        }
-        if (s.settings().keyAllowed(k)) {
+        if (k != null && s.settings().keyAllowed(k)) {
           batch.add(k);
-        } else {
-          batchHidden++;
         }
       }
       long batchBytes = 0;
@@ -81,14 +75,12 @@ final class ScanLoop {
         }
         notes.add(String.format(Locale.US, "%,d keys of this page didn't fit the size limit; the cursor goes past "
             + "them.", batch.size() - kept));
-        hidden += batchHidden;
         cursor = next == null ? "0" : next;
         cutBySize = true;
         break;
       }
       bytes += batchBytes;
       keys.addAll(batch);
-      hidden += batchHidden;
       cursor = next == null ? "0" : next;
     } while (!cursor.equals("0") && keys.size() < budget.elements() && iterations < MAX_ITERATIONS
         && System.nanoTime() - t0 < budgetNanos && !ctx.cancelled());
@@ -132,7 +124,7 @@ final class ScanLoop {
       out.put("nextCursor", Cursors.sealScan(ctx, connectionId, r.pattern(), r.type(),
           new Cursors.ScanState(cursor)));
     }
-    out.put("complete", complete).put("hiddenByPolicy", hidden);
+    out.put("complete", complete).put("keyListsApply", s.settings().filtersKeys());
     if (cutBySize) {
       out.put("truncated", true);
     }
