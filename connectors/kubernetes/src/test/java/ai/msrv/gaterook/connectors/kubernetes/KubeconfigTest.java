@@ -158,9 +158,10 @@ class KubeconfigTest {
   void aKubeconfigFileIsTrustedOnceAndThenPinned() throws Exception {
     Path file = dir.resolve("config");
     Files.writeString(file, kubeconfig("token: t"));
+    String pathJson = K8sTestKit.NODES.textNode(file.toString()).toString();
     KubernetesConnector connector = new KubernetesConnector();
-    ConnectionConfig unpinned = K8sTestKit.cfg(Env.DEV, "{\"auth\":\"kubeconfig-file\",\"kubeconfigPath\":\""
-        + file + "\",\"context\":\"dev\",\"namespace\":\"app-dev\"}");
+    ConnectionConfig unpinned = K8sTestKit.cfg(Env.DEV, "{\"auth\":\"kubeconfig-file\",\"kubeconfigPath\":"
+        + pathJson + ",\"context\":\"dev\",\"namespace\":\"app-dev\"}");
 
     TestResult first = connector.test(unpinned, secrets(Map.of()), ctx(Env.DEV));
 
@@ -175,8 +176,8 @@ class KubeconfigTest {
 
     // The file now points elsewhere: calls stop until the person trusts the new cluster.
     Files.writeString(file, kubeconfig("token: t").replace("k8s.dev.internal", "evil.example"));
-    ConnectionConfig pinned = K8sTestKit.cfg(Env.DEV, "{\"auth\":\"kubeconfig-file\",\"kubeconfigPath\":\"" + file
-        + "\",\"context\":\"dev\",\"namespace\":\"app-dev\",\"pinnedCluster\":{\"serverUrl\":"
+    ConnectionConfig pinned = K8sTestKit.cfg(Env.DEV, "{\"auth\":\"kubeconfig-file\",\"kubeconfigPath\":" + pathJson
+        + ",\"context\":\"dev\",\"namespace\":\"app-dev\",\"pinnedCluster\":{\"serverUrl\":"
         + "\"https://k8s.dev.internal:6443\",\"caSha256\":\"" + ca + "\"}}");
     TestResult changed = connector.test(pinned, secrets(Map.of()), ctx(Env.DEV));
     assertThat(changed.needsConfirmation().text()).startsWith("Kubeconfig changed")
@@ -213,7 +214,7 @@ class KubeconfigTest {
         + "\"allowExecPlugin\":true}");
     TestResult confirm = connector.test(on, secrets(secret), ctx(Env.DEV));
     assertThat(confirm.needsConfirmation().kind()).isEqualTo("exec-plugin");
-    assertThat(confirm.needsConfirmation().text()).endsWith(plugin + " get-token --cluster dev");
+    assertThat(confirm.needsConfirmation().text()).contains(plugin.toString()).endsWith(" get-token --cluster dev");
     assertThat(confirm.needsConfirmation().data().path("env").toString()).isEqualTo("[\"AWS_PROFILE\"]");
     String fingerprint = confirm.needsConfirmation().configPatch().path("trustedExec").asString();
     assertThat(fingerprint).hasSize(64);

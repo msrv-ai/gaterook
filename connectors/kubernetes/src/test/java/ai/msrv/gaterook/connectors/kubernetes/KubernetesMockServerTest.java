@@ -674,16 +674,26 @@ class KubernetesMockServerTest {
 
   @Test
   void aCredentialCommandsTokenIsUsedTaintedAndRefreshedOnce401() throws Exception {
-    Path plugin = dir.resolve("auth-plugin");
+    boolean windows = System.getProperty("os.name").startsWith("Windows");
+    Path plugin = dir.resolve(windows ? "auth-plugin.cmd" : "auth-plugin");
     Path counter = dir.resolve("runs");
-    Files.writeString(plugin, """
+    if (windows) {
+      String java = Path.of(System.getProperty("java.home"), "bin", "java.exe").toString();
+      String classes = Path.of(FakeExecCredential.class.getProtectionDomain().getCodeSource().getLocation()
+          .toURI()).toString();
+      Files.writeString(plugin, "@echo off\r\n\"" + java.replace("%", "%%") + "\" -cp \""
+          + classes.replace("%", "%%") + "\" " + FakeExecCredential.class.getName() + " \""
+          + counter.toString().replace("%", "%%") + "\"\r\n");
+    } else {
+      Files.writeString(plugin, """
         #!/bin/sh
         echo run >> "%s"
         n=$(wc -l < "%s" | tr -d ' ')
         printf '{"apiVersion":"client.authentication.k8s.io/v1","kind":"ExecCredential",'
         printf '"status":{"token":"cnry-exec-%%s"}}\\n' "$n"
-        """.formatted(counter, counter));
-    plugin.toFile().setExecutable(true);
+          """.formatted(counter, counter));
+      assertThat(plugin.toFile().setExecutable(true)).isTrue();
+    }
     String kubeconfig = """
         apiVersion: v1
         kind: Config
@@ -693,8 +703,9 @@ class KubernetesMockServerTest {
         users:
         - name: dev
           user:
-            exec: {apiVersion: client.authentication.k8s.io/v1, command: "%s"}
-        """.formatted(api.url(), Base64.getEncoder().encodeToString(api.caPem.getBytes()), plugin);
+            exec: {apiVersion: client.authentication.k8s.io/v1, command: %s}
+        """.formatted(api.url(), Base64.getEncoder().encodeToString(api.caPem.getBytes()),
+            K8sTestKit.NODES.textNode(plugin.toString()));
     Map<String, String> secret = Map.of(K8sSettings.KUBECONFIG, kubeconfig);
     ConnectionConfig draft = K8sTestKit.cfg("draft-1", Env.DEV, "{\"auth\":\"kubeconfig\",\"namespace\":\"app-dev\","
         + "\"allowExecPlugin\":true}", null);
