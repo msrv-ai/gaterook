@@ -126,10 +126,8 @@ public final class EntropyDetector {
     boolean lower = false;
     boolean digit = false;
     boolean hexOnly = true;
-    int[] counts = new int[128];
     for (int i = start; i < end; i++) {
       char c = text.charAt(i);
-      counts[c]++;
       upper |= c >= 'A' && c <= 'Z';
       lower |= c >= 'a' && c <= 'z';
       digit |= c >= '0' && c <= '9';
@@ -137,6 +135,11 @@ public final class EntropyDetector {
     }
     if (!upper || !lower || !digit || hexOnly) {
       return false;
+    }
+    // Log traces contain many hex digests; allocate a histogram only for eligible candidates.
+    int[] counts = new int[128];
+    for (int i = start; i < end; i++) {
+      counts[text.charAt(i)]++;
     }
     int n = end - start;
     double entropy = 0;

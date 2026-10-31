@@ -43,6 +43,7 @@ public record TextRule(String id, List<String> literals, Pattern pattern, int gr
     int i = 0;
     int lastEnd = -1;
     while (i < count) {
+      int first = i;
       int windowStart = Math.max(0, starts[i] - before);
       int windowEnd = Math.min(length, starts[i] + after);
       // Merge the windows of nearby occurrences: one regex run covers them all.
@@ -55,16 +56,29 @@ public record TextRule(String id, List<String> literals, Pattern pattern, int gr
       if (regionStart >= windowEnd) {
         continue;
       }
-      m.region(regionStart, windowEnd);
-      while (m.find()) {
-        int start = m.start(group);
-        int end = m.end(group);
-        if (start < 0 || end <= start || text.startsWith(mask, start)) {
-          continue;
+      // A match can start only within 'before' characters of an actual literal. Keep the full end window for
+      // long secrets, but do not ask the regex engine to search thousands of impossible starting positions.
+      int nextStart = regionStart;
+      for (int literal = first; literal < i; literal++) {
+        int candidate = Math.max(nextStart, starts[literal] - before);
+        int lastStart = Math.min(starts[literal], windowEnd - 1);
+        while (candidate <= lastStart) {
+          m.region(candidate, windowEnd);
+          if (!m.lookingAt()) {
+            candidate++;
+            continue;
+          }
+          int start = m.start(group);
+          int end = m.end(group);
+          candidate = Math.max(candidate + 1, m.end());
+          if (start < 0 || end <= start || text.startsWith(mask, start)) {
+            continue;
+          }
+          ranges.add(((long) start << 32) | end);
+          counter.hit(id);
+          lastEnd = Math.max(lastEnd, m.end());
         }
-        ranges.add(((long) start << 32) | end);
-        counter.hit(id);
-        lastEnd = Math.max(lastEnd, m.end());
+        nextStart = candidate;
       }
     }
   }
