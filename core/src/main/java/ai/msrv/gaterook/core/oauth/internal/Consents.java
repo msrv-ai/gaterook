@@ -28,8 +28,17 @@ import tools.jackson.databind.node.ObjectNode;
 final class Consents {
 
   static final Duration TIMEOUT = Duration.ofMinutes(5);
-  static final int MAX_PER_ENDPOINT = 3;
+  /** Sign-ins of one endpoint waiting at once, all browsers together: how many dialogs this computer can be shown. */
+  static final int MAX_PER_ENDPOINT = 10;
+  /**
+   * Sign-ins one browser (its address) may have waiting at once: its own and one retry. Anyone with the public URL
+   * can start a sign-in, so one browser must not be able to hold every slot of the endpoint against its owner.
+   */
+  static final int MAX_WAITING_PER_IP = 2;
   static final int MAX_PER_IP_MINUTE = 10;
+
+  /** Whether a sign-in may wait, and if not, whose limit is reached. */
+  enum Room { OPEN, BROWSER_FULL, ENDPOINT_FULL }
   /** How long a decided sign-in waits for its browser to pick up the answer. */
   static final Duration PICKUP = Duration.ofMinutes(2);
 
@@ -157,16 +166,34 @@ final class Consents {
     return perIp.tryAcquire(RateWindow.addressKey(ip));
   }
 
-  /**
-   * Opens {@code p} unless {@value #MAX_PER_ENDPOINT} sign-ins of its endpoint are waiting already; the count and
-   * the insertion are one step.
-   */
+  /** {@link #open} succeeded. */
   boolean tryOpen(Pending p) {
+    return open(p) == Room.OPEN;
+  }
+
+  /**
+   * Opens {@code p} unless its browser has {@value #MAX_WAITING_PER_IP} sign-ins waiting already, or its endpoint
+   * {@value #MAX_PER_ENDPOINT}; the counts and the insertion are one step.
+   */
+  Room open(Pending p) {
     synchronized (openLock) {
-      long waiting = pending.values().stream().filter(o -> o.endpointId.equals(p.endpointId) && o.waiting())
-          .count();
-      if (waiting >= MAX_PER_ENDPOINT) {
-        return false;
+      String browser = RateWindow.addressKey(p.browserIp);
+      long ofBrowser = 0;
+      long ofEndpoint = 0;
+      for (Pending o : pending.values()) {
+        if (!o.endpointId.equals(p.endpointId) || !o.waiting()) {
+          continue;
+        }
+        ofEndpoint++;
+        if (RateWindow.addressKey(o.browserIp).equals(browser)) {
+          ofBrowser++;
+        }
+      }
+      if (ofBrowser >= MAX_WAITING_PER_IP) {
+        return Room.BROWSER_FULL;
+      }
+      if (ofEndpoint >= MAX_PER_ENDPOINT) {
+        return Room.ENDPOINT_FULL;
       }
       pending.put(p.id, p);
     }
@@ -175,9 +202,10 @@ final class Consents {
     data.put("code", p.code);
     data.put("clientHost", p.client.host());
     data.put("endpoint", p.slug);
+    data.put("browserIp", p.browserIp);
     data.put("expiresAt", p.expiresAt.toString());
     events.publish("oauth.consent.requested", data);
-    return true;
+    return Room.OPEN;
   }
 
   Optional<Pending> get(String id) {

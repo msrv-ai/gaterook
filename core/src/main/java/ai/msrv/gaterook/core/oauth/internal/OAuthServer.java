@@ -164,8 +164,8 @@ public class OAuthServer {
     // (g) for the browser's address first: every attempt counts, valid or not, so a stranger can't make this computer
     // fetch metadata documents (or open dialogs) without limit.
     if (!consents.admitBrowser(browserIp)) {
-      return Answer.page(429, ConsentPages.error("Another sign-in is waiting on this computer", "Answer it in "
-          + "GateRook first, or wait a few minutes and start again."));
+      return Answer.page(429, ConsentPages.error("Too many sign-in attempts from this browser", "Wait a minute, "
+          + "then start again."));
     }
     // (a) the client and (b) its redirect: without both, nothing goes back to a URL the request chose.
     Clients.Client client;
@@ -202,10 +202,20 @@ public class OAuthServer {
     Consents.Pending pending = new Consents.Pending(rid, code, OAuthTokens.hash(cookie), server, client, redirect,
         state, challenge, scope, endpoint.get().id(), slug.get(), issuers.storedResource(server, slug.get()),
         browserIp, clock.instant());
-    // (g) for the endpoint: an unknown browser can't flood this computer with dialogs.
-    if (!consents.tryOpen(pending)) {
-      return Answer.page(429, ConsentPages.error("Another sign-in is waiting on this computer", "Answer it in "
-          + "GateRook first, or wait a few minutes and start again."));
+    // (g) per browser and per endpoint: an unknown browser can neither flood this computer with dialogs nor hold
+    // every slot against the person's own sign-in. The words never ask the person to approve what is waiting: anyone
+    // with the public URL can put a genuine-looking request there.
+    switch (consents.open(pending)) {
+      case BROWSER_FULL -> {
+        return Answer.page(429, ConsentPages.error("A sign-in from this browser is still waiting", "Answer it in "
+            + "GateRook — deny it if you didn't start it — or wait a few minutes, then start again."));
+      }
+      case ENDPOINT_FULL -> {
+        return Answer.page(429, ConsentPages.error("Several sign-ins are waiting on this computer", "In GateRook, "
+            + "deny the requests you didn't start, then start again. A waiting request expires after "
+            + Consents.TIMEOUT.toMinutes() + " minutes."));
+      }
+      case OPEN -> { }
     }
     log.info("Sign-in {} of {} for {} waits for the person (code {})", rid, client.host(), slug.get(), code);
     String html = ConsentPages.waiting(rid, code, client.host(), OAuthUris.hostOf(redirect), slug.get(),
