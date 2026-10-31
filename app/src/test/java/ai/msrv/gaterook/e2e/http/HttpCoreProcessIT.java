@@ -152,10 +152,11 @@ class HttpCoreProcessIT {
     assertThat(SEEN.get(1).header("Authorization")).isEqualTo("Bearer " + TOKEN);
     assertThat(confirmed.toString()).doesNotContain(TOKEN);
 
-    // Requests go only under the environment's allowlist of base URLs.
+    // Saving the connection provisions its exact base URL before any tools run.
     JsonNode dev = json(admin("GET", "/api/policies/dev", null), 200);
-    json(admin("PUT", "/api/policies/dev", "{\"version\":" + dev.path("version").asLong() + ",\"sections\":{\"http\":"
-        + "{\"allowedBaseUrls\":[\"" + base + "\"]}}}"), 200);
+    assertThat(dev.at("/sections/http/allowedBaseUrls")).extracting(JsonNode::asString).containsExactly(base);
+    assertThat(json(admin("GET", "/api/policies/stage", null), 200).at("/sections/http/allowedBaseUrls"))
+        .isEmpty();
 
     json(admin("POST", "/api/endpoints", "{\"slug\":\"billing\",\"startFrom\":\"empty\"}"), 201);
     json(admin("POST", "/api/endpoints/billing/connections/billing-api", "{}"), 200);
@@ -339,9 +340,113 @@ class HttpCoreProcessIT {
     assertThat(core.coreLog()).doesNotContain(TOKEN).doesNotContain(token);
   }
 
+  @Test
+  @Order(40)
+  void connectionSavesMergeExactUrlsOnlyIntoTheirEnvironmentAndRepairOlderConnections() throws Exception {
+    String first = base + "/secondary";
+    String second = "https://api.example.test:8443/v2";
+    String added = "https://new.example.test/v3";
+    setAllowedUrls("stage", List.of("https://manual.example.test/v1"));
+    ObjectNode config = CoreProcess.JSON.createObjectNode();
+    config.putArray("baseUrls").add(first).add(second);
+    config.putObject("auth").put("type", "none");
+    ObjectNode create = CoreProcess.JSON.createObjectNode().put("name", "stage-api").put("type", "http")
+        .put("env", "stage");
+    create.set("config", config);
+    json(admin("POST", "/api/connections", create.toString()), 201);
+    assertThat(allowedUrls("stage")).containsExactly("https://manual.example.test/v1", first, second);
+    assertThat(allowedUrls("dev")).containsExactly(base);
+    assertThat(allowedUrls("prod")).isEmpty();
+    assertThat(json(admin("GET", "/api/policies/stage", null), 200).at("/sections/http/allowedPrivateRanges"))
+        .isEmpty();
+
+    // Repeated saves neither duplicate URLs nor create a new policy revision.
+    long policyVersion = json(admin("GET", "/api/policies/stage", null), 200).path("version").asLong();
+    updateConnection("stage-api", "stage", config, 200);
+    assertThat(json(admin("GET", "/api/policies/stage", null), 200).path("version").asLong())
+        .isEqualTo(policyVersion);
+
+    config.withArray("baseUrls").add(added);
+    updateConnection("stage-api", "stage", config, 200);
+    assertThat(allowedUrls("stage")).containsExactly("https://manual.example.test/v1", first, second, added);
+
+    // A manual policy removal stays removed through invalidation and a connection test.
+    setAllowedUrls("stage", List.of("https://manual.example.test/v1"));
+    json(admin("POST", "/api/connections/stage-api/test", null), 200);
+    assertThat(allowedUrls("stage")).containsExactly("https://manual.example.test/v1");
+    updateConnection("stage-api", "stage", config, 200);
+    assertThat(allowedUrls("stage")).containsExactly("https://manual.example.test/v1", first, second, added);
+
+    // Moving a connection provisions the destination without erasing entries in its old environment.
+    updateConnection("stage-api", "dev", config, 200);
+    assertThat(allowedUrls("dev")).containsExactly(base, first, second, added);
+    assertThat(allowedUrls("stage")).containsExactly("https://manual.example.test/v1", first, second, added);
+
+    create.put("name", "prod-api").put("env", "prod");
+    json(admin("POST", "/api/connections", create.toString()), 201);
+    assertThat(allowedUrls("prod")).containsExactly(first, second, added);
+  }
+
+  @Test
+  @Order(41)
+  void policyValidationFailureRollsBackConnectionCreationAndEditing() throws Exception {
+    List<String> full = new ArrayList<>();
+    for (int i = 0; i < 100; i++) {
+      full.add("https://api" + i + ".example.test/v1");
+    }
+    setAllowedUrls("stage", full);
+    ObjectNode config = CoreProcess.JSON.createObjectNode();
+    config.putArray("baseUrls").add("https://overflow.example.test/v1");
+    config.putObject("auth").put("type", "none");
+    ObjectNode create = CoreProcess.JSON.createObjectNode().put("name", "overflow-api").put("type", "http")
+        .put("env", "stage");
+    create.set("config", config);
+    json(admin("POST", "/api/connections", create.toString()), 422);
+    assertThat(admin("GET", "/api/connections/overflow-api", null).status()).isEqualTo(404);
+
+    JsonNode before = json(admin("GET", "/api/connections/stage-api", null), 200);
+    updateConnection("stage-api", "stage", config, 422);
+    JsonNode after = json(admin("GET", "/api/connections/stage-api", null), 200);
+    assertThat(after.path("env")).isEqualTo(before.path("env"));
+    assertThat(after.path("config")).isEqualTo(before.path("config"));
+    assertThat(allowedUrls("stage")).containsExactlyElementsOf(full);
+  }
+
   // ── Helpers ─────────────────────────────────────────────────────────────────────────────────────────────────
 
   private record Answer(int status, String body) {}
+
+  private static List<String> allowedUrls(String env) throws Exception {
+    List<String> urls = new ArrayList<>();
+    json(admin("GET", "/api/policies/" + env, null), 200).at("/sections/http/allowedBaseUrls")
+        .forEach(url -> urls.add(url.asString()));
+    return urls;
+  }
+
+  private static void setAllowedUrls(String env, List<String> urls) throws Exception {
+    JsonNode current = json(admin("GET", "/api/policies/" + env, null), 200);
+    ObjectNode update = CoreProcess.JSON.createObjectNode().put("version", current.path("version").asLong());
+    var allowed = update.putObject("sections").putObject("http").putArray("allowedBaseUrls");
+    urls.forEach(allowed::add);
+    json(admin("PUT", "/api/policies/" + env, update.toString()), 200);
+  }
+
+  private static void updateConnection(String name, String env, JsonNode config, int expected) throws Exception {
+    for (int attempt = 0; attempt < 20; attempt++) {
+      JsonNode current = json(admin("GET", "/api/connections/" + name, null), 200);
+      ObjectNode update = CoreProcess.JSON.createObjectNode().put("env", env)
+          .put("version", current.path("version").asLong());
+      update.set("config", config);
+      Answer answer = admin("PUT", "/api/connections/" + name, update.toString());
+      // A committed policy change asynchronously bumps connection versions to invalidate pools.
+      if (answer.status() == 409 && attempt < 19) {
+        Thread.sleep(50);
+        continue;
+      }
+      json(answer, expected);
+      return;
+    }
+  }
 
   private static URI uri(String target) {
     return URI.create("http://127.0.0.1:" + core.port + target);

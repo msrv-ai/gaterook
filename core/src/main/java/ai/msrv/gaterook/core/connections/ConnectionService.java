@@ -244,6 +244,7 @@ public class ConnectionService {
         setupChanges.getObject().record(new SetupChange(SetupChangeRecorder.What.CONNECTION,
             "Connection " + name + " added", null, manifest.name() + " · " + env.id(), reason, env, null, name,
             null));
+        publisher.publishEvent(new ConnectionConfigured(name, type, env, cleaned.deepCopy(), reason));
         publisher.publishEvent(new ConnectionChanged(row.getId(), name, env, row.getVersion()));
         publisher.publishEvent(new ConnectionCreated(row.getId()));
         return row.getId();
@@ -322,6 +323,7 @@ public class ConnectionService {
           "Connection " + name + " edited", before == env ? null : before.id(), before == env ? null : env.id(),
           reason, env, null, name, newTarget.map(t -> (JsonNode) JsonNodeFactory.instance.objectNode()
               .put("newTarget", t)).orElse(null)));
+      publisher.publishEvent(new ConnectionConfigured(name, row.getType(), env, cleaned.deepCopy(), reason));
       publisher.publishEvent(new ConnectionChanged(row.getId(), name, env, row.getVersion()));
     });
     return summary(name);
