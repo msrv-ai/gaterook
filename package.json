@@ -23,5 +23,8 @@
     "build": "npm run build --prefix design && npm run build:java && npm run build -w ui && npm run build -w desktop",
     "start": "node desktop/scripts/dev.mjs",
     "dev:ui": "npm run dev -w ui --"
+  },
+  "overrides": {
+    "vite": "^8.3.5"
   }
 }

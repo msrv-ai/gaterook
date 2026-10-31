@@ -2,20 +2,34 @@ package ai.msrv.gaterook.connectors.sql;
 
 import ai.msrv.gaterook.connectors.sql.FunctionRules.FunctionRef;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.regex.Pattern;
 import net.sf.jsqlparser.JSQLParserException;
+import net.sf.jsqlparser.expression.Alias;
 import net.sf.jsqlparser.expression.AnalyticExpression;
+import net.sf.jsqlparser.expression.ArrayExpression;
 import net.sf.jsqlparser.expression.CastExpression;
+import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.expression.JsonExpression;
+import net.sf.jsqlparser.expression.KeepExpression;
+import net.sf.jsqlparser.expression.MySQLGroupConcat;
+import net.sf.jsqlparser.expression.TimezoneExpression;
 import net.sf.jsqlparser.expression.TranscodingFunction;
 import net.sf.jsqlparser.expression.Function;
 import net.sf.jsqlparser.expression.VariableAssignment;
+import net.sf.jsqlparser.expression.operators.relational.FullTextSearch;
+import net.sf.jsqlparser.expression.operators.relational.IsUnknownExpression;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
+import net.sf.jsqlparser.schema.Table;
 import net.sf.jsqlparser.statement.Commit;
 import net.sf.jsqlparser.statement.DescribeStatement;
 import net.sf.jsqlparser.statement.ExplainStatement;
@@ -32,16 +46,22 @@ import net.sf.jsqlparser.statement.UseStatement;
 import net.sf.jsqlparser.statement.alter.AlterSession;
 import net.sf.jsqlparser.statement.alter.AlterSystemStatement;
 import net.sf.jsqlparser.statement.create.schema.CreateSchema;
+import net.sf.jsqlparser.statement.create.table.ColDataType;
 import net.sf.jsqlparser.statement.delete.Delete;
 import net.sf.jsqlparser.statement.drop.Drop;
 import net.sf.jsqlparser.statement.execute.Execute;
 import net.sf.jsqlparser.statement.insert.Insert;
 import net.sf.jsqlparser.statement.merge.Merge;
+import net.sf.jsqlparser.statement.select.LateralSubSelect;
+import net.sf.jsqlparser.statement.select.OrderByElement;
+import net.sf.jsqlparser.statement.select.ParenthesedFromItem;
+import net.sf.jsqlparser.statement.select.ParenthesedSelect;
 import net.sf.jsqlparser.statement.select.PlainSelect;
 import net.sf.jsqlparser.statement.select.Select;
 import net.sf.jsqlparser.statement.select.TableFunction;
 import net.sf.jsqlparser.statement.select.TableStatement;
 import net.sf.jsqlparser.statement.select.Values;
+import net.sf.jsqlparser.statement.select.WithItem;
 import net.sf.jsqlparser.statement.show.ShowTablesStatement;
 import net.sf.jsqlparser.statement.update.Update;
 import net.sf.jsqlparser.statement.upsert.Upsert;
@@ -195,7 +215,7 @@ final class SqlClassifier {
     }
     List<StatementFacts> facts = new ArrayList<>();
     for (int i = 0; i < statements.size(); i++) {
-      StatementFacts f = facts(statements.get(i), syntax);
+      StatementFacts f = facts(statements.get(i), pieces.get(i), syntax);
       String session = sessionState(pieces.get(i), syntax);
       if (syntax == SqlSyntax.SQLSERVER && f.kind() == Kind.READ && !(statements.get(i) instanceof Select)) {
         f = new StatementFacts(Kind.UNPARSED, f.type(), f.tables(), f.targets(), f.functions());
@@ -351,7 +371,7 @@ final class SqlClassifier {
 
   // ── One statement ───────────────────────────────────────────────────────────────────────────────────────────
 
-  private static StatementFacts facts(Statement st, SqlSyntax syntax) {
+  private static StatementFacts facts(Statement st, String piece, SqlSyntax syntax) {
     Collector c = new Collector();
     List<String> tables;
     try {
@@ -369,6 +389,11 @@ final class SqlClassifier {
     }
     List<String> targets = targets(st, kind, tables);
     String type = customConversion ? "custom type conversion" : c.assignsVariable ? VARIABLE_ASSIGNMENT : type(st);
+    if (kind == Kind.READ) {
+      // A read runs without a person: every call the server would make meets the function rules, including the
+      // ones in positions the parser's walk doesn't reach.
+      c.functions.addAll(SqlCalls.calls(piece, syntax, c.notCalls));
+    }
     return new StatementFacts(kind, type, tables, targets, List.copyOf(c.functions));
   }
 
@@ -488,21 +513,69 @@ final class SqlClassifier {
    * One walk over a statement: tables through {@link TablesNamesFinder#getTables} (which leaves out the names of CTEs),
    * function calls wherever they are, and the flags that raise a SELECT: a lock clause or {@code INTO} on any level, a
    * data-changing statement inside it (a CTE with {@code DELETE … RETURNING}).
+   *
+   * <p>{@link TablesNamesFinder} stops short of some expressions (a window's {@code PARTITION BY}, an aggregate's
+   * {@code ORDER BY}, {@code KEEP}, {@code GROUP_CONCAT}, JSON operators, {@code AT TIME ZONE}, subscripts); the
+   * overrides below walk them. {@link SqlCalls} covers what is left for reads.
    */
   static final class Collector extends TablesNamesFinder<Void> {
     final Set<FunctionRef> functions = new LinkedHashSet<>();
     final Set<String> castTypes = new LinkedHashSet<>();
+    /** Names the parser placed before a parenthesis that isn't a call: column lists of aliases and CTEs, types. */
+    final Map<String, Integer> notCalls = new HashMap<>();
+    /** The walk reaches some nodes twice (a WITH list from the statement and from its SELECT): count each once. */
+    private final Set<Object> counted = Collections.newSetFromMap(new IdentityHashMap<>());
     boolean lock;
     boolean into;
     boolean mysqlInto;
     boolean assignsVariable;
     int dml;
 
+    private void notCall(Object node, String name) {
+      if (name != null && !name.isBlank() && counted.add(node)) {
+        notCalls.merge(SqlCalls.key(List.of(name.strip())), 1, Integer::sum);
+      }
+    }
+
+    private void columnList(Alias alias) {
+      if (alias != null && alias.getAliasColumns() != null && !alias.getAliasColumns().isEmpty()) {
+        notCall(alias, alias.getName());
+      }
+    }
+
+    /** {@code character varying(10)}: the word before the parenthesis is the type's last one. */
+    private void typeName(ColDataType type) {
+      if (type != null && type.getDataType() != null && counted.add(type)) {
+        String name = type.getDataType().strip();
+        notCalls.merge(SqlCalls.key(List.of(name.substring(name.lastIndexOf(' ') + 1).split("\\."))), 1,
+            Integer::sum);
+      }
+    }
+
+    private <S> void walk(Expression e, S context) {
+      if (e != null) {
+        e.accept(this, context);
+      }
+    }
+
+    private <S> void walkEach(List<? extends Expression> list, S context) {
+      if (list != null) {
+        list.forEach(e -> walk(e, context));
+      }
+    }
+
+    private <S> void orderBy(List<OrderByElement> elements, S context) {
+      if (elements != null) {
+        elements.forEach(e -> walk(e.getExpression(), context));
+      }
+    }
+
     @Override
     public <S> Void visit(CastExpression cast, S context) {
       if (cast.getColDataType() != null && cast.getColDataType().getDataType() != null) {
         castTypes.add(cast.getColDataType().getDataType());
       }
+      typeName(cast.getColDataType());
       return super.visit(cast, context);
     }
 
@@ -511,6 +584,7 @@ final class SqlClassifier {
       if (convert.getColDataType() != null && convert.getColDataType().getDataType() != null) {
         castTypes.add(convert.getColDataType().getDataType());
       }
+      typeName(convert.getColDataType());
       return super.visit(convert, context);
     }
 
@@ -525,7 +599,17 @@ final class SqlClassifier {
       if (f.getMultipartName() != null && !f.getMultipartName().isEmpty()) {
         functions.add(new FunctionRef(List.copyOf(f.getMultipartName())));
       }
-      return super.visit(f, context);
+      super.visit(f, context);
+      walk(f.getNamedParameters(), context);
+      orderBy(f.getOrderByElements(), context);
+      walk(f.getKeep(), context);
+      if (f.getKeywordArguments() != null) {
+        f.getKeywordArguments().forEach(k -> walk(k.getExpression(), context));
+      }
+      if (f.getHavingClause() != null) {
+        walk(f.getHavingClause().getExpression(), context);
+      }
+      return null;
     }
 
     @Override
@@ -533,7 +617,61 @@ final class SqlClassifier {
       if (a.getName() != null) {
         functions.add(new FunctionRef(List.of(a.getName())));
       }
-      return super.visit(a, context);
+      super.visit(a, context);
+      if (a.getWindowDefinition() != null) {
+        walkEach(a.getWindowDefinition().getAllExpressions(), context);
+      }
+      if (a.getHavingClause() != null) {
+        walk(a.getHavingClause().getExpression(), context);
+      }
+      return null;
+    }
+
+    @Override
+    public <S> Void visit(KeepExpression keep, S context) {
+      orderBy(keep.getOrderByElements(), context);
+      return super.visit(keep, context);
+    }
+
+    @Override
+    public <S> Void visit(MySQLGroupConcat concat, S context) {
+      walk(concat.getExpressionList(), context);
+      orderBy(concat.getOrderByElements(), context);
+      return super.visit(concat, context);
+    }
+
+    @Override
+    public <S> Void visit(FullTextSearch search, S context) {
+      walk(search.getAgainstValue(), context);
+      return super.visit(search, context);
+    }
+
+    @Override
+    public <S> Void visit(JsonExpression json, S context) {
+      walkEach(json.getIdents(), context);
+      return super.visit(json, context);
+    }
+
+    @Override
+    public <S> Void visit(TimezoneExpression timezone, S context) {
+      walkEach(timezone.getTimezoneExpressions(), context);
+      return super.visit(timezone, context);
+    }
+
+    @Override
+    public <S> Void visit(ArrayExpression array, S context) {
+      // TablesNamesFinder skips the index of a plain subscript, a[i].
+      walk(array.getObjExpression(), context);
+      walk(array.getIndexExpression(), context);
+      walk(array.getStartIndexExpression(), context);
+      walk(array.getStopIndexExpression(), context);
+      return null;
+    }
+
+    @Override
+    public <S> Void visit(IsUnknownExpression unknown, S context) {
+      walk(unknown.getLeftExpression(), context);
+      return super.visit(unknown, context);
     }
 
     @Override
@@ -541,7 +679,40 @@ final class SqlClassifier {
       if (tf.getFunction() != null && tf.getFunction().getMultipartName() != null) {
         functions.add(new FunctionRef(List.copyOf(tf.getFunction().getMultipartName())));
       }
+      columnList(tf.getAlias());
       return super.visit(tf, context);
+    }
+
+    @Override
+    public <S> Void visit(Table table, S context) {
+      columnList(table.getAlias());
+      return super.visit(table, context);
+    }
+
+    @Override
+    public <S> Void visit(ParenthesedSelect select, S context) {
+      columnList(select.getAlias());
+      return super.visit(select, context);
+    }
+
+    @Override
+    public <S> Void visit(LateralSubSelect select, S context) {
+      columnList(select.getAlias());
+      return super.visit(select, context);
+    }
+
+    @Override
+    public <S> Void visit(ParenthesedFromItem item, S context) {
+      columnList(item.getAlias());
+      return super.visit(item, context);
+    }
+
+    @Override
+    public <S> Void visit(WithItem<?> with, S context) {
+      if (with.getAlias() != null && with.getWithItemList() != null && !with.getWithItemList().isEmpty()) {
+        notCall(with, with.getAlias().getName());
+      }
+      return super.visit(with, context);
     }
 
     @Override
@@ -549,7 +720,11 @@ final class SqlClassifier {
       lock |= ps.getForMode() != null || ps.getForUpdate() != null;
       into |= ps.getIntoTables() != null && !ps.getIntoTables().isEmpty();
       mysqlInto |= ps.getMySqlSelectIntoClause() != null;
-      return super.visit(ps, context);
+      super.visit(ps, context);
+      if (ps.getWindowDefinitions() != null) {
+        ps.getWindowDefinitions().forEach(w -> walkEach(w.getAllExpressions(), context));
+      }
+      return null;
     }
 
     @Override

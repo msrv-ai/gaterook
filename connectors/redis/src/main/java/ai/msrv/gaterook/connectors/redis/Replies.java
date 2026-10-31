@@ -10,8 +10,14 @@ final class Replies {
 
   private Replies() {}
 
+  /** A whole bulk string; {@code null} for anything else, a {@link BoundedConnection.Cut} included. */
   static byte[] bytes(Object reply) {
     return reply instanceof byte[] b ? b : null;
+  }
+
+  /** A bulk string's bytes, or the head of a {@link BoundedConnection.Cut}. */
+  static byte[] head(Object reply) {
+    return reply instanceof BoundedConnection.Cut c ? c.head() : bytes(reply);
   }
 
   /** A status or bulk reply as text (UTF-8, lenient: names and numbers only, never values for the agent). */

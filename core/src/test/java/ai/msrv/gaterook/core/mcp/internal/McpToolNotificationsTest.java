@@ -99,4 +99,33 @@ class McpToolNotificationsTest {
       notifications.stop();
     }
   }
+
+  @Test
+  void aPrincipalHoldsTwoStreamsAndTheGatewaySixtyFour() {
+    McpToolNotifications notifications = new McpToolNotifications();
+    var first = notifications.subscribe("one", "tok_a").orElseThrow();
+    var second = notifications.subscribe("two", "tok_a").orElseThrow();
+    var third = notifications.subscribe("one", "tok_a").orElseThrow();
+    assertThat(first.isClosed()).as("a third of the same principal closes its oldest").isTrue();
+    assertThat(second.isClosed()).isFalse();
+    assertThat(third.isClosed()).isFalse();
+    var other = notifications.subscribe("one", "tok_b");
+    assertThat(other).as("another principal").isPresent();
+    var fourth = notifications.subscribe("one", "tok_a").orElseThrow();
+    assertThat(second.isClosed()).isTrue();
+    assertThat(third.isClosed()).isFalse();
+    third.close();
+    fourth.close();
+    other.get().close();
+
+    var held = new java.util.ArrayList<McpToolNotifications.Subscription>();
+    for (int i = 0; i < McpToolNotifications.OVERALL; i++) {
+      held.add(notifications.subscribe("one", "tok_" + i).orElseThrow());
+    }
+    assertThat(notifications.subscribe("one", "tok_new")).as("the gateway's limit").isEmpty();
+    assertThat(notifications.subscribe("one", null)).as("a stream without a principal counts too").isEmpty();
+    held.getFirst().close();
+    assertThat(notifications.subscribe("one", "tok_new")).isPresent();
+    held.forEach(McpToolNotifications.Subscription::close);
+  }
 }

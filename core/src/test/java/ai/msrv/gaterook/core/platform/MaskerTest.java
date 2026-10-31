@@ -8,6 +8,7 @@ import ai.msrv.gaterook.connector.api.ToolResult;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.EnumSet;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -43,6 +44,17 @@ class MaskerTest {
       "url-credentials   | dsn postgres://app:s3cr3t-pw@db.dev.internal:5432/app  | dsn postgres://app:‹masked›@db.dev.internal:5432/app",
       "kv-password       | login failed password=hunter22 user=bob               | login failed password=‹masked› user=bob",
       "kv-password       | DB_PASSWORD: \"S3cret!\"                               | DB_PASSWORD: \"‹masked›\"",
+      "kv-password       | PGPASSWORD=hunter2-prod-db psql -h db                | PGPASSWORD=‹masked› psql -h db",
+      "kv-password       | export PGPASSWORD='hunter2-prod-db'                   | export PGPASSWORD='‹masked›'",
+      "kv-password       | DB_PASS=hunter2-prod-db                               | DB_PASS=‹masked›",
+      "kv-password       | db_pass: hunter2-prod-db                              | db_pass: ‹masked›",
+      "kv-password       | SPRING_DATASOURCE_PASSWORD=hunter2-prod-db            | SPRING_DATASOURCE_PASSWORD=‹masked›",
+      "xml-password      | <db><password>hunter2-prod-db</password></db>         | <db><password>‹masked›</password></db>",
+      "xml-password      | <c:apiKey> AIza-like-but-not </c:apiKey>              | <c:apiKey> ‹masked› </c:apiKey>",
+      "cli-password      | redis-cli -h cache -a hunter2-prod-db ping            | redis-cli -h cache -a ‹masked› ping",
+      "cli-password      | mysql -uapp -phunter2-prod-db app                     | mysql -uapp -p‹masked› app",
+      "cli-password      | sshpass -p hunter2-prod-db ssh app@host               | sshpass -p ‹masked› ssh app@host",
+      "cli-password      | mongosh --username app --password hunter2-prod-db     | mongosh --username app --password ‹masked›",
       "sql-password      | ALTER ROLE app PASSWORD 'n3w-p@ss''word'              | ALTER ROLE app PASSWORD ‹masked›",
       "sql-password      | CREATE USER gw IDENTIFIED BY \"pw-2024\"              | CREATE USER gw IDENTIFIED BY ‹masked›",
   })
@@ -436,5 +448,71 @@ class MaskerTest {
       assertThat(msPerMb).as("ms per MB (report 12 §7.7 target 40), PII " + policy.pii())
           .isLessThanOrEqualTo(40.0);
     }
+  }
+
+  @Test
+  void credentialSpellingsThatAreNotCredentialsStay() {
+    for (String text : List.of("pass: true, fail: false", "keyword: alpha", "compass=north", "bypass=1",
+        "<token>ab</token> is two chars", "mysql -u app -e 'select 1'", "the password rotation: weekly")) {
+      assertThat(masker.text(text, new Taint(), MaskPolicy.SECRETS_ONLY).text()).as(text).isEqualTo(text);
+    }
+  }
+
+  @Test
+  void aStoredSecretIsMaskedInHexAtEveryBase64AlignmentAndInEitherCase() {
+    String secret = "Sup3r$ecretP@ss!";
+    Taint taint = new Taint();
+    taint.add(secret);
+    byte[] utf8 = secret.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    String hex = java.util.HexFormat.of().formatHex(utf8);
+    // An echo, and the part of it that comes from the secret alone: all of it, or the Base64 of the 3-byte groups the
+    // secret fills by itself when other bytes were encoded before or after it.
+    record Echo(String how, String text, int from, int to) {}
+    List<Echo> echoes = new ArrayList<>();
+    for (String whole : List.of(hex, hex.toUpperCase(java.util.Locale.ROOT), "\\x" + hex,
+        secret.toUpperCase(java.util.Locale.ROOT), secret.toLowerCase(java.util.Locale.ROOT),
+        new StringBuilder(secret).reverse().toString())) {
+      echoes.add(new Echo(whole, whole, 0, whole.length()));
+    }
+    for (String prefix : List.of("", "x", "pw", "pw=")) {
+      for (String suffix : List.of("", "\n", "tail")) {
+        int p = prefix.length();
+        int from = 4 * (p / 3) + (p % 3 == 0 ? 0 : p % 3 == 1 ? 2 : 3);
+        int to = 4 * ((p + utf8.length) / 3);
+        byte[] data = (prefix + secret + suffix).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        String how = "('" + prefix + "' || x || '" + suffix.replace("\n", "\\n") + "')";
+        echoes.add(new Echo("base64" + how, java.util.Base64.getEncoder().encodeToString(data), from, to));
+        echoes.add(new Echo("base64url" + how, java.util.Base64.getUrlEncoder().encodeToString(data), from, to));
+      }
+    }
+    for (Echo echo : echoes) {
+      String masked = masker.text("value " + echo.text() + " end", taint, MaskPolicy.SECRETS_ONLY).text();
+      assertThat(masked).as(echo.how()).contains(MASK);
+      for (int i = echo.from(); i + 4 <= echo.to(); i++) {
+        assertThat(masked).as("%s keeps %s", echo.how(), echo.text().substring(i, i + 4))
+            .doesNotContain(echo.text().substring(i, i + 4));
+      }
+    }
+    // A value of its own, not an echo of the secret, stays.
+    assertThat(masker.text("value " + hex.substring(0, 4) + " end", taint, MaskPolicy.SECRETS_ONLY).text())
+        .isEqualTo("value " + hex.substring(0, 4) + " end");
+  }
+
+  @Test
+  void theStartOfASecretBeforeAConnectorsCutIsMasked() {
+    Taint taint = new Taint();
+    taint.add("Sup3r$ecretP@ss!");
+    String cell = "x".repeat(52) + "Sup3r$ecretP…‹truncated 18 chars›";
+
+    assertThat(masker.text(cell, taint, MaskPolicy.SECRETS_ONLY).text())
+        .isEqualTo("x".repeat(52) + MASK + "…‹truncated 18 chars›");
+    assertThat(masker.text("Sup3r$e…‹truncated 9 chars›", taint, MaskPolicy.SECRETS_ONLY).text())
+        .as("seven characters are too few to be more than a coincidence").isEqualTo("Sup3r$e…‹truncated 9 chars›");
+    assertThat(masker.text("\\x5375703372246563…‹32 bytes›", taint, MaskPolicy.SECRETS_ONLY).text())
+        .as("the start of the hex form").isEqualTo("\\x" + MASK + "…‹32 bytes›");
+    assertThat(masker.text("Sup3r$ecretP@ss!…‹truncated 2 chars›", taint, MaskPolicy.SECRETS_ONLY).text())
+        .as("a whole form before the marker is masked as a form").isEqualTo(MASK + "…‹truncated 2 chars›");
+    assertThat(masker.text("no secret here…‹truncated 2 chars›", taint, MaskPolicy.SECRETS_ONLY).text())
+        .isEqualTo("no secret here…‹truncated 2 chars›");
   }
 }

@@ -390,8 +390,10 @@ public class SlackChannel implements ChatChannel, DisposableBean {
         .filter(c -> c != null && !c.isBlank()).distinct().toList();
   }
 
+  /** The action in its block, and each detail in its section (a section's text is limited like the action). */
   static boolean fits(ApprovalNotice n) {
-    return n.action().text().length() <= Eligibility.SLACK_ACTION_LIMIT;
+    return n.action().text().length() <= Eligibility.SLACK_ACTION_LIMIT && n.details().stream()
+        .allMatch(d -> d.label().length() + d.value().length() + 16 <= Eligibility.SLACK_ACTION_LIMIT);
   }
 
   @Override

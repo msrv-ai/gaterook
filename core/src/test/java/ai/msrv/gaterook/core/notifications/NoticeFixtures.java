@@ -48,6 +48,17 @@ public final class NoticeFixtures {
         n.digest(), n.plugin());
   }
 
+  /** A template's request: what runs besides the SQL, as the connector's preview gives it. */
+  public static ApprovalNotice withDetails(ApprovalNotice n, java.util.List<ApprovalNotice.Detail> details) {
+    return new ApprovalNotice(n.id(), n.tool(), n.toolKey(), n.connection(), n.env(), n.endpoint(), n.client(),
+        n.clientLabel(), n.action(), n.summary(), n.ruleId(), n.commentPolicy(), n.createdAt(), n.expiresAt(),
+        n.digest(), n.plugin(), details);
+  }
+
+  public static ApprovalNotice.Detail detail(String label, String value) {
+    return new ApprovalNotice.Detail(label, value, 0, 0);
+  }
+
   public static ApprovalNotice plugin(ApprovalNotice n) {
     return new ApprovalNotice(n.id(), "jira_add_comment", "plugin:jira-service-desk:jira_add_comment", "jira",
         n.env(), n.endpoint(), n.client(), n.clientLabel(), n.action(), n.summary(), n.ruleId(), n.commentPolicy(),

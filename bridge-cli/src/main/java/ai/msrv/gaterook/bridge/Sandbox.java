@@ -31,8 +31,11 @@ import java.util.Map;
  * {@code /sbin}, {@code /etc}, {@code /opt}, {@code /proc}, {@code /sys}, {@code /nix}), {@code /dev} for reading and
  * writing devices, and the command's own folder read-only. On macOS the command runs under {@code sandbox-exec} with
  * a profile that denies reading GateRook's home, the usual credential folders and the configs of the connected
- * clients except the {@code --rw} ones (the API is deprecated, but works on macOS 27). Elsewhere, or when Landlock is
- * unavailable, it refuses with exit 4, unless
+ * clients, and denies writing anywhere but the {@code --rw} paths, the temporary folders, the devices and the
+ * package managers' caches (the API is deprecated, but works on macOS 27): a login item or a shell profile written
+ * from inside would run unconfined later. On Linux with Landlock ABI 6 or later the command is also kept from
+ * abstract Unix sockets and signals outside its own tree. Elsewhere, or when Landlock is unavailable, it refuses
+ * with exit 4, unless
  * {@code --allow-unsandboxed} says to run it as it is (the core then shows "Not sandboxed on this system").
  * Exit codes: 3 wrong arguments, 4 no sandbox, 126/127 the command can't run.
  */
@@ -57,6 +60,10 @@ final class Sandbox {
   static final long REFER = 1L << 13;
   static final long TRUNCATE = 1L << 14;
   static final long IOCTL_DEV = 1L << 15;
+
+  /** {@code landlock_ruleset_attr.scoped} (ABI 6): what the process and its children can't reach outside the domain. */
+  static final long SCOPE_ABSTRACT_UNIX_SOCKET = 1L;
+  static final long SCOPE_SIGNAL = 1L << 1;
 
   private static final long SYS_LANDLOCK_CREATE_RULESET = 444;
   private static final long SYS_LANDLOCK_ADD_RULE = 445;
@@ -274,11 +281,19 @@ final class Sandbox {
           Linker.Option.captureCallState("errno"));
       MethodHandle close = handle("close", CLOSE);
       MemorySegment state = arena.allocate(ERRNO.layout);
-      // struct landlock_ruleset_attr { __u64 handled_access_fs; } — the size of ABI 1, which every later ABI accepts.
-      MemorySegment attr = arena.allocate(8, 8);
+      // struct landlock_ruleset_attr { __u64 handled_access_fs; __u64 handled_access_net; __u64 scoped; }: the
+      // size of ABI 1 (8 bytes, which every later ABI accepts) up to ABI 5; from ABI 6 the whole struct, with the
+      // process scoped out of the abstract Unix sockets (the session bus, X11) and the signals of the rest of the
+      // session. The network isn't handled: MCP servers need it.
+      long size = abi >= 6 ? 24 : 8;
+      MemorySegment attr = arena.allocate(size, 8);
       long handled = handledRights(abi);
       attr.set(ValueLayout.JAVA_LONG, 0, handled);
-      long fd = (long) create.invokeExact(state, SYS_LANDLOCK_CREATE_RULESET, attr, 8L, 0);
+      if (abi >= 6) {
+        attr.set(ValueLayout.JAVA_LONG, 8, 0L);
+        attr.set(ValueLayout.JAVA_LONG, 16, SCOPE_ABSTRACT_UNIX_SOCKET | SCOPE_SIGNAL);
+      }
+      long fd = (long) create.invokeExact(state, SYS_LANDLOCK_CREATE_RULESET, attr, size, 0);
       if (fd < 0) {
         throw new IllegalStateException("landlock_create_ruleset failed (errno " + errno(state) + ")");
       }
@@ -374,20 +389,35 @@ final class Sandbox {
   // ── macOS: sandbox-exec ─────────────────────────────────────────────────────────────────────────────────────
 
   /**
-   * SBPL: everything as usual, except reading GateRook's home, the credential folders and the configs of the
-   * clients GateRook connects (Cursor's and Antigravity's may hold a token, Codex's and Claude's name grants), minus
-   * the --rw ones (later rules win). Seatbelt compares {@code subpath} with the canonical path only — a rule for
-   * {@code /tmp/x} doesn't stop reading {@code /private/tmp/x} — so every path is written as given and as the kernel
-   * sees it.
+   * SBPL: reading as usual, except GateRook's home, the credential folders and the configs of the clients GateRook
+   * connects (Cursor's and Antigravity's may hold a token, Codex's and Claude's name grants); writing nowhere but the
+   * {@code --rw} paths, the temporary folders, the devices and the package managers' caches ({@link #MAC_WRITABLE}:
+   * {@code npx} and {@code uvx} fetch into them). The rest of the home stays closed to writes: a login item, a shell
+   * profile, another app's settings or a repository's hooks planted from inside would run unconfined later. Later
+   * rules win in SBPL. Seatbelt compares {@code subpath} with the canonical path only — a rule for {@code /tmp/x}
+   * doesn't stop reading {@code /private/tmp/x} — so every path is written as given and as the kernel sees it.
    */
   static String macProfile(Map<String, String> env, List<String> readWrite) {
     Path home = Path.of(System.getProperty("user.home"));
     List<Path> denied = new ArrayList<>(List.of(BrokerClient.home(env)));
-    for (String p : List.of(".ssh", ".aws", ".config/gcloud", ".kube", "Library/Keychains", ".docker", ".netrc",
-        ".codex", ".cursor", ".gemini", "Library/Application Support/Claude")) {
+    for (String p : MAC_DENIED) {
       denied.add(home.resolve(p));
     }
-    StringBuilder b = new StringBuilder("(version 1)\n(allow default)\n(deny file-read* file-write*\n");
+    StringBuilder b = new StringBuilder("(version 1)\n(allow default)\n(deny file-write* (subpath \"/\"))\n");
+    List<Path> writable = new ArrayList<>(List.of(Path.of("/dev"), Path.of("/tmp"), Path.of("/private/tmp")));
+    String tmp = System.getenv("TMPDIR");
+    if (tmp != null && !tmp.isBlank()) {
+      writable.add(Path.of(tmp));
+    }
+    for (String p : MAC_WRITABLE) {
+      writable.add(home.resolve(p));
+    }
+    for (Path p : writable) {
+      for (String form : canonicalForms(p)) {
+        b.append("(allow file-write* (subpath ").append(sbplString(form)).append("))\n");
+      }
+    }
+    b.append("(deny file-read* file-write*\n");
     for (Path p : denied) {
       for (String form : canonicalForms(p)) {
         b.append("  (subpath ").append(sbplString(form)).append(")\n");
@@ -401,6 +431,14 @@ final class Sandbox {
     }
     return b.toString();
   }
+
+  /** Under the person's home, what the command may not read: GateRook's data, credentials, connected clients' configs. */
+  static final List<String> MAC_DENIED = List.of(".ssh", ".aws", ".config/gcloud", ".kube", "Library/Keychains",
+      ".docker", ".netrc", ".gnupg", ".config/gh", ".config/op", ".vault-token", ".pgpass", ".my.cnf", ".azure",
+      ".password-store", ".codex", ".cursor", ".gemini", "Library/Application Support/Claude");
+
+  /** Under the person's home, where the command may write besides its {@code --rw} paths: the package caches. */
+  static final List<String> MAC_WRITABLE = List.of(".npm", ".cache", "Library/Caches");
 
   /** {@code p} absolute, and its canonical form when that differs (a path not there yet: via its deepest parent). */
   static List<String> canonicalForms(Path p) {

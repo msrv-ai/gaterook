@@ -72,18 +72,32 @@ class SandboxTest {
     Files.writeString(gateway.resolve("master.keyset"), "the key");
     Path own = Files.createDirectories(gateway.resolve("mcp-servers/github"));
     Files.writeString(own.resolve("state.json"), "its own");
+    // A file of the home outside the work folder and the caches: where a login item or a shell profile would go.
+    Path stray = Path.of(System.getProperty("user.home")).resolve(".gaterook-sandbox-test-" + System.nanoTime());
     String script = "cat " + gateway.resolve("master.keyset") + " || echo denied-read; "
         + "cat " + own.resolve("state.json") + "; echo; "
-        + "echo w > " + own.resolve("out.txt") + " && echo wrote";
-    BridgeProcess.Result r = BridgeProcess.run(List.of("sandbox-exec", "--rw", own.toString(), "--", "/bin/sh", "-c",
-        script), Map.of("GW_HOME", gateway.toString()), "", Duration.ofSeconds(30));
+        + "echo w > " + own.resolve("out.txt") + " && echo wrote; "
+        + "echo w > " + stray + " 2>/dev/null || echo denied-write; "
+        + "echo w > \"${TMPDIR:-/tmp}/gaterook-sandbox-test-$$\" && echo wrote-tmp && rm -f "
+        + "\"${TMPDIR:-/tmp}/gaterook-sandbox-test-$$\"";
+    BridgeProcess.Result r;
+    try {
+      r = BridgeProcess.run(List.of("sandbox-exec", "--rw", own.toString(), "--", "/bin/sh", "-c", script),
+          Map.of("GW_HOME", gateway.toString()), "", Duration.ofSeconds(30));
+    } finally {
+      Files.deleteIfExists(stray);
+    }
     assertThat(r.out()).as(r.err()).contains("denied-read").contains("its own").contains("wrote")
-        .doesNotContain("the key");
+        .contains("denied-write").contains("wrote-tmp").doesNotContain("the key");
     assertThat(r.code()).isZero();
-    // The profile names both forms of each path; clients' configs are closed too.
+    // The profile names both forms of each path; clients' configs are closed too, and writes outside the work folder,
+    // the temporary folders, the devices and the caches.
     String profile = Sandbox.macProfile(Map.of("GW_HOME", gateway.toString()), List.of(own.toString()));
     assertThat(profile).contains("(subpath \"" + gateway + "\")").contains("(subpath \"" + gateway.toRealPath() + "\")")
-        .contains("/.cursor\")").contains("/.codex\")").contains("/Library/Application Support/Claude\")");
+        .contains("/.cursor\")").contains("/.codex\")").contains("/Library/Application Support/Claude\")")
+        .contains("/.config/gh\")").contains("(deny file-write* (subpath \"/\"))")
+        .contains("(allow file-write* (subpath \"/dev\"))").contains("/.npm\"))")
+        .contains("(allow file-read* file-write* (subpath \"" + own + "\"))");
   }
 
   @Test

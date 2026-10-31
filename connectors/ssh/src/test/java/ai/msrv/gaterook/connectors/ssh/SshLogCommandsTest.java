@@ -172,6 +172,25 @@ class SshLogCommandsTest {
   }
 
   @Test
+  void rejectsAHardLinkedFileWhoseOtherNameIsOutsideTheSelection() throws Exception {
+    Path root = temp.toRealPath();
+    Path outside = Files.createDirectory(root.resolve("outside"));
+    Files.writeString(outside.resolve("private.txt"), "private\n");
+    Path logs = Files.createDirectory(root.resolve("logs"));
+    Files.createLink(logs.resolve("app.log"), outside.resolve("private.txt"));
+    for (var kind : List.of(SshLogCommands.Kind.TAIL, SshLogCommands.Kind.INSPECT, SshLogCommands.Kind.GREP)) {
+      var process = process(SshLogCommands.command(settings(logs, "app.log"), "app.log", kind, 1, 16, 1024, "."));
+      assertThat(process.getInputStream().readAllBytes()).isEmpty();
+      assertThat(process.waitFor(5, TimeUnit.SECONDS)).isTrue();
+      assertThat(process.exitValue()).as(kind.name()).isEqualTo(47);
+    }
+
+    Files.delete(outside.resolve("private.txt"));
+    var single = run(SshLogCommands.command(settings(logs, "app.log"), "app.log", SshLogCommands.Kind.TAIL, 1, 0, 1024));
+    assertThat(text(single.data())).as("the only name left is the selected one").isEqualTo("private\n");
+  }
+
+  @Test
   void rejectsUnselectedFilesAndInvalidRangesLocally() throws Exception {
     var settings = settings(temp.toRealPath(), "app.log");
     assertThatThrownBy(() -> SshLogCommands.command(settings, "private.log", SshLogCommands.Kind.TAIL, 1, 0, 1024))

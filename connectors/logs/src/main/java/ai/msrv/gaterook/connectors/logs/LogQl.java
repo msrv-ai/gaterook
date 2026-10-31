@@ -10,8 +10,8 @@ import java.util.regex.Pattern;
  * How far behind each point of its window a LogQL query reads: a metric query such as
  * {@code count_over_time({app="api"} | json [30d])} reads 30 days before {@code from}, whatever the window the gateway
  * asked for, and {@code label_format} can carry whole lines of those 30 days into its labels. The range vectors are
- * read outside string literals ({@code "…"} with escapes, {@code `…`} raw); an {@code offset} only moves a range back,
- * like an earlier window would, and doesn't widen it.
+ * read outside string literals ({@code "…"} with escapes, {@code `…`} raw) and comments; an {@code offset} only moves
+ * a range back, like an earlier window would, and doesn't widen it.
  */
 final class LogQl {
 
@@ -24,12 +24,33 @@ final class LogQl {
 
   private LogQl() {}
 
-  /** The longest range vector of {@code query}, or empty for a log query. */
+  /**
+   * The longest range vector of {@code query}, or empty for a log query. Loki skips {@code #} comments to the end of
+   * the line, and the Go scanner its lexer is built on skips Go's {@code //} and block comments as well: a bracket or
+   * a quote inside a comment pairs with nothing. Of the readings with and without Go's comments, the longer range
+   * counts.
+   */
   static Optional<Range> longestRange(String query) {
+    Optional<Range> plain = longestRange(query, false);
+    Optional<Range> go = longestRange(query, true);
+    if (plain.isEmpty() || go.isPresent() && go.get().length().compareTo(plain.get().length()) > 0) {
+      return go;
+    }
+    return plain;
+  }
+
+  private static Optional<Range> longestRange(String query, boolean goComments) {
     Range longest = null;
     for (int i = 0; i < query.length(); i++) {
       char c = query.charAt(i);
-      if (c == '"') {
+      char next = i + 1 < query.length() ? query.charAt(i + 1) : 0;
+      if (c == '#' || goComments && c == '/' && next == '/') {
+        int end = query.indexOf('\n', i + 1);
+        i = end < 0 ? query.length() : end;
+      } else if (goComments && c == '/' && next == '*') {
+        int end = query.indexOf("*/", i + 2);
+        i = end < 0 ? query.length() : end + 1;
+      } else if (c == '"') {
         for (i++; i < query.length() && query.charAt(i) != '"'; i++) {
           if (query.charAt(i) == '\\') {
             i++;

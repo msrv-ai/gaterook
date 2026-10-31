@@ -2,6 +2,7 @@ package ai.msrv.gaterook.core.notifications;
 
 import ai.msrv.gaterook.connector.api.Env;
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -14,6 +15,9 @@ import java.util.Objects;
  * @param clientLabel  the trusted label of who asked: the token's name or the grant's label ({@code codex-laptop})
  * @param action       the exact action as the channel may show it
  * @param summary      one line about the action (≤ 120 characters), masked
+ * @param details      what runs besides the action's text, from the connector's preview: its target (the database of
+ *                     a multi-database connection) and its fields (a template's parameter values), masked and with
+ *                     their invisible characters as escapes, like the action
  * @param commentPolicy {@code optional}, {@code recommended} or {@code required}: what Approve needs
  * @param digest       the request's digest; a button carries its first {@link #DIGEST_PREFIX} characters
  * @param plugin       the tool belongs to a plugin: the gateway can't vouch for its signature here, so no channel offers
@@ -21,10 +25,32 @@ import java.util.Objects;
  */
 public record ApprovalNotice(String id, String tool, String toolKey, String connection, Env env, String endpoint,
     String client, String clientLabel, Action action, String summary, String ruleId, String commentPolicy,
-    Instant createdAt, Instant expiresAt, String digest, boolean plugin) {
+    Instant createdAt, Instant expiresAt, String digest, boolean plugin, List<Detail> details) {
 
   /** How much of the digest a button carries: what the person saw, checked again on the click. */
   public static final int DIGEST_PREFIX = 12;
+
+  /**
+   * One line of what runs besides the action's text.
+   *
+   * @param hiddenChars invisible characters the escapes show, counted like the action's
+   * @param confusables letters that can pass for others, counted like the action's
+   */
+  public record Detail(String label, String value, int hiddenChars, int confusables) {
+
+    public Detail {
+      Objects.requireNonNull(label, "label");
+      Objects.requireNonNull(value, "value");
+    }
+  }
+
+  /** A notice without details. */
+  public ApprovalNotice(String id, String tool, String toolKey, String connection, Env env, String endpoint,
+      String client, String clientLabel, Action action, String summary, String ruleId, String commentPolicy,
+      Instant createdAt, Instant expiresAt, String digest, boolean plugin) {
+    this(id, tool, toolKey, connection, env, endpoint, client, clientLabel, action, summary, ruleId, commentPolicy,
+        createdAt, expiresAt, digest, plugin, List.of());
+  }
 
   /**
    * The exact action. {@code text} has its invisible characters written as visible escapes ({@code ‹U+202E›}): a
@@ -57,6 +83,26 @@ public record ApprovalNotice(String id, String tool, String toolKey, String conn
     Objects.requireNonNull(id, "id");
     Objects.requireNonNull(env, "env");
     Objects.requireNonNull(action, "action");
+    details = details == null ? List.of() : List.copyOf(details);
+  }
+
+  /** The invisible characters of every detail, as the action counts its own. */
+  public int detailsHiddenChars() {
+    return details.stream().mapToInt(Detail::hiddenChars).sum();
+  }
+
+  /** The look-alike letters of every detail, as the action counts its own. */
+  public int detailsConfusables() {
+    return details.stream().mapToInt(Detail::confusables).sum();
+  }
+
+  /** Every detail's label and value as one text: what a channel shows besides the action. */
+  public String detailsText() {
+    StringBuilder out = new StringBuilder();
+    for (Detail d : details) {
+      out.append(d.label()).append(d.value());
+    }
+    return out.toString();
   }
 
   public boolean prod() {

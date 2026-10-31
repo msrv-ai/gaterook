@@ -110,6 +110,29 @@ class OracleSqlSecurityTest {
         .isEqualTo(Classification.Kind.DENY);
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {
+      "SELECT MAX(1) KEEP (DENSE_RANK FIRST ORDER BY app.autonomous_fn()) FROM SYS.DUAL",
+      "SELECT COUNT(*) OVER (PARTITION BY app.autonomous_fn()) FROM SYS.DUAL",
+      "SELECT COUNT(*) OVER (PARTITION BY custom_fn(1)) FROM SYS.DUAL"
+  })
+  void storedRoutinesInEveryExpressionPositionAreDenied(String sql) {
+    assertThat(SqlRules.query(SqlClassifier.analyze(sql, ORACLE), policy()).kind()).as(sql)
+        .isEqualTo(Classification.Kind.DENY);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {
+      "SELECT CAST(1 AS NUMBER(10, 2)), CAST('a' AS VARCHAR2(10)) FROM SYS.DUAL",
+      "SELECT LISTAGG(status, ',') WITHIN GROUP (ORDER BY status) FROM orders",
+      "SELECT MAX(id) KEEP (DENSE_RANK FIRST ORDER BY created_at) FROM orders",
+      "SELECT COUNT(*) OVER (PARTITION BY UPPER(status)) FROM orders"
+  })
+  void builtInsTypesAndClausesBeforeParenthesesStayReads(String sql) {
+    assertThat(SqlRules.query(SqlClassifier.analyze(sql, ORACLE), policy()).kind()).as(sql)
+        .isEqualTo(Classification.Kind.READ);
+  }
+
   @Test
   void ordinaryQueriesAndSingleApprovedChangesUseExistingPolicyRoutes() {
     assertThat(SqlRules.query(SqlClassifier.analyze("SELECT NVL(name, 'unknown') FROM orders FETCH FIRST 10 ROWS ONLY", ORACLE), policy()).kind())

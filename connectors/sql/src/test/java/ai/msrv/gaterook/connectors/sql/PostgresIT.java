@@ -186,6 +186,30 @@ class PostgresIT {
   }
 
   @Test
+  void aHugeValueIsDecodedOnlyAsFarAsItIsShown() throws Exception {
+    var threads = (com.sun.management.ThreadMXBean) java.lang.management.ManagementFactory.getThreadMXBean();
+    read(rw(), "SELECT 1");
+
+    long before = threads.getCurrentThreadAllocatedBytes();
+    ToolResult r = read(rw(), "SELECT repeat('я', 2000000) AS t");
+    long allocated = threads.getCurrentThreadAllocatedBytes() - before;
+
+    String cell = r.table().rows().get(0).get(0).asString();
+    assertThat(cell).startsWith("я".repeat(8_192) + "…‹truncated ").endsWith("+ chars›").hasSizeLessThan(8_300);
+    assertThat(allocated).as("the 4 MB row as pgjdbc holds it, and 32 KB decoded").isLessThan(6L * 1024 * 1024);
+  }
+
+  @Test
+  void rowsBeyondTheResultBufferAreRefusedAndTheConnectionReplaced() throws Exception {
+    assertThatThrownBy(() -> read(rw(), "SELECT repeat('a', 40 * 1024 * 1024)"))
+        .isInstanceOfSatisfying(ConnectorException.class, e -> {
+          assertThat(e.kind()).isEqualTo(ConnectorException.Kind.RESOURCE_ERROR);
+          assertThat(e.getMessage()).contains("more than 32 MiB").contains("fewer or smaller columns");
+        });
+    assertThat(read(rw(), "SELECT 1").table().rows()).hasSize(1);
+  }
+
+  @Test
   void queryStopsAtTheRowLimit() throws Exception {
     ToolCall call = Fixtures.call("sql_query", Fixtures.object().put("sql",
         "SELECT g FROM generate_series(1, 5000) g").put("limit", 1000));

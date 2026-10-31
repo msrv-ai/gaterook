@@ -49,22 +49,26 @@ class ConsentsTest {
   }
 
   private Consents.Pending pending(String id, String endpointId) {
+    return pending(id, endpointId, "127.0.0.1");
+  }
+
+  private Consents.Pending pending(String id, String endpointId, String browserIp) {
     Issuers.Server server = new Issuers.Server(Ingress.LOCAL, "http://127.0.0.1:7465", null);
     Clients.Client client = new Clients.Client("row-1", "gwc_client", OAuthClientKind.DCR, Ingress.LOCAL, "127.0.0.1",
         "Cursor", List.of("http://127.0.0.1/callback"));
     return new Consents.Pending(id, "ABC-DEF", "cookie-hash", server, client, "http://127.0.0.1:5000/callback",
         "st", "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM", "mcp", endpointId, "dev",
-        "http://127.0.0.1:7465/mcp/dev", "127.0.0.1", clock.instant());
+        "http://127.0.0.1:7465/mcp/dev", browserIp, clock.instant());
   }
 
   @Test
-  void aBurstOfSignInsOpensAtMostThreeForAnEndpoint() throws Exception {
+  void aBurstOfSignInsFromManyBrowsersOpensAtMostTenForAnEndpoint() throws Exception {
     int burst = 32;
     CountDownLatch start = new CountDownLatch(1);
     AtomicInteger opened = new AtomicInteger();
     List<Thread> threads = new ArrayList<>();
     for (int i = 0; i < burst; i++) {
-      Consents.Pending p = pending("ar_burst" + i, "endpoint-1");
+      Consents.Pending p = pending("ar_burst" + i, "endpoint-1", "203.0.113." + (i + 1));
       threads.add(Thread.ofVirtual().start(() -> {
         try {
           start.await();
@@ -83,8 +87,23 @@ class ConsentsTest {
     }
     assertThat(opened.get()).isEqualTo(Consents.MAX_PER_ENDPOINT);
     assertThat(consents.waiting()).hasSize(Consents.MAX_PER_ENDPOINT);
+    assertThat(consents.open(pending("ar_late", "endpoint-1", "203.0.113.99"))).isEqualTo(Consents.Room.ENDPOINT_FULL);
     // Another endpoint has room of its own.
     assertThat(consents.tryOpen(pending("ar_other", "endpoint-2"))).isTrue();
+  }
+
+  @Test
+  void oneBrowserHoldsAtMostTwoWaitingSignInsAndNeverTheWholeEndpoint() {
+    assertThat(consents.open(pending("ar_b1", "endpoint-1", "198.51.100.7"))).isEqualTo(Consents.Room.OPEN);
+    assertThat(consents.open(pending("ar_b2", "endpoint-1", "198.51.100.7"))).isEqualTo(Consents.Room.OPEN);
+    assertThat(consents.open(pending("ar_b3", "endpoint-1", "198.51.100.7"))).isEqualTo(Consents.Room.BROWSER_FULL);
+    // An IPv6 browser is its /64; another browser, and the owner's, still get in.
+    assertThat(consents.open(pending("ar_v6a", "endpoint-1", "2001:db8:1:2::1"))).isEqualTo(Consents.Room.OPEN);
+    assertThat(consents.open(pending("ar_v6b", "endpoint-1", "2001:db8:1:2::2"))).isEqualTo(Consents.Room.OPEN);
+    assertThat(consents.open(pending("ar_v6c", "endpoint-1", "2001:db8:1:2::3"))).isEqualTo(Consents.Room.BROWSER_FULL);
+    assertThat(consents.open(pending("ar_owner", "endpoint-1", "192.0.2.10"))).isEqualTo(Consents.Room.OPEN);
+    // The same browser may wait on another endpoint.
+    assertThat(consents.open(pending("ar_b4", "endpoint-2", "198.51.100.7"))).isEqualTo(Consents.Room.OPEN);
   }
 
   @Test

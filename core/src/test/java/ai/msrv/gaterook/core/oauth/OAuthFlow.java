@@ -106,7 +106,15 @@ public final class OAuthFlow {
 
   /** The waiting page: 200, the code and request id in the page, the cookie of this browser. */
   public Waiting waiting(Map<String, String> params) {
-    TunnelWorld.Answer page = authorize(params);
+    return waiting(authorize(params));
+  }
+
+  /** {@link #waiting}, from a browser at {@code browserIp}. */
+  public Waiting waitingFrom(String browserIp, Map<String, String> params) {
+    return waiting(authorizeFrom(browserIp, params));
+  }
+
+  private Waiting waiting(TunnelWorld.Answer page) {
     assertThat(page.status()).as(page.body()).isEqualTo(200);
     Matcher rid = RID.matcher(page.body());
     Matcher code = CODE.matcher(page.body());

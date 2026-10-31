@@ -323,7 +323,12 @@ final class K8sRequests {
       return List.of();
     }
     if (all) {
-      return policy.namespaces();
+      List<String> allowed = policy.namespaces();
+      if (allowed.isEmpty()) {
+        throw new Refusal(new Problem(policy.rule("namespace-not-allowed"), "No namespace is allowed on "
+            + policy.env().id() + ": the policies of this call have none in common.", null));
+      }
+      return allowed;
     }
     String n = ns != null ? ns : s.namespace();
     namespace(n, policy);

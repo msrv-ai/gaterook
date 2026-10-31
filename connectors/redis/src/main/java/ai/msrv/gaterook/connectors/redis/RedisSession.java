@@ -8,7 +8,6 @@ import java.util.List;
 import redis.clients.jedis.BuilderFactory;
 import redis.clients.jedis.CommandArguments;
 import redis.clients.jedis.CommandObject;
-import redis.clients.jedis.Connection;
 import redis.clients.jedis.exceptions.JedisConnectionException;
 import redis.clients.jedis.exceptions.JedisDataException;
 
@@ -23,8 +22,9 @@ final class RedisSession implements AutoCloseable {
   private final RedisClients.Pool pool;
   private final Clock clock;
   private final Instant deadline;
-  private Connection connection;
+  private BoundedConnection connection;
   private ReadOnlyCommandExecutor executor;
+  private int keep = -1;
   private boolean reused;
   private boolean sentAny;
   private volatile boolean aborted;
@@ -45,6 +45,7 @@ final class RedisSession implements AutoCloseable {
   Object call(Cmd command, Object... args) throws ConnectorException {
     CommandArguments a = args(command, args);
     while (true) {
+      connection.keep(keep);
       try {
         Object reply = executor.executeCommand(new CommandObject<>(a, BuilderFactory.RAW_OBJECT));
         sentAny = true;
@@ -53,6 +54,22 @@ final class RedisSession implements AutoCloseable {
         if (!retry(e)) {
           throw e;
         }
+      }
+    }
+  }
+
+  /**
+   * A read of values: like {@link #call}, but each bulk string of the reply keeps at most {@code bytes} bytes. A longer
+   * one is a {@link BoundedConnection.Cut}, its rest read off the socket without being held.
+   */
+  Object read(int bytes, Cmd command, Object... args) throws ConnectorException {
+    keep = bytes;
+    try {
+      return call(command, args);
+    } finally {
+      keep = -1;
+      if (connection != null) {
+        connection.keep(-1);
       }
     }
   }
@@ -87,7 +104,7 @@ final class RedisSession implements AutoCloseable {
   /** Cuts the socket: a cancelled call's command returns at once with an error, and the connection is dropped. */
   void abort() {
     aborted = true;
-    Connection c = connection;
+    BoundedConnection c = connection;
     if (c != null) {
       RedisClients.disconnect(c);
     }
@@ -95,7 +112,7 @@ final class RedisSession implements AutoCloseable {
 
   @Override
   public void close() {
-    Connection c = connection;
+    BoundedConnection c = connection;
     connection = null;
     if (c != null) {
       pool.release(c, aborted);

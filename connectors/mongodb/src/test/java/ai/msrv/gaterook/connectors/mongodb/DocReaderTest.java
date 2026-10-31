@@ -8,6 +8,7 @@ import com.mongodb.ServerAddress;
 import com.mongodb.ServerCursor;
 import com.mongodb.client.MongoCursor;
 import ai.msrv.gaterook.connector.api.ToolResult;
+import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -147,18 +148,78 @@ class DocReaderTest {
     assertThat(r.structuredContent().path("truncatedReason").isNull()).isTrue();
   }
 
+  @Test
+  void aDocumentOfAMillionFieldsIsRefusedWithoutBeingBuilt() {
+    BsonDocument doc = new BsonDocument();
+    for (int i = 0; i < 1_000_000; i++) {
+      doc.append(Integer.toString(i), new BsonInt32(1));
+    }
+    RawBsonDocument raw = new RawBsonDocument(doc, new BsonDocumentCodec());
+    var threads = (com.sun.management.ThreadMXBean) ManagementFactory.getThreadMXBean();
+
+    long before = threads.getCurrentThreadAllocatedBytes();
+    DocReader.Page page = DocReader.read(new ListCursor(List.of(raw), -1), 10, 512 * 1024, 8_192,
+        System.nanoTime());
+    long allocated = threads.getCurrentThreadAllocatedBytes() - before;
+
+    assertThat(page.returned()).isZero();
+    assertThat(page.truncatedReason()).isEqualTo("size_limit");
+    // The driver's reader makes a String of each name it passes, up to where the measure passes the budget.
+    assertThat(allocated).as("%,d bytes of raw document, measured, never built", raw.getByteBuffer().remaining())
+        .isLessThan(4 * 1024 * 1024);
+  }
+
+  @Test
+  void aHugeStringIsCutWhileItIsReadNotAfter() {
+    BsonDocument doc = new BsonDocument("note", new BsonString("x".repeat(4_000_000))).append("k", new BsonInt32(1));
+    RawBsonDocument raw = new RawBsonDocument(doc, new BsonDocumentCodec());
+    var threads = (com.sun.management.ThreadMXBean) ManagementFactory.getThreadMXBean();
+
+    long before = threads.getCurrentThreadAllocatedBytes();
+    DocReader.Page page = DocReader.read(new ListCursor(List.of(raw), -1), 10, 512 * 1024, 8_192,
+        System.nanoTime());
+    long allocated = threads.getCurrentThreadAllocatedBytes() - before;
+
+    assertThat(page.returned()).isEqualTo(1);
+    assertThat(page.documents().getFirst().path("note").asString())
+        .isEqualTo("x".repeat(8_192) + "…‹truncated 3,991,808 chars›");
+    assertThat(page.documents().getFirst().path("k").asInt()).isEqualTo(1);
+    assertThat(page.cutValues()).isEqualTo(1);
+    assertThat(allocated).as("a 4 MB string, of which 8 KB are read").isLessThan(2 * 1024 * 1024);
+  }
+
+  @Test
+  void aCutFallsOnTheSameCharacterWhetherTheStringIsReadWholeOrNot() {
+    for (String s : List.of("a😀😀b", "😀😀😀", "日本語テキスト", "ab😀", "plain")) {
+      for (int max = 1; max <= 8; max++) {
+        int[] cut = new int[1];
+        BsonDocument doc = BoundedBson.decode(new RawBsonDocument(new BsonDocument("s", new BsonString(s)),
+            new BsonDocumentCodec()), max, cut);
+        String expected = s;
+        if (s.length() > max) {
+          // How a built string was cut before: at max UTF-16 units, never between the halves of a surrogate pair.
+          int end = Character.isHighSurrogate(s.charAt(max - 1)) ? max - 1 : max;
+          expected = Ejson.truncated(s.substring(0, end), s.length() - end);
+        }
+        assertThat(doc.getString("s").getValue()).as("%s at %d", s, max).isEqualTo(expected);
+        assertThat(cut[0]).as("%s at %d", s, max).isEqualTo(s.length() > max ? 1 : 0);
+      }
+    }
+  }
+
   private static DocReader.Page page(List<BsonDocument> docs, int n, long maxBytes) {
     return DocReader.read(new ListCursor(docs, -1), n, maxBytes, 8_192, System.nanoTime());
   }
 
   /** A cursor over documents; {@code timeoutAt} ≥ 0 makes that read time out like maxTimeMS on a getMore. */
   static final class ListCursor implements MongoCursor<RawBsonDocument> {
-    private final Iterator<BsonDocument> it;
+    private final Iterator<?> it;
     private final int timeoutAt;
     private int read;
     boolean closed;
 
-    ListCursor(List<BsonDocument> docs, int timeoutAt) {
+    /** Documents, or raw documents as the driver hands them over. */
+    ListCursor(List<?> docs, int timeoutAt) {
       this.it = docs.iterator();
       this.timeoutAt = timeoutAt;
     }
@@ -174,7 +235,9 @@ class DocReaderTest {
     @Override
     public RawBsonDocument next() {
       read++;
-      return new RawBsonDocument(it.next(), new BsonDocumentCodec());
+      Object next = it.next();
+      return next instanceof RawBsonDocument raw ? raw : new RawBsonDocument((BsonDocument) next,
+          new BsonDocumentCodec());
     }
 
     @Override

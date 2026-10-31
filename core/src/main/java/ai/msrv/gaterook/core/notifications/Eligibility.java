@@ -13,7 +13,8 @@ import java.util.Objects;
  *   <li>the whole action fits the message (Slack ≤ {@value #SLACK_ACTION_LIMIT} characters, Telegram's whole message
  *       ≤ {@value #TELEGRAM_MESSAGE_LIMIT}) and nothing of it was left out;</li>
  *   <li>the masker found nothing that looks like a secret in it;</li>
- *   <li>no hidden characters and no letters that pass for others ({@code ActionInspector});</li>
+ *   <li>no hidden characters and no letters that pass for others ({@code ActionInspector}), and nothing beyond
+ *       printable ASCII — in the action and in the details shown with it (its target, a template's values);</li>
  *   <li>no flood: more than {@value #FLOOD_PER_MINUTE} new requests a minute turn the channel into one digest message;</li>
  *   <li>the request still waits for a person.</li>
  * </ol>
@@ -107,13 +108,42 @@ public final class Eligibility {
     if (a.partial()) {
       return "Part of the action is shown only in GateRook: approve in the app.";
     }
-    if (a.hiddenChars() > 0) {
-      return "Contains " + a.hiddenChars() + (a.hiddenChars() == 1 ? " hidden character" : " hidden characters")
-          + ". Review in the app.";
+    int hidden = a.hiddenChars() + n.detailsHiddenChars();
+    if (hidden > 0) {
+      return "Contains " + hidden + (hidden == 1 ? " hidden character" : " hidden characters") + ". Review in the app.";
     }
-    if (a.confusables() > 0) {
+    if (a.confusables() + n.detailsConfusables() > 0) {
       return "Contains letters that look like others. Review in the app.";
     }
+    if (!plainAscii(a.text()) || !plainAscii(n.detailsText(), true)) {
+      return "Contains characters beyond plain ASCII. Review in the app.";
+    }
     return null;
+  }
+
+  /**
+   * Printable ASCII and line breaks only. A chat client draws the rest with its own fonts and no highlighting, so an
+   * action the window would mark can look ordinary there.
+   */
+  static boolean plainAscii(String text) {
+    return plainAscii(text, false);
+  }
+
+  /**
+   * The same; {@code separator} also allows the middle dot ({@code ·}) the connectors' own previews separate their
+   * words with ({@code dev-db · db.dev.internal:5432/app}, {@code cancel_orders · version 3}): GateRook's typography,
+   * not the data's.
+   */
+  static boolean plainAscii(String text, boolean separator) {
+    for (int i = 0; i < text.length(); i++) {
+      char c = text.charAt(i);
+      if (separator && c == '\u00B7') {
+        continue;
+      }
+      if ((c < 0x20 || c > 0x7E) && c != '\n' && c != '\r') {
+        return false;
+      }
+    }
+    return true;
   }
 }

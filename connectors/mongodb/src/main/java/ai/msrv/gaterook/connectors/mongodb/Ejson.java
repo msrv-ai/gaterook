@@ -1,15 +1,9 @@
 package ai.msrv.gaterook.connectors.mongodb;
 
 import java.text.NumberFormat;
-import java.util.HexFormat;
 import java.util.Locale;
-import java.util.Map;
 import org.bson.BsonArray;
-import org.bson.BsonBinary;
 import org.bson.BsonDocument;
-import org.bson.BsonJavaScript;
-import org.bson.BsonString;
-import org.bson.BsonSymbol;
 import org.bson.BsonType;
 import org.bson.BsonValue;
 import org.bson.codecs.BsonArrayCodec;
@@ -125,69 +119,9 @@ final class Ejson {
     return JSON.readTree(doc.toJson(RELAXED));
   }
 
-  /**
-   * Cuts what is too long before anything is converted: strings (and symbols, code) to {@code maxChars} with
-   * {@code …‹truncated 12,345 chars›}, binary values longer than {@value #MAX_BINARY} bytes to a description. Returns
-   * how many values were cut.
-   */
-  static int shrink(BsonValue value, int maxChars) {
-    int cut = 0;
-    if (value instanceof BsonDocument d) {
-      for (Map.Entry<String, BsonValue> e : d.entrySet()) {
-        BsonValue v = e.getValue();
-        BsonValue replaced = replacement(v, maxChars);
-        if (replaced != null) {
-          e.setValue(replaced);
-          cut++;
-        } else {
-          cut += shrink(v, maxChars);
-        }
-      }
-    } else if (value instanceof BsonArray a) {
-      for (int i = 0; i < a.size(); i++) {
-        BsonValue v = a.get(i);
-        BsonValue replaced = replacement(v, maxChars);
-        if (replaced != null) {
-          a.set(i, replaced);
-          cut++;
-        } else {
-          cut += shrink(v, maxChars);
-        }
-      }
-    }
-    return cut;
-  }
-
-  private static BsonValue replacement(BsonValue v, int maxChars) {
-    if (v.getBsonType() == BsonType.STRING) {
-      String s = ((BsonString) v).getValue();
-      return s.length() > maxChars ? new BsonString(cut(s, maxChars)) : null;
-    }
-    if (v.getBsonType() == BsonType.SYMBOL) {
-      String s = ((BsonSymbol) v).getSymbol();
-      return s.length() > maxChars ? new BsonString(cut(s, maxChars)) : null;
-    }
-    if (v.getBsonType() == BsonType.JAVASCRIPT) {
-      String s = ((BsonJavaScript) v).getCode();
-      return s.length() > maxChars ? new BsonString(cut(s, maxChars)) : null;
-    }
-    if (v.getBsonType() == BsonType.BINARY) {
-      BsonBinary b = (BsonBinary) v;
-      if (b.getData().length > MAX_BINARY) {
-        return new BsonString("‹binary " + NumberFormat.getIntegerInstance(Locale.US).format(b.getData().length)
-            + " bytes, subtype " + HexFormat.of().toHexDigits(b.getType()) + "›");
-      }
-    }
-    return null;
-  }
-
-  private static String cut(String s, int maxChars) {
-    int end = maxChars;
-    if (Character.isHighSurrogate(s.charAt(end - 1))) {
-      end--;
-    }
-    return s.substring(0, end) + "…‹truncated " + NumberFormat.getIntegerInstance(Locale.US)
-        .format(s.length() - end) + " chars›";
+  /** The start of a long string and the marker that says how much followed. */
+  static String truncated(String head, long omitted) {
+    return head + "…‹truncated " + NumberFormat.getIntegerInstance(Locale.US).format(omitted) + " chars›";
   }
 
   /**

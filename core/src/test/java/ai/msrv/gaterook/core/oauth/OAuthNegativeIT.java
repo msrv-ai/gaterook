@@ -140,18 +140,24 @@ class OAuthNegativeIT {
   }
 
   @Test
-  void atMostThreeSignInsWaitPerEndpoint() {
+  void oneBrowserHoldsAtMostTwoWaitingSignInsAndTheOwnersStillGetsIn() {
+    // The flow's default gives every request a browser of its own (the per-minute limit); here one browser insists.
+    String stranger = "203.0.113.250";
     List<OAuthFlow.Waiting> waiting = new java.util.ArrayList<>();
-    for (int i = 0; i < 3; i++) {
-      waiting.add(tunnel.waiting(params(resource)));
+    for (int i = 0; i < 2; i++) {
+      waiting.add(tunnel.waitingFrom(stranger, params(resource)));
     }
-    TunnelWorld.Answer fourth = tunnel.authorize(params(resource));
-    assertThat(fourth.status()).isEqualTo(429);
-    assertThat(fourth.header("location")).isNull();
-    assertThat(fourth.body()).contains("Another sign-in is waiting");
+    TunnelWorld.Answer third = tunnel.authorizeFrom(stranger, params(resource));
+    assertThat(third.status()).isEqualTo(429);
+    assertThat(third.header("location")).isNull();
+    assertThat(third.body()).contains("A sign-in from this browser is still waiting").contains("deny it if you")
+        .doesNotContain("Answer it in GateRook first");
+    // Another browser (the owner's) has room of its own while a stranger's two wait.
+    waiting.add(tunnel.waitingFrom("203.0.113.44", params(resource)));
     for (OAuthFlow.Waiting w : waiting) {
       assertThat(tunnel.decide(w, "deny").status()).isEqualTo(204);
     }
+    assertThat(api.ok("/api/oauth/consents").size()).isZero();
   }
 
   @Test

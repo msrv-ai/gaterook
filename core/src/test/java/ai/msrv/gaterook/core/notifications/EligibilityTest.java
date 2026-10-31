@@ -10,7 +10,8 @@ import org.junit.jupiter.api.Test;
 /**
  * Report 13 §6.2 as a table: Approve in Slack or Telegram only when every condition holds — decisions from linked
  * accounts, not prod, no comment required (then or now), not a plugin, the whole action fits and nothing of it was
- * left out, nothing looks like a secret, nothing hidden or look-alike, no flood, still pending. Every combination of
+ * left out, nothing looks like a secret, nothing hidden or look-alike and nothing beyond printable ASCII, no flood,
+ * still pending. Every combination of
  * the conditions is tried; one failing condition is enough to drop Approve.
  */
 class EligibilityTest {
@@ -76,6 +77,8 @@ class EligibilityTest {
         1, 0, false)), true, false, true, false, true));
     reasons.add(reason(NoticeFixtures.with(dev, new ApprovalNotice.Action("sql", "sql", "DЕLETE", 6, false, 0, 1,
         false)), true, false, true, false, true));
+    reasons.add(reason(NoticeFixtures.with(dev, new ApprovalNotice.Action("sql", "sql",
+        "UPDATE users SET name = 'Ёжик' WHERE id = 7;", 44, false, 0, 0, false)), true, false, true, false, true));
     reasons.add(reason(dev, true, false, true, false, false));
     assertThat(reasons).containsExactly(
         "Decisions are made in GateRook only.",
@@ -85,6 +88,7 @@ class EligibilityTest {
         "The action is too long for this message: approve in the app.",
         "Contains 1 hidden character. Review in the app.",
         "Contains letters that look like others. Review in the app.",
+        "Contains characters beyond plain ASCII. Review in the app.",
         "The request was decided.");
   }
 
@@ -112,5 +116,30 @@ class EligibilityTest {
 
   private static boolean bit(int mask, int i) {
     return (mask & (1 << i)) != 0;
+  }
+
+  @Test
+  void detailsAreInspectedLikeTheAction() {
+    ApprovalNotice dev = NoticeFixtures.dev();
+    ApprovalNotice hidden = NoticeFixtures.withDetails(dev, List.of(new ApprovalNotice.Detail("Parameters",
+        ":name = 'x‹U+200B›y' (text)", 1, 0)));
+    ApprovalNotice lookAlike = NoticeFixtures.withDetails(dev, List.of(new ApprovalNotice.Detail("Parameters",
+        ":name = 'pаypal' (text)", 0, 1)));
+    ApprovalNotice cyrillic = NoticeFixtures.withDetails(dev, List.of(NoticeFixtures.detail("Parameters",
+        ":name = 'Ёжик' (text)")));
+    ApprovalNotice plain = NoticeFixtures.withDetails(dev, List.of(NoticeFixtures.detail("Parameters",
+        ":customer_id = 48213 (integer)")));
+    for (Eligibility.Channel channel : Eligibility.Channel.values()) {
+      assertThat(verdict(channel, hidden).reason()).isEqualTo("Contains 1 hidden character. Review in the app.");
+      assertThat(verdict(channel, lookAlike).reason())
+          .isEqualTo("Contains letters that look like others. Review in the app.");
+      assertThat(verdict(channel, cyrillic).reason())
+          .isEqualTo("Contains characters beyond plain ASCII. Review in the app.");
+      assertThat(verdict(channel, plain).approve()).isTrue();
+    }
+  }
+
+  private static Eligibility.Verdict verdict(Eligibility.Channel channel, ApprovalNotice n) {
+    return Eligibility.evaluate(new Eligibility.Facts(channel, n, true, false, true, false, true));
   }
 }

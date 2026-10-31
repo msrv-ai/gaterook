@@ -23,7 +23,8 @@ import java.util.stream.Stream;
  * on a PATH that also has what a login shell adds (a GUI app starts with {@code /usr/bin:/bin:/usr/sbin:/sbin}, where
  * Homebrew, nvm and Volta aren't), and an environment of only the basic user variables, the ones the person chose to
  * pass and the values of the server's secrets. Where {@code gw-bridge sandbox-exec} works (Landlock on Linux,
- * {@code sandbox-exec} on macOS) the process runs confined to its work folder and the system; elsewhere it runs as the
+ * {@code sandbox-exec} on macOS) the process reads the system and the home minus GateRook's data and the credential
+ * folders, and writes only its work folder, the temporary folders and the package caches; elsewhere it runs as the
  * person's user and the review says so.
  */
 final class Launcher {

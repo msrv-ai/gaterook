@@ -236,8 +236,10 @@ record OpenSearchRequest(String tool, String method, String path, String body, S
         || rawPath.matches("/_nodes(/[^/]+)?(/(stats|info|hot_threads|usage))?(/[^/]+)?")
             && !rawPath.contains("reload")
         || rawPath.matches("/_tasks(/[^/]+)?")
+        // A name, never an action: GET /_ingest/pipeline/_simulate runs the pipeline in its body.
         || rawPath.matches("/_(index_template|component_template|template|data_stream|ingest/pipeline|"
-            + "search/pipeline|scripts)(/[^/]+)?");
+            + "search/pipeline|scripts)(/(?!_)[^/]+)?")
+        || rawPath.equals("/_data_stream/_stats");
   }
 
   void checkSize(Limits limits) throws ConnectorException {

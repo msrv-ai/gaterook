@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Locale;
 import org.bson.BsonDocument;
 import org.bson.RawBsonDocument;
-import org.bson.codecs.BsonDocumentCodec;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.JsonNodeFactory;
@@ -20,8 +19,9 @@ import tools.jackson.databind.node.ObjectNode;
  * Reads a cursor within the call's limits (report 05 §3.1): at most {@code n} documents (the query asked for
  * {@code n + 1}: one more means {@code doc_limit}), at most the response budget — counted on what the agent gets, the
  * document in the structured content and its line of text — then {@code size_limit} and the cursor is closed (the
- * driver kills it on the server). Long strings and binaries are cut before conversion; the server's
- * {@code maxTimeMS} after some documents ends the page with {@code timeout} instead of an error.
+ * driver kills it on the server). A document whose text can't fit the room left isn't built at all, and long strings
+ * and binaries are cut as a document is read ({@link BoundedBson}); the server's {@code maxTimeMS} after some
+ * documents ends the page with {@code timeout} instead of an error.
  */
 final class DocReader {
 
@@ -46,7 +46,6 @@ final class DocReader {
     long bson = 0;
     long used = OVERHEAD;
     int cut = 0;
-    BsonDocumentCodec codec = new BsonDocumentCodec();
     try {
       while (cursor.hasNext()) {
         RawBsonDocument raw = cursor.next();
@@ -55,8 +54,13 @@ final class DocReader {
           break;
         }
         int size = raw.getByteBuffer().remaining();
-        BsonDocument doc = raw.decode(codec);
-        cut += Ejson.shrink(doc, maxChars);
+        long room = maxBytes - used;
+        if (2 * BoundedBson.atLeast(raw, maxChars, room / 2) + 2 > room) {
+          reason = "size_limit";
+          break;
+        }
+        int[] cutHere = new int[1];
+        BsonDocument doc = BoundedBson.decode(raw, maxChars, cutHere);
         String json = Ejson.relaxed(doc);
         long cost = 2L * json.getBytes(StandardCharsets.UTF_8).length + 2;
         if (used + cost > maxBytes) {
@@ -64,6 +68,7 @@ final class DocReader {
           break;
         }
         used += cost;
+        cut += cutHere[0];
         bson += size;
         docs.add(Ejson.JSON.readTree(json));
         lines.add(json);

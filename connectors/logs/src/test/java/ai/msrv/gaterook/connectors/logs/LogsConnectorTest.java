@@ -130,6 +130,14 @@ class LogsConnectorTest {
       loki       ; {"query":"count_over_time({app=\\"api\\"}[7d])"}                           ; READ
       loki       ; {"query":"rate({app=\\"api\\"} |= \\"x[30d]\\" |= `[30d]` [5m])"}          ; READ
       loki       ; {"query":"count_over_time({app=\\"api\\"}[1h] offset 30d)"}                ; READ
+      loki       ; {"query":"count_over_time({app=\\"api\\"} # [\\n[30d])"}                  ; dev.logs.range
+      loki       ; {"query":"count_over_time({app=\\"api\\"} # \\"\\n[30d]) # \\""}             ; dev.logs.range
+      loki       ; {"query":"count_over_time({app=\\"api\\"} # `\\n[30d]) # `"}               ; dev.logs.range
+      loki       ; {"query":"count_over_time({app=\\"api\\"} /* [ */ [30d])"}                ; dev.logs.range
+      loki       ; {"query":"count_over_time({app=\\"api\\"} /* # */ [30d])"}                ; dev.logs.range
+      loki       ; {"query":"count_over_time({app=\\"api\\"} // [\\n[30d])"}                 ; dev.logs.range
+      loki       ; {"query":"count_over_time({app=\\"api\\"} # was [30d]\\n[5m])"}          ; READ
+      loki       ; {"query":"rate({app=\\"api\\"} |= \\"#\\" |~ `//` [5m])"}                ; READ
       cloudwatch ; {"query":"SOURCE logGroups(namePrefix: ['/']) | fields @message"}       ; dev.logs.cw_source_command
       cloudwatch ; {"query":"fields @message | source  logGroups()"}                       ; dev.logs.cw_source_command
       cloudwatch ; {"query":"filter status >= 500 | join type=inner left=a right=b where a.id=b.id (SOURCE '/aws/x') | fields b.token"} ; dev.logs.cw_source_command
@@ -137,6 +145,11 @@ class LogsConnectorTest {
       cloudwatch ; {"query":"fields svc | appendcols ( SOURCE lg | stats avg(latency) as l by svc )"} ; dev.logs.cw_source_command
       cloudwatch ; {"query":"# the other team's groups\\nSOURCE logGroups(namePrefix: ['/']) | fields @message"} ; dev.logs.cw_source_command
       cloudwatch ; {"query":"fields @message | # later\\n source logGroups()"}             ; dev.logs.cw_source_command
+      cloudwatch ; {"query":"\\uFEFFSOURCE logGroups(namePrefix: ['/aws']) | fields @message"} ; dev.logs.cw_source_command
+      cloudwatch ; {"query":"\\u200B SOURCE logGroups(namePrefix: ['/aws']) | fields @message"} ; dev.logs.cw_source_command
+      cloudwatch ; {"query":"fields @message |\\u2060\\u034Fsource logGroups()"}          ; dev.logs.cw_source_command
+      cloudwatch ; {"query":"filter id in [SOURCE '/aws/x' | fields id]"}                  ; dev.logs.cw_source_command
+      cloudwatch ; {"query":"fields @message | un\\u200Bmask(@message)"}                   ; dev.logs.cw_unmask
       cloudwatch ; {"query":"fields action | lookup user_data id OUTPUT name, email"}      ; dev.logs.cw_lookup
       cloudwatch ; {"query":"fields @timestamp, @message | unmask(@message)"}              ; dev.logs.cw_unmask
       cloudwatch ; {"query":"fields source, @message | filter source = \\"api\\" | stats count(*) by source"} ; READ

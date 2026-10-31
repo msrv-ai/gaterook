@@ -41,9 +41,10 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * {@code POST /mcp/{slug}} (ARCHITECTURE.md §5 steps 1–2, report 01 §3.1): one JSON-RPC object per request, answered
  * with {@code application/json}. Legacy clients can open an authenticated GET SSE stream for tool-list changes.
- * No session IDs or replay IDs are issued. Before any JSON-RPC: only {@code application/json} (415, which also keeps
- * cross-site forms out), a body of at most 1 MiB (413), a bearer token of this endpoint and ingress (401 with
- * {@code WWW-Authenticate: Bearer realm="gaterook"}), then one object (a batch is {@code -32600}). Other methods
+ * No session IDs or replay IDs are issued. Before any JSON-RPC: a bearer token of this endpoint and ingress (401 with
+ * {@code WWW-Authenticate: Bearer realm="gaterook"}; nothing of an anonymous request's body is read or held), only
+ * {@code application/json} (415, which also keeps cross-site forms out), a body of at most 1 MiB (413) and within the
+ * principal's hourly budget ({@link RequestBudget}, 429), then one object (a batch is {@code -32600}). Other methods
  * are 405 with {@code Allow: GET, POST}. Host and Origin were checked by {@code LocalGuardFilter} already.
  */
 @RestController
@@ -58,11 +59,12 @@ class McpHttpController {
   private final EndpointSnapshotService snapshots;
   private final ToolCatalog catalogs;
   private final McpToolNotifications notifications;
+  private final RequestBudget budget;
   private final Duration heartbeat;
 
   McpHttpController(McpGateway gateway, CallerAuthenticator authenticator, Bootstrap bootstrap, JsonMapper json,
       EndpointSnapshotService snapshots, ToolCatalog catalogs, McpToolNotifications notifications,
-      @Value("${gateway.mcp.heartbeat:15s}") Duration heartbeat) {
+      RequestBudget budget, @Value("${gateway.mcp.heartbeat:15s}") Duration heartbeat) {
     this.gateway = gateway;
     this.authenticator = authenticator;
     this.bootstrap = bootstrap;
@@ -70,24 +72,30 @@ class McpHttpController {
     this.snapshots = snapshots;
     this.catalogs = catalogs;
     this.notifications = notifications;
+    this.budget = budget;
     this.heartbeat = heartbeat;
   }
 
   @PostMapping("/mcp/{slug}")
   ResponseEntity<byte[]> post(@PathVariable String slug, HttpServletRequest http) throws IOException {
     Ingress ingress = ingressOf(http);
-    // Through the tunnel nothing is answered before the token (report 02 §3): claude.ai starts its sign-in on a 401
-    // only, and an anonymous caller learns nothing about the endpoint, not even which bodies it takes.
-    Optional<Caller> caller = ingress == Ingress.TUNNEL ? authenticate(ingress, slug, http) : Optional.empty();
-    if (ingress == Ingress.TUNNEL && caller.isEmpty()) {
+    // Nothing is answered or read before the token. Through the tunnel claude.ai starts its sign-in on a 401 only,
+    // and an anonymous caller learns nothing about the endpoint, not even which bodies it takes (report 02 §3); on
+    // either ingress, an anonymous request's body never takes the gateway's memory.
+    Optional<Caller> caller = authenticate(ingress, slug, http);
+    if (caller.isEmpty()) {
       return unauthorized(ingress, slug, http);
     }
     String type = http.getContentType();
     if (type == null || !isJson(type)) {
       return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE).build();
     }
-    if (http.getContentLengthLong() > MAX_BODY) {
+    long declared = http.getContentLengthLong();
+    if (declared > MAX_BODY) {
       return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE).build();
+    }
+    if (declared > 0 && !budget.charge(caller.get().principalId(), declared)) {
+      return overBudget();
     }
     byte[] body;
     try (InputStream in = http.getInputStream()) {
@@ -96,11 +104,10 @@ class McpHttpController {
     if (body.length > MAX_BODY) {
       return ResponseEntity.status(HttpStatus.CONTENT_TOO_LARGE).build();
     }
-    if (ingress != Ingress.TUNNEL) {
-      caller = authenticate(ingress, slug, http);
-      if (caller.isEmpty()) {
-        return unauthorized(ingress, slug, http);
-      }
+    // A chunked body declares no length: counted once it is read, and what the declaration undercounted too.
+    if (body.length > Math.max(0, declared) && !budget.charge(caller.get().principalId(),
+        body.length - Math.max(0, declared))) {
+      return overBudget();
     }
     JsonNode root;
     try {
@@ -153,7 +160,13 @@ class McpHttpController {
     // The client may have cached a list before connecting, or missed changes while disconnected. Invalidate that
     // unknown view once on every new stream, then notify only when the published catalog actually changes.
     String listHash = null;
-    try (McpToolNotifications.Subscription subscription = notifications.subscribe(initial.get().id())) {
+    Optional<McpToolNotifications.Subscription> opened = notifications.subscribe(initial.get().id(),
+        caller.get().principalId());
+    if (opened.isEmpty()) {
+      return write(429, McpGateway.error(JsonRpc.OVER_BUDGET, "The gateway holds " + McpToolNotifications.OVERALL
+          + " notification streams already. Try again later."));
+    }
+    try (McpToolNotifications.Subscription subscription = opened.get()) {
       response.setStatus(HttpServletResponse.SC_OK);
       response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
       response.setCharacterEncoding(StandardCharsets.UTF_8.name());
@@ -229,6 +242,11 @@ class McpHttpController {
       return unauthorized(ingress, slug, http);
     }
     return methodNotAllowed();
+  }
+
+  private ResponseEntity<byte[]> overBudget() {
+    return write(429, McpGateway.error(JsonRpc.OVER_BUDGET, String.format(java.util.Locale.ROOT, "This token or "
+        + "grant has sent %,d MiB of requests this hour, its budget. Try again later.", budget.bytesPerHour() >> 20)));
   }
 
   private static ResponseEntity<byte[]> methodNotAllowed() {

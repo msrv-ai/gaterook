@@ -1,8 +1,14 @@
 package ai.msrv.gaterook.connectors.sql;
 
 import ai.msrv.gaterook.connector.api.ToolResult;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.Reader;
 import java.lang.reflect.Array;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.sql.Blob;
+import java.sql.Clob;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -25,6 +31,12 @@ import tools.jackson.databind.node.JsonNodeFactory;
  * already bounds what the server sends ({@code setMaxRows}: a portal limit on PostgreSQL, {@code sql_select_limit} on
  * MySQL), closing the result set ends the rest, and a cancel could hit the transaction's next statement instead.
  *
+ * <p>A long value is never built whole to be cut afterwards: a cell takes at most {@link #fieldSize} bytes of the
+ * gateway's memory beyond what the driver holds of the row. PostgreSQL's text is decoded from the first bytes of the
+ * row's buffer; LOBs are read through their locators; long character and binary columns through bounded streams;
+ * SQL Server and Oracle cut the rest at the server ({@code setMaxFieldSize}). A cut that may have hidden the value's
+ * length says so: {@code …‹truncated 24,580+ chars›}.
+ *
  * <p>Each column carries its origin ({@code schema.table.column}) where the driver knows it, so the core can mask
  * known-sensitive columns by name; an expression ({@code lower(email)}) has none, and the core's detectors apply.
  */
@@ -32,6 +44,15 @@ final class ResultReader {
 
   static final long MAX_SAFE_INTEGER = 9_007_199_254_740_992L;
   static final int MAX_BYTES_SHOWN = 256;
+
+  /**
+   * The most bytes of one character or binary value a read takes from the server where the driver can cut there
+   * ({@code Statement.setMaxFieldSize}), and the most it decodes: a cell of {@code maxCellChars} characters of four
+   * UTF-8 bytes each, and one more character to know the cell was longer.
+   */
+  static int fieldSize(int maxCellChars) {
+    return 4 * maxCellChars + 4;
+  }
 
   /**
    * What was read: the table and why it stopped early, if it did.
@@ -134,6 +155,9 @@ final class ResultReader {
   static JsonNode cell(ResultSet rs, int i, int type, String typeName, int maxCellChars, SqlSyntax syntax)
       throws SQLException {
     try {
+      if (syntax == SqlSyntax.POSTGRES && textFormat(rs, i, type)) {
+        return pgText(rs, i, maxCellChars);
+      }
       if (syntax == SqlSyntax.ORACLE) {
         if (type == oracle.jdbc.OracleTypes.TIMESTAMPTZ || type == Types.TIMESTAMP_WITH_TIMEZONE) {
           OffsetDateTime value = rs.getObject(i, OffsetDateTime.class);
@@ -148,6 +172,165 @@ final class ResultReader {
     } catch (SQLException | ArithmeticException | IllegalArgumentException e) {
       String v = rs.getString(i);
       return v == null ? JsonNodeFactory.instance.nullNode() : text(v, maxCellChars);
+    }
+  }
+
+  /**
+   * Whether pgjdbc holds this column as the server's text: character types and the types it has no Java class for
+   * ({@code json}, {@code uuid}, {@code interval}, enums), unless it asked for the binary format of a prepared
+   * statement's column.
+   */
+  private static boolean textFormat(ResultSet rs, int i, int type) {
+    switch (type) {
+      case Types.CHAR, Types.VARCHAR, Types.LONGVARCHAR, Types.NCHAR, Types.NVARCHAR, Types.LONGNVARCHAR,
+          Types.CLOB, Types.NCLOB, Types.SQLXML, Types.OTHER -> {
+        try {
+          return rs.getMetaData().unwrap(org.postgresql.PGResultSetMetaData.class).getFormat(i) == 0;
+        } catch (SQLException | RuntimeException e) {
+          return false;
+        }
+      }
+      default -> {
+        return false;
+      }
+    }
+  }
+
+  /**
+   * A PostgreSQL text cell from the row's own bytes ({@code getBytes} returns them as they are for a text column):
+   * only the first {@link #fieldSize} bytes become characters, however long the value is.
+   */
+  private static JsonNode pgText(ResultSet rs, int i, int maxCellChars) throws SQLException {
+    byte[] raw = rs.getBytes(i);
+    if (raw == null) {
+      return JsonNodeFactory.instance.nullNode();
+    }
+    int cap = fieldSize(maxCellChars);
+    if (raw.length <= cap) {
+      return text(new String(raw, StandardCharsets.UTF_8), maxCellChars);
+    }
+    int end = cap;
+    // Not inside a UTF-8 sequence: back up to the last character's first byte, then leave that character out.
+    while (end > 0 && (raw[end] & 0xC0) == 0x80) {
+      end--;
+    }
+    String head = new String(raw, 0, end, StandardCharsets.UTF_8);
+    return text(head, maxCellChars, head.length() + 1L, true);
+  }
+
+  /** The first {@code maxCellChars + 1} characters of a stream; the rest is read up to {@link #fieldSize} and counted. */
+  private static JsonNode streamed(Reader reader, int maxCellChars) throws SQLException {
+    if (reader == null) {
+      return JsonNodeFactory.instance.nullNode();
+    }
+    int cap = fieldSize(maxCellChars);
+    char[] buf = new char[maxCellChars + 1];
+    try (reader) {
+      int n = 0;
+      while (n < buf.length) {
+        int r = reader.read(buf, n, buf.length - n);
+        if (r < 0) {
+          break;
+        }
+        n += r;
+      }
+      if (n <= maxCellChars) {
+        return JsonNodeFactory.instance.stringNode(new String(buf, 0, n));
+      }
+      long rest = skip(reader, cap - n);
+      String v = new String(buf, 0, n);
+      return rest < 0 ? text(v, maxCellChars, cap + 1L, true) : text(v, maxCellChars, n + rest, false);
+    } catch (IOException e) {
+      throw new SQLException(e);
+    }
+  }
+
+  /** The first {@link #MAX_BYTES_SHOWN} bytes of a stream as hex; the rest is read up to {@link #fieldSize} and counted. */
+  private static JsonNode streamed(InputStream in, int maxCellChars) throws SQLException {
+    if (in == null) {
+      return JsonNodeFactory.instance.nullNode();
+    }
+    try (in) {
+      byte[] head = in.readNBytes(MAX_BYTES_SHOWN);
+      int cap = fieldSize(maxCellChars);
+      long rest = skip(in, cap - head.length);
+      return JsonNodeFactory.instance.stringNode(rest < 0 ? hex(head, cap + 1L, true)
+          : hex(head, head.length + rest, false));
+    } catch (IOException e) {
+      throw new SQLException(e);
+    }
+  }
+
+  /** How much more a reader has, up to {@code limit}; -1 when it has more than that. */
+  private static long skip(Reader reader, long limit) throws IOException {
+    char[] scratch = new char[Math.min(8_192, Math.toIntExact(Math.max(1, limit)))];
+    long skipped = 0;
+    while (true) {
+      int r = reader.read(scratch, 0, (int) Math.min(scratch.length, limit - skipped + 1));
+      if (r < 0) {
+        return skipped;
+      }
+      skipped += r;
+      if (skipped > limit) {
+        return -1;
+      }
+    }
+  }
+
+  private static long skip(InputStream in, long limit) throws IOException {
+    byte[] scratch = new byte[Math.min(8_192, Math.toIntExact(Math.max(1, limit)))];
+    long skipped = 0;
+    while (true) {
+      int r = in.read(scratch, 0, (int) Math.min(scratch.length, limit - skipped + 1));
+      if (r < 0) {
+        return skipped;
+      }
+      skipped += r;
+      if (skipped > limit) {
+        return -1;
+      }
+    }
+  }
+
+  /** A CLOB by its locator: its length, and only the characters that are shown. */
+  private static JsonNode clob(ResultSet rs, int i, int maxCellChars) throws SQLException {
+    Clob clob = rs.getClob(i);
+    if (clob == null) {
+      return JsonNodeFactory.instance.nullNode();
+    }
+    try {
+      long length = clob.length();
+      String head = length == 0 ? "" : clob.getSubString(1, (int) Math.min(length, maxCellChars + 1L));
+      return text(head, maxCellChars, length, false);
+    } finally {
+      free(clob);
+    }
+  }
+
+  /** A BLOB by its locator: its length, and only the bytes that are shown. */
+  private static JsonNode blob(ResultSet rs, int i) throws SQLException {
+    Blob blob = rs.getBlob(i);
+    if (blob == null) {
+      return JsonNodeFactory.instance.nullNode();
+    }
+    try {
+      long length = blob.length();
+      byte[] head = length == 0 ? new byte[0] : blob.getBytes(1, (int) Math.min(length, MAX_BYTES_SHOWN));
+      return JsonNodeFactory.instance.stringNode(hex(head, length, false));
+    } finally {
+      free(blob);
+    }
+  }
+
+  private static void free(Object lob) {
+    try {
+      if (lob instanceof Clob c) {
+        c.free();
+      } else if (lob instanceof Blob b) {
+        b.free();
+      }
+    } catch (SQLException | RuntimeException ignored) {
+      // The locator goes with the result set at the latest.
     }
   }
 
@@ -200,9 +383,21 @@ final class ResultReader {
           default -> text(String.valueOf(v), maxCellChars);
         };
       }
-      case Types.BINARY, Types.VARBINARY, Types.LONGVARBINARY, Types.BLOB -> {
+      case Types.BLOB -> {
+        return blob(rs, i);
+      }
+      case Types.LONGVARBINARY -> {
+        return streamed(rs.getBinaryStream(i), maxCellChars);
+      }
+      case Types.BINARY, Types.VARBINARY -> {
         byte[] v = rs.getBytes(i);
         return v == null ? f.nullNode() : f.stringNode(hex(v));
+      }
+      case Types.CLOB, Types.NCLOB -> {
+        return clob(rs, i, maxCellChars);
+      }
+      case Types.LONGVARCHAR, Types.LONGNVARCHAR -> {
+        return streamed(rs.getCharacterStream(i), maxCellChars);
       }
       case Types.ARRAY -> {
         java.sql.Array a = rs.getArray(i);
@@ -287,18 +482,40 @@ final class ResultReader {
 
   /** {@code \x0a1b…}, the first 256 bytes, then how many there were. */
   static String hex(byte[] bytes) {
-    int shown = Math.min(bytes.length, MAX_BYTES_SHOWN);
+    return hex(bytes, bytes.length, false);
+  }
+
+  /**
+   * {@code \x0a1b…}: the first 256 bytes of a value {@code length} bytes long, of which {@code bytes} holds at least
+   * those; {@code open} when the value wasn't read to its end, so {@code length} is a lower bound
+   * ({@code …‹32,773+ bytes›}).
+   */
+  static String hex(byte[] bytes, long length, boolean open) {
+    int shown = (int) Math.min(Math.min(bytes.length, MAX_BYTES_SHOWN), length);
     String hex = "\\x" + HexFormat.of().formatHex(bytes, 0, shown);
-    return bytes.length > shown ? hex + "…‹" + bytes.length + " bytes›" : hex;
+    return length > shown || open ? hex + "…‹" + length + (open ? "+" : "") + " bytes›" : hex;
   }
 
   /** A cell cut to {@code max} characters, never inside a surrogate pair, with how much was left out. */
   static JsonNode text(String v, int max) {
-    if (v.length() <= max) {
+    return text(v, max, v.length(), false);
+  }
+
+  /**
+   * A cell cut to {@code max} characters, of a value {@code length} characters long of which {@code v} is the start;
+   * {@code open} when the value wasn't read to its end, so {@code length} is a lower bound and the count left out says
+   * so ({@code …‹truncated 24,580+ chars›}).
+   */
+  static JsonNode text(String v, int max, long length, boolean open) {
+    long total = Math.max(length, v.length());
+    if (total <= max && !open) {
       return JsonNodeFactory.instance.stringNode(v);
     }
-    int cut = Character.isHighSurrogate(v.charAt(max - 1)) ? max - 1 : max;
+    int cut = Math.min(max, v.length());
+    if (cut > 0 && cut < v.length() && Character.isHighSurrogate(v.charAt(cut - 1))) {
+      cut--;
+    }
     return JsonNodeFactory.instance.stringNode(v.substring(0, cut) + "…‹truncated "
-        + String.format(Locale.US, "%,d", v.length() - cut) + " chars›");
+        + String.format(Locale.US, "%,d", total - cut) + (open ? "+" : "") + " chars›");
   }
 }

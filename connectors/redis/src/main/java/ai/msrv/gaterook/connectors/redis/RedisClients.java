@@ -54,7 +54,7 @@ final class RedisClients implements AutoCloseable {
   }
 
   /** A connection taken from a pool: {@code reused} when it served a call before (it may have gone stale since). */
-  record Borrowed(Connection connection, boolean reused) {}
+  record Borrowed(BoundedConnection connection, boolean reused) {}
 
   /** One connection's pool. */
   final class Pool {
@@ -70,7 +70,7 @@ final class RedisClients implements AutoCloseable {
     private volatile boolean retired;
     private volatile long lastUsedNanos = System.nanoTime();
 
-    private record Idle(Connection connection, long sinceNanos) {}
+    private record Idle(BoundedConnection connection, long sinceNanos) {}
 
     private Pool(String connectionId, long configVersion, RedisSettings settings, Credentials credentials) {
       this.connectionId = connectionId;
@@ -111,7 +111,7 @@ final class RedisClients implements AutoCloseable {
         if (retired) {
           throw ConnectorException.unavailable("The connection changed while the call started. Try again.", null);
         }
-        Connection reuse = pollIdle();
+        BoundedConnection reuse = pollIdle();
         if (reuse != null) {
           return new Borrowed(reuse, true);
         }
@@ -123,8 +123,9 @@ final class RedisClients implements AutoCloseable {
     }
 
     /** Back to the idle ones, or closed if it broke or the pool was replaced. */
-    void release(Connection c, boolean broken) {
+    void release(BoundedConnection c, boolean broken) {
       try {
+        c.keep(-1);
         if (broken || retired || c.isBroken() || !c.isConnected()) {
           disconnect(c);
         } else {
@@ -160,16 +161,16 @@ final class RedisClients implements AutoCloseable {
       noTouchUnsupported = value;
     }
 
-    private Connection open(Instant deadline) throws ConnectorException {
+    private BoundedConnection open(Instant deadline) throws ConnectorException {
       try {
         return ScopedValue.where(GuardedSocketFactory.DEADLINE, deadline)
-            .call(() -> new Connection(GuardedSocketFactory.oneSocket(sockets), client));
+            .call(() -> new BoundedConnection(GuardedSocketFactory.oneSocket(sockets), client));
       } catch (JedisException e) {
         throw RedisErrors.connect(e, settings);
       }
     }
 
-    private Connection pollIdle() {
+    private BoundedConnection pollIdle() {
       synchronized (idle) {
         return idle.isEmpty() ? null : idle.pop().connection();
       }

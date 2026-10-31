@@ -135,6 +135,41 @@ pg | query | prod | SELECT * FROM f_rows() | DENY function-not-built-in
 pg | execute | dev | UPDATE orders SET note = f_write() | MUTATION
 pg | execute | prod | UPDATE orders SET note = f_write() WHERE id = 1 | MUTATION
 #
+# ── PostgreSQL: calls in every expression position; the gateway reads past the parser's walk ─────────────────
+pg | query | dev | SELECT count(*) OVER (PARTITION BY dblink_exec('dbname=app', 'DELETE FROM accounts')) FROM (VALUES (1)) v | DENY function-denied
+pg | query | prod | SELECT max(1) OVER (PARTITION BY pg_terminate_backend(12345)) FROM (VALUES (1)) v | DENY function-denied
+pg | query | dev | SELECT sum(total) OVER (ORDER BY id ROWS BETWEEN pg_advisory_lock(1) PRECEDING AND CURRENT ROW) FROM orders | DENY function-denied
+pg | query | dev | SELECT count(*) OVER w FROM orders WINDOW w AS (PARTITION BY pg_advisory_lock(1)) | DENY function-denied
+pg | query | dev | SELECT '{}'::jsonb -> lo_export(16384, '/tmp/x') | DENY function-denied
+pg | query | dev | SELECT '{}'::jsonb ->> lo_export(16384, '/tmp/x') | DENY function-denied
+pg | query | dev | SELECT '{}'::jsonb #> ARRAY[pg_read_file('/etc/passwd')] | DENY function-denied
+pg | query | dev | SELECT now() AT TIME ZONE dblink_exec('dbname=app', 'DROP TABLE audit_log') | DENY function-denied
+pg | query | dev | SELECT (ARRAY[1])[pg_terminate_backend(1)] | DENY function-denied
+pg | query | dev | SELECT string_agg(status, ',' ORDER BY pg_terminate_backend(1)) FROM orders | DENY function-denied
+pg | query | dev | SELECT array_agg(id ORDER BY dblink('dbname=app', 'SELECT 1')) FROM orders | DENY function-denied
+pg | query | dev | SELECT pg_terminate_backend(1) IS UNKNOWN | DENY function-denied
+pg | query | dev | SELECT count(*) OVER (PARTITION BY f_write()) FROM orders | MUTATION
+pg | query | prod | SELECT count(*) OVER (PARTITION BY f_write()) FROM orders | DENY function-not-built-in
+pg | query | prod | SELECT now() AT TIME ZONE public.f_write() | DENY function-not-built-in
+# A name before a column list (an alias, a CTE) isn't a call there; another use of the same name is.
+pg | query | dev | WITH dblink_exec(x) AS (SELECT 1) SELECT count(*) OVER (PARTITION BY dblink_exec('dbname=app', 'x')) FROM dblink_exec | DENY function-denied
+pg | query | dev | SELECT count(*) OVER (PARTITION BY dblink_exec('dbname=app', 'x')) FROM generate_series(1, 2) AS dblink_exec(n) | DENY function-denied
+# Column lists, types and keywords before a parenthesis stay reads.
+pg | query | dev | SELECT n FROM generate_series(1, 3) AS g(n) | READ
+pg | query | dev | SELECT g.n FROM generate_series(1, 3) g(n) | READ
+pg | query | dev | SELECT * FROM (VALUES (1, 'a')) AS v(id, name) | READ
+pg | query | dev | WITH RECURSIVE t(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM t WHERE n < 5) SELECT n FROM t | READ
+pg | query | dev | SELECT * FROM jsonb_to_recordset('[{"a": 1}]') AS r(a int, b varchar(10)) | READ
+pg | query | dev | SELECT CAST(total AS numeric(10, 2)), total::numeric(12, 2), note::varchar(20), created_at::timestamp(0) FROM orders | READ
+pg | query | dev | SELECT count(*) OVER (PARTITION BY lower(status) ORDER BY upper(note)) FROM orders | READ
+pg | query | dev | SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY total) FROM orders | READ
+pg | query | dev | SELECT status FROM orders GROUP BY GROUPING SETS ((status), ()) | READ
+pg | query | dev | SELECT EXTRACT(epoch FROM now()), POSITION('a' IN 'abc'), SUBSTRING('abc' FROM 1 FOR 2), TRIM(BOTH ' ' FROM ' a ') | READ
+pg | query | dev | SELECT id FROM orders WHERE EXISTS (SELECT 1) AND id IN (1, 2) AND NOT (id > 3) | READ
+pg | query | dev | SELECT now() AT TIME ZONE 'UTC', '{"a": 1}'::jsonb -> 'a', (ARRAY[1, 2])[1] | READ
+pg | query | dev | SELECT count(*) FROM orders TABLESAMPLE SYSTEM (10) REPEATABLE (1) | READ
+pg | query | dev | WITH recent AS MATERIALIZED (SELECT id FROM orders) SELECT count(*) FROM recent | READ
+#
 # ── PostgreSQL: what the gateway can't analyze ────────────────────────────────────────────────────────────
 pg | query | dev | SELECT E'\'' | DENY unparsed
 pg | query | dev | DO $$ BEGIN DELETE FROM orders; END $$ | DENY unparsed
@@ -256,6 +291,17 @@ my | query | dev | SELECT RELEASE_ALL_LOCKS() | DENY function-denied
 my | query | dev | SELECT app.f_write() | MUTATION
 my | query | dev | SELECT f_write() | MUTATION
 my | query | prod | SELECT f_write() | DENY function-not-built-in
+#
+# ── MySQL: calls in every expression position ──────────────────────────────────────────────────────────────
+my | query | dev | SELECT GROUP_CONCAT(id ORDER BY LOAD_FILE('/etc/passwd')) FROM orders | DENY function-denied
+my | query | dev | SELECT GROUP_CONCAT(LOAD_FILE('/etc/passwd')) FROM orders | DENY function-denied
+my | query | dev | SELECT id FROM orders WHERE MATCH(note) AGAINST (LOAD_FILE('/etc/passwd')) | DENY function-denied
+my | query | dev | SELECT count(*) OVER (PARTITION BY GET_LOCK('a', 10)) FROM orders | DENY function-denied
+my | query | prod | SELECT count(*) OVER (PARTITION BY f_write()) FROM orders | DENY function-not-built-in
+my | query | dev | SELECT GROUP_CONCAT(DISTINCT status ORDER BY id SEPARATOR ',') FROM orders | READ
+my | query | dev | SELECT id FROM orders WHERE MATCH(note) AGAINST ('x' IN BOOLEAN MODE) | READ
+my | query | dev | SELECT CAST(total AS DECIMAL(10, 2)), CONVERT(note, CHAR(20)), CONVERT(note USING utf8mb4) FROM orders | READ
+my | query | dev | SELECT * FROM (SELECT 1, 2) AS dt (a, b) | READ
 my | query | dev | SELECT f_read() | READ | allowed=f_read
 my | query | dev | SELECT 1; SELECT 2 | DENY multi-statement
 my | query | dev | UPDATE orders SET status = 'x' | DENY query-writes

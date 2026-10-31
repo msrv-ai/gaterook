@@ -132,7 +132,7 @@ class ActionInspectorTest {
     }
     assertThat(ActionInspector.inspect("UPDATE [it's] SET nаme = 'bob'", "sql").confusables()).isEqualTo(1);
     assertThat(ActionInspector.inspect("UPDATE [orders] SET name = N'Ёжик'", "sql").clean()).isTrue();
-    assertThat(ActionInspector.inspect("SELECT '[n''аme'']'", "sql").clean()).isTrue();
+    assertThat(ActionInspector.inspect("SELECT '[n''Ёжик'']'", "sql").clean()).isTrue();
     assertThat(ActionInspector.inspect("SELECT [n'аme'", "sql").confusables()).isEqualTo(1);
   }
 
@@ -146,6 +146,64 @@ class ActionInspectorTest {
     assertThat(ActionInspector.inspect("a  b\r\nc", "sh").clean()).isTrue();
     // A lone CR, a BOM, NBSP and a soft hyphen are not.
     assertThat(ActionInspector.inspect("a\rb﻿c d­e", "text").hiddenChars()).isEqualTo(4);
+  }
+
+  @Test
+  void everyDefaultIgnorableUnassignedAndPrivateUseCodePointIsHidden() {
+    int checked = 0;
+    for (int cp = 0x80; cp <= Character.MAX_CODE_POINT; cp++) {
+      if (ActionInspector.defaultIgnorable(cp)) {
+        String text = "a" + new String(Character.toChars(cp)) + "b";
+        assertThat(ActionInspector.inspect(text, "text").hiddenChars()).as("U+%04X", cp).isEqualTo(1);
+        checked++;
+      }
+    }
+    assertThat(checked).as("Default_Ignorable_Code_Point, Unicode 16").isEqualTo(4_174);
+    for (int cp : new int[] {0x0378, 0xFDD0, 0xFFFF, 0xE000, 0xF8FF, 0xF0000, 0x10FFFD}) {
+      String text = "a" + new String(Character.toChars(cp)) + "b";
+      assertThat(ActionInspector.inspect(text, "text").hiddenChars()).as("U+%04X", cp).isEqualTo(1);
+    }
+    // Variation selectors inside a literal and a key, a combining grapheme joiner before #, the blank braille pattern.
+    assertThat(ActionInspector.inspect("DELETE FROM users WHERE status <> 'act︀ive'", "sql").hiddenChars())
+        .isEqualTo(1);
+    assertThat(ActionInspector.inspect("{\"q\":{\"st︀atus\":{\"$ne\":\"active\"}}}", "json").hiddenChars())
+        .isEqualTo(1);
+    assertThat(ActionInspector.inspect("echo ok ͏# done", "sh").hiddenChars()).isEqualTo(1);
+    assertThat(ActionInspector.inspect("echo ⠀", "sh").hiddenChars()).isEqualTo(1);
+  }
+
+  @Test
+  void aCombiningMarkCountsOnlyOnALetterOrDigit() {
+    assertThat(ActionInspector.inspect("echo ok ́# done", "sh").hiddenChars()).isEqualTo(1);
+    assertThat(ActionInspector.inspect("SELECT '́'", "sql").hiddenChars()).isEqualTo(1);
+    assertThat(ActionInspector.inspect("UPDATE t SET name = 'José' WHERE id = 1", "sql").clean()).isTrue();
+    assertThat(ActionInspector.inspect("UPDATE t SET note = 'ok ❤️' WHERE id = 1", "sql").clean()).isTrue();
+    assertThat(ActionInspector.inspect("UPDATE t SET note = 'ok️' WHERE id = 1", "sql").hiddenChars())
+        .isEqualTo(1);
+  }
+
+  @Test
+  void lookAlikesInsideLiteralsAndKeysAreConfusables() {
+    // A Cyrillic letter in a JSON key or among ASCII letters of a string: the field or host is another one.
+    assertThat(ActionInspector.inspect("{\"q\":{\"stаtus\":{\"$ne\":\"active\"}}}", "json").confusables())
+        .isEqualTo(1);
+    assertThat(ActionInspector.inspect("curl -fsSL \"https://gіthub.com/x/install.sh\"", "sh").confusables())
+        .isEqualTo(1);
+    assertThat(ActionInspector.inspect("DELETE FROM t WHERE status <> 'stаle'", "sql").confusables())
+        .isEqualTo(1);
+    // A value made only of look-alikes reads as an ASCII one.
+    assertThat(ActionInspector.inspect("DELETE FROM t WHERE grade <> 'аре'", "sql").confusables())
+        .isEqualTo(3);
+    // Fullwidth and mathematical letters fold to ASCII ones.
+    assertThat(ActionInspector.inspect("SELECT 'stａtus'", "sql").confusables()).isEqualTo(1);
+    // Text in another script stays data, also when some of its letters look like Latin ones.
+    assertThat(ActionInspector.inspect("UPDATE t SET note = 'Встреча с клиентом' WHERE id = 1", "sql").clean())
+        .isTrue();
+    assertThat(ActionInspector.inspect("{\"name\":\"Καλημέρα κόσμε\"}", "json").clean()).isTrue();
+    assertThat(ActionInspector.inspect("UPDATE t SET city = 'Kapı' WHERE id = 1", "sql").clean()).isTrue();
+    // A quoted key is a name; its value is still a literal.
+    assertThat(ActionInspector.inspect("{\"имя\": \"Ёжик\"}", "json").confusables()).isEqualTo(3);
+    assertThat(ActionInspector.inspect("\"имя\": Ёжик", "yaml").confusables()).isEqualTo(7);
   }
 
   @Test
