@@ -130,6 +130,14 @@ class LogsConnectorTest {
       loki       ; {"query":"count_over_time({app=\\"api\\"}[7d])"}                           ; READ
       loki       ; {"query":"rate({app=\\"api\\"} |= \\"x[30d]\\" |= `[30d]` [5m])"}          ; READ
       loki       ; {"query":"count_over_time({app=\\"api\\"}[1h] offset 30d)"}                ; READ
+      loki       ; {"query":"count_over_time({app=\\"api\\"} # [\\n[30d])"}                  ; dev.logs.range
+      loki       ; {"query":"count_over_time({app=\\"api\\"} # \\"\\n[30d]) # \\""}             ; dev.logs.range
+      loki       ; {"query":"count_over_time({app=\\"api\\"} # `\\n[30d]) # `"}               ; dev.logs.range
+      loki       ; {"query":"count_over_time({app=\\"api\\"} /* [ */ [30d])"}                ; dev.logs.range
+      loki       ; {"query":"count_over_time({app=\\"api\\"} /* # */ [30d])"}                ; dev.logs.range
+      loki       ; {"query":"count_over_time({app=\\"api\\"} // [\\n[30d])"}                 ; dev.logs.range
+      loki       ; {"query":"count_over_time({app=\\"api\\"} # was [30d]\\n[5m])"}          ; READ
+      loki       ; {"query":"rate({app=\\"api\\"} |= \\"#\\" |~ `//` [5m])"}                ; READ
       cloudwatch ; {"query":"SOURCE logGroups(namePrefix: ['/']) | fields @message"}       ; dev.logs.cw_source_command
       cloudwatch ; {"query":"fields @message | source  logGroups()"}                       ; dev.logs.cw_source_command
       cloudwatch ; {"query":"filter status >= 500 | join type=inner left=a right=b where a.id=b.id (SOURCE '/aws/x') | fields b.token"} ; dev.logs.cw_source_command
