@@ -74,8 +74,10 @@ class BridgeProcessTest {
     // Codex throws the helper's stderr away: the reason is in the bridge's log, owner-only, with the grant's prefix.
     Path log = home.resolve("logs").resolve("bridge.log");
     assertThat(Files.readString(log)).contains("grant_revoked").contains("gr_abcd…").doesNotContain(GRANT);
-    assertThat(PosixFilePermissions.toString(Files.getPosixFilePermissions(log))).isEqualTo("rw-------");
-    assertThat(PosixFilePermissions.toString(Files.getPosixFilePermissions(log.getParent()))).isEqualTo("rwx------");
+    if (Files.getFileStore(log).supportsFileAttributeView("posix")) {
+      assertThat(PosixFilePermissions.toString(Files.getPosixFilePermissions(log))).isEqualTo("rw-------");
+      assertThat(PosixFilePermissions.toString(Files.getPosixFilePermissions(log.getParent()))).isEqualTo("rwx------");
+    }
   }
 
   @Test

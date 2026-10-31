@@ -98,8 +98,10 @@ class BridgeCliTest {
     String text = Files.readString(log);
     assertThat(text).contains("grant_revoked", "grant_mismatch", "not running").contains("gr_abcd…")
         .doesNotContain(GRANT).doesNotContain("gwb_");
-    assertThat(PosixFilePermissions.toString(Files.getPosixFilePermissions(log))).isEqualTo("rw-------");
-    assertThat(PosixFilePermissions.toString(Files.getPosixFilePermissions(log.getParent()))).isEqualTo("rwx------");
+    if (Files.getFileStore(log).supportsFileAttributeView("posix")) {
+      assertThat(PosixFilePermissions.toString(Files.getPosixFilePermissions(log))).isEqualTo("rw-------");
+      assertThat(PosixFilePermissions.toString(Files.getPosixFilePermissions(log.getParent()))).isEqualTo("rwx------");
+    }
   }
 
   @Test
