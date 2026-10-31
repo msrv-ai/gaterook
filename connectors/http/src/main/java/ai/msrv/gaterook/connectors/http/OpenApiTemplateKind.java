@@ -82,6 +82,37 @@ final class OpenApiTemplateKind implements TemplateKind, TemplateImporter {
     return definitionSchema;
   }
 
+  @Override
+  public TemplateImporter.Inspection inspectDocument(byte[] document) {
+    try {
+      JsonNode root = OpenApiDocument.read(document);
+      ObjectNode info = JsonNodeFactory.instance.objectNode();
+      info.put("title", ToolText.clean(root.path("info").path("title").asString(""), ToolText.TITLE));
+      info.put("openapi", root.path("openapi").asString(""));
+      info.put("sha256", sha256(document));
+      ArrayNode servers = info.putArray("servers");
+      for (JsonNode server : root.path("servers")) {
+        if (servers.size() >= MAX_SERVERS) break;
+        String url = fill(server.path("url").asString(""), server.path("variables"));
+        if (url.length() <= MAX_SERVER_URL) servers.add(ToolText.clean(url, MAX_SERVER_URL));
+      }
+      ArrayNode auth = info.putArray("authentication");
+      for (Map.Entry<String, JsonNode> entry : root.path("components").path("securitySchemes").properties()) {
+        if (auth.size() >= 100) break;
+        JsonNode scheme = OpenApiDocument.deref(root, entry.getValue());
+        ObjectNode item = auth.addObject();
+        item.put("name", ToolText.clean(entry.getKey(), 64));
+        item.put("type", scheme == null ? "unknown" : ToolText.clean(scheme.path("type").asString("unknown"), 64));
+        ObjectNode config = scheme == null ? null : OpenApiSecurity.config(scheme);
+        item.put("supported", config != null);
+        if (config != null) item.set("config", config);
+      }
+      return new TemplateImporter.Inspection(info, List.of());
+    } catch (OpenApiDocument.Rejected e) {
+      return new TemplateImporter.Inspection(null, List.of(e.getMessage()));
+    }
+  }
+
   // ── Import ──────────────────────────────────────────────────────────────────────────────────────────────────
 
   @Override
@@ -145,6 +176,15 @@ final class OpenApiTemplateKind implements TemplateKind, TemplateImporter {
     } catch (OpenApiDocument.Rejected e) {
       return new TemplateImporter.Result(null, List.of(), info, List.of(e.getMessage()), warnings);
     }
+    List<OpenApiImport.Entry> checked = new ArrayList<>();
+    for (OpenApiImport.Entry entry : entries) {
+      JsonNode item = OpenApiDocument.deref(root, root.path("paths").path(entry.path()));
+      String refusal = entry.skipped() != null || item == null ? entry.skipped()
+          : OpenApiSecurity.refusal(root, item.path(entry.method().toLowerCase(Locale.ROOT)), s);
+      checked.add(refusal == null ? entry : new OpenApiImport.Entry(entry.opKey(), entry.method(), entry.path(),
+          entry.operationId(), entry.summary(), entry.tags(), entry.nature(), entry.definition(), refusal));
+    }
+    entries = checked;
     Set<String> select = new LinkedHashSet<>();
     boolean picked = opts.path("select").isArray();
     for (JsonNode n : opts.path("select")) {

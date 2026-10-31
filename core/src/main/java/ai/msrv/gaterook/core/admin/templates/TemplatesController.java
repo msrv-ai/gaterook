@@ -32,7 +32,8 @@ import tools.jackson.databind.node.ObjectNode;
 @RegisterReflectionForBinding({TemplatesController.Template.class, TemplatesController.Saved.class,
     TemplatesController.Compile.class, TemplatesController.CompiledTool.class, TemplatesController.Version.class,
     TemplatesController.ParseOpenApi.class, TemplatesController.Parsed.class, TemplatesController.Operation.class,
-    TemplatesController.Source.class,
+    TemplatesController.Source.class, TemplatesController.InspectOpenApi.class, TemplatesController.Inspected.class,
+    TemplatesController.OpenApiDraft.class,
     ApprovalDtos.Preview.class, ApprovalDtos.Action.class, ApprovalDtos.Field.class, ApprovalDtos.Diff.class,
     ApprovalDtos.Hunk.class, ApprovalDtos.DiffLine.class})
 class TemplatesController {
@@ -73,7 +74,13 @@ class TemplatesController {
    * {@code text}, and the person's choices so far ({@code select}: operation keys).
    */
   record ParseOpenApi(String connection, String url, String blob, String text, String name, String prefix,
-      String server, List<String> select) {}
+      String server, List<String> select, OpenApiDraft draft) {}
+
+  record OpenApiDraft(String name, String env, JsonNode config) {}
+
+  record InspectOpenApi(String url, String blob, String text) {}
+
+  record Inspected(boolean ok, String blob, JsonNode info, List<String> errors) {}
 
   /** One operation of the document; {@code skipped} says why it can't become a tool. */
   record Operation(String opKey, String name, String method, String path, String summary, List<String> tags,
@@ -181,10 +188,13 @@ class TemplatesController {
     return ResponseEntity.noContent().build();
   }
 
-  /**
-   * OpenAPI import, step one: the document read into every operation and the definition of the selected ones;
-   * nothing is saved. A document that can't be used is no error of the request: {@code ok} false with the errors.
-   */
+  /** Inspect non-secret connection suggestions and return the exact document bytes; nothing is saved. */
+  @PostMapping("/api/templates/openapi/inspect")
+  Inspected inspectOpenApi(@RequestBody InspectOpenApi request) {
+    return openApi.inspect(request.url(), request.blob(), request.text());
+  }
+
+  /** Compile a preview against a saved connection or draft; unusable documents return {@code ok} false. */
   @PostMapping("/api/templates/openapi/parse")
   Parsed parseOpenApi(@RequestBody ParseOpenApi request) {
     ObjectNode options = JsonNodeFactory.instance.objectNode();
@@ -201,7 +211,12 @@ class TemplatesController {
       var select = options.putArray("select");
       request.select().forEach(select::add);
     }
-    var result = openApi.parse(request.connection(), request.url(), request.blob(), request.text(), options);
+    if (request.draft() != null && (request.connection() != null || request.url() != null || request.text() != null)) {
+      throw ApiRequestException.unprocessable("Ambiguous source", "A draft uses the inspected blob only.", "/draft");
+    }
+    var result = request.draft() == null
+        ? openApi.parse(request.connection(), request.url(), request.blob(), request.text(), options)
+        : openApi.parseDraft(request.draft(), request.blob(), options);
     List<Operation> operations = result.operations().stream().map(o -> new Operation(o.opKey(), o.name(),
         o.method(), o.path(), o.summary(), o.tags(), o.nature(), o.selected(), o.skipped())).toList();
     JsonNode info = result.info();

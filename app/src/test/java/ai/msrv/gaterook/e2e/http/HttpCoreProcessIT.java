@@ -221,6 +221,34 @@ class HttpCoreProcessIT {
     });
   }
 
+  @Test
+  @Order(39)
+  void openApiSetupInspectsAndPreviewsWithoutCreatingAConnection() throws Exception {
+    String document = """
+        openapi: 3.1.0
+        info: {title: Setup example, version: '1'}
+        servers: [{url: 'https://api.example.com/v1'}]
+        paths:
+          /items:
+            get: {operationId: listItems, responses: {'200': {description: OK}}}
+        """;
+    ObjectNode request = CoreProcess.JSON.createObjectNode().put("text", document);
+    JsonNode inspected = json(admin("POST", "/api/templates/openapi/inspect", request.toString()), 200);
+    assertThat(inspected.path("ok").asBoolean()).isTrue();
+    assertThat(new String(Base64.getDecoder().decode(inspected.path("blob").asString()), StandardCharsets.UTF_8))
+        .isEqualTo(document);
+    ObjectNode parse = CoreProcess.JSON.createObjectNode().put("blob", inspected.path("blob").asString());
+    ObjectNode draft = parse.putObject("draft").put("name", "setup-preview-only").put("env", "dev");
+    ObjectNode config = draft.putObject("config");
+    config.putArray("baseUrls").add("https://api.example.com/v1");
+    config.putObject("auth").put("type", "none");
+    JsonNode result = json(admin("POST", "/api/templates/openapi/parse", parse.toString()), 200);
+    assertThat(result.path("ok").asBoolean()).isTrue();
+    assertThat(result.path("operations")).hasSize(1);
+    assertThat(admin("GET", "/api/connections/setup-preview-only", null).status()).isEqualTo(404);
+    json(admin("POST", "/api/templates/openapi/inspect", "{\"url\":\"https://127.0.0.1/openapi.json\"}"), 422);
+  }
+
   // ── OpenAPI templates ───────────────────────────────────────────────────────────────────────────────────────
 
   @Test

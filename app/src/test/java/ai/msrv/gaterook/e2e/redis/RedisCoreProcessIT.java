@@ -182,6 +182,8 @@ class RedisCoreProcessIT {
       JsonNode page = call(10 + pages, "redis_scan", "{\"connection\":\"cache-redis\",\"pattern\":\"*\",\"count\":10"
           + (cursor == null ? "" : ",\"cursor\":\"" + cursor + "\"") + "}");
       assertThat(page.at("/result/isError").asBoolean(true)).as(page.toString()).isFalse();
+      assertThat(page.at("/result/structuredContent/keyListsApply").asBoolean()).isTrue();
+      assertThat(page.toString()).doesNotContain("hiddenByPolicy");
       page.at("/result/structuredContent/keys").forEach(k -> keys.add(k.path("key").asString()));
       JsonNode next = page.at("/result/structuredContent/nextCursor");
       cursor = next.isString() ? next.asString() : null;
@@ -196,7 +198,8 @@ class RedisCoreProcessIT {
 
     JsonNode described = call(60, "describe_connection", "{\"connection\":\"cache-redis\"}");
     assertThat(described.at("/result/isError").asBoolean(true)).as(described.toString()).isFalse();
-    assertThat(described.toString()).contains("bulk").contains("hiddenByPolicy");
+    assertThat(described.toString()).contains("bulk").doesNotContain("hiddenByPolicy");
+    assertThat(described.at("/result/structuredContent/details/sampled").asInt()).isEqualTo(32);
   }
 
   @Test

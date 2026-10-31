@@ -129,6 +129,7 @@ class OpenApiTemplateKindTest {
   void everyInputSchemaIsJsonSchema2020_12(String file) {
     ConnectionConfig cfg = cfg("pets", Env.DEV, "{\"baseUrls\":[\"https://billing.stage.acme.dev/v1\","
         + "\"https://petstore.swagger.io/v2\"],\"auth\":{\"type\":\"apiKeyHeader\",\"headerName\":\"api-key\"}}");
+    if (file.equals("billing-30.yaml")) cfg = BILLING;
     TemplateImporter.Result r = imported(cfg, file, null);
     TemplateKind.CompileResult c = KIND.compile(r.definition(), cfg);
     assertThat(c.errors()).isEmpty();
@@ -162,11 +163,16 @@ class OpenApiTemplateKindTest {
     assertThat(ttt.info().path("openapi").asString()).isEqualTo("3.1.0");
     assertThat(ttt.definition().path("server").asString()).isEqualTo("https://ttt.test/api");
     assertThat(ttt.operations()).extracting(TemplateImporter.Operation::name).containsExactly(
-        "tictactoe_get_board", "tictactoe_get_square", "tictactoe_put_square");
-    List<TemplateKind.CompiledTool> tools = KIND.compile(ttt.definition(), game).tools();
-    assertThat(tools.get(2).definition().inputSchema().at("/properties/body/enum").toString())
+        "tictactoe_get_board", null, null);
+    assertThat(ttt.operations().get(1).skipped()).contains("credentials", "bearerHttpAuthentication");
+    ConnectionConfig player = cfg("tictactoe", Env.DEV, """
+        {"baseUrls":["https://ttt.test/api"],"auth":{"type":"bearer"}}""");
+    TemplateImporter.Result signed = imported(player, "tictactoe.yaml", null);
+    assertThat(signed.operations().getFirst().skipped()).contains("defaultApiKey");
+    List<TemplateKind.CompiledTool> tools = KIND.compile(signed.definition(), player).tools();
+    assertThat(tools.get(1).definition().inputSchema().at("/properties/body/enum").toString())
         .isEqualTo("[\".\",\"X\",\"O\"]");
-    assertThat(tools.get(2).definition().description()).endsWith("PUT /api/board/{row}/{column}. Needs approval: a "
+    assertThat(tools.get(1).definition().description()).endsWith("PUT /api/board/{row}/{column}. Needs approval: a "
         + "person approves the exact request.");
   }
 

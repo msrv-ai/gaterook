@@ -19,6 +19,7 @@ import { desktopConfigPath, ensureHome, portProblem, portRequest, publicPortProb
   type DesktopConfig } from './desktop-config.ts';
 import { CoreEventFeed, type CoreEvent } from './events.ts';
 import { allowedExternalUrl } from './external.ts';
+import { aiPromptUrl } from './ai-prompt.ts';
 import { planFileKey } from './file-key.ts';
 import { FileKeyUnlock } from './file-key-unlock.ts';
 import { NativeUnlockClient } from './native-unlock.ts';
@@ -686,6 +687,9 @@ export class Desktop {
       const allowed = allowedExternalUrl(url);
       if (!allowed) throw new Error('GateRook opens only https links to documentation.');
       await shell.openExternal(allowed);
+    });
+    handle(IPC.openAiPrompt, async (client, prompt) => {
+      await shell.openExternal(aiPromptUrl(client, prompt));
     });
     handle(IPC.saveFile, (purpose) => chooseFile(files, purpose, true));
     handle(IPC.openFile, (purpose) => chooseFile(files, purpose, false));

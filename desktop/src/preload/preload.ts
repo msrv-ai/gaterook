@@ -35,6 +35,9 @@ const gwDesktop = {
   openExternal(url: string): Promise<void> {
     return ipcRenderer.invoke(IPC.openExternal, String(url));
   },
+  openAiPrompt(client: 'claude' | 'codex' | 'cursor', prompt: string): Promise<void> {
+    return ipcRenderer.invoke(IPC.openAiPrompt, client, prompt);
+  },
   saveFile(purpose: string): Promise<string | null> {
     return ipcRenderer.invoke(IPC.saveFile, String(purpose));
   },

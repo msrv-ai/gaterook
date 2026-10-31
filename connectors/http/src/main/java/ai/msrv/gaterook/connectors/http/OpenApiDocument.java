@@ -239,7 +239,7 @@ final class OpenApiDocument {
     return n;
   }
 
-  static final Set<String> METHODS = Set.of("get", "head", "post", "put", "patch", "delete");
+  static final Set<String> METHODS = Set.of("get", "head", "post", "put", "patch", "delete", "options", "trace");
 
   private static String clip(String s) {
     if (s == null) {
