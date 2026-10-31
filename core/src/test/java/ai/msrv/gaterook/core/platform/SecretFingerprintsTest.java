@@ -70,4 +70,33 @@ class SecretFingerprintsTest {
   void theProcessFingerprintsAreOneSharedSet() {
     assertThat(SecretFingerprints.process()).isSameAs(SecretFingerprints.process());
   }
+
+  @Test
+  void aScanCostsAboutOnePassHoweverManySecretsAreKnown() {
+    SecretFingerprints fingerprints = new SecretFingerprints();
+    java.util.Random random = new java.util.Random(7);
+    String alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_$!";
+    for (int i = 0; i < 64; i++) {
+      StringBuilder secret = new StringBuilder();
+      for (int j = 0, length = 8 + random.nextInt(40); j < length; j++) {
+        secret.append(alphabet.charAt(random.nextInt(alphabet.length())));
+      }
+      fingerprints.learnValue(secret);
+    }
+    StringBuilder text = new StringBuilder();
+    while (text.length() < 1 << 20) {
+      text.append("row ").append(random.nextInt(1_000_000)).append(" status=ok user=alice@example.com note=")
+          .append(alphabet.charAt(random.nextInt(alphabet.length()))).append('\n');
+    }
+    String megabyte = text.toString();
+    Masker masker = new Masker(fingerprints);
+    long best = Long.MAX_VALUE;
+    for (int run = 0; run < 5; run++) {
+      long t0 = System.nanoTime();
+      assertThat(masker.text(megabyte, null, MaskPolicy.SECRETS_ONLY).text()).isSameAs(megabyte);
+      best = Math.min(best, System.nanoTime() - t0);
+    }
+    // 64 secrets are some 1,500 forms of dozens of lengths: a pass per length would take ten times this.
+    assertThat(best / 1_000_000.0).as("ms per MB with 64 secrets known").isLessThan(150);
+  }
 }
