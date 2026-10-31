@@ -124,6 +124,7 @@ final class SshLogCommands {
     StringBuilder script = new StringBuilder("LC_ALL=C; export LC_ALL; set -f\n")
         .append("for gr_tool in ").append(utilities).append("; do command -v \"$gr_tool\" >/dev/null 2>&1 || exit 43; done\n")
         .append("gr_stat() { stat -Lc '%d:%i:%s:%Y' \"$1\" 2>/dev/null || stat -Lf '%d:%i:%z:%m' \"$1\" 2>/dev/null; }\n")
+        .append("gr_nlink() { stat -Lc '%h' \"$1\" 2>/dev/null || stat -Lf '%l' \"$1\" 2>/dev/null; }\n")
         .append("gr_abort() { printf 'GATEROOK_LOG_ERROR:%s\\n' \"$1\" >&2; exit \"$1\"; }\n")
         .append("gr_reopen() { exec 4<").append(ShellQuote.quote(path)).append(" || gr_abort 42; ")
         .append("[ -f /dev/fd/4 ] || gr_abort 42; ")
@@ -139,6 +140,9 @@ final class SshLogCommands {
         .append("exec 3<").append(ShellQuote.quote(path)).append(" || exit 42\n")
         .append("[ -f /dev/fd/3 ] || exit 42\n")
         .append("gr_open=$(gr_stat /dev/fd/3) || exit 43\n")
+        // A hard link passes every path check, and its other names may be anywhere on the same file system.
+        .append("gr_links=$(gr_nlink /dev/fd/3) || exit 43\n")
+        .append("[ \"$gr_links\" = 1 ] || exit 47\n")
         .append("gr_path=$(gr_stat ").append(ShellQuote.quote(path)).append(") || exit 43\n")
         .append("[ \"${gr_original%:*:*}\" = \"${gr_path%:*:*}\" ] || exit 44\n")
         // BSD fdescfs exposes its own device id for /dev/fd/N; use the checked path's device with the open inode.
@@ -269,6 +273,10 @@ final class SshLogCommands {
     }
     if (status != null && status == 46) {
       return ConnectorException.badInput("The byte offset is past the end of this log file. Start the query again.");
+    }
+    if (status != null && status == 47) {
+      return ConnectorException.denied("Selected log files with more than one hard link aren't read: another name of "
+          + "the file can be outside the selection.");
     }
     return ConnectorException.resourceError("The SSH log command failed. The account needs a POSIX shell and the stat, head, tail, awk, od, wc, grep and cat utilities.", null);
   }
