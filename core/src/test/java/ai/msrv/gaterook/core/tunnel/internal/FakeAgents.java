@@ -100,8 +100,10 @@ public final class FakeAgents {
       String classes = Path.of(main.getProtectionDomain().getCodeSource().getLocation().toURI()).toString();
       // C1 only: the fake has nothing to optimise, and a quick start keeps the tests short.
       if (windows) {
+        // Wine lacks the CPU-affinity query; repeated JVM warnings obscure the fake agent's error log.
+        String processors = System.getenv("WINELOADER") == null ? "" : " -XX:ActiveProcessorCount=2";
         Files.writeString(executable, "@echo off\r\n\"" + batchPath(java)
-            + "\" -XX:TieredStopAtLevel=1 -Xshare:auto -cp \"" + batchPath(classes) + "\" "
+            + "\" -XX:TieredStopAtLevel=1 -Xshare:auto" + processors + " -cp \"" + batchPath(classes) + "\" "
             + main.getName() + " \"" + batchPath(control.toString()) + "\" %*\r\n", StandardCharsets.UTF_8);
       } else {
         Files.writeString(executable, "#!/bin/sh\nexec '" + java + "' -XX:TieredStopAtLevel=1 -Xshare:auto -cp '"
