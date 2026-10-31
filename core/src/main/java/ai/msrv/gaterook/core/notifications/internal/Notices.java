@@ -11,6 +11,8 @@ import ai.msrv.gaterook.core.platform.MaskPolicy;
 import ai.msrv.gaterook.core.platform.Masker;
 import ai.msrv.gaterook.core.platform.Taint;
 import ai.msrv.gaterook.core.policy.PolicyService;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
@@ -76,10 +78,33 @@ public class Notices {
     // so theirs is the core's; every line shows its invisible characters as escapes, like the action.
     String summary = external ? a.tool() + (a.connectionName() == null ? "" : " on " + a.connectionName())
         : p == null ? null : p.summary();
+    // What runs besides the text: the target (a multi-database connection's database) and the connector's fields (a
+    // template's parameter values). A plugin's or MCP server's fields are its own words: not carried.
+    List<ApprovalNotice.Detail> details = new ArrayList<>();
+    if (!external && p != null) {
+      if (p.target() != null && !p.target().isBlank()) {
+        details.add(detail("Target", p.target(), mask));
+      }
+      for (ActionPreview.Field f : p.fields() == null ? List.<ActionPreview.Field>of() : p.fields()) {
+        if (f != null && f.value() != null && !f.value().isBlank()) {
+          details.add(detail(f.label() == null ? "" : f.label(), f.value(), mask));
+        }
+      }
+    }
     return new ApprovalNotice(a.id(), mask(a.tool(), a.env()), toolKey, mask(a.connectionName(), a.env()), a.env(),
         mask(a.endpointSlug(), a.env()), client, mask(a.clientLabel(), a.env()), action,
         summary == null ? null : visible(mask(cut(summary, 120), a.env())), a.ruleId(), a.commentPolicy(),
-        a.createdAt(), a.expiresAt(), a.digest(), plugin);
+        a.createdAt(), a.expiresAt(), a.digest(), plugin, details);
+  }
+
+  /** A detail as a channel may show it: masked, its invisible characters as escapes, and what was found in it. */
+  private ApprovalNotice.Detail detail(String label, String value, MaskPolicy mask) {
+    String masked = masker.text(value, new Taint(), mask).text();
+    ActionInspector.Inspection inspection = ActionInspector.inspect(masked, null);
+    StringBuilder visible = new StringBuilder();
+    inspection.segments().forEach(s -> visible.append(s.v()));
+    return new ApprovalNotice.Detail(visible(label), visible.toString(), inspection.hiddenChars(),
+        inspection.confusables());
   }
 
   /** {@code text} with its invisible and bidi characters as visible escapes ({@code ‹U+202E›}). */

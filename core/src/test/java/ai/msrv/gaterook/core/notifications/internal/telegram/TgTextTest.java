@@ -102,4 +102,20 @@ class TgTextTest {
       }
     }
   }
+
+  @Test
+  void theTargetAndParameterValuesFollowTheActionInTelegram() {
+    ApprovalNotice n = NoticeFixtures.withDetails(NoticeFixtures.dev(), java.util.List.of(
+        NoticeFixtures.detail("Target", "dev-db · db.dev.internal:5432/app"),
+        NoticeFixtures.detail("Parameters", ":customer_id = 48213 (integer)")));
+    Eligibility.Verdict v = Eligibility.evaluate(new Eligibility.Facts(Eligibility.Channel.TELEGRAM, n, true, false,
+        true, false, true));
+    TgText t = TelegramMessages.request(n, v, ZoneOffset.ofHours(2), null);
+    assertThat(t.text()).isEqualTo("Approval needed\nsql_execute on dev-db · dev · from Codex · endpoint dev\n\n"
+        + NoticeFixtures.SQL + "\nTarget: dev-db · db.dev.internal:5432/app\nParameters: :customer_id = 48213 (integer)"
+        + "\n\nAuto-deny at 14:34:12 · rule dev.sql.write-approval");
+    assertThat(t.entities().toString()).contains("{\"type\":\"bold\",\"offset\":130,\"length\":8}")
+        .contains("{\"type\":\"code\",\"offset\":138,\"length\":33}");
+    assertThat(TelegramMessages.keyboard(n, v).toString()).contains("Approve");
+  }
 }

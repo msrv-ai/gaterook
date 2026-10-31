@@ -82,6 +82,11 @@ public final class SlackBlocks {
       blocks.addObject().put("type", "section").put("block_id", "act." + n.id() + "." + rev)
           .set("text", mrkdwn(escape(withheld) + (n.summary() == null ? "" : "\n" + escape(n.summary()))));
     }
+    // What runs besides the text, each on its own: the target, a template's parameter values.
+    for (ApprovalNotice.Detail d : n.details()) {
+      blocks.addObject().put("type", "section").set("text", mrkdwn("*" + escape(d.label()) + "*\n"
+          + (d.value().indexOf('\n') < 0 ? code(d.value()) : "```\n" + escape(d.value()).replace('`', 'ˋ') + "\n```")));
+    }
     StringBuilder context = new StringBuilder("Rule " + code(n.ruleId() == null ? "—" : n.ruleId()));
     if (outcome == null && verdict.reason() != null) {
       context.append(" · ").append(escape(verdict.reason()));

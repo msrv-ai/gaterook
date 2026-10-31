@@ -183,4 +183,29 @@ class SlackBlocksTest {
     }
     return null;
   }
+
+  @Test
+  void theTargetAndParameterValuesFollowTheAction() {
+    ApprovalNotice n = NoticeFixtures.withDetails(NoticeFixtures.with(NoticeFixtures.dev(), NoticeFixtures.action(
+        "sql", "sql", "UPDATE orders SET status = 'cancelled' WHERE customer_id = :customer_id")), List.of(
+        NoticeFixtures.detail("Target", "dev-db · db.dev.internal:5432/app"),
+        NoticeFixtures.detail("Template", "cancel_orders · version 3"),
+        NoticeFixtures.detail("Parameters", ":customer_id = 48213 (integer), :note = 'a `quote`' (text)")));
+    ObjectNode msg = SlackBlocks.request(n, verdict(n, true), "ins_test0000001", "1", UTC, null);
+
+    // After the action, before the rule line: what the agent chose is as visible as the SQL it fills.
+    assertThat(msg.at("/blocks/2/elements/0/type").asString()).isEqualTo("rich_text_preformatted");
+    assertThat(msg.at("/blocks/3/text/text").asString()).isEqualTo("*Target*\n`dev-db · db.dev.internal:5432/app`");
+    assertThat(msg.at("/blocks/4/text/text").asString()).isEqualTo("*Template*\n`cancel_orders · version 3`");
+    assertThat(msg.at("/blocks/5/text/text").asString())
+        .isEqualTo("*Parameters*\n`:customer_id = 48213 (integer), :note = 'a ˋquoteˋ' (text)`");
+    assertThat(msg.at("/blocks/6/type").asString()).isEqualTo("context");
+    assertThat(actionIds(msg)).containsExactly("gw_approve", "gw_deny", "gw_open");
+
+    ApprovalNotice tooLong = NoticeFixtures.withDetails(n, List.of(NoticeFixtures.detail("Parameters",
+        ":note = '" + "x".repeat(3_000) + "' (text)")));
+    assertThat(SlackChannel.fits(tooLong)).isFalse();
+    assertThat(actionIds(SlackBlocks.request(tooLong, verdict(tooLong, true), "ins_test0000001", "1", UTC, null)))
+        .containsExactly("gw_deny", "gw_open");
+  }
 }

@@ -45,6 +45,10 @@ public final class TelegramMessages {
         t.text("\n" + n.summary());
       }
     }
+    // What runs besides the text: the target, a template's parameter values.
+    for (ApprovalNotice.Detail d : n.details()) {
+      t.text("\n").entity("bold", d.label() + ": ").entity("code", d.value());
+    }
     t.text("\n\nAuto-deny at ");
     if (n.expiresAt() != null) {
       t.time(Outcomes.time(n.expiresAt(), zone), n.expiresAt().getEpochSecond());

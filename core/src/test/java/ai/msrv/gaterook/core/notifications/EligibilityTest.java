@@ -117,4 +117,29 @@ class EligibilityTest {
   private static boolean bit(int mask, int i) {
     return (mask & (1 << i)) != 0;
   }
+
+  @Test
+  void detailsAreInspectedLikeTheAction() {
+    ApprovalNotice dev = NoticeFixtures.dev();
+    ApprovalNotice hidden = NoticeFixtures.withDetails(dev, List.of(new ApprovalNotice.Detail("Parameters",
+        ":name = 'x‹U+200B›y' (text)", 1, 0)));
+    ApprovalNotice lookAlike = NoticeFixtures.withDetails(dev, List.of(new ApprovalNotice.Detail("Parameters",
+        ":name = 'pаypal' (text)", 0, 1)));
+    ApprovalNotice cyrillic = NoticeFixtures.withDetails(dev, List.of(NoticeFixtures.detail("Parameters",
+        ":name = 'Ёжик' (text)")));
+    ApprovalNotice plain = NoticeFixtures.withDetails(dev, List.of(NoticeFixtures.detail("Parameters",
+        ":customer_id = 48213 (integer)")));
+    for (Eligibility.Channel channel : Eligibility.Channel.values()) {
+      assertThat(verdict(channel, hidden).reason()).isEqualTo("Contains 1 hidden character. Review in the app.");
+      assertThat(verdict(channel, lookAlike).reason())
+          .isEqualTo("Contains letters that look like others. Review in the app.");
+      assertThat(verdict(channel, cyrillic).reason())
+          .isEqualTo("Contains characters beyond plain ASCII. Review in the app.");
+      assertThat(verdict(channel, plain).approve()).isTrue();
+    }
+  }
+
+  private static Eligibility.Verdict verdict(Eligibility.Channel channel, ApprovalNotice n) {
+    return Eligibility.evaluate(new Eligibility.Facts(channel, n, true, false, true, false, true));
+  }
 }
