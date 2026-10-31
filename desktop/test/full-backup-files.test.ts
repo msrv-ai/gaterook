@@ -7,6 +7,8 @@ import { tempDir } from './helpers.ts';
 
 const temp = tempDir('full-backup-files');
 after(temp.remove);
+// Windows junctions exercise real reparse-point rejection without elevated symlink privileges.
+const directoryLink = process.platform === 'win32' ? 'junction' : 'dir';
 let sequence = 0;
 function directory(): string {
   const result = join(temp.dir, String(++sequence));
@@ -87,16 +89,17 @@ describe('full-backup container', () => {
     const target = directory();
     const outside = directory();
     writeFileSync(join(outside, 'secret'), 'outside');
-    symlinkSync(outside, join(target, 'plugins'), 'dir');
+    symlinkSync(outside, join(target, 'plugins'), directoryLink);
     assert.throws(() => unpackBackup(payload([...required, { path: 'plugins/secret', data: 'changed' }]), target), /empty staging/);
     assert.equal(readFileSync(join(outside, 'secret'), 'utf8'), 'outside');
     writeFileSync(join(source, 'desktop.json'), '{}');
-    symlinkSync(outside, join(source, 'plugins'), 'dir');
+    symlinkSync(outside, join(source, 'plugins'), directoryLink);
     const snapshot = directory();
     writeFileSync(join(snapshot, 'gateway.db'), 'database');
     assert.throws(() => packBackup(source, snapshot, 'key', '0.4.1'), /symbolic links/);
-    symlinkSync(join(outside, 'secret'), join(source, 'linked-file'));
-    assert.throws(() => readBackupFile(join(source, 'linked-file')), /regular backup file/);
+    symlinkSync(process.platform === 'win32' ? outside : join(outside, 'secret'), join(source, 'linked-entry'),
+      process.platform === 'win32' ? 'junction' : 'file');
+    assert.throws(() => readBackupFile(join(source, 'linked-entry')), /regular backup file/);
     assert.throws(() => readBackupFile(join(outside, 'secret'), 2), /size limit/);
   });
 
@@ -105,11 +108,12 @@ describe('full-backup container', () => {
     const outside = directory();
     assert.equal(validateBackupDestination(home, join(outside, 'backup.grbackup')), join(outside, 'backup.grbackup'));
     assert.throws(() => validateBackupDestination(home, join(home, 'backup.grbackup')), /outside/);
-    symlinkSync(home, join(outside, 'alias'), 'dir');
+    symlinkSync(home, join(outside, 'alias'), directoryLink);
     assert.throws(() => validateBackupDestination(home, join(outside, 'alias', 'backup.grbackup')), /outside/);
     assert.throws(() => validateBackupDestination(home, join(outside, 'backup.db')), /extension/);
     writeFileSync(join(home, 'gateway.db'), 'database');
-    symlinkSync(join(home, 'gateway.db'), join(outside, 'linked.grbackup'));
+    symlinkSync(process.platform === 'win32' ? home : join(home, 'gateway.db'), join(outside, 'linked.grbackup'),
+      process.platform === 'win32' ? 'junction' : 'file');
     assert.throws(() => validateBackupDestination(home, join(outside, 'linked.grbackup')), /regular destination/);
     assert.equal(readFileSync(join(home, 'gateway.db'), 'utf8'), 'database');
   });

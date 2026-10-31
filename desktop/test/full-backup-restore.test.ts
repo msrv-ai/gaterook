@@ -108,7 +108,9 @@ describe('offline full-restore transaction', () => {
     assert.throws(() => installFullRestore(home, staged), /incomplete/);
     expectVersion(home, 'old');
     writeFileSync(join(staged, 'master.keyset'), 'new master.keyset');
-    symlinkSync(join(home, 'unrelated'), join(staged, 'plugins', 'linked.jar'));
+    // A junction is an unprivileged Windows reparse point; Unix also exercises a file symlink.
+    symlinkSync(process.platform === 'win32' ? home : join(home, 'unrelated'), join(staged, 'plugins', 'linked.jar'),
+      process.platform === 'win32' ? 'junction' : 'file');
     assert.throws(() => installFullRestore(home, staged), /linked or special/);
     expectVersion(home, 'old');
     assert.equal(pendingFullRestore(home), false);
