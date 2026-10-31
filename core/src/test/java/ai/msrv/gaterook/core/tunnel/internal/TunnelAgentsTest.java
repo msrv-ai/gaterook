@@ -244,6 +244,12 @@ class TunnelAgentsTest {
       assertThat(orphan.process().alive()).isTrue();
       assertThat(pidFile).doesNotExist();
 
+      List<String> changedIdentity = new java.util.ArrayList<>(stored.lines().toList());
+      changedIdentity.set(2, Long.toString(Long.parseLong(changedIdentity.get(2)) - 60_000));
+      Files.write(pidFile, changedIdentity);
+      AgentProcess.killOrphan(pidFile);
+      assertThat(orphan.process().alive()).as("a reused PID with a different start time is left alone").isTrue();
+
       Files.writeString(pidFile, stored);
       AgentProcess.killOrphan(pidFile);
       FakeAgents.awaitGone(orphan.process().pid());

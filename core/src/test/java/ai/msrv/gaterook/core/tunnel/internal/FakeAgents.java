@@ -15,8 +15,8 @@ import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 /**
- * The fake tunnel agents as the core sees them: an executable per agent (a {@code sh} wrapper that {@code exec}s
- * {@link FakeCloudflared} or {@link FakeNgrok} in a JVM of its own, so the pid the core holds is the agent's), a pins
+ * The fake tunnel agents as the core sees them: an executable per agent (a shell or Windows batch wrapper for
+ * {@link FakeCloudflared} or {@link FakeNgrok} in a JVM of its own), a pins
  * file naming it by path with its real SHA-256 ({@code gateway.test.tunnel-pins}), and a control file the test
  * rewrites to change what the agent does next time without changing its hash.
  */
@@ -94,19 +94,30 @@ public final class FakeAgents {
       Files.createDirectories(dir);
       Path control = dir.resolve(tool + ".properties").toAbsolutePath();
       Path report = dir.resolve(tool + ".report").toAbsolutePath();
-      Path executable = dir.resolve(tool).toAbsolutePath();
-      String java = Path.of(System.getProperty("java.home"), "bin", "java").toString();
+      boolean windows = System.getProperty("os.name").startsWith("Windows");
+      Path executable = dir.resolve(tool + (windows ? ".cmd" : "")).toAbsolutePath();
+      String java = Path.of(System.getProperty("java.home"), "bin", windows ? "java.exe" : "java").toString();
       String classes = Path.of(main.getProtectionDomain().getCodeSource().getLocation().toURI()).toString();
       // C1 only: the fake has nothing to optimise, and a quick start keeps the tests short.
-      Files.writeString(executable, "#!/bin/sh\nexec '" + java + "' -XX:TieredStopAtLevel=1 -Xshare:auto -cp '"
-          + classes + "' " + main.getName() + " '" + control + "' \"$@\"\n", StandardCharsets.UTF_8);
-      Files.setPosixFilePermissions(executable, PosixFilePermissions.fromString("rwx------"));
+      if (windows) {
+        Files.writeString(executable, "@echo off\r\n\"" + batchPath(java)
+            + "\" -XX:TieredStopAtLevel=1 -Xshare:auto -cp \"" + batchPath(classes) + "\" "
+            + main.getName() + " \"" + batchPath(control.toString()) + "\" %*\r\n", StandardCharsets.UTF_8);
+      } else {
+        Files.writeString(executable, "#!/bin/sh\nexec '" + java + "' -XX:TieredStopAtLevel=1 -Xshare:auto -cp '"
+            + classes + "' " + main.getName() + " '" + control + "' \"$@\"\n", StandardCharsets.UTF_8);
+        Files.setPosixFilePermissions(executable, PosixFilePermissions.fromString("rwx------"));
+      }
       Agent agent = new Agent(tool, executable, control, report);
       agent.control(Map.of("mode", "ready"));
       return agent;
     } catch (IOException | java.net.URISyntaxException e) {
       throw new IllegalStateException(e);
     }
+  }
+
+  private static String batchPath(String path) {
+    return path.replace("%", "%%");
   }
 
   /**
