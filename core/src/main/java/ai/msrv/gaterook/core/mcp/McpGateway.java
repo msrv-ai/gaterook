@@ -3,6 +3,7 @@ package ai.msrv.gaterook.core.mcp;
 import ai.msrv.gaterook.core.endpoints.EndpointSnapshot;
 import ai.msrv.gaterook.core.endpoints.EndpointSnapshotService;
 import ai.msrv.gaterook.core.endpoints.ToolCatalog;
+import ai.msrv.gaterook.core.mcp.internal.BridgeClient;
 import ai.msrv.gaterook.core.mcp.internal.Envelope;
 import ai.msrv.gaterook.core.mcp.internal.EraResolver;
 import ai.msrv.gaterook.core.mcp.internal.Instructions;
@@ -65,7 +66,7 @@ public class McpGateway {
       return new Response(404, JsonRpc.error(env.id(), JsonRpc.METHOD_NOT_FOUND, "Endpoint " + slug + " is disabled",
           null));
     }
-    McpDispatcher.Reply reply = dispatcher.dispatch(env, caller, snapshot.get());
+    McpDispatcher.Reply reply = dispatcher.dispatch(env, caller, snapshot.get(), header.apply(BridgeClient.HEADER));
     return new Response(reply.status(), reply.body());
   }
 

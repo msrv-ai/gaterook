@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { after, before, describe, it } from 'node:test';
 
 import { createCoreClient, startBroker } from '../index.mjs';
-import { createBridge, headerName, parseArgs, sseData } from '../gw-bridge.mjs';
+import { clientHeader, createBridge, headerName, parseArgs, sseData } from '../gw-bridge.mjs';
 import { fakeCore, issued, SECRET, tempHome } from './helpers.mjs';
 
 const BRIDGE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'gw-bridge.mjs');
@@ -165,6 +165,39 @@ describe('gw-bridge.mjs', () => {
     } finally {
       await b.stop();
     }
+  });
+
+  it('repeats what its client declared in initialize on every later legacy request, also after a 401', async () => {
+    const b = startBridge(home);
+    const capabilities = { extensions: { 'io.modelcontextprotocol/ui': { mimeTypes: ['text/html;profile=mcp-app'] } } };
+    try {
+      await b.call({ jsonrpc: '2.0', id: 70, method: 'initialize', params: { protocolVersion: '2025-11-25',
+        capabilities, clientInfo: { name: 'local-agent-mode-GateRook · dev', version: '1.0.0',
+          icons: [{ src: 'data:,x' }] } } });
+      // The core restarts and forgets the client: the bridge's next request meets a 401 and is sent again.
+      issuedCount++;
+      await b.call({ jsonrpc: '2.0', id: 71, method: 'tools/list', params: {} });
+      await b.call({ jsonrpc: '2.0', id: 72, method: 'tools/call', params: { name: 'sql_query', arguments: {},
+        _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28' } } });
+      const posts = (id) => core.seen.filter((s) => s.url === '/mcp/dev' && s.body?.id === id);
+      assert.equal(posts(70)[0].headers['x-gateway-bridge-client'], undefined, 'initialize declares in its body');
+      assert.equal(posts(71).length, 2);
+      for (const post of posts(71)) {
+        assert.deepEqual(JSON.parse(Buffer.from(post.headers['x-gateway-bridge-client'], 'base64url').toString('utf8')),
+          { capabilities, clientInfo: { name: 'local-agent-mode-GateRook · dev', version: '1.0.0' } });
+      }
+      assert.equal(posts(72)[0].headers['x-gateway-bridge-client'], undefined, 'a modern request declares in _meta');
+    } finally {
+      await b.stop();
+    }
+  });
+
+  it('declares no capabilities it wasn\'t given and nothing that doesn\'t fit in the header', () => {
+    const decode = (value) => JSON.parse(Buffer.from(value, 'base64url').toString('utf8'));
+    assert.deepEqual(decode(clientHeader(undefined)), { capabilities: {} });
+    assert.deepEqual(decode(clientHeader({ capabilities: [], clientInfo: { name: 7, title: 'Claude' } })),
+      { capabilities: {}, clientInfo: { title: 'Claude' } });
+    assert.equal(clientHeader({ capabilities: { experimental: { padding: 'x'.repeat(4096) } } }), null);
   });
 
   it('sends the modern headers from _meta, Mcp-Name as base64 when it isn\'t ASCII', async () => {
@@ -450,6 +483,11 @@ describe('gw-bridge.mjs and a client that keeps its first tool list', () => {
     try {
       await c.start();
       await until(() => checks() === before + 1);
+      const own = core.seen.filter((s) => s.body?.id === 1 && s.body?.method === 'tools/list').at(-1);
+      const check = core.seen.filter((s) => s.body?.id === 'gw-bridge-list').at(-1);
+      assert.ok(own.headers['x-gateway-bridge-client']);
+      assert.equal(check.headers['x-gateway-bridge-client'], own.headers['x-gateway-bridge-client'],
+        'the core lists for the client whose list is compared, whatever another client of the grant declared');
       await quietly();
       assert.equal(c.stale(), 0, 'the list it got on connecting is still the endpoint\'s');
       const stream = streams.at(-1);
