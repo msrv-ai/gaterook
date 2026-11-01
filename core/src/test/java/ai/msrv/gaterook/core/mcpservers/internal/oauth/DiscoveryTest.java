@@ -72,10 +72,26 @@ class DiscoveryTest {
     assertThat(d.server().token()).hasToString(base + "/token");
     assertThat(d.server().dynamicRegistration()).isTrue();
     assertThat(d.server().issParameter()).isTrue();
+    assertThat(d.server().clientMetadataDocuments()).as("not advertised").isFalse();
     RecordedRequest probe = seen.getFirst();
     assertThat(probe.getMethod()).isEqualTo("POST");
     assertThat(probe.getBody().utf8()).contains("\"method\":\"initialize\"");
     assertThat(probe.getHeaders().get("Authorization")).isNull();
+  }
+
+  @Test
+  void anAuthorizationServerThatTakesClientMetadataDocumentsSaysSoBesideRegistration() throws Exception {
+    // Linear, Notion, Sentry and Atlassian v2 among others (2026-11-01): both, and public clients.
+    unauthorized("/mcp", "Bearer resource_metadata=\"" + base + "/prm\"");
+    json("/prm", "{\"resource\":\"" + base + "/mcp\",\"authorization_servers\":[\"" + base + "\"]}");
+    json("/.well-known/oauth-authorization-server", authServer(base, true).replaceFirst("}$",
+        ",\"client_id_metadata_document_supported\":true,\"token_endpoint_auth_methods_supported\":[\"none\"]}"));
+
+    Discovery.Server s = Discovery.discover(http, URI.create(base + "/mcp")).server();
+
+    assertThat(s.clientMetadataDocuments()).isTrue();
+    assertThat(s.authMethods()).containsExactly("none");
+    assertThat(s.dynamicRegistration()).isTrue();
   }
 
   @Test

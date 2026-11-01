@@ -11,11 +11,13 @@ import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -32,21 +34,62 @@ import tools.jackson.databind.node.ObjectNode;
 
 /**
  * A remote MCP server with its own OAuth 2.1 authorization server, as the official ones behave (2026-11-01): a 401 with
- * {@code resource_metadata}, protected-resource and authorization-server metadata, dynamic client registration, an
- * authorization endpoint that checks the client, redirect URI, PKCE and resource and then redirects with
- * {@code code}, {@code state} and {@code iss}, rotating refresh tokens (a reused one is refused) and revocation. The
- * "person" always allows: the test plays the browser.
+ * {@code resource_metadata}, protected-resource and authorization-server metadata, dynamic client registration and,
+ * when asked, Client ID Metadata Documents beside it, an authorization endpoint that checks the client, redirect URI,
+ * PKCE and resource and then redirects with {@code code}, {@code state} and {@code iss}, public clients only at the
+ * token endpoint, rotating refresh tokens bound to their client (a reused one is refused) and revocation. The "person"
+ * always allows: the test plays the browser.
  */
 final class OAuthMcpServer implements AutoCloseable {
 
   private static final JsonMapper JSON = JsonMapper.builder().build();
   private static final SecureRandom RANDOM = new SecureRandom();
 
-  record Client(String id, List<String> redirects, JsonNode registration) {}
+  /** The URL of GateRook's Client ID Metadata Document. */
+  static final String GATEROOK_CLIENT = "https://msrv.dev/oauth/gaterook-client.json";
+
+  /**
+   * The metadata documents this authorization server can read, by URL: GateRook's as its website publishes it. A real
+   * one fetches the URL; the test has no network, so the documents are here.
+   */
+  private static final Map<String, String> PUBLISHED = Map.of(GATEROOK_CLIENT, """
+      {
+        "client_id": "https://msrv.dev/oauth/gaterook-client.json",
+        "client_name": "GateRook",
+        "client_uri": "https://msrv.dev/",
+        "application_type": "native",
+        "redirect_uris": ["http://localhost/callback", "http://127.0.0.1/callback"],
+        "grant_types": ["authorization_code", "refresh_token"],
+        "response_types": ["code"],
+        "token_endpoint_auth_method": "none"
+      }""");
+
+  /** A client: registered dynamically, or its metadata document ({@code registration} is then the document). */
+  record Client(String id, List<String> redirects, JsonNode registration) {
+
+    /**
+     * One of the client's redirect URIs exactly, or a loopback one whose port its list leaves out: authorization
+     * servers that take the metadata documents of the AI apps' command-line clients match those with any port
+     * (RFC 8252 §7.3).
+     */
+    boolean accepts(String redirect) {
+      if (redirect == null) {
+        return false;
+      }
+      if (redirects.contains(redirect)) {
+        return true;
+      }
+      URI u = URI.create(redirect);
+      return "http".equals(u.getScheme()) && List.of("localhost", "127.0.0.1").contains(u.getHost())
+          && redirects.contains("http://" + u.getHost() + u.getRawPath());
+    }
+  }
 
   record Code(String client, String redirect, String challenge, String resource, String scope) {}
 
   final List<JsonNode> registrations = new CopyOnWriteArrayList<>();
+  /** The metadata documents read, by URL, once per authorization request that named one. */
+  final List<String> documentsRead = new CopyOnWriteArrayList<>();
   final List<Map<String, String>> tokenRequests = new CopyOnWriteArrayList<>();
   final List<Map<String, String>> revocations = new CopyOnWriteArrayList<>();
   final List<String> authorizationsSeen = new CopyOnWriteArrayList<>();
@@ -57,13 +100,23 @@ final class OAuthMcpServer implements AutoCloseable {
   /** Every access token issued, in order (for a test's description of what happened). */
   final List<String> issued = new CopyOnWriteArrayList<>();
   final Set<String> refresh = ConcurrentHashMap.newKeySet();
+  /** The client each refresh token was issued to: only that client may redeem it. */
+  final Map<String, String> refreshClients = new ConcurrentHashMap<>();
   final Set<String> usedRefresh = ConcurrentHashMap.newKeySet();
+  private final boolean metadataDocuments;
   private final Tomcat tomcat;
   private final McpSyncServer mcp;
   final int port;
   final String base;
 
+  /** With dynamic client registration only. */
   OAuthMcpServer(Path work) throws Exception {
+    this(work, false);
+  }
+
+  /** @param metadataDocuments it also accepts Client ID Metadata Documents and says so in its metadata */
+  OAuthMcpServer(Path work, boolean metadataDocuments) throws Exception {
+    this.metadataDocuments = metadataDocuments;
     HttpServletStreamableServerTransportProvider transport = HttpServletStreamableServerTransportProvider.builder()
         .jsonMapper(new JacksonMcpJsonMapper(JSON)).mcpEndpoint("/mcp").build();
     mcp = McpServer.sync(transport).serverInfo("tracker", "3.1.0")
@@ -92,6 +145,9 @@ final class OAuthMcpServer implements AutoCloseable {
       m.putArray("code_challenge_methods_supported").add("S256");
       m.putArray("token_endpoint_auth_methods_supported").add("none");
       m.putArray("scopes_supported").add("issues:read").add("offline_access");
+      if (metadataDocuments) {
+        m.put("client_id_metadata_document_supported", true);
+      }
       json(res, 200, m);
     });
     servlet(ctx, "register", "/register", this::register);
@@ -165,11 +221,31 @@ final class OAuthMcpServer implements AutoCloseable {
         .set("redirect_uris", body.path("redirect_uris")));
   }
 
+  /**
+   * The client of a metadata document, read as the draft says: the document names its own URL as client ID, and it is
+   * a public client. {@code null} where this server doesn't take documents, or doesn't know the URL.
+   */
+  private Client metadataDocument(String url) {
+    if (!metadataDocuments || !PUBLISHED.containsKey(url)) {
+      return null;
+    }
+    documentsRead.add(url);
+    JsonNode doc = JSON.readTree(PUBLISHED.get(url));
+    if (!url.equals(doc.path("client_id").asString()) || !"none".equals(doc.path("token_endpoint_auth_method")
+        .asString())) {
+      return null;
+    }
+    List<String> redirects = new ArrayList<>();
+    doc.path("redirect_uris").forEach(r -> redirects.add(r.asString()));
+    return new Client(url, List.copyOf(redirects), doc);
+  }
+
   private void authorize(HttpServletRequest req, HttpServletResponse res) throws IOException {
     authorizationsSeen.add(req.getQueryString());
-    Client c = clients.get(req.getParameter("client_id"));
+    String clientId = String.valueOf(req.getParameter("client_id"));
+    Client c = clientId.startsWith("https://") ? metadataDocument(clientId) : clients.get(clientId);
     String redirect = req.getParameter("redirect_uri");
-    if (c == null || !c.redirects().contains(redirect)) {
+    if (c == null || !c.accepts(redirect)) {
       res.sendError(400, "Unknown client or redirect URI");
       return;
     }
@@ -193,6 +269,11 @@ final class OAuthMcpServer implements AutoCloseable {
       json(res, 400, obj().put("error", "invalid_target"));
       return;
     }
+    if (req.getHeader("Authorization") != null || form.containsKey("client_secret")) {
+      // Its clients are public (none): one that authenticates some other way isn't one of them.
+      json(res, 401, obj().put("error", "invalid_client"));
+      return;
+    }
     switch (String.valueOf(form.get("grant_type"))) {
       case "authorization_code" -> {
         Code code = codes.remove(String.valueOf(form.get("code")));
@@ -201,28 +282,30 @@ final class OAuthMcpServer implements AutoCloseable {
           json(res, 400, obj().put("error", "invalid_grant"));
           return;
         }
-        issue(res, code.scope());
+        issue(res, code.client(), code.scope());
       }
       case "refresh_token" -> {
         String old = form.get("refresh_token");
-        if (old == null || !refresh.remove(old)) {
-          json(res, 400, obj().put("error", "invalid_grant").put("error_description", usedRefresh.contains(old)
-              ? "Refresh token reused" : "Refresh token revoked"));
+        String client = old == null ? null : refreshClients.get(old);
+        if (client == null || !client.equals(form.get("client_id")) || !refresh.remove(old)) {
+          json(res, 400, obj().put("error", "invalid_grant").put("error_description", old != null
+              && usedRefresh.contains(old) ? "Refresh token reused" : "Refresh token revoked"));
           return;
         }
         usedRefresh.add(old);
-        issue(res, "issues:read offline_access");
+        issue(res, client, "issues:read offline_access");
       }
       default -> json(res, 400, obj().put("error", "unsupported_grant_type"));
     }
   }
 
-  private void issue(HttpServletResponse res, String scope) throws IOException {
+  private void issue(HttpServletResponse res, String client, String scope) throws IOException {
     String at = "trk-at-" + random();
     String rt = "trk-rt-" + random();
     access.add(at);
     issued.add(at);
     refresh.add(rt);
+    refreshClients.put(rt, client);
     res.setHeader("Cache-Control", "no-store");
     json(res, 200, obj().put("access_token", at).put("token_type", "Bearer").put("expires_in", 3600)
         .put("refresh_token", rt).put("scope", scope == null ? "issues:read" : scope));

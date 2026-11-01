@@ -33,6 +33,21 @@ class SignInBundleTest {
   }
 
   @Test
+  void aSignInByTheMetadataDocumentStaysUnregisteredThroughItsJson() {
+    Discovery.Server server = new Discovery.Server("https://auth.example.com", URI.create("https://auth.example.com/a"),
+        URI.create("https://auth.example.com/token"), URI.create("https://auth.example.com/register"), null, List.of(),
+        List.of("S256"), List.of("none"), false, true, false);
+    OAuthClient.Client client = OAuthClient.metadataDocument(URI.create("http://localhost:51234/callback"));
+    SignInBundle b = SignInBundle.signedIn("https://mcp.example.com/mcp", "https://mcp.example.com/mcp", server,
+        client, null, new OAuthClient.Tokens("at-1", NOW.plusSeconds(3600), "rt-1", null), NOW);
+    SignInBundle back = SignInBundle.fromJson(new String(b.toJson()));
+    assertThat(back.client()).isEqualTo(client);
+    // A later sign-in reuses only a registration GateRook made; the document goes by the server's metadata each time.
+    assertThat(back.client().registered()).isFalse();
+    assertThat(back.client().secret()).isNull();
+  }
+
+  @Test
   void aRenewalKeepsTheRefreshTokenWhenNoNewOneCameAndTheSignInTime() {
     SignInBundle renewed = bundle().renewed(new OAuthClient.Tokens("at-2", NOW.plusSeconds(7200), null, null),
         NOW.plusSeconds(3500));

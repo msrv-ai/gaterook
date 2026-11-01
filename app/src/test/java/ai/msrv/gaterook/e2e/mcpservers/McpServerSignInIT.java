@@ -4,9 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ai.msrv.gaterook.e2e.platform.CoreProcess;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.SecureRandom;
@@ -29,7 +31,9 @@ import tools.jackson.databind.node.ObjectNode;
  * registers itself and listens on this computer for the redirect, the code comes back to it, the server is added with
  * the sign-in, a token refused early is renewed (rotating the refresh token) and the call goes once more, a revoked
  * sign-in asks for a new one, signing in again reuses the registration, a pasted address finishes a sign-in whose
- * redirect didn't arrive, sign-out revokes, and no token reaches an answer, the Secrets list or a log.
+ * redirect didn't arrive, sign-out revokes, and no token reaches an answer, the Secrets list or a log. Where the
+ * authorization server takes Client ID Metadata Documents, GateRook registers nothing: its client ID is its published
+ * document's URL, on any free port, for the sign-in, its renewals and the revocation.
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class McpServerSignInIT {
@@ -39,12 +43,16 @@ class McpServerSignInIT {
   private static final HttpClient BROWSER = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5))
       .followRedirects(HttpClient.Redirect.NEVER).build();
   private static CoreProcess core;
+  /** Dynamic registration only. */
   private static OAuthMcpServer tracker;
+  /** Client ID Metadata Documents beside dynamic registration, as Linear's, Notion's or Sentry's today. */
+  private static OAuthMcpServer board;
 
   @BeforeAll
   static void start() throws Exception {
     Path work = Files.createDirectories(Path.of("target", "mcp-sign-in-e2e").toAbsolutePath());
     tracker = new OAuthMcpServer(Files.createTempDirectory(work, "tomcat-"));
+    board = new OAuthMcpServer(Files.createTempDirectory(work, "tomcat-"), true);
     core = CoreProcess.start(CoreProcess.newHome("mcp-sign-in-e2e"), CoreProcess.freePort(), List.of()).bootstrap();
     core.untilReady(Duration.ofSeconds(90));
     // The fake runs on this computer: dev may reach 127.0.0.1, as a person allows for a server under development.
@@ -63,11 +71,18 @@ class McpServerSignInIT {
     if (tracker != null) {
       tracker.close();
     }
+    if (board != null) {
+      board.close();
+    }
   }
 
   private static ObjectNode config(boolean oauth) {
-    ObjectNode c = CoreProcess.JSON.createObjectNode().put("name", "tracker-mcp").put("transport", "http")
-        .put("url", tracker.base + "/mcp");
+    return config("tracker-mcp", tracker, oauth);
+  }
+
+  private static ObjectNode config(String name, OAuthMcpServer server, boolean oauth) {
+    ObjectNode c = CoreProcess.JSON.createObjectNode().put("name", name).put("transport", "http")
+        .put("url", server.base + "/mcp");
     if (oauth) {
       c.putObject("auth").put("type", "oauth");
     }
@@ -227,7 +242,91 @@ class McpServerSignInIT {
     }
   }
 
+  @Test
+  @Order(7)
+  void whereTheServerTakesMetadataDocumentsGateRookSignsInByItsOwnAndRegistersNothing() throws Exception {
+    ObjectNode review = CoreProcess.JSON.createObjectNode();
+    review.set("config", config("board-mcp", board, false));
+    JsonNode r = json(admin("POST", "/api/mcp-servers/review", review.toString()), 200);
+    assertThat(r.at("/auth/kind").asString()).as(r.toString()).isEqualTo("oauth");
+    assertThat(r.at("/auth/registration").asString()).isEqualTo("metadata-document");
+
+    ObjectNode request = CoreProcess.JSON.createObjectNode();
+    request.set("config", config("board-mcp", board, true));
+    JsonNode started = json(admin("POST", "/api/mcp-sign-ins", request.toString()), 201);
+    String id = started.path("id").asString();
+    assertThat(started.path("redirectUri").asString()).matches("http://localhost:\\d+/callback");
+    String authorization = started.path("authorizationUrl").asString();
+    assertThat(param(authorization, "client_id")).isEqualTo(OAuthMcpServer.GATEROOK_CLIENT);
+    assertThat(param(authorization, "redirect_uri")).isEqualTo(started.path("redirectUri").asString());
+
+    HttpResponse<String> landed = signInInTheBrowser(authorization);
+    assertThat(landed.statusCode()).as(landed.body()).isEqualTo(200);
+    assertThat(landed.body()).contains("Signed in to board-mcp");
+    assertThat(board.documentsRead).containsExactly(OAuthMcpServer.GATEROOK_CLIENT);
+    assertThat(board.registrations).as("nothing registered beside the document").isEmpty();
+    assertThat(board.tokenRequests.getFirst()).containsEntry("grant_type", "authorization_code")
+        .containsEntry("client_id", OAuthMcpServer.GATEROOK_CLIENT).doesNotContainKey("client_secret");
+
+    ObjectNode add = request.deepCopy().put("signIn", id).put("acknowledge", true).put("reason", "issue board");
+    JsonNode added = json(admin("POST", "/api/mcp-servers", add.toString()), 201);
+    assertThat(added.path("tools").asInt()).isEqualTo(1);
+    JsonNode status = json(admin("GET", "/api/mcp-servers/board-mcp/sign-in", null), 200);
+    assertThat(status.path("state").asString()).isEqualTo("signed-in");
+    assertThat(status.path("registered").asBoolean()).as("its document, not a registration").isFalse();
+    assertThat(json(admin("GET", "/api/mcp-servers/board-mcp/tools", null), 200)).extracting(t -> t.path("name")
+        .asString()).containsExactly("board_list_issues");
+  }
+
+  @Test
+  @Order(8)
+  void theDocumentsSignInIsRenewedAsItAndSigningInAgainTakesAnotherFreePort() throws Exception {
+    board.expireAccessTokens();
+    Answer restarted = admin("POST", "/api/mcp-servers/board-mcp/restart", null);
+    assertThat(restarted.status()).as(restarted.body()).isEqualTo(200);
+    // The authorization server binds the refresh token to the client it was issued to: the document's URL.
+    assertThat(board.tokenRequests.getLast()).containsEntry("grant_type", "refresh_token")
+        .containsEntry("client_id", OAuthMcpServer.GATEROOK_CLIENT);
+
+    JsonNode again = json(admin("POST", "/api/mcp-servers/board-mcp/sign-in", null), 201);
+    assertThat(again.path("redirectUri").asString()).matches("http://localhost:\\d+/callback");
+    HttpResponse<String> landed = signInInTheBrowser(again.path("authorizationUrl").asString());
+    assertThat(landed.statusCode()).as(landed.body()).isEqualTo(200);
+    assertThat(board.documentsRead).hasSize(2);
+    assertThat(board.registrations).isEmpty();
+    assertThat(json(admin("POST", "/api/mcp-servers/board-mcp/test", null), 200).path("tools").asInt())
+        .isEqualTo(1);
+  }
+
+  @Test
+  @Order(9)
+  void signOutRevokesAsTheDocumentAndNoTokenShowsInTheLog() throws Exception {
+    JsonNode out = json(admin("POST", "/api/mcp-servers/board-mcp/sign-out", "{\"reason\":\"done\"}"), 200);
+    assertThat(out.path("state").asString()).isEqualTo("signed-out");
+    long deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos();
+    while (board.revocations.size() < 2 && System.nanoTime() < deadline) {
+      Thread.sleep(50);
+    }
+    assertThat(board.revocations).hasSize(2).allSatisfy(revocation -> assertThat(revocation)
+        .containsEntry("client_id", OAuthMcpServer.GATEROOK_CLIENT));
+
+    Answer deleted = admin("DELETE", "/api/mcp-servers/board-mcp", "{\"reason\":\"done\"}");
+    assertThat(deleted.status()).as(deleted.body()).isEqualTo(204);
+    assertNoToken(core.coreLog());
+  }
+
   // ── Helpers ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+  /** One query parameter of {@code url}, decoded, or {@code null}. */
+  private static String param(String url, String name) {
+    for (String pair : URI.create(url).getRawQuery().split("&")) {
+      int eq = pair.indexOf('=');
+      if (eq > 0 && pair.substring(0, eq).equals(name)) {
+        return URLDecoder.decode(pair.substring(eq + 1), StandardCharsets.UTF_8);
+      }
+    }
+    return null;
+  }
 
   private record Answer(int status, String body) {}
 

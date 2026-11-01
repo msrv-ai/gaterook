@@ -23,11 +23,13 @@ Only names of headers and variables are taken from a paste. The review asks for 
 - **No sign-in.** Connect directly.
 - **It wants a key.** It refused the request without offering a sign-in. Add the header that carries its key, such as `Authorization`.
 
+Adding a server ends as adding a connection does: GateRook offers the endpoints its tools may join, the usual one chosen. There each tool starts as Approval, and you change modes on the endpoint. **Not now** leaves the tools Off until you add the server to an endpoint later.
+
 ## Sign in
 
 Select **Sign in** in the review. GateRook opens the server's sign-in page in your default browser and listens on this computer, at `http://localhost:<free port>/callback`, for the browser to come back. After you allow access, the page says you are signed in and GateRook returns to the front. Then select **Connect MCP server**.
 
-Adding a server ends as adding a connection does: GateRook offers the endpoints its tools may join, the usual one chosen. There each tool starts as Approval, and you change modes on the endpoint. **Not now** leaves the tools Off until you add the server to an endpoint later.
+The provider's consent page names GateRook. Where the provider accepts client metadata documents (in November 2026, Linear, Notion and Sentry among others), GateRook doesn't register with it. The provider reads the details GateRook publishes at `https://msrv.dev/oauth/gaterook-client.json`: its name, that it has no client secret, and that the browser comes back to this computer. Other servers get a registration that GateRook makes under its own name.
 
 The sign-in belongs to GateRook, not to the AI app. GateRook keeps it encrypted as a secret of the server and renews it before it expires. Every call of the server carries it, and no agent, AI app, log or answer receives it. Any of your AI apps can use the server's tools through an endpoint, under the endpoint's modes and approvals.
 
@@ -37,7 +39,7 @@ The server's row shows **Signed in**, **Needs sign-in** or **Signed out**. A ser
 
 ## Servers that need your own OAuth app
 
-Some servers don't let apps register themselves. At the time of writing (November 2026) these include GitHub's, Slack's and Asana's v2 server. The review then says so and shows the redirect URI to register, `http://127.0.0.1:7471/callback`:
+Some servers neither accept GateRook's published details nor let apps register themselves. At the time of writing (November 2026) these include GitHub's, Slack's and Asana's v2 server. The review then says so and shows the redirect URI to register, `http://127.0.0.1:7471/callback`:
 
 1. Create an OAuth app for GateRook in the provider's developer settings, with that redirect URI.
 2. In **Add MCP server › Sign-in options**, enter its client ID, or enter it in the review.
@@ -47,7 +49,7 @@ Some servers don't let apps register themselves. At the time of writing (Novembe
 
 ## Servers that admit only approved apps
 
-A few providers register only clients on their own allowlist, by name or by redirect address. GateRook registers under its own name and never presents another application's client ID, name or redirect address. Such a server refuses the registration, and the review says so. Use the provider's API key in a header if it offers one, or ask the provider to admit GateRook.
+A few providers admit only clients on their own allowlist, by name or by redirect address. GateRook signs in under its own name and never presents another application's client ID, name or redirect address. Such a server refuses the registration, and the review says so. Use the provider's API key in a header if it offers one, or ask the provider to admit GateRook.
 
 ## Troubleshooting
 
@@ -56,5 +58,6 @@ A few providers register only clients on their own allowlist, by name or by redi
 | A private address | A server on this computer or your network needs its range in **Policies › HTTP: allowed private ranges** for the environment. |
 | Can't listen on port … | Another program uses the callback port. Choose another one in **Sign-in options**, or leave it empty for any free port. |
 | It answered HTTP 404 or 405 | Check the URL. Streamable HTTP addresses usually end in `/mcp`. |
+| The provider's page says the client or its redirect address is invalid | The provider couldn't use the details GateRook publishes. Cancel the sign-in in GateRook and try again later. If it keeps happening and the provider lets you create an OAuth app, enter that app's client ID in **Sign-in options**. |
 | Needs you to sign in again | Sign in from the server's row. |
 | Refused its renewed sign-in | The provider took a new token back at once. Sign in again if it keeps happening. |

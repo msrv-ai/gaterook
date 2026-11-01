@@ -15,8 +15,9 @@ import tools.jackson.databind.node.ObjectNode;
 /**
  * GateRook as an OAuth 2.1 client of an MCP server's authorization server: a public client on the person's computer
  * with PKCE S256, the {@code resource} of the MCP server in every authorization and token request (RFC 8707), and
- * dynamic registration (RFC 7591) under its own name, or the client ID of an OAuth app the person created. It never
- * presents itself as another application: no other client's ID, name or redirect URI.
+ * as client ID its own Client ID Metadata Document where the server accepts one, else dynamic registration (RFC 7591)
+ * under its own name, or the client ID of an OAuth app the person created. It never presents itself as another
+ * application: no other client's ID, name or redirect URI.
  */
 public final class OAuthClient {
 
@@ -24,12 +25,28 @@ public final class OAuthClient {
   public static final String CLIENT_NAME = "GateRook";
 
   /**
+   * GateRook's Client ID Metadata Document (draft-ietf-oauth-client-id-metadata-document), published on its website:
+   * the client ID where an authorization server accepts one. The authorization server fetches it and finds the name
+   * GateRook, a native public client ({@code none}) and {@link #METADATA_DOCUMENT_REDIRECTS}.
+   */
+  public static final String METADATA_DOCUMENT = "https://msrv.dev/oauth/gaterook-client.json";
+
+  /**
+   * The redirect URIs the document lists: loopback without a port, which authorization servers match with any port
+   * (RFC 8252 §7.3), so each sign-in's listener can take a free one.
+   */
+  static final List<String> METADATA_DOCUMENT_REDIRECTS = List.of("http://localhost/callback",
+      "http://127.0.0.1/callback");
+
+  /**
    * The client GateRook signs in as.
    *
    * @param authMethod  how it authenticates at the token endpoint: {@code none}, {@code client_secret_basic} or
    *                    {@code client_secret_post}
-   * @param registered  GateRook registered it itself (dynamic registration), rather than the person's OAuth app
-   * @param redirectUri the redirect URI it was registered with (or the one the person's app accepts)
+   * @param registered  GateRook registered it itself (dynamic registration), rather than the person's OAuth app or
+   *                    its metadata document
+   * @param redirectUri the redirect URI it was registered with (or the one the person's app accepts, or the sign-in's
+   *                    own with the metadata document)
    */
   public record Client(String id, String secret, String authMethod, boolean registered, String redirectUri) {
 
@@ -51,6 +68,21 @@ public final class OAuthClient {
   }
 
   private OAuthClient() {}
+
+  /**
+   * Whether {@code server} takes GateRook's metadata document as client with {@code redirectUri}: it accepts an HTTPS
+   * URL as client ID, it accepts public clients at its token endpoint (where it lists no methods, RFC 8414 means
+   * {@code client_secret_basic} only), and the document lists the redirect URI.
+   */
+  public static boolean acceptsMetadataDocument(Discovery.Server server, URI redirectUri) {
+    return server.clientMetadataDocuments() && server.authMethods().contains("none")
+        && METADATA_DOCUMENT_REDIRECTS.contains(withoutPort(redirectUri));
+  }
+
+  /** GateRook by its metadata document: the document's URL as client ID, no secret, nothing registered. */
+  public static Client metadataDocument(URI redirectUri) {
+    return new Client(METADATA_DOCUMENT, null, "none", false, redirectUri.toString());
+  }
 
   /**
    * Registers GateRook with {@code redirectUri} at the server's registration endpoint, as a public client that uses
@@ -211,6 +243,11 @@ public final class OAuthClient {
       return "none";
     }
     return m.equals("client_secret_post") ? "client_secret_post" : "client_secret_basic";
+  }
+
+  private static String withoutPort(URI u) {
+    return u.getScheme() + "://" + u.getHost() + (u.getRawPath() == null ? "" : u.getRawPath())
+        + (u.getRawQuery() == null ? "" : "?" + u.getRawQuery());
   }
 
   private static long parseLong(String s) {

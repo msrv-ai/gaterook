@@ -207,7 +207,7 @@ let nextId = 0;
               @if (w.signIn && w.auth; as a) {
                 <div class="gw-kv__row"><dt class="gw-kv__key">Sign-in</dt><dd class="gw-kv__value">
                   OAuth at <span class="gw-mono">{{ a.authorizationHost || a.issuer }}</span>{{ w.signIn === 'optional' ? ', optional: the server also answers without it, with less access' : '' }}.
-                  {{ a.registration === 'dynamic' ? 'GateRook registers itself there as GateRook.' : a.registration === 'app' ? 'As your OAuth app.' : '' }}
+                  {{ a.registration === 'metadata-document' ? 'GateRook signs in there as GateRook, with the client details it publishes.' : a.registration === 'dynamic' ? 'GateRook registers itself there as GateRook.' : a.registration === 'app' ? 'As your OAuth app.' : '' }}
                 </dd></div>
               }
               <div class="gw-kv__row"><dt class="gw-kv__key">Tools</dt><dd class="gw-kv__value">Listed after the {{ w.http ? 'connection' : 'start' }} and Off everywhere. On an endpoint each starts as Approval: the server declares its own annotations and the gateway can't verify them.</dd></div>
