@@ -210,6 +210,48 @@ public class SecretService {
   }
 
   /**
+   * Stores a value the gateway obtained itself for {@code owner}'s {@code field}, such as the tokens of an MCP
+   * server's OAuth sign-in, which it renews: the first call creates the secret, every later one adds a version that
+   * is current at once and destroys every older one. Nobody typed it and a renewal changes nothing a person reviewed,
+   * so there is no Setup change, no version event and no previous version to roll back to; the owner records the
+   * sign-in itself. Joins the caller's transaction when there is one.
+   *
+   * @param value zeroed before this returns
+   */
+  public SecretInfo storeIssued(SecretOwner owner, String field, String name, char[] value) {
+    try {
+      requireValue(value);
+      return masterKey.sealing(() -> writeTx.execute(s -> {
+        SecretEntity secret = secrets.findByOwnerKindAndOwnerIdAndField(kind(owner), owner.id(), field)
+            .orElse(null);
+        if (secret == null) {
+          String unique = name;
+          for (int n = 2; secrets.findByName(unique).isPresent(); n++) {
+            unique = name + "-" + n;
+          }
+          secret = secrets.save(new SecretEntity(unique, SecretKind.LOCAL, kind(owner), owner.id(), field,
+              clock.instant()));
+        } else if (secret.getKind() != SecretKind.LOCAL) {
+          throw new IllegalStateException(secret.getName() + " isn't a value stored here");
+        }
+        int number = nextVersion(secret);
+        addVersion(secret, number, SecretVersionState.CURRENT, value);
+        Instant now = clock.instant();
+        for (SecretVersionEntity v : versions.findBySecretIdOrderBySecretVersionDesc(secret.getId())) {
+          if (v.getSecretVersion() != number && v.getState() != SecretVersionState.DESTROYED) {
+            v.destroy(now);
+          }
+        }
+        secret.setCurrentVersion(number);
+        secret.setRotatedAt(now);
+        return info(secret);
+      }));
+    } finally {
+      Arrays.fill(value, '\0');
+    }
+  }
+
+  /**
    * Stores a reference for {@code owner}'s {@code field}: where the value lives, never the value
    * ({@code POST /api/connections} with {@code {source: "reference", ref}} or {@code "vault-dynamic"}). It is bound
    * to the connected store of its kind ({@link StoreBinding}), or to none yet: then it shows "not connected" and
@@ -256,6 +298,10 @@ public class SecretService {
       SecretEntity secret = readTx.execute(s -> secrets.findById(id).orElseThrow(() -> new NoSuchSecretException(id)));
       if (secret.getKind() != SecretKind.LOCAL) {
         throw new SecretRuleException("/value", secret.getName() + " is a reference: replace the reference instead");
+      }
+      if (secret.getOwnerKind() == SecretOwnerKind.MCP_SERVER) {
+        throw new SecretRuleException("/value", secret.getName() + " is an MCP server's sign-in, which GateRook "
+            + "renews itself. Sign in to the server again in Connectors › MCP servers instead.");
       }
       SecretOwner owner = owner(secret);
       Optional<SecretOwners.Owner> described = describe(owner);

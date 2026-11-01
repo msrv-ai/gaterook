@@ -53,6 +53,9 @@ const gwDesktop = {
   openMcpb(linkId: string): Promise<void> {
     return ipcRenderer.invoke(IPC.openMcpb, String(linkId));
   },
+  openMcpSignIn(id: string): Promise<void> {
+    return ipcRenderer.invoke(IPC.openMcpSignIn, String(id));
+  },
   openClientConfig(client: string): Promise<void> {
     return ipcRenderer.invoke(IPC.openClientConfig, String(client));
   },

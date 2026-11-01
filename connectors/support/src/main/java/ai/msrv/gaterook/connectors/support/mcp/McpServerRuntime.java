@@ -50,7 +50,16 @@ public interface McpServerRuntime extends AutoCloseable {
    * @throws ConnectorException when it doesn't start, doesn't answer {@code initialize} in time, or speaks a protocol
    *                            this client doesn't; the message says what happened and what to do
    */
-  Handshake probe(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) throws ConnectorException;
+  default Handshake probe(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) throws ConnectorException {
+    return probe(cfg, secrets, ctx, null);
+  }
+
+  /**
+   * {@link #probe} of an HTTP server the person just signed in to: every request of the throw-away session carries
+   * that sign-in ({@code null}: none).
+   */
+  Handshake probe(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Authorization authorization)
+      throws ConnectorException;
 
   /**
    * Starts the server of a stored connection, or lists its tools again when it runs; {@code restart} stops a running
@@ -103,6 +112,73 @@ public interface McpServerRuntime extends AutoCloseable {
      * ({@link #start}). Called on the runtime's own thread; the host must not block it for long.
      */
     void wanted(String connectionId);
+
+    /**
+     * The OAuth sign-in of a stored HTTP server whose config asks for one ({@code auth.type: "oauth"}), asked for when
+     * a session opens: empty when the core keeps none for it, and then the session's requests go without one.
+     */
+    default Optional<Authorization> authorization(String connectionId) {
+      return Optional.empty();
+    }
+  }
+
+  /**
+   * The OAuth sign-in of a server over HTTP (ARCHITECTURE.md §7.5), kept by the core: the person signed in in their
+   * browser, the core holds the tokens encrypted and renews them. The transport asks it for the {@code Authorization}
+   * header of every request and tells it when the server refused that header; the tokens never reach a log, an answer
+   * or the agent.
+   */
+  interface Authorization {
+
+    /**
+     * The value of the {@code Authorization} header for the next request ({@code Bearer …}), renewed first when the
+     * token is about to expire.
+     *
+     * @throws SignInRequired     when there is no usable sign-in: the person has to sign in again first
+     * @throws ConnectorException when the renewal couldn't reach the authorization server (nothing was decided)
+     */
+    String header() throws SignInRequired, ConnectorException;
+
+    /**
+     * The server refused {@code header}: HTTP 401, or 403 with {@code insufficient_scope}. A token that expired early
+     * is renewed, and the transport sends the refused request once more with the new one; a second 401 for that
+     * request ends it without asking again.
+     *
+     * @param challenge the server's {@code WWW-Authenticate} header, or {@code null}
+     * @return the header to send the refused request again with
+     * @throws SignInRequired when renewing can't help (no refresh token, a revoked sign-in, more permissions needed)
+     */
+    String refused(String header, String challenge, int status) throws SignInRequired, ConnectorException;
+
+    /** The token values in use now, for masking: an answer that quotes one never reaches the agent with it. */
+    List<String> secrets();
+  }
+
+  /**
+   * The person has to sign in to the server (again) before it takes requests: never signed in, the sign-in was
+   * revoked or expired, or the server wants more permissions. The message says which and where to sign in; it holds
+   * no token.
+   */
+  final class SignInRequired extends Exception {
+
+    private static final long serialVersionUID = 1L;
+
+    public SignInRequired(String message) {
+      super(message, null, false, false);
+    }
+
+    /** The sign-in a failure comes down to, or {@code null} when it has another cause. */
+    public static SignInRequired in(Throwable failure) {
+      for (Throwable t = failure; t != null; t = t.getCause()) {
+        if (t instanceof SignInRequired s) {
+          return s;
+        }
+        if (t.getCause() == t) {
+          break;
+        }
+      }
+      return null;
+    }
   }
 
   /**

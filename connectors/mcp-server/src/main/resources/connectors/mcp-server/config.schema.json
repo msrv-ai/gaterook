@@ -156,6 +156,66 @@
             "format": "uri",
             "pattern": "^(https://|http://(127\\.0\\.0\\.1|localhost)[:/])"
           },
+          "auth": {
+            "type": "object",
+            "title": "Sign-in",
+            "additionalProperties": false,
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "enum": [
+                  "oauth"
+                ],
+                "x-enumTitles": [
+                  "Sign in with OAuth in the browser"
+                ]
+              },
+              "clientId": {
+                "type": "string",
+                "title": "OAuth client ID",
+                "minLength": 1,
+                "maxLength": 512,
+                "pattern": "^[\\x21-\\x7E]+$",
+                "description": "Only for a server that doesn't let apps register themselves: the ID of the OAuth app you created for GateRook"
+              },
+              "clientSecret": {
+                "type": "string",
+                "title": "Client secret",
+                "writeOnly": true,
+                "x-gateway-secret": "value",
+                "description": "Only when that OAuth app has one"
+              },
+              "scopes": {
+                "type": "string",
+                "title": "Scopes",
+                "maxLength": 2048,
+                "pattern": "^[\\x21\\x23-\\x5B\\x5D-\\x7E]+( [\\x21\\x23-\\x5B\\x5D-\\x7E]+)*$",
+                "description": "Default: what the server asks for"
+              },
+              "callbackPort": {
+                "type": "integer",
+                "title": "Callback port",
+                "minimum": 1024,
+                "maximum": 65535,
+                "description": "Default: any free port"
+              },
+              "callbackHost": {
+                "enum": [
+                  "127.0.0.1",
+                  "localhost"
+                ],
+                "default": "127.0.0.1"
+              },
+              "callbackPath": {
+                "type": "string",
+                "title": "Callback path",
+                "pattern": "^/[A-Za-z0-9._~/-]{0,127}$",
+                "default": "/callback"
+              }
+            }
+          },
           "headers": {
             "type": "array",
             "title": "Headers from secrets",
@@ -186,6 +246,6 @@
     }
   ],
   "patternProperties": {
-    "^(command|env|inheritEnv|url|headers)$": {}
+    "^(command|env|inheritEnv|url|headers|auth)$": {}
   }
 }

@@ -1,0 +1,295 @@
+package ai.msrv.gaterook.e2e.mcpservers;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import ai.msrv.gaterook.e2e.platform.CoreProcess;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.SecureRandom;
+import java.time.Duration;
+import java.util.Base64;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
+
+/**
+ * A remote MCP server added by its URL and signed in to in the browser, as in Claude Desktop, Cursor or Codex, with
+ * GateRook — not the AI app — holding the tokens (ARCHITECTURE.md §7.5): the review finds the OAuth sign-in, GateRook
+ * registers itself and listens on this computer for the redirect, the code comes back to it, the server is added with
+ * the sign-in, a token refused early is renewed (rotating the refresh token) and the call goes once more, a revoked
+ * sign-in asks for a new one, signing in again reuses the registration, a pasted address finishes a sign-in whose
+ * redirect didn't arrive, sign-out revokes, and no token reaches an answer, the Secrets list or a log.
+ */
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+class McpServerSignInIT {
+
+  private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+  /** The person's browser: it follows nothing by itself, the test reads each redirect. */
+  private static final HttpClient BROWSER = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5))
+      .followRedirects(HttpClient.Redirect.NEVER).build();
+  private static CoreProcess core;
+  private static OAuthMcpServer tracker;
+
+  @BeforeAll
+  static void start() throws Exception {
+    Path work = Files.createDirectories(Path.of("target", "mcp-sign-in-e2e").toAbsolutePath());
+    tracker = new OAuthMcpServer(Files.createTempDirectory(work, "tomcat-"));
+    core = CoreProcess.start(CoreProcess.newHome("mcp-sign-in-e2e"), CoreProcess.freePort(), List.of()).bootstrap();
+    core.untilReady(Duration.ofSeconds(90));
+    // The fake runs on this computer: dev may reach 127.0.0.1, as a person allows for a server under development.
+    JsonNode policy = json(admin("GET", "/api/policies/dev", null), 200);
+    ObjectNode update = CoreProcess.JSON.createObjectNode().put("version", policy.path("version").asLong());
+    update.putObject("sections").putObject("http").putArray("allowedPrivateRanges").addObject().put("cidr",
+        "127.0.0.1/32").putArray("connections");
+    json(admin("PUT", "/api/policies/dev", update.toString()), 200);
+  }
+
+  @AfterAll
+  static void stop() throws Exception {
+    if (core != null) {
+      core.close();
+    }
+    if (tracker != null) {
+      tracker.close();
+    }
+  }
+
+  private static ObjectNode config(boolean oauth) {
+    ObjectNode c = CoreProcess.JSON.createObjectNode().put("name", "tracker-mcp").put("transport", "http")
+        .put("url", tracker.base + "/mcp");
+    if (oauth) {
+      c.putObject("auth").put("type", "oauth");
+    }
+    return c;
+  }
+
+  @Test
+  @Order(1)
+  void theReviewFindsTheOAuthSignIn() throws Exception {
+    ObjectNode review = CoreProcess.JSON.createObjectNode();
+    review.set("config", config(false));
+    JsonNode r = json(admin("POST", "/api/mcp-servers/review", review.toString()), 200);
+    assertThat(r.path("transport").asString()).isEqualTo("http");
+    assertThat(r.at("/auth/kind").asString()).as(r.toString()).isEqualTo("oauth");
+    assertThat(r.at("/auth/issuer").asString()).isEqualTo(tracker.base);
+    assertThat(r.at("/auth/registration").asString()).isEqualTo("dynamic");
+    assertThat(r.at("/auth/scope").asString()).isEqualTo("issues:read offline_access");
+    assertThat(tracker.registrations).as("a review registers nothing").isEmpty();
+  }
+
+  @Test
+  @Order(2)
+  void theBrowserSignInComesBackToGateRookAndTheServerIsAddedWithIt() throws Exception {
+    ObjectNode request = CoreProcess.JSON.createObjectNode();
+    request.set("config", config(true));
+    JsonNode started = json(admin("POST", "/api/mcp-sign-ins", request.toString()), 201);
+    String id = started.path("id").asString();
+    assertThat(started.path("state").asString()).isEqualTo("waiting");
+    assertThat(started.path("redirectUri").asString()).matches("http://localhost:\\d+/callback");
+    JsonNode registration = tracker.registrations.getFirst();
+    assertThat(registration.path("client_name").asString()).isEqualTo("GateRook");
+    assertThat(registration.path("application_type").asString()).isEqualTo("native");
+
+    // Electron asks for the page by the sign-in's id; it is the one the window shows for copying.
+    JsonNode page = json(admin("GET", "/internal/mcp-sign-ins/" + id + "/authorization", null), 200);
+    assertThat(page.path("url").asString()).isEqualTo(started.path("authorizationUrl").asString())
+        .startsWith(tracker.base + "/authorize?");
+
+    HttpResponse<String> landed = signInInTheBrowser(page.path("url").asString());
+    assertThat(landed.statusCode()).as(landed.body()).isEqualTo(200);
+    assertThat(landed.body()).contains("Signed in to tracker-mcp");
+    assertThat(landed.headers().firstValue("Referrer-Policy")).hasValue("no-referrer");
+    assertThat(json(admin("GET", "/api/mcp-sign-ins/" + id, null), 200).path("state").asString())
+        .isEqualTo("signed-in");
+    Map<String, String> exchange = tracker.tokenRequests.getFirst();
+    assertThat(exchange).containsEntry("grant_type", "authorization_code")
+        .containsEntry("resource", tracker.base + "/mcp").containsKey("code_verifier");
+
+    ObjectNode add = request.deepCopy().put("signIn", id).put("acknowledge", true).put("reason", "issue tracker");
+    JsonNode added = json(admin("POST", "/api/mcp-servers", add.toString()), 201);
+    assertThat(added.path("tools").asInt()).isEqualTo(1);
+    assertThat(admin("GET", "/api/mcp-sign-ins/" + id, null).status()).as("a sign-in is used once").isEqualTo(404);
+
+    JsonNode status = json(admin("GET", "/api/mcp-servers/tracker-mcp/sign-in", null), 200);
+    assertThat(status.path("state").asString()).isEqualTo("signed-in");
+    assertThat(status.path("issuer").asString()).isEqualTo(tracker.base);
+    assertThat(status.path("renewable").asBoolean()).isTrue();
+    assertThat(status.path("registered").asBoolean()).isTrue();
+    assertThat(json(admin("GET", "/api/mcp-servers/tracker-mcp/tools", null), 200)).extracting(t -> t.path("name")
+        .asString()).containsExactly("tracker_list_issues");
+  }
+
+  @Test
+  @Order(3)
+  void aTokenRefusedEarlyIsRenewedWithARotatedRefreshTokenAndTheRequestGoesAgain() throws Exception {
+    assertThat(json(admin("POST", "/api/mcp-servers/tracker-mcp/test", null), 200).path("tools").asInt())
+        .isEqualTo(1);
+    assertThat(tracker.refresh).hasSize(1);
+    String firstRefresh = tracker.refresh.iterator().next();
+
+    tracker.expireAccessTokens();
+    tracker.bearersSeen.clear();
+    Answer restarted = admin("POST", "/api/mcp-servers/tracker-mcp/restart", null);
+    assertThat(restarted.status()).as(restarted.body() + "\n" + trace()).isEqualTo(200);
+
+    Map<String, String> renewal = tracker.tokenRequests.getLast();
+    assertThat(renewal).containsEntry("grant_type", "refresh_token").containsEntry("refresh_token", firstRefresh)
+        .containsEntry("resource", tracker.base + "/mcp");
+    assertThat(json(admin("GET", "/api/mcp-servers/tracker-mcp/sign-in", null), 200).path("state").asString())
+        .isEqualTo("signed-in");
+
+    // The renewed refresh token was stored: the next renewal uses it, not the consumed one.
+    tracker.expireAccessTokens();
+    json(admin("POST", "/api/mcp-servers/tracker-mcp/restart", null), 200);
+    assertThat(tracker.tokenRequests.getLast().get("refresh_token")).isNotEqualTo(firstRefresh);
+    assertThat(tracker.usedRefresh).hasSize(2);
+  }
+
+  @Test
+  @Order(4)
+  void aRevokedSignInAsksForANewOneAndSigningInAgainReusesTheRegistration() throws Exception {
+    tracker.revokeEverything();
+    Answer failed = admin("POST", "/api/mcp-servers/tracker-mcp/restart", null);
+    assertThat(failed.status()).isEqualTo(422);
+    assertThat(failed.body()).contains("needs you to sign in again").contains("invalid_grant");
+    JsonNode status = json(admin("GET", "/api/mcp-servers/tracker-mcp/sign-in", null), 200);
+    assertThat(status.path("state").asString()).isEqualTo("needs-sign-in");
+
+    int registrations = tracker.registrations.size();
+    JsonNode again = json(admin("POST", "/api/mcp-servers/tracker-mcp/sign-in", null), 201);
+    HttpResponse<String> landed = signInInTheBrowser(again.path("authorizationUrl").asString());
+    assertThat(landed.statusCode()).as(landed.body()).isEqualTo(200);
+    assertThat(tracker.registrations).as("the client GateRook registered is used again").hasSize(registrations);
+    assertThat(json(admin("GET", "/api/mcp-servers/tracker-mcp/sign-in", null), 200).path("state").asString())
+        .isEqualTo("signed-in");
+    assertThat(json(admin("POST", "/api/mcp-servers/tracker-mcp/test", null), 200).path("tools").asInt())
+        .isEqualTo(1);
+  }
+
+  @Test
+  @Order(5)
+  void aPastedAddressFinishesASignInWhoseRedirectDidntArrive() throws Exception {
+    JsonNode started = json(admin("POST", "/api/mcp-servers/tracker-mcp/sign-in", null), 201);
+    String id = started.path("id").asString();
+    HttpResponse<String> consent = BROWSER.send(HttpRequest.newBuilder(URI.create(started.path("authorizationUrl")
+        .asString())).GET().build(), HttpResponse.BodyHandlers.ofString());
+    String address = consent.headers().firstValue("Location").orElseThrow();
+    // The browser was on another device: the person copies the address instead.
+    String forged = address.replaceAll("state=[^&]+", "state=forged");
+    assertThat(admin("POST", "/api/mcp-sign-ins/" + id + "/address", "{\"address\":\"" + forged + "\"}").status())
+        .isEqualTo(422);
+    JsonNode done = json(admin("POST", "/api/mcp-sign-ins/" + id + "/address", "{\"address\":\"" + address + "\"}"),
+        200);
+    assertThat(done.path("state").asString()).isEqualTo("signed-in");
+    assertThat(json(admin("POST", "/api/mcp-servers/tracker-mcp/test", null), 200).path("tools").asInt())
+        .isEqualTo(1);
+  }
+
+  @Test
+  @Order(6)
+  void signOutRevokesAndNoTokenShowsAnywhere() throws Exception {
+    JsonNode secrets = json(admin("GET", "/api/secrets", null), 200);
+    assertThat(secrets.toString()).contains("tracker-mcp/oauth-sign-in");
+    assertNoToken(secrets.toString());
+    assertNoToken(json(admin("GET", "/api/connections/tracker-mcp", null), 200).toString());
+    Answer replaced = admin("PUT", "/api/secrets/" + secretId(secrets) + "/value", "{\"value\":\"x\"}");
+    assertThat(replaced.status()).isIn(400, 409, 422);
+    assertThat(replaced.body()).contains("Sign in to the server again");
+
+    JsonNode out = json(admin("POST", "/api/mcp-servers/tracker-mcp/sign-out", "{\"reason\":\"done\"}"), 200);
+    assertThat(out.path("state").asString()).isEqualTo("signed-out");
+    long deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos();
+    while (tracker.revocations.isEmpty() && System.nanoTime() < deadline) {
+      Thread.sleep(50);
+    }
+    assertThat(tracker.revocations).anySatisfy(r -> assertThat(r).containsEntry("token_type_hint", "refresh_token"));
+    Answer refused = admin("POST", "/api/mcp-servers/tracker-mcp/test", null);
+    assertThat(refused.body()).contains("isn't signed in");
+
+    Answer deleted = admin("DELETE", "/api/mcp-servers/tracker-mcp", "{\"reason\":\"done\"}");
+    assertThat(deleted.status()).as(deleted.body()).isEqualTo(204);
+    assertThat(json(admin("GET", "/api/secrets", null), 200).toString()).doesNotContain("tracker-mcp");
+    assertNoToken(core.coreLog());
+    Path serverLog = core.home.resolve("logs/mcp/tracker-mcp.log");
+    if (Files.exists(serverLog)) {
+      assertNoToken(Files.readString(serverLog));
+    }
+  }
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+  private record Answer(int status, String body) {}
+
+  /** The person allows access at the provider; the browser follows the redirect to GateRook on this computer. */
+  private static HttpResponse<String> signInInTheBrowser(String authorizationUrl) throws Exception {
+    HttpResponse<String> consent = BROWSER.send(HttpRequest.newBuilder(URI.create(authorizationUrl)).GET().build(),
+        HttpResponse.BodyHandlers.ofString());
+    assertThat(consent.statusCode()).as(consent.body()).isEqualTo(302);
+    String location = consent.headers().firstValue("Location").orElseThrow();
+    assertThat(location).startsWith("http://localhost:").contains("code=").contains("iss=");
+    return BROWSER.send(HttpRequest.newBuilder(URI.create(location)).timeout(Duration.ofSeconds(30)).GET().build(),
+        HttpResponse.BodyHandlers.ofString());
+  }
+
+  /** What the fake saw, tokens replaced by their order of issue: for a failure's description. */
+  private static String trace() {
+    StringBuilder out = new StringBuilder("bearers: ");
+    tracker.bearersSeen.forEach(b -> out.append(b.startsWith("Bearer trk-at-") ? "AT" + tracker.issued.indexOf(b
+        .substring(7)) : b).append(' '));
+    out.append("\ntoken grants: ");
+    tracker.tokenRequests.forEach(r -> out.append(r.get("grant_type")).append(' '));
+    return out.toString();
+  }
+
+  private static void assertNoToken(String text) {
+    assertThat(text).doesNotContain("trk-at-").doesNotContain("trk-rt-").doesNotContain("trk-code-");
+  }
+
+  private static String secretId(JsonNode secrets) {
+    JsonNode items = secrets.isArray() ? secrets : secrets.path("items");
+    for (JsonNode s : items) {
+      if (s.path("name").asString("").equals("tracker-mcp/oauth-sign-in")) {
+        return s.path("id").asString();
+      }
+    }
+    throw new AssertionError("No sign-in secret in " + secrets);
+  }
+
+  private static URI uri(String target) {
+    return URI.create("http://127.0.0.1:" + core.port + target);
+  }
+
+  /** A request of the window (or of Electron's main process, for /internal): signed with the launch secret. */
+  private static Answer admin(String method, String target, String body) throws Exception {
+    HttpRequest.Builder b = HttpRequest.newBuilder(uri(target)).timeout(Duration.ofSeconds(60))
+        .header("X-Gateway-Auth", core.secret().sign(method, target, System.currentTimeMillis(), nonce()))
+        .method(method, body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofString(body));
+    if (body != null) {
+      b.header("Content-Type", "application/json");
+    }
+    HttpResponse<String> r = HTTP.send(b.build(), HttpResponse.BodyHandlers.ofString());
+    return new Answer(r.statusCode(), r.body());
+  }
+
+  private static JsonNode json(Answer answer, int status) {
+    assertThat(answer.status()).as(answer.body()).isEqualTo(status);
+    return CoreProcess.JSON.readTree(answer.body());
+  }
+
+  private static String nonce() {
+    byte[] bytes = new byte[16];
+    new SecureRandom().nextBytes(bytes);
+    return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+  }
+}

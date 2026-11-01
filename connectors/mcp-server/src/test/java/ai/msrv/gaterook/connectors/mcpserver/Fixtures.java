@@ -284,6 +284,8 @@ final class Fixtures {
   /** What the core does as the runtime's host, recorded. */
   static final class Host implements McpServerRuntime.Host {
     final Path home;
+    /** The sign-in the core keeps for each stored server, by connection id. */
+    final java.util.Map<String, McpServerRuntime.Authorization> signIns = new java.util.concurrent.ConcurrentHashMap<>();
     final List<McpServerRuntime.Handshake> handshakes = new CopyOnWriteArrayList<>();
     final List<McpServerRuntime.ProcessView> states = new CopyOnWriteArrayList<>();
     final List<String> wanted = new CopyOnWriteArrayList<>();
@@ -317,6 +319,11 @@ final class Fixtures {
     @Override
     public void wanted(String connectionId) {
       wanted.add(connectionId);
+    }
+
+    @Override
+    public Optional<McpServerRuntime.Authorization> authorization(String connectionId) {
+      return Optional.ofNullable(signIns.get(connectionId));
     }
 
     List<McpServerRuntime.State> stateNames() {

@@ -2,7 +2,7 @@ import { ApiError } from '../../../core/api/api-error';
 import { clickhouseCheck, sentryReview } from '../connectors.fixtures';
 import { failureDetails, failureText } from './failure';
 import { mcpRequest } from './mcp-add.dialog';
-import { mcpReviewView, mcpSecretValues } from './mcp-review.dialog';
+import { mcpReviewView, mcpSecretValues, signInConfig } from './mcp-review.dialog';
 import { accessText, connectionFormText, pluginFacts } from './plugin-facts';
 
 describe('plugin review facts', () => {
@@ -97,6 +97,38 @@ describe('Add MCP server request', () => {
     const http = mcpRequest('linear', 'http', 'ignored', ' https://mcp.linear.app/mcp ', [{ name: 'Authorization' }]);
     expect(http.source).toEqual({ config: { name: 'linear', transport: 'http', url: 'https://mcp.linear.app/mcp', headers: [{ name: 'Authorization' }] } });
   });
+
+  it('turns sign-in options into an OAuth sign-in of the URL, and leaves it out when they are empty', () => {
+    const app = mcpRequest('github-mcp', 'http', '', 'https://api.githubcopilot.com/mcp/', [], { clientId: ' Iv23li0abc ', scopes: ' repo  read:org ', callbackPort: '7471' });
+    expect(app.source).toEqual({
+      config: {
+        name: 'github-mcp',
+        transport: 'http',
+        url: 'https://api.githubcopilot.com/mcp/',
+        headers: [],
+        auth: { type: 'oauth', clientId: 'Iv23li0abc', scopes: 'repo read:org', callbackPort: 7471 },
+      },
+    });
+    expect(mcpRequest('linear-mcp', 'http', '', 'https://mcp.linear.app/mcp', []).source).toEqual({
+      config: { name: 'linear-mcp', transport: 'http', url: 'https://mcp.linear.app/mcp', headers: [] },
+    });
+    // A command never gets them.
+    expect(mcpRequest('a', 'stdio', 'run', '', [], { clientId: 'x', scopes: '', callbackPort: '' }).source).toEqual({
+      config: { name: 'a', transport: 'stdio', command: ['run'], env: [] },
+    });
+  });
+
+  it('refuses sign-in options HTTP or the server can’t take', () => {
+    const errors = (o: { clientId?: string; scopes?: string; callbackPort?: string }, headers: { name: string }[] = []) =>
+      mcpRequest('x', 'http', '', 'https://x.dev/mcp', headers, { clientId: '', scopes: '', callbackPort: '', ...o }).errors;
+    expect(errors({ callbackPort: '80' })?.callbackPort).toBe('Use a port from 1024 to 65535.');
+    expect(errors({ callbackPort: 'abc' })?.callbackPort).toBe('Use a port from 1024 to 65535.');
+    expect(errors({ clientId: 'a b' })?.clientId).toBe('A client ID has no spaces or control characters.');
+    expect(errors({ scopes: 'a "b"' })?.scopes).toBe('Separate scopes with spaces; a scope has no quotes or backslashes.');
+    expect(errors({ clientId: 'abc' }, [{ name: 'Authorization' }])?.variables).toBe(
+      'The OAuth sign-in sends the Authorization header. Remove that header, or the client ID.',
+    );
+  });
 });
 
 describe('MCP server values', () => {
@@ -177,6 +209,44 @@ describe('MCP server review', () => {
       { name: 'X_TOKEN', pointer: '/env/0/secretRef' },
     ]);
     expect(w.risk).toBe('Every call sends these secrets to this URL. Nobody has verified the server behind it.');
+    expect(w.signIn).toBeNull();
+  });
+
+  const remote = (auth: NonNullable<Parameters<typeof sentryReview>[0]>['auth'], headers: string[] = [], clientId?: string) =>
+    mcpReviewView({
+      review: sentryReview({ transport: 'http', url: 'https://mcp.linear.app/mcp', argv: [], env: headers, auth }),
+      source: {
+        config: { name: 'linear-mcp', transport: 'http', url: 'https://mcp.linear.app/mcp', ...(clientId ? { auth: { type: 'oauth' as const, clientId } } : {}) },
+      },
+      name: 'linear-mcp',
+      transport: 'http',
+      target: 'https://mcp.linear.app/mcp',
+      variables: headers.map((name) => ({ name })),
+      opener: null,
+    });
+
+  it('asks for a sign-in where the server wants one, and says the sign-in goes to the URL', () => {
+    const w = remote({ kind: 'oauth', issuer: 'https://mcp.linear.app', authorizationHost: 'mcp.linear.app', registration: 'dynamic' });
+    expect(w.signIn).toBe('required');
+    expect(w.risk).toBe('Every call sends your sign-in to this URL. Nobody has verified the server behind it.');
+    expect(w.trust).toBe('I trust this server with my sign-in');
+    const withHeader = remote({ kind: 'oauth', registration: 'dynamic' }, ['X-Workspace']);
+    expect(withHeader.risk).toBe('Every call sends your sign-in and these secrets to this URL. Nobody has verified the server behind it.');
+    expect(withHeader.trust).toBe('I trust this server with my sign-in and these secrets');
+    expect(remote({ kind: 'optional', registration: 'dynamic' }).signIn).toBe('optional');
+    expect(remote({ kind: 'none' }).signIn).toBeNull();
+    expect(remote({ kind: 'refused', message: 'It refused the request.' }).signIn).toBeNull();
+    // A key the person passes as the Authorization header is their choice instead of the sign-in.
+    expect(remote({ kind: 'oauth', registration: 'dynamic' }, ['Authorization']).signIn).toBeNull();
+    expect(remote({ kind: 'oauth', registration: 'app' }, [], 'Iv23li0abc').appClient).toBe('Iv23li0abc');
+  });
+
+  it('signs in and adds with the same config: the reviewed one with the sign-in and the typed client ID', () => {
+    const config = { name: 'github-mcp', transport: 'http' as const, url: 'https://api.githubcopilot.com/mcp/', headers: [] };
+    expect(signInConfig(config, null)).toEqual({ ...config, auth: { type: 'oauth' } });
+    expect(signInConfig(config, ' Iv23li0abc ')).toEqual({ ...config, auth: { type: 'oauth', clientId: 'Iv23li0abc' } });
+    const app = { ...config, auth: { type: 'oauth' as const, clientId: 'from-options', callbackPort: 7471 } };
+    expect(signInConfig(app, '')).toEqual(app);
   });
 });
 
