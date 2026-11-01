@@ -5,7 +5,7 @@ import { ClientCard, ClientId, ClientLink, ClientsApi, ConnectPreview, ConnectRe
 import { DesktopBridge } from '../../core/desktop/desktop-bridge';
 import { EndpointsStore } from '../../core/stores/endpoints.store';
 import { GwClientCard } from '../../kit/elements/client-card/client-card';
-import { ClientEndpoint, ClientFailure, browserInstallUrl, clientFailure, keeps, usesBridgeExtension } from '../../kit/elements/client-card/client-view';
+import { ClientEndpoint, ClientFailure, browserInstallUrl, clientFailure, keeps, reinstallToast, usesBridgeExtension } from '../../kit/elements/client-card/client-view';
 import { GwIcon } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
 import { EndpointDetailData } from './endpoint-detail.data';
@@ -19,7 +19,9 @@ const NO_ANSWER = 'The core didn’t answer. Try again.';
  * endpoint, its other endpoints, how it gets a token, its last call; View activity and Disconnect, or Connect.
  *
  * Connect opens the client's connect dialog on this endpoint (it is first in the dialog's choice); Disconnect asks
- * first with the core's disconnect preview. The cards ask, this tab calls the core (`/api/clients`) and toasts.
+ * first with the core's disconnect preview. A Claude Desktop extension with an older bridge offers Reinstall
+ * extension: the same access, a new `.mcpb` that Claude Desktop installs. The cards ask, this tab calls the core
+ * (`/api/clients`) and toasts.
  */
 @Component({
   selector: 'section[gwEndpointClients]',
@@ -51,6 +53,8 @@ export class GwEndpointClients {
   /** A failed write: its card shows what failed and Try again. */
   protected readonly failures = signal<ReadonlyMap<ClientId, ClientFailure>>(new Map());
   protected readonly leaving = signal<ConnectPreview | null>(null);
+  /** The link whose extension Reinstall is building. */
+  protected readonly reinstalling = signal<string | null>(null);
   private previewSeq = 0;
 
   protected failureOf(client: ClientId): ClientFailure | null {
@@ -155,6 +159,31 @@ export class GwEndpointClients {
       this.toasts.show({ tone: 'danger', title: `${card.name} wasn't disconnected`, body: isApiError(e) ? e.detail : NO_ANSWER });
     } finally {
       this.leaving.set(null);
+    }
+  }
+
+  // ── Reinstall ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+  /** An extension with an older bridge: the core builds it again for the same access, Claude Desktop installs it. */
+  protected async reinstall(card: ClientCard, link: ClientLink): Promise<void> {
+    if (this.reinstalling()) return;
+    this.reinstalling.set(link.id);
+    try {
+      const result = await this.data.reinstall(link.id);
+      const opened = this.desktop.available;
+      if (opened) {
+        try {
+          await this.desktop.openMcpb(result.link.id);
+        } catch (e) {
+          this.toasts.show({ tone: 'danger', title: 'The extension could not be opened', body: `${e instanceof Error ? e.message : NO_ANSWER} Open ${result.mcpbPath ?? 'the rebuilt extension'} in Claude Desktop to update it.` });
+          return;
+        }
+      }
+      this.toasts.show({ tone: 'info', ...reinstallToast(card, result, opened) });
+    } catch (e) {
+      this.toasts.show({ tone: 'danger', title: `The ${link.endpoint} extension wasn't reinstalled`, body: isApiError(e) ? e.detail : NO_ANSWER });
+    } finally {
+      this.reinstalling.set(null);
     }
   }
 

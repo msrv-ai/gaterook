@@ -149,7 +149,7 @@ class AwsCoreProcessIT {
     assertThat(metrics).as("aws_metrics on the endpoint").isNotNull();
     assertThat(describe.path("description").asString()).contains("Regions: aws-dev: eu-central-1 · " + ACCOUNT
         + " acme-dev").contains("Connections: aws-dev (AWS · eu-central-1 · " + ACCOUNT + " acme-dev, dev)");
-    assertThat(describe.at("/inputSchema/properties/region/enum").toString()).isEqualTo("[\"eu-central-1\"]");
+    assertThat(describe.at("/inputSchema/properties/region").has("enum")).as("named in the description").isFalse();
     assertThat(describe.at("/annotations/readOnlyHint").asBoolean()).isTrue();
     assertThat(describe.has("outputSchema")).as("Read only: the schema is published").isTrue();
   }

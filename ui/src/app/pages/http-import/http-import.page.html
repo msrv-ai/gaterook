@@ -1,0 +1,148 @@
+<header class="gw-page-header">
+  <div class="gw-page-header__row">
+    <div class="gw-page-header__heading">
+      <h1 class="gw-page-header__title">Import HTTP API</h1>
+      <p class="gw-page-header__description">Turn an OpenAPI file into tools with typed arguments. Credentials stay in GateRook.</p>
+    </div>
+    <a class="gw-btn gw-btn--ghost" routerLink="/connectors" fragment="templates">Back to Templates</a>
+  </div>
+</header>
+
+<div class="gw-stack gw-stack--lg">
+  <ol class="gw-stepper" aria-label="Import HTTP API">
+    @for (label of ['API description', 'Connection', 'Review tools', 'Ready']; track label; let i = $index) {
+      <li class="gw-stepper__step" [attr.data-state]="step() > i + 1 ? 'complete' : step() === i + 1 ? 'current' : 'upcoming'" [attr.aria-current]="step() === i + 1 ? 'step' : null">
+        <span class="gw-stepper__marker" aria-hidden="true">{{ i + 1 }}</span><span class="gw-stepper__label">{{ label }}</span>
+      </li>
+    }
+  </ol>
+
+  @if (errors().length) {
+    <div class="gw-alert gw-alert--danger" role="alert" id="http-errors" tabindex="-1">
+      <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+      <div class="gw-alert__content">
+        @for (error of errors(); track $index) { <p class="gw-alert__body">{{ error }}</p> }
+        @if (!spec()) { <button class="gw-btn gw-btn--sm" type="button" [disabled]="busy()" (click)="load()">Try again</button> }
+      </div>
+    </div>
+  }
+
+  @if (savedConnection() && !savedTemplate()) {
+    <div class="gw-alert gw-alert--info" role="status"><svg lucideIcon="info" class="gw-icon gw-alert__icon"></svg><div class="gw-alert__content">
+      <p class="gw-alert__body">Connection <span class="gw-mono">{{ savedConnection() }}</span> is saved. Its API tools have not been saved yet. Retry below; the connection will be reused.</p>
+      <a [routerLink]="['/connections', savedConnection()]">Open connection settings</a>
+    </div></div>
+  }
+
+  <h2 class="gw-section__title" id="http-step-title" tabindex="-1">{{ ['API description', 'Configure the connection', 'Review the tools', 'API tools are ready'][step() - 1] }}</h2>
+
+  @if (step() === 1) {
+    <form class="gw-form" (submit)="inspect($event)">
+      <fieldset class="gw-form__section" [disabled]="busy() || !spec()">
+        <legend class="gw-form__legend">Source</legend>
+        <div class="gw-form__rows">
+          <div class="gw-field">
+            <label class="gw-field__label" for="http-source">How would you like to describe this API?</label>
+            <select class="gw-select" id="http-source" [value]="source()" (change)="changeSource(value($event))">
+              <option value="file">Import an OpenAPI file</option><option value="url">Import from a URL</option><option value="text">Paste YAML or JSON</option><option value="ai">Create with AI</option>
+            </select>
+          </div>
+          @if (source() === 'ai') {
+            <div class="gw-field"><label class="gw-field__label" for="http-website">Website URL</label><input class="gw-input" id="http-website" type="url" placeholder="https://example.com" [value]="website()" (input)="website.set(value($event))"></div>
+            <div class="gw-field"><label class="gw-field__label" for="http-documentation">API documentation URL <span class="gw-text-caption">Optional</span></label><input class="gw-input" id="http-documentation" type="url" [value]="documentation()" (input)="documentation.set(value($event))"></div>
+            <div class="gw-field"><label class="gw-field__label" for="http-goal">What should the tools do?</label><textarea class="gw-textarea" id="http-goal" rows="3" maxlength="1200" placeholder="Read customers and create support requests" [value]="goal()" (input)="goal.set(value($event))" aria-describedby="http-ai-hint"></textarea><p class="gw-field__hint" id="http-ai-hint">These URLs and instructions are sent to your AI app. Do not include credentials or private data. Review and send the prompt there, then upload the result or paste its YAML or JSON below.</p></div>
+            <div class="gw-btn-group" role="group" aria-label="Prepare API description">
+              <button class="gw-btn" type="button" [disabled]="!desktop.aiPromptAvailable" (click)="launch('claude')">Open Claude Desktop</button>
+              <button class="gw-btn" type="button" [disabled]="!desktop.aiPromptAvailable" (click)="launch('codex')">Open Codex</button>
+              <button class="gw-btn" type="button" [disabled]="!desktop.aiPromptAvailable" (click)="launch('cursor')">Open Cursor</button>
+              <button class="gw-btn" type="button" (click)="launch('copy')">Copy prompt</button>
+            </div>
+            @if (!desktop.aiPromptAvailable) { <p class="gw-field__hint">Opening AI apps requires the current GateRook desktop app. Use Copy prompt in a browser.</p> }
+            <p class="gw-field__hint" role="status">{{ notice() }}</p>
+            @if (prompt()) { <gw-code-block lang="Text" [text]="prompt()" filename="API discovery prompt" copyLabel="prompt" regionLabel="Generated API discovery prompt" /> }
+          }
+          @if (source() === 'file' || source() === 'ai') {
+            <fieldset class="gw-segmented">
+              <legend class="gw-sr-only">OpenAPI input method</legend>
+              <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="http-input-method" value="file" [checked]="inputMethod() === 'file'" (change)="changeInputMethod('file')"><span class="gw-segmented__label">Upload file</span></label>
+              <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" name="http-input-method" value="text" [checked]="inputMethod() === 'text'" (change)="changeInputMethod('text')"><span class="gw-segmented__label">Paste YAML or JSON</span></label>
+            </fieldset>
+          }
+          @if (documentSource() === 'file') {
+            <label class="gw-file-drop" [gwFileDropMaxBytes]="20971520" (fileChange)="pickFile($event)" (tooLarge)="pickFile($event)">
+              <input class="gw-file-drop__input" type="file" accept=".json,.yaml,.yml" aria-describedby="http-file-hint">
+              <span class="gw-file-drop__icon"><svg lucideIcon="upload" class="gw-icon gw-icon--lg"></svg></span>
+              <span class="gw-file-drop__title" data-gw-file-name>Drop an OpenAPI file here or choose a file</span>
+              <span class="gw-file-drop__hint" id="http-file-hint">OpenAPI 3.0 or 3.1 · YAML or JSON · Up to 20 MB · Local references only</span>
+            </label>
+            @if (reading()) { <p role="status">Reading the file…</p> }
+          } @else if (documentSource() === 'url') {
+            <div class="gw-field"><label class="gw-field__label" for="http-spec-url">OpenAPI document URL</label><input class="gw-input gw-input--mono" id="http-spec-url" type="url" [value]="url()" (input)="url.set(value($event))" placeholder="https://api.example.com/openapi.json" aria-describedby="http-url-hint"><p class="gw-field__hint" id="http-url-hint">A public HTTPS document. For authenticated or private documentation, download and import the file. Credentials are not sent to this URL.</p></div>
+          } @else {
+            <div class="gw-field"><label class="gw-field__label" for="http-spec-text">OpenAPI YAML or JSON</label><textarea class="gw-textarea gw-textarea--code" id="http-spec-text" rows="12" spellcheck="false" autocapitalize="off" [value]="text()" (input)="text.set(value($event))" aria-describedby="http-text-hint"></textarea><p class="gw-field__hint" id="http-text-hint">Paste the complete file contents, without Markdown code fences. OpenAPI 3.0 or 3.1 · Up to 20 MB · Local references only.</p></div>
+          }
+          <div class="gw-field"><label class="gw-field__label" for="http-existing">Connection</label><select class="gw-select" id="http-existing" [value]="existing()" (change)="existing.set(value($event))"><option value="">Create a new HTTP API connection</option>@for (c of connections(); track c.name) { <option [value]="c.name">{{ c.name }} · {{ c.env }}</option> }</select></div>
+        </div>
+      </fieldset>
+      <div class="gw-form__actions"><p class="gw-form__note">Nothing is saved until you review and save the tools.</p><button class="gw-btn gw-btn--primary" type="submit" [disabled]="busy() || reading() || !spec()">{{ busy() ? 'Reading description…' : 'Read API description' }}</button></div>
+    </form>
+  }
+
+  @if ((step() === 2 || step() === 3) && inspection() && !savedConnection()) {
+    <section class="gw-stack" [hidden]="step() !== 2" aria-label="Connection configuration">
+      @if (inspection()!.info; as info) {
+        <div class="gw-card"><div class="gw-card__body gw-stack">
+          <p><strong>{{ info.title }}</strong> · OpenAPI {{ info.openapi }}</p>
+          @if (info.servers.length) { <p>Servers declared in the file: @for (server of info.servers; track $index) { <code class="gw-code">{{ server }}</code> }</p> }
+          @if (info.authentication.length) {
+            <p>Authentication declared in the file:</p>
+            <ul>@for (auth of info.authentication; track $index) { <li><span class="gw-mono">{{ auth.name }}</span> · {{ auth.type }} · {{ auth.supported ? 'Configure its credentials below' : 'Not supported; operations requiring this scheme are skipped' }}</li> }</ul>
+          } @else { <p>The file declares no authentication schemes. Confirm whether this API requires credentials.</p> }
+          <p class="gw-text-small gw-fg-secondary">Suggestions come from the file. Confirm the server before entering secrets. OAuth/OIDC login, cookie sessions and combinations of different credentials are not configured automatically.</p>
+        </div></div>
+      }
+      <div class="gw-field"><label class="gw-field__label" for="http-prefix">Tool prefix</label><input class="gw-input gw-input--mono" id="http-prefix" maxlength="16" pattern="[a-z][a-z0-9]{0,15}" [value]="prefix()" (input)="prefix.set(value($event))" [disabled]="busy()" aria-describedby="http-prefix-hint"><p class="gw-field__hint" id="http-prefix-hint">A unique prefix helps distinguish tools from different APIs, for example billing_get_customer.</p></div>
+      @if (detail(); as c) {
+        <p>Use <strong>{{ c.name }}</strong> · {{ c.env }}. <a [routerLink]="['/connections', c.name]">Edit connection settings</a></p>
+        <p>Base URLs: <code class="gw-code">{{ c.config['baseUrls'] }}</code>. Authentication: <span class="gw-mono">{{ $any(c.config['auth'])?.type || 'none' }}</span>.</p>
+        <div class="gw-form__actions"><button class="gw-btn" type="button" [disabled]="busy()" (click)="go(1)">Back</button><button class="gw-btn" type="button" [disabled]="busy()" (click)="test()">Test connection</button><button class="gw-btn gw-btn--primary" type="button" [disabled]="busy()" (click)="review()">Review tools</button></div>
+      } @else if (spec(); as formSpec) {
+        <form gwConnectionForm idPrefix="http-config" [spec]="formSpec" [name]="initialName()" [config]="initialConfig()" [busy]="busy()" saveLabel="Review tools" confirmAction="continue" [parts]="['connection', 'credentials', 'safety', 'advanced', 'test', 'actions']" (save)="review($event)" (back)="go(1)" (runTest)="test($event)"></form>
+      }
+      @if (testResult(); as result) {
+        <div class="gw-alert" [class.gw-alert--info]="result.ok" [class.gw-alert--warning]="!result.ok" role="status"><div class="gw-alert__content"><p class="gw-alert__body">{{ result.ok ? 'Connection test passed.' : result.error?.message || result.needsConfirmation?.text || 'Connection test did not pass.' }}</p>@if (result.needsConfirmation) { <p class="gw-alert__body">Configure the required trust settings in the connection form before testing again.</p> }</div></div>
+      }
+    </section>
+  }
+
+  @if (step() === 3 && parsed(); as result) {
+    <section class="gw-stack" aria-label="Operation selection">
+      <p>Tools run on <strong>{{ connectionName() }}</strong>. Select up to 200 operations. Reads start Off on production; changes require approval by default. Adding tools to an endpoint is a separate step.</p>
+      @for (warning of result.warnings; track $index) { <p class="gw-field__hint">{{ warning }}</p> }
+      <div class="gw-field"><label class="gw-field__label" for="http-template-name">Template name</label><input class="gw-input" id="http-template-name" maxlength="64" [disabled]="busy()" [value]="templateName()" (input)="templateName.set(value($event))"></div>
+      <div class="gw-field"><label class="gw-field__label" for="http-review-prefix">Tool prefix</label><input class="gw-input gw-input--mono" id="http-review-prefix" maxlength="16" [disabled]="busy()" [value]="prefix()" (input)="prefix.set(value($event))" aria-describedby="http-review-prefix-hint"><p class="gw-field__hint" id="http-review-prefix-hint">If a tool name is already in use, choose another prefix and refresh the preview.</p></div>
+      @if (prefix() !== previewPrefix()) { <div><button class="gw-btn" type="button" [disabled]="busy()" (click)="review()">Refresh tools</button></div> }
+      <div class="gw-field"><label class="gw-field__label" for="http-filter">Find operations by name, path or tag</label><input class="gw-input" id="http-filter" type="search" [value]="filter()" (input)="filter.set(value($event))"></div>
+      <div class="gw-toolbar"><div class="gw-toolbar__start"><p role="status">{{ selected().size }} selected · {{ result.operations.length }} operations</p></div><div class="gw-toolbar__end"><button class="gw-btn gw-btn--sm" type="button" [disabled]="busy()" (click)="selectVisible()">Select available results</button><button class="gw-btn gw-btn--sm" type="button" [disabled]="busy()" (click)="clearSelection()">Clear selection</button></div></div>
+      <div class="gw-table-wrap" role="region" aria-label="API operations" tabindex="0"><table class="gw-table">
+        <thead><tr><th scope="col">Use</th><th scope="col">Tool and operation</th><th scope="col">Access</th></tr></thead>
+        <tbody>@for (op of rows(); track op.opKey) {
+          <tr><td class="gw-table__cell--select"><label class="gw-checkbox"><input class="gw-checkbox__input" type="checkbox" [checked]="selected().has(op.opKey)" [disabled]="!!op.skipped || busy()" [attr.aria-label]="'Import ' + op.opKey" (change)="toggle(op, $any($event.target).checked)"><span class="gw-checkbox__control" aria-hidden="true"></span></label></td>
+            <th scope="row"><span class="gw-mono">{{ op.name || op.opKey }}</span><p class="gw-text-caption gw-fg-secondary">{{ op.method }} {{ op.path }}</p><p class="gw-text-small">{{ op.summary }}</p>@if (op.skipped) { <p class="gw-field__error">Skipped: {{ op.skipped }}</p> }</th>
+            <td>@if (!op.skipped) { @if (op.nature === 'read') { <label class="gw-checkbox"><input class="gw-checkbox__input" type="checkbox" [checked]="mutations().has(op.opKey)" [disabled]="busy()" [attr.aria-label]="op.opKey + ' changes state'" (change)="markMutation(op.opKey, $any($event.target).checked)"><span class="gw-checkbox__control" aria-hidden="true"></span><span class="gw-checkbox__label">Changes state</span></label><p class="gw-text-caption">{{ mutations().has(op.opKey) ? 'Needs approval' : 'Read only · Off on prod' }}</p> } @else { <span class="gw-mode gw-mode--approval">Needs approval</span> } }</td>
+          </tr>
+        } @empty { <tr><td colspan="3">No matching operations.</td></tr> }</tbody>
+      </table></div>
+      <div class="gw-form__actions"><button class="gw-btn" type="button" [disabled]="busy() || !!savedConnection()" (click)="go(2)">Back to connection</button><button class="gw-btn gw-btn--primary" type="button" [disabled]="busy() || !selected().size || prefix() !== previewPrefix()" (click)="save()">{{ busy() ? 'Saving…' : 'Save API tools' }}</button></div>
+    </section>
+  }
+
+  @if (step() === 4 && savedTemplate(); as template) {
+    <section class="gw-card"><div class="gw-card__body gw-stack">
+      <p><strong>{{ template.name }}</strong> is saved on <span class="gw-mono">{{ connectionName() }}</span>.</p>
+      <p>Add its connection to an endpoint, then enable the imported tools you want your AI apps to use. Importing does not grant access automatically.</p>
+      @for (warning of savedWarnings(); track $index) { <p class="gw-field__hint">{{ warning }}</p> }
+      <div class="gw-btn-group"><a class="gw-btn gw-btn--primary" routerLink="/endpoints">Choose an endpoint</a><a class="gw-btn" routerLink="/connectors" fragment="templates">View templates</a><a class="gw-btn" [routerLink]="['/connections', connectionName()]">Connection settings</a></div>
+    </div></section>
+  }
+</div>

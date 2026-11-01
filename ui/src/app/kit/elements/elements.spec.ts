@@ -279,6 +279,85 @@ describe('observed OAuth client cards', () => {
   });
 });
 
+describe('client-card: an extension with an older bridge', () => {
+  const [dev, prod] = DEMO_CLIENTS.claudeDesktop.links;
+  const older = (l: ClientLink): ClientLink => ({ ...l, bridgeVersion: '0.4.3', bridgeUpdate: '0.5.0' });
+
+  @Component({
+    imports: [GwClientCard],
+    template: `<article gwClientCard [card]="card()" [variant]="variant()" endpoint="dev" [endpoints]="endpoints" [reinstalling]="reinstalling()" (reinstall)="asked.push($event)"></article>`,
+  })
+  class Host {
+    card = signal<ClientCard>(DEMO_CLIENTS.claudeDesktop);
+    variant = signal<'grid' | 'compact'>('grid');
+    reinstalling = signal<string | null>(null);
+    endpoints = DEMO_CLIENT_ENDPOINTS;
+    asked: ClientLink[] = [];
+  }
+
+  async function show(links: ClientLink[], variant: 'grid' | 'compact' = 'grid'): Promise<{ card: HTMLElement; host: Host; fixture: ComponentFixture<Host> }> {
+    const { el, fixture, host } = await render(Host);
+    host.card.set({ ...DEMO_CLIENTS.claudeDesktop, links });
+    host.variant.set(variant);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    return { card: el.querySelector('article')!, host, fixture };
+  }
+
+  for (const variant of ['grid', 'compact'] as const) {
+    it(`${variant}: a current extension says nothing about its bridge`, async () => {
+      const { card } = await show([dev, prod], variant);
+      expect(text(card).toLowerCase()).not.toContain('runs bridge');
+      expect(button(card, 'Reinstall extension')).toBeUndefined();
+    });
+  }
+
+  it('names the extension, both versions and what Reinstall keeps, and asks the page to reinstall that one', async () => {
+    const { card, host, fixture } = await show([older(dev), prod]);
+    const alerts = Array.from(card.querySelectorAll('.gw-client-card__body .gw-alert--warning'));
+    expect(alerts).toHaveLength(1);
+    expect(text(alerts[0].querySelector('.gw-alert__title'))).toBe('The dev extension runs bridge 0.4.3');
+    expect(alerts[0].querySelector('.gw-alert__title .gw-mono')?.textContent).toBe('dev');
+    expect(text(alerts[0].querySelector('.gw-alert__body'))).toBe(
+      'GateRook 0.5.0 has a newer one. Reinstall it so Claude Desktop keeps showing approval cards after GateRook restarts. It keeps its access.',
+    );
+    const reinstall = button(alerts[0], 'Reinstall extension');
+    expect(text(reinstall)).toBe('Reinstall extension for dev');
+    reinstall.click();
+    expect(host.asked).toEqual([older(dev)]);
+
+    // While the core builds it, the button is busy and asks nothing more.
+    host.reinstalling.set(dev.id);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(reinstall.getAttribute('aria-busy')).toBe('true');
+    expect(reinstall.getAttribute('aria-disabled')).toBe('true');
+    reinstall.click();
+    expect(host.asked).toHaveLength(1);
+  });
+
+  it('says that a prod extension keeps its Allow, one alert per older extension', async () => {
+    const { card } = await show([older(dev), older(prod)]);
+    const alerts = Array.from(card.querySelectorAll('.gw-client-card__body .gw-alert--warning'));
+    expect(alerts.map((a) => text(a.querySelector('.gw-alert__title')))).toEqual([
+      'The dev extension runs bridge 0.4.3',
+      'The incident-prod extension runs bridge 0.4.3',
+    ]);
+    expect(text(alerts[1].querySelector('.gw-alert__body'))).toContain('It keeps its access and your Allow.');
+    expect(button(alerts[1], 'Reinstall extension')).toBe(button(card, 'Reinstall extension for incident-prod'));
+  });
+
+  it('compact: the row says so under its caption and offers Reinstall for its own endpoint only', async () => {
+    const { card, host } = await show([older(dev), older(prod)], 'compact');
+    const main = card.querySelector('.gw-client-card__main')!;
+    expect(text(main.querySelector('.gw-fg-warning'))).toBe('Runs bridge 0.4.3: reinstall it to keep approval cards after GateRook restarts');
+    const actions = card.querySelector('.gw-client-card__actions')!;
+    expect(Array.from(actions.querySelectorAll('button, a')).map(text)).toEqual(['Reinstall extension for dev', 'View activity of Claude Desktop', 'Disconnect Claude Desktop from dev']);
+    button(actions, 'Reinstall extension').click();
+    expect(host.asked.map((l) => l.id)).toEqual([dev.id]);
+  });
+});
+
 describe('claude.ai card and the sign-in consent', () => {
   @Component({
     imports: [GwClaudeAiCard, GwOAuthConsent],

@@ -7,6 +7,7 @@ import {
   ClientMethod,
   ClientMethodId,
   ConnectPreview,
+  ConnectResult,
   configEditProblem,
 } from '../../../core/api/clients.api';
 import { EndpointSummary } from '../../../core/api/endpoints.api';
@@ -379,6 +380,41 @@ export function disconnectWords(card: ClientCard, link: ClientLink, table: boole
   }
   const again = link.method === 'token' ? ' Its token stops working; connect again any time.' : ' Connect again any time; that creates a new access.';
   return { title: `Disconnect ${card.name}?`, body: literalParts(loses + again, [link.endpoint]), button: `Disconnect ${card.name}` };
+}
+
+/** A Claude Desktop extension that still runs an older bridge than this GateRook's: Reinstall brings the newer one. */
+export function olderBridge(link: ClientLink): boolean {
+  return link.method === 'mcpb' && !!link.bridgeUpdate;
+}
+
+/**
+ * What a card says about an extension with an older bridge (kit client-card "Older bridge"): a warning alert with
+ * Reinstall extension, or a compact row's warning caption. An installed extension keeps the bridge it was built with,
+ * and an old one loses Claude Desktop's approval cards whenever GateRook restarts. Reinstall builds the extension
+ * again for the same access, so a prod access keeps its Allow.
+ */
+export function bridgeUpdateWords(link: ClientLink): { readonly title: TextPart[]; readonly body: string; readonly caption: string } {
+  const runs = link.bridgeVersion ? `bridge ${link.bridgeVersion}` : 'an older bridge';
+  const keeps = link.env === 'prod' ? 'It keeps its access and your Allow.' : 'It keeps its access.';
+  return {
+    title: [
+      { text: 'The ', code: false },
+      { text: link.endpoint, code: true },
+      { text: ` extension runs ${runs}`, code: false },
+    ],
+    body: `GateRook ${link.bridgeUpdate} has a newer one. Reinstall it so Claude Desktop keeps showing approval cards after GateRook restarts. ${keeps}`,
+    caption: `Runs ${runs}: reinstall it to keep approval cards after GateRook restarts`,
+  };
+}
+
+/** The toast after Reinstall: Claude Desktop installs the extension once the person confirms it there. */
+export function reinstallToast(card: ClientCard, result: ConnectResult, opened: boolean): { readonly title: string; readonly body: string } {
+  return {
+    title: `Update ${result.link.endpoint} in ${card.name}`,
+    body: opened
+      ? `${card.name} opens its install dialog for the extension: click Install. It keeps its access; the hint goes once the new bridge connects.`
+      : `Open ${result.mcpbPath ?? 'the extension'} in ${card.name} to update it. It keeps its access.`,
+  };
 }
 
 /** The `.mcpb` files a Remove bridge takes away (one per endpoint), by file name. */

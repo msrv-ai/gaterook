@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -292,6 +293,49 @@ class BridgeCliTest {
     assertThat(StdioBridge.headerName("sql_query")).isEqualTo("sql_query");
     assertThat(StdioBridge.headerName("café")).startsWith("=?base64?").endsWith("?=");
     assertThat(StdioBridge.sseData("data: a\ndata: b\n\ndata: c\n")).containsExactly("a\nb", "c");
+  }
+
+  @Test
+  void stdioRepeatsWhatItsClientDeclaredInInitializeOnLaterLegacyRequests() throws Exception {
+    Map<String, String> declared = new ConcurrentHashMap<>();
+    HttpServer http = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+    http.createContext("/mcp/dev", ex -> {
+      Object msg = Json.parse(new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+      declared.put(Json.write(Json.get(msg, "id")),
+          String.valueOf(ex.getRequestHeaders().getFirst("X-Gateway-Bridge-Client")));
+      byte[] out = ("{\"jsonrpc\":\"2.0\",\"id\":" + Json.write(Json.get(msg, "id")) + ",\"result\":{}}")
+          .getBytes(StandardCharsets.UTF_8);
+      ex.getResponseHeaders().add("X-Gateway-Bridge-Instance", "inst-1");
+      ex.getResponseHeaders().add("Content-Type", "application/json");
+      ex.sendResponseHeaders(200, out.length);
+      ex.getResponseBody().write(out);
+      ex.close();
+    });
+    http.start();
+    int port = http.getAddress().getPort();
+    String capabilities = "{\"extensions\":{\"io.modelcontextprotocol/ui\":"
+        + "{\"mimeTypes\":[\"text/html;profile=mcp-app\"]}}}";
+    try (FakeBroker broker = new FakeBroker(home, r -> issued(port, "dev", "gwb_t1"))) {
+      StdioBridge bridge = new StdioBridge("dev", GRANT, "cursor", BrokerClient.fromEnvironment(Map.of("GW_HOME",
+          home.toString())), new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8));
+      bridge.handle("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":"
+          + "\"2025-11-25\",\"capabilities\":" + capabilities + ",\"clientInfo\":{\"name\":\"cursor-vscode\","
+          + "\"version\":\"1.0.0\",\"icons\":[]}}}");
+      bridge.handle("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}");
+      bridge.handle("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"q\",\"_meta\":"
+          + "{\"io.modelcontextprotocol/protocolVersion\":\"2026-07-28\"}}}");
+      assertThat(declared.get("1")).as("initialize declares in its body").isEqualTo("null");
+      assertThat(new String(Base64.getUrlDecoder().decode(declared.get("2")), StandardCharsets.UTF_8))
+          .isEqualTo("{\"capabilities\":" + capabilities + ",\"clientInfo\":{\"name\":\"cursor-vscode\","
+              + "\"version\":\"1.0.0\"}}");
+      assertThat(declared.get("3")).as("a modern request declares in _meta").isEqualTo("null");
+    } finally {
+      http.stop(0);
+    }
+    assertThat(new String(Base64.getUrlDecoder().decode(StdioBridge.clientHeader(null)), StandardCharsets.UTF_8))
+        .isEqualTo("{\"capabilities\":{}}");
+    assertThat(StdioBridge.clientHeader(Json.parse("{\"capabilities\":{\"experimental\":{\"padding\":\""
+        + "x".repeat(4096) + "\"}}}"))).isNull();
   }
 
   @Test

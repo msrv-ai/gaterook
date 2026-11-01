@@ -11,7 +11,8 @@ package ai.msrv.gaterook.connector.api; import java.util.*; import tools.jackson
  *  Knows nothing about tokens, clients, endpoints or people. */
 public interface Connector extends AutoCloseable {
   ConnectorManifest manifest();
-  /** Tools as published on one endpoint: enum of `connection`, effective limits in descriptions. */
+  /** Tools as published on one endpoint, effective limits in descriptions. MCP clients get no enum that the endpoint
+   *  adds to a property the manifest leaves open (runbooks, scopes, regions): the description names its values. */
   default List<ToolDefinition> tools(EndpointView endpoint) { return manifest().tools(); }
   /** No I/O: filters tool/connection pairs for built-in backends; classification still enforces applicability. */
   default boolean supportsTool(String tool, ConnectionConfig cfg) { return true; }
@@ -78,7 +79,8 @@ public record ConnectorManifest(String id /* "postgres" */, String version, Kind
 }
 // ── ToolDefinition.java ────────────────────────────────────────────────────────────────────────────────────────
 package ai.msrv.gaterook.connector.api; import tools.jackson.databind.JsonNode;
-/** `connection` in inputSchema is a placeholder: the core fills its enum per endpoint. outputSchema only for pure READ. */
+/** `connection` in inputSchema is a placeholder: the core fills its enum per endpoint for its own checks and names the
+ *  connections in the description; MCP clients get no enum. outputSchema only for pure READ. */
 public record ToolDefinition(String name /* ^[a-z][a-z0-9_]{0,63}$ */, String title, String description,
     JsonNode inputSchema, JsonNode outputSchema, Annotations annotations /* always explicit */, Nature nature,
     Mode defaultMode /* dev/stage endpoints */, Mode prodDefaultMode, ResultShape resultShape, Risk risk) {

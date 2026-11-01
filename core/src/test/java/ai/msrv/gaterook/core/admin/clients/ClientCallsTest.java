@@ -114,7 +114,7 @@ class ClientCallsTest {
   private static Link link(String method, String status) {
     return new Link("managed-cursor", "cursor", "dev", "dev", method, "gaterook-dev", "/test/.cursor/mcp.json",
         "~/.cursor/mcp.json", null, null, method.equals("token") ? "cursor-laptop" : null, status, status,
-        CONNECTED_AT, null, null, null, null);
+        CONNECTED_AT, null, null, null, null, null, null);
   }
 
   private static Card card(String status, List<Link> links) {

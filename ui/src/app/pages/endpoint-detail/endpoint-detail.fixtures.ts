@@ -205,6 +205,8 @@ function link(client: string, endpoint: string, method: string, over: object = {
     statusText: 'Connected',
     lastCallAt: at('14:29:30'),
     revision: '2026-07-28',
+    bridgeVersion: null,
+    bridgeUpdate: null,
     ...over,
   };
 }

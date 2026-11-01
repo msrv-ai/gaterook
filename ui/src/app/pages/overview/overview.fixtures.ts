@@ -173,6 +173,8 @@ export function link(client: ClientLink['client'], endpoint: string, env: Env, o
     mcpbPath: null,
     lastCallAt: at(14, 20),
     revision: '2025-11-25',
+    bridgeVersion: null,
+    bridgeUpdate: null,
     ...over,
   };
 }

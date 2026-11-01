@@ -15,6 +15,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -26,8 +27,9 @@ import java.util.regex.Pattern;
 /**
  * {@code gw-bridge stdio --endpoint dev --grant gr_… [--client cursor]}: the same bridge as {@code gw-bridge.mjs}, for
  * clients that start a stdio server themselves (Cursor and Antigravity "through the bridge", Claude Desktop's fallback
- * entry). Each stdin line is POSTed to the endpoint URL the broker names with a 15-minute token; one line comes back
- * on stdout per answer, written under a lock. A 401 gets one new token and one retry. Errors are answered as JSON-RPC
+ * entry). Each stdin line is POSTed to the endpoint URL the broker names with a 15-minute token, and after a legacy
+ * {@code initialize} with what the client declared in it ({@code X-Gateway-Bridge-Client}); one line comes back on
+ * stdout per answer, written under a lock. A 401 gets one new token and one retry. Errors are answered as JSON-RPC
  * errors with the request's id and the process keeps running, so the client doesn't mark the server as failed.
  */
 final class StdioBridge implements AutoCloseable {
@@ -37,6 +39,8 @@ final class StdioBridge implements AutoCloseable {
   private static final Duration REQUEST_WAIT = Duration.ofSeconds(120);
   private static final Pattern ASCII = Pattern.compile("[\\x20-\\x7e]*");
   private static final String INSTANCE_HEADER = "X-Gateway-Bridge-Instance";
+  private static final String CLIENT_HEADER = "X-Gateway-Bridge-Client";
+  private static final int MAX_CLIENT_HEADER = 4096;
 
   private record Token(String value, URI url, Instant expires, String instance) {}
 
@@ -49,6 +53,7 @@ final class StdioBridge implements AutoCloseable {
   private final HttpClient http;
   private volatile Token token;
   private volatile String negotiated;
+  private volatile String declared;
   private volatile boolean listChanged;
   private volatile boolean closed;
   private final Object streamLock = new Object();
@@ -108,6 +113,11 @@ final class StdioBridge implements AutoCloseable {
     }
     Object id = msg instanceof Map<?, ?> m && m.containsKey("id") ? m.get("id") : Absent.ID;
     String method = Json.string(msg, "method");
+    Object params = Json.get(msg, "params");
+    if ("initialize".equals(method)
+        && Json.string(Json.get(params, "_meta"), "io.modelcontextprotocol/protocolVersion") == null) {
+      declared = clientHeader(params);
+    }
     try {
       Token held = token;
       Token t = token(false);
@@ -393,10 +403,42 @@ final class StdioBridge implements AutoCloseable {
       if (name != null) {
         b.header("Mcp-Name", headerName(name));
       }
-    } else if (negotiated != null && !"initialize".equals(method)) {
-      b.header("MCP-Protocol-Version", negotiated);
+    } else if (!"initialize".equals(method)) {
+      if (negotiated != null) {
+        b.header("MCP-Protocol-Version", negotiated);
+      }
+      String declaration = declared;
+      if (declaration != null) {
+        b.header(CLIENT_HEADER, declaration);
+      }
     }
     return http.send(b.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+  }
+
+  /**
+   * What the client declared in its legacy {@code initialize}, as the {@code X-Gateway-Bridge-Client} value repeated
+   * on every later request: base64url of {@code {capabilities, clientInfo: {name, title, version}}}. Several clients
+   * can share a grant, and a restarted core remembers none of them, so each request says which client it comes from.
+   * {@code null} when it doesn't fit in 4096 characters.
+   */
+  static String clientHeader(Object params) {
+    Map<String, Object> declaration = new LinkedHashMap<>();
+    Object capabilities = Json.get(params, "capabilities");
+    declaration.put("capabilities", capabilities instanceof Map<?, ?> ? capabilities : Map.of());
+    Object sent = Json.get(params, "clientInfo");
+    if (sent instanceof Map<?, ?>) {
+      Map<String, Object> info = new LinkedHashMap<>();
+      for (String field : List.of("name", "title", "version")) {
+        String value = Json.string(sent, field);
+        if (value != null) {
+          info.put(field, value);
+        }
+      }
+      declaration.put("clientInfo", info);
+    }
+    String value = Base64.getUrlEncoder().withoutPadding()
+        .encodeToString(Json.write(declaration).getBytes(StandardCharsets.UTF_8));
+    return value.length() <= MAX_CLIENT_HEADER ? value : null;
   }
 
   static String headerName(String value) {

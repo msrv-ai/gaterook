@@ -51,11 +51,14 @@ public final class ClientViews {
    * @param grantLabel the trusted label of the client's access ({@code codex-laptop}); {@code tokenName} for a named token
    * @param grantPrefix {@code gr_Cx7q…}: lists show the grant's prefix only
    * @param usedAt     when the client last got a token or used its token, {@code null} before that
+   * @param bridgeVersion the version the bridge of its grant reported with the last token request, or {@code null}
+   * @param bridgeUpdate the newer bridge Reinstall puts in a Claude Desktop extension (this app's version) when the
+   *                   extension still runs an older one; {@code null} when it is current or its version is unknown
    */
   public record Link(String id, String client, String endpoint, String env, String method, String entryName,
       String configPath, String configDisplay, String grantPrefix, String grantLabel,
       String tokenName, String status, String statusText, Instant createdAt, Instant usedAt, String mcpbPath,
-      Instant lastCallAt, String revision) {
+      Instant lastCallAt, String revision, String bridgeVersion, String bridgeUpdate) {
 
     /**
      * The same link with what the audit knows: its last call and the protocol revision it spoke. A call after Connect
@@ -65,7 +68,7 @@ public final class ClientViews {
       boolean proves = !provenBySignIn() && at != null && !at.isBefore(createdAt) && status.equals("needs-restart");
       return new Link(id, client, endpoint, env, method, entryName, configPath, configDisplay, grantPrefix, grantLabel,
           tokenName, proves ? "connected" : status, proves ? "Connected" : statusText, createdAt, usedAt, mcpbPath, at,
-          rev);
+          rev, bridgeVersion, bridgeUpdate);
     }
 
     /** A current OAuth sign-in can establish connectivity before an audited tool call exists. */
@@ -77,7 +80,7 @@ public final class ClientViews {
       Instant latest = usedAt == null || at.isAfter(usedAt) ? at : usedAt;
       return new Link(id, client, endpoint, env, method, entryName, configPath, configDisplay, grantPrefix, grantLabel,
           tokenName, proves ? "connected" : status, proves ? "Connected" : statusText, createdAt, latest, mcpbPath,
-          lastCallAt, revision);
+          lastCallAt, revision, bridgeVersion, bridgeUpdate);
     }
 
     /** The label calls of this link carry in the audit ({@code tool_call.token_label}). */
@@ -129,7 +132,7 @@ public final class ClientViews {
   public record Line(String type, Integer oldNo, Integer newNo, String text) {}
 
   /**
-   * What a Connect did.
+   * What a Connect or a Reinstall did.
    *
    * @param mcpbPath the extension Electron opens in Claude Desktop, or {@code null}
    */

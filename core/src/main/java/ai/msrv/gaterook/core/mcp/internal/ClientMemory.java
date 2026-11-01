@@ -8,7 +8,9 @@ import tools.jackson.databind.JsonNode;
 /**
  * What a legacy client said about itself in its last {@code initialize}, by principal: without sessions the later
  * requests don't repeat it. Client info labels Activity; capabilities select the presentation and delivery flow.
- * Neither authenticates a person or authorizes a decision. Bounded, in memory.
+ * Neither authenticates a person or authorizes a decision. Bounded, in memory, so a core restart forgets it. A stdio
+ * bridge repeats its own client's declaration on every request ({@link BridgeClient}), which takes precedence: this
+ * is what other legacy clients fall back to.
  */
 @Component
 public class ClientMemory {

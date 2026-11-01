@@ -178,16 +178,17 @@ class ClientDriftWatcher implements DisposableBean {
     configs = now;
   }
 
-  /** Publishes the links whose status changed since the last look. */
+  /** Publishes the links whose status, or whether their extension runs an older bridge, changed since the last look. */
   void compare() {
     Map<String, String> now = clients.statuses();
     for (Map.Entry<String, String> e : now.entrySet()) {
       if (!e.getValue().equals(last.get(e.getKey()))) {
-        String[] parts = e.getValue().split(" ", 2);
+        String[] parts = e.getValue().split(" ", 3);
         ObjectNode data = JsonNodeFactory.instance.objectNode();
         data.put("link", e.getKey());
         data.put("client", parts[0]);
         data.put("status", parts.length > 1 ? parts[1] : "");
+        data.put("bridgeUpdate", parts.length > 2);
         events.publish("clients.drift", data);
       }
     }

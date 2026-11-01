@@ -94,6 +94,7 @@ export const IPC = {
   pendingDeepLink: 'gw:pending-deep-link',
   updateState: 'gw:update-state',
   openExternal: 'gw:open-external',
+  openAiPrompt: 'gw:open-ai-prompt',
   saveFile: 'gw:save-file',
   openFile: 'gw:open-file',
   choosePrivateKeyFile: 'gw:choose-private-key-file',

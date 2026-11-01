@@ -518,6 +518,13 @@ export class EndpointDetailData {
     return result;
   }
 
+  /** Claude Desktop's extension, built again with this GateRook's bridge for the same access: no new grant. */
+  async reinstall(linkId: string): Promise<ConnectResult> {
+    const result = await this.clientsApi.reinstall(linkId);
+    await this.reloadClients();
+    return result;
+  }
+
   // ── Endpoint ──────────────────────────────────────────────────────────────────────────────────────────────────
 
   async disable(): Promise<EndpointSummary> {

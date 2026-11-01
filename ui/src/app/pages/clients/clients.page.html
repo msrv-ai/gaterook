@@ -143,10 +143,10 @@
 <ng-template #card let-c>
   @let s = data.connectState(c.client);
   <article gwClientCard page [collapsible]="st === 'in-use' || none()" [expanded]="expandedApps().has(c.client)" (expandedChange)="expandApp(c.client, $event)" [id]="clientAnchor(c.client)" [attr.data-client]="c.client" [card]="c" [defaultTtlDays]="data.defaultTokenTtlDays()" [endpoints]="endpoints()" [entry]="entryOf(c)" [scanning]="data.scanning() === c.client" [canOpenConfig]="desktopApp"
-    [connectPreview]="s.preview" [connectLoading]="s.loading" [connectFailure]="s.written ? null : s.failure" [failure]="s.written ? s.failure : null" [disconnectPreview]="data.disconnectPreviewOf(c.client)"
+    [connectPreview]="s.preview" [connectLoading]="s.loading" [connectFailure]="s.written ? null : s.failure" [failure]="s.written ? s.failure : null" [disconnectPreview]="data.disconnectPreviewOf(c.client)" [reinstalling]="reinstalling()"
     (connectStart)="data.resetConnect($event)" (previewRequest)="onPreviewRequest($event)" (connect)="onConnect(c, $event.previewId, $event.request)"
     (addEndpoint)="onAddEndpoint(c, $event.endpoint)" (disconnectStart)="onDisconnectStart($event)" (disconnect)="onDisconnect(c, $event.link, $event.previewId)"
-    (removeBridge)="onRemoveBridge(c)" (openConfig)="onOpenConfig($event)" (scan)="scan(c)"></article>
+    (removeBridge)="onRemoveBridge(c)" (reinstall)="onReinstall(c, $event)" (openConfig)="onOpenConfig($event)" (scan)="scan(c)"></article>
 </ng-template>
 
 <!--

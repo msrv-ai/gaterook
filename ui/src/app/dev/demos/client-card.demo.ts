@@ -4,6 +4,7 @@ import { OAuthGrant } from '../../core/api/tunnel.api';
 import { GwClaudeAiCard } from '../../kit/elements/client-card/claude-ai-card';
 import { ClientPreviewRequest, GwClientCard } from '../../kit/elements/client-card/client-card';
 import { GwClientConnectCard } from '../../kit/elements/client-card/client-connect-card';
+import { reinstallToast } from '../../kit/elements/client-card/client-view';
 import { ToastService } from '../../kit/toast.service';
 import { GwDemoHeader } from '../demo-header';
 import { kitElement } from '../elements';
@@ -91,6 +92,19 @@ function demoPreview(client: ClientId, r: ConnectRequest): ConnectPreview {
       </div>
     </section>
 
+    <section class="gw-section" aria-labelledby="s-older-bridge">
+      <header class="gw-section__header">
+        <h2 class="gw-section__title" id="s-older-bridge">Older bridge</h2>
+        <p class="gw-section__description">An installed extension keeps the bridge it was built with. When it is older than GateRook's, the card names the endpoint's extension and both versions; Reinstall extension builds it again for the same access, and Claude Desktop asks you to install it. The access and, on prod, your Allow stay. An extension that is current says nothing.</p>
+      </header>
+      <div class="gw-stack">
+        <article gwClientCard [card]="clients.claudeDesktopOlder" [endpoints]="endpoints" (reinstall)="reinstalled($event)" (disconnectStart)="disconnectFor($event)" [disconnectPreview]="leaving()" (disconnect)="disconnected($event.link)"></article>
+        <ul class="gw-stack gw-stack--sm" aria-label="AI apps of endpoint incident-prod">
+          <li gwClientCard variant="compact" endpoint="incident-prod" [card]="clients.claudeDesktopOlder" [endpoints]="endpoints" (reinstall)="reinstalled($event)" (disconnectStart)="disconnectFor($event)" [disconnectPreview]="leaving()" (disconnect)="disconnected($event.link)"></li>
+        </ul>
+      </div>
+    </section>
+
     <section class="gw-section" aria-labelledby="s-error">
       <header class="gw-section__header">
         <h2 class="gw-section__title" id="s-error">Error: config not writable</h2>
@@ -174,6 +188,12 @@ export class ClientCardDemo {
 
   protected disconnected(l: ClientLink): void {
     this.say('success', l.client === 'codex' ? 'Codex disconnected' : `Claude Desktop disconnected from ${l.endpoint}`, l.client === 'codex' ? 'The entry is removed and access codex-laptop is revoked.' : `The bridge gets no new tokens for ${l.endpoint}.`);
+  }
+
+  /** As the page would after the core built the extension again and Claude Desktop opened it. */
+  protected reinstalled(l: ClientLink): void {
+    const t = reinstallToast(DEMO_CLIENTS.claudeDesktop, { link: l, mcpbPath: l.mcpbPath, notes: [] }, true);
+    this.say('info', t.title, t.body);
   }
 
   protected revoked(g: OAuthGrant): void {

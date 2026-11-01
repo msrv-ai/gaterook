@@ -68,6 +68,12 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/connection-new/connection-new.page').then((m) => m.ConnectionNewPage),
       },
       {
+        path: 'connections/http-import',
+        title: 'Import HTTP API',
+        data: data('Connections'),
+        loadComponent: () => import('./pages/http-import/http-import.page').then(m => m.HttpImportPage),
+      },
+      {
         // The same page in edit mode (kit: connection-new.html?edit=<name>, titled "dev-db · Connections").
         path: 'connections/:name',
         title: (route: ActivatedRouteSnapshot) => `${route.paramMap.get('name') ?? ''} · Connections`,

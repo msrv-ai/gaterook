@@ -8,6 +8,15 @@ All documentation and AI-authored repository content must be English only, inclu
 
 Read `README.md`, `docs/repository-layout.md`, and the instructions for affected directories. Check the working tree, branch, and origin (`https://github.com/msrv-ai/gaterook`). Preserve existing changes and do not rewrite history or clean unrelated files.
 
+## Release branches after AI work
+
+Before finishing work in an AI-managed linked worktree, release its checked-out branch so other worktrees can use it. This also applies after checking out `develop`, `main`, or another target branch for an authorized merge.
+
+- Keep completed commits reachable from the task branch or the authorized merge target, then run `git switch --detach` at the current commit.
+- Verify with `git status` and `git worktree list --porcelain` that this worktree is detached and no longer holds the branch.
+- Preserve all commits and uncommitted changes. Do not reset, force checkout, delete branches, or modify another worktree to release a branch. If detaching is blocked, report the blocker without discarding work.
+- Leave a branch checked out only when the user explicitly asks for it. Do not change the user's primary checkout solely for this cleanup.
+
 ## Repository scope
 
 This repository contains the complete application source, tests and fixtures, the canonical design kit, architecture and curated research, and the manifests, lockfiles, toolchain pins, and scripts required to build, test, and run locally. Keep these inputs together so a clone builds without another checkout. Deployment credentials and production operations do not belong here.

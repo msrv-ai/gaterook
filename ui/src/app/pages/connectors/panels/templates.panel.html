@@ -12,7 +12,7 @@
             @let r = kindReasons();
             <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" [gwAriaDisabled]="!!r.sql" (click)="newSqlQuery()"><svg lucideIcon="database" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">SQL query<span class="gw-menu__hint">{{ r.sql ?? 'A named SELECT or statement with :parameters' }}</span></span></button>
             <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" [gwAriaDisabled]="!!r.ssh"><svg lucideIcon="terminal" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">SSH runbook<span class="gw-menu__hint">{{ r.ssh ?? 'A fixed command with validated parameters' }}</span></span></button>
-            <button class="gw-menu__item" type="button" role="menuitem" tabindex="-1" [gwAriaDisabled]="!!r.openapi"><svg lucideIcon="globe" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">OpenAPI import<span class="gw-menu__hint">{{ r.openapi ?? 'One tool per operation of an HTTP API' }}</span></span></button>
+            <a class="gw-menu__item" role="menuitem" tabindex="-1" [gwAriaDisabled]="!!r.openapi" routerLink="/connections/http-import"><svg lucideIcon="globe" class="gw-icon gw-menu__icon"></svg><span class="gw-menu__label">OpenAPI import<span class="gw-menu__hint">{{ r.openapi ?? 'One tool per operation of an HTTP API' }}</span></span></a>
           </div>
         </div>
       </div>

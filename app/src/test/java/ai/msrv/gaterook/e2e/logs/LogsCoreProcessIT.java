@@ -206,8 +206,9 @@ class LogsCoreProcessIT {
     assertThat(tail).as("logs_tail, switched on").isNotNull();
     assertThat(search.path("description").asString()).contains("describe_connection", "LogQL", "Logs Explorer",
         "Logs Insights", "Lucene");
-    assertThat(search.at("/inputSchema/properties/connection/enum").toString())
-        .isEqualTo("[\"app-logs\",\"aws-logs\",\"gcp-logs\",\"search-logs\"]");
+    assertThat(search.at("/inputSchema/properties/connection").has("enum")).as("named in the description").isFalse();
+    assertThat(search.path("description").asString())
+        .contains("Connections: app-logs (", "aws-logs (", "gcp-logs (", "search-logs (");
   }
 
   @Test
@@ -291,8 +292,7 @@ class LogsCoreProcessIT {
     assertThat(queryTool).as("full API query published").isNotNull();
     assertThat(requestTool).as("full API request published").isNotNull();
     for (JsonNode tool : List.of(queryTool, requestTool)) {
-      assertThat(tool.at("/inputSchema/properties/connection/enum")).containsExactly(
-          JsonNodeFactory.instance.textNode("search-api"));
+      assertThat(tool.path("description").asString()).contains("Connections: search-api (");
     }
 
     JsonNode indices = call(21, "opensearch_indices", "{\"connection\":\"search-api\"}");

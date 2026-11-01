@@ -39,9 +39,9 @@
         @for (c of cards(); track c.client) {
           <li gwClientCard variant="compact" [endpoint]="ep" [card]="c" [endpoints]="endpoints()" [defaultTtlDays]="data.authorization()?.['tokenTtlDays']"
             [connectPreview]="preview()" [connectLoading]="previewLoading()" [connectFailure]="connectFailureOf(c.client)" [failure]="failureOf(c.client)"
-            [disconnectPreview]="leaving()" [canOpenConfig]="false"
+            [disconnectPreview]="leaving()" [canOpenConfig]="false" [reinstalling]="reinstalling()"
             (connectStart)="onConnectStart()" (previewRequest)="previewFor(c, $event.request)" (connect)="connect(c, $event.previewId, $event.request)"
-            (disconnectStart)="disconnectFor($event)" (disconnect)="disconnect(c, $event.link, $event.previewId)"></li>
+            (disconnectStart)="disconnectFor($event)" (disconnect)="disconnect(c, $event.link, $event.previewId)" (reinstall)="reinstall(c, $event)"></li>
         }
       </ul>
     } @else {

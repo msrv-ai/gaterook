@@ -5,9 +5,15 @@
 //   node gw-bridge.mjs stdio --endpoint dev --grant gr_… [--client claude-desktop]
 //
 // Each line on stdin is a JSON-RPC message; it is POSTed to the endpoint URL the broker names, with a 15-minute token
-// the broker gets for the grant from GateRook. The answer goes to stdout as one line. On 401 the bridge asks for a
-// new token once and sends again. It never exits on an error, so Claude doesn't mark the server as failed; it answers
-// the request with a JSON-RPC error saying what to do. Logs go to stderr, never a token.
+// the broker gets for the grant from GateRook, and after a legacy initialize with what that client declared in it
+// (X-Gateway-Bridge-Client). The answer goes to stdout as one line. On 401 the bridge asks for a new token once and
+// sends again. It never exits on an error, so Claude doesn't mark the server as failed; it answers the request with
+// a JSON-RPC error saying what to do. Logs go to stderr, never a token.
+//
+// One client needs the bridge to end: Claude Desktop's agent mode, which serves its Code and Cowork sessions, lists
+// the tools once per connection and ignores notifications/tools/list_changed. It connects again, and lists again,
+// when a session next needs the server after the process has ended. So once that client's list no longer matches the
+// endpoint's, the bridge ends as soon as no request is in flight.
 //
 // Environment: GW_BROKER (the broker's run/broker.json, or its socket or pipe), GW_HOME (the gateway home, default
 // ~/.gaterook), GW_CLIENT (claude-desktop when absent).
@@ -29,7 +35,13 @@ const MAX_ANSWER = 64 * 1024 * 1024;
 const BROKER_WAIT_MS = 60_000;
 const REQUEST_WAIT_MS = 120_000;
 const INSTANCE_HEADER = 'x-gateway-bridge-instance';
+const CLIENT_HEADER = 'X-Gateway-Bridge-Client';
+const MAX_CLIENT_HEADER = 4096;
 const NOT_RUNNING = 'GateRook is not running. Open GateRook, then try again.';
+/** How long after a tool-list notification the bridge waits for the client to list again before it compares. */
+const LIST_CHECK_MS = 2_000;
+/** The clientInfo name of Claude Desktop's agent mode: local-agent-mode-<extension display name>. */
+const KEEPS_FIRST_LIST = /^local-agent-mode-/;
 
 const log = (...a) => process.stderr.write(`[gw-bridge] ${a.join(' ')}\n`);
 
@@ -106,6 +118,25 @@ export function headerName(value) {
     : `=?base64?${Buffer.from(value, 'utf8').toString('base64')}?=`;
 }
 
+/**
+ * What the client declared in its legacy initialize, as the X-Gateway-Bridge-Client value the bridge repeats on every
+ * later request: base64url of {capabilities, clientInfo: {name, title, version}}. Several clients can share a grant
+ * (Claude Desktop's chat, its Code and Cowork sessions, its version probe), and a restarted core remembers none of
+ * them, so each request says which client it comes from. Null when it doesn't fit in 4096 characters.
+ */
+export function clientHeader(params) {
+  const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+  const declaration = { capabilities: isObject(params?.capabilities) ? params.capabilities : {} };
+  if (isObject(params?.clientInfo)) {
+    declaration.clientInfo = {};
+    for (const field of ['name', 'title', 'version']) {
+      if (typeof params.clientInfo[field] === 'string') declaration.clientInfo[field] = params.clientInfo[field];
+    }
+  }
+  const value = Buffer.from(JSON.stringify(declaration), 'utf8').toString('base64url');
+  return value.length <= MAX_CLIENT_HEADER ? value : null;
+}
+
 /** Data lines of an SSE body, joined per event. */
 export function sseData(body) {
   const out = [];
@@ -116,10 +147,16 @@ export function sseData(body) {
   return out;
 }
 
-/** The bridge itself; exported so that tests drive it without a process. */
-export function createBridge({ endpoint, grant, client, env = process.env, write, brokerWaitMs = BROKER_WAIT_MS }) {
+/**
+ * The bridge itself; exported so that tests drive it without a process. `onStaleList` is called once when a client
+ * that keeps its first tool list (Claude Desktop's agent mode) holds one the endpoint no longer publishes: the caller
+ * ends the process, and the client connects again with the current list.
+ */
+export function createBridge({ endpoint, grant, client, env = process.env, write, brokerWaitMs = BROKER_WAIT_MS,
+  onStaleList = null, listCheckMs = LIST_CHECK_MS }) {
   let token = null;
   let negotiated = null;
+  let declared = null;
   let fetching = null;
   let listChanged = false;
   let closed = false;
@@ -127,11 +164,58 @@ export function createBridge({ endpoint, grant, client, env = process.env, write
   let stream = null;
   let reconnect = null;
   let reconnectDelay = 1000;
+  let keepsFirstList = false;
+  // The first page of the last tools/list the client got, as JSON; its nextCursor names the whole list's hash.
+  let listed = null;
+  let lists = 0;
+  let listCheck = null;
 
   function close() {
     closed = true;
     clearTimeout(reconnect);
+    clearTimeout(listCheck);
     stream?.destroy();
+  }
+
+  /** After a tool-list notification, wait for the client to list again; one that keeps its list is compared. */
+  function watchList() {
+    if (!keepsFirstList || !onStaleList || closed) return;
+    clearTimeout(listCheck);
+    listCheck = setTimeout(() => {
+      void compareList().catch(() => {
+        // The next notification compares again; a failed check never ends the bridge.
+      });
+    }, listCheckMs);
+  }
+
+  async function compareList() {
+    const seen = lists;
+    if (closed || listed === null) return;
+    const body = JSON.stringify({ jsonrpc: '2.0', id: 'gw-bridge-list', method: 'tools/list' });
+    const msg = { method: 'tools/list' };
+    let t = await tokenFor(false);
+    let r = await post(t, body, msg);
+    if (r.status === 401) {
+      t = await tokenFor(true, t);
+      r = await post(t, body, msg);
+    }
+    if (r.status !== 200 || !r.type.startsWith('application/json') || (t.instance && r.instance !== t.instance)) return;
+    const current = JSON.parse(r.body).result;
+    // The client may have listed again meanwhile: then it keeps up after all.
+    if (!current || closed || lists !== seen || JSON.stringify(current) === listed) return;
+    close();
+    onStaleList();
+  }
+
+  /** Remembers the first page of a tools/list answer the client gets. */
+  function noteList(msg, text) {
+    if (msg?.method !== 'tools/list' || msg.params?.cursor != null) return;
+    try {
+      const answer = JSON.parse(text);
+      if (answer?.id === msg.id && answer.result) listed = JSON.stringify(answer.result);
+    } catch {
+      // The answer goes through as it is.
+    }
   }
 
   /** One authenticated GET stream per stdio client, kept separate from its concurrent POST requests. */
@@ -204,6 +288,8 @@ export function createBridge({ endpoint, grant, client, env = process.env, write
                   try {
                     const message = JSON.parse(data.join('\n'));
                     if (message?.jsonrpc === '2.0' && typeof message.method === 'string' && message.id === undefined) {
+                      // Watch first: a tools/list that the notification prompts then always cancels the comparison.
+                      if (message.method === 'notifications/tools/list_changed') watchList();
                       write(JSON.stringify(message));
                     }
                   } catch { /* Invalid events are never written to the client's JSON-RPC stream. */ }
@@ -285,8 +371,9 @@ export function createBridge({ endpoint, grant, client, env = process.env, write
       const name = msg.method === 'resources/read' ? msg.params.uri
         : (msg.method === 'tools/call' || msg.method === 'prompts/get') ? msg.params.name : null;
       if (typeof name === 'string') headers['Mcp-Name'] = headerName(name);
-    } else if (negotiated && msg && msg.method !== 'initialize') {
-      headers['MCP-Protocol-Version'] = negotiated;
+    } else if (msg && msg.method !== 'initialize') {
+      if (negotiated) headers['MCP-Protocol-Version'] = negotiated;
+      if (declared) headers[CLIENT_HEADER] = declared;
     }
     return new Promise((resolve, reject) => {
       // agent: false — straight to 127.0.0.1: Node's global agent follows HTTP_PROXY under NODE_USE_ENV_PROXY and
@@ -343,6 +430,14 @@ export function createBridge({ endpoint, grant, client, env = process.env, write
       return;
     }
     const id = msg && typeof msg === 'object' && !Array.isArray(msg) ? msg.id : undefined;
+    if (msg?.method === 'initialize') {
+      keepsFirstList = KEEPS_FIRST_LIST.test(String(msg.params?.clientInfo?.name ?? ''));
+      if (!msg.params?._meta?.['io.modelcontextprotocol/protocolVersion']) declared = clientHeader(msg.params);
+    } else if (msg?.method === 'tools/list' && msg.params?.cursor == null) {
+      // The client lists again: it keeps up with notifications, and nothing is compared for the last one.
+      lists++;
+      clearTimeout(listCheck);
+    }
     try {
       const held = token;
       let t = await tokenFor(false);
@@ -385,7 +480,10 @@ export function createBridge({ endpoint, grant, client, env = process.env, write
         return;
       }
       if (r.type.startsWith('text/event-stream')) {
-        for (const data of sseData(r.body)) write(data.trim());
+        for (const data of sseData(r.body)) {
+          noteList(msg, data);
+          write(data.trim());
+        }
         return;
       }
       if (r.type.startsWith('application/json') && r.body.trim()) {
@@ -398,6 +496,7 @@ export function createBridge({ endpoint, grant, client, env = process.env, write
             // The answer goes through as it is.
           }
         }
+        noteList(msg, r.body);
         write(r.body.trim());
         return;
       }
@@ -429,13 +528,29 @@ async function main() {
     return;
   }
   const client = args.client || process.env.GW_CLIENT || 'claude-desktop';
+  const pending = new Set();
+  let ending = false;
+  const lines = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+  // Stop reading once nothing is in flight; Node exits when stdout has written every answer.
+  const endWhenIdle = () => {
+    if (!ending || pending.size > 0) return;
+    lines.close();
+    process.stdin.destroy();
+    setTimeout(() => process.exit(0), 5_000).unref();
+  };
   const bridge = createBridge({
     endpoint: args.endpoint, grant: args.grant, client, write: (line) => process.stdout.write(line + '\n'),
+    onStaleList: () => {
+      log('the endpoint\'s tools changed and this client keeps its first list: ending, so that it connects again');
+      ending = true;
+      endWhenIdle();
+    },
   });
-  const pending = new Set();
-  const lines = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
   lines.on('line', (line) => {
-    const p = bridge.handle(line).finally(() => pending.delete(p));
+    const p = bridge.handle(line).finally(() => {
+      pending.delete(p);
+      endWhenIdle();
+    });
     pending.add(p);
   });
   lines.on('close', async () => {

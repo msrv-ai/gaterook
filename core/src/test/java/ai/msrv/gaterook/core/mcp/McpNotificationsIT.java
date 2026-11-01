@@ -10,6 +10,7 @@ import ai.msrv.gaterook.core.endpoints.EndpointService;
 import ai.msrv.gaterook.core.endpoints.EndpointTools;
 import ai.msrv.gaterook.core.endpoints.TokenService;
 import ai.msrv.gaterook.core.platform.LocalListener;
+import ai.msrv.gaterook.core.platform.SchemaValidator;
 import ai.msrv.gaterook.testfixtures.TestCore;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -28,12 +29,15 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 
 /** Real HTTP streams observe committed changes to an endpoint's published MCP tools. */
 class McpNotificationsIT {
@@ -68,7 +72,7 @@ class McpNotificationsIT {
   }
 
   @Test
-  void attachingAndRemovingConnectionsRefreshesToolsAndExistingConnectionEnums() throws Exception {
+  void attachingAndRemovingConnectionsRefreshesToolsAndTheConnectionsTheyName() throws Exception {
     Endpoint endpoint = endpoint("catalog");
     core.connection("catalog-ssh", "sshfake", Env.DEV, "ssh.example.test");
     core.connection("catalog-second", "pgfake", Env.DEV, "db.example.test");
@@ -77,23 +81,42 @@ class McpNotificationsIT {
       stream.awaitChange();
       JsonNode list = endpoint.tools();
       assertThat(names(list)).contains("ssh_run", "sql_query", "describe_connection");
-      assertThat(connections(list, "describe_connection")).containsExactly("catalog-db", "catalog-ssh");
+      assertThat(connections(list, "sql_query")).containsExactly("catalog-db");
+      assertThat(tool(list, "describe_connection").at("/inputSchema/properties/connection").has("enum")).isFalse();
 
-      // No new tool names: a client must still refresh the schemas of its existing tools.
+      // No new tool names: a client must still refresh the descriptions of its existing tools.
       wiring.add(endpoint.slug(), "catalog-second", null);
       stream.awaitChange();
       list = endpoint.tools();
       assertThat(connections(list, "sql_query")).containsExactly("catalog-db", "catalog-second");
-      assertThat(connections(list, "describe_connection"))
-          .containsExactly("catalog-db", "catalog-second", "catalog-ssh");
 
       wiring.remove(endpoint.slug(), "catalog-ssh", null);
       stream.awaitChange();
       list = endpoint.tools();
       assertThat(names(list)).doesNotContain("ssh_run");
-      assertThat(connections(list, "describe_connection")).containsExactly("catalog-db", "catalog-second");
+      assertThat(connections(list, "sql_query")).containsExactly("catalog-db", "catalog-second");
       stream.assertQuiet();
     }
+  }
+
+  @Test
+  void aClientThatKeepsItsFirstListCallsAConnectionAddedSince() {
+    Endpoint endpoint = endpoint("kept");
+    // Claude Desktop's Code sessions check arguments against the list they loaded first, never against a new one.
+    JsonNode first = tool(endpoint.tools(), "sql_query").path("inputSchema");
+    core.connection("kept-second", "pgfake", Env.DEV, "db.example.test");
+    wiring.add(endpoint.slug(), "kept-second", null);
+    ObjectNode arguments = McpClient.JSON.createObjectNode().put("connection", "kept-second")
+        .put("sql", "SELECT id, status FROM orders");
+    assertThat(core.bean(SchemaValidator.class).validate(first, arguments)).isEmpty();
+
+    McpClient client = new McpClient(core.bean(LocalListener.class).port(), endpoint.slug(), endpoint.token().token());
+    McpClient.Answer added = client.legacyCall("sql_query", arguments);
+    assertThat(added.result().path("isError").asBoolean()).as(added.result().toString()).isFalse();
+    McpClient.Answer missing = client.legacyCall("sql_query", arguments.deepCopy().put("connection", "kept-gone"));
+    assertThat(missing.result().path("isError").asBoolean()).isTrue();
+    assertThat(missing.result().at("/content/0/text").asString())
+        .isEqualTo("Connection kept-gone is not available on kept. Available: kept-db, kept-second.");
   }
 
   @Test
@@ -150,8 +173,8 @@ class McpNotificationsIT {
       assertThat(refreshed).extracting(io.modelcontextprotocol.spec.McpSchema.Tool::name).contains("ssh_run");
       var describe = refreshed.stream().filter(tool -> tool.name().equals("describe_connection"))
           .findFirst().orElseThrow();
-      assertThat(McpClient.JSON.valueToTree(describe.inputSchema()).at("/properties/connection/enum"))
-          .isEqualTo(McpClient.JSON.readTree("[\"sdk-refresh-db\",\"sdk-refresh-ssh\"]"));
+      assertThat(McpClient.JSON.valueToTree(describe.inputSchema()).at("/properties/connection").has("enum"))
+          .as("the new connection needs no new schema").isFalse();
     }
   }
 
@@ -277,15 +300,29 @@ class McpNotificationsIT {
     return names;
   }
 
-  private static List<String> connections(JsonNode list, String name) {
+  private static JsonNode tool(JsonNode list, String name) {
     for (JsonNode tool : list.path("tools")) {
       if (name.equals(tool.path("name").asString())) {
-        List<String> connections = new ArrayList<>();
-        tool.at("/inputSchema/properties/connection/enum").forEach(value -> connections.add(value.asString()));
-        return connections;
+        return tool;
       }
     }
     throw new AssertionError("Tool not found: " + name);
+  }
+
+  /** The connections a tool names: "Connections: a (FakePG, dev), b (FakePG, dev)." ends its description. */
+  private static List<String> connections(JsonNode list, String name) {
+    JsonNode tool = tool(list, name);
+    assertThat(tool.at("/inputSchema/properties/connection").has("enum")).as("names, not an enum").isFalse();
+    String description = tool.path("description").asString();
+    int from = description.indexOf("Connections: ");
+    assertThat(from).as(description).isNotNegative();
+    String named = description.substring(from, description.indexOf(").", from) + 1);
+    List<String> connections = new ArrayList<>();
+    Matcher m = Pattern.compile("([a-z0-9-]+) \\(").matcher(named);
+    while (m.find()) {
+      connections.add(m.group(1));
+    }
+    return connections;
   }
 
   private static HttpRequest request(String slug, String token, String accept, Map<String, String> headers) {

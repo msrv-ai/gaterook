@@ -96,7 +96,7 @@ public class ClientCalls {
     List<Link> links = new ArrayList<>();
     for (OAuthService.ClientUse use : observed.values()) {
       links.add(new Link(use.grantId(), card.client(), use.endpoint(), use.env(), "oauth", null, null, null, null,
-          null, null, "connected", "Connected", use.createdAt(), use.usedAt(), null, null, null));
+          null, null, "connected", "Connected", use.createdAt(), use.usedAt(), null, null, null, null, null));
     }
     // Compact endpoint cards pick the first link; current browser access leads, while old config issues stay visible.
     links.addAll(card.links());
