@@ -195,11 +195,14 @@
         <fieldset class="gw-field" [attr.aria-describedby]="startFromError() ? 'ep-create-tpl-err' : null">
           <legend class="gw-field__label">Start from</legend>
           <div class="gw-stack gw-stack--sm">
-            @for (s of startFrom; track s.id) {
+            @for (s of startFrom(); track s.id) {
               <label class="gw-choice-card gw-choice-card--compact">
                 <input class="gw-choice-card__input" type="radio" name="ep-create-start" [value]="s.id" [checked]="createModel().startFrom === s.id" (change)="setStartFrom(s.id)" [attr.aria-invalid]="startFromError() ? 'true' : null" [attr.aria-labelledby]="'ep-create-tpl-' + s.id + '-t'" [attr.aria-describedby]="'ep-create-tpl-' + s.id + '-d ep-create-tpl-' + s.id + '-m'">
                 <span class="gw-choice-card__icon"><svg [lucideIcon]="s.icon" class="gw-icon"></svg></span>
-                <span class="gw-choice-card__title" [id]="'ep-create-tpl-' + s.id + '-t'">{{ s.title }}</span>
+                <span class="gw-choice-card__title" [id]="'ep-create-tpl-' + s.id + '-t'">
+                  <span>{{ s.title }}</span>
+                  <span><span class="gw-sr-only">environment </span><span [class]="'gw-env gw-env--' + s.env + ' gw-env--sm'">{{ s.env }}</span></span>
+                </span>
                 <span class="gw-choice-card__description" [id]="'ep-create-tpl-' + s.id + '-d'">{{ s.description }}</span>
                 <span class="gw-choice-card__meta" [id]="'ep-create-tpl-' + s.id + '-m'">{{ startFromMeta()[s.id] }}</span>
               </label>

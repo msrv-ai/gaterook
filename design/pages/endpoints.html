@@ -347,21 +347,21 @@
                   <label class="gw-choice-card gw-choice-card--compact">
                     <input class="gw-choice-card__input" type="radio" name="template" value="empty" checked aria-labelledby="ep-create-tpl-empty-t" aria-describedby="ep-create-tpl-empty-d ep-create-tpl-empty-m">
                     <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="square-dashed"></i></span>
-                    <span class="gw-choice-card__title" id="ep-create-tpl-empty-t">Empty</span>
+                    <span class="gw-choice-card__title" id="ep-create-tpl-empty-t"><span>Empty</span> <span><span class="gw-sr-only">environment </span><span class="gw-env gw-env--dev gw-env--sm">dev</span></span></span>
                     <span class="gw-choice-card__description" id="ep-create-tpl-empty-d">No connections and every tool off. Add only what the agent needs.</span>
                     <span class="gw-choice-card__meta" id="ep-create-tpl-empty-m">Start from scratch</span>
                   </label>
                   <label class="gw-choice-card gw-choice-card--compact">
                     <input class="gw-choice-card__input" type="radio" name="template" value="readonly-dev" aria-labelledby="ep-create-tpl-readonly-dev-t" aria-describedby="ep-create-tpl-readonly-dev-d ep-create-tpl-readonly-dev-m">
                     <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="eye"></i></span>
-                    <span class="gw-choice-card__title" id="ep-create-tpl-readonly-dev-t">Read-only dev</span>
+                    <span class="gw-choice-card__title" id="ep-create-tpl-readonly-dev-t"><span>Read-only dev</span> <span><span class="gw-sr-only">environment </span><span class="gw-env gw-env--dev gw-env--sm">dev</span></span></span>
                     <span class="gw-choice-card__description" id="ep-create-tpl-readonly-dev-d">All dev connections with their read-only tools on. Tools that change data stay off.</span>
                     <span class="gw-choice-card__meta" id="ep-create-tpl-readonly-dev-m">6 dev connections · 12 tools</span>
                   </label>
                   <label class="gw-choice-card gw-choice-card--compact">
                     <input class="gw-choice-card__input" type="radio" name="template" value="incident" aria-labelledby="ep-create-tpl-incident-t" aria-describedby="ep-create-tpl-incident-d ep-create-tpl-incident-m">
                     <span class="gw-choice-card__icon"><i class="gw-icon" data-lucide="siren"></i></span>
-                    <span class="gw-choice-card__title" id="ep-create-tpl-incident-t">Incident response</span>
+                    <span class="gw-choice-card__title" id="ep-create-tpl-incident-t"><span>Incident response</span> <span><span class="gw-sr-only">environment </span><span class="gw-env gw-env--prod gw-env--sm">prod</span></span></span>
                     <span class="gw-choice-card__description" id="ep-create-tpl-incident-d">Prod replica and logs read only, runbooks on prod-vm after approval.</span>
                     <span class="gw-choice-card__meta" id="ep-create-tpl-incident-m">3 prod connections · stricter prod limits</span>
                   </label>
