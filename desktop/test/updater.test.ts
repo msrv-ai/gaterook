@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it, type TestContext } from 'node:test';
+import { setImmediate } from 'node:timers/promises';
 import type { UpdateState } from '../src/shared/contract.ts';
 import { Updates, type UpdateDriver, type UpdatesOptions } from '../src/main/updater.ts';
 import { tempDir } from './helpers.ts';
@@ -233,5 +234,84 @@ describe('explicit desktop updates', () => {
     await f.updates.check();
     assert.equal(attempts, 2);
     assert.equal(f.updates.current()?.state, 'available');
+  });
+});
+
+describe('automatic update checks', () => {
+  /** Fires the schedule's next minute ticks on time, letting each one finish. */
+  async function ticks(t: TestContext, count = 1): Promise<void> {
+    for (let i = 0; i < count; i++) {
+      t.mock.timers.runAll();
+      await setImmediate();
+    }
+  }
+
+  it('checks a minute after start, then every hour on macOS, counting from the tick', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
+    let asked = 0;
+    const f = fixture(t, { platform: 'darwin', autoUpdate: async () => {
+      asked++;
+      await Promise.resolve();
+      t.mock.timers.setTime(Date.now() + 5_000); // the core answers after the next tick was set
+      return true;
+    } });
+    f.updates.schedule();
+    await ticks(t);
+    assert.equal(f.driver.checks, 1);
+    await ticks(t, 59);
+    assert.equal(f.driver.checks, 1);
+    await ticks(t);
+    assert.equal(f.driver.checks, 2, 'a slow answer must not move the check to the next tick');
+    assert.equal(asked, 2, 'the core is asked only when a check is due');
+  });
+
+  it('counts the hour from Check now and checks on the first tick after a Mac wakes', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
+    const f = fixture(t, { platform: 'darwin' });
+    f.updates.schedule();
+    await ticks(t, 30);
+    assert.equal(f.driver.checks, 1);
+    await f.updates.check();
+    assert.equal(f.driver.checks, 2);
+    await ticks(t, 59);
+    assert.equal(f.driver.checks, 2);
+    await ticks(t);
+    assert.equal(f.driver.checks, 3);
+    // Asleep for eight hours: the tick due during the sleep runs on waking and finds the check overdue.
+    t.mock.timers.setTime(Date.now() + 8 * 60 * 60_000);
+    t.mock.timers.tick(0);
+    await setImmediate();
+    assert.equal(f.driver.checks, 4);
+  });
+
+  it('does not repeat a Check now made while the core answered', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
+    const answer = deferred<boolean>();
+    const f = fixture(t, { platform: 'darwin', autoUpdate: () => answer.promise });
+    f.updates.schedule();
+    await ticks(t);
+    await f.updates.check();
+    answer.resolve(true);
+    await setImmediate();
+    assert.equal(f.driver.checks, 1);
+  });
+
+  it('checks once a day on Windows and asks hourly while the setting is off', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 0 });
+    let wanted = false;
+    let asked = 0;
+    const f = fixture(t, { autoUpdate: async () => { asked++; return wanted; } });
+    f.updates.schedule();
+    await ticks(t, 180);
+    assert.equal(asked, 3);
+    assert.equal(f.driver.checks, 0);
+    wanted = true;
+    await ticks(t);
+    assert.equal(f.driver.checks, 1);
+    await ticks(t, 24 * 60 - 1);
+    assert.equal(f.driver.checks, 1);
+    await ticks(t);
+    assert.equal(f.driver.checks, 2);
+    assert.equal(asked, 5, 'while the setting is on, the core is asked only when a check is due');
   });
 });

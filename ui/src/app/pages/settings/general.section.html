@@ -42,7 +42,7 @@
           <input class="gw-switch__input" type="checkbox" role="switch" id="st-updates" [checked]="autoUpdate()" [attr.aria-busy]="busy() === 'autoUpdate' ? 'true' : null" aria-describedby="st-updates-hint" (change)="setGeneral('autoUpdate', $event, 'Check for updates automatically')">
           <span class="gw-switch__control" aria-hidden="true"></span>
           <label class="gw-switch__label" for="st-updates">Check for updates automatically</label>
-          <p class="gw-switch__hint" id="st-updates-hint">Once a day. Updates download and restart the app only when you choose.</p>
+          <p class="gw-switch__hint" id="st-updates-hint">Every hour on macOS and once a day on Windows. Updates download and restart the app only when you choose.</p>
         </div>
         @let u = update();
         <div class="gw-settings-layout__inline">

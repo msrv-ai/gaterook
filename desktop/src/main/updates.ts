@@ -67,13 +67,23 @@ export function namesPublisher(yml: string): boolean {
   return /^\s+-\s*\S/.test(lines[at + 1] ?? '');
 }
 
-/** A day between automatic checks; the first one a little after start, so it doesn't compete with the core. */
-export const CHECK_EVERY_MS = 24 * 60 * 60 * 1000;
-export const FIRST_CHECK_AFTER_MS = 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
 
-/** Whether an automatic check is due. */
-export function checkDue(autoUpdate: boolean, lastCheckAt: number | null, now: number): boolean {
-  return autoUpdate && (lastCheckAt === null || now - lastCheckAt >= CHECK_EVERY_MS);
+/** The time from one automatic check to the next: an hour on macOS, a day elsewhere. */
+export function checkEveryMs(platform: NodeJS.Platform): number {
+  return platform === 'darwin' ? HOUR_MS : 24 * HOUR_MS;
+}
+
+/** The first automatic check comes a little after start, so it doesn't compete with the core. */
+export const FIRST_CHECK_AFTER_MS = 60 * 1000;
+/** How often the schedule reads the clock: a computer that slept through a due check runs it soon after waking. */
+export const CHECK_TICK_MS = 60 * 1000;
+/** While "Check for updates automatically" is off, how long until a due check asks the core for it again. */
+export const ASK_AGAIN_AFTER_MS = HOUR_MS;
+
+/** Whether `every` has passed since `last`, or there is no `last` yet. */
+export function due(last: number | null, now: number, every: number): boolean {
+  return last === null || now - last >= every;
 }
 
 /**
