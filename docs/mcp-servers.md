@@ -4,7 +4,7 @@ GateRook can put an MCP server you already use behind its modes, approvals and a
 
 ## Add a server
 
-Open **Connectors › MCP servers › Add MCP server**. Either fill in the fields, or open **Paste a configuration from the server’s docs** and paste what the server's documentation gives for an AI app:
+Open **Connectors › MCP servers › Add MCP server**; **Connections › Add connection › External MCP server** leads there too. Either fill in the fields, or open **Paste a configuration from the server’s docs** and paste what the server's documentation gives for an AI app:
 
 | What you paste | Example |
 | --- | --- |
@@ -26,6 +26,8 @@ Only names of headers and variables are taken from a paste. The review asks for 
 ## Sign in
 
 Select **Sign in** in the review. GateRook opens the server's sign-in page in your default browser and listens on this computer, at `http://localhost:<free port>/callback`, for the browser to come back. After you allow access, the page says you are signed in and GateRook returns to the front. Then select **Connect MCP server**.
+
+Adding a server ends as adding a connection does: GateRook offers the endpoints its tools may join, the usual one chosen. There each tool starts as Approval, and you change modes on the endpoint. **Not now** leaves the tools Off until you add the server to an endpoint later.
 
 The sign-in belongs to GateRook, not to the AI app. GateRook keeps it encrypted as a secret of the server and renews it before it expires. Every call of the server carries it, and no agent, AI app, log or answer receives it. Any of your AI apps can use the server's tools through an endpoint, under the endpoint's modes and approvals.
 

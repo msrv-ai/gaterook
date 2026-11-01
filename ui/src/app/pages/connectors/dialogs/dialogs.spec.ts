@@ -2,6 +2,7 @@ import { ApiError } from '../../../core/api/api-error';
 import { clickhouseCheck, sentryReview } from '../connectors.fixtures';
 import { failureDetails, failureText } from './failure';
 import { mcpRequest } from './mcp-add.dialog';
+import { connectedToast } from './mcp-endpoint.dialog';
 import { mcpReviewView, mcpSecretValues, signInConfig } from './mcp-review.dialog';
 import { accessText, connectionFormText, pluginFacts } from './plugin-facts';
 
@@ -235,6 +236,12 @@ describe('MCP server review', () => {
     expect(withHeader.trust).toBe('I trust this server with my sign-in and these secrets');
     expect(remote({ kind: 'optional', registration: 'dynamic' }).signIn).toBe('optional');
     expect(remote({ kind: 'none' }).signIn).toBeNull();
+    // Nothing secret goes with the calls of a server without a sign-in or headers: the review doesn't say otherwise.
+    expect(remote({ kind: 'none' }).risk).toBe('Every call goes to this URL. Nobody has verified the server behind it.');
+    expect(remote({ kind: 'none' }).trust).toBe('I trust this server with the calls of my AI apps');
+    const bare = mcpReviewView({ ...typed(['./server']), review: sentryReview({ env: [] }), variables: [] });
+    expect(bare.risk).toBe('This code runs on your computer. Nobody has verified it: it can reach anything your user account can.');
+    expect(bare.trust).toBe('I trust this code on this computer');
     expect(remote({ kind: 'refused', message: 'It refused the request.' }).signIn).toBeNull();
     // A key the person passes as the Authorization header is their choice instead of the sign-in.
     expect(remote({ kind: 'oauth', registration: 'dynamic' }, ['Authorization']).signIn).toBeNull();
@@ -247,6 +254,34 @@ describe('MCP server review', () => {
     expect(signInConfig(config, ' Iv23li0abc ')).toEqual({ ...config, auth: { type: 'oauth', clientId: 'Iv23li0abc' } });
     const app = { ...config, auth: { type: 'oauth' as const, clientId: 'from-options', callbackPort: 7471 } };
     expect(signInConfig(app, '')).toEqual(app);
+  });
+});
+
+describe('MCP server endpoint step', () => {
+  const linear = { name: 'linear-mcp', http: true, tools: 23 };
+
+  it('says where the tools went, that they start as Approval, or that they are Off', () => {
+    expect(connectedToast(linear, { added: ['dev'], notAdded: [] })).toEqual({
+      tone: 'success',
+      title: 'MCP server linear-mcp connected',
+      body: 'Its 23 tools are on dev, each as Approval. Change their modes on the endpoint.',
+    });
+    expect(connectedToast({ ...linear, tools: 1 }, { added: ['dev', 'stage'], notAdded: [] }).body).toBe(
+      'Its tool is on dev and stage, each as Approval. Change their modes on the endpoint.',
+    );
+    expect(connectedToast({ name: 'notes-mcp', http: false, tools: null }, { added: [], notAdded: [] })).toEqual({
+      tone: 'success',
+      title: 'MCP server notes-mcp started',
+      body: 'Its tools are Off until you add them to an endpoint. There each starts as Approval.',
+    });
+  });
+
+  it('names the endpoints the core refused, with its reasons', () => {
+    expect(connectedToast(linear, { added: ['dev'], notAdded: [{ slug: 'shared', why: 'Live tokens would cross the prod line.' }] })).toEqual({
+      tone: 'warning',
+      title: 'MCP server linear-mcp connected, not added to shared',
+      body: 'Its 23 tools are on dev as Approval. Live tokens would cross the prod line.',
+    });
   });
 });
 

@@ -179,10 +179,12 @@
           <form class="gw-form gw-form--sticky-actions" method="dialog" novalidate aria-labelledby="step-1-title" (submit)="$event.preventDefault(); continueFromType()">
             <fieldset gwConnectorPicker [groups]="groups()" [value]="selected()" [error]="pickError()" (valueChange)="onPick($event)"></fieldset>
             <div class="gw-form__actions">
-              @if (usage(); as u) {
+              @if (mcpServerPicked()) {
+                <p class="gw-form__note"><svg lucideIcon="plug" class="gw-icon"></svg>An MCP server is added in Connectors › MCP servers: you review it, sign in if it asks, and add its tools to an endpoint.</p>
+              } @else if (usage(); as u) {
                 <p class="gw-form__note"><svg [lucideIcon]="card()?.icon ?? 'database'" class="gw-icon"></svg>{{ u }}</p>
               }
-              <button class="gw-btn gw-btn--primary" type="button" (click)="continueFromType()">Continue<span class="gw-sr-only"> to configure</span> <svg lucideIcon="arrow-right" class="gw-icon"></svg></button>
+              <button class="gw-btn gw-btn--primary" type="button" (click)="continueFromType()">Continue<span class="gw-sr-only"> {{ mcpServerPicked() ? 'to add the MCP server' : 'to configure' }}</span> <svg lucideIcon="arrow-right" class="gw-icon"></svg></button>
             </div>
           </form>
         } @else {
