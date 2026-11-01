@@ -86,6 +86,13 @@
 //   error           --danger "Error" + gw-alert--danger: what failed (config not
 //                   writable), that nothing was written, the fix as a
 //                   gw-code-block with Copy; Try again
+//   older bridge    Claude Desktop, status unchanged: a gw-alert--warning per
+//                   extension whose bridge is older than GateRook ("The
+//                   incident-prod extension runs bridge 0.3.2"), with Reinstall
+//                   extension (--sm, busy while the core builds the .mcpb for the
+//                   same access; Claude Desktop then asks to install it). A
+//                   compact row adds a gw-fg-warning caption line and puts
+//                   Reinstall extension first in __actions.
 //   claude.ai       --neutral "Tunnel off" / --success "Tunnel on". Full width:
 //                   "What gets published" (/mcp/stage-readonly, /oauth/*,
 //                   /.well-known/oauth-*; the app UI, admin API, dev and
@@ -176,7 +183,8 @@
 //   __step      one step: heading + its control, 8px apart
 //   __backup    archive icon + "Backup: ~/.codex/config.toml.bak-2026-10-22"
 //   __row       the compact layout: mark · main · status · actions
-//   __main      name + one meta line, takes the free width (basis 200px)
+//   __main      name + one meta line (and the older bridge's warning line),
+//               takes the free width (basis 200px)
 //
 // A11y   article + aria-labelledby the client name; marks are aria-hidden
 //        next to the name; repeated buttons carry the client in sr-only text

@@ -8,6 +8,7 @@ import {
   authNote,
   authParts,
   bridgeFiles,
+  bridgeUpdateWords,
   browserInstallUrl,
   cursorInstallLink,
   changeSummary,
@@ -19,6 +20,8 @@ import {
   lastCallAt,
   methodsFor,
   notInstalledText,
+  olderBridge,
+  reinstallToast,
   restartAlert,
   tableLayout,
   toolsCell,
@@ -177,6 +180,31 @@ describe('client-card view (design/elements/client-card.html)', () => {
 
   it('names the restart a client needs', () => {
     expect(restartAlert(DEMO_CLIENTS.codexRestart)).toEqual({ title: 'Restart Codex to load the server', body: 'The config is written. Codex reads it only when it starts.' });
+  });
+
+  it('says which extension runs an older bridge, and only an extension', () => {
+    const [dev, prod] = DEMO_CLIENTS.claudeDesktop.links;
+    const older: ClientLink = { ...dev, bridgeVersion: '0.4.3', bridgeUpdate: '0.5.0' };
+    expect(olderBridge(dev)).toBe(false);
+    expect(olderBridge({ ...dev, bridgeVersion: '0.5.0' }), 'current').toBe(false);
+    expect(olderBridge(older)).toBe(true);
+    expect(olderBridge({ ...DEMO_CLIENTS.codex.links[0], bridgeVersion: '0.4.3', bridgeUpdate: '0.5.0' }), 'the app’s own bridge').toBe(false);
+
+    const w = bridgeUpdateWords(older);
+    expect(w.title).toEqual([{ text: 'The ', code: false }, { text: 'dev', code: true }, { text: ' extension runs bridge 0.4.3', code: false }]);
+    expect(w.body).toBe('GateRook 0.5.0 has a newer one. Reinstall it so Claude Desktop keeps showing approval cards after GateRook restarts. It keeps its access.');
+    expect(w.caption).toBe('Runs bridge 0.4.3: reinstall it to keep approval cards after GateRook restarts');
+    expect(bridgeUpdateWords({ ...prod, bridgeVersion: '0.4.3', bridgeUpdate: '0.5.0' }).body).toMatch(/It keeps its access and your Allow\.$/);
+    expect(words(bridgeUpdateWords({ ...older, bridgeVersion: null }).title)).toBe('The dev extension runs an older bridge');
+
+    const result = { link: older, mcpbPath: '/Users/maria/.gaterook/clients/claude-desktop/gaterook-dev.mcpb', notes: [] };
+    expect(reinstallToast(DEMO_CLIENTS.claudeDesktop, result, true)).toEqual({
+      title: 'Update dev in Claude Desktop',
+      body: 'Claude Desktop opens its install dialog for the extension: click Install. It keeps its access; the hint goes once the new bridge connects.',
+    });
+    expect(reinstallToast(DEMO_CLIENTS.claudeDesktop, result, false).body).toBe(
+      'Open /Users/maria/.gaterook/clients/claude-desktop/gaterook-dev.mcpb in Claude Desktop to update it. It keeps its access.',
+    );
   });
 
   it('explains a failed write and gives the fix', () => {

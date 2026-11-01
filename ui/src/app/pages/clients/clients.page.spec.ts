@@ -3,7 +3,7 @@ import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { ApiError } from '../../core/api/api-error';
-import { ClientsApi, ClientsView, ConnectPreview, ConnectRequest } from '../../core/api/clients.api';
+import { ClientsApi, ClientsView, ConnectPreview, ConnectRequest, ConnectResult } from '../../core/api/clients.api';
 import { CoreApi } from '../../core/api/core.api';
 import { EndpointSummary, EndpointsApi, TokensApi, ToolGroup, ToolRow } from '../../core/api/endpoints.api';
 import { Overview, OverviewApi } from '../../core/api/overview.api';
@@ -46,6 +46,11 @@ class FakeEvents {
 const problem = (status: number, body: object) => ApiError.fromHttp(new HttpErrorResponse({ status, error: body }));
 const notAvailable = () => ApiError.fromHttp(new HttpErrorResponse({ status: 404, error: { status: 404, error: 'Not Found' } }));
 const never = <T>() => new Promise<T>(() => undefined);
+/** What Reinstall answers: the same link, its extension built again where Connect writes it. */
+const reinstalled = (id: string): ConnectResult => {
+  const link = kitClients().clients.flatMap((c) => c.links).find((l) => l.id === id)!;
+  return { link, mcpbPath: `/Users/maria/.gaterook/clients/claude-desktop/gaterook-${link.endpoint}.mcpb`, notes: [] };
+};
 
 interface World {
   list: () => Promise<ClientsView>;
@@ -96,6 +101,7 @@ function configure(): void {
     disconnectPreview: (id) => (calls.push(`disconnect-preview ${id}`), Promise.resolve(id === 'cl_cx_dev' ? codexDisconnect() : bridgeDisconnect(id === 'cl_cd_dev' ? 'dev' : 'incident-prod'))),
     disconnect: (id, previewId) => (calls.push(`disconnect ${id} ${previewId}`), Promise.resolve({ linkId: id, entryRemoved: id === 'cl_cx_dev', rejectedApprovals: 0, notes: [] })),
     removeClaudeBridge: () => (calls.push('remove-bridge'), Promise.resolve({ revoked: [], removedFiles: [], rejectedApprovals: 0, notes: [] })),
+    reinstall: (id) => (calls.push(`reinstall ${id}`), Promise.resolve(reinstalled(id))),
     manual: (slug) => (calls.push(`manual ${slug}`), Promise.resolve(kitManual())),
   };
   TestBed.configureTestingModule({
@@ -593,6 +599,58 @@ describe('Clients page: Disconnect and Remove bridge', () => {
     await click(check);
     expect(calls).toContain('scan');
     expect(announced).toEqual(['Looking for Antigravity', 'Antigravity is still not installed.']);
+  });
+});
+
+describe('Clients page: an extension with an older bridge', () => {
+  /** incident-prod's extension still runs the bridge an older GateRook built it with. */
+  const olderProd = (): ClientsView =>
+    kitClients({
+      clients: kitClients().clients.map((c) =>
+        c.client === 'claude-desktop' ? { ...c, links: c.links.map((l) => (l.endpoint === 'incident-prod' ? { ...l, bridgeVersion: '0.4.3', bridgeUpdate: '0.5.0' } : l)) } : c,
+      ),
+    });
+
+  it('a current extension says nothing about its bridge', async () => {
+    await render();
+    const cd = await expandCard('Claude Desktop');
+    expect(text(cd).toLowerCase()).not.toContain('runs bridge');
+    expect(control(cd, 'Reinstall extension')).toBeUndefined();
+  });
+
+  it('names the older extension and reinstalls it for the same access, then opens it in Claude Desktop', async () => {
+    world.list = () => Promise.resolve(olderProd());
+    Object.assign(TestBed.inject(DesktopBridge), { available: true });
+    const open = vi.spyOn(TestBed.inject(DesktopBridge), 'openMcpb');
+    await render();
+    const cd = await expandCard('Claude Desktop');
+    expect(text(cd)).toContain('The incident-prod extension runs bridge 0.4.3');
+    expect(text(cd)).toContain('GateRook 0.5.0 has a newer one.');
+    expect(text(cd)).toContain('It keeps its access and your Allow.');
+    expect(text(cd)).not.toContain('The dev extension runs');
+    await click(control(cd, 'Reinstall extension for incident-prod'));
+    expect(calls).toContain('reinstall cl_cd_prod');
+    expect(open).toHaveBeenCalledWith('cl_cd_prod');
+    // The same access: no preview, no Connect, so no new grant.
+    expect(calls.some((c) => c.startsWith('connect '))).toBe(false);
+    expect(calls.slice(calls.indexOf('reinstall cl_cd_prod')), 'the cards are read again').toContain('list');
+    expect(toasts().at(-1)).toMatchObject({ tone: 'info', title: 'Update incident-prod in Claude Desktop' });
+  });
+
+  it('without the desktop app it names the file to open; a refusal says why and opens nothing', async () => {
+    world.list = () => Promise.resolve(olderProd());
+    const open = vi.spyOn(TestBed.inject(DesktopBridge), 'openMcpb');
+    await render();
+    const cd = await expandCard('Claude Desktop');
+    await click(control(cd, 'Reinstall extension for incident-prod'));
+    expect(toasts().at(-1)?.body).toBe('Open /Users/maria/.gaterook/clients/claude-desktop/gaterook-incident-prod.mcpb in Claude Desktop to update it. It keeps its access.');
+
+    vi.spyOn(TestBed.inject(ClientsApi), 'reinstall').mockRejectedValueOnce(
+      problem(409, { title: 'Access is not active', detail: 'The access of this extension was revoked or changed outside GateRook: connect Claude Desktop again.' }),
+    );
+    await click(control(card('Claude Desktop'), 'Reinstall extension for incident-prod'));
+    expect(toasts().at(-1)).toMatchObject({ tone: 'danger', title: "The incident-prod extension wasn't reinstalled", body: 'The access of this extension was revoked or changed outside GateRook: connect Claude Desktop again.' });
+    expect(open).not.toHaveBeenCalled();
   });
 });
 

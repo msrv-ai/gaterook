@@ -146,6 +146,12 @@ class ClientsController {
     return clients.removeBridge();
   }
 
+  /** Claude Desktop's extension again, for the same access, with this app's bridge; the window then opens it. */
+  @PostMapping("/api/clients/links/{id}/reinstall")
+  ClientViews.Connected reinstall(@PathVariable String id) {
+    return clients.reinstall(id);
+  }
+
   @GetMapping("/api/clients/manual")
   ClientViews.Manual manual(@RequestParam String endpoint) {
     return clients.manual(endpoint);

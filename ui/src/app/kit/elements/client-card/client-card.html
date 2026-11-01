@@ -23,6 +23,12 @@
   <a class="gw-btn gw-btn--ghost gw-btn--sm" [routerLink]="['/endpoints', link.endpoint]" [queryParams]="{ tab: 'tokens' }" fragment="ep-oauth-sessions">Manage sign-in<span class="gw-sr-only"> of {{ c().name }} on {{ link.endpoint }}</span></a>
 </ng-template>
 
+<!-- Busy while the core builds the extension again; the page then opens it in Claude Desktop. -->
+<ng-template #reinstallButton let-link>
+  @let busy = reinstalling() === link.id;
+  <button class="gw-btn gw-btn--sm" type="button" [attr.aria-busy]="busy ? 'true' : null" [attr.aria-disabled]="busy ? 'true' : null" (click)="busy || reinstall.emit(link)">@if (busy) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} @else {<svg lucideIcon="refresh-cw" class="gw-icon gw-icon--sm"></svg>}Reinstall extension<span class="gw-sr-only"> for {{ link.endpoint }}</span></button>
+</ng-template>
+
 @if (variant() === 'compact') {
   <div class="gw-client-card__row">
     <span [gwClientMark]="c().client"></span>
@@ -33,6 +39,9 @@
         @let others = compactOthers();
         @if (bridge()) {
           <span class="gw-text-caption gw-fg-muted">Bridge extension (.mcpb)@if (others.length) {, also on @for (o of others; track o) {<span class="gw-mono">{{ o }}</span>@if (!$last) {{{ $index === others.length - 2 ? ' and ' : ', ' }}}}} · token issued on the fly · <ng-container [ngTemplateOutlet]="lastCallCaption" [ngTemplateOutletContext]="{ $implicit: l.lastCallAt }" /></span>
+          @if (scopedUpdate(); as u) {
+            <span class="gw-text-caption gw-fg-warning"><svg lucideIcon="triangle-alert" class="gw-icon gw-icon--xs"></svg> {{ u.caption }}</span>
+          }
         } @else if (observedSignIn(l)) {
           <span class="gw-text-caption gw-fg-muted">Signed in through the browser · <ng-container [ngTemplateOutlet]="lastCallCaption" [ngTemplateOutletContext]="{ $implicit: l.lastCallAt }" /></span>
         } @else {
@@ -47,6 +56,9 @@
     <span class="gw-status gw-status--{{ compactLook().tone }} gw-client-card__status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">{{ compactLook().text }}</span></span>
     <div class="gw-client-card__actions">
       @if (scoped(); as l) {
+        @if (scopedUpdate()) {
+          <ng-container [ngTemplateOutlet]="reinstallButton" [ngTemplateOutletContext]="{ $implicit: l }" />
+        }
         <a class="gw-btn gw-btn--ghost gw-btn--sm" routerLink="/activity" [queryParams]="activity(c().client, l.endpoint)">View activity<span class="gw-sr-only"> of {{ c().name }}</span></a>
         @if (observedSignIn(l)) {
           <ng-container [ngTemplateOutlet]="manageSignIn" [ngTemplateOutletContext]="{ $implicit: l }" />
@@ -135,6 +147,18 @@
       <div class="gw-alert gw-alert--warning gw-alert--compact">
         <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
         <div class="gw-alert__content"><p class="gw-alert__title">{{ w }}</p></div>
+      </div>
+    }
+
+    <!-- An installed extension keeps the bridge it was built with: Reinstall builds it again for the same access. -->
+    @for (o of outdated(); track o.link.id) {
+      <div class="gw-alert gw-alert--warning">
+        <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+        <div class="gw-alert__content">
+          <p class="gw-alert__title">@for (p of o.words.title; track $index) {@if (p.code) {<span class="gw-mono">{{ p.text }}</span>} @else {{{ p.text }}}}</p>
+          <p class="gw-alert__body">{{ o.words.body }}</p>
+          <div class="gw-alert__actions"><ng-container [ngTemplateOutlet]="reinstallButton" [ngTemplateOutletContext]="{ $implicit: o.link }" /></div>
+        </div>
       </div>
     }
 

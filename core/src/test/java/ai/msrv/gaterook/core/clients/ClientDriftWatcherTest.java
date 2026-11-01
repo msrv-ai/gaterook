@@ -81,6 +81,34 @@ class ClientDriftWatcherTest {
     }
   }
 
+  @Test
+  void aReinstalledExtensionThatConnectsIsAnnouncedWithItsPlainStatus() throws InterruptedException {
+    ClientService clients = mock(ClientService.class);
+    when(clients.watchedFiles()).thenReturn(List.of());
+    when(clients.configsPresent()).thenReturn(Map.of());
+    when(clients.statuses())
+        .thenReturn(Map.of("cl_cd", "claude-desktop connected bridge-update"))
+        .thenReturn(Map.of("cl_cd", "claude-desktop connected bridge-update"))
+        .thenReturn(Map.of("cl_cd", "claude-desktop connected"));
+    EventBus events = new EventBus(Clock.systemUTC());
+    ClientDriftWatcher watcher = new ClientDriftWatcher(clients, new ClientEnvironment(ClientEnvironment.Os.LINUX,
+        dir, dir.resolve(".gaterook"), null, Map.of(), true, "laptop"), events, "");
+    try (EventBus.Subscription s = events.subscribe(OptionalLong.empty())) {
+      Set<Path> watched = new HashSet<>();
+      watcher.pass(watched, true);
+      watcher.pass(watched, false);
+      assertThat(s.next(Duration.ofMillis(200))).as("the old bridge still asks for tokens").isEmpty();
+      watcher.pass(watched, false);
+      assertThat(s.next(Duration.ofSeconds(1))).hasValueSatisfying(e -> {
+        assertThat(e.type()).isEqualTo("clients.drift");
+        assertThat(e.data().path("link").asString()).isEqualTo("cl_cd");
+        assertThat(e.data().path("client").asString()).isEqualTo("claude-desktop");
+        assertThat(e.data().path("status").asString()).isEqualTo("connected");
+        assertThat(e.data().path("bridgeUpdate").asBoolean()).isFalse();
+      });
+    }
+  }
+
   private static ClientViews.Card card(String client, String status) {
     return new ClientViews.Card(client, client, status, status, "", "", true, List.of(), null, List.of(), List.of(),
         List.of());

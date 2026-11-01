@@ -262,6 +262,38 @@ describe('Endpoint detail page', () => {
     expect(toasts().at(-1)?.body).toContain('Confirm Install');
   });
 
+  it('reinstalls an extension with an older bridge for the same access; once current, the row says nothing', async () => {
+    const claude = kitClients().clients.find((client) => client.client === 'claude-desktop')!;
+    const dev = claude.links.find((l) => l.endpoint === 'dev')!;
+    // The core's answer until the new bridge asks for a token: the extension still runs bridge 0.4.3.
+    let current = false;
+    const list = () => Promise.resolve({ ...clientsView(), clients: [{ ...claude, links: claude.links.map((l) => (l.id === dev.id && !current ? { ...l, bridgeVersion: '0.4.3', bridgeUpdate: '0.5.0' } : l)) }] });
+    const reinstall = vi.fn(async (id: string) => {
+      calls.push(`reinstall ${id}`);
+      return { link: dev, mcpbPath: '/Users/maria/.gaterook/clients/claude-desktop/gaterook-dev.mcpb', notes: [] };
+    });
+    const connect = vi.fn();
+    const openMcpb = vi.fn().mockResolvedValue(undefined);
+    setup(undefined, { api: { list, reinstall, connect }, desktop: { available: true, openMcpb } });
+    const { fixture, el } = await render({ slug: 'dev', tab: 'clients' });
+    const card = el.querySelector('li[gwClientCard]')!;
+    expect(text(card.querySelector('.gw-client-card__main'))).toContain('Runs bridge 0.4.3: reinstall it to keep approval cards after GateRook restarts');
+
+    button(card, 'Reinstall extension for dev').click();
+    await settle(fixture);
+    expect(reinstall).toHaveBeenCalledWith(dev.id);
+    expect(connect).not.toHaveBeenCalled();
+    expect(openMcpb).toHaveBeenCalledWith(dev.id);
+    expect(toasts().at(-1)).toMatchObject({ tone: 'info', title: 'Update dev in Claude Desktop' });
+    expect(button(card, 'Reinstall extension'), 'until the new bridge connects').toBeDefined();
+
+    current = true;
+    (fixture.debugElement.injector.get(EventStream) as unknown as FakeEvents).emit('clients.drift', { client: 'claude-desktop', link: dev.id, status: 'connected', bridgeUpdate: false });
+    await settle(fixture);
+    expect(text(card).toLowerCase()).not.toContain('runs bridge');
+    expect(button(card, 'Reinstall extension')).toBeUndefined();
+  });
+
   it('retries a slightly early bypass expiry read with backoff and stops after the core confirms expiry', async () => {
     setup();
     const { fixture } = await render();

@@ -221,6 +221,8 @@ export function connected(client: ClientCard['client'], request: ConnectRequest)
       mcpbPath: request.method === 'mcpb' ? `/Users/maria/.gaterook/clients/claude-desktop/gaterook-${request.endpoint}.mcpb` : null,
       lastCallAt: null,
       revision: '2025-11-25',
+      bridgeVersion: null,
+      bridgeUpdate: null,
     },
     mcpbPath: request.method === 'mcpb' ? `/Users/maria/.gaterook/clients/claude-desktop/gaterook-${request.endpoint}.mcpb` : null,
     notes: [],

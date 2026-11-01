@@ -166,6 +166,15 @@ class ClientGrantConfirmationIT {
     restart();
 
     assertThat(issue(existing, 404).ok()).as("the first new Allow is durable for an existing grant").isTrue();
+    assertThat(grants.issue(new TokenRequest("cursor", "incident-prod", existing.id(), 405L, "0.4.3")).ok()).isTrue();
+
+    restart();
+
+    Grant reported = grants.find(existing.id()).orElseThrow();
+    assertThat(reported.bridgeVersion()).as("the version the last token request reported").isEqualTo("0.4.3");
+    assertThat(reported.verified()).as("the version is outside the row MAC: recording it keeps the row valid")
+        .isTrue();
+    assertThat(grants.awaitsConfirmation(reported)).isFalse();
   }
 
   private Grant create(String client, String endpoint, String label) {

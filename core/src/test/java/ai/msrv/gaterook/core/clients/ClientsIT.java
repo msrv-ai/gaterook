@@ -11,12 +11,14 @@ import ai.msrv.gaterook.core.admin.AdminMvc;
 import ai.msrv.gaterook.core.audit.AuditWriter;
 import ai.msrv.gaterook.core.clients.internal.ClientsConfiguration;
 import ai.msrv.gaterook.core.clients.internal.JsonEntryEditor;
+import ai.msrv.gaterook.core.clients.internal.McpbBuilder;
 import ai.msrv.gaterook.core.clients.internal.TomlBlockEditor;
 import ai.msrv.gaterook.core.endpoints.ClientGrants;
 import ai.msrv.gaterook.core.endpoints.TokenService;
 import ai.msrv.gaterook.core.endpoints.EndpointConnections;
 import ai.msrv.gaterook.core.endpoints.EndpointService;
 import ai.msrv.gaterook.core.platform.Caller;
+import ai.msrv.gaterook.core.platform.CoreBuild;
 import ai.msrv.gaterook.core.platform.EventBus;
 import ai.msrv.gaterook.core.platform.Ingress;
 import ai.msrv.gaterook.core.platform.LocalListener;
@@ -561,6 +563,70 @@ class ClientsIT {
     }
   }
 
+  @Test
+  @Order(34)
+  void anExtensionWithAnOlderBridgeIsReinstalledForTheSameAccess() throws Exception {
+    // Order 30 connected incident-prod through an extension whose bridge reported 0.4.0, and the person allowed it.
+    JsonNode old = linkOf("claude-desktop", claudeProdLink);
+    assertThat(old.path("status").asString()).as("an older bridge still works").isEqualTo("connected");
+    assertThat(old.path("bridgeVersion").asString()).isEqualTo("0.4.0");
+    assertThat(old.path("bridgeUpdate").asString()).isEqualTo(CoreBuild.VERSION);
+    String grant = grantOf(claudeProdLink);
+    int grantsBefore = grantCount();
+    Path mcpb = core.home().resolve("clients/claude-desktop/gaterook-incident-prod.mcpb");
+    // The file an older app built is replaced, never patched: Claude Desktop installs the new one itself.
+    Files.writeString(mcpb, "an extension an older GateRook built");
+
+    JsonNode reinstalled = api.expect(200, HttpMethod.POST, "/api/clients/links/" + claudeProdLink + "/reinstall",
+        null);
+    assertThat(reinstalled.path("link").path("id").asString()).isEqualTo(claudeProdLink);
+    assertThat(Path.of(reinstalled.path("mcpbPath").asString())).isEqualTo(mcpb);
+    assertThat(mode(mcpb)).isEqualTo("rw-------");
+    assertThat(api.ok("/internal/clients/links/" + claudeProdLink + "/mcpb").path("path").asString())
+        .isEqualTo(mcpb.toRealPath().toString());
+    try (ZipFile zip = new ZipFile(mcpb.toFile())) {
+      assertThat(zip.getInputStream(zip.getEntry("server/gw-bridge.mjs")).readAllBytes())
+          .isEqualTo(McpbBuilder.bridge());
+      JsonNode m = TestCore.json(new String(zip.getInputStream(zip.getEntry("manifest.json")).readAllBytes(),
+          StandardCharsets.UTF_8));
+      assertThat(m.path("server").path("mcp_config").path("args").toString()).contains(grant);
+    }
+    // The same access: no grant was made, and the person's Allow holds.
+    assertThat(grantCount()).isEqualTo(grantsBefore);
+    ClientGrants.Grant same = core.bean(ClientGrants.class).find(grant).orElseThrow();
+    assertThat(same.active()).isTrue();
+    assertThat(core.bean(ClientGrants.class).awaitsConfirmation(same)).isFalse();
+    assertThat(linkOf("claude-desktop", claudeProdLink).path("bridgeUpdate").asString())
+        .as("until the new bridge asks for a token").isEqualTo(CoreBuild.VERSION);
+    assertThat(setupChanges("client", "Claude Desktop → incident-prod"))
+        .contains("Bridge 0.4.0 → Bridge " + CoreBuild.VERSION);
+
+    // Claude Desktop installed it: its bridge gets a token at once, and the link is current.
+    JsonNode token = bridgeToken("claude-desktop", "incident-prod", grant, CoreBuild.VERSION);
+    assertThat(token.path("ok").asBoolean()).as(token.toString()).isTrue();
+    JsonNode current = linkOf("claude-desktop", claudeProdLink);
+    assertThat(current.path("bridgeVersion").asString()).isEqualTo(CoreBuild.VERSION);
+    assertThat(current.path("bridgeUpdate").isNull()).isTrue();
+
+    // Only an extension is reinstalled, and only for an access that is still active.
+    api.expect(404, HttpMethod.POST, "/api/clients/links/" + codexLink + "/reinstall", null);
+    api.expect(404, HttpMethod.POST, "/api/clients/links/cl_unknown/reinstall", null);
+    String dev = connectExtension("dev");
+    core.bean(ClientGrants.class).revoke(grantOf(dev), "Revoked by the test");
+    int grantsNow = grantCount();
+    api.expect(409, HttpMethod.POST, "/api/clients/links/" + dev + "/reinstall", null);
+    assertThat(grantCount()).as("no new access either").isEqualTo(grantsNow);
+    assertThat(disconnect(dev).path("entryRemoved").asBoolean()).isTrue();
+  }
+
+  private static String grantOf(String linkId) {
+    return core.jdbc().queryForObject("select grant_id from client_link where id = ?", String.class, linkId);
+  }
+
+  private static int grantCount() {
+    return core.jdbc().queryForObject("select count(*) from client_grant", Integer.class);
+  }
+
   // ── Antigravity: a file that doesn't exist yet ──────────────────────────────────────────────────────────────
 
   @Test
@@ -940,9 +1006,13 @@ class ClientsIT {
   }
 
   private static JsonNode bridgeToken(String client, String endpoint, String grant) {
+    return bridgeToken(client, endpoint, grant, "0.4.0");
+  }
+
+  private static JsonNode bridgeToken(String client, String endpoint, String grant, String bridge) {
     return api.expect(200, HttpMethod.POST, "/internal/bridge/tokens", """
-        {"v":1,"op":"token","client":"%s","endpoint":"%s","grant":"%s","pid":4242,"bridge":"0.4.0"}"""
-        .formatted(client, endpoint, grant));
+        {"v":1,"op":"token","client":"%s","endpoint":"%s","grant":"%s","pid":4242,"bridge":"%s"}"""
+        .formatted(client, endpoint, grant, bridge));
   }
 
   private static int liveTokens(String grant) {

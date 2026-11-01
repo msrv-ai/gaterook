@@ -36,6 +36,8 @@ const link = (l: Partial<ClientLink> & Pick<ClientLink, 'id' | 'client' | 'endpo
   mcpbPath: null,
   lastCallAt: null,
   revision: '2025-11-25',
+  bridgeVersion: null,
+  bridgeUpdate: null,
   ...l,
 });
 
@@ -127,6 +129,11 @@ export const DEMO_CLIENTS = {
     status: 'needs-restart',
     statusText: 'Restart Codex: Settings › MCP servers › Restart',
     links: [{ ...CODEX_LINK, status: 'needs-restart', statusText: 'Restart Codex: Settings › MCP servers › Restart', lastCallAt: null }],
+  } satisfies ClientCard,
+  /** The incident-prod extension was built by GateRook 0.3.2 and still runs its bridge. */
+  claudeDesktopOlder: {
+    ...CLAUDE_DESKTOP,
+    links: CLAUDE_DESKTOP.links.map((l) => (l.endpoint === 'incident-prod' ? { ...l, bridgeVersion: '0.3.2', bridgeUpdate: '0.4.0' } : l)),
   } satisfies ClientCard,
 };
 

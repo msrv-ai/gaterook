@@ -19,6 +19,7 @@ import ai.msrv.gaterook.core.clients.ClientViews.Snippet;
 import ai.msrv.gaterook.core.clients.ClientViews.Step;
 import ai.msrv.gaterook.core.clients.internal.BridgeSelfTest;
 import ai.msrv.gaterook.core.clients.internal.BridgeShimInstaller;
+import ai.msrv.gaterook.core.clients.internal.BridgeVersion;
 import ai.msrv.gaterook.core.clients.internal.BrokerProbe;
 import ai.msrv.gaterook.core.clients.internal.ClientAdapter;
 import ai.msrv.gaterook.core.clients.internal.ClientAdapter.Codex;
@@ -293,7 +294,18 @@ public class ClientService {
         KebabCase.of(l.getMethod()), l.getEntryName(), l.getConfigPath(), config == null ? null : env.display(config),
         grant.map(Grant::prefix).orElse(null), grant.map(Grant::label).orElse(null),
         token.map(TokenService.TokenRow::name).orElse(null), state[0], state[1], l.getCreatedAt(), usedAt, mcpb, null,
-        null);
+        null, grant.map(Grant::bridgeVersion).orElse(null), bridgeUpdate(l, grant));
+  }
+
+  /**
+   * This app's version, when Reinstall would bring a newer bridge: the link is a Claude Desktop extension, which keeps
+   * the bridge it was built with, and the last token of its active access went to an older one. Every other client
+   * runs the bridge of the installed app. An access that isn't active can't be reinstalled: it is connected again.
+   */
+  private static String bridgeUpdate(ClientLinkEntity l, Optional<Grant> grant) {
+    boolean older = l.getMethod() == LinkMethod.MCPB && grant.filter(Grant::active)
+        .filter(g -> BridgeVersion.older(g.bridgeVersion(), CoreBuild.VERSION)).isPresent();
+    return older ? CoreBuild.VERSION : null;
   }
 
   /** {@code [status, text]} of a link. */
@@ -712,6 +724,60 @@ public class ClientService {
     storePolicy.runtime();
     if (link.getConfigPath() != null) storePolicy.path(Path.of(link.getConfigPath()));
     if (link.getBackupPath() != null) storePolicy.path(Path.of(link.getBackupPath()));
+  }
+
+  // ── Reinstall ───────────────────────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * {@code POST /api/clients/links/{id}/reinstall}: Claude Desktop's extension of a link, built again with this app's
+   * bridge for the same access, for Electron to open in Claude Desktop (preload {@code openMcpb(linkId)}). An installed
+   * extension keeps the bridge it came with; only a new {@code .mcpb} that the person installs brings another. No
+   * grant is made: the access keeps its label and a prod access its saved Allow. The file goes where Connect writes
+   * it, in {@code ~/.gaterook/clients/claude-desktop/}; Claude Desktop's own folders are never written.
+   */
+  public Connected reinstall(String linkId) {
+    ClientLinkEntity l = activeLink(linkId);
+    if (l.getMethod() != LinkMethod.MCPB) {
+      throw ProblemException.notFound("No extension", "Only Claude Desktop's bridge extension can be reinstalled.");
+    }
+    guardLinkMutation(l);
+    Grant g = Optional.ofNullable(l.getGrantId()).flatMap(grants::find).filter(Grant::active)
+        .filter(x -> x.endpointId().equals(l.getEndpointId()))
+        .orElseThrow(() -> ProblemException.conflict("Access is not active", "The access of this extension was "
+            + "revoked or changed outside GateRook: connect Claude Desktop again."));
+    Path target = env.mcpbDirectory().resolve(McpbBuilder.fileName(g.endpointSlug()));
+    storePolicy.path(target);
+    McpbBuilder.Spec spec = new McpbBuilder.Spec(g.endpointSlug(), g.env(), g.id(), CoreBuild.VERSION,
+        tools(g.endpointSlug()), env.brokerInfo(), env.os().nodePlatform());
+    try {
+      McpbBuilder.write(target, spec);
+    } catch (IOException ex) {
+      throw ProblemException.conflict("Reinstall failed", "Can't write " + env.display(target) + ": "
+          + ex.getMessage());
+    }
+    ClientLinkEntity saved = writeTx.execute(s -> {
+      Optional<ClientLinkEntity> current = links.findById(l.getId()).filter(x -> x.getRemovedAt() == null);
+      if (current.isEmpty()) {
+        // Disconnected meanwhile: the file it took away must not come back.
+        deleteExtension(target.toString());
+        throw ProblemException.conflict("Not connected", "Claude Desktop was disconnected from " + g.endpointSlug()
+            + " meanwhile.");
+      }
+      ClientLinkEntity link = current.get();
+      link.written(target.toString(), null, ConfigFileWriter.sha256(readBytes(target)), null);
+      ObjectNode details = JsonNodeFactory.instance.objectNode();
+      details.put("method", "mcpb");
+      details.put("file", env.display(target));
+      details.put("access", g.label());
+      setupChanges.record(new SetupChange(SetupChangeRecorder.What.CLIENT, ClientAdapter.of(l.getClient())
+          .displayName() + " → " + g.endpointSlug(), g.bridgeVersion() == null ? null : "Bridge " + g.bridgeVersion(),
+          "Bridge " + CoreBuild.VERSION, null, g.env(), g.endpointSlug(), null, details));
+      return links.save(link);
+    });
+    publish(saved);
+    return new Connected(link(saved), target.toString(), List.of("Claude Desktop opens \""
+        + McpbBuilder.displayName(g.endpointSlug(), g.env()) + "\": confirm the update there. It keeps access "
+        + g.label() + "."));
   }
 
   // ── Disconnect ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -1544,13 +1610,16 @@ public class ClientService {
     events.publish("clients.drift", data);
   }
 
-  /** Statuses by link, for the drift watcher. */
+  /**
+   * Statuses by link, for the drift watcher: {@code claude-desktop connected}, and {@code bridge-update} after them
+   * while the link's extension runs an older bridge, so that the window hears when a reinstalled one connects.
+   */
   Map<String, String> statuses() {
     Map<String, String> out = new LinkedHashMap<>();
     Map<String, EndpointService.Summary> byId = endpointsById();
     for (ClientLinkEntity l : activeLinks()) {
       Link v = link(l, byId);
-      out.put(v.id(), v.client() + " " + v.status());
+      out.put(v.id(), v.client() + " " + v.status() + (v.bridgeUpdate() == null ? "" : " bridge-update"));
     }
     return out;
   }

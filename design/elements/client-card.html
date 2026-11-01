@@ -878,6 +878,96 @@
     </div>
   </section>
 
+  <!-- ───────────────────────── Older bridge (a Claude Desktop extension built by an older GateRook) ───────────────────────── -->
+  <section class="gw-section" aria-labelledby="s-older-bridge">
+    <header class="gw-section__header">
+      <h2 class="gw-section__title" id="s-older-bridge">Older bridge</h2>
+      <p class="gw-section__description">An installed extension keeps the bridge it was built with, and its bridge reports its version with every token request. When that version is older than GateRook's, the card names the endpoint's extension and both versions. Reinstall extension builds the <span class="gw-mono">.mcpb</span> again for the same access, in GateRook's own folder, and Claude Desktop opens its install dialog: nothing changes until you click Install there, and nothing is written to Claude Desktop's folders. The access and, on prod, your Allow stay. The hint goes once the new bridge asks for its first token; an extension that is current says nothing.</p>
+    </header>
+    <div class="gw-stack">
+      <article class="gw-card gw-client-card" aria-labelledby="cc10-cd-t">
+        <header class="gw-card__header gw-client-card__header">
+          <div class="gw-client-card__identity">
+            <span class="gw-client-mark gw-client-mark--claude gw-client-mark--lg" aria-hidden="true">CD</span>
+            <div class="gw-card__heading">
+              <h3 class="gw-card__title" id="cc10-cd-t">Claude Desktop</h3>
+              <p class="gw-card__description gw-client-card__via">Bridge extension (.mcpb) · 2 endpoints, one of them prod</p>
+            </div>
+          </div>
+          <span class="gw-status gw-status--success gw-client-card__status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Connected</span></span>
+        </header>
+        <div class="gw-card__body gw-stack gw-client-card__body">
+          <!-- One alert per extension whose bridge is older; the button names its endpoint. -->
+          <div class="gw-alert gw-alert--warning">
+            <i class="gw-icon gw-alert__icon" data-lucide="triangle-alert"></i>
+            <div class="gw-alert__content">
+              <p class="gw-alert__title">The <span class="gw-mono">incident-prod</span> extension runs bridge 0.3.2</p>
+              <p class="gw-alert__body">GateRook 0.4.0 has a newer one. Reinstall it so Claude Desktop keeps showing approval cards after GateRook restarts. It keeps its access and your Allow.</p>
+              <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" data-gw-toast="Claude Desktop opens its install dialog for the extension: click Install. It keeps its access; the hint goes once the new bridge connects." data-gw-toast-title="Update incident-prod in Claude Desktop" data-gw-toast-tone="info"><i class="gw-icon gw-icon--sm" data-lucide="refresh-cw"></i>Reinstall extension<span class="gw-sr-only"> for incident-prod</span></button></div>
+            </div>
+          </div>
+          <dl class="gw-kv gw-kv--dense">
+            <div class="gw-kv__row"><dt class="gw-kv__key">Auth</dt><dd class="gw-kv__value">A 15-minute token per endpoint, issued on the fly by the bridge and never written to a config</dd></div>
+            <div class="gw-kv__row"><dt class="gw-kv__key">Last call</dt><dd class="gw-kv__value"><time datetime="2026-10-22T14:16:00+02:00" title="2026-10-22 14:16:00 +02:00">14 min ago</time></dd></div>
+          </dl>
+          <div class="gw-table-wrap" role="region" aria-labelledby="cc10-cd-ep-cap" tabindex="0">
+            <table class="gw-table gw-table--dense">
+              <caption class="gw-sr-only" id="cc10-cd-ep-cap">Endpoints Claude Desktop is connected to</caption>
+              <thead><tr><th scope="col">Endpoint</th><th scope="col">Tools</th><th scope="col">Last call</th><th scope="col" class="gw-table__cell--actions"><span class="gw-sr-only">Actions</span></th></tr></thead>
+              <tbody>
+                <tr>
+                  <th scope="row"><a class="gw-link gw-mono" href="../pages/endpoint-detail.html">dev</a></th>
+                  <td><span class="gw-tabular">22</span> <span class="gw-fg-muted">· 14 read only, 3 approval, 5 off</span></td>
+                  <td><time datetime="2026-10-22T14:16:00+02:00" title="2026-10-22 14:16:00 +02:00">14 min ago</time></td>
+                  <td class="gw-table__cell--actions">
+                    <a class="gw-btn gw-btn--ghost gw-btn--sm" href="../pages/activity.html?q=client:claude-desktop%20endpoint:dev">View activity<span class="gw-sr-only"> of Claude Desktop on dev</span></a>
+                    <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" data-gw-dialog-open="dlg-disc-cd-dev">Disconnect<span class="gw-sr-only"> Claude Desktop from dev</span></button>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><a class="gw-link gw-mono" href="../pages/endpoint-detail.html?endpoint=incident-prod">incident-prod</a> <span class="gw-sr-only">environment</span> <span class="gw-env gw-env--sm gw-env--prod">prod</span></th>
+                  <td><span class="gw-tabular">10</span> <span class="gw-fg-muted">· 7 read only, 3 off</span></td>
+                  <td><time datetime="2026-10-22T11:58:00+02:00" title="2026-10-22 11:58:00 +02:00">2 h ago</time></td>
+                  <td class="gw-table__cell--actions">
+                    <a class="gw-btn gw-btn--ghost gw-btn--sm" href="../pages/activity.html?q=client:claude-desktop%20endpoint:incident-prod">View activity<span class="gw-sr-only"> of Claude Desktop on incident-prod</span></a>
+                    <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" data-gw-dialog-open="dlg-disc-cd-prod">Disconnect<span class="gw-sr-only"> Claude Desktop from incident-prod</span></button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <footer class="gw-card__footer gw-card__footer--split gw-client-card__footer">
+          <a class="gw-btn gw-btn--link gw-btn--sm" href="../pages/activity.html?q=client:claude-desktop">View activity<span class="gw-sr-only"> of Claude Desktop on every endpoint</span></a>
+          <div class="gw-client-card__actions">
+            <button class="gw-btn gw-btn--sm" type="button" data-gw-dialog-open="dlg-cd-add"><i class="gw-icon gw-icon--sm" data-lucide="plus"></i>Add endpoint<span class="gw-sr-only"> to Claude Desktop</span></button>
+            <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" data-gw-dialog-open="dlg-disc-cd">Remove bridge<span class="gw-sr-only"> from Claude Desktop</span></button>
+          </div>
+        </footer>
+      </article>
+
+      <!-- The same extension as a compact row of endpoint incident-prod: a warning caption and Reinstall first in the actions. -->
+      <ul class="gw-stack gw-stack--sm" aria-label="AI apps of endpoint incident-prod">
+        <li class="gw-card gw-client-card gw-client-card--compact">
+          <div class="gw-client-card__row">
+            <span class="gw-client-mark gw-client-mark--claude" aria-hidden="true">CD</span>
+            <div class="gw-client-card__main">
+              <span class="gw-text-ui">Claude Desktop</span>
+              <span class="gw-text-caption gw-fg-muted">Bridge extension (.mcpb), also on <span class="gw-mono">dev</span> · token issued on the fly · last call <time datetime="2026-10-22T11:58:00+02:00" title="2026-10-22 11:58">2 h ago</time></span>
+              <span class="gw-text-caption gw-fg-warning"><i class="gw-icon gw-icon--xs" data-lucide="triangle-alert"></i> Runs bridge 0.3.2: reinstall it to keep approval cards after GateRook restarts</span>
+            </div>
+            <span class="gw-status gw-status--success gw-client-card__status"><span class="gw-status__dot" aria-hidden="true"></span><span class="gw-status__label">Connected</span></span>
+            <div class="gw-client-card__actions">
+              <button class="gw-btn gw-btn--sm" type="button" data-gw-toast="Claude Desktop opens its install dialog for the extension: click Install. It keeps its access; the hint goes once the new bridge connects." data-gw-toast-title="Update incident-prod in Claude Desktop" data-gw-toast-tone="info"><i class="gw-icon gw-icon--sm" data-lucide="refresh-cw"></i>Reinstall extension<span class="gw-sr-only"> for incident-prod</span></button>
+              <a class="gw-btn gw-btn--ghost gw-btn--sm" href="../pages/activity.html?q=client:claude-desktop%20endpoint:incident-prod">View activity<span class="gw-sr-only"> of Claude Desktop</span></a>
+              <button class="gw-btn gw-btn--danger-ghost gw-btn--sm" type="button" data-gw-dialog-open="dlg-disc-cd-prod">Disconnect<span class="gw-sr-only"> Claude Desktop from incident-prod</span></button>
+            </div>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </section>
+
   <!-- ───────────────────────── Inline review, one endpoint (clients ?state=setup) ───────────────────────── -->
   <section class="gw-section" aria-labelledby="s-inline">
     <header class="gw-section__header">

@@ -65,7 +65,7 @@ node bridge/gw-bridge.mjs stdio --endpoint dev --grant gr_PLACEHOLDER --client c
 npm test -w bridge
 ```
 
-The bridge discovers the broker through `GW_BROKER` (a `broker.json` path) or `GW_HOME`. It refreshes a cached token before expiry and retries authentication once after a 401. The core's `McpbBuilder` includes this script as `server/gw-bridge.mjs`. The Java/native equivalent lives in `bridge-cli/` and supports `headers`, `stdio`, and `sandbox-exec`.
+The bridge discovers the broker through `GW_BROKER` (a `broker.json` path) or `GW_HOME`. It refreshes a cached token before expiry and retries authentication once after a 401. The core's `McpbBuilder` includes this script as `server/gw-bridge.mjs`. An installed extension keeps that copy when the application updates: the core records the `bridge` version of each grant's last token request, and AI apps offers Reinstall extension, a new `.mcpb` for the same grant, when it is older than the application. The Java/native equivalent lives in `bridge-cli/` and supports `headers`, `stdio`, and `sandbox-exec`.
 
 After the client's legacy `initialize`, both stdio bridges send `X-Gateway-Bridge-Client` with each later legacy request: base64url JSON of the declared `capabilities` and the client's `name`, `title`, and `version`, omitted when longer than 4,096 characters. The core prefers it to the grant's last remembered initialization. Clients sharing a grant, such as Claude Desktop's chat and its Code sessions, therefore keep their own capabilities, including MCP Apps approval cards, and so does a client whose core restarted.
 

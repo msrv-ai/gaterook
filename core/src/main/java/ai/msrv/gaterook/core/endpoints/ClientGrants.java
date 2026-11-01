@@ -93,10 +93,12 @@ public class ClientGrants implements DisposableBean {
   /**
    * One grant as the clients module and the admin API see it.
    *
+   * @param bridgeVersion the version the bridge of the last token request reported, or {@code null}
    * @param verified the row is as the core wrote it; a grant that isn't gets no tokens
    */
   public record Grant(String id, String client, String endpointId, String endpointSlug, Env env, String label,
-      Instant createdAt, Instant revokedAt, Instant lastTokenAt, Long lastPid, Instant confirmedAt, boolean verified) {
+      Instant createdAt, Instant revokedAt, Instant lastTokenAt, Long lastPid, String bridgeVersion,
+      Instant confirmedAt, boolean verified) {
 
     /** Not revoked and as the core wrote it. */
     public boolean active() {
@@ -314,7 +316,8 @@ public class ClientGrants implements DisposableBean {
     java.util.Arrays.fill(random, (byte) 0);
     Instant expires = now.plus(bridgeTtl);
     tokens.save(ApiTokenEntity.bridge(g, TokenService.hash(token), now, expires));
-    g.tokenIssued(now, r.pid());
+    // The version shows which bridge the client runs: a Claude Desktop extension keeps the one it was built with.
+    g.tokenIssued(now, r.pid(), r.bridge());
     rows.saveSigned(g);
     return new TokenAnswer(true, token, expires, listener.origin() + "/mcp/" + e.getSlug(), instance, null, null);
   }
@@ -441,6 +444,6 @@ public class ClientGrants implements DisposableBean {
   private static Grant view(ClientGrantEntity g, boolean verified) {
     EndpointEntity e = g.getEndpoint();
     return new Grant(g.getId(), g.getClient(), e.getId(), e.getSlug(), e.getEnv(), g.getLabel(), g.getCreatedAt(),
-        g.getRevokedAt(), g.getLastTokenAt(), g.getLastPid(), g.getConfirmedAt(), verified);
+        g.getRevokedAt(), g.getLastTokenAt(), g.getLastPid(), g.getBridgeVersion(), g.getConfirmedAt(), verified);
   }
 }

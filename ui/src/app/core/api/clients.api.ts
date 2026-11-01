@@ -54,6 +54,13 @@ export interface ClientLink {
   /** From the audit: the last call through this entry, and the protocol revision it spoke. */
   readonly lastCallAt: Iso | null;
   readonly revision: string | null;
+  /** The version the bridge of its access reported with its last token request (`0.4.3`). */
+  readonly bridgeVersion: string | null;
+  /**
+   * A Claude Desktop extension that still runs an older bridge: the newer one Reinstall brings, this GateRook's
+   * version (`0.5.0`). Null when the extension is current, its version is unknown, or the link isn't an extension.
+   */
+  readonly bridgeUpdate: string | null;
 }
 
 /** One client card. */
@@ -137,6 +144,7 @@ export interface ConnectRequest {
   readonly codex?: { readonly approvalMode?: string | null; readonly toolTimeoutSec?: number | null } | null;
 }
 
+/** What Connect or Reinstall wrote. */
 export interface ConnectResult {
   readonly link: ClientLink;
   /** The extension Electron opens in Claude Desktop. */
@@ -280,6 +288,14 @@ export class ClientsApi {
 
   removeClaudeBridge(): Promise<BridgeRemoved> {
     return this.api.post('/api/clients/claude-desktop/remove-bridge');
+  }
+
+  /**
+   * Builds a Claude Desktop extension again with this GateRook's bridge, for the same access (its saved Allow too);
+   * the window then opens it in Claude Desktop. 409 when the access is no longer active: connect again.
+   */
+  reinstall(linkId: string): Promise<ConnectResult> {
+    return this.api.post(ApiClient.path`/api/clients/links/${linkId}/reinstall`);
   }
 
   manual(endpoint: string): Promise<ManualSetup> {
