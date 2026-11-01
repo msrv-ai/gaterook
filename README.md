@@ -2,6 +2,11 @@
 
 GateRook is a desktop MCP gateway that gives AI clients scoped access to databases, logs, APIs, and cloud services. Credentials stay in the gateway; changes require review by default. An explicit per-tool Bypass mode runs calls without approval while retaining policy limits.
 
+[![Download for macOS (Apple Silicon)](https://img.shields.io/badge/Download_for_macOS-Apple_Silicon-6C56EE?style=for-the-badge)](https://github.com/msrv-ai/gaterook/releases/latest)
+[![Get GateRook for Windows from Microsoft Store](https://img.shields.io/badge/Windows-Microsoft_Store-6C56EE?style=for-the-badge)](https://apps.microsoft.com/detail/9ncv7wxz9wsv)
+
+For macOS, download the `.dmg` installer from the latest release. Windows installs and updates through Microsoft Store.
+
 On DEV and STAGE, you can temporarily bypass approval for a method on one connection and endpoint for 15 or 30 minutes, or 1, 3, 12, or 24 hours. Open **Temporary bypass** in an approval review or the endpoint's tool list. The original mode returns automatically at expiry, and you can end the bypass early. Existing pending requests still need a separate decision.
 
 [Website](https://msrv.dev) · [Issues](https://github.com/msrv-ai/gaterook/issues) · [Architecture](docs/ARCHITECTURE.md) · [Research](docs/research/README.md) · [Design kit](design/README.md)
