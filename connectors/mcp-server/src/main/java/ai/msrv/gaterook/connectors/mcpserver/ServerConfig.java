@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.MissingNode;
 
 /**
  * The settings of one {@code mcp-server} connection as the runtime reads them ({@code config.schema.json}). The values
@@ -30,6 +31,10 @@ record ServerConfig(String name, String transport, List<String> command, String 
 
   /** {@code auth.type} of a server the person signs in to in the browser (OAuth 2.1, ARCHITECTURE.md §7.5). */
   static final String OAUTH = "oauth";
+  /** {@code auth.type} of a server that takes a Google access token from the server's Google Cloud credentials (§7.6). */
+  static final String GOOGLE = "google";
+  /** {@code auth.type} of a server on AWS whose requests are signed with SigV4 from the server's AWS credentials. */
+  static final String AWS = "aws";
 
   private static final Pattern PREFIX = Pattern.compile("^[a-z][a-z0-9]{0,14}_$");
 
@@ -69,7 +74,34 @@ record ServerConfig(String name, String transport, List<String> command, String 
 
   /** Whether the person signs in to this HTTP server in the browser, so each request carries the core's token. */
   boolean oauth() {
-    return auth != null && OAUTH.equals(Texts.str(Texts.JSON.readTree(auth).path("type"), null));
+    return OAUTH.equals(authType());
+  }
+
+  /**
+   * Whether this OAuth server also answers without a sign-in ({@code auth.optional}): it connects without one until the
+   * person signs in, and its calls that need one say so.
+   */
+  boolean signInOptional() {
+    return oauth() && authSettings().path("optional").asBoolean(false);
+  }
+
+  /** Whether each request carries a Google access token from the server's Google Cloud credentials. */
+  boolean google() {
+    return GOOGLE.equals(authType());
+  }
+
+  /** Whether each request is signed with SigV4 from the server's AWS credentials. */
+  boolean aws() {
+    return AWS.equals(authType());
+  }
+
+  /** The sign-in settings as the person chose them; a missing node for a server without any. */
+  JsonNode authSettings() {
+    return auth == null ? MissingNode.getInstance() : Texts.JSON.readTree(auth);
+  }
+
+  private String authType() {
+    return auth == null ? null : Texts.str(authSettings().path("type"), null);
   }
 
   /**

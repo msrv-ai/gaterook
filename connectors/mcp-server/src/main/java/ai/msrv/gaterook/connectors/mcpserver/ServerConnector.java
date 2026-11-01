@@ -195,6 +195,12 @@ final class ServerConnector implements Connector {
         ctx.taint(v);
       }
     }
+    if (s.http != null && s.http.credentials() != null) {
+      // And the token or keys of its cloud credentials, renewed while the session lives.
+      for (String v : s.http.credentials().secrets()) {
+        ctx.taint(v);
+      }
+    }
     McpSchema.Tool live = null;
     for (McpSchema.Tool t : s.tools) {
       if (original.equals(t.name())) {

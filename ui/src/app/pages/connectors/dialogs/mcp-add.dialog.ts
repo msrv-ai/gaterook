@@ -1,10 +1,11 @@
-import { ChangeDetectionStrategy, Component, ElementRef, inject, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, output, signal } from '@angular/core';
 import { McpServerAuthConfig, McpServerConfig, McpServerReview, McpServerSource } from '../../../core/api/plugins.api';
 import { GwDialog, GwDialogClose } from '../../../kit/dialog';
 import { GwToggle } from '../../../kit/disclosure';
 import { GwIcon } from '../../../kit/icons';
 import { joinAnd, tokenizeCommand } from '../connectors-view';
 import { ConnectorsData } from '../connectors.data';
+import { signingTarget } from '../mcp-cloud';
 import { parsePastedServer, serverName } from '../mcp-paste';
 import { failureText } from './failure';
 
@@ -41,17 +42,38 @@ export interface McpFormErrors {
   readonly clientId?: string;
   readonly scopes?: string;
   readonly callbackPort?: string;
+  readonly impersonate?: string;
+  readonly quotaProject?: string;
+  readonly profile?: string;
+  readonly accessKeyId?: string;
+  readonly roleArn?: string;
+  readonly externalId?: string;
+  readonly service?: string;
+  readonly region?: string;
 }
 
 /**
- * Sign-in options of a server at a URL (Advanced): an OAuth app the person created, because the server doesn't let
- * apps register themselves, or a callback the server accepts. Empty: GateRook signs in as itself, with its published
- * client details or by registering, and listens on any free port.
+ * Sign-in options of a server at a URL (Advanced). OAuth: an app the person created, because the server doesn't let
+ * apps register themselves, or a callback the server accepts; empty, GateRook signs in as itself, with its published
+ * client details or by registering, and listens on any free port. Google Cloud or AWS: the credentials each request
+ * is authorized with instead (§7.6), a token from Google sign-in on this computer or a service account key, or SigV4
+ * with an AWS profile or access key. A key is typed in the review.
  */
 export interface McpSignInOptions {
+  readonly with?: 'oauth' | 'google' | 'aws';
   readonly clientId: string;
   readonly scopes: string;
   readonly callbackPort: string;
+  /** Google: `adc` or `serviceAccountKey`; AWS: `profile` or `accessKey`. */
+  readonly source?: string;
+  readonly impersonate?: string;
+  readonly quotaProject?: string;
+  readonly profile?: string;
+  readonly accessKeyId?: string;
+  readonly roleArn?: string;
+  readonly externalId?: string;
+  readonly service?: string;
+  readonly region?: string;
 }
 
 const NO_SIGN_IN_OPTIONS: McpSignInOptions = { clientId: '', scopes: '', callbackPort: '' };
@@ -62,6 +84,13 @@ const HEADER_NAME = /^[A-Za-z0-9-]{1,64}$/;
 const SERVER_URL = /^(https:\/\/[^\s/]+|http:\/\/(127\.0\.0\.1|localhost)[:/])/i;
 const CLIENT_ID = /^[\x21-\x7E]{1,512}$/;
 const SCOPES = /^[\x21\x23-\x5B\x5D-\x7E]+( [\x21\x23-\x5B\x5D-\x7E]+)*$/;
+const SERVICE_ACCOUNT = /^[a-z0-9-]+@[a-z0-9-]+\.iam\.gserviceaccount\.com$/;
+const PROJECT = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/;
+const ACCESS_KEY_ID = /^(AKIA|ASIA)[A-Z0-9]{16}$/;
+const ROLE_ARN = /^arn:aws(-cn|-us-gov)?:iam::\d{12}:role\/[\w+=,.@/-]{1,512}$/;
+const EXTERNAL_ID = /^[\w+=,.@:/-]{2,1224}$/;
+const AWS_SERVICE = /^[a-z0-9-]{1,64}$/;
+const AWS_REGION = /^[a-z]{2}(-[a-z]+)+-\d+$/;
 
 /**
  * The request "Review and start" sends (`POST /api/mcp-servers/review`), or what keeps the form from being sent. The
@@ -112,18 +141,28 @@ export function mcpRequest(
   }
   let auth: McpServerAuthConfig | undefined;
   if (transport === 'http') {
-    const clientId = signIn.clientId.trim();
+    const way = signIn.with ?? 'oauth';
     const scopes = signIn.scopes.trim().replace(/\s+/g, ' ');
-    const port = signIn.callbackPort.trim();
-    if (clientId && !CLIENT_ID.test(clientId)) errors.clientId = 'A client ID has no spaces or control characters.';
     if (scopes && !SCOPES.test(scopes)) errors.scopes = 'Separate scopes with spaces; a scope has no quotes or backslashes.';
-    if (port && (!/^\d{4,5}$/.test(port) || +port < 1024 || +port > 65535)) errors.callbackPort = 'Use a port from 1024 to 65535.';
-    if (bindings.some((b) => b.name.toLowerCase() === 'authorization') && clientId) {
-      errors.variables = 'The OAuth sign-in sends the Authorization header. Remove that header, or the client ID.';
-    }
-    if (clientId || scopes || port) {
-      // Options the person chose mean an OAuth sign-in; without any, the review finds out whether it needs one.
-      auth = { type: 'oauth', ...(clientId ? { clientId } : {}), ...(scopes ? { scopes } : {}), ...(port ? { callbackPort: +port } : {}) };
+    const keyed = bindings.some((b) => b.name.toLowerCase() === 'authorization');
+    if (way === 'google') {
+      auth = googleAuth(signIn, scopes, errors);
+      if (keyed) errors.variables = 'Google Cloud credentials send the Authorization header. Remove that header, or sign in another way.';
+    } else if (way === 'aws') {
+      auth = awsAuth(signIn, url.trim(), !errors.url, errors);
+      if (keyed) errors.variables = 'AWS credentials send the Authorization header. Remove that header, or sign in another way.';
+    } else {
+      const clientId = signIn.clientId.trim();
+      const port = signIn.callbackPort.trim();
+      if (clientId && !CLIENT_ID.test(clientId)) errors.clientId = 'A client ID has no spaces or control characters.';
+      if (port && (!/^\d{4,5}$/.test(port) || +port < 1024 || +port > 65535)) errors.callbackPort = 'Use a port from 1024 to 65535.';
+      if (keyed && clientId) {
+        errors.variables = 'The OAuth sign-in sends the Authorization header. Remove that header, or the client ID.';
+      }
+      if (clientId || scopes || port) {
+        // Options the person chose mean an OAuth sign-in; without any, the review finds out whether it needs one.
+        auth = { type: 'oauth', ...(clientId ? { clientId } : {}), ...(scopes ? { scopes } : {}), ...(port ? { callbackPort: +port } : {}) };
+      }
     }
   }
   if (Object.keys(errors).length) return { source: null, errors };
@@ -132,6 +171,53 @@ export function mcpRequest(
       ? { name: n, transport, command: argv, env: bindings }
       : { name: n, transport, url: url.trim(), headers: bindings, ...(auth ? { auth } : {}) };
   return { source: { config }, errors: null };
+}
+
+/** Google Cloud credentials (§7.6): a token from Google sign-in on this computer or a service account key. */
+function googleAuth(o: McpSignInOptions, scopes: string, errors: { -readonly [K in keyof McpFormErrors]?: string }): McpServerAuthConfig {
+  const source = o.source === 'serviceAccountKey' ? 'serviceAccountKey' : 'adc';
+  const impersonate = (o.impersonate ?? '').trim();
+  const quotaProject = (o.quotaProject ?? '').trim();
+  if (impersonate && !SERVICE_ACCOUNT.test(impersonate)) errors.impersonate = 'A service account looks like name@project.iam.gserviceaccount.com.';
+  if (quotaProject && !PROJECT.test(quotaProject)) errors.quotaProject = 'A project ID has 6 to 30 lowercase letters, digits and -.';
+  return {
+    type: 'google',
+    credentials: { source, ...(impersonate ? { impersonate } : {}), ...(quotaProject ? { quotaProject } : {}) },
+    ...(scopes ? { scopes } : {}),
+  };
+}
+
+/** AWS credentials (§7.6): SigV4 with a profile of this computer or an access key, for a service in a region. */
+function awsAuth(o: McpSignInOptions, url: string, urlOk: boolean, errors: { -readonly [K in keyof McpFormErrors]?: string }): McpServerAuthConfig {
+  const source = o.source === 'accessKey' ? 'accessKey' : 'profile';
+  const profile = (o.profile ?? '').trim() || 'default';
+  const accessKeyId = (o.accessKeyId ?? '').trim();
+  const roleArn = (o.roleArn ?? '').trim();
+  const externalId = (o.externalId ?? '').trim();
+  const service = (o.service ?? '').trim();
+  const region = (o.region ?? '').trim();
+  if (source === 'accessKey' && !ACCESS_KEY_ID.test(accessKeyId)) {
+    errors.accessKeyId = accessKeyId ? 'An access key ID looks like AKIA… (20 characters).' : 'Enter the access key ID.';
+  }
+  if (source === 'profile' && profile.length > 128) errors.profile = 'A profile name has at most 128 characters.';
+  if (roleArn && !ROLE_ARN.test(roleArn)) errors.roleArn = 'A role ARN looks like arn:aws:iam::123456789012:role/name.';
+  if (externalId && !EXTERNAL_ID.test(externalId)) errors.externalId = 'An external ID has 2 to 1,224 letters, digits and +=,.@:/-.';
+  if (service && !AWS_SERVICE.test(service)) errors.service = 'A service name has lowercase letters, digits and -.';
+  if (region && !AWS_REGION.test(region)) errors.region = 'A region looks like us-east-1.';
+  if (urlOk && !errors.service && !errors.region && !signingTarget({ service, region }, url)) {
+    errors.service = 'Name the service and region to sign for: the URL doesn’t say, as aws-mcp.us-east-1.api.aws does.';
+  }
+  return {
+    type: 'aws',
+    credentials: {
+      source,
+      ...(source === 'profile' ? { profile } : { accessKeyId }),
+      ...(roleArn ? { roleArn } : {}),
+      ...(externalId ? { externalId } : {}),
+    },
+    ...(service ? { service } : {}),
+    ...(region ? { region } : {}),
+  };
 }
 
 let nextId = 0;
@@ -201,7 +287,108 @@ let nextId = 0;
           <div class="gw-stack gw-stack--sm" [hidden]="transport() !== 'http'">
             <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [attr.aria-controls]="uid + '-signin'" [(expanded)]="signInOpen"><svg lucideIcon="sliders-horizontal" class="gw-icon gw-icon--sm"></svg> Sign-in options <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button></div>
             <div class="gw-stack gw-stack--sm" [id]="uid + '-signin'" [hidden]="!signInOpen()">
-              <p class="gw-field__hint">Leave them empty: GateRook signs in as GateRook, with the client details it publishes or by registering itself, and listens on this computer for the browser. Fill them in for a server that asks you to create an OAuth app (GitHub and Slack do), or that accepts only certain redirect addresses.</p>
+              <fieldset class="gw-field" [attr.aria-describedby]="uid + '-with-hint'">
+                <legend class="gw-field__label">Sign in with</legend>
+                <div class="gw-segmented">
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-with'" value="oauth" [id]="uid + '-with-oauth'" [checked]="signInWith() === 'oauth'" (change)="setSignInWith('oauth')"><span class="gw-segmented__label"><svg lucideIcon="log-in" class="gw-icon gw-icon--sm"></svg>OAuth</span></label>
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-with'" value="google" [id]="uid + '-with-google'" [checked]="signInWith() === 'google'" (change)="setSignInWith('google')"><span class="gw-segmented__label"><svg lucideIcon="cloud" class="gw-icon gw-icon--sm"></svg>Google Cloud</span></label>
+                  <label class="gw-segmented__option"><input class="gw-segmented__input" type="radio" [name]="uid + '-with'" value="aws" [id]="uid + '-with-aws'" [checked]="signInWith() === 'aws'" (change)="setSignInWith('aws')"><span class="gw-segmented__label"><svg lucideIcon="cloud" class="gw-icon gw-icon--sm"></svg>AWS</span></label>
+                </div>
+                <p class="gw-field__hint" [id]="uid + '-with-hint'">@switch (signInWith()) {
+                  @case ('google') {Google’s MCP servers (<span class="gw-mono">https://&lt;service&gt;.googleapis.com/mcp</span>) take a token of your Google Cloud credentials. GateRook gets it and renews it: no OAuth app, no browser.}
+                  @case ('aws') {MCP servers on AWS (<span class="gw-mono">https://aws-mcp.&lt;region&gt;.api.aws/mcp</span>, Bedrock AgentCore) take requests signed with SigV4. No browser sign-in that ends after 12 hours.}
+                  @default {Leave the fields empty: GateRook signs in as GateRook, with the client details it publishes or by registering itself, and listens on this computer for the browser. Fill them in for a server that asks you to create an OAuth app (GitHub and Slack do), or that accepts only certain redirect addresses.}
+                }</p>
+              </fieldset>
+              @switch (signInWith()) {
+                @case ('google') {
+                  <fieldset class="gw-field">
+                    <legend class="gw-field__label">Credentials</legend>
+                    <div class="gw-radio">
+                      <input class="gw-radio__input" type="radio" [name]="uid + '-gcp'" [id]="uid + '-gcp-adc'" value="adc" [checked]="gcpSource() === 'adc'" (change)="gcpSource.set('adc')" [attr.aria-describedby]="uid + '-gcp-adc-hint'">
+                      <span class="gw-radio__control" aria-hidden="true"></span>
+                      <label class="gw-radio__label" [for]="uid + '-gcp-adc'">Google sign-in on this computer</label>
+                      <p class="gw-radio__hint" [id]="uid + '-gcp-adc-hint'">What <span class="gw-mono">gcloud auth application-default login</span> set up. The server’s tools act as you.</p>
+                    </div>
+                    <div class="gw-radio">
+                      <input class="gw-radio__input" type="radio" [name]="uid + '-gcp'" [id]="uid + '-gcp-key'" value="serviceAccountKey" [checked]="gcpSource() === 'serviceAccountKey'" (change)="gcpSource.set('serviceAccountKey')" [attr.aria-describedby]="uid + '-gcp-key-hint'">
+                      <span class="gw-radio__control" aria-hidden="true"></span>
+                      <label class="gw-radio__label" [for]="uid + '-gcp-key'">Service account key (JSON)</label>
+                      <p class="gw-radio__hint" [id]="uid + '-gcp-key-hint'">The review asks for it. It is stored encrypted as a secret of this server and never shown again.</p>
+                    </div>
+                  </fieldset>
+                  <div class="gw-field">
+                    <label class="gw-field__label" [for]="uid + '-impersonate'">Act as a service account <span class="gw-field__optional">Optional</span></label>
+                    <input class="gw-input gw-input--mono" [id]="uid + '-impersonate'" type="text" spellcheck="false" autocomplete="off" placeholder="gw-mcp@acme.iam.gserviceaccount.com" [value]="impersonate()" (input)="impersonate.set(value($event)); clear('impersonate')" [attr.aria-invalid]="errors().impersonate ? 'true' : null" [attr.aria-describedby]="uid + '-impersonate-hint' + (errors().impersonate ? ' ' + uid + '-impersonate-err' : '')">
+                    <p class="gw-field__hint" [id]="uid + '-impersonate-hint'">A short-lived token of this service account, with only its roles. It needs <span class="gw-mono">roles/mcp.toolUser</span> and the roles of the product.</p>
+                    @if (errors().impersonate) {<p class="gw-field__error" [id]="uid + '-impersonate-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().impersonate }}</p>}
+                  </div>
+                  <div class="gw-field">
+                    <label class="gw-field__label" [for]="uid + '-quota'">Billed project <span class="gw-field__optional">Optional</span></label>
+                    <input class="gw-input gw-input--mono" [id]="uid + '-quota'" type="text" spellcheck="false" autocomplete="off" placeholder="acme-prod" [value]="quotaProject()" (input)="quotaProject.set(value($event)); clear('quotaProject')" [attr.aria-invalid]="errors().quotaProject ? 'true' : null" [attr.aria-describedby]="uid + '-quota-hint' + (errors().quotaProject ? ' ' + uid + '-quota-err' : '')">
+                    <p class="gw-field__hint" [id]="uid + '-quota-hint'">Sent as <span class="gw-mono">x-goog-user-project</span>. Default: the project of your sign-in.</p>
+                    @if (errors().quotaProject) {<p class="gw-field__error" [id]="uid + '-quota-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().quotaProject }}</p>}
+                  </div>
+                  <div class="gw-field">
+                    <label class="gw-field__label" [for]="uid + '-scopes'">Scopes <span class="gw-field__optional">Optional</span></label>
+                    <input class="gw-input gw-input--mono" [id]="uid + '-scopes'" type="text" spellcheck="false" autocomplete="off" placeholder="https://www.googleapis.com/auth/cloud-platform" [value]="scopes()" (input)="scopes.set(value($event)); clear('scopes')" [attr.aria-invalid]="errors().scopes ? 'true' : null" [attr.aria-describedby]="uid + '-scopes-hint' + (errors().scopes ? ' ' + uid + '-scopes-err' : '')">
+                    <p class="gw-field__hint" [id]="uid + '-scopes-hint'">Default: <span class="gw-mono">cloud-platform</span>, which every Google Cloud MCP server takes.</p>
+                    @if (errors().scopes) {<p class="gw-field__error" [id]="uid + '-scopes-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().scopes }}</p>}
+                  </div>
+                }
+                @case ('aws') {
+                  <fieldset class="gw-field">
+                    <legend class="gw-field__label">Credentials</legend>
+                    <div class="gw-radio">
+                      <input class="gw-radio__input" type="radio" [name]="uid + '-aws'" [id]="uid + '-aws-profile'" value="profile" [checked]="awsSource() === 'profile'" (change)="awsSource.set('profile')" [attr.aria-describedby]="uid + '-aws-profile-hint'">
+                      <span class="gw-radio__control" aria-hidden="true"></span>
+                      <label class="gw-radio__label" [for]="uid + '-aws-profile'">A profile on this computer</label>
+                      <p class="gw-radio__hint" [id]="uid + '-aws-profile-hint'">From <span class="gw-mono">~/.aws/credentials</span> and <span class="gw-mono">~/.aws/config</span>.</p>
+                    </div>
+                    <div class="gw-radio">
+                      <input class="gw-radio__input" type="radio" [name]="uid + '-aws'" [id]="uid + '-aws-key'" value="accessKey" [checked]="awsSource() === 'accessKey'" (change)="awsSource.set('accessKey')" [attr.aria-describedby]="uid + '-aws-key-hint'">
+                      <span class="gw-radio__control" aria-hidden="true"></span>
+                      <label class="gw-radio__label" [for]="uid + '-aws-key'">An access key</label>
+                      <p class="gw-radio__hint" [id]="uid + '-aws-key-hint'">The review asks for its secret. It is stored encrypted as a secret of this server and never shown again.</p>
+                    </div>
+                  </fieldset>
+                  @if (awsSource() === 'profile') {
+                    <div class="gw-field">
+                      <label class="gw-field__label" [for]="uid + '-profile'">Profile <span class="gw-field__optional">Optional</span></label>
+                      <input class="gw-input gw-input--mono" [id]="uid + '-profile'" type="text" spellcheck="false" autocomplete="off" placeholder="default" [value]="profile()" (input)="profile.set(value($event)); clear('profile')" [attr.aria-invalid]="errors().profile ? 'true' : null" [attr.aria-describedby]="errors().profile ? uid + '-profile-err' : null">
+                      @if (errors().profile) {<p class="gw-field__error" [id]="uid + '-profile-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().profile }}</p>}
+                    </div>
+                  } @else {
+                    <div class="gw-field">
+                      <label class="gw-field__label" [for]="uid + '-key-id'">Access key ID</label>
+                      <input class="gw-input gw-input--mono" [id]="uid + '-key-id'" type="text" spellcheck="false" autocomplete="off" placeholder="AKIA…" [value]="accessKeyId()" (input)="accessKeyId.set(value($event)); clear('accessKeyId')" [attr.aria-invalid]="errors().accessKeyId ? 'true' : null" [attr.aria-describedby]="errors().accessKeyId ? uid + '-key-id-err' : null">
+                      @if (errors().accessKeyId) {<p class="gw-field__error" [id]="uid + '-key-id-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().accessKeyId }}</p>}
+                    </div>
+                  }
+                  <div class="gw-field">
+                    <label class="gw-field__label" [for]="uid + '-role'">Assume a role <span class="gw-field__optional">Optional</span></label>
+                    <input class="gw-input gw-input--mono" [id]="uid + '-role'" type="text" spellcheck="false" autocomplete="off" placeholder="arn:aws:iam::123456789012:role/gw-mcp" [value]="roleArn()" (input)="roleArn.set(value($event)); clear('roleArn')" [attr.aria-invalid]="errors().roleArn ? 'true' : null" [attr.aria-describedby]="uid + '-role-hint' + (errors().roleArn ? ' ' + uid + '-role-err' : '')">
+                    <p class="gw-field__hint" [id]="uid + '-role-hint'">Short-lived credentials of this role, renewed by GateRook. Its policy decides what the server may do in AWS.</p>
+                    @if (errors().roleArn) {<p class="gw-field__error" [id]="uid + '-role-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().roleArn }}</p>}
+                  </div>
+                  <div class="gw-field">
+                    <label class="gw-field__label" [for]="uid + '-external'">External ID <span class="gw-field__optional">Optional</span></label>
+                    <input class="gw-input gw-input--mono" [id]="uid + '-external'" type="text" spellcheck="false" autocomplete="off" [value]="externalId()" (input)="externalId.set(value($event)); clear('externalId')" [attr.aria-invalid]="errors().externalId ? 'true' : null" [attr.aria-describedby]="errors().externalId ? uid + '-external-err' : null">
+                    @if (errors().externalId) {<p class="gw-field__error" [id]="uid + '-external-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().externalId }}</p>}
+                  </div>
+                  <div class="gw-field">
+                    <label class="gw-field__label" [for]="uid + '-service'">Service <span class="gw-field__optional">Optional</span></label>
+                    <input class="gw-input gw-input--mono" [id]="uid + '-service'" type="text" spellcheck="false" autocomplete="off" [placeholder]="target()?.service ?? 'aws-mcp'" [value]="service()" (input)="service.set(value($event)); clear('service')" [attr.aria-invalid]="errors().service ? 'true' : null" [attr.aria-describedby]="uid + '-service-hint' + (errors().service ? ' ' + uid + '-service-err' : '')">
+                    <p class="gw-field__hint" [id]="uid + '-service-hint'">What requests are signed for. Default: from the URL, <span class="gw-mono">aws-mcp.us-east-1.api.aws</span> → <span class="gw-mono">aws-mcp</span> in <span class="gw-mono">us-east-1</span>.</p>
+                    @if (errors().service) {<p class="gw-field__error" [id]="uid + '-service-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().service }}</p>}
+                  </div>
+                  <div class="gw-field">
+                    <label class="gw-field__label" [for]="uid + '-region'">Region <span class="gw-field__optional">Optional</span></label>
+                    <input class="gw-input gw-input--mono" [id]="uid + '-region'" type="text" spellcheck="false" autocomplete="off" [placeholder]="target()?.region ?? 'us-east-1'" [value]="region()" (input)="region.set(value($event)); clear('region')" [attr.aria-invalid]="errors().region ? 'true' : null" [attr.aria-describedby]="errors().region ? uid + '-region-err' : null">
+                    @if (errors().region) {<p class="gw-field__error" [id]="uid + '-region-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().region }}</p>}
+                  </div>
+                }
+                @default {
               <div class="gw-field">
                 <label class="gw-field__label" [for]="uid + '-client'">OAuth client ID <span class="gw-field__optional">Optional</span></label>
                 <input class="gw-input gw-input--mono" [id]="uid + '-client'" type="text" spellcheck="false" autocomplete="off" [disabled]="transport() !== 'http'" [value]="clientId()" (input)="clientId.set(value($event)); clear('clientId')" [attr.aria-invalid]="errors().clientId ? 'true' : null" [attr.aria-describedby]="uid + '-client-hint' + (errors().clientId ? ' ' + uid + '-client-err' : '')">
@@ -220,6 +407,8 @@ let nextId = 0;
                 <p class="gw-field__hint" [id]="uid + '-port-hint'">Where the browser comes back to: <span class="gw-mono">http://localhost:&lt;port&gt;/callback</span>, or <span class="gw-mono">http://127.0.0.1:7471/callback</span> for an OAuth app. Default: any free port.</p>
                 @if (errors().callbackPort) {<p class="gw-field__error" [id]="uid + '-port-err'"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ errors().callbackPort }}</p>}
               </div>
+                }
+              }
             </div>
           </div>
           <fieldset class="gw-field">
@@ -270,6 +459,20 @@ export class GwMcpAddDialog {
   protected readonly scopes = signal('');
   protected readonly callbackPort = signal('');
   protected readonly signInOpen = signal(false);
+  /** OAuth in the browser (when the server asks), or the server's Google Cloud or AWS credentials (§7.6). */
+  protected readonly signInWith = signal<'oauth' | 'google' | 'aws'>('oauth');
+  protected readonly gcpSource = signal<'adc' | 'serviceAccountKey'>('adc');
+  protected readonly impersonate = signal('');
+  protected readonly quotaProject = signal('');
+  protected readonly awsSource = signal<'profile' | 'accessKey'>('profile');
+  protected readonly profile = signal('');
+  protected readonly accessKeyId = signal('');
+  protected readonly roleArn = signal('');
+  protected readonly externalId = signal('');
+  protected readonly service = signal('');
+  protected readonly region = signal('');
+  /** What the URL's host names to sign for, shown as the defaults of Service and Region. */
+  protected readonly target = computed(() => signingTarget(null, this.url().trim()));
   protected readonly errors = signal<McpFormErrors>({});
   protected readonly error = signal<string | null>(null);
   protected readonly busy = signal(false);
@@ -289,6 +492,17 @@ export class GwMcpAddDialog {
     this.scopes.set('');
     this.callbackPort.set('');
     this.signInOpen.set(false);
+    this.signInWith.set('oauth');
+    this.gcpSource.set('adc');
+    this.impersonate.set('');
+    this.quotaProject.set('');
+    this.awsSource.set('profile');
+    this.profile.set('');
+    this.accessKeyId.set('');
+    this.roleArn.set('');
+    this.externalId.set('');
+    this.service.set('');
+    this.region.set('');
     this.suggested.set(null);
     this.pasted.set(null);
     this.pasteError.set(null);
@@ -343,6 +557,7 @@ export class GwMcpAddDialog {
       this.suggested.set(r.name);
     }
     this.variables.set(r.variables.length ? r.variables.map((name) => ({ name })) : [{ name: '' }]);
+    if (r.auth) this.applySignIn(r.auth);
     this.errors.set({});
     const field = this.host.querySelector<HTMLTextAreaElement>(`#${this.uid}-paste-text`);
     if (field) field.value = '';
@@ -359,12 +574,37 @@ export class GwMcpAddDialog {
     );
   }
 
+  /** A sign-in the paste names (an AWS proxy's profile, Google's token header): its options, opened. */
+  private applySignIn(auth: McpServerAuthConfig): void {
+    if (auth.type === 'oauth') return;
+    this.signInWith.set(auth.type);
+    this.signInOpen.set(true);
+    const c = auth.credentials;
+    if (auth.type === 'google') {
+      this.gcpSource.set(c?.source === 'serviceAccountKey' ? 'serviceAccountKey' : 'adc');
+      this.quotaProject.set(c?.quotaProject ?? '');
+      this.impersonate.set(c?.impersonate ?? '');
+    } else {
+      this.awsSource.set(c?.source === 'accessKey' ? 'accessKey' : 'profile');
+      this.profile.set(c?.profile ?? '');
+      this.service.set(auth.service ?? '');
+      this.region.set(auth.region ?? '');
+    }
+  }
+
   protected value(e: Event): string {
     return (e.target as HTMLInputElement | HTMLSelectElement).value;
   }
 
   protected clear(field: keyof McpFormErrors): void {
     if (this.errors()[field]) this.errors.update((e) => ({ ...e, [field]: undefined }));
+  }
+
+  protected setSignInWith(way: 'oauth' | 'google' | 'aws'): void {
+    this.signInWith.set(way);
+    this.errors.update((e) => ({ ...e, clientId: undefined, scopes: undefined, callbackPort: undefined, impersonate: undefined,
+      quotaProject: undefined, profile: undefined, accessKeyId: undefined, roleArn: undefined, externalId: undefined,
+      service: undefined, region: undefined, variables: undefined }));
   }
 
   protected setTransport(t: 'stdio' | 'http'): void {
@@ -388,28 +628,32 @@ export class GwMcpAddDialog {
     e.preventDefault();
     if (this.busy()) return;
     this.error.set(null);
+    const way = this.signInWith();
     const r = mcpRequest(this.name(), this.transport(), this.command(), this.url(), this.variables(), {
+      with: way,
       clientId: this.clientId(),
       scopes: this.scopes(),
       callbackPort: this.callbackPort(),
+      source: way === 'google' ? this.gcpSource() : way === 'aws' ? this.awsSource() : undefined,
+      impersonate: this.impersonate(),
+      quotaProject: this.quotaProject(),
+      profile: this.profile(),
+      accessKeyId: this.accessKeyId(),
+      roleArn: this.roleArn(),
+      externalId: this.externalId(),
+      service: this.service(),
+      region: this.region(),
     });
     if (r.errors) {
       this.errors.set(r.errors);
-      if (r.errors.clientId || r.errors.scopes || r.errors.callbackPort) this.signInOpen.set(true);
-      const first = r.errors.name
-        ? 'name'
-        : r.errors.command
-          ? 'command'
-          : r.errors.url
-            ? 'url'
-            : r.errors.variables
-              ? 'var-name-0'
-              : r.errors.clientId
-                ? 'client'
-                : r.errors.scopes
-                  ? 'scopes'
-                  : 'port';
-      setTimeout(() => this.host.querySelector<HTMLElement>(`#${this.uid}-${first}`)?.focus());
+      // The first refused field (the always-visible ones first); a sign-in option opens its section.
+      const order: readonly [keyof McpFormErrors, string][] = [['name', 'name'], ['command', 'command'], ['url', 'url'],
+        ['variables', 'var-name-0'], ['clientId', 'client'], ['impersonate', 'impersonate'], ['quotaProject', 'quota'],
+        ['scopes', 'scopes'], ['callbackPort', 'port'], ['profile', 'profile'], ['accessKeyId', 'key-id'],
+        ['roleArn', 'role'], ['externalId', 'external'], ['service', 'service'], ['region', 'region']];
+      const first = order.find(([key]) => r.errors[key]);
+      if (first && !['name', 'command', 'url', 'variables'].includes(first[0])) this.signInOpen.set(true);
+      setTimeout(() => this.host.querySelector<HTMLElement>(`#${this.uid}-${first?.[1] ?? 'name'}`)?.focus());
       return;
     }
     this.busy.set(true);

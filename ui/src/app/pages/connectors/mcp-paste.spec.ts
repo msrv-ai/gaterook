@@ -21,6 +21,38 @@ describe('pasted MCP server configurations', () => {
     expect(JSON.stringify(r)).not.toContain('lin_api_123');
   });
 
+  it('turns the MCP Proxy for AWS into its URL, signed by GateRook with the proxy’s profile and region', () => {
+    const r = parsePastedServer(`{"mcpServers":{"aws-mcp":{"command":"uvx","args":["mcp-proxy-for-aws@latest",
+      "https://aws-mcp.us-east-1.api.aws/mcp","--profile","prod-readonly","dev","--region","us-east-1"]}}}`);
+    expect('error' in r).toBe(false);
+    if ('error' in r) return;
+    expect(r.transport).toBe('http');
+    expect(r.url).toBe('https://aws-mcp.us-east-1.api.aws/mcp');
+    expect(r.auth).toEqual({ type: 'aws', credentials: { source: 'profile', profile: 'prod-readonly' }, region: 'us-east-1' });
+    expect(r.notes).toContain('GateRook signs the requests with SigV4 itself, so the MCP Proxy for AWS isn’t needed.');
+    const env = parsePastedServer(`{"mcpServers":{"aws":{"command":"uvx","args":["mcp-proxy-for-aws","https://aws-mcp.eu-west-1.api.aws/mcp"],
+      "env":{"AWS_PROFILE":"ops","AWS_SECRET_ACCESS_KEY":"never-copied"}}}}`);
+    if ('error' in env) throw new Error(env.error);
+    expect(env.auth).toEqual({ type: 'aws', credentials: { source: 'profile', profile: 'ops' } });
+    expect(JSON.stringify(env)).not.toContain('never-copied');
+  });
+
+  it('turns a Google server documented with a gcloud token into Google Cloud credentials, billed to its project', () => {
+    const r = parsePastedServer(`{"mcpServers":{"bigquery":{"url":"https://bigquery.googleapis.com/mcp",
+      "headers":{"Authorization":"Bearer ya29.short-lived","x-goog-user-project":"acme-billing"}}}}`);
+    expect('error' in r).toBe(false);
+    if ('error' in r) return;
+    expect(r.variables).toEqual([]);
+    expect(r.auth).toEqual({ type: 'google', credentials: { source: 'adc', quotaProject: 'acme-billing' } });
+    expect(r.notes).toEqual(['Signs in with your Google Cloud credentials instead of the pasted token: GateRook gets a new one before it expires.']);
+    expect(JSON.stringify(r)).not.toContain('ya29.short-lived');
+    // A key header of a Google server that takes API keys stays a header.
+    const maps = parsePastedServer(`{"mcpServers":{"maps":{"url":"https://mapstools.googleapis.com/mcp","headers":{"X-Goog-Api-Key":"k"}}}}`);
+    if ('error' in maps) throw new Error(maps.error);
+    expect(maps.auth).toBeUndefined();
+    expect(maps.variables).toEqual(['X-Goog-Api-Key']);
+  });
+
   it('turns an mcp-remote bridge into the URL it bridges, /sse into /mcp', () => {
     const r = parsePastedServer(`{"mcpServers":{"atlassian":{"command":"npx","args":["-y","mcp-remote","https://mcp.atlassian.com/v1/sse"]}}}`);
     expect('error' in r).toBe(false);
@@ -124,5 +156,10 @@ describe('pasted MCP server configurations', () => {
     expect(serverName('', new URL('https://api.githubcopilot.com/mcp/'))).toBe('githubcopilot-mcp');
     expect(serverName('', new URL('https://docs.mcp.cloudflare.com/mcp'))).toBe('cloudflare-mcp');
     expect(serverName('', new URL('http://127.0.0.1:3000/mcp'))).toBe('local-mcp');
+    // Google's and AWS's servers share a domain: the product names each one.
+    expect(serverName('', new URL('https://bigtableadmin.googleapis.com/mcp'))).toBe('bigtableadmin-mcp');
+    expect(serverName('', new URL('https://alloydb.us-central1.rep.googleapis.com/mcp'))).toBe('alloydb-mcp');
+    expect(serverName('', new URL('https://aws-mcp.us-east-1.api.aws/mcp'))).toBe('aws-mcp');
+    expect(serverName('', new URL('https://bedrock-agentcore.us-west-2.amazonaws.com/runtimes/x/invocations'))).toBe('bedrock-agentcore-mcp');
   });
 });

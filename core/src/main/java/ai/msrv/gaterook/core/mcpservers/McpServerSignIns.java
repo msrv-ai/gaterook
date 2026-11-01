@@ -3,6 +3,7 @@ package ai.msrv.gaterook.core.mcpservers;
 import ai.msrv.gaterook.connector.api.ConnectionConfig;
 import ai.msrv.gaterook.connector.api.ConnectorException;
 import ai.msrv.gaterook.connector.api.SecretResolver;
+import ai.msrv.gaterook.connectors.cloudauth.AwsSigV4;
 import ai.msrv.gaterook.connectors.support.BuiltIn;
 import ai.msrv.gaterook.connectors.support.egress.GuardedEgress;
 import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
@@ -92,9 +93,22 @@ public class McpServerSignIns {
   private static final Set<String> REFUSED_GRANT = Set.of("invalid_grant", "invalid_client", "unauthorized_client",
       "invalid_scope", "access_denied");
 
-  /** How a server wants to be signed in to, for the review before it is added. */
+  /**
+   * How a server wants to be signed in to, for the review before it is added.
+   *
+   * @param cloud        {@code google} or {@code aws} for a server on that cloud, which can sign in with its cloud's
+   *                     credentials instead (§7.6); otherwise {@code null}
+   * @param secretRequired over an OAuth app, whether the authorization server takes it only with its client secret
+   *                       (no public clients, as Google's); {@code null} without an app
+   */
   public record AuthView(String kind, String issuer, String authorizationHost, String scope, String registration,
-      String redirectUri, String message) {}
+      String redirectUri, String message, String cloud, Boolean secretRequired) {
+
+    public AuthView(String kind, String issuer, String authorizationHost, String scope, String registration,
+        String redirectUri, String message) {
+      this(kind, issuer, authorizationHost, scope, registration, redirectUri, message, null, null);
+    }
+  }
 
   /**
    * One sign-in in progress.
@@ -158,26 +172,34 @@ public class McpServerSignIns {
   AuthView discover(ConnectionConfig cfg, URI url) {
     try {
       Discovery.Result d = Discovery.discover(httpOf(cfg), url);
+      String cloud = cloud(url, d.server());
       return switch (d.kind()) {
-        case NONE -> new AuthView("none", null, null, null, null, null, null);
-        case REFUSED -> new AuthView("refused", null, null, null, null, null, d.message());
-        case UNKNOWN -> new AuthView("unknown", null, null, null, null, null, d.message());
+        case NONE -> new AuthView("none", null, null, null, null, null, null, cloud, null);
+        case REFUSED -> new AuthView("refused", null, null, null, null, null, d.message(), cloud, null);
+        case UNKNOWN -> new AuthView("unknown", null, null, null, null, null, d.message(), cloud, null);
         case OAUTH, OPTIONAL -> {
           JsonNode auth = cfg.config().path("auth");
           boolean app = auth.path("clientId").isString();
           String registration = app ? "app"
               : OAuthClient.acceptsMetadataDocument(d.server(), redirectFor(auth, false)) ? "metadata-document"
               : d.server().dynamicRegistration() ? "dynamic" : "app-required";
-          String redirect = app || "app-required".equals(registration) ? redirectFor(auth, true).toString() : null;
+          boolean appRequired = "app-required".equals(registration);
+          Boolean secret = app || appRequired ? !d.server().authMethods().contains("none") : null;
+          // A Desktop app client of Google takes any loopback address: there is nothing to register.
+          boolean google = "google".equals(cloud);
+          String redirect = (app || appRequired) && !google ? redirectFor(auth, true).toString() : null;
+          String message = !appRequired ? null : google ? "Google doesn't let apps register themselves. Sign in "
+              + "with Google Cloud credentials instead, or create an OAuth client of the Desktop app type in Google "
+              + "Cloud Console (APIs & Services › Credentials) and enter its client ID and client secret."
+              : d.server().issuer() + " doesn't let apps register themselves. Create an OAuth app there for GateRook "
+                  + "with the redirect URI " + redirect + ", then enter its client ID"
+                  + (Boolean.TRUE.equals(secret) ? " and client secret." : ".");
           yield new AuthView(d.kind() == Discovery.Kind.OPTIONAL ? "optional" : "oauth", d.server().issuer(),
-              d.server().authorization().getHost(), scope(d, auth),
-              registration, redirect, "app-required".equals(registration) ? d.server().issuer() + " doesn't let "
-                  + "apps register themselves. Create an OAuth app there for GateRook with the redirect URI "
-                  + redirect + ", then enter its client ID." : null);
+              d.server().authorization().getHost(), scope(d, auth), registration, redirect, message, cloud, secret);
         }
       };
     } catch (OAuthHttp.Failure e) {
-      return new AuthView("unknown", null, null, null, null, null, e.getMessage());
+      return new AuthView("unknown", null, null, null, null, null, e.getMessage(), cloud(url, null), null);
     } finally {
       if (cfg.id().startsWith("draft-")) {
         contexts.evict(cfg.id());
@@ -393,8 +415,9 @@ public class McpServerSignIns {
     }
     SignInBundle b = holder(cfg.id()).load();
     if (b == null) {
-      return new StatusView(cfg.name(), "signed-out", null, null, null, false, null, null, cfg.name() + " isn't "
-          + "signed in.", false, null);
+      return new StatusView(cfg.name(), "signed-out", null, null, null, false, null, null, optional(cfg)
+          ? cfg.name() + " answers without a sign-in, with less access. Sign in for the rest."
+          : cfg.name() + " isn't signed in.", false, null);
     }
     boolean needs = b.needsSignIn() != null || b.accessToken() == null
         || (!b.renewable() && b.expiresWithin(Duration.ZERO, clock.instant()));
@@ -462,7 +485,12 @@ public class McpServerSignIns {
     if (cfg == null || !oauth(cfg)) {
       return Optional.empty();
     }
-    return Optional.of(new StoredAuthorization(cfg, holder(connectionId)));
+    Holder holder = holder(connectionId);
+    if (optional(cfg) && holder.load() == null) {
+      // A server that answers without a sign-in connects without one until the person signs in.
+      return Optional.empty();
+    }
+    return Optional.of(new StoredAuthorization(cfg, holder));
   }
 
   // ── A flow ──────────────────────────────────────────────────────────────────────────────────────────────────
@@ -979,6 +1007,28 @@ public class McpServerSignIns {
   static boolean oauth(ConnectionConfig cfg) {
     return "http".equals(cfg.config().path("transport").asString(null))
         && "oauth".equals(cfg.config().path("auth").path("type").asString(null));
+  }
+
+  /** An OAuth server that answers without a sign-in too: it connects without one until the person signs in. */
+  static boolean optional(ConnectionConfig cfg) {
+    return oauth(cfg) && cfg.config().path("auth").path("optional").asBoolean(false);
+  }
+
+  /**
+   * The cloud a server runs on, when it takes that cloud's credentials instead of an OAuth sign-in (§7.6):
+   * {@code google} for {@code *.googleapis.com} or Google's authorization server, {@code aws} for an AWS endpoint
+   * ({@code aws-mcp.us-east-1.api.aws}) or AWS Sign-in; otherwise {@code null}.
+   */
+  static String cloud(URI url, Discovery.Server server) {
+    String host = url.getHost() == null ? "" : url.getHost().toLowerCase(Locale.ROOT);
+    String issuer = server == null ? "" : host(server.issuer()).toLowerCase(Locale.ROOT);
+    if (host.endsWith(".googleapis.com") || issuer.equals("accounts.google.com")) {
+      return "google";
+    }
+    if (AwsSigV4.fromHost(host).isPresent() || issuer.endsWith(".oauth.signin.aws")) {
+      return "aws";
+    }
+    return null;
   }
 
   private static String needsMessage(String name, SignInBundle b) {

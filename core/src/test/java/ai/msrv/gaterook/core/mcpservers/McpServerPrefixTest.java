@@ -9,6 +9,7 @@ import ai.msrv.gaterook.connector.api.ToolDefinition.Mode;
 import ai.msrv.gaterook.connector.api.ToolDefinition.Nature;
 import ai.msrv.gaterook.core.connectors.ConnectorType;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -38,5 +39,15 @@ class McpServerPrefixTest {
     // Built-in families are the registry's reserved prefixes, refused before; jir_ is another namespace.
     assertThat(McpServerService.pluginWithNamespace(types, "sql_")).isEmpty();
     assertThat(McpServerService.pluginWithNamespace(types, "jir_")).isEmpty();
+  }
+
+  @Test
+  void aServerWithoutAPrefixGetsAFreeOneFromItsName() {
+    assertThat(McpServerService.freePrefix("github-mcp", p -> false)).isEqualTo("github_");
+    // aws_ is the family of the built-in AWS tools: the whole name instead, then with a digit.
+    assertThat(McpServerService.freePrefix("aws-mcp", Set.of("aws_")::contains)).isEqualTo("awsmcp_");
+    assertThat(McpServerService.freePrefix("aws-mcp", Set.of("aws_", "awsmcp_")::contains)).isEqualTo("awsmcp2_");
+    assertThat(McpServerService.freePrefix("1password-mcp", p -> false)).isEqualTo("mcp1password_");
+    assertThat(McpServerService.freePrefix("sql", p -> true)).as("adding then says who has it").isEqualTo("sql_");
   }
 }

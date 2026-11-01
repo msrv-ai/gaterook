@@ -345,6 +345,84 @@ class McpServerSignInIT {
     assertThat(deleted.status()).as(deleted.body()).isEqualTo(204);
   }
 
+  @Test
+  @Order(11)
+  void aServerWhoseSignInIsOptionalConnectsWithoutOneAndSignsInLaterFromItsRow() throws Exception {
+    tracker.anonymous = true;
+    try {
+      ObjectNode review = CoreProcess.JSON.createObjectNode();
+      review.set("config", config("open-mcp", tracker, false));
+      JsonNode r = json(admin("POST", "/api/mcp-servers/review", review.toString()), 200);
+      assertThat(r.at("/auth/kind").asString()).as(r.toString()).isEqualTo("optional");
+      assertThat(r.at("/auth/cloud").isNull()).isTrue();
+
+      // Connect without signing in: the sign-in stays possible, from the server's row.
+      ObjectNode add = CoreProcess.JSON.createObjectNode().put("acknowledge", true).put("reason", "open tracker");
+      add.set("config", config("open-mcp", tracker, true));
+      ((ObjectNode) add.path("config").path("auth")).put("optional", true);
+      JsonNode added = json(admin("POST", "/api/mcp-servers", add.toString()), 201);
+      assertThat(added.path("tools").asInt()).isEqualTo(1);
+      JsonNode status = json(admin("GET", "/api/mcp-servers/open-mcp/sign-in", null), 200);
+      assertThat(status.path("state").asString()).isEqualTo("signed-out");
+      assertThat(status.path("message").asString()).contains("answers without a sign-in");
+      assertThat(json(admin("POST", "/api/mcp-servers/open-mcp/test", null), 200).path("tools").asInt()).isEqualTo(1);
+
+      JsonNode started = json(admin("POST", "/api/mcp-servers/open-mcp/sign-in", null), 201);
+      HttpResponse<String> landed = signInInTheBrowser(started.path("authorizationUrl").asString());
+      assertThat(landed.statusCode()).as(landed.body()).isEqualTo(200);
+      assertThat(json(admin("GET", "/api/mcp-servers/open-mcp/sign-in", null), 200).path("state").asString())
+          .isEqualTo("signed-in");
+      int bearers = tracker.bearersSeen.size();
+      assertThat(json(admin("POST", "/api/mcp-servers/open-mcp/test", null), 200).path("tools").asInt()).isEqualTo(1);
+      assertThat(tracker.bearersSeen.subList(bearers, tracker.bearersSeen.size())).as(trace())
+          .isNotEmpty().allMatch(b -> b.startsWith("Bearer trk-at-"));
+      Answer deleted = admin("DELETE", "/api/mcp-servers/open-mcp", "{\"reason\":\"done\"}");
+      assertThat(deleted.status()).as(deleted.body()).isEqualTo(204);
+    } finally {
+      tracker.anonymous = false;
+    }
+  }
+
+  @Test
+  @Order(12)
+  void cloudSignInsAreCheckedBeforeAnythingRuns() throws Exception {
+    // AWS signs for a service in a region; a host that names neither needs them said.
+    ObjectNode aws = config("cloud-mcp", tracker, false);
+    aws.putObject("auth").put("type", "aws").putObject("credentials").put("source", "profile").put("profile",
+        "default");
+    ObjectNode review = CoreProcess.JSON.createObjectNode();
+    review.set("config", aws);
+    Answer unnamed = admin("POST", "/api/mcp-servers/review", review.toString());
+    assertThat(unnamed.status()).as(unnamed.body()).isEqualTo(422);
+    assertThat(unnamed.body()).contains("Service and region missing");
+
+    // A service account key is a secret of the server: adding needs it, beside the config.
+    ObjectNode google = config("cloud-mcp", tracker, false);
+    google.putObject("auth").put("type", "google").putObject("credentials").put("source", "serviceAccountKey");
+    ObjectNode add = CoreProcess.JSON.createObjectNode().put("acknowledge", true);
+    add.set("config", google);
+    Answer keyless = admin("POST", "/api/mcp-servers", add.toString());
+    assertThat(keyless.status()).as(keyless.body()).isEqualTo(422);
+    assertThat(keyless.body()).contains("Enter the service account key");
+
+    // One sign-in at a time: cloud credentials send the Authorization header themselves.
+    ObjectNode both = config("cloud-mcp", tracker, false);
+    both.putObject("auth").put("type", "google").putObject("credentials").put("source", "adc");
+    both.putArray("headers").addObject().put("name", "Authorization");
+    review.set("config", both);
+    Answer twice = admin("POST", "/api/mcp-servers/review", review.toString());
+    assertThat(twice.status()).as(twice.body()).isEqualTo(422);
+    assertThat(twice.body()).contains("Google Cloud credentials send the Authorization header");
+
+    // Each cloud's sources only.
+    ObjectNode mixed = config("cloud-mcp", tracker, false);
+    mixed.putObject("auth").put("type", "google").putObject("credentials").put("source", "accessKey");
+    review.set("config", mixed);
+    Answer wrong = admin("POST", "/api/mcp-servers/review", review.toString());
+    assertThat(wrong.status()).as(wrong.body()).isEqualTo(422);
+    assertThat(wrong.body()).contains("isn't where Google Cloud credentials come from");
+  }
+
   // ── Helpers ─────────────────────────────────────────────────────────────────────────────────────────────────
 
   /** One query parameter of {@code url}, decoded, or {@code null}. */
