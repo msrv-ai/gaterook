@@ -61,9 +61,10 @@ import tools.jackson.databind.node.ObjectNode;
  * agent never sees them; every request of the server's HTTP session carries them, renewed before they expire.
  *
  * <p>A sign-in is a flow kept in memory for at most {@link #FLOW_TTL}: discovery (the server's 401 challenge, its
- * resource metadata, its authorization server's metadata), a client (GateRook registered dynamically under its own
- * name, or the person's OAuth app), PKCE S256 and a {@code state}, and a redirect URI on this computer that GateRook
- * itself listens on ({@link LoopbackCallback}). Authorization servers that accept only redirect URIs on this computer —
+ * resource metadata, its authorization server's metadata), a client (GateRook by its published Client ID Metadata
+ * Document where the authorization server accepts one, else registered dynamically under its own name, or the
+ * person's OAuth app), PKCE S256 and a {@code state}, and a redirect URI on this computer that GateRook itself listens
+ * on ({@link LoopbackCallback}). Authorization servers that accept only redirect URIs on this computer —
  * the kind the AI apps' command-line clients use — therefore accept GateRook's too, and the code comes back to
  * GateRook, never to the app. When the browser can't come back (another device, a blocked port), the person pastes the
  * address it ended on; its {@code state} must match.
@@ -164,7 +165,9 @@ public class McpServerSignIns {
         case OAUTH, OPTIONAL -> {
           JsonNode auth = cfg.config().path("auth");
           boolean app = auth.path("clientId").isString();
-          String registration = app ? "app" : d.server().dynamicRegistration() ? "dynamic" : "app-required";
+          String registration = app ? "app"
+              : OAuthClient.acceptsMetadataDocument(d.server(), redirectFor(auth, false)) ? "metadata-document"
+              : d.server().dynamicRegistration() ? "dynamic" : "app-required";
           String redirect = app || "app-required".equals(registration) ? redirectFor(auth, true).toString() : null;
           yield new AuthView(d.kind() == Discovery.Kind.OPTIONAL ? "optional" : "oauth", d.server().issuer(),
               d.server().authorization().getHost(), scope(d, auth),
@@ -233,6 +236,11 @@ public class McpServerSignIns {
       if (clientId != null) {
         flow.listen(redirectFor(auth, true));
         flow.client = OAuthClient.preRegistered(d.server(), clientId, secret, flow.callback.redirectUri());
+      } else if (OAuthClient.acceptsMetadataDocument(d.server(), redirectFor(auth, false))) {
+        // Nothing to register, which the MCP authorization spec prefers to the deprecated dynamic registration: the
+        // authorization server reads GateRook's published document, which lists this redirect for any port.
+        flow.listen(redirectFor(auth, false));
+        flow.client = OAuthClient.metadataDocument(flow.callback.redirectUri());
       } else {
         OAuthClient.Client previous = previousClient(t, d);
         if (previous != null && flow.tryListen(URI.create(previous.redirectUri()))) {
@@ -942,8 +950,9 @@ public class McpServerSignIns {
 
   /**
    * The redirect URI of a sign-in: the person's host, port and path, else {@code http://localhost:<any free
-   * port>/callback} for a registration GateRook makes (the form the MCP authorization spec names and the AI apps'
-   * command-line clients use, so servers that accept only redirects to this computer accept it), or
+   * port>/callback} for GateRook's own client, its metadata document or a registration it makes (the form the MCP
+   * authorization spec names and the AI apps' command-line clients use, so servers that accept only redirects to this
+   * computer accept it), or
    * {@code http://127.0.0.1:}{@value #APP_CALLBACK_PORT}{@code /callback} for an OAuth app the person registers once
    * (RFC 8252 §8.3 prefers the address; the URI must stay the same).
    */

@@ -69,8 +69,9 @@ class McpServersController {
 
   /**
    * How a server at a URL wants clients to sign in: {@code kind} {@code none}, {@code oauth}, {@code optional},
-   * {@code refused} (a key in a header) or {@code unknown}; {@code registration} {@code dynamic} (GateRook registers
-   * itself), {@code app} (the person's OAuth app) or {@code app-required}, with the {@code redirectUri} to register.
+   * {@code refused} (a key in a header) or {@code unknown}; {@code registration} {@code metadata-document} (GateRook's
+   * published client metadata), {@code dynamic} (GateRook registers itself), {@code app} (the person's OAuth app) or
+   * {@code app-required}, with the {@code redirectUri} to register.
    */
   record Auth(String kind, String issuer, String authorizationHost, String scope, String registration,
       String redirectUri, String message) {}

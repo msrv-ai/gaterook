@@ -159,8 +159,11 @@ export interface McpServerAuthReview {
   /** The host of the page the browser opens. */
   readonly authorizationHost?: string | null;
   readonly scope?: string | null;
-  /** `dynamic`: GateRook registers itself; `app`: the OAuth app the person named; `app-required`: they need one. */
-  readonly registration?: 'dynamic' | 'app' | 'app-required' | null;
+  /**
+   * `metadata-document`: the server reads GateRook's published client details, nothing is registered; `dynamic`:
+   * GateRook registers itself; `app`: the OAuth app the person named; `app-required`: they need one.
+   */
+  readonly registration?: 'metadata-document' | 'dynamic' | 'app' | 'app-required' | null;
   /** The redirect URI to register for an OAuth app. */
   readonly redirectUri?: string | null;
   readonly message?: string | null;

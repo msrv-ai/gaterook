@@ -22,9 +22,10 @@ import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 
 /**
- * GateRook as an OAuth client: it registers under its own name as a native public client (or with the method the
- * server offers), sends PKCE and the resource, authenticates an app with a secret as RFC 6749 says, and turns the
- * server's refusals into words for the person.
+ * GateRook as an OAuth client: it signs in by its published metadata document where the server takes one, registers
+ * under its own name as a native public client (or with the method the server offers) elsewhere, sends PKCE and the
+ * resource, authenticates an app with a secret as RFC 6749 says, and turns the server's refusals into words for the
+ * person.
  */
 class OAuthClientTest {
 
@@ -48,9 +49,58 @@ class OAuthClientTest {
   }
 
   private Discovery.Server as(List<String> authMethods) {
+    return as(authMethods, false);
+  }
+
+  private Discovery.Server as(List<String> authMethods, boolean metadataDocuments) {
     return new Discovery.Server(base, URI.create(base + "/authorize?tenant=a"), URI.create(base + "/token"),
         URI.create(base + "/register"), URI.create(base + "/revoke"), List.of("read", "offline_access"),
-        List.of("S256"), authMethods, true, false, false);
+        List.of("S256"), authMethods, true, metadataDocuments, false);
+  }
+
+  @Test
+  void theMetadataDocumentIsTheClientWhereTheServerTakesItPublicClientsAndTheRedirect() {
+    URI anyPort = URI.create("http://localhost:0/callback");
+    assertThat(OAuthClient.acceptsMetadataDocument(as(List.of("none", "client_secret_basic"), true), anyPort))
+        .isTrue();
+    assertThat(OAuthClient.acceptsMetadataDocument(as(List.of("none"), true),
+        URI.create("http://127.0.0.1:7471/callback"))).as("the person's host and port").isTrue();
+    assertThat(OAuthClient.acceptsMetadataDocument(as(List.of("none"), false), anyPort)).as("not advertised")
+        .isFalse();
+    assertThat(OAuthClient.acceptsMetadataDocument(as(List.of(), true), anyPort))
+        .as("no methods listed: RFC 8414's default, client_secret_basic").isFalse();
+    assertThat(OAuthClient.acceptsMetadataDocument(as(List.of("client_secret_basic", "private_key_jwt"), true),
+        anyPort)).as("no public clients").isFalse();
+    assertThat(OAuthClient.acceptsMetadataDocument(as(List.of("none"), true),
+        URI.create("http://localhost:50123/oauth/done"))).as("a path the document doesn't list").isFalse();
+  }
+
+  @Test
+  void byItsMetadataDocumentGateRookSignsInAsTheDocumentsUrlWithoutASecret() throws Exception {
+    OAuthClient.Client c = OAuthClient.metadataDocument(URI.create("http://localhost:50123/callback"));
+    assertThat(c.id()).isEqualTo(OAuthClient.METADATA_DOCUMENT).isEqualTo("https://msrv.dev/oauth/gaterook-client.json");
+    assertThat(c.secret()).isNull();
+    assertThat(c.authMethod()).isEqualTo("none");
+    assertThat(c.registered()).as("nothing registered, nothing to reuse").isFalse();
+
+    HttpUrl url = HttpUrl.get(OAuthClient.authorizationUrl(as(List.of("none"), true), c, Pkce.create(), "st-1", null,
+        "https://mcp.example.com/mcp").toString());
+    assertThat(url.queryParameter("client_id")).isEqualTo(OAuthClient.METADATA_DOCUMENT);
+    assertThat(url.queryParameter("redirect_uri")).as("the listener's own port").isEqualTo(
+        "http://localhost:50123/callback");
+
+    server.enqueue(json(200, "{\"access_token\":\"at\",\"token_type\":\"Bearer\",\"refresh_token\":\"rt\"}"));
+    server.enqueue(json(200, "{\"access_token\":\"at-2\",\"token_type\":\"Bearer\"}"));
+    OAuthClient.exchange(http, URI.create(base + "/token"), c, "code-1", "verifier-1", "https://mcp.example.com/mcp",
+        NOW);
+    OAuthClient.refresh(http, URI.create(base + "/token"), c, "rt", "https://mcp.example.com/mcp", NOW);
+    for (String grant : List.of("authorization_code", "refresh_token")) {
+      RecordedRequest r = server.takeRequest();
+      assertThat(r.getHeaders().get("Authorization")).as("a public client").isNull();
+      assertThat(OAuthHttp.query(r.getBody().utf8())).containsEntry("grant_type", grant)
+          .containsEntry("client_id", OAuthClient.METADATA_DOCUMENT).doesNotContainKey("client_secret");
+    }
+    assertThat(server.getRequestCount()).as("no registration request").isEqualTo(2);
   }
 
   @Test

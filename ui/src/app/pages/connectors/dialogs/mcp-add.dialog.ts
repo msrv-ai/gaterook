@@ -45,8 +45,8 @@ export interface McpFormErrors {
 
 /**
  * Sign-in options of a server at a URL (Advanced): an OAuth app the person created, because the server doesn't let
- * apps register themselves, or a callback the server accepts. Empty: GateRook registers itself and listens on any free
- * port.
+ * apps register themselves, or a callback the server accepts. Empty: GateRook signs in as itself, with its published
+ * client details or by registering, and listens on any free port.
  */
 export interface McpSignInOptions {
   readonly clientId: string;
@@ -201,7 +201,7 @@ let nextId = 0;
           <div class="gw-stack gw-stack--sm" [hidden]="transport() !== 'http'">
             <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [attr.aria-controls]="uid + '-signin'" [(expanded)]="signInOpen"><svg lucideIcon="sliders-horizontal" class="gw-icon gw-icon--sm"></svg> Sign-in options <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button></div>
             <div class="gw-stack gw-stack--sm" [id]="uid + '-signin'" [hidden]="!signInOpen()">
-              <p class="gw-field__hint">Leave them empty: GateRook registers itself with the server and listens on this computer for the browser. Fill them in for a server that asks you to create an OAuth app (GitHub and Slack do), or that accepts only certain redirect addresses.</p>
+              <p class="gw-field__hint">Leave them empty: GateRook signs in as GateRook, with the client details it publishes or by registering itself, and listens on this computer for the browser. Fill them in for a server that asks you to create an OAuth app (GitHub and Slack do), or that accepts only certain redirect addresses.</p>
               <div class="gw-field">
                 <label class="gw-field__label" [for]="uid + '-client'">OAuth client ID <span class="gw-field__optional">Optional</span></label>
                 <input class="gw-input gw-input--mono" [id]="uid + '-client'" type="text" spellcheck="false" autocomplete="off" [disabled]="transport() !== 'http'" [value]="clientId()" (input)="clientId.set(value($event)); clear('clientId')" [attr.aria-invalid]="errors().clientId ? 'true' : null" [attr.aria-describedby]="uid + '-client-hint' + (errors().clientId ? ' ' + uid + '-client-err' : '')">
