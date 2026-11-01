@@ -158,13 +158,15 @@ class GcpCoreProcessIT {
     assertThat(describe).as("gcp_describe on the endpoint").isNotNull();
     assertThat(metrics).as("gcp_metrics on the endpoint").isNotNull();
     assertThat(logs).as("logs_search on the GCP connection").isNotNull();
-    assertThat(logs.at("/inputSchema/properties/connection/enum").toString()).isEqualTo("[\"gcp-dev\"]");
+    assertThat(logs.at("/inputSchema/properties/connection").has("enum")).as("named in the description").isFalse();
+    assertThat(logs.path("description").asString()).contains("Connections: gcp-dev (");
     assertThat(logs.at("/annotations/readOnlyHint").asBoolean()).isTrue();
     assertThat(logs.has("outputSchema")).isTrue();
     assertThat(describe.path("description").asString()).contains("Scopes: gcp-dev: projects/acme-dev")
         .contains("Connections: gcp-dev (GCP");
-    assertThat(describe.at("/inputSchema/properties/scope/enum").toString()).isEqualTo("[\"projects/acme-dev\"]");
-    assertThat(describe.at("/inputSchema/properties/connection/enum").toString()).isEqualTo("[\"gcp-dev\"]");
+    // The description names the scopes and connections: a client that keeps this list accepts ones added later.
+    assertThat(describe.at("/inputSchema/properties/scope").has("enum")).isFalse();
+    assertThat(describe.at("/inputSchema/properties/connection").has("enum")).isFalse();
     assertThat(describe.at("/annotations/readOnlyHint").asBoolean()).isTrue();
     assertThat(describe.has("outputSchema")).as("Read only: the schema is published").isTrue();
   }
@@ -256,8 +258,7 @@ class GcpCoreProcessIT {
       assertThat(t.path("name").asString()).isNotEqualTo("logs_tail");
     });
     assertThat(logTools).as("a single shared tool survives catalog merging").hasSize(1);
-    assertThat(logTools.getFirst().at("/inputSchema/properties/connection/enum").toString())
-        .isEqualTo("[\"gcp-dev\",\"gcp-logs\"]");
+    assertThat(logTools.getFirst().path("description").asString()).contains("Connections: gcp-dev (", "gcp-logs (");
     assertThat(logTools.getFirst().path("description").asString()).contains("Logs Explorer");
 
     String query = """

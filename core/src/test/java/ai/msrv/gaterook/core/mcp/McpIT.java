@@ -214,7 +214,13 @@ class McpIT {
           "list_connections", "sql_execute", "sql_query");
       JsonNode query = tool(list, "sql_query");
       assertThat(query.path("outputSchema").isObject()).isTrue();
-      assertThat(query.at("/inputSchema/properties/connection/enum").toString()).isEqualTo("[\"dev-db\"]");
+      // Named in the description, not as an enum: a client that keeps this list accepts connections added later.
+      assertThat(query.path("description").asString()).contains(" Connections: dev-db (");
+      assertThat(query.at("/inputSchema/properties/connection").toString()).isEqualTo("{\"type\":\"string\","
+          + "\"description\":\"A connection named in this tool's description, or one added since: list_connections "
+          + "shows the current ones.\"}");
+      assertThat(tool(list, "describe_connection").at("/inputSchema/properties/connection/description").asString())
+          .isEqualTo("A connection that list_connections shows.");
       assertThat(query.at("/annotations/readOnlyHint").asBoolean()).isTrue();
       // A tool that waits for approval publishes no outputSchema: a pending handle wouldn't match it.
       assertThat(tool(list, "sql_execute").has("outputSchema")).isFalse();

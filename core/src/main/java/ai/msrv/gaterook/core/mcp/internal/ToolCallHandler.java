@@ -115,7 +115,8 @@ public class ToolCallHandler {
     }
     ToolCatalog.PublishedTool published = r.catalog().tool(name)
         .orElseThrow(() -> McpException.invalidParams("Unknown tool: " + name));
-    List<SchemaValidator.Violation> violations = validator.validateBounded(published.inputSchema(), args,
+    // First the schema the client got: a connection added since its list passes, and is looked up below.
+    List<SchemaValidator.Violation> violations = validator.validateBounded(published.clientInputSchema(), args,
         SchemaValidator.BUDGET);
     if (!violations.isEmpty()) {
       return ResultWriter.toolError(env, invalid(violations), null);
@@ -139,6 +140,11 @@ public class ToolCallHandler {
       published.pairs().forEach(p -> available.add(p.connectionName()));
       return ResultWriter.toolError(env, "Connection " + connection + " is not available on " + r.snapshot().slug()
           + ". Available: " + String.join(", ", available) + ".", null);
+    }
+    // Then every value the endpoint allows now, such as the runbooks and scopes its connections add.
+    violations = validator.validateBounded(published.inputSchema(), args, SchemaValidator.BUDGET);
+    if (!violations.isEmpty()) {
+      return ResultWriter.toolError(env, invalid(violations), null);
     }
     EndpointSnapshot.Pair pair = found.get();
     ConnectionConfig cfg = pair.config();
