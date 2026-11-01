@@ -1,12 +1,14 @@
 // electron-updater in the app (ARCHITECTURE.md A20, §7.1 "checkForUpdates(), onUpdateState(cb) … autoUpdate flag in
-// General, once a day"). Pure rules in updates.ts. The updater module is loaded only where it may run (an installed
-// Windows or macOS build with an update source), so a development run never reaches the network for it.
+// General"), checking every hour on macOS and every day elsewhere. Pure rules in updates.ts. The updater module is
+// loaded only where it may run (an installed Windows or macOS build with an update source), so a development run
+// never reaches the network for it.
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { UpdateState } from '../shared/contract.ts';
 import type { Logger } from './log.ts';
 import { downloadMacUpdate } from './mac-update.ts';
-import { checkDue, FIRST_CHECK_AFTER_MS, updatesUnavailable, updateStateFor, type UpdaterEvent } from './updates.ts';
+import { ASK_AGAIN_AFTER_MS, CHECK_TICK_MS, checkEveryMs, due, FIRST_CHECK_AFTER_MS, updatesUnavailable, updateStateFor,
+  type UpdaterEvent } from './updates.ts';
 
 export type UpdateDriver = Pick<import('electron-updater').AppUpdater,
   'logger' | 'autoDownload' | 'autoInstallOnAppQuit' | 'allowPrerelease' | 'allowDowngrade'
@@ -75,10 +77,18 @@ export class Updates {
 
   /** "Check now" in Settings › General. */
   check(): Promise<void> {
+    return this.checkFrom(Date.now());
+  }
+
+  /**
+   * A check counted from `at`. The schedule passes the time of its tick, so a core slow to answer can't move the next
+   * check a tick later.
+   */
+  private checkFrom(at: number): Promise<void> {
     if (this.closed || this.installing || this.downloadedVersion) return Promise.resolve();
     if (this.checking) return this.checking;
-    this.lastCheckAt = Date.now();
-    this.lastCheckedAt = new Date(this.lastCheckAt).toISOString();
+    this.lastCheckAt = at;
+    this.lastCheckedAt = new Date(at).toISOString();
     if (this.unavailable) {
       this.set({ state: 'error', message: this.unavailable, lastCheckedAt: this.lastCheckedAt });
       return Promise.resolve();
@@ -146,20 +156,28 @@ export class Updates {
     }
   }
 
-  /** Automatic checks: a minute after start, then daily, while the setting is on. */
+  /** Automatic checks: a minute after start, then hourly on macOS and daily elsewhere, while the setting is on. */
   schedule(): void {
     if (this.closed || this.unavailable || this.timer) return;
+    const every = checkEveryMs(this.platform);
+    let askedAt: number | null = null;
     const tick = async (): Promise<void> => {
+      const at = Date.now();
+      // The core is asked for the setting only when a check is due; while the setting is off, at most once an hour.
+      if (!due(this.lastCheckAt, at, every) || !due(askedAt, at, ASK_AGAIN_AFTER_MS)) return;
+      askedAt = at;
       try {
-        if (checkDue(await this.o.autoUpdate(), this.lastCheckAt, Date.now())) await this.check();
+        // "Check now" may have run while the core answered.
+        if (await this.o.autoUpdate() && due(this.lastCheckAt, at, every)) await this.checkFrom(at);
       } catch (e) {
         this.o.log(`automatic update check skipped: ${(e as Error).message}`);
       }
     };
-    // Hourly ticks; a check happens when a day has passed since the last one (a laptop asleep over night included).
+    // Minute ticks against the wall clock: a check is due an interval after the last one, so a laptop that slept
+    // through it checks within a minute of waking.
     const run = (): void => {
       void tick();
-      this.timer = setTimeout(run, 60 * 60 * 1000);
+      this.timer = setTimeout(run, CHECK_TICK_MS);
       this.timer.unref?.();
     };
     this.timer = setTimeout(run, FIRST_CHECK_AFTER_MS);
