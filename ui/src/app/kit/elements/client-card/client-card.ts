@@ -34,6 +34,7 @@ import {
   approvalMode,
   authParts,
   bridgeFiles,
+  bridgeUpdateWords,
   disconnectFacts,
   disconnectWords,
   endpointOption,
@@ -43,6 +44,7 @@ import {
   lastCallAt,
   notInstalledText,
   observedSignIn,
+  olderBridge,
   restartAlert,
   tableLayout,
   toolCount,
@@ -69,7 +71,8 @@ export interface ClientPreviewRequest {
  * Connect never writes blind: it opens the connect dialog (`gw-dialog--lg`, static) with the exact change from the
  * core's preview; Confirm closes it and emits `connect` with the preview's id. Disconnect asks first
  * (`gw-dialog--sm --danger`, Cancel focused) and needs the disconnect preview the page fetched on `disconnectStart`.
- * The card calls nothing itself.
+ * A Claude Desktop extension that still runs an older bridge says so, with Reinstall extension (`reinstall`): no
+ * dialog, since nothing changes until Claude Desktop asks the person to install it. The card calls nothing itself.
  */
 @Component({
   selector: 'article[gwClientCard], li[gwClientCard]',
@@ -116,6 +119,8 @@ export class GwClientCard {
   readonly entry = input<ConfigEntry | null>(null);
   /** Check again is scanning this computer (busy button). */
   readonly scanning = input(false, { transform: booleanAttribute });
+  /** The link whose extension is being built again (its Reinstall extension is busy). */
+  readonly reinstalling = input<string | null>(null);
 
   /** The connect dialog's preview, its state, and why it was refused. */
   readonly connectPreview = input<ConnectPreview | null>(null);
@@ -135,6 +140,8 @@ export class GwClientCard {
   readonly disconnectStart = output<ClientLink>();
   readonly disconnect = output<{ readonly link: ClientLink; readonly previewId: string }>();
   readonly removeBridge = output<ClientId>();
+  /** Claude Desktop: an extension with an older bridge, to build again for the same access and open. */
+  readonly reinstall = output<ClientLink>();
   readonly openConfig = output<ClientId>();
   /** Check again: scan this computer. */
   readonly scan = output<void>();
@@ -165,6 +172,13 @@ export class GwClientCard {
     const l = this.scoped();
     if (l) return clientStatusLook(l.status === 'connected' || l.status === 'needs-restart' ? l.status : 'error');
     return this.card().status === 'not-installed' ? clientStatusLook('not-installed') : { ...clientStatusLook('detected'), text: 'Detected' };
+  });
+  /** Extensions whose bridge is older than this GateRook's, with what the card says about each. */
+  protected readonly outdated = computed(() => this.card().links.filter(olderBridge).map((link) => ({ link, words: bridgeUpdateWords(link) })));
+  /** The compact row's extension, when its bridge is older. */
+  protected readonly scopedUpdate = computed(() => {
+    const l = this.scoped();
+    return l && olderBridge(l) ? bridgeUpdateWords(l) : null;
   });
   protected readonly lastCall = computed(() => lastCallAt(this.card().links));
   protected readonly auth = computed(() => authParts(this.card(), this.link(), this.state() === 'needs-restart', this.page()));

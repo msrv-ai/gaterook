@@ -58,7 +58,7 @@ export const CALLS_THROTTLE_MS = 5_000;
  *   call proves a restarted client and moves "Last call"), the endpoints they can connect to (`/api/endpoints`) and
  *   Codex's entry as it is in its file (the disconnect preview's lines: the part of the file that is ours);
  * - Connect: the exact change per client (`connect/preview`, newest selection wins), then the write;
- *   Disconnect with its preview, Add endpoint and Remove bridge of Claude Desktop, Scan;
+ *   Disconnect with its preview, Add endpoint, Reinstall and Remove bridge of Claude Desktop, Scan;
  * - claude.ai: the tunnel (`TunnelStore`, the sidebar's and banner's source too), its sign-ins (`/api/oauth/grants`)
  *   and what Publish would make public (`/api/tunnel/publish/preview`) — before step K3 these routes don't exist and
  *   the card says so;
@@ -403,6 +403,13 @@ export class ClientsData {
 
   async removeBridge(): Promise<BridgeRemoved> {
     const result = await this.clientsApi.removeClaudeBridge();
+    await this.reloadClients(false);
+    return result;
+  }
+
+  /** Claude Desktop's extension of one endpoint, built again with this GateRook's bridge for the same access. */
+  async reinstall(link: ClientLink): Promise<ConnectResult> {
+    const result = await this.clientsApi.reinstall(link.id);
     await this.reloadClients(false);
     return result;
   }

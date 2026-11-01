@@ -55,6 +55,13 @@ public class ClientGrantEntity {
   private Long lastPid;
 
   /**
+   * The bridge version the last token request reported ({@code 0.4.3}), or {@code null}. Like {@code lastPid}, not a
+   * security field: the row's MAC leaves it out.
+   */
+  @Column(name = "bridge_version", length = 32)
+  private String bridgeVersion;
+
+  /**
    * HMAC of the row ({@code platform.RowMac}); excluded from optimistic locking, so that writing it after the
    * flush that settled {@code version} doesn't bump the version it signs.
    */
@@ -143,9 +150,15 @@ public class ClientGrantEntity {
     return lastPid;
   }
 
-  public void tokenIssued(Instant at, Long pid) {
+  public String getBridgeVersion() {
+    return bridgeVersion;
+  }
+
+  /** A token went to the bridge of process {@code pid}, which reported version {@code bridge}. */
+  public void tokenIssued(Instant at, Long pid, String bridge) {
     this.lastTokenAt = at;
     this.lastPid = pid;
+    this.bridgeVersion = bridge;
   }
 
   public byte[] getMac() {

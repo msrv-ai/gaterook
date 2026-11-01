@@ -11,7 +11,7 @@ import { Announcer } from '../../kit/announcer';
 import { GwCopy } from '../../kit/copy';
 import { GwToggle } from '../../kit/disclosure';
 import { ClientPreviewRequest, GwClientCard } from '../../kit/elements/client-card/client-card';
-import { ConfigEntry, INSTALL_URL, browserInstallUrl, viaText } from '../../kit/elements/client-card/client-view';
+import { ConfigEntry, INSTALL_URL, browserInstallUrl, reinstallToast, viaText } from '../../kit/elements/client-card/client-view';
 import { GwClientMark } from '../../kit/elements/shared/client-mark';
 import { clientStatusLook } from '../../kit/elements/shared/dictionaries';
 import { literalParts } from '../../kit/elements/shared/literals';
@@ -106,6 +106,8 @@ export class ClientsPage {
   protected readonly desktopApp = this.desktop.available;
   /** The client whose Connect is writing. */
   protected readonly connecting = signal<ClientId | null>(null);
+  /** The link whose extension Reinstall is building. */
+  protected readonly reinstalling = signal<string | null>(null);
 
   protected readonly cards = this.data.cards;
   protected readonly selectedCard = computed(() => this.cards().find((c) => this.clientAnchor(c.client) === this.fragment()) ?? null);
@@ -402,6 +404,31 @@ export class ClientsPage {
       this.toasts.show({ tone: 'success', ...bridgeRemovedToast(card, result) });
     } catch (e) {
       this.toasts.show({ tone: 'danger', title: `The bridge wasn't removed from ${card.name}`, body: errorSentence(e) });
+    }
+  }
+
+  // ── Reinstall ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+  /** An extension with an older bridge: the core builds it again for the same access, Claude Desktop installs it. */
+  protected async onReinstall(card: ClientCard, link: ClientLink): Promise<void> {
+    if (this.reinstalling()) return;
+    this.reinstalling.set(link.id);
+    try {
+      const result = await this.data.reinstall(link);
+      const opened = this.desktopApp;
+      if (opened) {
+        try {
+          await this.desktop.openMcpb(result.link.id);
+        } catch (e) {
+          this.toasts.show({ tone: 'danger', title: 'The extension could not be opened', body: `${errorSentence(e)} Open ${result.mcpbPath ?? 'the rebuilt extension'} in Claude Desktop to update it.` });
+          return;
+        }
+      }
+      this.toasts.show({ tone: 'info', ...reinstallToast(card, result, opened) });
+    } catch (e) {
+      this.toasts.show({ tone: 'danger', title: `The ${link.endpoint} extension wasn't reinstalled`, body: errorSentence(e) });
+    } finally {
+      this.reinstalling.set(null);
     }
   }
 

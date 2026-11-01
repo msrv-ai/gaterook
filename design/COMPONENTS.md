@@ -1392,6 +1392,7 @@ Cursor browser sign-in enables OAuth for the selected local endpoint and opens i
 - detected, not connected (Open config + Connect)
 - not installed (How to install, external + Check again)
 - needs restart (full warning alert, clears on first call)
+- older bridge (Claude Desktop): a warning alert names the endpoint's extension, the bridge version it runs and GateRook's, and what Reinstall keeps (the access; on prod your Allow), with Reinstall extension (the same access, the .mcpb rebuilt in GateRook's folder and opened in Claude Desktop, busy while it builds); a compact row adds a warning caption and Reinstall extension first; a current extension says nothing
 - error: config not writable (nothing written, fix command with Copy, Try again)
 - claude.ai tunnel off
 - claude.ai tunnel on (public URL readonly copy field; the IP allowlist shown read-only with a link to Settings › Tunnel › Callers, never a switch here)
