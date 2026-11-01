@@ -25,6 +25,8 @@ Only names of headers and variables are taken from a paste. The review asks for 
 
 Adding a server ends as adding a connection does: GateRook offers the endpoints its tools may join, the usual one chosen. There each tool starts as Approval, and you change modes on the endpoint. **Not now** leaves the tools Off until you add the server to an endpoint later.
 
+The server is then listed in **Connections** with the other connections, where you test, edit or delete it. In **Connectors › MCP servers** you can also restart it, sign in to it again or sign out.
+
 ## Sign in
 
 Select **Sign in** in the review. GateRook opens the server's sign-in page in your default browser and listens on this computer, at `http://localhost:<free port>/callback`, for the browser to come back. After you allow access, the page says you are signed in and GateRook returns to the front. Then select **Connect MCP server**.

@@ -46,6 +46,7 @@ import {
   healthCounts,
   healthOptions,
   idOf,
+  isMcpServer,
   lastChecked,
   optionLabel,
   parseEnv,
@@ -165,6 +166,8 @@ export class ConnectionsPage {
         alert: rowAlert(row, (at) => this.time.clock(at)),
         /** Why Test connection is unavailable (aria-disabled, said in the item's hint). */
         testBlocked: !row.verified ? 'Review the change first' : checking.has(row.name) ? 'Testing now' : null,
+        /** An external MCP server: no Duplicate, a copy would skip its review. */
+        mcpServer: isMcpServer(row),
       };
     });
   });

@@ -219,7 +219,10 @@ export interface ConnectionQuery {
   readonly type?: string | null;
   readonly env?: string | null;
   readonly health?: string | null;
-  /** `connection` (no external MCP servers: the Connections page) or `mcp-server`; both without (step API). */
+  /**
+   * `connection` (no external MCP servers) or `mcp-server`; both without (step API), as the Connections page lists
+   * them.
+   */
   readonly kind?: 'connection' | 'mcp-server' | null;
 }
 

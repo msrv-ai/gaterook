@@ -81,6 +81,9 @@ describe('Connections view: filters and counts', () => {
     expect(typeOptions([row('a')], 'redis').map((o) => `${o.label} ${o.count}`)).toEqual(['All types 1', 'PostgreSQL 1', 'Redis 0']);
     // A connector the kit doesn't name comes after the known ones, by its own name.
     expect(typeOptions([row('x', { type: 'jira', typeName: 'Jira Service Desk' }), row('a')]).map((o) => o.label)).toEqual(['All types', 'PostgreSQL', 'Jira Service Desk']);
+    // External MCP servers come last, named as their rows and the wizard's card name them.
+    const server = row('linear-mcp', { type: 'mcp-server', typeName: 'External MCP server' });
+    expect(typeOptions([server, row('a')]).map((o) => `${o.label} ${o.icon}`)).toEqual(['All types shapes', 'PostgreSQL database', 'External MCP server plug']);
   });
 
   it('counts health live; "Not checked yet" only while some connection is unchecked', () => {
@@ -152,6 +155,19 @@ describe('Connections view: credentials', () => {
     expect(credentialsView(rows['stage-db'])).toMatchObject({ label: 'Vault reference', caption: null });
   });
 
+  it('names the OAuth sign-in GateRook keeps for an external MCP server', () => {
+    const server = row('linear-mcp', { type: 'mcp-server', secretSource: null });
+    const signIn = secret('linear-mcp', 'linear-mcp/oauth-sign-in', { ownerKind: 'mcp-server', field: '/oauth' });
+    expect(credentialsView(server, [signIn])).toMatchObject({ icon: 'key-round', label: 'OAuth sign-in', muted: false, problems: [] });
+    expect(credentialsView(server, [])).toMatchObject({ label: 'Nothing stored here', muted: true });
+    // A header's value is the server's connection secret: where it lives decides, as for any connection.
+    expect(credentialsView({ ...server, secretSource: 'encrypted' }, [signIn])).toMatchObject({ label: 'Encrypted here' });
+    // An unreadable sign-in is renewed by signing in again, never by typing a value.
+    expect(credentialsView(server, [{ ...signIn, state: 'needs-value' }]).problems).toEqual([
+      { label: 'Needs sign-in', title: "linear-mcp/oauth-sign-in can't be read with this master key. Sign in to the server again in Connectors › MCP servers." },
+    ]);
+  });
+
   it('warns about secrets that can’t be used now', () => {
     const lost = secret('dev-db', 'dev-db/password', { state: 'needs-value' });
     expect(credentialsView(rows['dev-db'], [lost]).problems).toEqual([{ label: 'Password needs a value', title: "dev-db/password can't be read with this master key. Replace it in Secrets." }]);
@@ -209,7 +225,7 @@ describe('Connections view: the alert under a row', () => {
     expect(nextHealth(null, { state: 'healthy', latencyMs: 12, message: null, checkedAt: 'c' }).since).toBe('c');
   });
 
-  it("writes the Type cell in the core's words, and leaves the external MCP servers to Connectors", () => {
+  it("writes the Type cell in the core's words, and tells external MCP servers apart", () => {
     expect(typeText(row('dev-db', { typeLabel: 'PostgreSQL 16' }))).toBe('PostgreSQL 16');
     expect(typeText(row('dev-db'))).toBe('PostgreSQL');
     expect(filtered([row('dev-db', { typeLabel: 'PostgreSQL 16' })], { ...NO_FILTERS, q: 'postgresql 16' })).toHaveLength(1);

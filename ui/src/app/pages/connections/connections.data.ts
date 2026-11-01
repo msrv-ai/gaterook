@@ -5,7 +5,7 @@ import { ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { EndpointsApi } from '../../core/api/endpoints.api';
 import { SecretRow, SecretsApi, ShortLivedCredential } from '../../core/api/secrets.api';
 import { EventStream } from '../../core/events/event-stream';
-import { DeleteImpact, HealthState, deleteImpact, healthState, isMcpServer, nextHealth, sortRows } from './connections-view';
+import { DeleteImpact, HealthState, deleteImpact, healthState, nextHealth, sortRows } from './connections-view';
 
 /**
  * Test all waits for each connection's `connection.health`; when none came for this long the rest are taken as not
@@ -131,9 +131,10 @@ export class ConnectionsData {
     let items: ConnectionRow[];
     try {
       // Unfiltered: the filters and their counts work on the whole list, at once as the person types. External MCP
-      // servers are Connectors' (`kind=connection`, step API; a core before it lists them, so they are left out here).
-      const page = await this.api.list({ kind: 'connection' });
-      items = page.items.filter((r) => !isMcpServer(r));
+      // servers are among them, as on Overview and an endpoint: added from Add connection, health checked, used by
+      // endpoints.
+      const page = await this.api.list();
+      items = page.items;
       this.intervalSignal.set(page.healthIntervalSeconds ?? null);
     } catch (e) {
       if (this.rowsSignal()) this.staleSignal.set(e);
@@ -154,7 +155,8 @@ export class ConnectionsData {
     this.loadingHealth.clear();
     this.errorSignal.set(null);
     this.staleSignal.set(null);
-    this.secretsSignal.set((secrets ?? []).filter((s) => s.ownerKind === 'connection'));
+    // A connection's own values, and the OAuth sign-in an external MCP server keeps (owned by the server).
+    this.secretsSignal.set((secrets ?? []).filter((s) => s.ownerKind === 'connection' || s.ownerKind === 'mcp-server'));
     this.shortLivedSignal.set(shortLived ?? []);
   }
 

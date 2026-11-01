@@ -6,14 +6,14 @@ import { ApprovalsApi } from '../../core/api/approvals.api';
 import { ConnectionDeleted, ConnectionDetail, ConnectionList, ConnectionRow, ConnectionsApi, TestOutcome } from '../../core/api/connections.api';
 import { ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { EndpointsApi } from '../../core/api/endpoints.api';
-import { SecretsApi } from '../../core/api/secrets.api';
+import { SecretRow, SecretsApi } from '../../core/api/secrets.api';
 import { EventStream } from '../../core/events/event-stream';
 import { CoreStore } from '../../core/stores/core.store';
 import { TimeService } from '../../core/time/time.service';
 import { AriaDisabledGuard } from '../../kit/aria-disabled';
 import { provideKitIcons } from '../../kit/icons';
 import { ToastService } from '../../kit/toast.service';
-import { NOW, SECRETS, SHORT_LIVED, at, detail, kitRows, outcome, row } from './connections.fixtures';
+import { NOW, SECRETS, SHORT_LIVED, at, detail, kitRows, outcome, row, secret } from './connections.fixtures';
 import { ConnectionsPage, SKELETON_DELAY_MS } from './connections.page';
 
 /** The page against fake admin API services: what it shows for each answer, and what it asks the core to do. */
@@ -60,7 +60,7 @@ let testAllAnswer: () => Promise<{ connections: number }>;
 let detailAnswer: () => Promise<ConnectionDetail>;
 let deleteAnswer: () => Promise<ConnectionDeleted>;
 
-function setup(first: () => Promise<ConnectionList> = () => Promise.resolve(list())): void {
+function setup(first: () => Promise<ConnectionList> = () => Promise.resolve(list()), secrets: SecretRow[] = SECRETS): void {
   calls = [];
   events = new FakeEvents();
   listAnswers = [first];
@@ -101,7 +101,7 @@ function setup(first: () => Promise<ConnectionList> = () => Promise.resolve(list
       provideKitIcons(),
       { provide: TimeService, useValue: fakeTime },
       { provide: ConnectionsApi, useValue: connections },
-      { provide: SecretsApi, useValue: { list: () => Promise.resolve(SECRETS), shortLived: () => Promise.resolve(SHORT_LIVED) } },
+      { provide: SecretsApi, useValue: { list: () => Promise.resolve(secrets), shortLived: () => Promise.resolve(SHORT_LIVED) } },
       {
         provide: ApprovalsApi,
         useValue: { list: () => Promise.resolve({ items: [{ tool: 'sql_execute', connection: 'dev-db', client: 'codex', status: 'pending' }] }) },
@@ -221,7 +221,7 @@ describe('Connections page', () => {
   });
 
 
-  it('shows what the core adds since step API: the type in its words, since when, the interval, no MCP servers', async () => {
+  it('shows what the core adds since step API: the type in its words, since when, the interval', async () => {
     const rows = kitRows().map((r) =>
       r.name === 'dev-db'
         ? { ...r, typeLabel: 'PostgreSQL 16', serverVersion: 'PostgreSQL 16.4' }
@@ -229,17 +229,50 @@ describe('Connections page', () => {
           ? { ...r, health: { ...r.health, since: '2026-10-22T11:42:00Z' } }
           : r,
     );
-    rows.push(row('github-mcp', { type: 'mcp-server', typeName: 'MCP server', typeLabel: 'MCP server' }));
     setup(() => Promise.resolve({ ...list(rows), healthIntervalSeconds: 60 }));
     const { el } = await render();
 
-    expect(calls).toContain('list connection');
     expect(text(el.querySelector('.gw-page-header__meta .gw-text-small'))).toBe('Health is checked every minute');
     expect(text(rowOf(el, 'dev-db')!.children[1])).toBe('PostgreSQL 16');
     expect(text(rowOf(el, 'billing-api')!.nextElementSibling!.querySelector('.gw-alert__title'))).toBe('billing-api: Connection refused since 11:42');
-    // External MCP servers are Connectors': not a row here, not counted.
-    expect(rowOf(el, 'github-mcp')).toBeNull();
-    expect(text(el.querySelector('#conn-count'))).toBe('12 connections');
+  });
+
+  it('lists external MCP servers with the connections: their sign-in, no Duplicate', async () => {
+    const rows = [
+      ...kitRows(),
+      row('linear-mcp', {
+        type: 'mcp-server',
+        typeName: 'External MCP server',
+        typeLabel: 'External MCP server',
+        host: 'https://mcp.linear.app/mcp',
+        secretSource: null,
+        health: { state: 'unknown', latencyMs: null, message: null, checkedAt: null },
+        usedBy: [],
+      }),
+    ];
+    setup(() => Promise.resolve(list(rows)), [...SECRETS, secret('linear-mcp', 'linear-mcp/oauth-sign-in', { ownerKind: 'mcp-server', field: '/oauth' })]);
+    const { el } = await render();
+
+    // Every connection, as Overview and the endpoints count them: no kind=connection.
+    expect(calls).toEqual(['list']);
+    expect(text(el.querySelector('#conn-count'))).toBe('13 connections');
+    const server = rowOf(el, 'linear-mcp')!;
+    expect(server.querySelector('a')?.getAttribute('href')).toBe('/connections/linear-mcp');
+    expect(Array.from(server.children).slice(0, 5).map(text)).toEqual([
+      'linear-mcp environment dev https://mcp.linear.app/mcp',
+      'External MCP server',
+      // The server's own sign-in, not "Nothing stored here".
+      'OAuth sign-in',
+      'Not checked yet',
+      'No endpoint',
+    ]);
+    // A copy would skip the review Connectors › MCP servers adds it with.
+    expect(Array.from(el.querySelectorAll('#conn-menu-linear-mcp [role="menuitem"]')).map(text)).toEqual([
+      'Test connection',
+      'Edit',
+      'View activityconnection:linear-mcp',
+      'Delete connection',
+    ]);
   });
   it('filters at once, with live counts, and clears back to the search', async () => {
     setup();
@@ -375,7 +408,7 @@ describe('Connections page', () => {
     await settle(fixture);
     expect(devDb.querySelector('.gw-status--checking')).toBeNull();
     expect(toasts().at(-1)).toMatchObject({ tone: 'success', title: 'dev-db is healthy', body: 'Connected in 9 ms.' });
-    expect(calls).toEqual(['list connection', 'test dev-db', 'list connection']);
+    expect(calls).toEqual(['list', 'test dev-db', 'list']);
   });
 
   it('marks Test again as busy while the unreachable row is tested', async () => {
