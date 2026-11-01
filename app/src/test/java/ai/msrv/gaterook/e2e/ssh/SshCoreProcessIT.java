@@ -201,14 +201,14 @@ class SshCoreProcessIT {
           run = t;
         }
       }
-      if (run != null && run.at("/inputSchema/properties/runbook/enum").toString().contains("restart-api")) {
+      if (run != null && run.path("description").asString().contains("restart-api(")) {
         break;
       }
       Thread.sleep(200);
     }
     assertThat(run).isNotNull();
-    assertThat(run.at("/inputSchema/properties/runbook/enum").toString())
-        .isEqualTo("[\"compose-ps\",\"restart-api\"]");
+    // The description names the runbooks: a client that keeps this list accepts ones saved later.
+    assertThat(run.at("/inputSchema/properties/runbook").has("enum")).isFalse();
     assertThat(run.path("description").asString()).contains("compose-ps() — read only")
         .contains("restart-api(service: api) — needs approval");
 
@@ -316,7 +316,7 @@ class SshCoreProcessIT {
       for (JsonNode t : mcp("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\",\"params\":{}}")
           .at("/result/tools")) {
         if (t.path("name").asString().equals("ssh_run")
-            && t.at("/inputSchema/properties/runbook/enum").toString().contains("\"" + name + "\"")) {
+            && t.path("description").asString().contains(" " + name + "(")) {
           return;
         }
       }

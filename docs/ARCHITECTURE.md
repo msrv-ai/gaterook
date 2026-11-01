@@ -112,6 +112,8 @@ The source of truth is [connector-api](../connector-api/src/main/java/ai/msrv/ga
 
 A connector's JSON schemas describe input, output, configuration, and policy. UI extension keywords provide labels, variants, secret fields, options, environment locks, and stricter-wins merge rules. Schemas are bounded before validation to avoid excessive recursion or work. Shared tool names can merge only when their schemas match apart from the allowed connection enumeration.
 
+MCP clients receive each input schema without the enumerations that follow the endpoint's connections: the `connection` names, and any values a connector adds for the endpoint to a property its manifest leaves open, such as SSH runbooks, GCP scopes and projects, or AWS regions. Tool descriptions name those values, and the core checks each call against the endpoint as it is then. A client that keeps the list it loaded first, and validates arguments against it, therefore still accepts connections added later. The admin API and Playground keep the enumerations.
+
 Built-ins include SQL (PostgreSQL, MySQL/MariaDB, [Oracle Database](oracle.md) and [SQL Server](sql-server.md)), MongoDB, Redis, OpenSearch, Elasticsearch, SSH, logs, Kubernetes, GCP, AWS, HTTP/OpenAPI, and external MCP support. Connector-specific research documents describe drivers, classification edge cases, safe reads, and integration matrices.
 
 ## 4. Persistence and integrity
@@ -165,11 +167,15 @@ Legacy `initialize` advertises `capabilities.tools.listChanged: true`. Clients l
 same bearer token, the negotiated `MCP-Protocol-Version`, and `Accept: text/event-stream`. Opening a stream sends
 one `notifications/tools/list_changed` to refresh any cached list from before connection or reconnection. After committed changes
 invalidate the endpoint snapshot, each stream compares the published catalog hash and sends
-`notifications/tools/list_changed` when tool definitions change, including connection enums. Changes that leave
-the catalog unchanged do not send further notifications. Authentication and endpoint availability are checked before each
+`notifications/tools/list_changed` when the definitions clients receive change, including the connections and other
+values that descriptions name. Changes that leave those definitions unchanged do not send further notifications. Authentication and endpoint availability are checked before each
 notification and heartbeat; disconnected streams are released, and shutdown closes subscriptions before waiting
 for HTTP requests. A token or grant holds at most two streams: a third closes its oldest, so a client reconnecting after a drop the gateway has not noticed yet gets through; the gateway holds 64 in all and refuses more with 429. The stream has no replay IDs; its initial notification refreshes changes missed while disconnected.
-Both stdio bridges forward these notifications. Modern requests retain their existing
+Both stdio bridges forward these notifications. Claude Desktop's agent mode, which serves its Code and Cowork
+sessions, lists tools once per connection and ignores the notification. After forwarding one, the Node bridge
+therefore compares that client's last list with the current one; when they differ and the client has not listed
+again, the bridge ends as soon as no request is in flight. The desktop connects again, and lists the current tools,
+when a session next needs the server. Modern requests retain their existing
 TTL-based discovery; `subscriptions/listen` is not implemented.
 
 ### 5.1 Policy truth table
@@ -317,7 +323,7 @@ Connector categories organize the catalog; they do not supply a shared tool set.
 
 GCP Cloud Logging collects credentials before project selection. Its `x-project-selection` schema extension loads project suggestions through `POST /api/connections/projects` using the draft credentials without saving the connection. A manually entered project ID is normalized to `projects/<id>`; explicit project resource names and log views remain supported. Changing credentials invalidates the discovered list. Discovery uses Cloud Resource Manager permissions and does not establish access to the selected log entries.
 
-General GCP connections continue to expose `gcp_describe`, `gcp_metrics`, `logs_search`, and `logs_tail`. Their log calls reuse the Cloud Logging transport with the GCP connection's scopes and credentials. These compatibility tool definitions remain shared with legacy `logs` connections, so a mixed endpoint publishes one compatible tool with the combined connection enum. The adapter enforces both Cloud and log execution limits, binds execution to the classified connection version and tool, and refuses Cloud service, region, or resource restrictions that cannot be safely translated to log selection. Search defaults to Read only on new endpoint attachments; tail defaults to Off. Existing endpoint grants retain their stored modes, and newly introduced tools require explicit enablement. See [GCP logs](gcp-logs.md) for setup and native Logs Explorer queries.
+General GCP connections continue to expose `gcp_describe`, `gcp_metrics`, `logs_search`, and `logs_tail`. Their log calls reuse the Cloud Logging transport with the GCP connection's scopes and credentials. These compatibility tool definitions remain shared with legacy `logs` connections, so a mixed endpoint publishes one compatible tool whose description names every connection. The adapter enforces both Cloud and log execution limits, binds execution to the classified connection version and tool, and refuses Cloud service, region, or resource restrictions that cannot be safely translated to log selection. Search defaults to Read only on new endpoint attachments; tail defaults to Off. Existing endpoint grants retain their stored modes, and newly introduced tools require explicit enablement. See [GCP logs](gcp-logs.md) for setup and native Logs Explorer queries.
 
 SSH log files use the `ssh-logs` connector, separate from arbitrary SSH command execution. A password or a local private-key file authenticates the connection after host-key verification. The form's `x-file-selection` extension opens a remote directory browser through `POST /api/connections/browse-files`; browsing uses the draft test's secret handling, deadline, masking, and trust confirmations without saving the draft. Saving requires a log folder and an explicit list of relative file paths. Browsing and `ssh_logs_list` use SFTP metadata operations. The read-only `ssh_logs_read` and `ssh_logs_search` tools execute bounded commands assembled by GateRook from validated file selections, filters and line ranges. AI clients cannot supply commands; paths and search values remain data. The host needs a POSIX shell, GNU or BSD `head`, `tail`, `grep` and `stat`, and standard `awk`, `cat`, `od` and `wc`. All tools enforce the selection, reject symbolic links and nonregular files, and apply byte, line and deadline limits. Reads also reject a file with more than one hard link; SFTP metadata has no link count, so listings show its size only. No persistent file copy is made. Authentication follows the SSH environment policy, including its production credential restrictions. Remote log contents are untrusted data.
 

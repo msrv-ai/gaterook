@@ -7,11 +7,20 @@ import { fileURLToPath } from 'node:url';
 import { after, before, describe, it } from 'node:test';
 
 import { createCoreClient, startBroker } from '../index.mjs';
-import { headerName, parseArgs, sseData } from '../gw-bridge.mjs';
+import { createBridge, headerName, parseArgs, sseData } from '../gw-bridge.mjs';
 import { fakeCore, issued, SECRET, tempHome } from './helpers.mjs';
 
 const BRIDGE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'gw-bridge.mjs');
 const GRANT = 'gr_abcdefghijkl';
+
+/** Resolves once `check()` holds; fails after `ms`. */
+async function until(check, ms = 5000) {
+  const deadline = Date.now() + ms;
+  while (!check()) {
+    if (Date.now() > deadline) throw new Error('timed out waiting');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
 
 /** The bridge as Claude Desktop runs it: a process, JSON-RPC lines in and out. */
 function startBridge(home, { endpoint = 'dev', extraEnv = {}, args = [] } = {}) {
@@ -356,6 +365,150 @@ describe('gw-bridge.mjs', () => {
       await streamingBroker.close();
       await streaming.close();
       fs.rmSync(streamingHome, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('gw-bridge.mjs and a client that keeps its first tool list', () => {
+  const AGENT_MODE = 'local-agent-mode-GateRook · dev';
+  const CHANGED = { jsonrpc: '2.0', method: 'notifications/tools/list_changed' };
+  const FIRST = [{ name: 'sql_query',
+    inputSchema: { type: 'object', properties: { connection: { type: 'string' } } } }];
+  let core;
+  let broker;
+  let home;
+  let tools;
+  let streams;
+  let slowCall;
+
+  before(async () => {
+    tools = FIRST;
+    streams = [];
+    let tokens = 0;
+    core = await fakeCore({
+      tokens: (r) => issued(core.port, r.endpoint, ++tokens),
+      mcp: async (entry) => {
+        if (entry.method === 'GET') return { status: 200, type: 'text/event-stream', stream: (res) => {
+          streams.push(res);
+          res.write(`: connected\n\ndata: ${JSON.stringify(CHANGED)}\n\n`);
+        } };
+        const msg = entry.body;
+        if (msg.id === undefined) return { status: 202 };
+        if (msg.method === 'tools/call') await slowCall;
+        const result = msg.method === 'initialize'
+          ? { protocolVersion: '2025-11-25', capabilities: { tools: { listChanged: true } } }
+          : msg.method === 'tools/list' ? { tools } : { content: [] };
+        return { status: 200, type: 'application/json', body: JSON.stringify({ jsonrpc: '2.0', id: msg.id, result }) };
+      },
+    });
+    home = tempHome('bridge-list');
+    broker = await startBroker({ home, core: createCoreClient({ origin: core.origin, launchSecret: SECRET }) });
+  });
+
+  after(async () => {
+    await broker?.close();
+    await core?.close();
+    fs.rmSync(home, { recursive: true, force: true });
+  });
+
+  /** A bridge in this process for a client named `name`; `relist` makes it list again on every notification. */
+  function client(name, { relist = false } = {}) {
+    const written = [];
+    let stale = 0;
+    const bridge = createBridge({
+      endpoint: 'dev', grant: GRANT, client: 'claude-desktop', env: { GW_HOME: home }, listCheckMs: 20,
+      onStaleList: () => { stale++; },
+      write: (line) => {
+        const message = JSON.parse(line);
+        written.push(message);
+        if (relist && message.method === CHANGED.method) {
+          void bridge.handle(JSON.stringify({ jsonrpc: '2.0', id: 100 + written.length, method: 'tools/list' }));
+        }
+      },
+    });
+    return {
+      bridge, written, stale: () => stale,
+      async start() {
+        await bridge.handle(JSON.stringify({ jsonrpc: '2.0', id: 0, method: 'initialize', params: {
+          protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name, version: '1.0.0' } } }));
+        await bridge.handle(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }));
+        await bridge.handle(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }));
+      },
+    };
+  }
+
+  const checks = () => core.seen.filter((s) => s.body?.id === 'gw-bridge-list').length;
+  const changeTools = () => {
+    tools = [...FIRST, { name: 'redis_scan', inputSchema: { type: 'object' } }];
+    streams.at(-1).write(`data: ${JSON.stringify(CHANGED)}\n\n`);
+  };
+  const quietly = () => new Promise((resolve) => setTimeout(resolve, 200));
+
+  it('compares the list of Claude Desktop\'s agent mode after a notification, ending once it differs', async () => {
+    const c = client(AGENT_MODE);
+    const before = checks();
+    try {
+      await c.start();
+      await until(() => checks() === before + 1);
+      await quietly();
+      assert.equal(c.stale(), 0, 'the list it got on connecting is still the endpoint\'s');
+      const stream = streams.at(-1);
+      const closed = new Promise((resolve) => stream.on('close', resolve));
+      changeTools();
+      await until(() => c.stale() === 1);
+      assert.equal(checks(), before + 2);
+      assert.equal(c.written.filter((m) => m.method === CHANGED.method).length, 2, 'it forwards every notification');
+      await closed;
+      await quietly();
+      assert.equal(c.stale(), 1, 'it reports once');
+    } finally {
+      c.bridge.close();
+      tools = FIRST;
+    }
+  });
+
+  it('leaves a client that lists again, or that isn\'t agent mode, connected without comparing', async () => {
+    for (const c of [client(AGENT_MODE, { relist: true }), client('claude-ai')]) {
+      const before = checks();
+      try {
+        await c.start();
+        await until(() => c.written.some((m) => m.method === CHANGED.method));
+        changeTools();
+        await until(() => c.written.filter((m) => m.method === CHANGED.method).length === 2);
+        await quietly();
+        assert.equal(c.stale(), 0);
+        assert.equal(checks(), before, 'no list of its own');
+      } finally {
+        c.bridge.close();
+        tools = FIRST;
+      }
+    }
+  });
+
+  it('answers the calls in flight, then exits, so that Claude Desktop lists the tools again', async () => {
+    const b = startBridge(home);
+    let answer;
+    slowCall = new Promise((resolve) => { answer = resolve; });
+    try {
+      await b.call({ jsonrpc: '2.0', id: 0, method: 'initialize', params: { protocolVersion: '2025-11-25',
+        capabilities: {}, clientInfo: { name: AGENT_MODE, version: '1.0.0' } } });
+      assert.deepEqual((await b.call({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} })).result.tools, FIRST);
+      // The endpoint changes before the stream opens: its first notification already finds the list stale.
+      tools = [...FIRST, { name: 'redis_scan', inputSchema: { type: 'object' } }];
+      const exited = new Promise((resolve) => b.child.on('exit', resolve));
+      b.send({ jsonrpc: '2.0', method: 'notifications/initialized' });
+      assert.deepEqual(await b.next(), CHANGED);
+      b.send({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'sql_query', arguments: {} } });
+      await until(() => b.stderr().includes('ending'));
+      assert.equal(b.child.exitCode, null, 'it waits for the call in flight');
+      answer();
+      assert.deepEqual(await b.next(), { jsonrpc: '2.0', id: 2, result: { content: [] } });
+      assert.equal(await exited, 0);
+    } finally {
+      answer();
+      slowCall = undefined;
+      tools = FIRST;
+      if (b.child.exitCode === null) await b.stop();
     }
   });
 });

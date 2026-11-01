@@ -29,14 +29,25 @@ import tools.jackson.databind.node.ObjectNode;
  * type of the connection chosen. {@code outputSchema} is left out when any pair of the tool waits for approval: a
  * pending handle doesn't match it, and clients validate {@code structuredContent}. Order is by name; the list's hash
  * changes with every mode change.
+ *
+ * <p>MCP clients get each schema without that enum, or any other that follows the endpoint's connections
+ * ({@link PublishedTool#clientInputSchema}); the description names the values instead. A client that keeps the list
+ * it loaded first, and checks arguments against it, still accepts a connection added later: Claude Desktop's Code and
+ * Cowork sessions keep theirs for as long as the extension runs. A call is checked against the endpoint as it is then.
  */
 @Component
 public class ToolCatalog {
 
-  /** One published tool and the pairs behind it. */
+  /**
+   * One published tool and the pairs behind it.
+   *
+   * @param inputSchema       every value the endpoint allows now: {@code connection} lists the connections of the
+   *                          pairs as its enum, and the Playground offers them
+   * @param clientInputSchema what MCP clients get: no enum that follows the endpoint's connections
+   */
   public record PublishedTool(String name, String title, String description, ObjectNode inputSchema,
-      JsonNode outputSchema, ToolDefinition.Annotations annotations, List<EndpointSnapshot.Pair> pairs,
-      String declaredBy, boolean core) {}
+      ObjectNode clientInputSchema, JsonNode outputSchema, ToolDefinition.Annotations annotations,
+      List<EndpointSnapshot.Pair> pairs, String declaredBy, boolean core) {}
 
   /**
    * The list of one endpoint.
@@ -60,23 +71,25 @@ public class ToolCatalog {
     List<PublishedTool> out = new ArrayList<>();
     List<String> problems = new ArrayList<>();
     if (!snapshot.blocked()) {
+      boolean listed = snapshot.coreTool(CoreTools.LIST_CONNECTIONS).map(EndpointSnapshot.CorePair::mode)
+          .orElse(Mode.OFF) != Mode.OFF;
       Map<String, List<EndpointSnapshot.Pair>> byName = new LinkedHashMap<>();
       for (EndpointSnapshot.Pair p : snapshot.onPairs()) {
         byName.computeIfAbsent(p.tool().name(), k -> new ArrayList<>()).add(p);
       }
       for (Map.Entry<String, List<EndpointSnapshot.Pair>> e : byName.entrySet()) {
-        publish(snapshot, e.getKey(), e.getValue(), problems).ifPresent(out::add);
+        publish(snapshot, e.getKey(), e.getValue(), listed, problems).ifPresent(out::add);
       }
       for (String core : CoreTools.WITH_MODE) {
         Mode mode = snapshot.coreTool(core).map(EndpointSnapshot.CorePair::mode).orElse(Mode.OFF);
         if (mode != Mode.OFF) {
-          out.add(coreTool(snapshot, CoreTools.withMode(core)));
+          out.add(coreTool(snapshot, CoreTools.withMode(core), listed));
         }
       }
-      out.add(coreTool(snapshot, CoreTools.approvalCard()));
-      out.add(coreTool(snapshot, CoreTools.approvalCardAction()));
+      out.add(coreTool(snapshot, CoreTools.approvalCard(), false));
+      out.add(coreTool(snapshot, CoreTools.approvalCardAction(), false));
     }
-    out.add(coreTool(snapshot, CoreTools.approvalStatus()));
+    out.add(coreTool(snapshot, CoreTools.approvalStatus(), false));
     out.sort(java.util.Comparator.comparing(PublishedTool::name));
     return new Catalog(List.copyOf(out), hash(out), List.copyOf(problems));
   }
@@ -107,7 +120,7 @@ public class ToolCatalog {
    * name. A connector's tool of the same name still publishes.
    */
   private Optional<PublishedTool> publish(EndpointSnapshot snapshot, String name, List<EndpointSnapshot.Pair> pairs,
-      List<String> problems) {
+      boolean listed, List<String> problems) {
     List<EndpointSnapshot.Pair> candidates = new ArrayList<>();
     for (EndpointSnapshot.Pair p : pairs) {
       if (p.template() != null && pairs.size() > 1) {
@@ -143,8 +156,42 @@ public class ToolCatalog {
     JsonNode output = approval || first.mutating() ? null : first.outputSchema();
     String declaredBy = kept.stream().map(EndpointSnapshot.Pair::declaredBy).filter(java.util.Objects::nonNull)
         .findFirst().orElse(null);
+    ToolDefinition declared = firstPair.manifest() == null ? null : firstPair.manifest().tools().stream()
+        .filter(t -> t.name().equals(name)).findFirst().orElse(null);
+    ObjectNode client = clientSchema(input, declared, listed
+        ? "A connection named in this tool's description, or one added since: list_connections shows the current ones."
+        : "A connection named in this tool's description.");
     return Optional.of(new PublishedTool(name, first.title(), description(first, kept, template, approval), input,
-        output == null ? null : output.deepCopy(), first.annotations(), List.copyOf(kept), declaredBy, false));
+        client, output == null ? null : output.deepCopy(), first.annotations(), List.copyOf(kept), declaredBy, false));
+  }
+
+  /**
+   * {@code input} for MCP clients, without the enums that follow the endpoint's connections, which the description
+   * names instead: {@code connection}'s, with {@code hint} as its description unless the tool gives one, and each
+   * enum a connector adds for the endpoint where its manifest's tool ({@code declared}) has none, such as an SSH
+   * host's runbooks or a GCP connection's scopes. A list loaded earlier then still accepts what was added since.
+   */
+  private static ObjectNode clientSchema(ObjectNode input, ToolDefinition declared, String hint) {
+    ObjectNode out = input.deepCopy();
+    if (!(out.path("properties") instanceof ObjectNode properties)) {
+      return out;
+    }
+    JsonNode open = declared == null || declared.inputSchema() == null ? null
+        : declared.inputSchema().path("properties");
+    for (Map.Entry<String, JsonNode> e : properties.properties()) {
+      if (!(e.getValue() instanceof ObjectNode p) || !p.has("enum")) {
+        continue;
+      }
+      if (e.getKey().equals("connection")) {
+        p.remove("enum");
+        if (!p.has("description")) {
+          p.put("description", hint);
+        }
+      } else if (open != null && !open.path(e.getKey()).has("enum")) {
+        p.remove("enum");
+      }
+    }
+    return out;
   }
 
   private String description(ToolDefinition t, List<EndpointSnapshot.Pair> pairs, boolean template,
@@ -224,17 +271,20 @@ public class ToolCatalog {
     return ms % 1000 == 0 ? (ms / 1000) + " s" : String.format(Locale.US, "%.1f s", ms / 1000.0);
   }
 
-  private static PublishedTool coreTool(EndpointSnapshot snapshot, ToolDefinition t) {
+  private static PublishedTool coreTool(EndpointSnapshot snapshot, ToolDefinition t, boolean listed) {
     ObjectNode input = (ObjectNode) t.inputSchema().deepCopy();
     if (input.path("properties").path("connection").isObject()) {
       ArrayNode values = ((ObjectNode) input.path("properties").path("connection")).putArray("enum");
       new TreeSet<>(snapshot.connections().stream().filter(EndpointSnapshot.Wired::usable)
           .map(w -> w.config().name()).toList()).forEach(values::add);
     }
-    return new PublishedTool(t.name(), t.title(), t.description(), input, t.outputSchema(), t.annotations(), List.of(), null,
-        true);
+    ObjectNode client = clientSchema(input, null, listed ? "A connection that list_connections shows."
+        : "The name of a connection on this endpoint.");
+    return new PublishedTool(t.name(), t.title(), t.description(), input, client, t.outputSchema(), t.annotations(),
+        List.of(), null, true);
   }
 
+  /** Over what clients get: a change that only an enum they never see would show doesn't notify them. */
   private static String hash(List<PublishedTool> tools) {
     ArrayNode list = JsonNodeFactory.instance.arrayNode();
     for (PublishedTool t : tools) {
@@ -242,7 +292,7 @@ public class ToolCatalog {
       n.put("name", t.name());
       n.put("title", t.title());
       n.put("description", t.description());
-      n.set("inputSchema", t.inputSchema());
+      n.set("inputSchema", t.clientInputSchema());
       n.set("outputSchema", t.outputSchema());
       n.set("annotations", ManifestCodec.writeTool(ToolDefinition.builder(t.name()).annotations(t.annotations())
           .build()).get("annotations"));

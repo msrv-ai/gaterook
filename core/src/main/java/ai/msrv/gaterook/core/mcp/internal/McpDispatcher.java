@@ -227,7 +227,7 @@ public class McpDispatcher {
     n.put("name", t.name());
     n.put("title", t.title());
     n.put("description", t.description());
-    n.set("inputSchema", t.inputSchema());
+    n.set("inputSchema", t.clientInputSchema());
     if (t.outputSchema() != null) {
       n.set("outputSchema", t.outputSchema());
     }
