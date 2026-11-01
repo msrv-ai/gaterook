@@ -10,6 +10,8 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.node.JsonNodeFactory;
 
@@ -17,6 +19,7 @@ class SshLogCommandsTest {
   @TempDir Path temp;
 
   @Test
+  @DisabledOnOs(value = OS.WINDOWS, disabledReason = "Executes POSIX utilities locally to model the SSH server")
   void readsTailRangesAndBytesWithPortableRemoteUtilities() throws Exception {
     Path root = temp.toRealPath();
     Files.writeString(root.resolve("app.log"), "first\nsecond\nthird\nfourth\nfifth\n");
@@ -43,6 +46,7 @@ class SshLogCommandsTest {
   }
 
   @Test
+  @DisabledOnOs(value = OS.WINDOWS, disabledReason = "Executes POSIX utilities locally to model the SSH server")
   void lineRangesPreserveUtf8OffsetsAndAnUnterminatedLastLine() throws Exception {
     Path root = temp.toRealPath();
     Files.writeString(root.resolve("app.log"), "日本語\nsecond\nlast");
@@ -56,6 +60,7 @@ class SshLogCommandsTest {
   }
 
   @Test
+  @DisabledOnOs(value = OS.WINDOWS, disabledReason = "Executes POSIX utilities locally to model the SSH server")
   void reportsLineBoundsAndPartialWindowsWithoutTransferringWholeFiles() throws Exception {
     Path root = temp.toRealPath();
     Files.writeString(root.resolve("app.log"), "first\nsecond\nthird\nlast");
@@ -88,6 +93,7 @@ class SshLogCommandsTest {
   }
 
   @Test
+  @DisabledOnOs(value = OS.WINDOWS, disabledReason = "Executes POSIX utilities locally to model the SSH server")
   void grepReturnsCandidatesAndQueryIndependentSourceBounds() throws Exception {
     Path root = temp.toRealPath();
     Files.writeString(root.resolve("app.log"), "first\nERROR selected\nlast");
@@ -109,6 +115,7 @@ class SshLogCommandsTest {
   }
 
   @Test
+  @DisabledOnOs(value = OS.WINDOWS, disabledReason = "Executes POSIX utilities locally to model the SSH server")
   void capsDenseCandidatesWhileDrainingTheFixedSourceWindow() throws Exception {
     Path root = temp.toRealPath();
     Path file = root.resolve("app.log");
@@ -125,6 +132,7 @@ class SshLogCommandsTest {
   }
 
   @Test
+  @DisabledOnOs(value = OS.WINDOWS, disabledReason = "Executes POSIX utilities locally to model the SSH server")
   void candidateOverflowDoesNotHideGrepFailure() throws Exception {
     Path root = temp.toRealPath();
     Files.writeString(root.resolve("app.log"), "ERROR selected\n");
@@ -146,6 +154,7 @@ class SshLogCommandsTest {
   }
 
   @Test
+  @DisabledOnOs(value = OS.WINDOWS, disabledReason = "Executes POSIX utilities locally to model the SSH server")
   void fileNamesRemainDataRatherThanShellSyntax() throws Exception {
     Path root = temp.toRealPath();
     for (String name : List.of("a'b.log", "$(touch injected).log", "a; touch injected #.log", "--help", "日本語.log")) {
@@ -157,6 +166,7 @@ class SshLogCommandsTest {
   }
 
   @Test
+  @DisabledOnOs(value = OS.WINDOWS, disabledReason = "Executes POSIX utilities locally to model the SSH server")
   void rejectsSymlinkAncestorsAndNonRegularFilesBeforeReading() throws Exception {
     Path root = temp.toRealPath();
     Path nested = Files.createDirectory(root.resolve("nested"));
@@ -172,6 +182,7 @@ class SshLogCommandsTest {
   }
 
   @Test
+  @DisabledOnOs(value = OS.WINDOWS, disabledReason = "Executes POSIX utilities locally to model the SSH server")
   void rejectsAHardLinkedFileWhoseOtherNameIsOutsideTheSelection() throws Exception {
     Path root = temp.toRealPath();
     Path outside = Files.createDirectory(root.resolve("outside"));

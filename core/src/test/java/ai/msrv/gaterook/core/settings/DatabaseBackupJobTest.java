@@ -89,7 +89,9 @@ class DatabaseBackupJobTest {
     assertThat(copy.get().at()).isEqualTo(NOW);
     assertThat(rows(written)).as("the copy is a whole database").isEqualTo(50);
     assertThat(journalMode(written)).as("one self-contained file").isEqualTo("delete");
-    assertThat(Files.getPosixFilePermissions(written)).isEqualTo(PosixFilePermissions.fromString("rw-------"));
+    if (Files.getFileStore(written).supportsFileAttributeView("posix")) {
+      assertThat(Files.getPosixFilePermissions(written)).isEqualTo(PosixFilePermissions.fromString("rw-------"));
+    }
     assertThat(state.get().path("lastBackupAt").asString()).isEqualTo(NOW.toString());
     assertThat(state.get().path("lastFile").asString()).isEqualTo("gateway-2026-10-24.db");
     assertThat(job.status().lastError()).isNull();

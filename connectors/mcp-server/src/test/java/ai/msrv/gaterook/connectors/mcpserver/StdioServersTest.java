@@ -74,7 +74,7 @@ class StdioServersTest {
     ObjectNode c = Fixtures.object("{\"transport\":\"stdio\",\"env\":[{\"name\":\"FAKE_TOKEN\"}]"
         + (extra.isEmpty() ? "" : "," + extra) + "}");
     ArrayNode command = c.putArray("command");
-    command.add(Path.of(System.getProperty("java.home"), "bin", "java").toString());
+    command.add(Fixtures.javaExecutable());
     command.add("-cp");
     command.add(System.getProperty("java.class.path"));
     command.add(FakeMcpServer.class.getName());
@@ -159,6 +159,16 @@ class StdioServersTest {
       // CoreFoundation in the server's own runtime sets it when it's missing: not something the gateway passed.
       names.remove("__CF_USER_TEXT_ENCODING");
     }
+    if (System.getProperty("os.name").startsWith("Windows")) {
+      // The Windows process runtime supplies these even when ProcessBuilder's environment is cleared.
+      names.remove("SystemRoot");
+      names.remove("PROCESSOR_ARCHITECTURE");
+      if (System.getenv("WINELOADER") != null) {
+        // Wine injects these fixed loader variables even when the child environment starts empty.
+        names.removeAll(Set.of("SystemDrive", "WINECONFIGDIR", "WINEDATADIR", "WINEDLLDIR0",
+            "WINEHOMEDIR", "WINELOADER", "WINEUSERLOCALE", "WINEUSERNAME"));
+      }
+    }
     assertThat(names).contains("PATH", "HOME", "FAKE_TOKEN").doesNotContain("CORE_ONLY_SECRET")
         .isSubsetOf("PATH", "HOME", "USER", "LOGNAME", "SHELL", "TERM", "LANG", "NPM_CONFIG_UPDATE_NOTIFIER",
             "NPM_CONFIG_FUND", "FAKE_TOKEN", "TMPDIR", "npm_config_cache");
@@ -168,6 +178,18 @@ class StdioServersTest {
     assertThat(ctx.taints).contains(TOKEN);
     String log = Files.readString(home.resolve("logs/mcp/fake-mcp.log"));
     assertThat(log).contains("fake server starting, token ‹masked›").doesNotContain(TOKEN);
+  }
+
+  @Test
+  void closingTheRuntimeWaitsForItsServerProcesses() throws Exception {
+    ConnectionConfig cfg = cfg("normal", "");
+    Connector c = runtime.connector(cfg, review(cfg));
+    c.execute(Fixtures.call("fake_echo", "{}"), cfg, secrets, Fixtures.Context.of(Duration.ofSeconds(30)));
+    long pid = runtime.process("cn_fake").orElseThrow().pid();
+
+    runtime.close();
+
+    assertThat(ProcessHandle.of(pid).map(ProcessHandle::isAlive).orElse(false)).isFalse();
   }
 
   @Test

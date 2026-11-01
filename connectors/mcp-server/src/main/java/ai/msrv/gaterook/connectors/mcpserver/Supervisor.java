@@ -1,6 +1,7 @@
 package ai.msrv.gaterook.connectors.mcpserver;
 
 import ai.msrv.gaterook.connector.api.ConnectorException;
+import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
 import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime.ProcessView;
 import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime.State;
 import java.nio.charset.StandardCharsets;
@@ -147,7 +148,12 @@ final class Supervisor {
         if (starting == mine) {
           starting = null;
         }
-        crashed("Didn't start: " + firstLine(e.getMessage()));
+        if (McpServerRuntime.SignInRequired.in(e) != null) {
+          // Not a crash: no backoff, no Failed. The next call tries again, the sign-in the person renewed with it.
+          set(State.STOPPED, null, "Needs sign-in: " + firstLine(e.getMessage()));
+        } else {
+          crashed("Didn't start: " + firstLine(e.getMessage()));
+        }
       }
       mine.completeExceptionally(e);
       publish();

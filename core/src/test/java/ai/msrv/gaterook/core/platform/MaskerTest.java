@@ -459,6 +459,30 @@ class MaskerTest {
   }
 
   @Test
+  void nearbyAndDistantCredentialsAreMaskedWithoutChangingTheirContext() {
+    String noise = "ordinary log context ".repeat(500);
+    String input = "postgres://app:first-password@db/app DB_PASSWORD=second-password "
+        + "token=abcdefghijklmnopqrstuvwxyz012345 " + noise + "PGPASSWORD=third-password";
+
+    Masker.MaskedText masked = masker.text(input, new Taint(), MaskPolicy.SECRETS_ONLY);
+
+    assertThat(masked.text()).isEqualTo("postgres://app:‹masked›@db/app DB_PASSWORD=‹masked› "
+        + "token=‹masked› " + noise + "PGPASSWORD=‹masked›");
+    assertThat(masked.outcome().byRule()).containsKeys("url-credentials", "kv-password", "bearer-token");
+  }
+
+  @Test
+  void storedSecretsWithUnicodePrefixesStillMatchExactly() {
+    Taint taint = new Taint();
+    taint.add("aĀsecret-tail");
+    taint.add("éΔsecret-tail");
+
+    // '@' and 'Ā' collide in the fast prefix filter; only the real secret may be masked.
+    assertThat(masker.text("a@secret-tail aĀsecret-tail éΔsecret-tail a", taint, MaskPolicy.SECRETS_ONLY).text())
+        .isEqualTo("a@secret-tail ‹masked› ‹masked› a");
+  }
+
+  @Test
   void aStoredSecretIsMaskedInHexAtEveryBase64AlignmentAndInEitherCase() {
     String secret = "Sup3r$ecretP@ss!";
     Taint taint = new Taint();

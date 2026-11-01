@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import tools.jackson.databind.node.ObjectNode;
 
 class SshLogPrefilterTest {
@@ -29,6 +31,7 @@ class SshLogPrefilterTest {
   }
 
   @Test
+  @DisabledOnOs(value = OS.WINDOWS, disabledReason = "Executes POSIX utilities locally to model the SSH server")
   void filtersTimeAndTailQueriesWhileLocalParsingStillChecksTheirPredicates() throws Exception {
     var timed = args("ERROR", false, true).put("from", "-1h").put("tail", true);
     String expression = SshLogPrefilter.grepExpression(parse(timed), context(MARKER)).orElseThrow();
@@ -38,6 +41,7 @@ class SshLogPrefilterTest {
   }
 
   @Test
+  @DisabledOnOs(value = OS.WINDOWS, disabledReason = "Executes POSIX utilities locally to model the SSH server")
   void levelOnlySearchIncludesEveryAliasRegardlessOfContentCaseSensitivity() throws Exception {
     var args = TestConfigs.JSON.createObjectNode().put("file", "app.log").put("tail", true)
         .put("from", "-1h").put("caseSensitive", true);
@@ -51,6 +55,7 @@ class SshLogPrefilterTest {
   }
 
   @Test
+  @DisabledOnOs(value = OS.WINDOWS, disabledReason = "Executes POSIX utilities locally to model the SSH server")
   void unsupportedOrMaskSensitiveContentCanUseAnIndependentSafeSeverityFilter() throws Exception {
     for (String content : List.of("ERR.*", "masked")) {
       var args = args(content, true, true);
@@ -62,6 +67,7 @@ class SshLogPrefilterTest {
   }
 
   @Test
+  @DisabledOnOs(value = OS.WINDOWS, disabledReason = "Executes POSIX utilities locally to model the SSH server")
   void literalMetacharactersRemainLiteralAndCaseFoldingUsesAsciiClasses() throws Exception {
     String expression = prefilter("$(touch sample); [ERROR].*", false, true, MARKER).orElseThrow();
     assertThat(grep(expression, List.of("$(touch sample); [ERROR].*", "touch sample ERROR")))
@@ -72,6 +78,7 @@ class SshLogPrefilterTest {
   }
 
   @Test
+  @DisabledOnOs(value = OS.WINDOWS, disabledReason = "Executes POSIX utilities locally to model the SSH server")
   void retainsNormalizationCandidatesWithoutTransferringLongUnrelatedRecords() throws Exception {
     String expression = prefilter("ERROR", false, true, MARKER).orElseThrow();
     List<String> special = List.of(" {\"message\":\"\\u0045RROR\"}", "control\0line", "unicode échec",
@@ -92,6 +99,7 @@ class SshLogPrefilterTest {
   }
 
   @Test
+  @DisabledOnOs(value = OS.WINDOWS, disabledReason = "Executes POSIX utilities locally to model the SSH server")
   void matchingStillNeedsTheLocalMaskedFilter() throws Exception {
     var query = query("hidden-value", false, true);
     String expression = SshLogPrefilter.grepExpression(query, context(MARKER)).orElseThrow();

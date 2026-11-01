@@ -156,7 +156,7 @@ class ConfigEditorsGoldenTest {
     ClientEnvironment elsewhere = new ClientEnvironment(Os.LINUX, Path.of("/home/me"), Path.of("/data/gw home"), null,
         Map.of(), true, "laptop");
     assertThat(elsewhere.helperCommand("headers", "--endpoint", "dev")).isEqualTo(
-        "'/data/gw home/bin/gw-bridge' headers --endpoint dev");
+        "'" + elsewhere.shim() + "' headers --endpoint dev");
     ClientEnvironment windows = new ClientEnvironment(Os.WINDOWS, Path.of("C:\\Users\\me"),
         Path.of("C:\\Users\\me").resolve(".gaterook"), null, Map.of(), false, "LAPTOP.corp");
     String helper = windows.helperCommand("headers", "--endpoint", "dev", "--grant", "gr_cx7q2lmaabcd");
@@ -232,6 +232,9 @@ class ConfigEditorsGoldenTest {
   }
 
   private static void golden(String name, String actual) throws IOException {
+    // The fixture has a fixed Unix path; JSON escaping of the host's actual path is still checked.
+    actual = actual.replace(ClientAdapter.JSON.writeValueAsString(ENV.shim().toString()),
+        "\"/home/me/.gaterook/bin/gw-bridge\"");
     if (Boolean.getBoolean("golden.update")) {
       Files.writeString(SOURCE.resolve(name), actual, StandardCharsets.UTF_8);
       return;

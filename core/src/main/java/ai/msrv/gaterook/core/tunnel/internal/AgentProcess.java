@@ -78,7 +78,10 @@ public final class AgentProcess {
       env.putAll(secretEnv);
       Process p = pb.start();
       try {
-        Files.writeString(pidFile, p.pid() + "\n" + marker + "\n", StandardCharsets.UTF_8);
+        ProcessHandle.Info identity = p.info();
+        long started = identity.startInstant().map(java.time.Instant::toEpochMilli).orElse(0L);
+        Files.writeString(pidFile, p.pid() + "\n" + marker + "\n" + started + "\n"
+            + identity.command().orElse("") + "\n", StandardCharsets.UTF_8);
       } catch (IOException e) {
         // Without its pid file the next start of the core couldn't find it: it doesn't outlive this failure.
         destroyTree(p.toHandle());
@@ -102,7 +105,8 @@ public final class AgentProcess {
   }
 
   /**
-   * Kills the agent a crashed core left behind: the pid of the file, if that process still runs our command line.
+   * Kills an agent left by a crashed core after checking its command marker or its recorded process identity.
+   * Windows does not expose arguments through ProcessHandle, so it requires both start time and executable.
    * Called once at start, before anything publishes.
    */
   public static void killOrphan(Path pidFile) {
@@ -121,10 +125,19 @@ public final class AgentProcess {
       if (handle.isEmpty() || !handle.get().isAlive()) {
         return;
       }
-      String[] args = handle.get().info().arguments().orElse(new String[0]);
+      ProcessHandle.Info identity = handle.get().info();
+      String[] args = identity.arguments().orElse(new String[0]);
       boolean ours = false;
       for (String a : args) {
         ours |= a.equals(marker);
+      }
+      if (lines.size() >= 4) {
+        long started = Long.parseLong(lines.get(2));
+        boolean sameStart = started > 0
+            && identity.startInstant().map(java.time.Instant::toEpochMilli).orElse(0L) == started;
+        boolean sameCommand = !lines.get(3).isEmpty() && identity.command().orElse("").equals(lines.get(3));
+        // A Unix launcher may exec its agent, changing the executable without changing the process identity.
+        ours = sameStart && (ours || (identity.arguments().isEmpty() && sameCommand));
       }
       if (ours) {
         log.warn("Stopping tunnel agent {} left from the previous run", pid);

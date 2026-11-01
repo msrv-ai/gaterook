@@ -78,6 +78,8 @@ export interface GatewayEvents {
   'ui.open': { readonly path?: string };
   'plugin.state': { readonly id: string; readonly state: string; readonly [key: string]: unknown };
   'mcp-server.state': { readonly name: string; readonly state: string; readonly [key: string]: unknown };
+  /** A sign-in in the browser changed (`id`), or a stored server's sign-in did (`server`, `needs-sign-in`). */
+  'mcp-server.sign-in': { readonly id?: string; readonly server: string; readonly state: string; readonly message?: string };
   'clients.drift': { readonly client: string; readonly [key: string]: unknown };
 }
 

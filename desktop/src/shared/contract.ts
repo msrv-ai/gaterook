@@ -100,6 +100,7 @@ export const IPC = {
   choosePrivateKeyFile: 'gw:choose-private-key-file',
   signInToGoogle: 'gw:sign-in-to-google',
   openMcpb: 'gw:open-mcpb',
+  openMcpSignIn: 'gw:open-mcp-sign-in',
   openClientConfig: 'gw:open-client-config',
   reveal: 'gw:reveal',
   applyGeneral: 'gw:apply-general',

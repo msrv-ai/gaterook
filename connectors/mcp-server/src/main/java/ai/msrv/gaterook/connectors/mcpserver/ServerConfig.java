@@ -14,17 +14,22 @@ import tools.jackson.databind.JsonNode;
  * of variables and headers are never here: a binding names the secret field ({@code /env/0/secretRef}) the value is
  * resolved from when the process starts.
  *
- * @param secretField the JSON pointer of the binding's secret, or {@code null} when the binding has none stored
+ * @param auth the HTTP server's sign-in settings as canonical JSON ({@code {"type":"oauth",…}}), or {@code null}: the
+ *             tokens are the core's ({@link ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime.Authorization}),
+ *             these are only what the person chose
  */
 record ServerConfig(String name, String transport, List<String> command, String url, List<Binding> env,
     List<Binding> headers, List<String> inheritEnv, boolean startWithCore, Duration idleStop, Duration startTimeout,
-    Duration callTimeout, int maxInFlight, String catalogEntry, String toolPrefix) {
+    Duration callTimeout, int maxInFlight, String catalogEntry, String toolPrefix, String auth) {
 
   static final String STDIO = "stdio";
   static final String HTTP = "http";
 
   /** A variable (stdio) or header (HTTP) whose value comes from a secret. */
   record Binding(String name, String secretField) {}
+
+  /** {@code auth.type} of a server the person signs in to in the browser (OAuth 2.1, ARCHITECTURE.md §7.5). */
+  static final String OAUTH = "oauth";
 
   private static final Pattern PREFIX = Pattern.compile("^[a-z][a-z0-9]{0,14}_$");
 
@@ -48,16 +53,23 @@ record ServerConfig(String name, String transport, List<String> command, String 
       }
     }
     String prefix = Texts.str(c.path("toolPrefix"), null);
+    JsonNode auth = c.path("auth");
     return new ServerConfig(cfg.name(), transport, List.copyOf(command), Texts.str(c.path("url"), null),
         bindings(cfg, "env"), bindings(cfg, "headers"), List.copyOf(inherit),
         "with-core".equals(Texts.str(c.path("start"), null)), Duration.ofMinutes(Math.max(0, idle)),
         Duration.ofSeconds(Math.clamp(start, 5, 300)), Duration.ofSeconds(Math.clamp(call, 1, 300)),
         Math.clamp(c.path("maxInFlight").asInt(4), 1, 16), Texts.str(c.path("catalogEntry"), null),
-        prefix != null && PREFIX.matcher(prefix).matches() ? prefix : defaultPrefix(cfg.name()));
+        prefix != null && PREFIX.matcher(prefix).matches() ? prefix : defaultPrefix(cfg.name()),
+        HTTP.equals(transport) && auth.isObject() ? Texts.JSON.writeValueAsString(Texts.canonical(auth)) : null);
   }
 
   boolean http() {
     return HTTP.equals(transport);
+  }
+
+  /** Whether the person signs in to this HTTP server in the browser, so each request carries the core's token. */
+  boolean oauth() {
+    return auth != null && OAUTH.equals(Texts.str(Texts.JSON.readTree(auth).path("type"), null));
   }
 
   /**

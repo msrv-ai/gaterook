@@ -12,6 +12,8 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.JsonNodeFactory;
@@ -22,6 +24,7 @@ import tools.jackson.databind.node.JsonNodeFactory;
  * quoted words are written into a script file (no argv encoding in between), the script prints each word followed by
  * NUL, and the output must split back into exactly the values.
  */
+@DisabledOnOs(value = OS.WINDOWS, disabledReason = "Executes POSIX utilities locally to model the SSH server")
 class ShellQuoteTest {
 
   /** What breaks naive quoting: quotes, expansions, separators, globs, comments, escapes and non-ASCII. */

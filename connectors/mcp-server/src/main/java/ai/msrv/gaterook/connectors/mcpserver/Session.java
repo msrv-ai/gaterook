@@ -7,6 +7,7 @@ import ai.msrv.gaterook.connector.api.SecretResolver;
 import ai.msrv.gaterook.connectors.support.BuiltIn;
 import ai.msrv.gaterook.connectors.support.egress.GuardedEgress;
 import ai.msrv.gaterook.connectors.support.egress.UrlRules;
+import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
 import io.modelcontextprotocol.client.McpAsyncClient;
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.json.McpJsonMapper;
@@ -52,11 +53,18 @@ final class Session {
   /**
    * What a start needs.
    *
-   * @param toolPrefix   the prefix the server's tools are published under
-   * @param npmIntegrity the integrity a catalog server's installed package must have, or {@code null}
+   * @param toolPrefix    the prefix the server's tools are published under
+   * @param npmIntegrity  the integrity a catalog server's installed package must have, or {@code null}
+   * @param authorization the core's sign-in for every request of an HTTP session, or {@code null}
    */
   record Request(ConnectionConfig cfg, ServerConfig server, String toolPrefix, String npmIntegrity,
-      SecretResolver secrets, ExecContext ctx) {}
+      SecretResolver secrets, ExecContext ctx, McpServerRuntime.Authorization authorization) {
+
+    Request(ConnectionConfig cfg, ServerConfig server, String toolPrefix, String npmIntegrity, SecretResolver secrets,
+        ExecContext ctx) {
+      this(cfg, server, toolPrefix, npmIntegrity, secrets, ctx, null);
+    }
+  }
 
   final String connectionId;
   final long configVersion;
@@ -147,8 +155,12 @@ final class Session {
       URI url = checkUrl(server.url());
       GuardedEgress guarded = GuardedEgress.of(r.ctx()).orElseThrow(() -> ConnectorException.unavailable(
           "This call has no network access of the gateway's egress guard.", null));
+      if (server.oauth() && r.authorization() == null) {
+        throw ConnectorException.unavailable(server.name() + " isn't signed in.", new McpServerRuntime.SignInRequired(
+            server.name() + " isn't signed in. Sign in to it in GateRook › Connectors › MCP servers."));
+      }
       http = new GatewayHttpTransport(url, guarded.client(), values, MAPPER, MAX_MESSAGE,
-          server.callTimeout().plusSeconds(5), server.name());
+          server.callTimeout().plusSeconds(5), server.name(), server.oauth() ? r.authorization() : null);
       transport = http;
     } else {
       prepare(workDir);
@@ -334,6 +346,11 @@ final class Session {
   }
 
   static ConnectorException translate(RuntimeException e, Duration budget, String what) {
+    McpServerRuntime.SignInRequired signIn = McpServerRuntime.SignInRequired.in(e);
+    if (signIn != null) {
+      // Nothing reached the server: the message says where to sign in.
+      return ConnectorException.unavailable(signIn.getMessage(), signIn);
+    }
     for (Throwable t = e; t != null; t = t.getCause()) {
       if (t instanceof Ended ended) {
         return ConnectorException.unavailable(ended.getMessage(), e);

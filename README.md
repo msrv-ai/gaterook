@@ -2,6 +2,11 @@
 
 GateRook is a desktop MCP gateway that gives AI clients scoped access to databases, logs, APIs, and cloud services. Credentials stay in the gateway; changes require review by default. An explicit per-tool Bypass mode runs calls without approval while retaining policy limits.
 
+[![Download for macOS (Apple Silicon)](https://img.shields.io/badge/Download_for_macOS-Apple_Silicon-6C56EE?style=for-the-badge)](https://github.com/msrv-ai/gaterook/releases/latest)
+[![Get GateRook for Windows from Microsoft Store](https://img.shields.io/badge/Windows-Microsoft_Store-6C56EE?style=for-the-badge)](https://apps.microsoft.com/detail/9ncv7wxz9wsv)
+
+For macOS, download the `.dmg` installer from the latest release. Windows installs and updates through Microsoft Store.
+
 On DEV and STAGE, you can temporarily bypass approval for a method on one connection and endpoint for 15 or 30 minutes, or 1, 3, 12, or 24 hours. Open **Temporary bypass** in an approval review or the endpoint's tool list. The original mode returns automatically at expiry, and you can end the bypass early. Existing pending requests still need a separate decision.
 
 [Website](https://msrv.dev) · [Issues](https://github.com/msrv-ai/gaterook/issues) · [Architecture](docs/ARCHITECTURE.md) · [Research](docs/research/README.md) · [Design kit](design/README.md)
@@ -11,6 +16,8 @@ On DEV and STAGE, you can temporarily bypass approval for a method on one connec
 Connect your services to GateRook, then choose which connections and tools each AI app can use. GateRook sits between your services and AI apps, keeps credentials local, and applies your access rules to tool calls.
 
 For HTTP APIs, [import an OpenAPI file or prepare one with your AI app](docs/http-api-import.md). Review the server, authentication, and selected operations before saving them as MCP tools.
+
+To put an MCP server you already use behind GateRook, [add it by its URL or paste its configuration](docs/mcp-servers.md) as in Claude Desktop, Cursor or Codex. When it asks for a sign-in, you sign in in your browser, but the sign-in goes to GateRook, not the AI app. GateRook keeps it encrypted, renews it, and never hands it to an agent.
 
 Log queries have no maximum time range by default in any environment. To set one, open **Policies → Logs → Longest time range** and enter the number of hours; `0` means no time limit. Existing explicit limits remain in effect. Line counts, response sizes, and request deadlines still apply.
 
@@ -87,6 +94,7 @@ For the full connector integration suite, follow [the Docker test-services guide
 | [Product decisions](docs/DECISIONS.md) | Accepted product and engineering decisions, with implementation caveats |
 | [Research](docs/research/README.md) | Protocol, client, connector, security, native-image, and plugin-host investigations |
 | [Development](docs/development.md) | Toolchains, build/run commands, tests, native builds, and troubleshooting |
+| [External MCP servers](docs/mcp-servers.md) | Adding servers by URL or pasted configuration, OAuth sign-in, your own OAuth app, and troubleshooting |
 | [Oracle Database](docs/oracle.md) | Service connections, TLS, schema access, queries and Oracle-specific limits |
 | [SQL Server](docs/sql-server.md) | SQL authentication, database selection, permissions, and T-SQL limits |
 | [GCP logs](docs/gcp-logs.md) | Logs Explorer filters, GKE logs, credentials, scopes, and endpoint access |

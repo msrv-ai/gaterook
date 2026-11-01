@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ai.msrv.gaterook.core.clients.ConfigEditException;
+import ai.msrv.gaterook.core.testing.TestFileLinks;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -38,20 +39,26 @@ class ConfigFileWriterTest {
   void writesOverTheBytesThePreviewReadAndBacksThemUp() throws IOException {
     Path file = dir.resolve("mcp.json");
     Files.writeString(file, "{}\n");
-    Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-r--r--"));
+    if (Files.getFileStore(file).supportsFileAttributeView("posix")) {
+      Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-r--r--"));
+    }
     ConfigFileWriter.Snapshot before = ConfigFileWriter.read(file);
     assertThat(before.sha256()).isEqualTo(ConfigFileWriter.sha256("{}\n"));
 
     ConfigFileWriter.Written w = writer(NOW).write(before, "{\"a\":1}\n", "cursor", false);
     assertThat(Files.readString(file)).isEqualTo("{\"a\":1}\n");
-    assertThat(mode(file)).as("no token: the original's permissions").isEqualTo("rw-r--r--");
+    if (Files.getFileStore(file).supportsFileAttributeView("posix")) {
+      assertThat(mode(file)).as("no token: the original's permissions").isEqualTo("rw-r--r--");
+    }
     assertThat(w.backup().getFileName().toString()).isEqualTo("mcp.json.bak-" + LocalDate.ofInstant(NOW,
         ZoneId.systemDefault()));
     assertThat(Files.readString(w.backup())).isEqualTo("{}\n");
-    assertThat(mode(w.backup())).isEqualTo("rw-r--r--");
-    assertThat(mode(dir.resolve("gateway/backups"))).isEqualTo("rwx------");
-    assertThat(mode(dir.resolve("gateway/backups/cursor"))).isEqualTo("rwx------");
-    assertThat(mode(w.appBackup())).isEqualTo("rw-------");
+    if (Files.getFileStore(file).supportsFileAttributeView("posix")) {
+      assertThat(mode(w.backup())).isEqualTo("rw-r--r--");
+      assertThat(mode(dir.resolve("gateway/backups"))).isEqualTo("rwx------");
+      assertThat(mode(dir.resolve("gateway/backups/cursor"))).isEqualTo("rwx------");
+      assertThat(mode(w.appBackup())).isEqualTo("rw-------");
+    }
     assertThat(Files.readString(w.appBackup())).isEqualTo("{}\n");
     assertThat(w.sha256()).isEqualTo(ConfigFileWriter.sha256("{\"a\":1}\n"));
     try (Stream<Path> s = Files.list(dir)) {
@@ -69,16 +76,22 @@ class ConfigFileWriterTest {
   void aTokenMakesTheFileAndItsDatedCopyOwnerOnly() throws IOException {
     Path file = dir.resolve("mcp.json");
     Files.writeString(file, "{}\n");
-    Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-rw-r--"));
+    if (Files.getFileStore(file).supportsFileAttributeView("posix")) {
+      Files.setPosixFilePermissions(file, PosixFilePermissions.fromString("rw-rw-r--"));
+    }
     String withToken = "{\"h\":\"Bearer gwt_" + "A".repeat(43) + "\"}\n";
     writer(NOW).write(ConfigFileWriter.read(file), withToken, "cursor", true);
-    assertThat(mode(file)).isEqualTo("rw-------");
+    if (Files.getFileStore(file).supportsFileAttributeView("posix")) {
+      assertThat(mode(file)).isEqualTo("rw-------");
+    }
     // The next copy holds the token: owner-only, whatever the original's mode was.
     ConfigFileWriter.Written next = writer(NOW.plusSeconds(1)).write(ConfigFileWriter.read(file), "{}\n", "cursor",
         false);
     assertThat(next.backup().getFileName().toString()).endsWith("-2");
-    assertThat(mode(next.backup())).isEqualTo("rw-------");
-    assertThat(mode(next.appBackup())).isEqualTo("rw-------");
+    if (Files.getFileStore(file).supportsFileAttributeView("posix")) {
+      assertThat(mode(next.backup())).isEqualTo("rw-------");
+      assertThat(mode(next.appBackup())).isEqualTo("rw-------");
+    }
   }
 
   @Test
@@ -90,18 +103,26 @@ class ConfigFileWriterTest {
     ConfigFileWriter.Written w = writer(NOW).write(missing, "x = 1\n", "codex", false);
     assertThat(w.backup()).isNull();
     assertThat(w.appBackup()).isNull();
-    assertThat(mode(file)).isEqualTo("rw-------");
+    if (Files.getFileStore(file).supportsFileAttributeView("posix")) {
+      assertThat(mode(file)).isEqualTo("rw-------");
+    }
   }
 
   @Test
   void aSymlinkIsFollowedToTheFileItNames() throws IOException {
     Path real = Files.createDirectories(dir.resolve("dotfiles")).resolve("mcp.json");
     Files.writeString(real, "{}\n");
-    Path link = Files.createSymbolicLink(dir.resolve("mcp.json"), real);
+    Path link = TestFileLinks.windows()
+        ? TestFileLinks.directoryLink(dir.resolve("linked"), real.getParent()).resolve("mcp.json")
+        : Files.createSymbolicLink(dir.resolve("mcp.json"), real);
     ConfigFileWriter.Snapshot s = ConfigFileWriter.read(link);
     assertThat(s.realPath()).isEqualTo(real.toRealPath());
     ConfigFileWriter.Written w = writer(NOW).write(s, "{\"b\":2}\n", "cursor", false);
-    assertThat(Files.isSymbolicLink(link)).as("the link stays a link").isTrue();
+    if (TestFileLinks.windows()) {
+      assertThat(Files.isSameFile(link.getParent(), real.getParent())).as("the junction stays intact").isTrue();
+    } else {
+      assertThat(Files.isSymbolicLink(link)).as("the link stays a link").isTrue();
+    }
     assertThat(Files.readString(real)).isEqualTo("{\"b\":2}\n");
     assertThat(w.backup().getParent()).isEqualTo(real.toRealPath().getParent());
   }

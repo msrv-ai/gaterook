@@ -145,6 +145,66 @@ export interface McpServerReview {
   readonly name?: string | null;
   readonly transport?: 'stdio' | 'http' | null;
   readonly url?: string | null;
+  /** Over HTTP: how the server wants clients to sign in, from one request to it without a sign-in. */
+  readonly auth?: McpServerAuthReview | null;
+}
+
+/**
+ * How a server at a URL wants clients to sign in (ARCHITECTURE.md §7.5): `oauth` (in the browser, GateRook keeps the
+ * tokens), `optional` (it answers without one too), `none`, `refused` (a key in a header, probably) or `unknown`.
+ */
+export interface McpServerAuthReview {
+  readonly kind: 'none' | 'oauth' | 'optional' | 'refused' | 'unknown';
+  readonly issuer?: string | null;
+  /** The host of the page the browser opens. */
+  readonly authorizationHost?: string | null;
+  readonly scope?: string | null;
+  /** `dynamic`: GateRook registers itself; `app`: the OAuth app the person named; `app-required`: they need one. */
+  readonly registration?: 'dynamic' | 'app' | 'app-required' | null;
+  /** The redirect URI to register for an OAuth app. */
+  readonly redirectUri?: string | null;
+  readonly message?: string | null;
+}
+
+/** What the person chose about the sign-in (`auth` of the server's config); its client secret travels in `secrets`. */
+export interface McpServerAuthConfig {
+  readonly type: 'oauth';
+  readonly clientId?: string;
+  readonly scopes?: string;
+  readonly callbackPort?: number;
+  readonly callbackHost?: '127.0.0.1' | 'localhost';
+  readonly callbackPath?: string;
+}
+
+/** A sign-in in progress in the person's browser. */
+export interface McpSignIn {
+  readonly id: string;
+  readonly state: 'waiting' | 'signed-in' | 'failed' | 'cancelled' | 'expired';
+  readonly server: string;
+  readonly issuer?: string | null;
+  readonly authorizationHost?: string | null;
+  /** Where the browser comes back to on this computer. */
+  readonly redirectUri?: string | null;
+  /** The page to open, while it waits: shown for copying where the app can't open it. */
+  readonly authorizationUrl?: string | null;
+  readonly expiresAt?: string | null;
+  readonly scope?: string | null;
+  readonly message?: string | null;
+}
+
+/** The sign-in of a stored server: GateRook renews it; `needs-sign-in` until the person signs in again. */
+export interface McpSignInStatus {
+  readonly server: string;
+  readonly state: 'signed-in' | 'needs-sign-in' | 'signed-out' | 'none';
+  readonly issuer?: string | null;
+  readonly scope?: string | null;
+  readonly expiresAt?: string | null;
+  readonly renewable?: boolean;
+  readonly signedInAt?: string | null;
+  readonly renewedAt?: string | null;
+  readonly message?: string | null;
+  readonly registered?: boolean;
+  readonly redirectUri?: string | null;
 }
 
 /**
@@ -167,11 +227,16 @@ export interface McpServerConfig {
   readonly url?: string;
   readonly env?: McpSecretBinding[];
   readonly headers?: McpSecretBinding[];
+  /** Over HTTP: sign in with OAuth in the browser. */
+  readonly auth?: McpServerAuthConfig;
 }
 
-/** A server typed in Add MCP server, or a signed catalog entry (`github-mcp@0.6.2`); `secrets` only to add it. */
+/**
+ * A server typed in Add MCP server, or a signed catalog entry (`github-mcp@0.6.2`); `secrets` only to add it, and
+ * `signIn` the finished sign-in of a server that signs in with OAuth.
+ */
 export type McpServerSource =
-  | { readonly config: McpServerConfig; readonly secrets?: SecretInputs }
+  | { readonly config: McpServerConfig; readonly secrets?: SecretInputs; readonly signIn?: string }
   | { readonly catalog: string; readonly secrets?: SecretInputs };
 
 /** What starting, restarting or adding a server answers: its tool count, before and after a restart. */
@@ -205,5 +270,36 @@ export class McpServersApi {
 
   delete(name: string, body: WithReason = {}): Promise<void> {
     return this.api.delete(ApiClient.path`/api/mcp-servers/${name}`, body);
+  }
+
+  /** Starts a sign-in to the server under review (its config with `auth.type: "oauth"`). */
+  startSignIn(source: { readonly config: McpServerConfig; readonly secrets?: SecretInputs }): Promise<McpSignIn> {
+    return this.api.post('/api/mcp-sign-ins', source);
+  }
+
+  signIn(id: string): Promise<McpSignIn> {
+    return this.api.get(ApiClient.path`/api/mcp-sign-ins/${id}`);
+  }
+
+  /** The address the browser ended on, when the redirect couldn't reach GateRook by itself. */
+  finishSignIn(id: string, address: string): Promise<McpSignIn> {
+    return this.api.post(ApiClient.path`/api/mcp-sign-ins/${id}/address`, { address });
+  }
+
+  cancelSignIn(id: string): Promise<void> {
+    return this.api.delete(ApiClient.path`/api/mcp-sign-ins/${id}`);
+  }
+
+  signInStatus(name: string): Promise<McpSignInStatus> {
+    return this.api.get(ApiClient.path`/api/mcp-servers/${name}/sign-in`);
+  }
+
+  /** Signs in to a stored server again: the new tokens replace the old ones once the browser comes back. */
+  signInAgain(name: string): Promise<McpSignIn> {
+    return this.api.post(ApiClient.path`/api/mcp-servers/${name}/sign-in`);
+  }
+
+  signOut(name: string, body: WithReason = {}): Promise<McpSignInStatus> {
+    return this.api.post(ApiClient.path`/api/mcp-servers/${name}/sign-out`, body);
   }
 }

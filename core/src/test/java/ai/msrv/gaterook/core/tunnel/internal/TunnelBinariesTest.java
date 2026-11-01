@@ -126,7 +126,9 @@ class TunnelBinariesTest {
     Path file = binaries.cloudflared();
     assertThat(file).isEqualTo(home.resolve("bin/cloudflared/2026.10.0/cloudflared"));
     assertThat(Files.readAllBytes(file)).isEqualTo(agent);
-    assertThat(Files.getPosixFilePermissions(file)).isEqualTo(PosixFilePermissions.fromString("rwx------"));
+    if (Files.getFileStore(file).supportsFileAttributeView("posix")) {
+      assertThat(Files.getPosixFilePermissions(file)).isEqualTo(PosixFilePermissions.fromString("rwx------"));
+    }
     assertThat(binaries.cloudflared()).isEqualTo(file);
     assertThat(server.getRequestCount()).isEqualTo(1);
   }

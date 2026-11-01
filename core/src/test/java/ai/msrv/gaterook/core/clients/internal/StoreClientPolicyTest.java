@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import ai.msrv.gaterook.core.clients.internal.persistence.ClientKind;
 import ai.msrv.gaterook.core.clients.internal.persistence.LinkMethod;
 import ai.msrv.gaterook.core.platform.ProblemException;
+import ai.msrv.gaterook.core.testing.TestFileLinks;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -58,21 +59,23 @@ class StoreClientPolicyTest {
   @Test
   void resolvesExistingAncestorsAndFilesBeforeAcceptingMissingTargets() throws IOException {
     Path appData = Files.createDirectories(home.resolve("AppData/Roaming"));
-    Path linked = Files.createSymbolicLink(home.resolve(".codex"), appData);
+    Path linked = TestFileLinks.directoryLink(home.resolve(".codex"), appData);
     StoreClientPolicy policy = new StoreClientPolicy(environment(true, Map.of()));
     assertThatThrownBy(() -> policy.path(linked.resolve("new/nested/config.toml")))
         .isInstanceOf(ProblemException.class).hasMessageContaining("AppData");
     Path target = Files.writeString(appData.resolve("mcp.json"), "{}");
-    Path file = Files.createSymbolicLink(home.resolve("client.json"), target);
+    Path file = TestFileLinks.windows()
+        ? TestFileLinks.directoryLink(home.resolve("client"), appData).resolve("mcp.json")
+        : Files.createSymbolicLink(home.resolve("client.json"), target);
     assertThatThrownBy(() -> policy.path(file)).isInstanceOf(ProblemException.class);
-    Path broken = Files.createSymbolicLink(home.resolve("broken"), home.resolve("missing"));
+    Path broken = TestFileLinks.directoryLink(home.resolve("broken"), home.resolve("missing"));
     assertThatThrownBy(() -> policy.path(broken.resolve("file"))).isInstanceOf(ProblemException.class);
   }
 
   @Test
   void rejectsAGatewayHomeRedirectedIntoAppData() throws IOException {
     Path target = Files.createDirectories(home.resolve("AppData/GateRook"));
-    Files.createSymbolicLink(home.resolve(".gaterook"), target);
+    TestFileLinks.directoryLink(home.resolve(".gaterook"), target);
     assertThatThrownBy(() -> new StoreClientPolicy(environment(true, Map.of())).runtime())
         .isInstanceOf(ProblemException.class);
   }
@@ -85,7 +88,7 @@ class StoreClientPolicyTest {
     Path moved = Files.move(original, home.resolve("original"));
     Path target = Files.createDirectories(home.resolve("AppData/Cursor"));
     Files.writeString(target.resolve("mcp.json"), "{}");
-    Files.createSymbolicLink(original, target);
+    TestFileLinks.directoryLink(original, target);
     var env = environment(true, Map.of());
     var writer = new ConfigFileWriter(env.backups(), Clock.systemUTC(), new StoreClientPolicy(env)::path);
     assertThatThrownBy(() -> writer.write(snapshot, "changed", "cursor", true))

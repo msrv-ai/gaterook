@@ -68,7 +68,7 @@ class HostLauncherTest {
     assertThat(pairs(rules, "--ro")).contains(Path.of(System.getProperty("java.home")).toRealPath().toString(),
         hostJar.toRealPath().toString(), jar.getParent().toRealPath().toString());
     assertThat(pairs(rules, "--rw")).contains(data.toRealPath().toString())
-        .allMatch(p -> p.endsWith("plugin-data/jira-service-desk"));
+        .allMatch(p -> Path.of(p).endsWith(Path.of("plugin-data", "jira-service-desk")));
     // What it execs is the host itself, on the same JRE.
     List<String> host = argv.subList(split + 1, argv.size());
     assertThat(host.getFirst()).isEqualTo(java.toAbsolutePath().toString());
@@ -103,14 +103,18 @@ class HostLauncherTest {
     assertThat(deny).isPositive();
     assertThat(allow).isGreaterThan(deny);
     String denied = profile.substring(deny, allow);
-    assertThat(denied).contains("(subpath \"" + gatewayPaths.home().toRealPath() + "\")");
+    assertThat(denied).contains("(subpath \"" + profilePath(gatewayPaths.home().toRealPath()) + "\")");
     for (String p : List.of(".ssh", ".aws", ".kube", ".cursor", ".codex", ".gemini",
         "Library/Application Support/Claude")) {
-      assertThat(denied).contains("(subpath \"" + user + "/" + p + "\")");
+      assertThat(denied).contains("(subpath \"" + profilePath(Path.of(user).resolve(p)) + "\")");
     }
     // Inside the denied home: the plugin's data folder to write, its version folder to read.
-    assertThat(profile.substring(allow)).contains(paths.dataDir("jira-service-desk").toRealPath().toString(),
-        jar.getParent().toRealPath().toString());
+    assertThat(profile.substring(allow)).contains(profilePath(paths.dataDir("jira-service-desk").toRealPath()),
+        profilePath(jar.getParent().toRealPath()));
+  }
+
+  private static String profilePath(Path path) {
+    return path.toString().replace("\\", "\\\\").replace("\"", "\\\"");
   }
 
   private static List<String> pairs(List<String> args, String flag) {

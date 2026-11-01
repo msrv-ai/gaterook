@@ -163,8 +163,8 @@ public final class Taint {
       return false;
     }
     Index current = index;
-    for (int i = 0, n = text.length(); i < n; i++) {
-      char[][] candidates = current.startingWith(text.charAt(i));
+    for (int i = 0, n = text.length(); i + 1 < n; i++) {
+      char[][] candidates = current.startingWith(text.charAt(i), text.charAt(i + 1));
       if (candidates == null) {
         continue;
       }
@@ -258,6 +258,9 @@ public final class Taint {
 
     final char[][] sorted;
     private final char[][][] ascii = new char[128][][];
+    // A lossy second-character filter rejects common log prefixes without comparing every encoded secret form.
+    // Collisions only cause extra comparisons; the original character arrays still decide every match.
+    private final long[] second = new long[128];
     private final Map<Character, char[][]> other = new HashMap<>();
 
     Index(char[][] sorted) {
@@ -270,14 +273,18 @@ public final class Taint {
         char[][] candidates = list.toArray(new char[0][]);
         if (first < 128) {
           ascii[first] = candidates;
+          for (char[] form : candidates) second[first] |= 1L << form[1];
         } else {
           other.put(first, candidates);
         }
       });
     }
 
-    char[][] startingWith(char c) {
-      return c < 128 ? ascii[c] : other.isEmpty() ? null : other.get(c);
+    char[][] startingWith(char first, char next) {
+      if (first < 128) {
+        return (second[first] & (1L << next)) == 0 ? null : ascii[first];
+      }
+      return other.isEmpty() ? null : other.get(first);
     }
   }
 

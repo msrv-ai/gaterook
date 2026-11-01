@@ -1,4 +1,4 @@
-import { CatalogEntry, CatalogIndex } from '../../core/api/plugins.api';
+import { CatalogEntry, CatalogIndex, McpSignInStatus } from '../../core/api/plugins.api';
 import { ConnectionDetail, ConnectionRow } from '../../core/api/connections.api';
 import { ConnectorProcess, InstalledConnector } from '../../core/api/connector-types.api';
 import { EndpointSummary, ToolGroup } from '../../core/api/endpoints.api';
@@ -488,6 +488,10 @@ export interface McpServerView {
   readonly idleStopMinutes: number | null;
   readonly toolPrefix: string;
   readonly verified: boolean;
+  /** It signs in with OAuth in the browser (`auth.type: "oauth"` over HTTP). */
+  readonly oauth: boolean;
+  /** Its sign-in as the core keeps it, or null before it loaded (or for a server without one). */
+  readonly signIn: McpSignInStatus | null;
 }
 
 /** `github-mcp` → `github_` (the connector's default: the name up to its first `-`, lowercase letters and digits). */
@@ -574,6 +578,7 @@ export function mcpServerView(
   toolsSnapshot: number | null,
   liveState: string | null,
   catalog: CatalogIndex | null,
+  signIn: McpSignInStatus | null = null,
 ): McpServerView {
   const config: JsonObject = detail?.config ?? {};
   const transport = config['transport'] === 'http' ? 'http' : 'stdio';
@@ -611,7 +616,33 @@ export function mcpServerView(
     idleStopMinutes: typeof idle === 'number' ? idle : 15,
     toolPrefix: prefix,
     verified: row.verified && (detail?.verified ?? true),
+    oauth: transport === 'http' && typeof config['auth'] === 'object' && config['auth'] !== null && (config['auth'] as JsonObject)['type'] === 'oauth',
+    signIn,
   };
+}
+
+/** The sign-in of a server in words for its row: "Signed in at mcp.linear.app", "Needs sign-in". */
+export function signInText(s: McpServerView): { readonly tone: 'success' | 'warning' | 'neutral'; readonly text: string } | null {
+  if (!s.oauth) return null;
+  const at = s.signIn?.issuer ? ` at ${hostOf(s.signIn.issuer)}` : '';
+  switch (s.signIn?.state) {
+    case 'signed-in':
+      return { tone: 'success', text: `Signed in${at}` };
+    case 'needs-sign-in':
+      return { tone: 'warning', text: 'Needs sign-in' };
+    case 'signed-out':
+      return { tone: 'neutral', text: 'Signed out' };
+    default:
+      return null;
+  }
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
 }
 
 /** The Status column of MCP servers and the link on its Installed card: "Running", "Sleeping", "Not started yet". */

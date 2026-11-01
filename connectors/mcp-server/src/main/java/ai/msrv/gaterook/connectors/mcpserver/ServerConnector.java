@@ -189,6 +189,12 @@ final class ServerConnector implements Connector {
     for (String v : s.secretValues) {
       ctx.taint(v);
     }
+    if (s.http != null && s.http.authorization() != null) {
+      // So do the tokens of its sign-in, which the core renews while the session lives.
+      for (String v : s.http.authorization().secrets()) {
+        ctx.taint(v);
+      }
+    }
     McpSchema.Tool live = null;
     for (McpSchema.Tool t : s.tools) {
       if (original.equals(t.name())) {
@@ -224,6 +230,11 @@ final class ServerConnector implements Connector {
   /** What a failed call tells the agent: a server's own error is data; a lost process may have done it. */
   private ConnectorException callFailed(ConnectorException e, Session s, boolean read, String original,
       Duration budget) {
+    McpServerRuntime.SignInRequired signIn = McpServerRuntime.SignInRequired.in(e);
+    if (signIn != null) {
+      // The server refused the token before it read the call, or no token went at all.
+      return ConnectorException.unavailable(signIn.getMessage() + " " + original + " didn't run.", signIn);
+    }
     Throwable cause = e.getCause();
     for (Throwable t = cause; t != null; t = t.getCause()) {
       if (t instanceof McpTransportSessionNotFoundException) {

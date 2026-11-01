@@ -1,6 +1,7 @@
 package ai.msrv.gaterook.core.secrets.internal.crypto;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.google.crypto.tink.KeysetHandle;
 import java.nio.file.Files;
@@ -28,12 +29,12 @@ class KeysetFileTest {
   void writesOwnerReadOnlyAndReplacesAReadOnlyFile() throws Exception {
     KeysetHandle first = Keysets.generate();
     file.write(first, null);
-    assertThat(file.mode()).isEqualTo("0400");
+    assertThat(file.mode()).isEqualTo(Files.getFileStore(dir).supportsFileAttributeView("posix") ? "0400" : null);
     assertThat(file.problems()).isEmpty();
 
     KeysetHandle second = Keysets.withNewPrimary(first);
     file.write(second, null);
-    assertThat(file.mode()).isEqualTo("0400");
+    assertThat(file.mode()).isEqualTo(Files.getFileStore(dir).supportsFileAttributeView("posix") ? "0400" : null);
     KeysetFile.Loaded loaded = file.load(null);
     assertThat(loaded.state()).isEqualTo(KeysetFile.State.LOADED);
     assertThat(loaded.handle().size()).isEqualTo(2);
@@ -44,6 +45,7 @@ class KeysetFileTest {
 
   @Test
   void reportsWidePermissionsAndFixesThem() throws Exception {
+    assumeTrue(Files.getFileStore(dir).supportsFileAttributeView("posix"), "Requires POSIX permission bits");
     file.write(Keysets.generate(), null);
     Files.setPosixFilePermissions(file.path(), PosixFilePermissions.fromString("rw-r--r--"));
     assertThat(file.mode()).isEqualTo("0644");

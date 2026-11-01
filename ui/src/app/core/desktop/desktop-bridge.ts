@@ -105,6 +105,11 @@ export interface GwDesktop {
   /** Runs the fixed Google ADC sign-in flow in main; no command, token or credential crosses IPC. */
   signInToGoogle(): Promise<void>;
   openMcpb(linkId: string): Promise<void>;
+  /**
+   * Opens the authorization page of an MCP server's sign-in in the browser; main asks the core for it by the sign-in's
+   * id, so no URL crosses IPC.
+   */
+  openMcpSignIn?(id: string): Promise<void>;
   /** Opens an MCP client's config file in the default editor; main resolves the path from the client id itself. */
   openClientConfig(client: string): Promise<void>;
   revealInFolder(kind: 'backups' | 'logs'): Promise<void>;
@@ -207,6 +212,16 @@ export class DesktopBridge {
 
   async openMcpb(linkId: string): Promise<void> {
     await this.desktop?.openMcpb(linkId);
+  }
+
+  /** Whether the desktop opens a sign-in page itself; in a browser the person opens the link shown. */
+  get opensSignIns(): boolean {
+    return typeof this.desktop?.openMcpSignIn === 'function';
+  }
+
+  async openMcpSignIn(id: string): Promise<void> {
+    if (!this.desktop?.openMcpSignIn) throw new Error('Open the sign-in link in your browser.');
+    await this.desktop.openMcpSignIn(id);
   }
 
   async revealInFolder(kind: 'backups' | 'logs'): Promise<void> {

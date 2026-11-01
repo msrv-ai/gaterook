@@ -48,7 +48,7 @@ class McpbBuilderTest {
         .containsExactly("${__dirname}/server/gw-bridge.mjs", "stdio", "--endpoint", "incident-prod", "--grant",
             "gr_cx7q2lmaabcd", "--client", "claude-desktop");
     assertThat(m.path("server").path("mcp_config").path("env").path("GW_BROKER").asString())
-        .isEqualTo("/home/u/.gaterook/run/broker.json");
+        .isEqualTo(spec(Env.PROD).brokerInfo().toString());
     assertThat(m.path("tools").get(1).path("description").asString()).as("a tool without one gets its name")
         .isEqualTo("sql_execute");
     assertThat(m.path("compatibility").path("platforms").get(0).asString()).isEqualTo("darwin");
@@ -65,7 +65,9 @@ class McpbBuilderTest {
     McpbBuilder.write(a, spec(Env.PROD));
     McpbBuilder.write(b, spec(Env.PROD));
     assertThat(Files.readAllBytes(a)).as("reproducible").isEqualTo(Files.readAllBytes(b));
-    assertThat(PosixFilePermissions.toString(Files.getPosixFilePermissions(a))).isEqualTo("rw-------");
+    if (Files.getFileStore(a).supportsFileAttributeView("posix")) {
+      assertThat(PosixFilePermissions.toString(Files.getPosixFilePermissions(a))).isEqualTo("rw-------");
+    }
     try (ZipFile zip = new ZipFile(a.toFile())) {
       assertThat(Collections.list(zip.entries()).stream().map(ZipEntry::getName))
           .containsExactly("manifest.json", "server/gw-bridge.mjs");

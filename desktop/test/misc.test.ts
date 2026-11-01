@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { describe, it } from 'node:test';
 import { CORE_ENV_ALLOWLIST, coreArgv, coreEnv } from '../src/main/core-command.ts';
 import { clientId, defaultFileName, filePurpose, linkId, revealKind } from '../src/main/file-purposes.ts';
@@ -87,16 +87,20 @@ describe('starting the core', () => {
 });
 
 describe('layout', () => {
-  const base = { appPath: '/repo/desktop', resourcesPath: '/repo/desktop/res', homedir: '/Users/x', platform: 'darwin' as const };
+  const base = { appPath: resolve('/repo/desktop'), resourcesPath: resolve('/repo/desktop/res'), homedir: resolve('/Users/x'),
+    platform: process.platform };
+  const executable = process.platform === 'win32' ? '.exe' : '';
 
   it('an installed app uses the bundle and ~/.gaterook, whatever the environment says', () => {
-    const l = resolveLayout({ ...base, devBuild: false, packaged: true, appPath: '/Applications/GateRook.app/Contents/Resources/app.asar',
-      resourcesPath: '/Applications/GateRook.app/Contents/Resources', env: { GW_HOME: '/tmp/evil', GW_CORE_COMMAND: '["sh"]' } });
+    const resources = resolve('/bundle/resources');
+    const appPath = join(resources, 'app.asar');
+    const l = resolveLayout({ ...base, devBuild: false, packaged: true, appPath,
+      resourcesPath: resources, env: { GW_HOME: '/tmp/evil', GW_CORE_COMMAND: '["sh"]' } });
     assert.equal(l.dev, false);
-    assert.equal(l.home, '/Users/x/.gaterook');
-    assert.equal(l.uiRoot, '/Applications/GateRook.app/Contents/Resources/app.asar/ui');
-    assert.deepEqual(l.core, { kind: 'native', binary: '/Applications/GateRook.app/Contents/Resources/core/gaterook-core',
-      libDir: '/Applications/GateRook.app/Contents/Resources/core' });
+    assert.equal(l.home, join(base.homedir, '.gaterook'));
+    assert.equal(l.uiRoot, join(appPath, 'ui'));
+    assert.deepEqual(l.core, { kind: 'native', binary: join(resources, 'core', `gaterook-core${executable}`),
+      libDir: join(resources, 'core') });
   });
 
   it('a development build packaged by mistake is still a release', () => {
@@ -107,12 +111,14 @@ describe('layout', () => {
     const l = resolveLayout({ ...base, devBuild: true, packaged: false, env: { GW_HOME: '/tmp/home', GW_UI_DIST: '/tmp/ui',
       GW_CORE_COMMAND: '["node","fake.mjs"]' } });
     assert.equal(l.dev, true);
-    assert.equal(l.home, '/tmp/home');
-    assert.equal(l.uiRoot, '/tmp/ui');
+    assert.equal(l.home, resolve('/tmp/home'));
+    assert.equal(l.uiRoot, resolve('/tmp/ui'));
     assert.deepEqual(l.core, { kind: 'custom', argv: ['node', 'fake.mjs'] });
     const jar = resolveLayout({ ...base, devBuild: true, packaged: false, env: { JAVA_HOME: '/jdk' } });
-    assert.deepEqual(jar.core, { kind: 'jar', java: '/jdk/bin/java', jar: '/repo/app/target/app.jar' });
-    assert.equal(jar.uiRoot, '/repo/ui/dist/gaterook-ui/browser', 'the renamed UI project when none is built yet');
+    assert.deepEqual(jar.core, { kind: 'jar', java: join('/jdk', 'bin', `java${executable}`),
+      jar: resolve(base.appPath, '..', 'app', 'target', 'app.jar') });
+    assert.equal(jar.uiRoot, resolve(base.appPath, '..', 'ui', 'dist', 'gaterook-ui', 'browser'),
+      'the renamed UI project when none is built yet');
     assert.throws(() => resolveLayout({ ...base, devBuild: true, packaged: false, env: { GW_CORE_COMMAND: '"sh"' } }), /JSON array/);
   });
 });

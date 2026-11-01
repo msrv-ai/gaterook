@@ -44,6 +44,7 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
   private final ConnectorManifest type;
   private final Map<String, Supervisor> supervisors = new ConcurrentHashMap<>();
   private final Map<String, ServerLog> logs = new ConcurrentHashMap<>();
+  private final java.util.Set<Thread> closingSessions = ConcurrentHashMap.newKeySet();
   private volatile Host host;
   private volatile PidFile pids;
   private volatile Launcher launcher;
@@ -138,9 +139,11 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
   }
 
   @Override
-  public Handshake probe(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx) throws ConnectorException {
+  public Handshake probe(ConnectionConfig cfg, SecretResolver secrets, ExecContext ctx, Authorization authorization)
+      throws ConnectorException {
     ServerConfig server = ServerConfig.of(cfg);
-    Session.Request request = new Session.Request(cfg, server, server.toolPrefix(), null, secrets, ctx);
+    Session.Request request = new Session.Request(cfg, server, server.toolPrefix(), null, secrets, ctx,
+        authorization);
     Session s = Session.open(request, workDir(cfg.name()), launcher(), log(cfg.name()), pids(), now(), x -> {},
         x -> {});
     try {
@@ -155,7 +158,7 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
       boolean restart) throws ConnectorException {
     Session s = session(cfg, snapshot, secrets, ctx, restart, Supervisor.Why.PERSON);
     Session.Request request = new Session.Request(cfg, ServerConfig.of(cfg), snapshot.toolPrefix(),
-        snapshot.npmIntegrity(), secrets, ctx);
+        snapshot.npmIntegrity(), secrets, ctx, s.http == null ? null : s.http.authorization());
     if (!s.announced.compareAndSet(false, true)) {
       // It ran already: Test and Start list its tools again.
       s.listTools(Session.min(Duration.ofSeconds(30), ctx.remaining()));
@@ -211,6 +214,23 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
         break;
       }
     }
+    // Supervisor.stop schedules the actual session close; wait for those workers too before releasing logs.
+    long deadline = System.nanoTime() + Duration.ofSeconds(10).toNanos();
+    while (!closingSessions.isEmpty()) {
+      long remaining = deadline - System.nanoTime();
+      if (remaining <= 0) {
+        LOG.log(System.Logger.Level.WARNING, "MCP session shutdown did not finish within 10 seconds");
+        break;
+      }
+      Thread worker = closingSessions.stream().findFirst().orElse(null);
+      if (worker == null) break;
+      try {
+        worker.join(Duration.ofNanos(remaining));
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        break;
+      }
+    }
     logs.values().forEach(ServerLog::close);
   }
 
@@ -224,7 +244,7 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
     }
     ServerConfig server = ServerConfig.of(cfg);
     Session.Request request = new Session.Request(cfg, server, snapshot.toolPrefix(), snapshot.npmIntegrity(),
-        secrets, ctx);
+        secrets, ctx, server.oauth() ? authorization(cfg.id()) : null);
     String config = configFingerprint(server, snapshot.npmIntegrity());
     String full = fingerprint(config, server, secrets, ctx);
     Duration budget = Session.min(server.startTimeout().plusSeconds(5), ctx.remaining());
@@ -311,7 +331,15 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
 
   @Override
   public void close(Session session) {
-    Thread.ofVirtual().name("mcp-stop-" + session.server.name()).start(() -> session.close(pids()));
+    Thread worker = Thread.ofVirtual().name("mcp-stop-" + session.server.name()).unstarted(() -> {
+      try {
+        session.close(pids());
+      } finally {
+        closingSessions.remove(Thread.currentThread());
+      }
+    });
+    closingSessions.add(worker);
+    worker.start();
   }
 
   @Override
@@ -346,6 +374,12 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
   }
 
   // ── Internals ───────────────────────────────────────────────────────────────────────────────────────────────
+
+  /** The core's sign-in of a stored server, or {@code null} when it keeps none (the start then says so). */
+  private Authorization authorization(String connectionId) {
+    Host h = host;
+    return h == null ? null : h.authorization(connectionId).orElse(null);
+  }
 
   private Supervisor supervisor(String connectionId) {
     return supervisors.computeIfAbsent(connectionId, id -> new Supervisor(id, this));
@@ -421,6 +455,8 @@ public final class McpServers implements McpServerRuntime, Supervisor.Runtime {
     ArrayNode inherit = n.putArray("inherit");
     server.inheritEnv().forEach(inherit::add);
     n.put("npmIntegrity", npmIntegrity);
+    // Another client, scope or callback is another sign-in: a session made with the old one drains.
+    n.put("auth", server.auth());
     return Texts.sha256(n);
   }
 

@@ -9,6 +9,7 @@ import ai.msrv.gaterook.connector.api.SecretResolver;
 import ai.msrv.gaterook.connector.api.SecretUnavailableException;
 import ai.msrv.gaterook.connector.api.ToolCall;
 import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.PublicKey;
@@ -30,6 +31,24 @@ import tools.jackson.databind.node.ObjectNode;
 final class Fixtures {
 
   private Fixtures() {}
+
+  static String javaExecutable() {
+    return Path.of(System.getProperty("java.home"), "bin",
+        System.getProperty("os.name").startsWith("Windows") ? "java.exe" : "java").toString();
+  }
+
+  static Process sleepingProcess() throws IOException {
+    return new ProcessBuilder(javaExecutable(), "-cp", System.getProperty("java.class.path"),
+        Sleeper.class.getName()).start();
+  }
+
+  public static final class Sleeper {
+    private Sleeper() {}
+
+    public static void main(String[] args) throws InterruptedException {
+      Thread.sleep(Duration.ofMinutes(10));
+    }
+  }
 
   static ObjectNode object(String json) {
     return (ObjectNode) Texts.JSON.readTree(json);
@@ -265,6 +284,8 @@ final class Fixtures {
   /** What the core does as the runtime's host, recorded. */
   static final class Host implements McpServerRuntime.Host {
     final Path home;
+    /** The sign-in the core keeps for each stored server, by connection id. */
+    final java.util.Map<String, McpServerRuntime.Authorization> signIns = new java.util.concurrent.ConcurrentHashMap<>();
     final List<McpServerRuntime.Handshake> handshakes = new CopyOnWriteArrayList<>();
     final List<McpServerRuntime.ProcessView> states = new CopyOnWriteArrayList<>();
     final List<String> wanted = new CopyOnWriteArrayList<>();
@@ -298,6 +319,11 @@ final class Fixtures {
     @Override
     public void wanted(String connectionId) {
       wanted.add(connectionId);
+    }
+
+    @Override
+    public Optional<McpServerRuntime.Authorization> authorization(String connectionId) {
+      return Optional.ofNullable(signIns.get(connectionId));
     }
 
     List<McpServerRuntime.State> stateNames() {

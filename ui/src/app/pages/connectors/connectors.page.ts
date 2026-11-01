@@ -13,6 +13,7 @@ import { GwConfirmDialog } from './dialogs/confirm.dialog';
 import { failureText } from './dialogs/failure';
 import { GwMcpAddDialog, McpReviewed } from './dialogs/mcp-add.dialog';
 import { GwMcpReviewDialog } from './dialogs/mcp-review.dialog';
+import { GwMcpSignInDialog } from './dialogs/mcp-sign-in.dialog';
 import { GwPluginInstallDialog, PluginChecked } from './dialogs/plugin-install.dialog';
 import { GwPluginReviewDialog } from './dialogs/plugin-review.dialog';
 import { GwPluginUpdateDialog } from './dialogs/plugin-update.dialog';
@@ -61,6 +62,7 @@ export const SKELETON_DELAY_MS = 300;
     GwPluginUpdateDialog,
     GwMcpAddDialog,
     GwMcpReviewDialog,
+    GwMcpSignInDialog,
     GwConfirmDialog,
     GwTemplateInstallDialog,
   ],
@@ -80,6 +82,7 @@ export class ConnectorsPage {
   private readonly updateDialog = viewChild.required(GwPluginUpdateDialog);
   private readonly addServerDialog = viewChild.required(GwMcpAddDialog);
   private readonly serverReviewDialog = viewChild.required(GwMcpReviewDialog);
+  private readonly serverSignInDialog = viewChild.required(GwMcpSignInDialog);
   private readonly confirmDialog = viewChild.required(GwConfirmDialog);
   private readonly templateInstallDialog = viewChild.required(GwTemplateInstallDialog);
   private readonly templatesPanel = viewChild.required(GwTemplatesPanel);
@@ -376,6 +379,32 @@ export class ConnectorsPage {
       return;
     }
     const s = a.server;
+    if (a.type === 'sign-in') {
+      this.serverSignInDialog().show(s, a.opener);
+      return;
+    }
+    if (a.type === 'sign-out') {
+      this.confirmDialog().ask(
+        {
+          tone: 'warning',
+          icon: 'key-round',
+          title: `Sign out of ${s.name}?`,
+          description: [
+            {
+              text: `GateRook forgets the sign-in and revokes it at the server where it allows that. The calls of ${s.name} don’t run until you sign in again; its tools and modes stay.`,
+              code: false,
+            },
+          ],
+          confirm: `Sign out of ${s.name}`,
+          run: async () => {
+            await this.data.signOut(s.name);
+            this.toasts.show({ tone: 'success', title: `Signed out of ${s.name}`, body: 'Sign in again from its row when you need its tools.' });
+          },
+        },
+        a.opener,
+      );
+      return;
+    }
     const tools = s.tools !== null ? `its ${plural(s.tools, 'tool')}` : 'its tools';
     const used = s.usedBy.length ? `${s.usedBy.join(', ')} ${s.usedBy.length === 1 ? 'loses' : 'lose'} them.` : 'No endpoint uses them yet.';
     const secrets = s.secrets.map((x) => x.secret).filter((x): x is string => !!x);

@@ -124,7 +124,7 @@ public final class FakeMcpServer {
                 }),
             tool("spawn", "Starts a child process that sleeps; answers its pid.", null, (ex, req) -> {
               try {
-                Process child = new ProcessBuilder("sleep", "600").start();
+                Process child = Fixtures.sleepingProcess();
                 return text(Long.toString(child.pid()));
               } catch (IOException e) {
                 return McpSchema.CallToolResult.builder().addTextContent(e.getMessage()).isError(true).build();

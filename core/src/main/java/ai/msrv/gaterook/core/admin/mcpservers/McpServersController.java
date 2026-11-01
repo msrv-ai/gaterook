@@ -4,6 +4,7 @@ import ai.msrv.gaterook.core.admin.ApiRequestException;
 import ai.msrv.gaterook.core.admin.Reasons;
 import ai.msrv.gaterook.core.connections.SecretInput;
 import ai.msrv.gaterook.core.mcpservers.McpServerService;
+import ai.msrv.gaterook.core.mcpservers.McpServerSignIns;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,20 +25,28 @@ import tools.jackson.databind.JsonNode;
  * before anything is saved), Test, Start, Restart, Stop, its reviewed tools, remove it. A server's list row, config and
  * secret names are its connection's ({@code /api/connections}); its process is a {@code kind: "mcp-server"} entry of
  * {@code /api/connector-types}.
+ *
+ * <p>A server at a URL that wants an OAuth sign-in is signed in to in the person's browser: {@code /api/mcp-sign-ins}
+ * starts a sign-in for the server under review (Electron opens its page through {@code /internal/mcp-sign-ins}), and
+ * adding the server takes the finished sign-in by its id. A stored server signs in again or out at
+ * {@code /api/mcp-servers/{name}/sign-in} and {@code …/sign-out}.
  */
 @RestController
 @RegisterReflectionForBinding({McpServersController.Request.class, McpServersController.SecretSource.class,
     McpServersController.Reason.class, McpServersController.Review.class, McpServersController.Started.class,
-    McpServersController.Tool.class})
+    McpServersController.Tool.class, McpServersController.Auth.class, McpServersController.SignIn.class,
+    McpServersController.SignInStatus.class, McpServersController.Address.class,
+    McpServersController.AuthorizationPage.class})
 class McpServersController {
 
   /**
    * Review or add: a {@code config} as the Add MCP server form sends it ({@code name}, {@code transport},
-   * {@code command} or {@code url}, {@code env} or {@code headers}), the values of new secrets in {@code secrets} by
-   * JSON Pointer ({@code /env/0/secretRef}), or a {@code catalog} entry ({@code github-mcp@0.6.2}).
+   * {@code command} or {@code url}, {@code env} or {@code headers}, {@code auth}), the values of new secrets in
+   * {@code secrets} by JSON Pointer ({@code /env/0/secretRef}), or a {@code catalog} entry ({@code github-mcp@0.6.2});
+   * {@code signIn} is the finished sign-in of a server that signs in with OAuth.
    */
   record Request(JsonNode config, Map<String, SecretSource> secrets, String catalog, String env, Boolean acknowledge,
-      String reason) {}
+      String reason, String signIn) {}
 
   /** A secret as the connection form sends it: typed here ({@code local}) or a reference to a store. */
   record SecretSource(String source, char[] value, String ref, String store) {
@@ -56,7 +65,29 @@ class McpServersController {
    */
   record Review(List<String> argv, String resolvedCommand, String node, List<String> env, List<String> inherited,
       boolean notPinned, String catalogEntry, String protocol, String sandbox, String name, String transport,
-      String url, String workDir, String log, List<String> warnings) {}
+      String url, String workDir, String log, List<String> warnings, Auth auth) {}
+
+  /**
+   * How a server at a URL wants clients to sign in: {@code kind} {@code none}, {@code oauth}, {@code optional},
+   * {@code refused} (a key in a header) or {@code unknown}; {@code registration} {@code dynamic} (GateRook registers
+   * itself), {@code app} (the person's OAuth app) or {@code app-required}, with the {@code redirectUri} to register.
+   */
+  record Auth(String kind, String issuer, String authorizationHost, String scope, String registration,
+      String redirectUri, String message) {}
+
+  /** A sign-in in progress: {@code state} {@code waiting}, {@code signed-in}, {@code failed}, {@code cancelled}, {@code expired}. */
+  record SignIn(String id, String state, String server, String issuer, String authorizationHost, String redirectUri,
+      String authorizationUrl, String expiresAt, String scope, String message) {}
+
+  /** A stored server's sign-in: {@code state} {@code signed-in}, {@code needs-sign-in}, {@code signed-out} or {@code none}. */
+  record SignInStatus(String server, String state, String issuer, String scope, String expiresAt, boolean renewable,
+      String signedInAt, String renewedAt, String message, boolean registered, String redirectUri) {}
+
+  /** The address the browser ended on after the person allowed access. */
+  record Address(String address) {}
+
+  /** The authorization page Electron opens in the browser. */
+  record AuthorizationPage(String url) {}
 
   record Started(String name, String state, Integer tools, Integer previousTools) {}
 
@@ -78,7 +109,9 @@ class McpServersController {
       var r = v.review();
       return new Review(r.argv(), r.resolvedCommand(), r.node(), r.variables(), r.inherited(), r.notPinned(),
           v.catalogEntry(), v.protocol(), r.sandbox(), v.name(), r.transport(), r.url(), r.workDir(), r.log(),
-          r.warnings());
+          r.warnings(), v.auth() == null ? null : new Auth(v.auth().kind(), v.auth().issuer(),
+              v.auth().authorizationHost(), v.auth().scope(), v.auth().registration(), v.auth().redirectUri(),
+              v.auth().message()));
     } finally {
       clear(secrets, request.secrets());
     }
@@ -94,6 +127,58 @@ class McpServersController {
     } finally {
       clear(secrets, request.secrets());
     }
+  }
+
+  // ── Sign-ins ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  /** Starts a sign-in to the server under review; the browser opens its page next (Electron, by the id). */
+  @PostMapping("/api/mcp-sign-ins")
+  ResponseEntity<SignIn> signIn(@RequestBody Request request) {
+    Map<String, SecretInput> secrets = secrets(request.secrets());
+    try {
+      return ResponseEntity.status(HttpStatus.CREATED).body(signIn(servers.signIn(source(request, secrets))));
+    } finally {
+      clear(secrets, request.secrets());
+    }
+  }
+
+  @GetMapping("/api/mcp-sign-ins/{id}")
+  SignIn signInState(@PathVariable String id) {
+    return signIn(servers.signInState(id));
+  }
+
+  /** The address the browser ended on, when the redirect couldn't reach GateRook by itself. */
+  @PostMapping("/api/mcp-sign-ins/{id}/address")
+  SignIn signInAddress(@PathVariable String id, @RequestBody Address request) {
+    return signIn(servers.signInAddress(id, request == null ? null : request.address()));
+  }
+
+  @DeleteMapping("/api/mcp-sign-ins/{id}")
+  ResponseEntity<Void> cancelSignIn(@PathVariable String id) {
+    servers.cancelSignIn(id);
+    return ResponseEntity.noContent().build();
+  }
+
+  /** Electron main asks for the page to open (preload {@code openMcpSignIn(id)}); it checks the URL again. */
+  @GetMapping("/internal/mcp-sign-ins/{id}/authorization")
+  AuthorizationPage authorizationPage(@PathVariable String id) {
+    return new AuthorizationPage(servers.authorizationUrl(id));
+  }
+
+  @GetMapping("/api/mcp-servers/{name}/sign-in")
+  SignInStatus signInStatus(@PathVariable String name) {
+    return status(servers.signInStatus(name));
+  }
+
+  /** Signs in to a stored server again: the new tokens replace the old ones once the browser comes back. */
+  @PostMapping("/api/mcp-servers/{name}/sign-in")
+  ResponseEntity<SignIn> signInAgain(@PathVariable String name) {
+    return ResponseEntity.status(HttpStatus.CREATED).body(signIn(servers.signIn(name)));
+  }
+
+  @PostMapping("/api/mcp-servers/{name}/sign-out")
+  SignInStatus signOut(@PathVariable String name, @RequestBody(required = false) Reason request) {
+    return status(servers.signOut(name, request == null ? null : Reasons.check(request.reason())));
   }
 
   @PostMapping("/api/mcp-servers/{name}/test")
@@ -136,7 +221,21 @@ class McpServersController {
   // ── Mapping ─────────────────────────────────────────────────────────────────────────────────────────────────
 
   private static McpServerService.Source source(Request r, Map<String, SecretInput> secrets) {
-    return new McpServerService.Source(r.config(), secrets, r.catalog(), r.env());
+    return new McpServerService.Source(r.config(), secrets, r.catalog(), r.env(), r.signIn());
+  }
+
+  private static SignIn signIn(McpServerSignIns.SignInView v) {
+    return new SignIn(v.id(), v.state(), v.server(), v.issuer(), v.authorizationHost(), v.redirectUri(),
+        v.authorizationUrl(), v.expiresAt() == null ? null : v.expiresAt().toString(), v.scope(), v.message());
+  }
+
+  private static SignInStatus status(McpServerSignIns.StatusView v) {
+    return new SignInStatus(v.server(), v.state(), v.issuer(), v.scope(), text(v.expiresAt()), v.renewable(),
+        text(v.signedInAt()), text(v.renewedAt()), v.message(), v.registered(), v.redirectUri());
+  }
+
+  private static String text(java.time.Instant at) {
+    return at == null ? null : at.toString();
   }
 
   private static Started started(McpServerService.Started s) {

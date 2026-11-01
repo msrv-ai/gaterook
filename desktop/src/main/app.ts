@@ -25,6 +25,7 @@ import { FileKeyUnlock } from './file-key-unlock.ts';
 import { NativeUnlockClient } from './native-unlock.ts';
 import { OsFileKey } from './os-file-key.ts';
 import { chooseFile, choosePrivateKeyFile, openClientConfig, openMcpb, reveal, type FilesOptions } from './files.ts';
+import { mcpSignInPage, signInEnded } from './mcp-sign-in.ts';
 import { isTrustedSender } from './ipc-guard.ts';
 import { GoogleSignIn } from './google-sign-in.ts';
 import { resolveLayout, type Layout } from './layout.ts';
@@ -402,6 +403,10 @@ export class Desktop {
         if (core && !core.locked) void this.syncConsents(core);
         break;
       }
+      case 'mcp-server.sign-in':
+        // The person signed in to an MCP server in the browser: GateRook comes back to the front with the result.
+        if (signInEnded(e.type, e.data)) this.showWindow();
+        break;
       case 'ui.open': {
         // "Open in app" in Slack or Telegram (§7.4 `ui.open {path}`): the window comes forward on that path, through
         // the allowlist a notification's Review uses; any other path only brings the window forward.
@@ -699,6 +704,9 @@ export class Desktop {
       return this.googleSignIn.signIn();
     });
     handle(IPC.openMcpb, (id) => openMcpb(files, id));
+    handle(IPC.openMcpSignIn, async (id) => {
+      await shell.openExternal(await mcpSignInPage(this.supervisor.endpoint(), id));
+    });
     handle(IPC.openClientConfig, (id) => openClientConfig(files, id));
     handle(IPC.reveal, (kind) => reveal(files, kind));
     handle(IPC.applyGeneral, (raw) => {
