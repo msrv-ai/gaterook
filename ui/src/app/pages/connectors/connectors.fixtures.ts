@@ -176,10 +176,11 @@ export function templates(): Template[] {
 }
 
 export function endpoints(): EndpointSummary[] {
+  const base = { description: null, access: 'standard', status: 'running', published: false, blockedReason: null };
   return [
-    { slug: 'dev', env: 'dev', status: 'running' },
-    { slug: 'incident-prod', env: 'prod', status: 'running' },
-  ] as EndpointSummary[];
+    { ...base, slug: 'dev', env: 'dev', clients: ['claude-desktop'], connections: { total: 2, byEnv: { dev: 2 } } },
+    { ...base, slug: 'incident-prod', env: 'prod', clients: [], connections: { total: 1, byEnv: { prod: 1 } } },
+  ] as unknown as EndpointSummary[];
 }
 
 function toolRow(toolKey: string, name: string, mode: 'READ_ONLY' | 'APPROVAL' | 'OFF') {

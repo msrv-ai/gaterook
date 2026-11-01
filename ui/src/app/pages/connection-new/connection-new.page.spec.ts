@@ -485,6 +485,21 @@ function cloudLogging(): void {
 }
 
 describe('Redis production connections', () => {
+  it('adds an External MCP server through Add MCP server, which reviews, signs in and ends on an endpoint', async () => {
+    const card = { ...structuredClone(CATALOG.groups[0].cards[0]), type: 'mcp-server', name: 'External MCP server', icon: 'plug', description: 'Put any MCP server behind modes, approvals and audit.', tools: null, connections: 0 };
+    core.catalog = { groups: [{ name: 'HTTP and MCP', cards: [card] }], installed: [] };
+    const p = await open();
+    expect(p.q('#step-1')?.textContent).toContain('An MCP server is added in Connectors › MCP servers');
+    p.button('Continue').click();
+    await p.settle();
+    expect(TestBed.inject(Router).url).toBe('/connectors?add=mcp-server#mcp-servers');
+  });
+
+  it('sends a link to the External MCP server type straight to Add MCP server', async () => {
+    await open('/connections/new?type=mcp-server');
+    expect(TestBed.inject(Router).url).toBe('/connectors?add=mcp-server#mcp-servers');
+  });
+
   it('tests and saves Without TLS with a warning and no confirmation', async () => {
     core.spec = { ...structuredClone(SPEC), type: 'redis', name: 'Redis', schema: CONNECTOR_FORMS['redis'] };
     core.catalog = { groups: [{ name: 'Databases', cards: [{

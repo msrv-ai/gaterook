@@ -1,15 +1,15 @@
-import { ChangeDetectionStrategy, Component, ElementRef, inject, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, inject, output, signal, viewChild } from '@angular/core';
 import { SecretInputs } from '../../../core/api/connections.api';
 import { McpServerAuthReview, McpServerConfig, McpServerReview, McpServerSource, McpSignIn } from '../../../core/api/plugins.api';
 import { GwCopy } from '../../../kit/copy';
 import { GwDialog, GwDialogClose } from '../../../kit/dialog';
 import { GwEnableWhen } from '../../../kit/enable-when';
 import { GwIcon } from '../../../kit/icons';
-import { ToastService } from '../../../kit/toast.service';
-import { formatArgv, npmPackage, plural, serverPaths } from '../connectors-view';
+import { formatArgv, npmPackage, serverPaths } from '../connectors-view';
 import { ConnectorsData } from '../connectors.data';
 import { failureText } from './failure';
 import { McpReviewed } from './mcp-add.dialog';
+import { McpServerConnected } from './mcp-endpoint.dialog';
 import { GwMcpSignIn } from './mcp-sign-in';
 
 /** The secret field of an OAuth app's client secret. */
@@ -87,11 +87,21 @@ export function mcpReviewView(r: McpReviewed): McpReviewView {
     risk: http
       ? signIn
         ? `Every call sends your sign-in${names.length ? ' and these secrets' : ''} to this URL. Nobody has verified the server behind it.`
-        : 'Every call sends these secrets to this URL. Nobody has verified the server behind it.'
-      : 'This code runs on your computer with these secrets. Nobody has verified it: it can read them and reach anything your user account can.',
+        : names.length
+          ? 'Every call sends these secrets to this URL. Nobody has verified the server behind it.'
+          : 'Every call goes to this URL. Nobody has verified the server behind it.'
+      : names.length
+        ? 'This code runs on your computer with these secrets. Nobody has verified it: it can read them and reach anything your user account can.'
+        : 'This code runs on your computer. Nobody has verified it: it can reach anything your user account can.',
     trust: http
-      ? `I trust this server with ${signIn ? (names.length ? 'my sign-in and these secrets' : 'my sign-in') : 'these secrets'}`
-      : 'I trust this code with these secrets on this computer',
+      ? signIn
+        ? `I trust this server with my sign-in${names.length ? ' and these secrets' : ''}`
+        : names.length
+          ? 'I trust this server with these secrets'
+          : 'I trust this server with the calls of my AI apps'
+      : names.length
+        ? 'I trust this code with these secrets on this computer'
+        : 'I trust this code on this computer',
     targetKey: http ? 'URL' : 'Command',
     target: http ? (review.url ?? r.target) : review.argv.length ? formatArgv(review.argv) : r.target,
     version,
@@ -284,8 +294,10 @@ let nextId = 0;
 export class GwMcpReviewDialog {
   private readonly data = inject(ConnectorsData);
   private readonly dialog = inject(GwDialog);
-  private readonly toasts = inject(ToastService);
   private readonly host: HTMLDialogElement = inject(ElementRef<HTMLDialogElement>).nativeElement;
+
+  /** The server connected (or started): the page offers the endpoint step next. */
+  readonly connected = output<McpServerConnected>();
 
   protected readonly uid = `mr-${++nextId}`;
   private readonly source = signal<McpServerSource | null>(null);
@@ -396,13 +408,17 @@ export class GwMcpReviewDialog {
     try {
       const started = await this.data.addServer(request);
       this.wipe();
-      this.dialog.close('started');
-      const tools = started?.tools;
       this.signedIn.set(null);
-      this.toasts.show({
-        tone: 'success',
-        title: `MCP server ${w.name} ${w.http ? 'connected' : 'started'}`,
-        body: `${tools === 1 ? 'Its tool is' : typeof tools === 'number' ? `Its ${plural(tools, 'tool')} are` : 'Its tools are'} listed and Off until you add them to an endpoint. There each starts as Approval.`,
+      // Focus goes back to the opener only after the endpoint step.
+      const opener = this.dialog.returnTo;
+      this.dialog.returnTo = null;
+      this.dialog.close('started');
+      this.connected.emit({
+        name: started?.name || w.name,
+        env: 'dev',
+        http: w.http,
+        tools: typeof started?.tools === 'number' ? started.tools : null,
+        opener,
       });
     } catch (err) {
       // The values stay in their fields for another try; closing the dialog wipes them.

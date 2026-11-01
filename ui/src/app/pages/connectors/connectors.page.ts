@@ -1,5 +1,5 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ChangeDetectionStrategy, Component, Injector, afterNextRender, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { CoreStore } from '../../core/stores/core.store';
 import { Announcer } from '../../kit/announcer';
 import { GwHowItWorks, GwHowItWorksStep } from '../../kit/elements/how-it-works/how-it-works';
@@ -12,6 +12,7 @@ import { ConnectorsData } from './connectors.data';
 import { GwConfirmDialog } from './dialogs/confirm.dialog';
 import { failureText } from './dialogs/failure';
 import { GwMcpAddDialog, McpReviewed } from './dialogs/mcp-add.dialog';
+import { GwMcpEndpointDialog, McpServerConnected } from './dialogs/mcp-endpoint.dialog';
 import { GwMcpReviewDialog } from './dialogs/mcp-review.dialog';
 import { GwMcpSignInDialog } from './dialogs/mcp-sign-in.dialog';
 import { GwPluginInstallDialog, PluginChecked } from './dialogs/plugin-install.dialog';
@@ -63,6 +64,7 @@ export const SKELETON_DELAY_MS = 300;
     GwMcpAddDialog,
     GwMcpReviewDialog,
     GwMcpSignInDialog,
+    GwMcpEndpointDialog,
     GwConfirmDialog,
     GwTemplateInstallDialog,
   ],
@@ -76,6 +78,12 @@ export class ConnectorsPage {
   private readonly core = inject(CoreStore);
   private readonly toasts = inject(ToastService);
   private readonly announcer = inject(Announcer);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private readonly injector = inject(Injector);
+
+  /** `?add=mcp-server` (the connection wizard's External MCP server): Add MCP server opens on the MCP servers tab. */
+  readonly add = input<string | null>(null);
 
   private readonly installDialog = viewChild.required(GwPluginInstallDialog);
   private readonly reviewDialog = viewChild.required(GwPluginReviewDialog);
@@ -83,6 +91,7 @@ export class ConnectorsPage {
   private readonly addServerDialog = viewChild.required(GwMcpAddDialog);
   private readonly serverReviewDialog = viewChild.required(GwMcpReviewDialog);
   private readonly serverSignInDialog = viewChild.required(GwMcpSignInDialog);
+  private readonly serverEndpointDialog = viewChild.required(GwMcpEndpointDialog);
   private readonly confirmDialog = viewChild.required(GwConfirmDialog);
   private readonly templateInstallDialog = viewChild.required(GwTemplateInstallDialog);
   private readonly templatesPanel = viewChild.required(GwTemplatesPanel);
@@ -114,6 +123,19 @@ export class ConnectorsPage {
     effect((onCleanup) => {
       if (this.installed()) clearTimeout(timer);
       onCleanup(() => clearTimeout(timer));
+    });
+    effect(() => {
+      if (this.add() !== 'mcp-server') return;
+      untracked(() =>
+        afterNextRender(
+          () => {
+            this.addServerDialog().open(null);
+            // Once: a reload or Back doesn't open it again.
+            void this.router.navigate([], { relativeTo: this.route, queryParams: { add: null }, queryParamsHandling: 'merge', fragment: 'mcp-servers', replaceUrl: true });
+          },
+          { injector: this.injector },
+        ),
+      );
     });
     // The core came back (it was away, or another instance answers): everything may be stale.
     let wasRunning = this.core.running();
@@ -438,6 +460,11 @@ export class ConnectorsPage {
 
   protected onReviewed(r: McpReviewed): void {
     this.serverReviewDialog().show(r);
+  }
+
+  /** The server connected: its tools join an endpoint next, as a connection's do at the end of the wizard. */
+  protected onConnected(c: McpServerConnected): void {
+    void this.serverEndpointDialog().show(c);
   }
 
   /** The menu item's menu trigger: the item itself is hidden once the menu closes. */

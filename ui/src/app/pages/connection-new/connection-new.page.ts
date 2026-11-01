@@ -89,6 +89,9 @@ import {
   usedByRows,
 } from './connection-new-view';
 
+/** The connector type of external MCP servers, which Add MCP server adds (Connectors › MCP servers). */
+const MCP_SERVER_TYPE = 'mcp-server';
+
 /** A load of the page: under way, done, or why not (an area whose backend isn't merged answers `not-available`). */
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -201,6 +204,11 @@ export class ConnectionNewPage {
     const c = this.card();
     return c ? usage(c) : null;
   });
+  /**
+   * External MCP server is chosen: it is added as on Connectors › MCP servers (review, sign-in, then an endpoint), not
+   * through this form — a connection saved here would have no reviewed tools and no sign-in.
+   */
+  protected readonly mcpServerPicked = computed(() => this.card()?.type === MCP_SERVER_TYPE);
 
   // ─── Step 2: the form ───
   protected readonly spec = signal<ConnectionFormSpec | null>(null);
@@ -498,6 +506,11 @@ export class ConnectionNewPage {
   }
 
   private async start(mode: Mode): Promise<void> {
+    if (mode === 'add' && this.type() === MCP_SERVER_TYPE) {
+      // ?type=mcp-server (Connectors' External MCP server card): straight to Add MCP server.
+      this.addMcpServer(true);
+      return;
+    }
     const gen = ++this.gen;
     ++this.toolRun;
     this.toolResult.set(null);
@@ -723,8 +736,17 @@ export class ConnectionNewPage {
       return;
     }
     this.pickError.set(null);
+    if (findCard(this.groups(), key)?.type === MCP_SERVER_TYPE) {
+      this.addMcpServer(false);
+      return;
+    }
     this.go(2);
     await this.openType(key);
+  }
+
+  /** Add MCP server on Connectors › MCP servers, whose review signs in and whose last step adds it to an endpoint. */
+  private addMcpServer(replaceUrl: boolean): void {
+    void this.router.navigate(['/connectors'], { queryParams: { add: MCP_SERVER_TYPE }, fragment: 'mcp-servers', replaceUrl });
   }
 
   protected retrySpec(): void {
