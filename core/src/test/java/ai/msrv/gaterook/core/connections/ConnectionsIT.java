@@ -219,6 +219,29 @@ class ConnectionsIT {
             e -> assertThat(e.kind()).isEqualTo(ProblemException.Kind.CONFLICT));
   }
 
+  /** As an MCP server's URL with its key: the review warned the person, and the value is kept as typed. */
+  @Test
+  void aValueItsSchemaLetsCarryAKeyIsSaved() {
+    String key = "ghp_" + "a".repeat(36);
+    ObjectNode keyed = TestCore.config("db.test");
+    ((ObjectNode) keyed.get("connection")).put("webhook", "https://hooks.test/" + key + "/in");
+    ConnectionService.Summary kept = connections.create("keyed", "pgfake", Env.DEV, keyed,
+        Map.of("/credentials/password", SecretInput.local("x-1234567".toCharArray())), null);
+    assertThat(configs.byName("keyed").orElseThrow().config().config().at("/connection/webhook").asString())
+        .isEqualTo("https://hooks.test/" + key + "/in");
+    ObjectNode edited = keyed.deepCopy();
+    ((ObjectNode) edited.get("connection")).put("port", 5433);
+    ConnectionService.Summary updated = connections.update("keyed", Env.DEV, edited, kept.version(), null, null);
+    assertThat(updated.version()).isGreaterThan(kept.version());
+    // Beside it, the same key is still refused.
+    ((ObjectNode) edited.get("connection")).put("note", key);
+    assertThatThrownBy(() -> connections.update("keyed", Env.DEV, edited, updated.version(), null, null))
+        .isInstanceOfSatisfying(ProblemException.class, e -> {
+          assertThat(e.title()).isEqualTo("This looks like a secret");
+          assertThat(e.field()).isEqualTo("/config/connection/note");
+        });
+  }
+
   @Test
   void movingStoredSecretsToAnotherHostNeedsConfirmation() {
     ConnectionService.Summary c = core.connection("move-db", "pgfake", Env.DEV, "db.test");

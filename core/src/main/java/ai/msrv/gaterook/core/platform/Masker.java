@@ -148,6 +148,72 @@ public final class Masker {
   }
 
   /**
+   * A URL as a person may see it again: the password of its user info, every path segment, query value and fragment
+   * that looks like a secret masked whole, the rest as typed. Some MCP servers take their key in their URL
+   * ({@code https://mcp.example.com/<key>/mcp}, {@code ?apiKey=…}), and the URL is stored as typed. Part by part:
+   * {@code /} and {@code =} belong to the base64 alphabet, so a random-looking key would take its neighbours with it.
+   */
+  public String url(String url) {
+    if (url == null || url.isEmpty()) {
+      return url;
+    }
+    Pass pass = new Pass(fingerprints, null, MaskPolicy.SECRETS_ONLY);
+    int scheme = url.indexOf("://");
+    int start = scheme < 0 ? 0 : scheme + 3;
+    int pathStart = firstOf(url, start, "/?#");
+    int queryStart = firstOf(url, pathStart, "?#");
+    int fragmentStart = firstOf(url, queryStart, "#");
+    StringBuilder out = new StringBuilder(url.length()).append(url, 0, start);
+    String authority = url.substring(start, pathStart);
+    int at = authority.lastIndexOf('@');
+    if (at >= 0) {
+      String user = authority.substring(0, at);
+      int colon = user.indexOf(':');
+      out.append(colon >= 0 ? user.substring(0, colon + 1) + MASK : masked(pass, user, user)).append('@');
+    }
+    out.append(authority, at + 1, authority.length());
+    String path = url.substring(pathStart, queryStart);
+    int segment = 0;
+    for (String part : path.split("/", -1)) {
+      out.append(segment++ == 0 ? "" : "/").append(masked(pass, part, part));
+    }
+    if (queryStart < fragmentStart) {
+      out.append('?');
+      String[] pairs = url.substring(queryStart + 1, fragmentStart).split("&", -1);
+      for (int i = 0; i < pairs.length; i++) {
+        // Its name stays, unless it is the key: a rule such as apiKey=… needs it, and it says what was masked.
+        int eq = pairs[i].indexOf('=');
+        String name = eq < 0 ? pairs[i] : pairs[i].substring(0, eq);
+        out.append(i == 0 ? "" : "&").append(!masked(pass, name, name).equals(name) ? MASK
+            : masked(pass, pairs[i], eq < 0 ? pairs[i] : pairs[i].substring(eq + 1)));
+      }
+    }
+    if (fragmentStart < url.length()) {
+      String fragment = url.substring(fragmentStart + 1);
+      out.append('#').append(masked(pass, fragment, fragment));
+    }
+    return out.toString();
+  }
+
+  /** {@code part} with {@code secret} (all of it, or its value) masked when anything in {@code part} looks like one. */
+  private static String masked(Pass pass, String part, String secret) {
+    if (part.isEmpty() || pass.string(part).equals(part)) {
+      return part;
+    }
+    return part.substring(0, part.length() - secret.length()) + MASK;
+  }
+
+  /** The index of the first of {@code stops} in {@code text} from {@code from}, or the length of {@code text}. */
+  private static int firstOf(String text, int from, String stops) {
+    for (int i = from; i < text.length(); i++) {
+      if (stops.indexOf(text.charAt(i)) >= 0) {
+        return i;
+      }
+    }
+    return text.length();
+  }
+
+  /**
    * Whether a value someone typed into a non-secret field looks like a secret ("This looks like a secret: store it as
    * a secret"); the rule id that matched.
    */

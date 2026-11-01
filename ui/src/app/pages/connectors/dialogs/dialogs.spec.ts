@@ -213,6 +213,30 @@ describe('MCP server review', () => {
     expect(w.signIn).toBeNull();
   });
 
+  it('shows the core’s URL and warnings for a server at a URL, and a command’s warnings as its rows', () => {
+    const keyed = mcpReviewView({
+      review: sentryReview({
+        transport: 'http',
+        url: 'https://mcp.example.com/‹masked›/mcp',
+        argv: [],
+        env: [],
+        warnings: ['The URL carries a key. GateRook stores it with the server’s settings, not as an encrypted secret.'],
+      }),
+      source: { config: { name: 'search-mcp', transport: 'http', url: 'https://mcp.example.com/k-AbCdEf/mcp' } },
+      name: 'search-mcp',
+      transport: 'http',
+      target: 'https://mcp.example.com/k-AbCdEf/mcp',
+      variables: [],
+      opener: null,
+    });
+    // The key the URL carries stays as the core masked it: the review shows the core's URL, not the typed one.
+    expect(keyed.target).toBe('https://mcp.example.com/‹masked›/mcp');
+    expect(keyed.warnings).toEqual(['The URL carries a key. GateRook stores it with the server’s settings, not as an encrypted secret.']);
+    const command = mcpReviewView(typed(['npx', '-y', '@sentry/mcp-server'], sentryReview({ notPinned: true, warnings: ['Not pinned: it can fetch new code on every start.'] })));
+    expect(command.warnings).toEqual([]);
+    expect(command.version).toEqual({ pinned: false });
+  });
+
   const remote = (auth: NonNullable<Parameters<typeof sentryReview>[0]>['auth'], headers: string[] = [], clientId?: string) =>
     mcpReviewView({
       review: sentryReview({ transport: 'http', url: 'https://mcp.linear.app/mcp', argv: [], env: headers, auth }),

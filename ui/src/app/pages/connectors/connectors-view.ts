@@ -466,6 +466,7 @@ export interface McpServerView {
   readonly transport: 'stdio' | 'http';
   /** The command as it runs, argv joined (quoted where an argument has a space). */
   readonly command: string | null;
+  /** Over HTTP, its URL as the Connections list shows it: no query, and `‹masked›` for a key in its path. */
   readonly url: string | null;
   readonly secrets: McpSecretView[];
   /** Variables of this computer the process also gets (HTTPS_PROXY…). */
@@ -583,7 +584,8 @@ export function mcpServerView(
   const config: JsonObject = detail?.config ?? {};
   const transport = config['transport'] === 'http' ? 'http' : 'stdio';
   const argv = stringArray(config['command']);
-  const url = typeof config['url'] === 'string' ? config['url'] : null;
+  // The URL as the core lists it: a key the server takes in its URL isn't shown again (the config keeps it as typed).
+  const url = transport === 'http' ? row.host : null;
   const catalogEntry = typeof config['catalogEntry'] === 'string' ? config['catalogEntry'] : null;
   const entryId = catalogEntry?.split('@')[0] ?? null;
   const fromCatalog = entryId ? catalog?.entries.find((e) => e.kind === 'mcp-server' && e.id === entryId) : undefined;

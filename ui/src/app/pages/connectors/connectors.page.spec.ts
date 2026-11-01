@@ -69,6 +69,10 @@ class FakeEvents {
 
 const notAvailable = () => new ApiError('not-available', 404, {});
 
+/** The core's warning for a URL that carries a key (McpServerService.KEY_IN_URL). */
+const KEY_IN_URL =
+  "The URL carries a key. GateRook stores it with the server's settings, not as an encrypted secret, and the provider or a proxy may log it. If the server accepts the key in a header, add that header instead.";
+
 /** Every answer of the fake core, replaceable per test. */
 interface Answers {
   types: () => Promise<ConnectorCatalog>;
@@ -162,6 +166,21 @@ function setup(over: Partial<Answers> = {}): void {
     },
     review: (source) => {
       record('review', source);
+      if ('config' in source && source.config.transport === 'http') {
+        // Over HTTP the core shows a key the URL carries masked, and warns; this server answers without a sign-in.
+        const url = source.config.url ?? '';
+        return Promise.resolve(
+          sentryReview({
+            name: source.config.name,
+            transport: 'http',
+            url: url.replace(/apiKey=[^&#]*/, 'apiKey=‹masked›'),
+            argv: [],
+            env: [],
+            auth: { kind: 'none' },
+            warnings: /[?&]apiKey=/.test(url) ? [KEY_IN_URL] : [],
+          }),
+        );
+      }
       // A catalog entry is reviewed by the core's name, pin and resolved command, with the entry's variable (K6).
       return Promise.resolve(
         'catalog' in source
@@ -905,6 +924,38 @@ describe('Connectors page: MCP servers', () => {
     expect(step.open).toBe(false);
     expect(calls.filter((c) => c.startsWith('add-to-endpoint'))).toEqual([]);
     expect(toasts().at(-1)?.body).toBe('Its 12 tools are Off until you add them to an endpoint. There each starts as Approval.');
+  });
+
+  it('warns about a key in the URL in the review, and still connects the server with it', async () => {
+    setup();
+    const { fixture, el } = await render();
+    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
+    await settle(fixture);
+    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
+    type(add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!, 'search-mcp');
+    check(add.querySelector<HTMLInputElement>('input[type="radio"][value="http"]')!);
+    await settle(fixture);
+    type(add.querySelector<HTMLInputElement>('input[type="url"]')!, 'https://mcp.example.com/mcp?apiKey=sk-example-123');
+    button(add, 'Review and connect').click();
+    await settle(fixture);
+    expect(add.querySelector('.gw-alert--danger')).toBeNull();
+
+    const review = el.querySelector<HTMLDialogElement>('dialog[gwMcpReviewDialog]')!;
+    expect(review.open).toBe(true);
+    const rows = Object.fromEntries(Array.from(review.querySelectorAll('.gw-kv__row')).map((r) => [text(r.querySelector('dt')), text(r.querySelector('dd'))]));
+    expect(rows['URL']).toBe('https://mcp.example.com/mcp?apiKey=‹masked›');
+    expect(Array.from(review.querySelectorAll('.gw-alert--warning')).map(text)).toEqual([KEY_IN_URL]);
+
+    check(review.querySelector<HTMLInputElement>('input[type="checkbox"]')!);
+    await settle(fixture);
+    button(review, 'Connect MCP server search-mcp').click();
+    await settle(fixture);
+    // The server takes its key in the URL: the core gets it as typed.
+    expect(bodies['create-server']).toEqual({
+      config: { name: 'search-mcp', transport: 'http', url: 'https://mcp.example.com/mcp?apiKey=sk-example-123', headers: [] },
+      acknowledge: true,
+    });
+    expect(review.open).toBe(false);
   });
 
   it('opens Add MCP server from the connection wizard’s link (?add=mcp-server)', async () => {

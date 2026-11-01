@@ -141,10 +141,15 @@ export interface McpServerReview {
   readonly protocol: string | null;
   /** The OS sandbox the process runs in (`landlock`, `sandbox-exec`), or null where this system has none (§7.5). */
   readonly sandbox: string | null;
-  /** The server's name (a catalog review names it: `github-mcp`), its transport and, over HTTP, its URL. */
+  /**
+   * The server's name (a catalog review names it: `github-mcp`), its transport and, over HTTP, its URL: a key the URL
+   * carries is `‹masked›` here.
+   */
   readonly name?: string | null;
   readonly transport?: 'stdio' | 'http' | null;
   readonly url?: string | null;
+  /** What the person should know before it runs, in the core's words (`The URL carries a key. …`). */
+  readonly warnings?: string[];
   /** Over HTTP: how the server wants clients to sign in, from one request to it without a sign-in. */
   readonly auth?: McpServerAuthReview | null;
 }

@@ -23,6 +23,8 @@ Only names of headers and variables are taken from a paste. The review asks for 
 - **No sign-in.** Connect directly.
 - **It wants a key.** It refused the request without offering a sign-in. Add the header that carries its key, such as `Authorization`.
 
+Some servers take their key in the URL, as their docs give it: `https://mcp.example.com/<key>/mcp` or `…/mcp?apiKey=<key>`. Such a server still connects, but the review warns you. GateRook stores the URL with the server's settings, not encrypted as a secret, and the provider or a proxy on the way may log it. If the server also accepts the key in a header, add that header instead. The review shows the URL with `‹masked›` in place of the key, and the lists show it without the key. Agents never see the URL.
+
 Adding a server ends as adding a connection does: GateRook offers the endpoints its tools may join, the usual one chosen. There each tool starts as Approval, and you change modes on the endpoint. **Not now** leaves the tools Off until you add the server to an endpoint later.
 
 The server is then listed in **Connections** with the other connections, where you test, edit or delete it. In **Connectors › MCP servers** you can also restart it, sign in to it again or sign out.
