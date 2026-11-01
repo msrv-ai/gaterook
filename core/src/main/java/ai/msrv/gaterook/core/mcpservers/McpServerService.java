@@ -109,6 +109,11 @@ public class McpServerService {
   /** The secret field of an OAuth app's client secret ({@code auth.clientSecret} of an HTTP server). */
   static final String CLIENT_SECRET = "/auth/clientSecret";
 
+  /** What the review says about a URL that carries a key. */
+  static final String KEY_IN_URL = "The URL carries a key. GateRook stores it with the server's settings, not as an "
+      + "encrypted secret, and the provider or a proxy may log it. If the server accepts the key in a header, add that "
+      + "header instead.";
+
   private final McpServerRepository repository;
   private final McpServerRows rows;
   private final McpServerSource source;
@@ -172,8 +177,24 @@ public class McpServerService {
       } catch (ProblemException e) {
         auth = new McpServerSignIns.AuthView("unknown", null, null, null, null, null, e.getMessage());
       }
+      r = withoutUrlKey(r);
     }
     return new ReviewView(r, d.cfg().name(), d.catalogEntry(), null, auth);
+  }
+
+  /**
+   * A review whose URL carries a key, as some servers take it ({@code https://mcp.example.com/<key>/mcp},
+   * {@code ?apiKey=…}): the URL shown without it, and a warning. The person may still add the server.
+   */
+  private McpServerRuntime.Review withoutUrlKey(McpServerRuntime.Review r) {
+    String shown = r.url() == null ? null : masker.url(r.url());
+    if (shown == null || shown.equals(r.url())) {
+      return r;
+    }
+    List<String> warnings = new ArrayList<>(r.warnings());
+    warnings.add(KEY_IN_URL);
+    return new McpServerRuntime.Review(r.transport(), r.argv(), r.resolvedCommand(), r.node(), shown, r.variables(),
+        r.inherited(), r.notPinned(), r.sandbox(), r.workDir(), r.log(), warnings);
   }
 
   /**

@@ -154,7 +154,8 @@
           "url": {
             "type": "string",
             "format": "uri",
-            "pattern": "^(https://|http://(127\\.0\\.0\\.1|localhost)[:/])"
+            "pattern": "^(https://|http://(127\\.0\\.0\\.1|localhost)[:/])",
+            "x-key-allowed": true
           },
           "auth": {
             "type": "object",

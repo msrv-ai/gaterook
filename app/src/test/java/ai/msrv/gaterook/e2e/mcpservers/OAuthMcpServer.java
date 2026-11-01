@@ -37,8 +37,8 @@ import tools.jackson.databind.node.ObjectNode;
  * {@code resource_metadata}, protected-resource and authorization-server metadata, dynamic client registration and,
  * when asked, Client ID Metadata Documents beside it, an authorization endpoint that checks the client, redirect URI,
  * PKCE and resource and then redirects with {@code code}, {@code state} and {@code iss}, public clients only at the
- * token endpoint, rotating refresh tokens bound to their client (a reused one is refused) and revocation. The "person"
- * always allows: the test plays the browser.
+ * token endpoint, rotating refresh tokens bound to their client (a reused one is refused) and revocation; it also
+ * answers a request whose URL carries its key ({@link #URL_KEY}). The "person" always allows: the test plays the browser.
  */
 final class OAuthMcpServer implements AutoCloseable {
 
@@ -47,6 +47,9 @@ final class OAuthMcpServer implements AutoCloseable {
 
   /** The URL of GateRook's Client ID Metadata Document. */
   static final String GATEROOK_CLIENT = "https://msrv.dev/oauth/gaterook-client.json";
+
+  /** A key the server also takes in its URL ({@code /mcp?apiKey=…}), as some servers' docs give it. */
+  static final String URL_KEY = "trk-url-key-5d1e7a";
 
   /**
    * The metadata documents this authorization server can read, by URL: GateRook's as its website publishes it. A real
@@ -163,6 +166,11 @@ final class OAuthMcpServer implements AutoCloseable {
     Filter guard = (request, response, chain) -> {
       HttpServletRequest r = (HttpServletRequest) request;
       HttpServletResponse w = (HttpServletResponse) response;
+      if (("apiKey=" + URL_KEY).equals(r.getQueryString())) {
+        // As servers that take their key in the URL do, beside a sign-in.
+        chain.doFilter(request, response);
+        return;
+      }
       String header = r.getHeader("Authorization");
       bearersSeen.add(String.valueOf(header));
       if (header == null || !header.startsWith("Bearer ") || !access.contains(header.substring(7))) {

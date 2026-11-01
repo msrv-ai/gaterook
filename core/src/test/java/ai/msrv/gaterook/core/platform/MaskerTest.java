@@ -404,6 +404,34 @@ class MaskerTest {
     assertThat(masker.looksLikeSecret("db.dev.internal")).isEmpty();
   }
 
+  /** An MCP server's URL as its docs give it, with the key in it: shown again without the key, the rest as typed. */
+  @Test
+  void aUrlLosesTheKeysItCarriesPartByPart() {
+    String token = "Zk3pQ8xV2mN7cR1tY6wB4hJ9sL5dF0gA2eK8uT3";
+    assertThat(masker.url("https://mcp.example.com/mcp")).isEqualTo("https://mcp.example.com/mcp");
+    assertThat(masker.url("https://mcp.example.com/mcp?apiKey=sk-123&region=eu#top")).as("the name stays")
+        .isEqualTo("https://mcp.example.com/mcp?apiKey=" + MASK + "&region=eu#top");
+    assertThat(masker.url("https://mcp.example.com/api/s/" + token + "/mcp")).as("its segment, not the whole path")
+        .isEqualTo("https://mcp.example.com/api/s/" + MASK + "/mcp");
+    assertThat(masker.url("https://mcp.example.com/ghp_" + "a".repeat(36) + "/v2/mcp"))
+        .isEqualTo("https://mcp.example.com/" + MASK + "/v2/mcp");
+    assertThat(masker.url("https://mcp.example.com/mcp?token=" + token)).isEqualTo("https://mcp.example.com/mcp?token="
+        + MASK);
+    assertThat(masker.url("https://mcp.example.com/mcp?" + token)).isEqualTo("https://mcp.example.com/mcp?" + MASK);
+    assertThat(masker.url("https://mcp.example.com/mcp?" + token + "=1&v=2")).as("a key as the name")
+        .isEqualTo("https://mcp.example.com/mcp?" + MASK + "&v=2");
+    assertThat(masker.url("https://mcp.example.com/mcp#access_token=" + token))
+        .isEqualTo("https://mcp.example.com/mcp#" + MASK);
+    assertThat(masker.url("https://app:pw-123@mcp.example.com/mcp")).isEqualTo("https://app:" + MASK
+        + "@mcp.example.com/mcp");
+    // Digests, UUIDs and names aren't keys by their look.
+    String uuid = "https://mcp.example.com/s/3f2b9c1e-8a7d-4e6f-b5c4-1d2e3f4a5b6c/mcp?workspace=acme-dev";
+    assertThat(masker.url(uuid)).isEqualTo(uuid);
+    assertThat(masker.url("https://mcp.example.com/@acme/mcp/")).isEqualTo("https://mcp.example.com/@acme/mcp/");
+    assertThat(masker.url("db.dev.internal")).isEqualTo("db.dev.internal");
+    assertThat(masker.url(null)).isNull();
+  }
+
   @Test
   void masksAMegabyteWithinTheBudget() {
     org.junit.jupiter.api.Assumptions.assumeFalse(Boolean.getBoolean("gateway.test.skipPerf"),

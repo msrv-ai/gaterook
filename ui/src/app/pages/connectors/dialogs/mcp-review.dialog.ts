@@ -46,6 +46,11 @@ export interface McpReviewView {
   readonly signIn: 'required' | 'optional' | null;
   /** The client ID of the person's OAuth app, from Sign-in options, or null. */
   readonly appClient: string | null;
+  /**
+   * Over HTTP: the core's warnings (a key in the URL, plain HTTP). A command's are rows of the review already: its pin
+   * and where it runs.
+   */
+  readonly warnings: readonly string[];
 }
 
 /**
@@ -111,6 +116,7 @@ export function mcpReviewView(r: McpReviewed): McpReviewView {
     auth,
     signIn,
     appClient: config?.auth?.clientId ?? null,
+    warnings: http ? (review.warnings ?? []) : [],
   };
 }
 
@@ -212,6 +218,12 @@ let nextId = 0;
               }
               <div class="gw-kv__row"><dt class="gw-kv__key">Tools</dt><dd class="gw-kv__value">Listed after the {{ w.http ? 'connection' : 'start' }} and Off everywhere. On an endpoint each starts as Approval: the server declares its own annotations and the gateway can't verify them.</dd></div>
             </dl>
+            @for (warning of w.warnings; track $index) {
+              <div class="gw-alert gw-alert--warning gw-alert--compact">
+                <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
+                <div class="gw-alert__content"><p class="gw-alert__body">{{ warning }}</p></div>
+              </div>
+            }
             @if (w.signIn && w.auth; as a) {
               <fieldset class="gw-field" [attr.aria-describedby]="uid + '-signin-hint'">
                 <legend class="gw-field__label">Sign in to {{ w.name }}</legend>

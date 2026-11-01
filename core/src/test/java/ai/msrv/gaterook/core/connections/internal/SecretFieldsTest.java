@@ -121,6 +121,19 @@ class SecretFieldsTest {
   }
 
   @Test
+  void aValueThatMayCarryAKeyIsMarkedByItsSchemaWhereverItSits() {
+    // As an MCP server's URL: in a branch of its transport.
+    JsonNode schema = j("""
+        {"type":"object","properties":{"transport":{"enum":["stdio","http"]}},"allOf":[{"if":{"properties":{
+          "transport":{"const":"http"}}},"then":{"properties":{"url":{"type":"string","x-key-allowed":true},
+          "headers":{"type":"array","items":{"type":"object","properties":{"name":{"type":"string"},
+          "secretRef":{"type":"string","writeOnly":true}}}}}}}]}""");
+    assertThat(SecretFields.keyAllowedTemplates(schema)).containsExactly("/url");
+    assertThat(SecretFields.notSecretTemplates(schema)).isEmpty();
+    assertThat(SecretFields.templates(schema)).containsExactly("/headers/*/secretRef");
+  }
+
+  @Test
   void placeholdersAreFoundStrippedAndNeverAcceptedFromOutside() {
     ObjectNode config = (ObjectNode) j("""
         {"connection":{"host":"db"},"credentials":{"user":"app","password":{"$secret":"sc_1"}},
@@ -212,6 +225,9 @@ class SecretFieldsTest {
         .isEqualTo("https://mcp.example.com/mcp");
     assertThat(ConnectionTargets.display(j("{\"transport\":\"http\",\"url\":\"https://mcp.example.com/@acme/mcp\"}")))
         .as("an @ of the path is no user info").isEqualTo("https://mcp.example.com/@acme/mcp");
+    assertThat(ConnectionTargets.display(j("{\"transport\":\"http\",\"url\":\"https://mcp.example.com/api/s/"
+        + "Zk3pQ8xV2mN7cR1tY6wB4hJ9sL5dF0gA2eK8uT3/mcp\"}"))).as("a key an MCP server takes in its path")
+        .isEqualTo("https://mcp.example.com/api/s/‹masked›/mcp");
     assertThat(ConnectionTargets.display(j("{\"regions\":[\"eu-central-1\"]}"), null,
         j("{\"account\":\"412398765012\\n\\u202Eevil" + "9".repeat(200) + "\"}")))
         .as("what a test's STS answer said: one short line").startsWith("eu-central-1 · 412398765012 \\u202Eevil")

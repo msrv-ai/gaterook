@@ -204,8 +204,8 @@ public class ConnectionTester implements DisposableBean {
         if (usesStored && !ConnectionService.confirmed(confirm, ConnectionService.CONFIRM_NEW_HOST)) {
           ConnectionTargets.changedTarget(stored.config().config(), draft).ifPresent(target -> {
             throw ProblemException.needsConfirmation("Send the stored secret to a new host?",
-                "Test sends the stored credentials of " + existing + " to " + target + ". Confirm, or enter new "
-                    + "values.", ConnectionService.CONFIRM_NEW_HOST);
+                "Test sends the stored credentials of " + existing + " to " + masker.url(target) + ". Confirm, or "
+                    + "enter new values.", ConnectionService.CONFIRM_NEW_HOST);
           });
         }
         for (String field : connections.dynamicSecretFields(stored.secretIds())) {

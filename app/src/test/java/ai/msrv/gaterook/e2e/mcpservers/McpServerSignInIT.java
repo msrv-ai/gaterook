@@ -33,7 +33,8 @@ import tools.jackson.databind.node.ObjectNode;
  * sign-in asks for a new one, signing in again reuses the registration, a pasted address finishes a sign-in whose
  * redirect didn't arrive, sign-out revokes, and no token reaches an answer, the Secrets list or a log. Where the
  * authorization server takes Client ID Metadata Documents, GateRook registers nothing: its client ID is its published
- * document's URL, on any free port, for the sign-in, its renewals and the revocation.
+ * document's URL, on any free port, for the sign-in, its renewals and the revocation. A URL that carries the server's
+ * key is warned about in the review and still connects, and neither the review, the list nor the log shows the key.
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class McpServerSignInIT {
@@ -313,6 +314,35 @@ class McpServerSignInIT {
     Answer deleted = admin("DELETE", "/api/mcp-servers/board-mcp", "{\"reason\":\"done\"}");
     assertThat(deleted.status()).as(deleted.body()).isEqualTo(204);
     assertNoToken(core.coreLog());
+  }
+
+  @Test
+  @Order(10)
+  void aKeyInTheUrlIsWarnedAboutAndTheServerStillConnectsWithIt() throws Exception {
+    ObjectNode review = CoreProcess.JSON.createObjectNode();
+    review.set("config", CoreProcess.JSON.createObjectNode().put("name", "keyed-mcp").put("transport", "http")
+        .put("url", tracker.base + "/mcp?apiKey=" + OAuthMcpServer.URL_KEY));
+    JsonNode r = json(admin("POST", "/api/mcp-servers/review", review.toString()), 200);
+    assertThat(r.path("url").asString()).as("the review shows the URL without its key")
+        .isEqualTo(tracker.base + "/mcp?apiKey=‹masked›");
+    assertThat(r.path("warnings")).extracting(JsonNode::asString)
+        .anySatisfy(w -> assertThat(w).startsWith("The URL carries a key."));
+
+    ObjectNode add = review.deepCopy().put("acknowledge", true);
+    JsonNode added = json(admin("POST", "/api/mcp-servers", add.toString()), 201);
+    assertThat(added.path("tools").asInt()).as("it answered with the key in its URL").isEqualTo(1);
+    assertThat(json(admin("POST", "/api/mcp-servers/keyed-mcp/test", null), 200).path("tools").asInt()).isEqualTo(1);
+
+    String listed = null;
+    for (JsonNode row : json(admin("GET", "/api/connections", null), 200).path("items")) {
+      if ("keyed-mcp".equals(row.path("name").asString())) {
+        listed = row.path("host").asString();
+      }
+    }
+    assertThat(listed).as("where it connects, without the key").isEqualTo(tracker.base + "/mcp");
+    assertThat(core.coreLog()).doesNotContain(OAuthMcpServer.URL_KEY);
+    Answer deleted = admin("DELETE", "/api/mcp-servers/keyed-mcp", "{\"reason\":\"done\"}");
+    assertThat(deleted.status()).as(deleted.body()).isEqualTo(204);
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────────────────────────────────────

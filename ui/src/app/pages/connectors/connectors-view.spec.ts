@@ -362,7 +362,7 @@ describe('connectors view: MCP servers', () => {
     expect(typed).toMatchObject({ packageName: '@sentry/mcp-server', pinned: false, version: null, signed: null, tools: null, state: null, toolPrefix: 'sentry_', description: 'Runs over stdio on this computer.' });
 
     const http = mcpServerView(
-      connection('linear', 'mcp-server', { verified: false }),
+      connection('linear', 'mcp-server', { verified: false, host: 'https://mcp.linear.app/mcp' }),
       detail('linear', { transport: 'http', url: 'https://mcp.linear.app/mcp', headers: [{ name: 'Authorization' }], start: 'with-core' }),
       null,
       null,
@@ -379,6 +379,17 @@ describe('connectors view: MCP servers', () => {
       verified: false,
       description: 'Calls https://mcp.linear.app/mcp over Streamable HTTP.',
     });
+    // A key the server takes in its URL stays in the config; the card shows the URL as the core lists it.
+    const keyed = mcpServerView(
+      connection('search-mcp', 'mcp-server', { host: 'https://mcp.example.com/‹masked›/v2/mcp' }),
+      detail('search-mcp', { transport: 'http', url: 'https://mcp.example.com/k-7f3aZq/v2/mcp?apiKey=k-7f3aZq' }),
+      null,
+      null,
+      null,
+      null,
+    );
+    expect(keyed.url).toBe('https://mcp.example.com/‹masked›/v2/mcp');
+    expect(keyed.description).toBe('Calls https://mcp.example.com/‹masked›/v2/mcp over Streamable HTTP.');
 
     // Without the detail (it failed to load) the row still shows, with what the row says.
     const bare = mcpServerView(connection('x-mcp', 'mcp-server'), null, null, null, null, null);
