@@ -16,6 +16,7 @@ import { FormField, SchemaPath, form, maxLength, required, submit, validate } fr
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { isApiError } from '../../core/api/api-error';
 import { EndpointSummary } from '../../core/api/endpoints.api';
+import { Env } from '../../core/api/types';
 import { CoreStore } from '../../core/stores/core.store';
 import { TimeService } from '../../core/time/time.service';
 import { GwCodeBlock } from '../../code/code-block';
@@ -81,16 +82,18 @@ function slugRules(path: SchemaPath<string>): void {
 }
 
 /** The Start from cards of Create endpoint, in the kit's order and words. */
-const START_FROM: readonly { readonly id: StartFrom; readonly icon: string; readonly title: string; readonly description: string }[] = [
-  { id: 'empty', icon: 'square-dashed', title: 'Empty', description: 'No connections and every tool off. Add only what the agent needs.' },
+const START_FROM: readonly { readonly id: StartFrom; readonly env: Env; readonly icon: string; readonly title: string; readonly description: string }[] = [
+  { id: 'empty', env: 'dev', icon: 'square-dashed', title: 'Empty', description: 'No connections and every tool off. Add only what the agent needs.' },
   {
     id: 'read-only-dev',
+    env: 'dev',
     icon: 'eye',
     title: 'Read-only dev',
     description: 'All dev connections with their read-only tools on. Tools that change data stay off.',
   },
   {
     id: 'incident-response',
+    env: 'prod',
     icon: 'siren',
     title: 'Incident response',
     description: 'Prod replica and logs read only, runbooks on prod-vm after approval.',
@@ -154,7 +157,10 @@ export class EndpointsPage {
 
   protected readonly slugMax = SLUG_MAX;
   protected readonly descriptionMax = DESCRIPTION_MAX;
-  protected readonly startFrom = START_FROM;
+  protected readonly startFrom = computed(() => {
+    const starts = this.data.starts();
+    return START_FROM.map((s) => ({ ...s, env: starts?.find((preview) => preview.startFrom === s.id)?.env ?? s.env }));
+  });
 
   /** Placeholders only when the first answer is slow. */
   protected readonly slow = signal(false);
