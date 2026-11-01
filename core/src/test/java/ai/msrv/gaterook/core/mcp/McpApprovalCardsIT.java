@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.core.approvals.ApprovalService;
+import ai.msrv.gaterook.core.endpoints.ClientGrants;
 import ai.msrv.gaterook.core.endpoints.EndpointConnections;
 import ai.msrv.gaterook.core.endpoints.EndpointService;
 import ai.msrv.gaterook.core.endpoints.TokenService;
@@ -12,9 +13,11 @@ import ai.msrv.gaterook.core.platform.EventBus;
 import ai.msrv.gaterook.core.platform.LocalListener;
 import ai.msrv.gaterook.testfixtures.FakeConnectors;
 import ai.msrv.gaterook.testfixtures.TestCore;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -90,6 +93,51 @@ class McpApprovalCardsIT {
     assertThat(resource.at("/_meta/ui/csp/frameDomains").toString()).isEqualTo("[]");
     assertThat(resource.path("text").asString()).contains("Approve in GateRook", "approval_card_action")
         .doesNotContain("{{KIT_CSS}}", "{{APP_JS}}", "pw-dev-db-0123");
+  }
+
+  @Test
+  void aBridgeClientKeepsItsCardWhenTheCoreForgetsOrAnotherClientOfTheGrantChangesItsDeclaration() {
+    ClientGrants grants = core.bean(ClientGrants.class);
+    ClientGrants.Grant grant = grants.create(null, "claude-desktop", "dev", "bridge-cards", null);
+    McpClient bridge = new McpClient(port, "dev", grants.issue(new ClientGrants.TokenRequest("claude-desktop", "dev",
+        grant.id(), 4242L, "0.5.0")).token());
+    Map<String, String> declared = bridgeHeaders(uiCapabilities(), "local-agent-mode-GateRook · dev");
+
+    // A restarted core remembers no initialize of this grant, while the bridge kept its client's session open.
+    JsonNode afterRestart = bridge.post(bridge.request("tools/list", null).toString(), declared).result();
+    assertThat(tool(afterRestart, "approval_card").at("/_meta/ui/resourceUri").asString()).isEqualTo(RESOURCE);
+    assertThat(names(afterRestart.path("tools"))).contains("approval_card_action");
+
+    // Another client of the same grant, like Claude Desktop's version probe, initializes without MCP Apps.
+    ObjectNode probe = args("protocolVersion", "2025-11-25");
+    probe.putObject("capabilities");
+    probe.putObject("clientInfo").put("name", "GateRook · dev-era-probe").put("version", "1.0.0");
+    assertThat(bridge.legacy("initialize", probe).status()).isEqualTo(200);
+    assertThat(names(bridge.legacy("tools/list", null).result().path("tools"))).doesNotContain("approval_card_action");
+    JsonNode own = bridge.post(bridge.request("tools/list", null).toString(), declared).result();
+    assertThat(tool(own, "approval_card").at("/_meta/ui/resourceUri").asString()).isEqualTo(RESOURCE);
+
+    ObjectNode call = args("name", "sql_execute");
+    call.set("arguments", args("connection", "dev-db", "sql",
+        "UPDATE orders SET status = 'bridge-card' WHERE id = 820;"));
+    JsonNode pending = bridge.post(bridge.request("tools/call", call).toString(), declared).result();
+    String handle = pending.at("/structuredContent/handle").asString();
+    assertThat(handle).matches("ap_[a-z0-9]{12}");
+    assertThat(pending.path("content").toString()).contains("Show approval_card with handle " + handle);
+    assertThat(core.jdbc().queryForList("select client_info from tool_call where approval_id = ? and phase = "
+        + "'received'", String.class, handle)).singleElement().asString()
+        .contains("local-agent-mode-GateRook · dev");
+    assertNotExecuted(handle);
+    approvals.decide(handle, ApprovalService.Decision.DENY, "app", null, null);
+  }
+
+  @Test
+  void onlyBridgeCredentialsDeclareTheirClientPerRequest() {
+    McpClient named = client("named-bridge-header", "dev");
+    JsonNode listed = named.post(named.request("tools/list", null).toString(),
+        bridgeHeaders(uiCapabilities(), "card-test")).result();
+    assertThat(names(listed.path("tools"))).doesNotContain("approval_card_action");
+    assertThat(tool(listed, "approval_card").at("/_meta/ui/resourceUri").isMissingNode()).isTrue();
   }
 
   @Test
@@ -295,6 +343,15 @@ class McpApprovalCardsIT {
     params.set("capabilities", uiCapabilities());
     params.putObject("clientInfo").put("name", "card-test").put("version", "1.0");
     assertThat(client.legacy("initialize", params).status()).isEqualTo(200);
+  }
+
+  /** A legacy request's headers as a stdio bridge sends them after its client's initialize. */
+  private static Map<String, String> bridgeHeaders(ObjectNode capabilities, String clientName) {
+    ObjectNode declaration = JsonNodeFactory.instance.objectNode();
+    declaration.set("capabilities", capabilities);
+    declaration.putObject("clientInfo").put("name", clientName).put("version", "1.0.0");
+    return Map.of("MCP-Protocol-Version", "2025-11-25", "X-Gateway-Bridge-Client", Base64.getUrlEncoder()
+        .withoutPadding().encodeToString(declaration.toString().getBytes(StandardCharsets.UTF_8)));
   }
 
   private static ObjectNode uiCapabilities() {

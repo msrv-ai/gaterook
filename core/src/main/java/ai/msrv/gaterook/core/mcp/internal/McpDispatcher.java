@@ -14,6 +14,7 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,15 +72,26 @@ public class McpDispatcher {
     this.json = json;
   }
 
-  public Reply dispatch(Envelope request, Caller caller, EndpointSnapshot snapshot) {
+  /**
+   * @param bridgeClient the request's {@code X-Gateway-Bridge-Client} ({@link BridgeClient}), or {@code null}; only a
+   *                     bridge caller's is read, and only on a legacy request after {@code initialize}
+   */
+  public Reply dispatch(Envelope request, Caller caller, EndpointSnapshot snapshot, String bridgeClient) {
     Envelope env = request;
     if (env.era() == Era.LEGACY) {
       if ("initialize".equals(env.method())) {
         clients.remember(caller.principalId(), env.clientInfo(), env.clientCapabilities());
       } else {
-        env = new Envelope(env.era(), env.version(), env.id(), env.method(), env.params(),
-            clients.capabilities(caller.principalId()),
-            env.clientInfo() == null ? clients.recall(caller.principalId()) : env.clientInfo(), env.traceparent());
+        // A bridge repeats its own client's declaration: neither a core restart nor another client on the same
+        // grant decides what this connection is shown. Other legacy clients fall back to the principal's last one.
+        Optional<BridgeClient> declared = caller.kind() == Caller.Kind.BRIDGE
+            ? BridgeClient.parse(bridgeClient, json) : Optional.empty();
+        JsonNode capabilities = declared.isPresent() ? declared.get().capabilities()
+            : clients.capabilities(caller.principalId());
+        JsonNode info = env.clientInfo() != null ? env.clientInfo()
+            : declared.isPresent() ? declared.get().clientInfo() : clients.recall(caller.principalId());
+        env = new Envelope(env.era(), env.version(), env.id(), env.method(), env.params(), capabilities, info,
+            env.traceparent());
       }
     }
     if (env.notification()) {

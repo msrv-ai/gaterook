@@ -5,9 +5,10 @@
 //   node gw-bridge.mjs stdio --endpoint dev --grant gr_… [--client claude-desktop]
 //
 // Each line on stdin is a JSON-RPC message; it is POSTed to the endpoint URL the broker names, with a 15-minute token
-// the broker gets for the grant from GateRook. The answer goes to stdout as one line. On 401 the bridge asks for a
-// new token once and sends again. It never exits on an error, so Claude doesn't mark the server as failed; it answers
-// the request with a JSON-RPC error saying what to do. Logs go to stderr, never a token.
+// the broker gets for the grant from GateRook, and after a legacy initialize with what that client declared in it
+// (X-Gateway-Bridge-Client). The answer goes to stdout as one line. On 401 the bridge asks for a new token once and
+// sends again. It never exits on an error, so Claude doesn't mark the server as failed; it answers the request with
+// a JSON-RPC error saying what to do. Logs go to stderr, never a token.
 //
 // One client needs the bridge to end: Claude Desktop's agent mode, which serves its Code and Cowork sessions, lists
 // the tools once per connection and ignores notifications/tools/list_changed. It connects again, and lists again,
@@ -34,6 +35,8 @@ const MAX_ANSWER = 64 * 1024 * 1024;
 const BROKER_WAIT_MS = 60_000;
 const REQUEST_WAIT_MS = 120_000;
 const INSTANCE_HEADER = 'x-gateway-bridge-instance';
+const CLIENT_HEADER = 'X-Gateway-Bridge-Client';
+const MAX_CLIENT_HEADER = 4096;
 const NOT_RUNNING = 'GateRook is not running. Open GateRook, then try again.';
 /** How long after a tool-list notification the bridge waits for the client to list again before it compares. */
 const LIST_CHECK_MS = 2_000;
@@ -115,6 +118,25 @@ export function headerName(value) {
     : `=?base64?${Buffer.from(value, 'utf8').toString('base64')}?=`;
 }
 
+/**
+ * What the client declared in its legacy initialize, as the X-Gateway-Bridge-Client value the bridge repeats on every
+ * later request: base64url of {capabilities, clientInfo: {name, title, version}}. Several clients can share a grant
+ * (Claude Desktop's chat, its Code and Cowork sessions, its version probe), and a restarted core remembers none of
+ * them, so each request says which client it comes from. Null when it doesn't fit in 4096 characters.
+ */
+export function clientHeader(params) {
+  const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+  const declaration = { capabilities: isObject(params?.capabilities) ? params.capabilities : {} };
+  if (isObject(params?.clientInfo)) {
+    declaration.clientInfo = {};
+    for (const field of ['name', 'title', 'version']) {
+      if (typeof params.clientInfo[field] === 'string') declaration.clientInfo[field] = params.clientInfo[field];
+    }
+  }
+  const value = Buffer.from(JSON.stringify(declaration), 'utf8').toString('base64url');
+  return value.length <= MAX_CLIENT_HEADER ? value : null;
+}
+
 /** Data lines of an SSE body, joined per event. */
 export function sseData(body) {
   const out = [];
@@ -134,6 +156,7 @@ export function createBridge({ endpoint, grant, client, env = process.env, write
   onStaleList = null, listCheckMs = LIST_CHECK_MS }) {
   let token = null;
   let negotiated = null;
+  let declared = null;
   let fetching = null;
   let listChanged = false;
   let closed = false;
@@ -348,8 +371,9 @@ export function createBridge({ endpoint, grant, client, env = process.env, write
       const name = msg.method === 'resources/read' ? msg.params.uri
         : (msg.method === 'tools/call' || msg.method === 'prompts/get') ? msg.params.name : null;
       if (typeof name === 'string') headers['Mcp-Name'] = headerName(name);
-    } else if (negotiated && msg && msg.method !== 'initialize') {
-      headers['MCP-Protocol-Version'] = negotiated;
+    } else if (msg && msg.method !== 'initialize') {
+      if (negotiated) headers['MCP-Protocol-Version'] = negotiated;
+      if (declared) headers[CLIENT_HEADER] = declared;
     }
     return new Promise((resolve, reject) => {
       // agent: false — straight to 127.0.0.1: Node's global agent follows HTTP_PROXY under NODE_USE_ENV_PROXY and
@@ -408,6 +432,7 @@ export function createBridge({ endpoint, grant, client, env = process.env, write
     const id = msg && typeof msg === 'object' && !Array.isArray(msg) ? msg.id : undefined;
     if (msg?.method === 'initialize') {
       keepsFirstList = KEEPS_FIRST_LIST.test(String(msg.params?.clientInfo?.name ?? ''));
+      if (!msg.params?._meta?.['io.modelcontextprotocol/protocolVersion']) declared = clientHeader(msg.params);
     } else if (msg?.method === 'tools/list' && msg.params?.cursor == null) {
       // The client lists again: it keeps up with notifications, and nothing is compared for the last one.
       lists++;

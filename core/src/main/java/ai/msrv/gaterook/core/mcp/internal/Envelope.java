@@ -9,7 +9,8 @@ import tools.jackson.databind.node.ObjectNode;
  *
  * @param id                 the request id; {@code null} for a notification
  * @param version            the revision the answer speaks ({@code 2026-07-28}, {@code 2025-11-25}, …)
- * @param clientCapabilities modern: from {@code _meta}; legacy: from {@code initialize} (else empty)
+ * @param clientCapabilities modern: from {@code _meta}; legacy: from {@code initialize}, and on later requests what the
+ *                           dispatcher knows ({@link BridgeClient}, else the principal's last {@code initialize})
  * @param clientInfo         what the client says it is ({@code _meta} or {@code initialize}); shown, never trusted
  * @param traceparent        {@code params._meta.traceparent} as sent (validated where it is used)
  */
