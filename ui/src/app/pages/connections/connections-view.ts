@@ -76,7 +76,10 @@ export function typeText(row: Pick<ConnectionRow, 'typeName' | 'typeLabel'>): st
   return row.typeLabel || row.typeName;
 }
 
-/** External MCP servers are listed on Connectors (kit), not among the connections. */
+/**
+ * An external MCP server: listed with the connections, but added in Connectors › MCP servers, where it is reviewed
+ * and signed in to, so its row has no Duplicate.
+ */
 export function isMcpServer(row: Pick<ConnectionRow, 'type'>): boolean {
   return row.type === 'mcp-server';
 }
@@ -232,11 +235,17 @@ function withoutScheme(ref: string): string {
   return ref.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '');
 }
 
+/** The OAuth sign-in GateRook keeps and renews for an external MCP server (`github-mcp/oauth-sign-in`). */
+function isSignIn(secret: Pick<SecretRow, 'ownerKind'>): boolean {
+  return secret.ownerKind === 'mcp-server';
+}
+
 /**
  * The Credentials cell (kit: "Encrypted here", "Vault reference" + its path, "GCP SM reference", "Short-lived" + how
- * it is issued, a warning for a secret that can't be resolved). The row says where the connection's secrets live;
- * the secrets table (`/api/secrets`, its rows of this connection) and the short-lived credentials the core issued
- * (`/api/secrets/short-lived`) add the details when they answered. No value, length or prefix of a secret ever.
+ * it is issued, an external MCP server's "OAuth sign-in", a warning for a secret that can't be resolved). The row
+ * says where the connection's secrets live; the secrets table (`/api/secrets`, its rows of this connection) and the
+ * short-lived credentials the core issued (`/api/secrets/short-lived`) add the details when they answered. No value,
+ * length or prefix of a secret ever.
  */
 export function credentialsView(
   row: Pick<ConnectionRow, 'name' | 'secretSource'>,
@@ -244,12 +253,15 @@ export function credentialsView(
   shortLived: readonly ShortLivedCredential[] = [],
 ): CredentialsView {
   const problems = secrets.flatMap((s) => {
-    const label = secretLabel(s);
+    const label = isSignIn(s) ? 'OAuth sign-in' : secretLabel(s);
     switch (s.state) {
       case 'not-connected':
         return [{ label: `${label} unresolved`, title: `${s.name} points to ${storeName(s.source)}, which isn't connected` }];
       case 'needs-value':
-        return [{ label: `${label} needs a value`, title: `${s.name} can't be read with this master key. Replace it in Secrets.` }];
+        // A sign-in is replaced by signing in again, never by typing a value (the MCP panel's "Needs sign-in").
+        return isSignIn(s)
+          ? [{ label: 'Needs sign-in', title: `${s.name} can't be read with this master key. Sign in to the server again in Connectors › MCP servers.` }]
+          : [{ label: `${label} needs a value`, title: `${s.name} can't be read with this master key. Replace it in Secrets.` }];
       case 'changed-outside':
         return [{ label: `${label} changed outside GateRook`, title: `${s.name} was changed outside GateRook. Review it in Secrets.` }];
       default:
@@ -272,6 +284,10 @@ export function credentialsView(
       || shortLived.some((c) => c.connection === row.name && isVaultDynamicCredential(c))
       || ['dynamic', 'vault-dynamic', 'short-lived'].includes(row.secretSource ?? '')) {
     return { ...base, icon: 'key-round', label: 'Configured' };
+  }
+  if (!row.secretSource && secrets.some(isSignIn)) {
+    // Encrypted here too, but not a value of the connection's: the server's own sign-in (the MCP panel's words).
+    return { ...base, icon: 'key-round', label: 'OAuth sign-in' };
   }
   switch (row.secretSource) {
     case 'encrypted':
