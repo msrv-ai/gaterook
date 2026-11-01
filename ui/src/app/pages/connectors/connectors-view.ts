@@ -491,6 +491,8 @@ export interface McpServerView {
   readonly verified: boolean;
   /** It signs in with OAuth in the browser (`auth.type: "oauth"` over HTTP). */
   readonly oauth: boolean;
+  /** It signs in with its cloud's credentials (`auth.type` `google` or `aws`, §7.6), or null. */
+  readonly cloud: 'google' | 'aws' | null;
   /** Its sign-in as the core keeps it, or null before it loaded (or for a server without one). */
   readonly signIn: McpSignInStatus | null;
 }
@@ -618,9 +620,18 @@ export function mcpServerView(
     idleStopMinutes: typeof idle === 'number' ? idle : 15,
     toolPrefix: prefix,
     verified: row.verified && (detail?.verified ?? true),
-    oauth: transport === 'http' && typeof config['auth'] === 'object' && config['auth'] !== null && (config['auth'] as JsonObject)['type'] === 'oauth',
+    oauth: transport === 'http' && authType(config) === 'oauth',
+    cloud: transport === 'http' && (authType(config) === 'google' || authType(config) === 'aws') ? (authType(config) as 'google' | 'aws') : null,
     signIn,
   };
+}
+
+/** `auth.type` of a server's config, or null. */
+function authType(config: JsonObject): string | null {
+  const auth = config['auth'];
+  return typeof auth === 'object' && auth !== null && !Array.isArray(auth) && typeof (auth as JsonObject)['type'] === 'string'
+    ? ((auth as JsonObject)['type'] as string)
+    : null;
 }
 
 /** The sign-in of a server in words for its row: "Signed in at mcp.linear.app", "Needs sign-in". */

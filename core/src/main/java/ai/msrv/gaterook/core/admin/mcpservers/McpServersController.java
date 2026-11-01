@@ -71,10 +71,12 @@ class McpServersController {
    * How a server at a URL wants clients to sign in: {@code kind} {@code none}, {@code oauth}, {@code optional},
    * {@code refused} (a key in a header) or {@code unknown}; {@code registration} {@code metadata-document} (GateRook's
    * published client metadata), {@code dynamic} (GateRook registers itself), {@code app} (the person's OAuth app) or
-   * {@code app-required}, with the {@code redirectUri} to register.
+   * {@code app-required}, with the {@code redirectUri} to register; {@code cloud} {@code google} or {@code aws} for a
+   * server that can sign in with its cloud's credentials instead, and {@code secretRequired} for an OAuth app the
+   * provider takes only with its client secret.
    */
   record Auth(String kind, String issuer, String authorizationHost, String scope, String registration,
-      String redirectUri, String message) {}
+      String redirectUri, String message, String cloud, Boolean secretRequired) {}
 
   /** A sign-in in progress: {@code state} {@code waiting}, {@code signed-in}, {@code failed}, {@code cancelled}, {@code expired}. */
   record SignIn(String id, String state, String server, String issuer, String authorizationHost, String redirectUri,
@@ -112,7 +114,7 @@ class McpServersController {
           v.catalogEntry(), v.protocol(), r.sandbox(), v.name(), r.transport(), r.url(), r.workDir(), r.log(),
           r.warnings(), v.auth() == null ? null : new Auth(v.auth().kind(), v.auth().issuer(),
               v.auth().authorizationHost(), v.auth().scope(), v.auth().registration(), v.auth().redirectUri(),
-              v.auth().message()));
+              v.auth().message(), v.auth().cloud(), v.auth().secretRequired()));
     } finally {
       clear(secrets, request.secrets());
     }

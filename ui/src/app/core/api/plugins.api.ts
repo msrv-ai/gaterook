@@ -172,16 +172,49 @@ export interface McpServerAuthReview {
   /** The redirect URI to register for an OAuth app. */
   readonly redirectUri?: string | null;
   readonly message?: string | null;
+  /**
+   * `google` or `aws` for a server on that cloud: it can sign in with the cloud's credentials instead (a token from
+   * Google sign-in on this computer, AWS SigV4), §7.6.
+   */
+  readonly cloud?: 'google' | 'aws' | null;
+  /** Over an OAuth app: whether the provider takes it only with its client secret (Google does). */
+  readonly secretRequired?: boolean | null;
 }
 
-/** What the person chose about the sign-in (`auth` of the server's config); its client secret travels in `secrets`. */
+/**
+ * Where a server's cloud credentials come from (`auth.credentials`, §7.6): Google sign-in on this computer or a service
+ * account key; an AWS profile on this computer or an access key. The key travels in `secrets`, never here.
+ */
+export interface McpCloudCredentials {
+  readonly source: 'adc' | 'serviceAccountKey' | 'profile' | 'accessKey';
+  /** Google: a service account to act as, `name@project.iam.gserviceaccount.com`. */
+  readonly impersonate?: string;
+  /** Google: the billed project (`x-goog-user-project`). */
+  readonly quotaProject?: string;
+  readonly profile?: string;
+  readonly accessKeyId?: string;
+  readonly roleArn?: string;
+  readonly externalId?: string;
+}
+
+/**
+ * What the person chose about the sign-in (`auth` of the server's config): OAuth in the browser, or the server's Google
+ * Cloud or AWS credentials (§7.6). A client secret or key travels in `secrets`.
+ */
 export interface McpServerAuthConfig {
-  readonly type: 'oauth';
+  readonly type: 'oauth' | 'google' | 'aws';
+  /** OAuth: the server answers without a sign-in too; it connects without one until the person signs in. */
+  readonly optional?: boolean;
   readonly clientId?: string;
+  /** OAuth, or the scopes of a Google token (default `cloud-platform`). */
   readonly scopes?: string;
   readonly callbackPort?: number;
   readonly callbackHost?: '127.0.0.1' | 'localhost';
   readonly callbackPath?: string;
+  readonly credentials?: McpCloudCredentials;
+  /** AWS: the service and region requests are signed for; by default from the URL (`aws-mcp`, `us-east-1`). */
+  readonly service?: string;
+  readonly region?: string;
 }
 
 /** A sign-in in progress in the person's browser. */
@@ -235,7 +268,7 @@ export interface McpServerConfig {
   readonly url?: string;
   readonly env?: McpSecretBinding[];
   readonly headers?: McpSecretBinding[];
-  /** Over HTTP: sign in with OAuth in the browser. */
+  /** Over HTTP: sign in with OAuth in the browser, or with the server's Google Cloud or AWS credentials. */
   readonly auth?: McpServerAuthConfig;
 }
 

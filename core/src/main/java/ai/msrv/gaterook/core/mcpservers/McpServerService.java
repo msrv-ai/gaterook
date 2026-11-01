@@ -7,6 +7,7 @@ import ai.msrv.gaterook.connector.api.Env;
 import ai.msrv.gaterook.connector.api.SecretResolver;
 import ai.msrv.gaterook.connector.api.TestResult;
 import ai.msrv.gaterook.connector.api.ToolDefinition;
+import ai.msrv.gaterook.connectors.cloudauth.AwsSigV4;
 import ai.msrv.gaterook.connectors.support.egress.EgressDenial;
 import ai.msrv.gaterook.connectors.support.mcp.McpServerRuntime;
 import ai.msrv.gaterook.core.connections.ConnectionConfigs;
@@ -108,6 +109,10 @@ public class McpServerService {
 
   /** The secret field of an OAuth app's client secret ({@code auth.clientSecret} of an HTTP server). */
   static final String CLIENT_SECRET = "/auth/clientSecret";
+  /** The secret field of a Google service account key ({@code auth.credentials} of a server on Google Cloud, §7.6). */
+  static final String SERVICE_ACCOUNT_KEY = "/auth/credentials/serviceAccountKey";
+  /** The secret field of an AWS secret access key ({@code auth.credentials} of a server on AWS, §7.6). */
+  static final String SECRET_ACCESS_KEY = "/auth/credentials/secretAccessKey";
 
   /** What the review says about a URL that carries a key. */
   static final String KEY_IN_URL = "The URL carries a key. GateRook stores it with the server's settings, not as an "
@@ -323,11 +328,12 @@ public class McpServerService {
       }
       McpServerSignIns.DraftSignIn signIn = null;
       if (McpServerSignIns.oauth(d.cfg())) {
-        if (request.signIn() == null || request.signIn().isBlank()) {
+        if (request.signIn() != null && !request.signIn().isBlank()) {
+          signIn = signIns.take(request.signIn(), d.cfg());
+        } else if (!McpServerSignIns.optional(d.cfg())) {
           throw ProblemException.unprocessable("Sign in first", "Sign in to " + d.cfg().name() + " in your browser "
               + "before it connects.", "/signIn");
         }
-        signIn = signIns.take(request.signIn(), d.cfg());
       }
       McpServerRuntime.Handshake h = probe(d, request.secrets(), signIn);
       return store(d, h, request.secrets(), reason, signIn);
@@ -388,7 +394,9 @@ public class McpServerService {
       throw ProblemException.unprocessable("Invalid name", "Use lower-case letters, digits and hyphens, like "
           + "github-mcp.", "/config/name");
     }
-    String prefix = config.path("toolPrefix").isString() ? config.path("toolPrefix").asString() : defaultPrefix(name);
+    String prefix = config.path("toolPrefix").isString() ? config.path("toolPrefix").asString()
+        : freePrefix(name, p -> registry.reservedPrefixes().contains(p)
+            || pluginWithNamespace(registry.types(), p).isPresent() || repository.findByToolPrefix(p).isPresent());
     if (!PREFIX.matcher(prefix).matches()) {
       throw ProblemException.unprocessable("Invalid prefix", "A tool prefix is a lower-case letter, up to 14 letters "
           + "or digits and an underscore, like github_.", "/config/toolPrefix");
@@ -447,13 +455,26 @@ public class McpServerService {
         fields.add(CLIENT_SECRET);
         checked.add(CLIENT_SECRET);
       }
-      if ("oauth".equals(auth.path("type").asString(null))) {
+      String type = auth.path("type").asString(null);
+      String way = switch (type == null ? "" : type) {
+        case "oauth" -> "The OAuth sign-in sends";
+        case "google" -> "Google Cloud credentials send";
+        case "aws" -> "AWS credentials send";
+        default -> null;
+      };
+      if (way != null) {
         for (JsonNode h : config.path("headers")) {
           if ("authorization".equalsIgnoreCase(h.path("name").asString(""))) {
-            throw ProblemException.unprocessable("Two sign-ins", "The OAuth sign-in sends the Authorization header. "
-                + "Remove the Authorization header, or don't sign in with OAuth.", "/config/headers");
+            throw ProblemException.unprocessable("Two sign-ins", way + " the Authorization header. Remove the "
+                + "Authorization header, or sign in another way.", "/config/headers");
           }
         }
+      }
+      if ("google".equals(type) || "aws".equals(type)) {
+        cloudCredentials(type, auth, config, given, forCreate, fields, checked);
+      } else if (auth.has("credentials") || auth.has("service") || auth.has("region")) {
+        throw ProblemException.unprocessable("Credentials for a cloud sign-in", "Cloud credentials, a service and a "
+            + "region belong to a server that signs in with Google Cloud or AWS credentials.", "/config/auth");
       }
     }
     // Checked as the connection will be: the type's schema, the env's locks.
@@ -461,6 +482,77 @@ public class McpServerService {
     ConnectionConfig cfg = new ConnectionConfig("draft-" + Ids.uuid(), name, TYPE, env, 0, config.deepCopy(),
         Set.copyOf(fields), null);
     return new Draft(cfg, config, prefix, entry, entry == null ? null : entry.ref(), null);
+  }
+
+  /**
+   * Checks the cloud credentials of a server that signs in with them (§7.6): where they come from, the key that is a
+   * secret of the server ({@link #SERVICE_ACCOUNT_KEY}, {@link #SECRET_ACCESS_KEY}) and, for AWS, the service and
+   * region a request is signed for. The key is given beside the config, never in it.
+   */
+  private static void cloudCredentials(String type, ObjectNode auth, ObjectNode config, Map<String, SecretInput> given,
+      boolean forCreate, Set<String> fields, Set<String> checked) {
+    boolean google = "google".equals(type);
+    if (!(auth.path("credentials") instanceof ObjectNode credentials)) {
+      throw ProblemException.unprocessable("Credentials missing", "Choose where GateRook takes the "
+          + (google ? "Google Cloud" : "AWS") + " credentials from.", "/config/auth/credentials");
+    }
+    credentials.remove(google ? "serviceAccountKey" : "secretAccessKey");
+    String source = credentials.path("source").asString(google ? "adc" : "profile");
+    if (google ? !List.of("adc", "serviceAccountKey").contains(source) : !List.of("profile", "accessKey")
+        .contains(source)) {
+      throw ProblemException.unprocessable("Check the credentials", source + " isn't where " + (google
+          ? "Google Cloud credentials come from: use Google sign-in on this computer or a service account key."
+          : "AWS credentials come from: use a profile on this computer or an access key."), "/config/auth/credentials");
+    }
+    credentials.put("source", source);
+    String field = google ? SERVICE_ACCOUNT_KEY : SECRET_ACCESS_KEY;
+    if (source.equals(google ? "serviceAccountKey" : "accessKey")) {
+      checked.add(field);
+      if (given.containsKey(field)) {
+        fields.add(field);
+      } else if (forCreate) {
+        throw ProblemException.unprocessable("Secret missing", (google ? "Enter the service account key (JSON)."
+            : "Enter the secret access key.") + " GateRook stores it as a secret of this server.", "/secrets");
+      }
+    }
+    try {
+      if (google) {
+        ai.msrv.gaterook.connectors.cloudauth.GcpSpec.fromConfig(config, "/auth/credentials");
+      } else {
+        java.net.URI url = httpUrl(config);
+        AwsSigV4.Target target = AwsSigV4.target(auth.path("service").asString(null),
+            auth.path("region").asString(null), url.getHost()).orElseThrow(() -> ProblemException.unprocessable(
+                "Service and region missing", url.getHost() + " doesn't name an AWS service and region. Enter them "
+                    + "in Sign-in options, such as aws-mcp and us-east-1.", "/config/auth/service"));
+        ai.msrv.gaterook.connectors.cloudauth.AwsSpec.fromConfig(config, "/auth/credentials", target.region());
+      }
+    } catch (IllegalArgumentException e) {
+      throw ProblemException.unprocessable("Check the credentials", e.getMessage(), "/config/auth/credentials");
+    }
+  }
+
+  /**
+   * The prefix of a server the person didn't give one: from its name ({@code github-mcp} → {@code github_}), else its
+   * whole name when that one is taken ({@code aws-mcp} → {@code awsmcp_}: {@code aws_} is GateRook's own family), else
+   * that with a digit. The first one when every candidate is taken: adding then says by whom.
+   *
+   * @param taken whether a prefix is a built-in family, a plugin's namespace or another server's prefix
+   */
+  static String freePrefix(String name, java.util.function.Predicate<String> taken) {
+    String first = defaultPrefix(name);
+    String whole = name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+    String base = whole.isEmpty() || !Character.isLetter(whole.charAt(0)) ? first.substring(0, first.length() - 1)
+        : whole.length() > 15 ? whole.substring(0, 15) : whole;
+    List<String> candidates = new ArrayList<>(List.of(first, base + "_"));
+    for (int i = 2; i <= 9; i++) {
+      candidates.add((base.length() > 14 ? base.substring(0, 14) : base) + i + "_");
+    }
+    for (String c : candidates) {
+      if (PREFIX.matcher(c).matches() && !taken.test(c)) {
+        return c;
+      }
+    }
+    return first;
   }
 
   /** What a draft runs as: its throw-away connection, the stored config, the prefix, the catalog entry. */

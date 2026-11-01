@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import okhttp3.Call;
+import okhttp3.HttpUrl;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -50,6 +51,10 @@ import tools.jackson.databind.JsonNode;
  * person's headers. A 401 (or a 403 for {@code insufficient_scope}) is the one answer a POST is sent again for: the
  * server refused the token before it read the message, so nothing ran; the core renews the token once and the POST
  * goes again with it. A second refusal means the person has to sign in again.
+ *
+ * <p>A server that signs in with cloud credentials gets the headers of its {@link RequestCredentials} on every request
+ * instead: a Google token, or a SigV4 signature over the method, URL and body as they go out. A 401 renews a token once;
+ * a refusal after that, or a 403, names the credentials and quotes the server, which says what is missing.
  */
 final class GatewayHttpTransport implements McpClientTransport {
 
@@ -67,6 +72,9 @@ final class GatewayHttpTransport implements McpClientTransport {
   private final Duration timeout;
   private final String server;
   private final McpServerRuntime.Authorization authorization;
+  private final RequestCredentials credentials;
+  /** The URL as OkHttp sends it: what a signature covers. */
+  private final URI sent;
   private volatile Function<Mono<McpSchema.JSONRPCMessage>, Mono<McpSchema.JSONRPCMessage>> handler;
   private volatile Consumer<Throwable> exceptions = t -> {};
   private volatile String sessionId;
@@ -86,6 +94,15 @@ final class GatewayHttpTransport implements McpClientTransport {
   /** @param authorization the core's sign-in for every request, or {@code null} for a server without one */
   GatewayHttpTransport(URI url, OkHttpClient client, Map<String, String> headers, McpJsonMapper mapper, long maxBytes,
       Duration timeout, String server, McpServerRuntime.Authorization authorization) {
+    this(url, client, headers, mapper, maxBytes, timeout, server, authorization, null);
+  }
+
+  /** @param credentials what authorizes every request from the server's cloud credentials, or {@code null} */
+  GatewayHttpTransport(URI url, OkHttpClient client, Map<String, String> headers, McpJsonMapper mapper, long maxBytes,
+      Duration timeout, String server, McpServerRuntime.Authorization authorization, RequestCredentials credentials) {
+    if (authorization != null && credentials != null) {
+      throw new IllegalArgumentException("A server signs in one way");
+    }
     this.url = url;
     this.client = client.newBuilder().callTimeout(timeout).readTimeout(timeout).build();
     this.headers = Map.copyOf(headers);
@@ -94,6 +111,8 @@ final class GatewayHttpTransport implements McpClientTransport {
     this.timeout = timeout;
     this.server = server;
     this.authorization = authorization;
+    this.credentials = credentials;
+    this.sent = HttpUrl.get(url.toString()).uri();
   }
 
   String sessionId() {
@@ -103,6 +122,11 @@ final class GatewayHttpTransport implements McpClientTransport {
   /** The core's sign-in this session's requests carry, or {@code null}. */
   McpServerRuntime.Authorization authorization() {
     return authorization;
+  }
+
+  /** The cloud credentials this session's requests carry, or {@code null}. */
+  RequestCredentials credentials() {
+    return credentials;
   }
 
   @Override
@@ -150,6 +174,13 @@ final class GatewayHttpTransport implements McpClientTransport {
           return;
         }
       }
+      if (credentials != null) {
+        try {
+          credentials.headers("DELETE", sent, new byte[0]).forEach(b::header);
+        } catch (ConnectorException | IllegalArgumentException e) {
+          return;
+        }
+      }
       b.header("Mcp-Session-Id", id);
       Call call = client.newBuilder().callTimeout(Duration.ofSeconds(3)).build().newCall(b.build());
       try (Response ignored = call.execute()) {
@@ -170,6 +201,10 @@ final class GatewayHttpTransport implements McpClientTransport {
       throw new McpTransportException("Couldn't write a message for " + server, e);
     }
     byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+    if (credentials != null) {
+      postSigned(message, bytes);
+      return;
+    }
     String auth = authorization == null ? null : signIn(authorization::header);
     for (int attempt = 1; ; attempt++) {
       Refusal refusal = send(message, bytes, auth);
@@ -195,8 +230,35 @@ final class GatewayHttpTransport implements McpClientTransport {
     }
   }
 
-  /** What a server answered when it refused a token: the status and its {@code WWW-Authenticate} challenge. */
-  private record Refusal(int status, String challenge) {}
+  /**
+   * One message of a server that signs in with cloud credentials. A 401 renews a token and the message goes once more
+   * (the server refused it before reading it, so nothing ran); a refusal after that, or a 403, ends it with the
+   * server's words, which name the permission or role that is missing.
+   */
+  private void postSigned(McpSchema.JSONRPCMessage message, byte[] bytes) {
+    for (int attempt = 1; ; attempt++) {
+      Refusal refusal = send(message, bytes, null);
+      if (refusal == null) {
+        return;
+      }
+      if (attempt == 1 && refusal.status() == 401 && credentials.refused()) {
+        continue;
+      }
+      throw new McpTransportException(server + " refused GateRook's " + credentials.label() + " (HTTP "
+          + refusal.status() + ")" + refusal.detail());
+    }
+  }
+
+  /**
+   * What a server answered when it refused a token or a signature: the status, its {@code WWW-Authenticate} challenge,
+   * and for cloud credentials the start of what it said (": User … is not authorized …"), else "".
+   */
+  private record Refusal(int status, String challenge, String detail) {
+
+    Refusal(int status, String challenge) {
+      this(status, challenge, "");
+    }
+  }
 
   /** A step of the core's sign-in; a missing one ends the POST with the reason before anything is sent. */
   private interface SignInStep {
@@ -240,6 +302,15 @@ final class GatewayHttpTransport implements McpClientTransport {
                 + "GateRook › Connectors › MCP servers."));
       }
     }
+    if (credentials != null) {
+      try {
+        credentials.headers("POST", sent, bytes).forEach(b::header);
+      } catch (ConnectorException e) {
+        throw new McpTransportException(e.getMessage(), e);
+      } catch (IllegalArgumentException e) {
+        throw new McpTransportException(server + " got a credential HTTP can't send.", e);
+      }
+    }
     b.header("Content-Type", "application/json");
     b.header("Accept", "application/json, text/event-stream");
     boolean initialize = message instanceof McpSchema.JSONRPCRequest r && McpSchema.METHOD_INITIALIZE.equals(r.method());
@@ -258,6 +329,9 @@ final class GatewayHttpTransport implements McpClientTransport {
       String challenge = response.header("WWW-Authenticate");
       if (authorization != null && (status == 401 || (status == 403 && insufficientScope(challenge)))) {
         return new Refusal(status, challenge);
+      }
+      if (credentials != null && (status == 401 || status == 403)) {
+        return new Refusal(status, challenge, snippet(response.body()));
       }
       String assigned = response.header("Mcp-Session-Id");
       if (initialize && assigned != null && !assigned.isBlank()) {

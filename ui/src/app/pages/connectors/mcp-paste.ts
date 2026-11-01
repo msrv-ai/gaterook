@@ -1,4 +1,6 @@
+import { McpServerAuthConfig } from '../../core/api/plugins.api';
 import { formatArgv, tokenizeCommand } from './connectors-view';
+import { awsTarget } from './mcp-cloud';
 
 /**
  * A server read from a snippet the person pasted from a server's documentation (ARCHITECTURE.md §7.5): what fills Add
@@ -18,6 +20,11 @@ export interface PastedServer {
   readonly notes: readonly string[];
   /** How many other servers the snippet named (only the first one is taken). */
   readonly others: number;
+  /**
+   * A sign-in the snippet implies (§7.6): the MCP Proxy for AWS becomes AWS SigV4 with its profile, a Google token in a
+   * header becomes Google Cloud credentials. Absent otherwise.
+   */
+  readonly auth?: McpServerAuthConfig;
 }
 
 /**
@@ -116,12 +123,13 @@ function serverObject(name: string, o: { readonly [key: string]: Json }): Pasted
   const url = [o['url'], o['serverUrl'], o['httpUrl']].find((v): v is string => typeof v === 'string');
   if (url) {
     const headers = isObject(o['headers']) ? Object.keys(o['headers']) : [];
-    return fromUrl(name, url, headers, headers.length ? [valuesNote(headers.length)] : []);
+    const result = fromUrl(name, url, headers, headers.length ? [valuesNote(headers.length)] : []);
+    return 'error' in result ? result : googleToken(result, isObject(o['headers']) ? o['headers'] : {});
   }
   if (typeof o['command'] === 'string') {
     const args = Array.isArray(o['args']) ? o['args'].filter((a): a is string => typeof a === 'string') : [];
-    const env = isObject(o['env']) ? Object.keys(o['env']) : [];
-    return fromArgv(name, [o['command'], ...args], env);
+    const env = isObject(o['env']) ? o['env'] : {};
+    return fromArgv(name, [o['command'], ...args], Object.keys(env), env);
   }
   return { error: 'The configuration has no command or URL of a server.' };
 }
@@ -254,8 +262,39 @@ function agentCli(tool: 'claude' | 'codex', args: string[]): PastedServer | { re
   return fromArgv(name, rest, env.filter(Boolean));
 }
 
-/** A server's command; one that runs `mcp-remote` (or a like bridge) for a URL becomes that URL. */
-function fromArgv(name: string, argv: readonly string[], env: readonly string[]): PastedServer | { readonly error: string } {
+/**
+ * A server's command; one that runs `mcp-remote` (or a like bridge) for a URL becomes that URL, and one that runs the
+ * MCP Proxy for AWS becomes its URL signed with SigV4 by GateRook, with the proxy's profile, region and service.
+ *
+ * @param envValues the snippet's environment, read only for `AWS_PROFILE` and `AWS_REGION` (never a key)
+ */
+function fromArgv(name: string, argv: readonly string[], env: readonly string[], envValues: { readonly [key: string]: Json } = {}): PastedServer | { readonly error: string } {
+  const proxy = argv.findIndex((a) => /^(mcp-proxy-for-aws(-cli)?(@[\w.-]+)?|.*mcp_proxy_for_aws\/server\.py)$/.test(a));
+  if (proxy >= 0) {
+    const rest = argv.slice(proxy + 1);
+    const url = rest.find((a) => /^https?:\/\//i.test(a));
+    if (url) {
+      const option = (flag: string): string => {
+        const i = rest.indexOf(flag);
+        return i >= 0 && rest[i + 1] && !rest[i + 1].startsWith('-') ? rest[i + 1] : '';
+      };
+      const fromEnv = (key: string): string => (typeof envValues[key] === 'string' ? (envValues[key] as string) : '');
+      const profile = option('--profile') || fromEnv('AWS_PROFILE');
+      const region = option('--region') || fromEnv('AWS_REGION');
+      const service = option('--service');
+      const result = fromUrl(name, url, [], ['GateRook signs the requests with SigV4 itself, so the MCP Proxy for AWS isn’t needed.']);
+      if ('error' in result) return result;
+      return {
+        ...result,
+        auth: {
+          type: 'aws',
+          credentials: { source: 'profile', profile: profile || 'default' },
+          ...(service ? { service } : {}),
+          ...(region ? { region } : {}),
+        },
+      };
+    }
+  }
   const bridge = argv.findIndex((a) => /^(mcp-remote|@[^/]+\/mcp-remote|mcp-remote@[\w.-]+)$/.test(a));
   if (bridge >= 0) {
     const url = argv.slice(bridge + 1).find((a) => /^https?:\/\//i.test(a));
@@ -270,6 +309,34 @@ function fromArgv(name: string, argv: readonly string[], env: readonly string[])
   }
   const notes = env.length ? [valuesNote(env.length)] : [];
   return { name: serverName(name, null), transport: 'stdio', url: '', command: formatArgv(argv), variables: unique(env), notes, others: 0 };
+}
+
+/**
+ * A Google MCP server documented with a token in a header (`Authorization: Bearer …` from gcloud, which ends after an
+ * hour, and `x-goog-user-project`): it signs in with Google Cloud credentials instead, billed to that project.
+ */
+function googleToken(server: PastedServer, headers: { readonly [key: string]: Json }): PastedServer {
+  let host = '';
+  try {
+    host = new URL(server.url).hostname.toLowerCase();
+  } catch {
+    return server;
+  }
+  const google = (h: string): boolean => ['authorization', 'x-goog-user-project'].includes(h.toLowerCase());
+  if (!host.endsWith('.googleapis.com') || !server.variables.some(google)) return server;
+  const billed = Object.entries(headers).find(([k]) => k.toLowerCase() === 'x-goog-user-project')?.[1];
+  const quotaProject = typeof billed === 'string' && /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/.test(billed) ? billed : '';
+  const variables = server.variables.filter((h) => !google(h));
+  return {
+    ...server,
+    variables,
+    notes: [
+      ...server.notes.filter((n) => n !== valuesNote(server.variables.length)),
+      ...(variables.length ? [valuesNote(variables.length)] : []),
+      'Signs in with your Google Cloud credentials instead of the pasted token: GateRook gets a new one before it expires.',
+    ],
+    auth: { type: 'google', credentials: { source: 'adc', ...(quotaProject ? { quotaProject } : {}) } },
+  };
 }
 
 // ── URLs and names ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -305,6 +372,10 @@ export function serverName(given: string, url: URL | null): string {
   if (!url) return '';
   const host = url.hostname.toLowerCase();
   if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]') return 'local-mcp';
+  // One domain, many products: the product names the server (bigtableadmin.googleapis.com → bigtableadmin-mcp).
+  const withMcp = (s: string): string => (s === 'mcp' || s.endsWith('-mcp') ? s : `${s.slice(0, 60)}-mcp`);
+  const product = host.endsWith('.googleapis.com') ? clean(host.split('.')[0]) : clean(awsTarget(host)?.service ?? '');
+  if (product) return withMcp(product);
   const generic = new Set(['mcp', 'api', 'www', 'app', 'apps', 'server', 'servers', 'remote', 'gateway', 'docs']);
   const labels = host.split('.').slice(0, -1).filter((l) => l && !generic.has(l));
   const base = clean(labels.at(-1) ?? '');

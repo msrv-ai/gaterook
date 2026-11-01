@@ -28,6 +28,11 @@
       <groupId>ai.msrv.gaterook</groupId>
       <artifactId>connectors-support</artifactId>
     </dependency>
+    <!-- A server at a URL that signs in with Google Cloud or AWS credentials: tokens and SigV4 from the core's own. -->
+    <dependency>
+      <groupId>ai.msrv.gaterook</groupId>
+      <artifactId>connectors-cloud-auth</artifactId>
+    </dependency>
     <dependency>
       <groupId>tools.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>

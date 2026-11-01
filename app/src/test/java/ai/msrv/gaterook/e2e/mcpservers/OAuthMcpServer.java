@@ -97,6 +97,8 @@ final class OAuthMcpServer implements AutoCloseable {
   final List<Map<String, String>> revocations = new CopyOnWriteArrayList<>();
   final List<String> authorizationsSeen = new CopyOnWriteArrayList<>();
   final List<String> bearersSeen = new CopyOnWriteArrayList<>();
+  /** It also answers without a sign-in, with less access: the review finds the sign-in optional. */
+  volatile boolean anonymous;
   final Map<String, Client> clients = new ConcurrentHashMap<>();
   final Map<String, Code> codes = new ConcurrentHashMap<>();
   final Set<String> access = ConcurrentHashMap.newKeySet();
@@ -173,6 +175,10 @@ final class OAuthMcpServer implements AutoCloseable {
       }
       String header = r.getHeader("Authorization");
       bearersSeen.add(String.valueOf(header));
+      if (header == null && anonymous) {
+        chain.doFilter(request, response);
+        return;
+      }
       if (header == null || !header.startsWith("Bearer ") || !access.contains(header.substring(7))) {
         w.setHeader("WWW-Authenticate", "Bearer error=\"invalid_token\", resource_metadata=\"" + base()
             + "/.well-known/oauth-protected-resource/mcp\", scope=\"issues:read\"");

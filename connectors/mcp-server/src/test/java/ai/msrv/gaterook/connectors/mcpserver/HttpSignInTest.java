@@ -55,7 +55,11 @@ class HttpSignInTest {
   private int port;
   private volatile String accepted = "Bearer at-2";
   private volatile boolean wantMoreScope;
+  /** The server answers without a sign-in too, with less access. */
+  private volatile boolean anonymous;
   private final List<String> sent = new CopyOnWriteArrayList<>();
+  /** The Authorization of each POST: a closed session's DELETE may arrive later. */
+  private final List<String> posted = new CopyOnWriteArrayList<>();
   private final AtomicInteger calls = new AtomicInteger();
   private EgressClients clients;
   private McpServers runtime;
@@ -117,6 +121,13 @@ class HttpSignInTest {
       HttpServletResponse w = (HttpServletResponse) response;
       String header = r.getHeader("Authorization");
       sent.add(String.valueOf(header));
+      if ("POST".equals(r.getMethod())) {
+        posted.add(String.valueOf(header));
+      }
+      if (header == null && anonymous) {
+        chain.doFilter(request, response);
+        return;
+      }
       if (!accepted.equals(header)) {
         w.setHeader("WWW-Authenticate", "Bearer error=\"invalid_token\", resource_metadata=\"http://127.0.0.1:"
             + port + "/.well-known/oauth-protected-resource/mcp\"");
@@ -261,6 +272,31 @@ class HttpSignInTest {
     assertThatThrownBy(() -> c.execute(Fixtures.call("lookup_lookup", "{}"), cfg(), new Fixtures.Secrets(), ctx()))
         .hasMessageContaining("isn't signed in");
     assertThat(sent).isEmpty();
+  }
+
+  @Test
+  void aServerWhoseSignInIsOptionalConnectsWithoutOneUntilThePersonSignsIn() throws Exception {
+    anonymous = true;
+    ConnectionConfig optional = Fixtures.cfg("cn_oauth", "lookup-api", Env.DEV, 1, Fixtures.object("""
+        {"transport":"http","url":"http://127.0.0.1:%d/mcp","auth":{"type":"oauth","optional":true}}"""
+        .formatted(port)));
+    McpServerRuntime.Handshake h = runtime.probe(optional, new Fixtures.Secrets(), ctx(), null);
+    Connector c = runtime.connector(optional, new McpServerRuntime.Snapshot("lookup_", h.serverVersion(),
+        h.protocolVersion(), h.tools(), null));
+
+    String text = c.execute(Fixtures.call("lookup_lookup", "{\"key\":\"k1\"}"), optional, new Fixtures.Secrets(),
+        ctx()).content().getFirst().text();
+    assertThat(text).isEqualTo("value of k1");
+    assertThat(posted).isNotEmpty().allMatch("null"::equals);
+
+    // The person signs in: the core stops the session, and the next one carries the token.
+    SignIn signIn = new SignIn();
+    signIn.current = "Bearer at-2";
+    host.signIns.put("cn_oauth", signIn);
+    runtime.stop("cn_oauth");
+    posted.clear();
+    c.execute(Fixtures.call("lookup_lookup", "{\"key\":\"k2\"}"), optional, new Fixtures.Secrets(), ctx());
+    assertThat(posted).isNotEmpty().allMatch("Bearer at-2"::equals);
   }
 
   @Test

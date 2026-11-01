@@ -3,6 +3,7 @@ import { clickhouseCheck, sentryReview } from '../connectors.fixtures';
 import { failureDetails, failureText } from './failure';
 import { mcpRequest } from './mcp-add.dialog';
 import { connectedToast } from './mcp-endpoint.dialog';
+import { McpServerAuthConfig } from '../../../core/api/plugins.api';
 import { mcpReviewView, mcpSecretValues, signInConfig } from './mcp-review.dialog';
 import { accessText, connectionFormText, pluginFacts } from './plugin-facts';
 
@@ -129,6 +130,50 @@ describe('Add MCP server request', () => {
     expect(errors({ clientId: 'abc' }, [{ name: 'Authorization' }])?.variables).toBe(
       'The OAuth sign-in sends the Authorization header. Remove that header, or the client ID.',
     );
+  });
+
+  it('signs in with Google Cloud credentials: this computer’s sign-in or a key, a service account, a billed project', () => {
+    const google = (o: Record<string, string>, url = 'https://bigtableadmin.googleapis.com/mcp', headers: { name: string }[] = []) =>
+      mcpRequest('bigtable-admin', 'http', '', url, headers, { with: 'google', clientId: 'ignored', scopes: '', callbackPort: '', ...o });
+    expect(google({}).source).toEqual({
+      config: { name: 'bigtable-admin', transport: 'http', url: 'https://bigtableadmin.googleapis.com/mcp', headers: [],
+        auth: { type: 'google', credentials: { source: 'adc' } } },
+    });
+    expect(google({ source: 'serviceAccountKey', impersonate: 'gw-mcp@acme-stage.iam.gserviceaccount.com', quotaProject: 'acme-billing',
+      scopes: ' https://www.googleapis.com/auth/bigtable.admin ' }).source).toEqual({
+      config: { name: 'bigtable-admin', transport: 'http', url: 'https://bigtableadmin.googleapis.com/mcp', headers: [],
+        auth: { type: 'google', credentials: { source: 'serviceAccountKey', impersonate: 'gw-mcp@acme-stage.iam.gserviceaccount.com',
+          quotaProject: 'acme-billing' }, scopes: 'https://www.googleapis.com/auth/bigtable.admin' } },
+    });
+    expect(google({ impersonate: 'me@gmail.com' }).errors?.impersonate).toBe('A service account looks like name@project.iam.gserviceaccount.com.');
+    expect(google({ quotaProject: 'X' }).errors?.quotaProject).toBe('A project ID has 6 to 30 lowercase letters, digits and -.');
+    expect(google({}, undefined, [{ name: 'Authorization' }]).errors?.variables).toBe(
+      'Google Cloud credentials send the Authorization header. Remove that header, or sign in another way.',
+    );
+  });
+
+  it('signs requests with AWS credentials for the service and region the URL names, or the ones given', () => {
+    const aws = (o: Record<string, string>, url = 'https://aws-mcp.us-east-1.api.aws/mcp') =>
+      mcpRequest('aws-mcp', 'http', '', url, [], { with: 'aws', clientId: '', scopes: '', callbackPort: '', ...o });
+    expect(aws({}).source).toEqual({
+      config: { name: 'aws-mcp', transport: 'http', url: 'https://aws-mcp.us-east-1.api.aws/mcp', headers: [],
+        auth: { type: 'aws', credentials: { source: 'profile', profile: 'default' } } },
+    });
+    expect(aws({ source: 'accessKey', accessKeyId: 'AKIAIOSFODNN7EXAMPLE', roleArn: 'arn:aws:iam::123456789012:role/gw-mcp',
+      externalId: 'gw-ext-1a2b3c', region: 'eu-west-1' }).source).toEqual({
+      config: { name: 'aws-mcp', transport: 'http', url: 'https://aws-mcp.us-east-1.api.aws/mcp', headers: [],
+        auth: { type: 'aws', credentials: { source: 'accessKey', accessKeyId: 'AKIAIOSFODNN7EXAMPLE', roleArn: 'arn:aws:iam::123456789012:role/gw-mcp',
+          externalId: 'gw-ext-1a2b3c' }, region: 'eu-west-1' } },
+    });
+    expect(aws({ source: 'accessKey' }).errors?.accessKeyId).toBe('Enter the access key ID.');
+    expect(aws({ source: 'accessKey', accessKeyId: 'AKIA-short' }).errors?.accessKeyId).toBe('An access key ID looks like AKIA… (20 characters).');
+    expect(aws({ roleArn: 'gw-mcp' }).errors?.roleArn).toBe('A role ARN looks like arn:aws:iam::123456789012:role/name.');
+    expect(aws({ region: 'Mars' }).errors?.region).toBe('A region looks like us-east-1.');
+    // A host that names no service and region needs both said.
+    expect(aws({}, 'https://mcp.example.com/mcp').errors?.service).toBe(
+      'Name the service and region to sign for: the URL doesn’t say, as aws-mcp.us-east-1.api.aws does.',
+    );
+    expect(aws({ service: 'bedrock-agentcore', region: 'us-west-2' }, 'https://mcp.example.com/mcp').errors).toBeNull();
   });
 });
 
@@ -270,6 +315,45 @@ describe('MCP server review', () => {
     // A key the person passes as the Authorization header is their choice instead of the sign-in.
     expect(remote({ kind: 'oauth', registration: 'dynamic' }, ['Authorization']).signIn).toBeNull();
     expect(remote({ kind: 'oauth', registration: 'app' }, [], 'Iv23li0abc').appClient).toBe('Iv23li0abc');
+  });
+
+  const cloudy = (auth: NonNullable<Parameters<typeof sentryReview>[0]>['auth'], chosen?: McpServerAuthConfig, url = 'https://bigtableadmin.googleapis.com/mcp') =>
+    mcpReviewView({
+      review: sentryReview({ transport: 'http', url, argv: [], env: [], auth }),
+      source: { config: { name: 'bigtable-admin', transport: 'http', url, ...(chosen ? { auth: chosen } : {}) } },
+      name: 'bigtable-admin',
+      transport: 'http',
+      target: url,
+      variables: [],
+      opener: null,
+    });
+
+  it('offers a Google or AWS server its cloud’s credentials, and reviews them as the sign-in', () => {
+    // Google gives OAuth only to an app the person registers: its own credentials instead.
+    const offered = cloudy({ kind: 'optional', registration: 'app-required', cloud: 'google', secretRequired: true });
+    expect(offered.suggest).toBe('google');
+    expect(offered.signIn).toBe('optional');
+
+    const adc = cloudy({ kind: 'optional', registration: 'app-required', cloud: 'google' }, { type: 'google', credentials: { source: 'adc', quotaProject: 'acme-billing' } });
+    expect(adc.suggest).toBeNull();
+    expect(adc.signIn).toBeNull();
+    expect(adc.cloud).toBe('google');
+    expect(adc.cloudText).toBe('A Google token from the Google sign-in of this computer, billed to acme-billing. GateRook gets a new one before it expires.');
+    expect(adc.trust).toBe('I trust this server with my Google Cloud credentials');
+    expect(adc.secrets).toEqual([]);
+
+    const keyed = cloudy({ kind: 'optional', cloud: 'google' }, { type: 'google', credentials: { source: 'serviceAccountKey' } });
+    expect(keyed.secrets).toEqual([{ name: 'Service account key (JSON)', pointer: '/auth/credentials/serviceAccountKey', label: 'Service account key (JSON)', multiline: true }]);
+    expect(keyed.named).toEqual([]);
+
+    const url = 'https://aws-mcp.us-east-1.api.aws/mcp';
+    expect(cloudy({ kind: 'optional', registration: 'dynamic', cloud: 'aws' }, undefined, url).suggest).toBe('aws');
+    const signed = cloudy({ kind: 'optional', cloud: 'aws' }, { type: 'aws', credentials: { source: 'accessKey', accessKeyId: 'AKIAIOSFODNN7EXAMPLE' } }, url);
+    expect(signed.cloudText).toBe('Each request signed with SigV4 for aws-mcp in us-east-1, with the access key AKIAIOSFODNN7EXAMPLE.');
+    expect(signed.secrets.map((x) => x.pointer)).toEqual(['/auth/credentials/secretAccessKey']);
+    expect(signed.risk).toBe('Every call carries a signature of your AWS credentials to this URL. Nobody has verified the server behind it.');
+    // A server elsewhere is offered nothing.
+    expect(remote({ kind: 'optional', registration: 'dynamic' }).suggest).toBeNull();
   });
 
   it('signs in and adds with the same config: the reviewed one with the sign-in and the typed client ID', () => {

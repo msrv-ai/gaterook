@@ -7,6 +7,7 @@ import { GwEnableWhen } from '../../../kit/enable-when';
 import { GwIcon } from '../../../kit/icons';
 import { formatArgv, npmPackage, serverPaths } from '../connectors-view';
 import { ConnectorsData } from '../connectors.data';
+import { cloudSecret, cloudSignInText } from '../mcp-cloud';
 import { failureText } from './failure';
 import { McpReviewed } from './mcp-add.dialog';
 import { McpServerConnected } from './mcp-endpoint.dialog';
@@ -15,11 +16,18 @@ import { GwMcpSignIn } from './mcp-sign-in';
 /** The secret field of an OAuth app's client secret. */
 export const CLIENT_SECRET = '/auth/clientSecret';
 
-/** One variable (or header) whose value the review asks for: its name, and where its value goes in `secrets`. */
+/**
+ * One variable (or header) whose value the review asks for: its name, and where its value goes in `secrets`; or the
+ * key of a cloud sign-in (a service account key, a secret access key), named by `label`.
+ */
 export interface McpReviewSecret {
   readonly name: string;
   /** The JSON Pointer the core reads the value at (`/env/0/secretRef`, `/headers/1/secretRef`). */
   readonly pointer: string;
+  /** The field's label instead of "Value of <name>", for a key that isn't a header ("Secret access key"). */
+  readonly label?: string;
+  /** A multi-line value: a service account key's JSON. */
+  readonly multiline?: boolean;
 }
 
 /** What the review dialog shows: the core's review of the request, put in the kit's rows. */
@@ -38,14 +46,25 @@ export interface McpReviewView {
   readonly version: { readonly pinned: true; readonly version: string } | { readonly pinned: false } | null;
   readonly workdir: string;
   readonly sandbox: string | null;
-  /** The variables (or headers) in the core's order: each value is typed here and becomes a secret of the server. */
+  /**
+   * The variables (or headers) in the core's order, then a cloud sign-in's key: each value is typed here and becomes a
+   * secret of the server.
+   */
   readonly secrets: readonly McpReviewSecret[];
+  /** The variables (or headers) alone, by name, for "Secrets passed". */
+  readonly named: readonly McpReviewSecret[];
   /** Over HTTP: what the review found about signing in, or null (a command, or a core without discovery). */
   readonly auth: McpServerAuthReview | null;
   /** `required`: Connect waits for the sign-in; `optional`: the server answers without one too. */
   readonly signIn: 'required' | 'optional' | null;
   /** The client ID of the person's OAuth app, from Sign-in options, or null. */
   readonly appClient: string | null;
+  /** The server signs in with its cloud's credentials the person chose (§7.6), or null. */
+  readonly cloud: 'google' | 'aws' | null;
+  /** That sign-in in one sentence ("A Google token from the Google sign-in of this computer."), or null. */
+  readonly cloudText: string | null;
+  /** The cloud whose credentials could sign in instead of OAuth: the review offers to switch. */
+  readonly suggest: 'google' | 'aws' | null;
   /**
    * Over HTTP: the core's warnings (a key in the URL, plain HTTP). A command's are rows of the review already: its pin
    * and where it runs.
@@ -81,15 +100,21 @@ export function mcpReviewView(r: McpReviewed): McpReviewView {
   const names = review.env.length ? review.env : r.variables.map((v) => v.name);
   const key = http ? 'headers' : 'env';
   const auth = http ? (review.auth ?? null) : null;
+  const config = 'config' in r.source ? r.source.config : null;
+  const chosen = http && config?.auth && config.auth.type !== 'oauth' ? config.auth : null;
+  const cloud = chosen ? chosen.type as 'google' | 'aws' : null;
   // A key the person passes as the Authorization header is their choice instead of a sign-in.
   const keyed = http && names.some((n) => n.toLowerCase() === 'authorization');
-  const signIn = keyed ? null : auth?.kind === 'oauth' ? 'required' : auth?.kind === 'optional' ? 'optional' : null;
-  const config = 'config' in r.source ? r.source.config : null;
+  const signIn = keyed || cloud ? null : auth?.kind === 'oauth' ? 'required' : auth?.kind === 'optional' ? 'optional' : null;
+  const cloudKey = cloudSecret(chosen);
+  const credentials = cloud === 'google' ? 'a token of your Google Cloud credentials' : 'a signature of your AWS credentials';
   return {
     name,
     http,
     verb: http ? 'Connect' : 'Start',
-    risk: http
+    risk: cloud
+      ? `Every call carries ${credentials}${names.length ? ' and these secrets' : ''} to this URL. Nobody has verified the server behind it.`
+      : http
       ? signIn
         ? `Every call sends your sign-in${names.length ? ' and these secrets' : ''} to this URL. Nobody has verified the server behind it.`
         : names.length
@@ -98,7 +123,9 @@ export function mcpReviewView(r: McpReviewed): McpReviewView {
       : names.length
         ? 'This code runs on your computer with these secrets. Nobody has verified it: it can read them and reach anything your user account can.'
         : 'This code runs on your computer. Nobody has verified it: it can reach anything your user account can.',
-    trust: http
+    trust: cloud
+      ? `I trust this server with my ${cloud === 'google' ? 'Google Cloud' : 'AWS'} credentials${names.length ? ' and these secrets' : ''}`
+      : http
       ? signIn
         ? `I trust this server with my sign-in${names.length ? ' and these secrets' : ''}`
         : names.length
@@ -112,10 +139,17 @@ export function mcpReviewView(r: McpReviewed): McpReviewView {
     version,
     workdir: serverPaths(name).workdir,
     sandbox: review.sandbox,
-    secrets: names.map((n, i) => ({ name: n, pointer: `/${key}/${i}/secretRef` })),
+    secrets: [
+      ...names.map((n, i) => ({ name: n, pointer: `/${key}/${i}/secretRef` })),
+      ...(cloudKey ? [{ name: cloudKey.label, pointer: cloudKey.pointer, label: cloudKey.label, multiline: cloudKey.multiline }] : []),
+    ],
+    named: names.map((n, i) => ({ name: n, pointer: `/${key}/${i}/secretRef` })),
     auth,
     signIn,
     appClient: config?.auth?.clientId ?? null,
+    cloud,
+    cloudText: chosen ? cloudSignInText(chosen, review.url ?? r.target) : null,
+    suggest: http && !cloud && !keyed && auth?.cloud ? auth.cloud : null,
     warnings: http ? (review.warnings ?? []) : [],
   };
 }
@@ -207,9 +241,13 @@ let nextId = 0;
                 </dd></div>
               }
               <div class="gw-kv__row"><dt class="gw-kv__key">Secrets passed</dt><dd class="gw-kv__value">
-                @if (w.signIn) {Your sign-in, encrypted here and renewed by GateRook@if (w.secrets.length) {, and }}
-                @for (s of w.secrets; track s.pointer; let last = $last; let i = $index) {@if (i > 0) {{{ last ? ' and ' : ', ' }}}<span class="gw-mono">{{ s.name }}</span>}@if (w.secrets.length) {{{ w.secrets.length === 1 ? ', from a new secret' : ', each from a new secret' }} of {{ w.name }}, encrypted here} @else if (!w.signIn) {None}
+                @if (w.signIn) {Your sign-in, encrypted here and renewed by GateRook@if (w.named.length) {, and }}
+                @if (w.cloud) {{{ w.cloud === 'google' ? 'A token of your Google Cloud credentials' : 'A signature of your AWS credentials' }}, made by GateRook for each request@if (w.named.length) {, and }}
+                @for (s of w.named; track s.pointer; let last = $last; let i = $index) {@if (i > 0) {{{ last ? ' and ' : ', ' }}}<span class="gw-mono">{{ s.name }}</span>}@if (w.named.length) {{{ w.named.length === 1 ? ', from a new secret' : ', each from a new secret' }} of {{ w.name }}, encrypted here} @else if (!w.signIn && !w.cloud) {None}
               </dd></div>
+              @if (w.cloudText) {
+                <div class="gw-kv__row"><dt class="gw-kv__key">Sign-in</dt><dd class="gw-kv__value">{{ w.cloudText }} The agent never sees {{ w.cloud === 'google' ? 'the token' : 'the keys' }}.</dd></div>
+              }
               @if (w.signIn && w.auth; as a) {
                 <div class="gw-kv__row"><dt class="gw-kv__key">Sign-in</dt><dd class="gw-kv__value">
                   OAuth at <span class="gw-mono">{{ a.authorizationHost || a.issuer }}</span>{{ w.signIn === 'optional' ? ', optional: the server also answers without it, with less access' : '' }}.
@@ -222,6 +260,16 @@ let nextId = 0;
               <div class="gw-alert gw-alert--warning gw-alert--compact">
                 <svg lucideIcon="triangle-alert" class="gw-icon gw-alert__icon"></svg>
                 <div class="gw-alert__content"><p class="gw-alert__body">{{ warning }}</p></div>
+              </div>
+            }
+            @if (w.suggest; as cloud) {
+              <div class="gw-alert gw-alert--info gw-alert--compact">
+                <svg lucideIcon="cloud" class="gw-icon gw-alert__icon"></svg>
+                <div class="gw-alert__content">
+                  <p class="gw-alert__title">{{ cloud === 'google' ? 'Sign in with Google Cloud credentials instead' : 'Sign requests with AWS credentials instead' }}</p>
+                  <p class="gw-alert__body">{{ cloud === 'google' ? 'No OAuth app to create: GateRook gets a token from the Google sign-in of this computer (gcloud auth application-default login) and renews it. Other credentials: Sign-in options of Add MCP server.' : 'No browser sign-in that ends after 12 hours: GateRook signs each request with SigV4, with the default profile of this computer. Other credentials: Sign-in options of Add MCP server.' }}</p>
+                </div>
+                <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" [attr.aria-busy]="switching() ? 'true' : null" [attr.aria-disabled]="switching() ? 'true' : null" (click)="useCloud(cloud)">@if (switching()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>}{{ cloud === 'google' ? 'Use Google Cloud credentials' : 'Use AWS credentials' }}</button></div>
               </div>
             }
             @if (w.signIn && w.auth; as a) {
@@ -252,9 +300,9 @@ let nextId = 0;
                     <input class="gw-input gw-input--mono" [id]="uid + '-client'" type="text" spellcheck="false" autocomplete="off" [value]="w.appClient ?? ''" [readOnly]="!!w.appClient" (input)="clientId.set(fieldValue($event))">
                   </div>
                   <div class="gw-field">
-                    <label class="gw-field__label" [for]="uid + '-client-secret'">Client secret <span class="gw-field__optional">Optional</span></label>
-                    <input class="gw-input gw-input--mono" [id]="uid + '-client-secret'" type="password" autocomplete="new-password" spellcheck="false" [attr.aria-describedby]="uid + '-client-secret-hint'">
-                    <p class="gw-field__hint" [id]="uid + '-client-secret-hint'">Only when the app has one. It is stored encrypted as a secret of {{ w.name }} and never shown again.</p>
+                    <label class="gw-field__label" [for]="uid + '-client-secret'">Client secret @if (!a.secretRequired) {<span class="gw-field__optional">Optional</span>}</label>
+                    <input class="gw-input gw-input--mono" [id]="uid + '-client-secret'" type="password" autocomplete="new-password" spellcheck="false" (input)="clientSecretTyped.set(fieldValue($event) !== '')" [attr.aria-describedby]="uid + '-client-secret-hint'">
+                    <p class="gw-field__hint" [id]="uid + '-client-secret-hint'">{{ a.secretRequired ? 'The provider takes the app only with its secret.' : 'Only when the app has one.' }} It is stored encrypted as a secret of {{ w.name }} and never shown again.</p>
                   </div>
                 }
                 <div gwMcpSignIn [start]="startSignIn" [host]="a.authorizationHost ?? null" [blocked]="signInBlocked()" (signedIn)="signedIn.set($event)"></div>
@@ -274,9 +322,13 @@ let nextId = 0;
                 <legend class="gw-field__label">{{ w.secrets.length === 1 ? 'Its value' : 'Their values' }}</legend>
                 @for (s of w.secrets; track s.pointer; let i = $index) {
                   <div class="gw-field">
-                    <label class="gw-field__label" [for]="uid + '-value-' + i">Value of <span class="gw-mono">{{ s.name }}</span></label>
-                    <input class="gw-input gw-input--mono" [id]="uid + '-value-' + i" type="password" required autocomplete="new-password" spellcheck="false" (input)="clearMissing(i)" [attr.aria-invalid]="missing().includes(i) ? 'true' : null" [attr.aria-describedby]="missing().includes(i) ? uid + '-value-err-' + i : null">
-                    @if (missing().includes(i)) {<p class="gw-field__error" [id]="uid + '-value-err-' + i"><svg lucideIcon="circle-alert" class="gw-icon"></svg>Enter the value of {{ s.name }}.</p>}
+                    <label class="gw-field__label" [for]="uid + '-value-' + i">@if (s.label) {{{ s.label }}} @else {Value of <span class="gw-mono">{{ s.name }}</span>}</label>
+                    @if (s.multiline) {
+                      <textarea class="gw-textarea gw-textarea--code" [id]="uid + '-value-' + i" rows="4" required autocomplete="off" spellcheck="false" (input)="clearMissing(i)" [attr.aria-invalid]="missing().includes(i) ? 'true' : null" [attr.aria-describedby]="missing().includes(i) ? uid + '-value-err-' + i : null"></textarea>
+                    } @else {
+                      <input class="gw-input gw-input--mono" [id]="uid + '-value-' + i" type="password" required autocomplete="new-password" spellcheck="false" (input)="clearMissing(i)" [attr.aria-invalid]="missing().includes(i) ? 'true' : null" [attr.aria-describedby]="missing().includes(i) ? uid + '-value-err-' + i : null">
+                    }
+                    @if (missing().includes(i)) {<p class="gw-field__error" [id]="uid + '-value-err-' + i"><svg lucideIcon="circle-alert" class="gw-icon"></svg>{{ s.label ? 'Enter the ' + s.label.charAt(0).toLowerCase() + s.label.slice(1) + '.' : 'Enter the value of ' + s.name + '.' }}</p>}
                   </div>
                 }
                 <p class="gw-field__hint" [id]="uid + '-values-hint'">{{ w.secrets.length === 1 ? 'It is' : 'Each is' }} stored encrypted as a secret of {{ w.name }} when it {{ w.http ? 'connects' : 'starts' }}, and never shown again. The agent never sees {{ w.secrets.length === 1 ? 'it' : 'them' }}.</p>
@@ -320,16 +372,47 @@ export class GwMcpReviewDialog {
   protected readonly missing = signal<readonly number[]>([]);
   /** The client ID typed in the review, for a server that needs the person's OAuth app. */
   protected readonly clientId = signal('');
+  /** Whether a client secret was typed (its value stays in the field): Google takes no app without one. */
+  protected readonly clientSecretTyped = signal(false);
+  /** A review of the same server with its cloud's credentials is on its way. */
+  protected readonly switching = signal(false);
+  private reviewed: McpReviewed | null = null;
   /** The finished sign-in, and the config it was made for (the add sends exactly that one). */
   protected readonly signedIn = signal<McpSignIn | null>(null);
   private signedInConfig: McpServerConfig | null = null;
   private readonly signInBlock = viewChild(GwMcpSignIn);
 
-  /** Why Sign in can't start: a server that needs an OAuth app has no client ID yet. */
+  /** Why Sign in can't start: a server that needs an OAuth app has no client ID yet, or no secret where it needs one. */
   protected signInBlocked(): string | null {
     const w = this.view();
-    if (w?.auth?.registration !== 'app-required' || w.appClient || this.clientId().trim()) return null;
-    return 'Enter the client ID of your OAuth app first.';
+    const app = w?.auth?.registration === 'app-required' || w?.auth?.registration === 'app';
+    if (!w || !app) return null;
+    if (w.auth?.registration === 'app-required' && !w.appClient && !this.clientId().trim()) return 'Enter the client ID of your OAuth app first.';
+    if (w.auth?.secretRequired && !this.clientSecretTyped()) return 'Enter the client secret of your OAuth app first.';
+    return null;
+  }
+
+  /**
+   * The same server, reviewed again to sign in with its cloud's credentials (§7.6): Google sign-in on this computer, or
+   * SigV4 with the default AWS profile. Other credentials are chosen in Add MCP server's Sign-in options.
+   */
+  protected async useCloud(cloud: 'google' | 'aws'): Promise<void> {
+    const r = this.reviewed;
+    if (!r || !('config' in r.source) || this.switching()) return;
+    const config: McpServerConfig = {
+      ...r.source.config,
+      auth: cloud === 'google' ? { type: 'google', credentials: { source: 'adc' } } : { type: 'aws', credentials: { source: 'profile', profile: 'default' } },
+    };
+    this.switching.set(true);
+    this.error.set(null);
+    try {
+      const review = await this.data.reviewServer({ config });
+      this.render({ ...r, review, source: { config } });
+    } catch (err) {
+      this.error.set(failureText(err, 'This build of the gateway core can’t run MCP servers yet.'));
+    } finally {
+      this.switching.set(false);
+    }
   }
 
   /** Sign in (`POST /api/mcp-sign-ins`): the reviewed config with the sign-in, the app's secret if one was typed. */
@@ -348,7 +431,12 @@ export class GwMcpReviewDialog {
   }
 
   show(reviewed: McpReviewed): void {
-    // Every review starts unacknowledged and with empty values (the fields are reused from the last one).
+    this.render(reviewed);
+    this.dialog.openAfterRender(reviewed.opener);
+  }
+
+  /** Every review starts unacknowledged and with empty values (the fields are reused from the last one). */
+  private render(reviewed: McpReviewed): void {
     const ack = this.host.querySelector<HTMLInputElement>(`#${this.uid}-ack`);
     if (ack?.checked) {
       ack.checked = false;
@@ -359,12 +447,13 @@ export class GwMcpReviewDialog {
     this.signedIn.set(null);
     this.signedInConfig = null;
     this.clientId.set('');
+    this.clientSecretTyped.set(false);
+    this.reviewed = reviewed;
     this.source.set(reviewed.source);
     this.view.set(mcpReviewView(reviewed));
     this.busy.set(false);
     this.error.set(null);
     this.missing.set([]);
-    this.dialog.openAfterRender(reviewed.opener);
   }
 
   protected clearMissing(i: number): void {
@@ -415,7 +504,7 @@ export class GwMcpReviewDialog {
       'config' in source
         ? signIn && this.signedInConfig
           ? { config: this.signedInConfig, ...secrets, signIn: signIn.id }
-          : { config: source.config, ...secrets }
+          : { config: this.withoutSignIn(source.config, w), ...secrets }
         : { catalog: source.catalog, ...secrets };
     try {
       const started = await this.data.addServer(request);
@@ -440,7 +529,18 @@ export class GwMcpReviewDialog {
     }
   }
 
-  private valueFields(): HTMLInputElement[] {
-    return Array.from(this.host.querySelectorAll<HTMLInputElement>(`input[id^="${this.uid}-value-"]`));
+  /**
+   * The config a server connects with when the person didn't sign in: one whose sign-in is optional keeps it, so they
+   * can sign in later from its row (unless it needs an OAuth app they haven't named).
+   */
+  private withoutSignIn(config: McpServerConfig, w: McpReviewView): McpServerConfig {
+    if (w.signIn !== 'optional' || !w.auth) return config;
+    if (w.auth.registration === 'app-required' && !w.appClient && !this.clientId().trim()) return config;
+    const signed = signInConfig(config, this.clientId());
+    return { ...signed, auth: { ...signed.auth!, optional: true } };
+  }
+
+  private valueFields(): (HTMLInputElement | HTMLTextAreaElement)[] {
+    return Array.from(this.host.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(`input[id^="${this.uid}-value-"], textarea[id^="${this.uid}-value-"]`));
   }
 }
