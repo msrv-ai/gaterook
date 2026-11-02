@@ -4,7 +4,7 @@ GateRook can put an MCP server you already use behind its modes, approvals and a
 
 ## Add a server
 
-Open **Connectors › MCP servers › Add MCP server**; **Connections › Add connection › External MCP server** leads there too. Fill in the fields, [find the server in the MCP registry](#find-a-server-in-the-mcp-registry), or open **Paste a configuration from the server’s docs** and paste what the server's documentation gives for an AI app:
+Open **Connectors › MCP servers › Add MCP server**; **Connections › Add connection › External MCP server** leads there too. The dialog has two tabs: **Manual entry** and [**Official MCP Registry**](#find-a-server-in-the-mcp-registry). On **Manual entry**, fill in the fields, or open **Paste a configuration from the server’s docs** and paste what the server's documentation gives for an AI app:
 
 | What you paste | Example |
 | --- | --- |
@@ -18,7 +18,7 @@ Only names of headers and variables are taken from a paste. The review asks for 
 
 ### Find a server in the MCP registry
 
-Open **Find a server in the MCP registry** and type at least three characters of a server's name, such as `linear`. GateRook searches the [Official MCP Registry](https://registry.modelcontextprotocol.io), where publishers list their public servers, and shows the latest version of each match, 20 at a time. **Use** fills the fields as a pasted configuration does:
+Open the **Official MCP Registry** tab and type at least three characters of a server's name, such as `linear`. GateRook searches the [Official MCP Registry](https://registry.modelcontextprotocol.io), where publishers list their public servers, and shows the latest version of each match, 20 at a time. **Use** fills **Manual entry** as a pasted configuration does and returns to it, where **Review and connect** or **Review and start** continues:
 
 - A server at a URL gets its Streamable HTTP address, or its SSE address changed to `/mcp`, and the names of the headers it needs.
 - An npm package gets `npx -y <package>@<version>`, a PyPI package `uvx --from <package>==<version> <package>`, both pinned to the version the registry names, and the names of the variables the server needs. A package that the registry lists only as a Docker image, an MCP bundle or a NuGet package can't be added from the search; paste the configuration from its docs instead.
