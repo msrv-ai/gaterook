@@ -268,7 +268,7 @@ function agentCli(tool: 'claude' | 'codex', args: string[]): PastedServer | { re
  *
  * @param envValues the snippet's environment, read only for `AWS_PROFILE` and `AWS_REGION` (never a key)
  */
-function fromArgv(name: string, argv: readonly string[], env: readonly string[], envValues: { readonly [key: string]: Json } = {}): PastedServer | { readonly error: string } {
+export function fromArgv(name: string, argv: readonly string[], env: readonly string[], envValues: { readonly [key: string]: Json } = {}): PastedServer | { readonly error: string } {
   const proxy = argv.findIndex((a) => /^(mcp-proxy-for-aws(-cli)?(@[\w.-]+)?|.*mcp_proxy_for_aws\/server\.py)$/.test(a));
   if (proxy >= 0) {
     const rest = argv.slice(proxy + 1);
@@ -345,7 +345,7 @@ function googleToken(server: PastedServer, headers: { readonly [key: string]: Js
  * A server at a URL. An address for the older SSE transport (`…/sse`) becomes `…/mcp`: GateRook speaks Streamable
  * HTTP, and servers that still document an `/sse` address usually answer at `/mcp` too.
  */
-function fromUrl(name: string, raw: string, headers: readonly string[], notes: readonly string[]): PastedServer | { readonly error: string } {
+export function fromUrl(name: string, raw: string, headers: readonly string[], notes: readonly string[]): PastedServer | { readonly error: string } {
   let url: URL;
   try {
     url = new URL(raw.trim());
@@ -382,7 +382,7 @@ export function serverName(given: string, url: URL | null): string {
   return base ? `${base.slice(0, 60)}-mcp` : '';
 }
 
-function valuesNote(n: number): string {
+export function valuesNote(n: number): string {
   return n === 1 ? 'Its value isn’t copied: the review asks for it and stores it encrypted.' : 'Their values aren’t copied: the review asks for each and stores it encrypted.';
 }
 

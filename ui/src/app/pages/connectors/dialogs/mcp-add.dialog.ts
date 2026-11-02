@@ -1,13 +1,42 @@
-import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, output, signal } from '@angular/core';
-import { McpServerAuthConfig, McpServerConfig, McpServerReview, McpServerSource } from '../../../core/api/plugins.api';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, output, signal } from '@angular/core';
+import { McpRegistryServer, McpServerAuthConfig, McpServerConfig, McpServerReview, McpServerSource } from '../../../core/api/plugins.api';
 import { GwDialog, GwDialogClose } from '../../../kit/dialog';
 import { GwToggle } from '../../../kit/disclosure';
 import { GwIcon } from '../../../kit/icons';
+import { GwSearchClearButton } from '../../../kit/search';
 import { joinAnd, tokenizeCommand } from '../connectors-view';
 import { ConnectorsData } from '../connectors.data';
 import { signingTarget } from '../mcp-cloud';
-import { parsePastedServer, serverName } from '../mcp-paste';
+import { PastedServer, parsePastedServer, serverName } from '../mcp-paste';
+import { RegistryUse, fromRegistry, registryUse, templateParts } from '../mcp-registry';
 import { failureText } from './failure';
+
+/** One result of Find a server: the entry, the name it is shown under, how it would be added and where it runs. */
+export interface RegistryResult {
+  readonly server: McpRegistryServer;
+  readonly title: string;
+  readonly use: RegistryUse;
+  /** The host of its URL, or the package command (`npx @sentry/mcp-server@0.42.0`). */
+  readonly target: string;
+}
+
+export function registryResult(server: McpRegistryServer): RegistryResult {
+  const use = registryUse(server);
+  let target = '';
+  if (use.kind === 'remote') {
+    try {
+      target = new URL(use.remote.url).host;
+    } catch {
+      target = use.remote.url;
+    }
+  } else if (use.kind === 'package') {
+    target = `${use.runtime} ${use.pkg.identifier}${use.pkg.version ? `@${use.pkg.version}` : ''}`;
+  }
+  return { server, title: server.title || server.name.split('/')[1] || server.name, use, target };
+}
+
+/** The line under the results that says where they come from. */
+const OFFICIAL_REGISTRY = 'registry.modelcontextprotocol.io';
 
 /**
  * One row of "Variables or headers": the name the process gets. Its value is a new secret of the server, typed in the
@@ -91,6 +120,8 @@ const ROLE_ARN = /^arn:aws(-cn|-us-gov)?:iam::\d{12}:role\/[\w+=,.@/-]{1,512}$/;
 const EXTERNAL_ID = /^[\w+=,.@:/-]{2,1224}$/;
 const AWS_SERVICE = /^[a-z0-9-]{1,64}$/;
 const AWS_REGION = /^[a-z]{2}(-[a-z]+)+-\d+$/;
+/** A part of a registry command left for the person: `<workspace>`, `{token}`. */
+const PLACEHOLDER = /<[A-Za-z_][\w.-]*>|\{[A-Za-z_]\w*\}/g;
 
 /**
  * The request "Review and start" sends (`POST /api/mcp-servers/review`), or what keeps the form from being sent. The
@@ -112,13 +143,18 @@ export function mcpRequest(
   let argv: string[] = [];
   if (transport === 'stdio') {
     const t = tokenizeCommand(command);
+    const blanks = [...new Set(t.argv.flatMap((a) => a.match(PLACEHOLDER) ?? []))];
     if (t.error) errors.command = t.error;
     else if (!t.argv.length) errors.command = 'Enter the command that starts the server.';
+    else if (blanks.length) errors.command = `Replace ${joinAnd(blanks)} in the command with your own ${blanks.length === 1 ? 'value' : 'values'}.`;
     argv = t.argv;
   } else if (!url.trim()) {
     errors.url = 'Enter the URL of the server.';
   } else if (!SERVER_URL.test(url.trim())) {
     errors.url = 'Use an HTTPS URL, or http://127.0.0.1 for a server on this computer.';
+  } else if (templateParts(url).length) {
+    const blanks = templateParts(url);
+    errors.url = `Replace ${joinAnd(blanks)} in the URL with your own ${blanks.length === 1 ? 'value' : 'values'}.`;
   }
   const bindings: { name: string }[] = [];
   const seen = new Set<string>();
@@ -230,7 +266,7 @@ let nextId = 0;
  */
 @Component({
   selector: 'dialog[gwMcpAddDialog]',
-  imports: [GwIcon, GwDialogClose, GwToggle],
+  imports: [GwIcon, GwDialogClose, GwToggle, GwSearchClearButton],
   hostDirectives: [{ directive: GwDialog, inputs: ['gwDialogStatic'], outputs: ['closed'] }],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
@@ -248,6 +284,77 @@ let nextId = 0;
       </header>
       <div class="gw-dialog__body">
         <div class="gw-stack">
+          <div class="gw-stack gw-stack--sm">
+            <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [attr.aria-controls]="uid + '-find'" [(expanded)]="findOpen" (click)="focusFind()"><svg lucideIcon="search" class="gw-icon gw-icon--sm"></svg> Find a server in the MCP registry <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button></div>
+            @if (chosen(); as c) {<p class="gw-field__hint" role="status"><svg lucideIcon="check" class="gw-icon gw-icon--sm"></svg> Filled in {{ c }}</p>}
+            <div class="gw-stack gw-stack--sm" [id]="uid + '-find'" [hidden]="!findOpen()">
+              <div class="gw-field">
+                <label class="gw-field__label" [for]="uid + '-find-q'">Server name</label>
+                <div class="gw-search">
+                  <svg lucideIcon="search" class="gw-icon gw-search__icon"></svg>
+                  <input class="gw-search__input" type="search" [id]="uid + '-find-q'" placeholder="linear, sentry, postgres" spellcheck="false" autocapitalize="off" autocomplete="off" [attr.aria-describedby]="uid + '-find-hint'" (input)="find(value($event))" (keydown.enter)="findNow($event)">
+                  <button class="gw-search__clear" type="button" aria-label="Clear search"><svg lucideIcon="x" class="gw-icon gw-icon--sm"></svg></button>
+                </div>
+                <p class="gw-field__hint" [id]="uid + '-find-hint'">Searches the names of public MCP servers. Use fills the fields below; nothing runs or connects before the review.</p>
+              </div>
+              <p class="gw-text-small gw-fg-muted gw-tabular" role="status">{{ findStatus() }}</p>
+              @if (findError(); as e) {
+                <div class="gw-alert gw-alert--danger gw-alert--compact" role="alert">
+                  <svg lucideIcon="circle-alert" class="gw-icon gw-alert__icon"></svg>
+                  <div class="gw-alert__content"><p class="gw-alert__title">The registry search didn't work</p><p class="gw-alert__body">{{ e }}</p></div>
+                  <div class="gw-alert__actions"><button class="gw-btn gw-btn--sm" type="button" (click)="retryFind()">Try again</button></div>
+                </div>
+              }
+              @if (found().length) {
+                <ul class="gw-stack gw-stack--sm" aria-label="Servers in the MCP registry">
+                  @for (r of found(); track r.server.name; let i = $index) {
+                    <li>
+                      <article class="gw-card" [attr.aria-labelledby]="uid + '-r' + i">
+                        <header class="gw-card__header">
+                          <div class="gw-card__heading">
+                            <h3 class="gw-card__title" [id]="uid + '-r' + i">{{ r.title }}</h3>
+                            <p class="gw-card__description gw-mono">{{ r.server.name }}@if (r.server.version) { · {{ r.server.version }}}</p>
+                          </div>
+                          <div class="gw-card__actions">
+                            <button class="gw-btn gw-btn--sm" type="button" [id]="uid + '-use-' + i" (click)="use(r)" [attr.aria-disabled]="r.use.kind === 'none' ? 'true' : null" [attr.aria-describedby]="r.use.kind === 'none' ? uid + '-rn' + i : null">Use<span class="gw-sr-only"> {{ r.title }}</span></button>
+                          </div>
+                        </header>
+                        <div class="gw-card__body">
+                          <div class="gw-stack gw-stack--sm">
+                            @if (r.server.description) {<p class="gw-text-small gw-fg-secondary">{{ r.server.description }}</p>}
+                            <p class="gw-text-small">
+                              @switch (r.use.kind) {
+                                @case ('remote') {<span class="gw-badge gw-badge--outline"><svg lucideIcon="globe" class="gw-icon"></svg>HTTP</span> <span class="gw-mono">{{ r.target }}</span>}
+                                @case ('package') {<span class="gw-badge gw-badge--outline"><svg lucideIcon="terminal" class="gw-icon"></svg>stdio</span> <span class="gw-mono">{{ r.target }}</span>}
+                                @default {<span class="gw-badge gw-badge--neutral">Can’t be added here</span>}
+                              }
+                              @switch (r.server.listing?.verification) {
+                                @case ('vendor') { <span class="gw-badge gw-badge--success"><svg lucideIcon="shield-check" class="gw-icon"></svg>Vendor verified</span>}
+                                @case ('publisher') { <span class="gw-badge gw-badge--info"><svg lucideIcon="shield-check" class="gw-icon"></svg>Publisher verified</span>}
+                              }
+                              @if (r.server.listing?.featured) { <span class="gw-badge gw-badge--brand">Featured</span>}
+                              @if (r.server.status === 'deprecated') { <span class="gw-badge gw-badge--warning"><svg lucideIcon="triangle-alert" class="gw-icon"></svg>Deprecated</span>}
+                            </p>
+                            @if (r.use.kind === 'none') {<p class="gw-text-caption gw-fg-muted" [id]="uid + '-rn' + i">{{ r.use.reason }}</p>}
+                          </div>
+                        </div>
+                      </article>
+                    </li>
+                  }
+                </ul>
+                @if (nextCursor()) {
+                  <div><button class="gw-btn gw-btn--sm" type="button" (click)="more()" [attr.aria-busy]="moreBusy() ? 'true' : null" [attr.aria-disabled]="moreBusy() ? 'true' : null">@if (moreBusy()) {<span class="gw-spinner gw-spinner--sm" aria-hidden="true"></span>} Show more</button></div>
+                }
+                <p class="gw-text-caption gw-fg-muted">{{ source() }} The registry checks who published a name, not what the server does: the review shows what will run.</p>
+              } @else if (searched(); as q) {
+                <div class="gw-empty gw-empty--compact">
+                  <span class="gw-empty__icon"><svg lucideIcon="search-x" class="gw-icon"></svg></span>
+                  <p class="gw-empty__title">No server name contains “{{ q }}”</p>
+                  <p class="gw-empty__text">Try a shorter part of its name, or paste the configuration from the server’s docs.</p>
+                </div>
+              }
+            </div>
+          </div>
           <div class="gw-stack gw-stack--sm">
             <div><button class="gw-btn gw-btn--ghost gw-btn--sm" type="button" gwToggle [attr.aria-controls]="uid + '-paste'"><svg lucideIcon="file-code" class="gw-icon gw-icon--sm"></svg> Paste a configuration from the server’s docs <svg lucideIcon="chevron-down" class="gw-icon gw-icon--sm gw-btn__chevron"></svg></button></div>
             <div class="gw-field" [id]="uid + '-paste'" hidden>
@@ -480,6 +587,40 @@ export class GwMcpAddDialog {
   protected readonly suggested = signal<string | null>(null);
   protected readonly pasted = signal<string | null>(null);
   protected readonly pasteError = signal<string | null>(null);
+  /** Find a server: the MCP registry's servers whose names contain the query, a page at a time (§7.5). */
+  protected readonly findOpen = signal(false);
+  protected readonly found = signal<readonly RegistryResult[]>([]);
+  /** The query the shown results answer; null before a search, or after the query became too short. */
+  protected readonly searched = signal<string | null>(null);
+  protected readonly searching = signal(false);
+  protected readonly nextCursor = signal<string | null>(null);
+  protected readonly registry = signal<string | null>(null);
+  protected readonly moreBusy = signal(false);
+  protected readonly findError = signal<string | null>(null);
+  /** What the chosen result filled in, said under Find a server. */
+  protected readonly chosen = signal<string | null>(null);
+  private readonly query = signal('');
+  private findTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Each search counts up; an answer to an older one is dropped. */
+  private findSeq = 0;
+
+  protected readonly findStatus = computed(() => {
+    const q = this.query().trim();
+    if (this.searching()) return 'Searching the MCP registry…';
+    if (q && q.length < 3) return 'Type at least 3 characters of the server’s name.';
+    if (this.searched() === null) return '';
+    const n = this.found().length;
+    return `${n === 1 ? '1 server' : `${n.toLocaleString('en-US')} servers`}${this.nextCursor() ? ' so far' : ''}`;
+  });
+
+  protected readonly source = computed(() => {
+    const host = this.registry();
+    return host === OFFICIAL_REGISTRY ? `From the Official MCP Registry (${host}).` : `From the MCP registry at ${host}.`;
+  });
+
+  constructor() {
+    inject(DestroyRef).onDestroy(() => this.findTimer && clearTimeout(this.findTimer));
+  }
 
   /** Opens empty, as the kit's dialog: stdio, one variable row. */
   open(opener: HTMLElement | null): void {
@@ -508,6 +649,12 @@ export class GwMcpAddDialog {
     this.pasteError.set(null);
     const paste = this.host.querySelector<HTMLTextAreaElement>(`#${this.uid}-paste-text`);
     if (paste) paste.value = '';
+    this.findOpen.set(false);
+    this.resetFind();
+    this.chosen.set(null);
+    const search = this.host.querySelector<HTMLInputElement>(`#${this.uid}-find-q`);
+    if (search) search.value = '';
+    this.query.set('');
     this.errors.set({});
     this.error.set(null);
     this.busy.set(false);
@@ -549,6 +696,19 @@ export class GwMcpAddDialog {
       return;
     }
     this.pasteError.set(null);
+    this.chosen.set(null);
+    const filled = this.fill(r);
+    const field = this.host.querySelector<HTMLTextAreaElement>(`#${this.uid}-paste-text`);
+    if (field) field.value = '';
+    this.pasted.set(
+      `${filled} from the configuration.` +
+        (r.others ? ` It named ${r.others + 1} servers; this is the first. Add the others one at a time.` : '') +
+        (r.notes.length ? ` ${r.notes.join(' ')}` : ''),
+    );
+  }
+
+  /** Fills the fields from a pasted or chosen server and says what it filled: "the name, the URL and one header". */
+  private fill(r: PastedServer): string {
     this.transport.set(r.transport);
     if (r.transport === 'http') this.url.set(r.url);
     else this.command.set(r.command);
@@ -559,19 +719,122 @@ export class GwMcpAddDialog {
     this.variables.set(r.variables.length ? r.variables.map((name) => ({ name })) : [{ name: '' }]);
     if (r.auth) this.applySignIn(r.auth);
     this.errors.set({});
-    const field = this.host.querySelector<HTMLTextAreaElement>(`#${this.uid}-paste-text`);
-    if (field) field.value = '';
     const kind = r.transport === 'http' ? 'header' : 'variable';
-    const parts = [
+    return joinAnd([
       ...(r.name ? ['the name'] : []),
       r.transport === 'http' ? 'the URL' : 'the command',
       ...(r.variables.length ? [r.variables.length === 1 ? `one ${kind}` : `${r.variables.length} ${kind}s`] : []),
-    ];
-    this.pasted.set(
-      `${joinAnd(parts)} from the configuration.` +
-        (r.others ? ` It named ${r.others + 1} servers; this is the first. Add the others one at a time.` : '') +
-        (r.notes.length ? ` ${r.notes.join(' ')}` : ''),
-    );
+    ]);
+  }
+
+  /** Opens Find a server with the keyboard in its field. */
+  protected focusFind(): void {
+    setTimeout(() => {
+      if (this.findOpen()) this.host.querySelector<HTMLInputElement>(`#${this.uid}-find-q`)?.focus();
+    });
+  }
+
+  /** The query as typed: a search 350 ms after the last key, from 3 characters (the registry's minimum). */
+  protected find(text: string): void {
+    this.query.set(text);
+    if (this.findTimer) clearTimeout(this.findTimer);
+    this.findTimer = null;
+    const q = text.trim();
+    if (q.length < 3) {
+      this.resetFind();
+      return;
+    }
+    this.findTimer = setTimeout(() => void this.runFind(q), 350);
+  }
+
+  /** Enter searches at once, and never submits the form around the field. */
+  protected findNow(e: Event): void {
+    e.preventDefault();
+    if (this.findTimer) clearTimeout(this.findTimer);
+    this.findTimer = null;
+    const q = this.query().trim();
+    if (q.length >= 3) void this.runFind(q);
+  }
+
+  protected retryFind(): void {
+    const q = this.query().trim();
+    if (q.length >= 3) void this.runFind(q);
+  }
+
+  private resetFind(): void {
+    this.findSeq++;
+    this.found.set([]);
+    this.searched.set(null);
+    this.nextCursor.set(null);
+    this.findError.set(null);
+    this.searching.set(false);
+    this.moreBusy.set(false);
+  }
+
+  private async runFind(q: string): Promise<void> {
+    const seq = ++this.findSeq;
+    this.searching.set(true);
+    this.moreBusy.set(false);
+    this.findError.set(null);
+    try {
+      const page = await this.data.searchRegistry(q);
+      if (seq !== this.findSeq) return;
+      this.found.set(page.servers.map(registryResult));
+      this.nextCursor.set(page.nextCursor ?? null);
+      this.registry.set(page.registry);
+      this.searched.set(q);
+    } catch (err) {
+      if (seq !== this.findSeq) return;
+      this.found.set([]);
+      this.nextCursor.set(null);
+      this.searched.set(null);
+      this.findError.set(failureText(err, 'This build of the gateway core can’t search the MCP registry.'));
+    } finally {
+      if (seq === this.findSeq) this.searching.set(false);
+    }
+  }
+
+  /** The next page of the same search; the keyboard moves to the first new result. */
+  protected async more(): Promise<void> {
+    const cursor = this.nextCursor();
+    const q = this.searched();
+    if (!cursor || q === null || this.moreBusy()) return;
+    const seq = this.findSeq;
+    this.moreBusy.set(true);
+    try {
+      const page = await this.data.searchRegistry(q, cursor);
+      if (seq !== this.findSeq) return;
+      const first = this.found().length;
+      const shown = new Set(this.found().map((r) => r.server.name));
+      this.found.update((rows) => [...rows, ...page.servers.filter((s) => !shown.has(s.name)).map(registryResult)]);
+      this.nextCursor.set(page.nextCursor ?? null);
+      setTimeout(() => this.host.querySelector<HTMLElement>(`#${this.uid}-use-${first}`)?.focus());
+    } catch (err) {
+      if (seq === this.findSeq) this.findError.set(failureText(err, 'This build of the gateway core can’t search the MCP registry.'));
+    } finally {
+      if (seq === this.findSeq) this.moreBusy.set(false);
+    }
+  }
+
+  /**
+   * A result fills the form as a pasted configuration would, and the keyboard moves to what the person must finish:
+   * a URL or command with parts to replace, else the name. Nothing runs before the review.
+   */
+  protected use(r: RegistryResult): void {
+    if (r.use.kind === 'none') return;
+    const filled = fromRegistry(r.server);
+    if ('error' in filled) {
+      this.findError.set(filled.error);
+      return;
+    }
+    // A sign-in chosen for the previous server isn't this one's: without one of its own, the review finds it.
+    if (!filled.auth && this.signInWith() !== 'oauth') this.setSignInWith('oauth');
+    this.pasted.set(null);
+    const what = this.fill(filled);
+    this.chosen.set(`${what} from ${r.title} in the MCP registry.${filled.notes.length ? ` ${filled.notes.join(' ')}` : ''}`);
+    const unfinished = filled.transport === 'http' ? templateParts(filled.url).length > 0 : /<[A-Za-z_]|\{[A-Za-z_]/.test(filled.command);
+    this.findOpen.set(false);
+    setTimeout(() => this.host.querySelector<HTMLElement>(`#${this.uid}-${unfinished ? (filled.transport === 'http' ? 'url' : 'command') : 'name'}`)?.focus());
   }
 
   /** A sign-in the paste names (an AWS proxy's profile, Google's token header): its options, opened. */

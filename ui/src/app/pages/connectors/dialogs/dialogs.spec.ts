@@ -1,7 +1,7 @@
 import { ApiError } from '../../../core/api/api-error';
 import { clickhouseCheck, sentryReview } from '../connectors.fixtures';
 import { failureDetails, failureText } from './failure';
-import { mcpRequest } from './mcp-add.dialog';
+import { mcpRequest, registryResult } from './mcp-add.dialog';
 import { connectedToast } from './mcp-endpoint.dialog';
 import { McpServerAuthConfig } from '../../../core/api/plugins.api';
 import { mcpReviewView, mcpSecretValues, signInConfig } from './mcp-review.dialog';
@@ -174,6 +174,39 @@ describe('Add MCP server request', () => {
       'Name the service and region to sign for: the URL doesn’t say, as aws-mcp.us-east-1.api.aws does.',
     );
     expect(aws({ service: 'bedrock-agentcore', region: 'us-west-2' }, 'https://mcp.example.com/mcp').errors).toBeNull();
+  });
+
+  it('refuses to review a registry template until its parts are replaced', () => {
+    expect(mcpRequest('teams', 'http', '', 'https://agent365.svc.cloud.microsoft/agents/tenants/{tenant_id}/servers/mcp_TeamsServer', []).errors).toEqual({
+      url: 'Replace {tenant_id} in the URL with your own value.',
+    });
+    expect(mcpRequest('acme', 'http', '', 'https://{tenant}.acme.dev/{region}/mcp', []).errors?.url).toBe(
+      'Replace {tenant} and {region} in the URL with your own values.',
+    );
+    expect(mcpRequest('linear-mcp', 'stdio', 'npx -y @someone/linear-mcp@0.3.2 --workspace "<workspace>"', '', []).errors).toEqual({
+      command: 'Replace <workspace> in the command with your own value.',
+    });
+    expect(mcpRequest('gh', 'stdio', 'docker run -i --rm -e GITHUB_TOKEN={token} ghcr.io/github/github-mcp-server', '', []).errors?.command).toBe(
+      'Replace {token} in the command with your own value.',
+    );
+    // JSON in an argument isn't a placeholder.
+    expect(mcpRequest('x', 'stdio', `node server.js '{"debug":true}'`, '', []).errors).toBeNull();
+  });
+});
+
+describe('MCP registry results', () => {
+  it('shows the host of a remote, the command of a package, and nothing for what can’t be added', () => {
+    const linear = registryResult({ name: 'app.linear/linear', title: 'Linear', status: 'active', packages: [],
+      remotes: [{ type: 'streamable-http', url: 'https://mcp.linear.app/mcp', headers: [], variables: [] }] });
+    expect(linear).toMatchObject({ title: 'Linear', target: 'mcp.linear.app', use: { kind: 'remote' } });
+    const sentry = registryResult({ name: 'io.github.getsentry/sentry-mcp', status: 'active', remotes: [],
+      packages: [{ registryType: 'npm', identifier: '@sentry/mcp-server', version: '0.42.0', transport: 'stdio',
+        environmentVariables: [], runtimeArguments: [], packageArguments: [] }] });
+    expect(sentry).toMatchObject({ title: 'sentry-mcp', target: 'npx @sentry/mcp-server@0.42.0', use: { kind: 'package', runtime: 'npx' } });
+    const tenant = registryResult({ name: 'com.example/tenant', status: 'active', packages: [],
+      remotes: [{ type: 'streamable-http', url: 'https://{tenant}.example.com/mcp', headers: [], variables: [] }] });
+    expect(tenant.target).toBe('{tenant}.example.com');
+    expect(registryResult({ name: 'com.example/none', status: 'active', remotes: [], packages: [] })).toMatchObject({ target: '', use: { kind: 'none' } });
   });
 });
 

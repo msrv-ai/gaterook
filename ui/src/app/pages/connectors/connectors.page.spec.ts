@@ -5,7 +5,7 @@ import { ApiError } from '../../core/api/api-error';
 import { ConnectionRow, ConnectionsApi } from '../../core/api/connections.api';
 import { ConnectorCatalog, ConnectorTypesApi } from '../../core/api/connector-types.api';
 import { EndpointsApi } from '../../core/api/endpoints.api';
-import { CatalogIndex, McpServersApi, PluginsApi } from '../../core/api/plugins.api';
+import { CatalogIndex, McpRegistryPage, McpServersApi, PluginsApi } from '../../core/api/plugins.api';
 import { SecretsApi } from '../../core/api/secrets.api';
 import { Template, TemplatesApi } from '../../core/api/templates.api';
 import { EventStream } from '../../core/events/event-stream';
@@ -82,6 +82,33 @@ interface Answers {
   serverTools: () => Promise<unknown[]>;
   rows: () => ConnectionRow[];
   update: () => ReturnType<typeof rabbitUpdate>;
+  registry: (search: string, cursor: string | null) => Promise<McpRegistryPage>;
+}
+
+/**
+ * The MCP registry's answers (§7.5), shaped like the official registry's on 2026-11-02: Linear's remote and an entry
+ * that runs only as a Docker image, then a second page with an npm package.
+ */
+function registryPage(search: string, cursor: string | null): Promise<McpRegistryPage> {
+  if (cursor) {
+    return Promise.resolve({
+      registry: 'registry.modelcontextprotocol.io',
+      nextCursor: null,
+      servers: [{ name: 'io.github.someone/linear-mcp', description: `${search} from the command line.`, status: 'active', remotes: [],
+        packages: [{ registryType: 'npm', identifier: '@someone/linear-mcp', version: '0.3.2', transport: 'stdio',
+          environmentVariables: [{ name: 'LINEAR_API_KEY', required: true, secret: true }], runtimeArguments: [], packageArguments: [] }] }],
+    });
+  }
+  return Promise.resolve({
+    registry: 'registry.modelcontextprotocol.io',
+    nextCursor: 'app.linear/linear:1.0.2',
+    servers: [
+      { name: 'app.linear/linear', title: 'Linear', version: '1.0.2', description: 'Issues, projects and cycles.', status: 'active', packages: [],
+        remotes: [{ type: 'streamable-http', url: 'https://mcp.linear.app/mcp', headers: [], variables: [] }] },
+      { name: 'io.github.someone/image-only', status: 'deprecated', remotes: [],
+        packages: [{ registryType: 'oci', identifier: 'ghcr.io/someone/linear:1', transport: 'stdio', environmentVariables: [], runtimeArguments: [], packageArguments: [] }] },
+    ],
+  });
 }
 
 let calls: string[];
@@ -101,6 +128,7 @@ function setup(over: Partial<Answers> = {}): void {
     serverTools: () => Promise.resolve(new Array(26).fill({})),
     rows: connectionRows,
     update: rabbitUpdate,
+    registry: registryPage,
     ...over,
   };
   const record = (name: string, body?: unknown) => {
@@ -199,6 +227,10 @@ function setup(over: Partial<Answers> = {}): void {
       // The core answers with the name the server got: a catalog entry's own, else the typed one.
       const name = 'catalog' in source ? 'github-mcp' : source.config.name;
       return Promise.resolve({ name, state: 'running', tools: 12 });
+    },
+    searchRegistry: (search, cursor) => {
+      record(`registry ${search}${cursor ? ` after ${cursor}` : ''}`);
+      return answers.registry(search, cursor ?? null);
     },
     action: (name, action) => {
       record(`server ${action} ${name}`);
@@ -924,6 +956,92 @@ describe('Connectors page: MCP servers', () => {
     expect(step.open).toBe(false);
     expect(calls.filter((c) => c.startsWith('add-to-endpoint'))).toEqual([]);
     expect(toasts().at(-1)?.body).toBe('Its 12 tools are Off until you add them to an endpoint. There each starts as Approval.');
+  });
+
+  it('finds a server in the MCP registry, fills the form from it and reviews it like a typed one', async () => {
+    setup();
+    const { fixture, el } = await render();
+    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
+    await settle(fixture);
+    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
+    button(add, 'Find a server in the MCP registry').click();
+    await settle(fixture);
+    const search = add.querySelector<HTMLInputElement>('input[type="search"]')!;
+    expect(document.activeElement).toBe(search);
+    const status = () => text(add.querySelector('[id$="-find"] [role="status"]'));
+
+    // The registry takes 3 characters at least: nothing is asked before.
+    type(search, 'li');
+    search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await settle(fixture);
+    expect(status()).toBe('Type at least 3 characters of the server’s name.');
+    expect(calls.filter((c) => c.startsWith('registry'))).toEqual([]);
+
+    // Enter searches at once and doesn't submit the form for review.
+    type(search, 'linear');
+    search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await settle(fixture);
+    expect(calls.filter((c) => c.startsWith('registry'))).toEqual(['registry linear']);
+    expect(calls).not.toContain('review');
+    expect(status()).toBe('2 servers so far');
+    const results = () => Array.from(add.querySelectorAll('[aria-label="Servers in the MCP registry"] article'));
+    expect(results().map((r) => text(r.querySelector('.gw-card__title')))).toEqual(['Linear', 'image-only']);
+    expect(text(results()[0])).toContain('HTTP mcp.linear.app');
+    expect(text(results()[1])).toContain('Can’t be added here');
+    expect(text(results()[1])).toContain('Deprecated');
+    expect(text(results()[1])).toContain('It runs as a Docker image, which GateRook doesn’t start from the registry yet.');
+    expect(button(results()[1], 'Use').getAttribute('aria-disabled')).toBe('true');
+    expect(text(add)).toContain('From the Official MCP Registry (registry.modelcontextprotocol.io).');
+
+    // The next page joins the list, and the keyboard goes to its first result.
+    button(add, 'Show more').click();
+    await settle(fixture);
+    expect(calls).toContain('registry linear after app.linear/linear:1.0.2');
+    expect(results()).toHaveLength(3);
+    expect(document.activeElement).toBe(button(results()[2], 'Use'));
+    expect(text(results()[2])).toContain('stdio npx @someone/linear-mcp@0.3.2');
+    expect(Array.from(add.querySelectorAll('button')).some((b) => text(b) === 'Show more')).toBe(false);
+
+    button(results()[0], 'Use').click();
+    await settle(fixture);
+    const name = add.querySelector<HTMLInputElement>('input[placeholder="sentry-mcp"]')!;
+    expect(name.value).toBe('linear-mcp');
+    expect(add.querySelector<HTMLInputElement>('input[type="radio"][value="http"]')!.checked).toBe(true);
+    expect(add.querySelector<HTMLInputElement>('input[type="url"]')!.value).toBe('https://mcp.linear.app/mcp');
+    expect(text(add)).toContain('Filled in the name and the URL from Linear in the MCP registry.');
+    expect(add.querySelector<HTMLElement>('[id$="-find"]')!.hidden).toBe(true);
+    expect(document.activeElement).toBe(name);
+
+    button(add, 'Review and connect').click();
+    await settle(fixture);
+    expect(bodies['review']).toEqual({ config: { name: 'linear-mcp', transport: 'http', url: 'https://mcp.linear.app/mcp', headers: [] } });
+  });
+
+  it('says why the registry search failed, and searches again on request', async () => {
+    let fail = true;
+    setup({
+      registry: (search, cursor) => (fail
+        ? Promise.reject(new ApiError('server', 502, { title: 'The registry didn\'t answer', detail: 'registry.modelcontextprotocol.io answered HTTP 503 for the MCP registry\'s answer.' }))
+        : registryPage(search, cursor)),
+    });
+    const { fixture, el } = await render();
+    button(el.querySelector('#menu-add-connector'), 'Add MCP server').click();
+    await settle(fixture);
+    const add = el.querySelector<HTMLDialogElement>('dialog[gwMcpAddDialog]')!;
+    button(add, 'Find a server in the MCP registry').click();
+    await settle(fixture);
+    const search = add.querySelector<HTMLInputElement>('input[type="search"]')!;
+    type(search, 'linear');
+    search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await settle(fixture);
+    const alert = add.querySelector('[id$="-find"] .gw-alert--danger');
+    expect(text(alert)).toContain('registry.modelcontextprotocol.io answered HTTP 503');
+
+    fail = false;
+    button(alert, 'Try again').click();
+    await settle(fixture);
+    expect(add.querySelector('[id$="-find"] .gw-alert--danger')).toBeNull();
+    expect(add.querySelectorAll('[aria-label="Servers in the MCP registry"] article')).toHaveLength(2);
   });
 
   it('warns about a key in the URL in the review, and still connects the server with it', async () => {

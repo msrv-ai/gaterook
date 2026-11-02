@@ -280,6 +280,78 @@ export type McpServerSource =
   | { readonly config: McpServerConfig; readonly secrets?: SecretInputs; readonly signIn?: string }
   | { readonly catalog: string; readonly secrets?: SecretInputs };
 
+/**
+ * One page of the MCP registry's search (`GET /api/mcp-registry/servers`, §7.5): the latest version of each server
+ * whose name matches, as the core checked it. `registry` is the host the results come from.
+ */
+export interface McpRegistryPage {
+  readonly servers: readonly McpRegistryServer[];
+  readonly nextCursor?: string | null;
+  readonly registry: string;
+}
+
+/**
+ * A server of the registry, by the publisher's verified namespace and its own name (`app.linear/linear`): where it
+ * runs and what it needs. Texts are third-party: the core cleaned and cut them, the page shows them as plain text.
+ */
+export interface McpRegistryServer {
+  readonly name: string;
+  readonly title?: string | null;
+  readonly description?: string | null;
+  readonly version?: string | null;
+  readonly websiteUrl?: string | null;
+  readonly repositoryUrl?: string | null;
+  readonly status: 'active' | 'deprecated';
+  readonly remotes: readonly McpRegistryRemote[];
+  readonly packages: readonly McpRegistryPackage[];
+  /** GateRook's facts, from a registry that adds them; absent from the official one. */
+  readonly listing?: McpRegistryListing | null;
+}
+
+/** A server at a URL; `{variables}` in the URL are the person's to fill in. */
+export interface McpRegistryRemote {
+  readonly type: 'streamable-http' | 'sse';
+  readonly url: string;
+  readonly headers: readonly McpRegistryInput[];
+  readonly variables: readonly McpRegistryInput[];
+}
+
+/** A package that runs on this computer with the runtime the entry names (`npx`, `uvx`, `docker`). */
+export interface McpRegistryPackage {
+  readonly registryType: string;
+  readonly identifier: string;
+  readonly version?: string | null;
+  readonly runtimeHint?: string | null;
+  readonly transport?: 'stdio' | 'streamable-http' | 'sse' | null;
+  readonly environmentVariables: readonly McpRegistryInput[];
+  readonly runtimeArguments: readonly McpRegistryArgument[];
+  readonly packageArguments: readonly McpRegistryArgument[];
+}
+
+/** A header, URL variable or environment variable: its name only; the review asks for the value. */
+export interface McpRegistryInput {
+  readonly name: string;
+  readonly description?: string | null;
+  readonly required: boolean;
+  readonly secret: boolean;
+}
+
+/** A command-line argument; `given` (its fixed value or default) may hold `{variables}`, `valueHint` names what goes there. */
+export interface McpRegistryArgument {
+  readonly type: 'positional' | 'named';
+  readonly name?: string | null;
+  readonly given?: string | null;
+  readonly valueHint?: string | null;
+  readonly required: boolean;
+}
+
+/** `vendor`: the namespace's domain serves it; `publisher`: a vendor's GitHub organization published it. */
+export interface McpRegistryListing {
+  readonly verification?: 'vendor' | 'publisher' | 'community' | null;
+  readonly featured: boolean;
+  readonly category?: string | null;
+}
+
 /** What starting, restarting or adding a server answers: its tool count, before and after a restart. */
 export interface McpServerStarted {
   readonly name: string;
@@ -298,6 +370,11 @@ export class McpServersApi {
 
   create(source: McpServerSource & { readonly acknowledge: true } & WithReason): Promise<McpServerStarted> {
     return this.api.post('/api/mcp-servers', source);
+  }
+
+  /** A page of the MCP registry's servers whose names contain `search`; `cursor` continues the previous page. */
+  searchRegistry(search: string, cursor: string | null = null): Promise<McpRegistryPage> {
+    return this.api.get('/api/mcp-registry/servers', { search, cursor });
   }
 
   action(name: string, action: 'test' | 'start' | 'restart' | 'stop'): Promise<McpServerStarted> {
